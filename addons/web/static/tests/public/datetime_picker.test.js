@@ -43,6 +43,20 @@ function mockPicker({ enableThrows = false, trackSteps = false } = {}) {
     return captured;
 }
 
+test("an unparseable value leaves an empty picker, not a dead interaction", async () => {
+    const captured = mockPicker();
+    // the input is public: its value is server-rendered or visitor-typed, and
+    // one the parser chokes on used to take the whole interaction down
+    const { core } = await startInteraction(
+        DatetimePicker,
+        `<input data-widget="datetime-picker" value="not a date"/>`,
+        { waitForStart: false },
+    );
+    await core.isReady;
+    expect(core.interactions).toHaveLength(1);
+    expect(captured.props.value).toBe(undefined);
+});
+
 test("reads the widget type and bounds off the dataset", async () => {
     const captured = mockPicker();
     await startInteraction(

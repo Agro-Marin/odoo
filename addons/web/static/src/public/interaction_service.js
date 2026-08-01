@@ -402,7 +402,16 @@ export class InteractionService {
         const coversWholeRoot = this.coversWholeRoot(el);
         this.stopMatching(
             (interaction) => this.shouldStop(el, interaction),
-            (root) => el.contains(root.el) || (coversWholeRoot && !root.el.isConnected),
+            (root) =>
+                el.contains(root.el) ||
+                // A detached <owl-root> cannot be placed by containment, so
+                // the host answers for it: anything that rewrites the host's
+                // content detaches it, and matching on it alone left the root
+                // -- and the live component under it -- behind for good. Only
+                // when it is detached, though: a root still in the page sits
+                // where it was mounted, and that may be outside `el`.
+                (!root.el.isConnected && el.contains(root.hostEl)) ||
+                (coversWholeRoot && !root.el.isConnected),
         );
     }
 

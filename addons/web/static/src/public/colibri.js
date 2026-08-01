@@ -113,6 +113,30 @@ function assertAttrObject(attr, value) {
 }
 
 /**
+ * A selector keeps a reference to every node it has ever touched, so the initial
+ * values can be put back on teardown. Nodes churn -- a `t-out` rebuilds its
+ * subtree, a list re-renders -- and the entries for the gone ones would
+ * otherwise pile up for the life of the page rather than the life of the nodes.
+ * Sweeping the set instead would find nothing to drop: at the point a node is
+ * replaced it has not been collected yet, so the collector is the only thing
+ * that can say when the entry is dead, and this is it saying so.
+ *
+ * @type {FinalizationRegistry<{ refs: Set<WeakRef<HTMLElement>>, ref: WeakRef<HTMLElement> }>}
+ */
+const touchedRegistry = new FinalizationRegistry(({ refs, ref }) => refs.delete(ref));
+
+/**
+ * @param {{ touched: Set<WeakRef<HTMLElement>> }} entry
+ * @param {HTMLElement} node
+ * @returns {void}
+ */
+function rememberTouched(entry, node) {
+    const ref = new WeakRef(node);
+    entry.touched.add(ref);
+    touchedRegistry.register(node, { refs: entry.touched, ref });
+}
+
+/**
  * @param {Set<WeakRef<HTMLElement>>} refs
  * @returns {HTMLElement[]}
  */
@@ -195,7 +219,7 @@ export class Colibri {
         this.dynamicAttrs = [];
         /** @type {TOut[]} */
         this.tOuts = [];
-        /** @type {WeakMap<HTMLElement, string>} */
+        /** @type {WeakMap<HTMLElement, { source: string, nodes: ChildNode[] }>} */
         this.appliedMarkup = new WeakMap();
         /** @type {Function[]} */
         this.cleanups = [];
@@ -589,11 +613,23 @@ export class Colibri {
                 return;
             }
         } else {
-            // On the first pass nothing has been applied yet, so the server
-            // rendered markup -- the one most likely to already agree -- has to
-            // be read off the node itself.
-            if ((this.appliedMarkup.get(el) ?? el.innerHTML) === html) {
-                this.appliedMarkup.set(el, html);
+            // What has to be told apart here is a subtree another hand
+            // *replaced* from one merely decorated in place -- interactions
+            // started under this very node set attributes on it, and treating
+            // that as a change would restart them on every update, forever.
+            // Replacing content swaps the child nodes; decorating it does not,
+            // so their identity is the signal. Serializing is only the
+            // fallback, for the pass where nothing has been recorded yet and
+            // the server markup may already agree.
+            const applied = this.appliedMarkup.get(el);
+            if (applied?.source === html && isSameNodes(el.childNodes, applied.nodes)) {
+                return;
+            }
+            if (el.innerHTML === html) {
+                this.appliedMarkup.set(el, {
+                    source: html,
+                    nodes: [...el.childNodes],
+                });
                 return;
             }
         }
@@ -606,7 +642,7 @@ export class Colibri {
         if (html !== null) {
             stopTargets();
             el.innerHTML = html;
-            this.appliedMarkup.set(el, html);
+            this.appliedMarkup.set(el, { source: html, nodes: [...el.childNodes] });
             if (!restoring) {
                 interactions.startInteractions(el);
                 this.refreshNodes();
@@ -853,11 +889,12 @@ export class Colibri {
         // content first: a 't-out' rebuilds the nodes under it, and applying
         // attributes beforehand would only ever reach the generation it is
         // about to discard.
-        for (const { sel, definition, initialValue, touched } of this.tOuts) {
+        for (const tOut of this.tOuts) {
+            const { sel, definition, initialValue } = tOut;
             for (const node of this.dynamicNodes.get(sel) || []) {
                 try {
                     if (!initialValue.has(node)) {
-                        touched.add(new WeakRef(node));
+                        rememberTouched(tOut, node);
                         initialValue.set(
                             node,
                             node.children.length
@@ -878,13 +915,13 @@ export class Colibri {
                 }
             }
         }
-        for (const { sel, attr, definition, initialValues, touched } of this
-            .dynamicAttrs) {
+        for (const dynamicAttr of this.dynamicAttrs) {
+            const { sel, attr, definition, initialValues } = dynamicAttr;
             for (const node of this.dynamicNodes.get(sel) || []) {
                 try {
                     const value = definition.call(interaction, node);
                     if (!initialValues.has(node)) {
-                        touched.add(new WeakRef(node));
+                        rememberTouched(dynamicAttr, node);
                     }
                     const initial = this.captureInitialAttr(
                         node,
@@ -896,7 +933,7 @@ export class Colibri {
                 } catch (error) {
                     errors.push({
                         error,
-                        description: `dynamic attribute '${attr}'`,
+                        description: `dynamic attribute '${attr}' (selector '${sel}')`,
                     });
                 }
             }

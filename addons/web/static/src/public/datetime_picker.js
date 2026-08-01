@@ -25,13 +25,26 @@ export class DatetimePicker extends Interaction {
         const parseFunction = this.type === "date" ? parseDate : parseDateTime;
         const deserializeFunction =
             this.type === "date" ? deserializeDate : deserializeDateTime;
+        // the input is public and its value server-rendered or user-typed: a
+        // value these cannot read is an empty picker, not a dead interaction
+        const orNothing = (/** @type {() => any} */ parse) => {
+            try {
+                return parse();
+            } catch {
+                return undefined;
+            }
+        };
         const picker = this.services.datetime_picker.create({
             target: this.el,
             pickerProps: {
                 type: /** @type {"date" | "datetime"} */ (this.type),
-                minDate: this.minDate && deserializeFunction(this.minDate),
-                maxDate: this.maxDate && deserializeFunction(this.maxDate),
-                value: parseFunction(/** @type {HTMLInputElement} */ (this.el).value),
+                minDate:
+                    this.minDate && orNothing(() => deserializeFunction(this.minDate)),
+                maxDate:
+                    this.maxDate && orNothing(() => deserializeFunction(this.maxDate)),
+                value: orNothing(() =>
+                    parseFunction(/** @type {HTMLInputElement} */ (this.el).value),
+                ),
             },
         });
         const disableListeners = picker.enable();

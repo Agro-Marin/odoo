@@ -333,7 +333,7 @@ test("recover from error as much as possible when applying dynamiccontent", asyn
     b = "boom";
     c = "cc";
     expect(() => interaction.updateContent()).toThrow(
-        "An error occured while updating dynamic attribute 'b' (in interaction 'Test')",
+        "An error occured while updating dynamic attribute 'b' (selector '_root') (in interaction 'Test')",
     );
     expect(".test").toHaveOuterHTML(`<div class="test" a="aa" b="b" c="cc"></div>`);
 });
@@ -462,6 +462,57 @@ test("can mount a component", async () => {
     );
     core.stopInteractions();
     expect(".test").toHaveOuterHTML(`<div class="test"></div>`);
+});
+
+test("a root whose host was wiped is still collected by stopInteractions", async () => {
+    class C extends Component {
+        static template = xml`comp`;
+        static props = {};
+    }
+    class Test extends Interaction {
+        static selector = ".test";
+        dynamicContent = { ".host": { "t-component": C } };
+    }
+    const { core } = await startInteraction(
+        Test,
+        `<div class="test"><div class="host"></div></div>`,
+    );
+    expect(core.roots).toHaveLength(1);
+    // anything that rewrites the host detaches the <owl-root>; matching on it
+    // alone then left the root -- and the live component under it -- behind
+    queryOne(".host").innerHTML = "";
+    core.stopInteractions(queryOne(".host"));
+    expect(core.roots).toHaveLength(0);
+});
+
+test("a live root mounted outside the stopped host is left alone", async () => {
+    class C extends Component {
+        static template = xml`comp`;
+        static props = {};
+    }
+    class Test extends Interaction {
+        static selector = ".test";
+        start() {
+            // the <owl-root> lands as a SIBLING of the host, not inside it
+            this.mountComponent(queryOne(".host"), C, null, "afterend");
+        }
+    }
+    const { core } = await startInteraction(
+        Test,
+        `<div class="test"><div class="host"></div></div>`,
+    );
+    await animationFrame();
+    const rootEl = core.roots[0].el;
+    // its owning interaction is not being stopped either: matching on the host
+    // alone would destroy a live component out from under its owner
+    core.stopInteractions(queryOne(".host"));
+    expect(core.roots).toHaveLength(1);
+    expect(core.interactions).toHaveLength(1);
+    // once detached it can no longer be placed by containment, and the host
+    // has to answer for it
+    rootEl.remove();
+    core.stopInteractions(queryOne(".host"));
+    expect(core.roots).toHaveLength(0);
 });
 
 test("a surfaced failure does not make every later isReady reject", async () => {
