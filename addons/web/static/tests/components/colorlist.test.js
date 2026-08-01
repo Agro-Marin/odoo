@@ -130,3 +130,21 @@ test("the isExpanded prop sync does not undo the user's own toggle", async () =>
     await animationFrame();
     expect(".o_colorlist_item_color_1").toHaveCount(1);
 });
+
+test("a list that arrives expanded does not take focus from the page", async () => {
+    class Host extends Component {
+        static template = xml`
+            <input class="outside"/>
+            <ColorList colors="[1,2,3]" isExpanded="true" canToggle="true" onColorSelected="() => {}"/>`;
+        static components = { ColorList };
+        static props = [];
+    }
+    await mountWithCleanup(Host);
+    expect(".o_colorlist_item_color_1").toHaveCount(1);
+    expect(document.activeElement).not.toHaveClass("o_colorlist_item_color_1");
+
+    // Expanding it by hand still moves focus onto the colours.
+    await contains(".o_colorlist_item_color_1").click();
+    await contains(".o_colorlist_toggler").click();
+    expect(".o_colorlist_item_color_1").toBeFocused();
+});

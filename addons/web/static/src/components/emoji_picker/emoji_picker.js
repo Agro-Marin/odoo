@@ -119,6 +119,14 @@ export async function loadEmoji() {
 }
 
 export async function resetLoadedEmojiData() {
+    // `loader.loaded` is derived from the emojis the data module last parsed,
+    // and `loadEmoji` builds it only once. Dropping the parsed data without it
+    // leaves half the cache standing, keyed to emoji objects that no longer
+    // exist. Today the surviving half happens to be language-independent
+    // (codepoints and shortcodes are not translated), so nothing observable
+    // goes wrong -- but that is a property of the current data, not of the
+    // reset, and it is not what a caller asking for a reset is promised.
+    loader.loaded = undefined;
     try {
         const emojiData = await import("@web/components/emoji_picker/emoji_data");
         emojiData.resetEmojiData?.();

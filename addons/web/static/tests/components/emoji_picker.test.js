@@ -7,7 +7,9 @@ import { Component, onRendered, reactive, useRef, useState, xml } from "@odoo/ow
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
     EmojiPicker,
+    loadEmoji,
     loader,
+    resetLoadedEmojiData,
     useEmojiPicker,
 } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
@@ -403,4 +405,19 @@ test("the keyboard grid is rebuilt when picking an emoji grows the recents", asy
     );
     await animationFrame();
     expect(picker.emojiMatrix[0]).toEqual(domRow());
+});
+
+test("resetting the emoji data also drops what was derived from it", async () => {
+    await loadEmoji();
+    expect(loader.loaded).not.toBe(undefined);
+    const before = loader.loaded;
+
+    await resetLoadedEmojiData();
+    expect(loader.loaded).toBe(undefined);
+
+    // Loading again rebuilds it from the freshly parsed data rather than
+    // handing back the parse the reset was meant to discard.
+    await loadEmoji();
+    expect(loader.loaded).not.toBe(undefined);
+    expect(loader.loaded).not.toBe(before);
 });

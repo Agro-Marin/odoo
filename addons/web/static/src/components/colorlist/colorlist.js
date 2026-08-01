@@ -54,9 +54,16 @@ export class ColorList extends Component {
             getAnchor: () => this.colorlistRef.el,
             getContentEl: () => this.colorlistRef.el,
         });
+        // Focus follows the *act* of expanding, not the state of being
+        // expanded. A list that arrives open -- `isExpanded`/`forceExpanded`
+        // set by the caller -- was not opened by the user, so taking focus
+        // there yanks the caret out of whatever they were actually in.
+        let hasRun = false;
         useEffect(
             (isExpanded) => {
-                if (isExpanded) {
+                const expandedByUser = isExpanded && hasRun;
+                hasRun = true;
+                if (expandedByUser) {
                     /** @type {HTMLElement | null} */ (
                         this.colorlistRef.el?.querySelector("button")
                     )?.focus();

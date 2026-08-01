@@ -7,6 +7,7 @@ import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { KeepLast } from "@web/core/utils/concurrency";
+import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { useDebounced } from "@web/core/utils/timing";
@@ -154,6 +155,8 @@ export class ModelFieldSelectorPopover extends Component {
         this.fieldService = useService("field");
         this.state = useState({ page: null });
         this.keepLast = new KeepLast();
+        this.popoverId = uniqueId("o_model_field_selector_popover_");
+        this.hasPendingSearch = false;
         this.debouncedSearchFields = useDebounced(this.searchFields, 250);
 
         onWillStart(async () => {
@@ -192,6 +195,59 @@ export class ModelFieldSelectorPopover extends Component {
         return this.state.page.fieldNames;
     }
 
+    /** @returns {string} */
+    get listboxId() {
+        return `${this.popoverId}_listbox`;
+    }
+
+    /**
+     * @param {number} index
+     * @returns {string}
+     */
+    getItemId(index) {
+        return `${this.popoverId}_${index}`;
+    }
+
+    /** @returns {string | undefined} the id of the item the arrow keys are on */
+    get focusedItemId() {
+        const index = this.fieldNames.indexOf(this.state.page.focusedFieldName);
+        return index === -1 ? undefined : this.getItemId(index);
+    }
+
+    /**
+     * @param {string} query
+     */
+    onSearchInput(query) {
+        this.hasPendingSearch = true;
+        this.debouncedSearchFields(query);
+    }
+
+    /**
+     * Applies a query still sitting in the debounce. Every consumer of the
+     * result list goes through this: `focusedFieldName` is derived from the
+     * query, so a keyboard action taken before the debounce fires would
+     * otherwise commit the field that answered the *previous* query.
+     *
+     * @returns {boolean} whether a query was waiting -- i.e. whether the list
+     *  the caller is about to act on only just came into being. Applying one
+     *  parks the focus on its first result, so an arrow that would step
+     *  *forwards* from there has already arrived and must not move again.
+     */
+    flushPendingSearch() {
+        const wasPending = this.hasPendingSearch;
+        this.debouncedSearchFields.cancel(true);
+        return wasPending;
+    }
+
+    /**
+     * Drops a query typed for a page that is being left. It was never applied,
+     * and the field names it would filter belong to another model.
+     */
+    dropPendingSearch() {
+        this.hasPendingSearch = false;
+        this.debouncedSearchFields.cancel();
+    }
+
     get showDebugInput() {
         return this.props.showDebugInput ?? this.props.isDebugMode;
     }
@@ -228,6 +284,7 @@ export class ModelFieldSelectorPopover extends Component {
      * @returns {Promise<void>}
      */
     async followRelation(fieldDef) {
+        this.dropPendingSearch();
         const { modelsInfo } = await this.keepLast.add(
             this.fieldService.loadPath(
                 fieldDef.is_property ? fieldDef.relation : this.state.page.resModel,
@@ -256,6 +313,7 @@ export class ModelFieldSelectorPopover extends Component {
      * @returns {Promise<void>}
      */
     async loadNewPath(path) {
+        this.dropPendingSearch();
         const newPage = await this.keepLast.add(
             this.loadPages(this.props.resModel, path),
         );
@@ -314,6 +372,7 @@ export class ModelFieldSelectorPopover extends Component {
      * @param {Page} page
      */
     openPage(page) {
+        this.dropPendingSearch();
         this.state.page = page;
         this.state.page.searchFields();
         this.props.update(page.path);
@@ -323,6 +382,7 @@ export class ModelFieldSelectorPopover extends Component {
      * @param {string} [query]
      */
     searchFields(query) {
+        this.hasPendingSearch = false;
         this.state.page.searchFields(query);
     }
 
@@ -371,15 +431,23 @@ export class ModelFieldSelectorPopover extends Component {
         if (!target.closest(".o_model_field_selector_popover_search")) {
             return;
         }
+        let justSearched = false;
+        if (["ArrowUp", "ArrowDown", "ArrowRight", "Enter"].includes(ev.key)) {
+            justSearched = this.flushPendingSearch();
+        }
         switch (ev.key) {
             case "ArrowUp": {
+                // No special case for a fresh search: the results park the
+                // focus on the first of them, and stepping backwards from
+                // there wraps onto the last -- which is the end an upward
+                // arrow should enter the list from anyway.
                 if (target.selectionStart === 0) {
                     page.focus("previous");
                 }
                 break;
             }
             case "ArrowDown": {
-                if (target.selectionStart === target.value.length) {
+                if (target.selectionStart === target.value.length && !justSearched) {
                     page.focus("next");
                 }
                 break;

@@ -1005,3 +1005,155 @@ test("Enter on a relation button does not double-fire field selection", async ()
     expect(".o_model_field_selector_popover").toHaveCount(1);
     expect.verifySteps([]);
 });
+
+test("Enter before the search debounce fires selects what the search asked for", async () => {
+    class Parent extends Component {
+        static components = { ModelFieldSelector };
+        static template = xml`<ModelFieldSelector resModel="'partner'" readonly="false" path="''" update.bind="update"/>`;
+        static props = ["*"];
+        update(path) {
+            expect.step(`update: ${path}`);
+        }
+    }
+    await mountWithCleanup(Parent);
+    await openModelFieldSelectorPopover();
+    expect(getFocusedFieldName()).toBe("Bar");
+
+    // The 250ms debounce has not elapsed: the list on screen is still the
+    // unfiltered one. Enter must commit the typed query, not what it shows.
+    await contains("input.o_input[placeholder='Search...']").edit("Product", {
+        confirm: false,
+    });
+    await press("Enter");
+    await animationFrame();
+    expect.verifySteps(["update: product_id"]);
+});
+
+test("a search typed on one page does not filter the next one", async () => {
+    class Parent extends Component {
+        static components = { ModelFieldSelector };
+        static template = xml`<ModelFieldSelector resModel="'partner'" readonly="false" path="''" update="() => {}"/>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    await openModelFieldSelectorPopover();
+
+    // "Bar" only exists on partner. Leaving the page before the debounce
+    // fires must abandon the query with it.
+    await contains("input.o_input[placeholder='Search...']").edit("Bar", {
+        confirm: false,
+    });
+    await followRelation();
+    const displayed = getDisplayedFieldNames();
+    expect(displayed).toInclude("Product Name");
+
+    await runAllTimers();
+    await animationFrame();
+    expect(getDisplayedFieldNames()).toEqual(displayed);
+});
+
+test("the search box drives the field list as a combobox", async () => {
+    class Parent extends Component {
+        static components = { ModelFieldSelector };
+        static template = xml`<ModelFieldSelector resModel="'partner'" readonly="false" path="''" update="() => {}"/>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    await openModelFieldSelectorPopover();
+
+    const input = queryOne("input.o_input[placeholder='Search...']");
+    const listbox = queryOne(".o_model_field_selector_popover_page");
+    expect(input).toHaveAttribute("role", "combobox");
+    expect(listbox).toHaveAttribute("role", "listbox");
+    expect(input).toHaveAttribute("aria-controls", listbox.id);
+    // The option is the control that picks a field, not the row: the row also
+    // holds the button that drills into a relation, and an option may not
+    // contain a control.
+    expect("[role=option]").toHaveCount(getDisplayedFieldNames().length);
+    expect("[role=option]").toHaveClass("o_model_field_selector_popover_item_name");
+    expect("[role=option] button, [role=option] input, [role=option] a").toHaveCount(0);
+
+    // The cursor the arrow keys move has to be readable, not only visible.
+    const active = queryOne(
+        ".o_model_field_selector_popover_item.active [role=option]",
+    );
+    expect(input).toHaveAttribute("aria-activedescendant", active.id);
+    expect(active).toHaveAttribute("aria-selected", "true");
+
+    await press("ArrowDown");
+    await animationFrame();
+    const next = queryOne(".o_model_field_selector_popover_item.active [role=option]");
+    expect(next.id).not.toBe(active.id);
+    expect(input).toHaveAttribute("aria-activedescendant", next.id);
+
+    // The search box keeps the focus; the relation button must not be a tab stop.
+    expect(".o_model_field_selector_popover_item_relation:first").toHaveAttribute(
+        "tabindex",
+        "-1",
+    );
+});
+
+test("the first arrow after typing enters the results, it does not skip one", async () => {
+    class Parent extends Component {
+        static components = { ModelFieldSelector };
+        static template = xml`<ModelFieldSelector resModel="'partner'" readonly="false" path="''" update="() => {}"/>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    await openModelFieldSelectorPopover();
+
+    await contains("input.o_input[placeholder='Search...']").edit("o", {
+        confirm: false,
+    });
+    const matches = ["Foo", "Product", "Last Modified on", "Created on"];
+
+    // Applying the pending query already parks the focus on the first match;
+    // stepping again here would walk straight past it.
+    await press("ArrowDown");
+    await animationFrame();
+    expect(getDisplayedFieldNames()).toEqual(matches);
+    expect(getFocusedFieldName()).toBe(matches[0]);
+
+    await press("ArrowDown");
+    await animationFrame();
+    expect(getFocusedFieldName()).toBe(matches[1]);
+});
+
+test("arrowing up into fresh results enters them from the end", async () => {
+    class Parent extends Component {
+        static components = { ModelFieldSelector };
+        static template = xml`<ModelFieldSelector resModel="'partner'" readonly="false" path="''" update="() => {}"/>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    await openModelFieldSelectorPopover();
+
+    const input = queryOne("input.o_input[placeholder='Search...']");
+    await contains(input).edit("o", { confirm: false });
+    input.setSelectionRange(0, 0);
+    await press("ArrowUp");
+    await animationFrame();
+    expect(getFocusedFieldName()).toBe("Created on");
+});
+
+test("Enter on a search that matches nothing commits nothing", async () => {
+    class Parent extends Component {
+        static components = { ModelFieldSelector };
+        static template = xml`<ModelFieldSelector resModel="'partner'" readonly="false" path="''" update.bind="update"/>`;
+        static props = ["*"];
+        update(path) {
+            expect.step(`update: ${path}`);
+        }
+    }
+    await mountWithCleanup(Parent);
+    await openModelFieldSelectorPopover();
+
+    await contains("input.o_input[placeholder='Search...']").edit("zzzzzz", {
+        confirm: false,
+    });
+    await press("Enter");
+    await animationFrame();
+    expect(".o_model_field_selector_popover").toHaveCount(1);
+    expect(getDisplayedFieldNames()).toEqual([]);
+    expect.verifySteps([]);
+});
