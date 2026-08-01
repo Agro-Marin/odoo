@@ -90,19 +90,31 @@ export class ProgressBarField extends Component {
             parse: (v) => this.parseValue(this.currentValueField, v),
             refName: "currentValue",
             fieldName: this.currentValueField,
-            shouldSave: () => this.props.readonly,
+            shouldSave: () => this.shouldSaveImmediately,
         });
         this.maxValueRef = useInputField({
             getValue: () => this.formatValue(this.maxValueFieldName, this.maxValue),
             parse: (v) => this.parseValue(this.maxValueFieldName, v),
             refName: "maxValue",
             fieldName: this.maxValueFieldName,
-            shouldSave: () => this.props.readonly,
+            shouldSave: () => this.shouldSaveImmediately,
         });
 
         this.state = useState({
             isEditing: false,
         });
+    }
+
+    /**
+     * There is no surrounding edit session to fold the change into -- a kanban
+     * card, a readonly form -- so the widget has to persist it itself. This used
+     * to be spelled `this.props.readonly`, which was the same thing only for as
+     * long as `readonly` doubled as "the record is not being edited".
+     *
+     * @returns {boolean}
+     */
+    get shouldSaveImmediately() {
+        return !this.props.record.isInEdition;
     }
 
     /** @returns {boolean} */

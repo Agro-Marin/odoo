@@ -653,3 +653,38 @@ test("ProgressBarField: a parse error on current_value marks the bar invalid", a
     await animationFrame();
     expect(".o_field_progressbar").toHaveClass("o_field_invalid");
 });
+
+test("the readonly modifier wins over 'editable' in kanban", async () => {
+    // A kanban card is never in edition, so the widget has to ignore "the
+    // record is not being edited" to be usable at all -- it used to do that by
+    // ignoring `props.readonly` wholesale, which threw away the field's own
+    // modifier with it.
+    Partner._records[0].int_field = 99;
+    Partner._records[0].float_field = 250;
+    onRpc("web_save", () => {
+        throw new Error("a readonly progressbar must not write");
+    });
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="int_field" readonly="1" widget="progressbar"
+                               options="{'editable': true, 'max_value': 'float_field'}"/>
+                        <field name="int_field2" widget="progressbar"
+                               options="{'editable': true, 'max_value': 'float_field'}"/>
+                    </t>
+                </templates>
+            </kanban>`,
+    });
+
+    expect("[name='int_field'] .o_progressbar_value .o_input").toHaveCount(0, {
+        message: "readonly='1' must disable the input even on a kanban card",
+    });
+    expect("[name='int_field2'] .o_progressbar_value .o_input").toHaveCount(1, {
+        message: "...while an unmodified one stays editable",
+    });
+});

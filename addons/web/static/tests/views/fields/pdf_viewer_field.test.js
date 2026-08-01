@@ -25,9 +25,11 @@ const getIframeViewerParams = () =>
 
 class Partner extends models.Model {
     document = fields.Binary({ string: "Binary" });
+    document_page = fields.Integer({ string: "Page" });
     _records = [
         {
             document: "coucou==\n",
+            document_page: 4,
         },
     ];
 }
@@ -135,4 +137,20 @@ test("PdfViewerField: uploaded blob does not leak across pager navigation", asyn
     await animationFrame();
     expect(getIframeProtocol()).toBe("https");
     expect(getIframeViewerParams()).toBe("model=partner&field=document&id=2");
+});
+
+test("PdfViewerField opens on the page its companion field names", async () => {
+    // `<name>_page` is read straight out of `record.data`, so it only works if
+    // the widget declares it -- otherwise it is never loaded and the viewer
+    // silently opens on page 1 whatever the record says.
+    onRpc("web_read", ({ kwargs }) => {
+        expect(Object.keys(kwargs.specification)).toInclude("document_page");
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="document" widget="pdf_viewer"/></form>`,
+    });
+    expect(getIframeSrc()).toInclude("#page=4");
 });

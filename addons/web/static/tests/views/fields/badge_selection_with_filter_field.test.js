@@ -8,6 +8,7 @@ import {
     fields,
     models,
     mountView,
+    onRpc,
 } from "@web/../tests/web_test_helpers";
 
 class Partner extends models.Model {
@@ -218,4 +219,28 @@ test("badge selection field with filter, cross badge synchronization", async () 
     expect(".o_selection_badge[value='\"white\"']").toHaveCount(0);
     expect(".o_selection_badge[value='\"grey\"']").toBeVisible();
     expect(".o_selection_badge[value='\"black\"']").toBeVisible();
+});
+
+test("the allowed-values field is loaded without the view naming it", async () => {
+    // Every consumer used to need an `<field name="..." invisible="1"/>` of its
+    // own; forgetting it left `allowed_selection_field` absent from the record,
+    // which filtered every option away instead of failing visibly.
+    Partner._records[0].allowed_colors = ["grey", "black"];
+    onRpc("web_read", ({ kwargs }) => {
+        expect(Object.keys(kwargs.specification)).toInclude("allowed_colors");
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="color" widget="selection_badge_with_filter"
+                    options="{'allowed_selection_field': 'allowed_colors'}"/>
+            </form>
+        `,
+    });
+
+    expect(".o_selection_badge").toHaveCount(2);
+    expect(".o_selection_badge[value='\"white\"']").toHaveCount(0);
 });
