@@ -1,9 +1,11 @@
 # Web Module — Flow Diagrams
 
-> **Purpose**: Trace every major end-to-end flow so correctness audits can
-> follow data from entry to exit and verify each step.
->
-> Flows are numbered for cross-referencing with the Component Diagram audit areas.
+End-to-end flows, entry to exit. Flow numbers cross-reference the Component
+Diagram audit areas.
+
+Measured at base `b48ae612546`, 2026-08-01.
+Structural claims guarded by `bash addons/web/doc/factcheck.sh`.
+Ordering claims are not machine checkable — read the code.
 
 ---
 
@@ -59,7 +61,8 @@ Browser                          Server (Python)                    Database
   │                                  │  │      NOT by session_info())   │
   │                                  │  └─ Render webclient_templates.xml
   │                                  │     ├─ <script>odoo.__session_info__={...}</script>
-  │                                  │     ├─ <script>odoo.loadMenusPromise=fetch(menus)</script>
+  │                                  │     ├─ <script>odoo.loadMenusPromise=odoo.reloadMenus(storedMenusHash)</script>
+  │                                  │     │  (hash-conditional reload, not a bare fetch)
   │                                  │     └─ <t t-call-assets="web.assets_web"/>
   │  ◀─── HTML document ─────────────│                                  │
   │                                  │                                  │
@@ -73,7 +76,8 @@ Browser                          Server (Python)                    Database
   │  │  └─ boot/main.js (entry)      │                                  │
   │  │                               │                                  │
   │  │  session.js: (module load — before startWebClient)               │
-  │  │  └─ session = odoo.__session_info__; delete odoo.__session_info__│
+  │  │  └─ session = odoo.__session_info__                              │
+  │  │     No delete: payload stays on the odoo global for the page.    │
   │  │                               │                                  │
   │  │  main.js:                     │                                  │
   │  │  └─ startWebClient(WebClient) │                                  │
@@ -147,11 +151,16 @@ Browser                          Server (Python)                    Database
   │                                │  ├─ _save_session()              │
   │                                │  │  └─ Set-Cookie: session_id=...│
   │                                │  └─ _login_redirect(uid, redirect)
+  │                                │     (utils.py:_get_login_redirect_url)
+  │                                │     ├─ local `redirect` param wins, if any
   │                                │     ├─ Internal user → /odoo     │
-  │                                │     └─ Portal user → /my         │
+  │                                │     └─ Non-internal  →           │
+  │                                │        /web/login_successful     │
+  │                                │        (NOT /my)                 │
   │  ◀─── 303 Redirect ────────────│                                  │
   │                                │                                  │
-  │  GET /odoo (or /my)            │                                  │
+  │  GET /odoo (or                 │                                  │
+  │      /web/login_successful)    │                                  │
   ├───────────────────────────────▶│                                  │
   │                                │  (Flow 1: Bootstrap)             │
   │                                │                                  │
@@ -194,7 +203,7 @@ OWL Component                    JS Services              Server (Python)       
   │                                │     │  │   method:"call",                          │
   │                                │     │  │   params:{model, method, args, kwargs}}   │
   │                                │     │  ├─ rpcBus.trigger(RpcEvent.REQUEST)         │
-  │                                │     │  └─ XHR POST     │                           │
+  │                                │     │  └─ fetch() POST │  (not XMLHttpRequest)     │
   │                                │     │     │            │                           │
   │                                │     │     ├───────────▶│                           │
   │                                │     │     │            │  dataset.py:call_kw()     │
@@ -229,16 +238,23 @@ OWL Component                    JS Services              Server (Python)       
   │                                │     │                  │    message: "...",        │
   │                                │     │                  │    data: {                │
   │                                │     │                  │      name: "odoo...AccessError",
-  │                                │     │                  │      debug: "<full py     │
-  │                                │     │                  │              traceback>", │
+  │                                │     │                  │      debug: dev_mode      │
+  │                                │     │                  │        ? "<full py trace>"│
+  │                                │     │                  │        : "Traceback       │
+  │                                │     │                  │           hidden; ...",   │
   │                                │     │                  │      arguments: [...],    │
   │                                │     │                  │      context: {...} } }   │
-  │                                │     │                  │  Server code values:      │
+  │                                │     │                  │  Server code values       │
+  │                                │     │                  │  (odoo/http/dispatcher.py):
   │                                │     │                  │   0   = generic (default) │
   │                                │     │                  │   100 = SessionExpired    │
   │                                │     │                  │   404 = NotFound          │
+  │                                │     │                  │   400 = unparseable body  │
+  │                                │     │                  │         (_abort_bad_request)
   │                                │     │                  │  (no -32xxx JSON-RPC      │
   │                                │     │                  │   spec codes are used)    │
+  │                                │     │                  │  `debug` = full traceback │
+  │                                │     │                  │  in dev_mode only (Area 3)│
   │                                │     │  ├─ Create RPCError                          │
   │                                │     │  └─ Promise.reject(error)                    │
   │                                │     │                  │                           │
@@ -297,8 +313,9 @@ Action Service                   View Component              Server
   │     │    search_arch key.      │                          │
   │     │    Search arch appears   │                          │
   │     │    as views.search.arch. │                          │
-  │     ├─ Compile arch_xml → OWL template                    │
-  │     │  (view_compiler.js)      │                          │
+  │     ├─ Compile views.<type>.arch → OWL template           │
+  │     │  (view_compiler.js; there is no                     │
+  │     │   top-level `arch_xml` key)   │                     │
   │     │  ├─ Parse XML nodes      │                          │
   │     │  ├─ Resolve field types → widget components         │
   │     │  ├─ Evaluate attrs (invisible, readonly, required)  │
@@ -375,8 +392,12 @@ Form Field Widget               RelationalModel                 Server
   │                                │  │                           │        city: "...",
   │                                │  │                           │        phone: "...",
   │                                │  │                           │        line_ids: [[1,id,{...}]]
-  │                                │  │                           │      },
-  │                                │  │                           │      warning: null}
+  │                                │  │                           │      }}
+  │                                │  │                           │     `warning` omitted when
+  │                                │  │                           │     none; never null. Present
+  │                                │  │                           │     = {title, message, type}.
+  │                                │  │                           │     Multiple warnings merge
+  │                                │  │                           │     into one dialog.
   │                                │  │◀──────────────────────────│
   │                                │  │                           │
   │                                │  ├─ Apply returned values    │
@@ -479,7 +500,9 @@ List Controller                  SearchModel             Server
   │  1. Get domain from search       │                     │
   │  ├─ searchModel.domain (getter) ▶│                     │
   │  │  (search_model.js    )        │                     │
-  │  │                               │  _getDomain() (:777-792)
+  │  │                               │  _getDomain() (search_model.js:613,
+  │  │                               │   delegating to computeDomain()
+  │  │                               │   in search_domain.js)
   │  │                               │  composes:          │
   │  │                               │  ├─ globalDomain    │
   │  │                               │  │  (= action domain)
@@ -777,10 +800,18 @@ Export Dialog                    Server                                  Respons
   ├───────────────────────────────▶│                                         │
   │                                │  export.py:get_fields()                 │
   │                                │  ├─ fields_get() for model              │
-  │                                │  ├─ Recurse relational fields           │
-  │                                │  │  (max 2 levels deep)                 │
+  │                                │  ├─ ONE level only; does NOT recurse.   │
+  │                                │  │  Relational fields get children:true │
+  │                                │  │  + params {model, prefix, name,      │
+  │                                │  │  parent_field}; the CLIENT re-calls  │
+  │                                │  │  get_fields with them to drill down. │
+  │                                │  ├─ Guard: len(ident.split("/")) < 3.   │
+  │                                │  │  Children offered for 1- and         │
+  │                                │  │  2-segment paths; leaves reach 3.    │
   │                                │  ├─ Include property fields             │
-  │                                │  └─ Return [{id, string, type}]         │
+  │                                │  └─ Return [{id, string, value,         │
+  │                                │     children, field_type, required,     │
+  │                                │     relation_field, default_export}]    │
   │  ◀── field list ───────────────│                                         │
   │                                │                                         │
   │  2. User selects fields,       │                                         │
@@ -937,8 +968,9 @@ LOGOUT
   ├─ /web/session/destroy (JSONRPC)
   │  └─ Server clears session, rotates cookie
   │
-  └─ /web/session/logout (HTTP GET)
-     └─ Redirect to /web/login
+  └─ /web/session/logout (HTTP GET, auth="none")
+     └─ session.logout(keep_db=True), then 303 to `redirect` if it is a
+        local URL, else /odoo (the default). Not /web/login.
 ```
 
 ---
