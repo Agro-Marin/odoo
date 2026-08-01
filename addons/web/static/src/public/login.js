@@ -17,9 +17,17 @@ export class Login extends Interaction {
      * @param {Event} ev
      */
     onSubmit(ev) {
-        const submitEl = /** @type {HTMLElement} */ (ev.currentTarget).querySelector(
-            "button[type='submit']",
-        );
+        const rootEl = /** @type {HTMLElement} */ (ev.currentTarget);
+        // the login form carries more than one submit button -- "Log in as
+        // superuser" sits next to "Log in" -- and the effect belongs on the one
+        // that was pressed, not on whichever comes first in the markup. The
+        // fallback covers a submit that names no submitter, such as one raised
+        // from script or by a keypress.
+        const submitter = /** @type {SubmitEvent} */ (ev).submitter;
+        const submitEl =
+            submitter instanceof HTMLButtonElement && rootEl.contains(submitter)
+                ? submitter
+                : rootEl.querySelector("button[type='submit']");
         if (!ev.defaultPrevented && submitEl) {
             const removeLoadingEffect = addLoadingEffect(
                 /** @type {HTMLButtonElement} */ (submitEl),
