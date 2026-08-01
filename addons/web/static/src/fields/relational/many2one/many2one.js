@@ -112,6 +112,7 @@ export class Many2One extends Component {
         relation: { type: String },
         searchMoreLabel: { type: String, optional: true },
         searchThreshold: { type: Number, optional: true },
+        searchMemoization: { type: String, optional: true },
         preventMemoization: { type: Boolean, optional: true },
         slots: { type: Object, optional: true },
         specification: { type: Object, optional: true },
@@ -233,6 +234,7 @@ export class Many2One extends Component {
             resModel: this.props.relation,
             searchMoreLabel: this.props.searchMoreLabel,
             searchThreshold: this.props.searchThreshold,
+            searchMemoization: this.props.searchMemoization,
             preventMemoization: this.props.preventMemoization,
             setInputFloats: (isFloating) => {
                 this.state.isFloating = isFloating;
