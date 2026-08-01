@@ -16,10 +16,22 @@ export function buildBridgeModuleSource(specifier, exportNames) {
         `const _d = _m?.default ?? _m;`,
         `export default _d;`,
     ];
+    // Bound to a generated local and re-exported under an alias, never
+    // `export const <name>`: an export name only has to be an IdentifierName,
+    // so `export { x as class }` is legal and `Object.keys` hands it back --
+    // whereas `export const class = ...` is a SyntaxError that takes down the
+    // whole bridge module, every other export of it included.
+    const aliases = [];
     for (const name of exportNames) {
-        if (name !== "default" && VALID_EXPORT_NAME.test(name)) {
-            lines.push(`export const ${name} = _m?.${name};`);
+        if (name === "default" || !VALID_EXPORT_NAME.test(name)) {
+            continue;
         }
+        const local = `_e${aliases.length}`;
+        lines.push(`const ${local} = _m?.${name};`);
+        aliases.push(`${local} as ${name}`);
+    }
+    if (aliases.length) {
+        lines.push(`export { ${aliases.join(", ")} };`);
     }
     return lines.join("\n");
 }

@@ -410,7 +410,8 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
         imports["@web/foo"].slice("data:text/javascript,".length),
     );
     expect(fooSrc.includes('odoo.loader.modules.get("@web/foo")')).toBe(true);
-    expect(fooSrc.includes("export const bar = _m?.bar;")).toBe(true);
+    expect(fooSrc.includes("const _e0 = _m?.bar;")).toBe(true);
+    expect(fooSrc.includes("export { _e0 as bar };")).toBe(true);
 
     expect(imports["@web/served"]).toBe("/web/assets/esm/bridges/abc.js");
     expect(imports["/web/static/src/served.js"]).toBe("/web/assets/esm/bridges/abc.js");
