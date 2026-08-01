@@ -1,7 +1,8 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { Component, xml } from "@odoo/owl";
+import { animationFrame } from "@odoo/hoot-dom";
+import { Component, useState, xml } from "@odoo/owl";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { ColorList } from "@web/components/colorlist/colorlist";
 
@@ -84,4 +85,48 @@ test("open the list of colors if canToggle props is given", async function () {
     await contains(".o_colorlist_toggler").click();
     await contains(".o_colorlist button:eq(2)").click();
     expect.verifySteps(["color #6 is selected"]);
+});
+
+test("the isExpanded prop is followed after it changes", async () => {
+    class Controller extends Component {
+        static template = xml`<ColorList colors="[1,2,3]" onColorSelected="() => {}" isExpanded="state.expanded" canToggle="true"/>`;
+        static components = { ColorList };
+        static props = [];
+
+        setup() {
+            this.state = useState({ expanded: false });
+        }
+    }
+    const controller = await mountWithCleanup(Controller);
+    expect(".o_colorlist_item_color_1").toHaveCount(0);
+
+    controller.state.expanded = true;
+    await animationFrame();
+    expect(".o_colorlist_item_color_1").toHaveCount(1);
+
+    controller.state.expanded = false;
+    await animationFrame();
+    expect(".o_colorlist_item_color_1").toHaveCount(0);
+});
+
+test("the isExpanded prop sync does not undo the user's own toggle", async () => {
+    class Controller extends Component {
+        static template = xml`
+            <ColorList colors="[1,2,3]" onColorSelected="() => {}" isExpanded="state.expanded" canToggle="true"/>
+            <span t-esc="state.tick"/>`;
+        static components = { ColorList };
+        static props = [];
+
+        setup() {
+            this.state = useState({ expanded: false, tick: 0 });
+        }
+    }
+    const controller = await mountWithCleanup(Controller);
+    await contains(".o_colorlist_toggler").click();
+    expect(".o_colorlist_item_color_1").toHaveCount(1);
+
+    // An unrelated re-render must not collapse what the user just opened.
+    controller.state.tick = 1;
+    await animationFrame();
+    expect(".o_colorlist_item_color_1").toHaveCount(1);
 });

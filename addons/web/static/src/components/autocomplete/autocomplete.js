@@ -7,6 +7,7 @@ import {
     Component,
     onMounted,
     onWillDestroy,
+    onWillRender,
     onWillUpdateProps,
     useRef,
     useState,
@@ -154,7 +155,14 @@ export class AutoComplete extends Component {
         });
 
         if (this.props.dropdown) {
-            usePosition("sourcesList", () => this.targetDropdown, this.dropdownOptions);
+            this._dropdownOptions = {};
+            this.syncDropdownOptions();
+            onWillRender(() => this.syncDropdownOptions());
+            usePosition(
+                "sourcesList",
+                () => this.targetDropdown,
+                this._dropdownOptions,
+            );
         } else {
             this.state.open = true;
             this.loadSources(false);
@@ -183,18 +191,38 @@ export class AutoComplete extends Component {
         if (!this.isOpened || !this.state.activeSourceOption) {
             return undefined;
         }
+        // A loading source contributes no position, so the active option can
+        // never sit in one -- there is no spinner id to name here.
         const [sourceIndex, optionIndex] = this.state.activeSourceOption;
-        const source = this.sources[sourceIndex];
-        return `${this.idPrefix}_${sourceIndex}_${
-            source.isLoading ? "loading" : optionIndex
-        }`;
+        return `${this.idPrefix}_${sourceIndex}_${optionIndex}`;
     }
 
+    /** @returns {boolean} */
+    get isLoadingSources() {
+        return this.sources.some((source) => source.isLoading);
+    }
+
+    /** @returns {Record<string, any>} */
     get dropdownOptions() {
         return {
             position: "bottom-start",
             ...this.props.menuPositionOptions,
         };
+    }
+
+    /**
+     * usePosition keeps the object it is handed and re-reads it on every
+     * reposition, so what it holds has to be one object for the component's
+     * whole life -- `dropdownOptions` yields a fresh merge each call, and
+     * subclasses override it to yield another. Refreshing that one object's
+     * contents from the getter is what lets both stay live.
+     */
+    syncDropdownOptions() {
+        const live = /** @type {Record<string, any>} */ (this._dropdownOptions);
+        for (const key of Object.keys(live)) {
+            delete live[key];
+        }
+        Object.assign(live, this.dropdownOptions);
     }
 
     get isOpened() {
@@ -218,11 +246,16 @@ export class AutoComplete extends Component {
         return this.sources[sourceIndex].options[optionIndex];
     }
 
-    open(useInput = false) {
+    /**
+     * @param {boolean} [useInput]
+     * @param {number} [entryDirection] which end of the loaded list to land on:
+     *  -1 for the last option, anything else for the first.
+     */
+    open(useInput = false, entryDirection = 0) {
         this.state.open = true;
         this.dismissed = false;
         this._addGlobalListeners();
-        return this.loadSources(useInput);
+        return this.loadSources(useInput, entryDirection);
     }
 
     close() {
@@ -297,10 +330,18 @@ export class AutoComplete extends Component {
 
     /**
      * @param {boolean} useInput
+     * @param {number} [entryDirection] @see open
      */
-    async loadSources(useInput) {
+    async loadSources(useInput, entryDirection = 0) {
         const loadId = ++this._loadId;
-        const request = useInput ? this.inputRef.el.value.trim() : null;
+        // The text the box held when these options were asked for. Unlike
+        // `request` it is recorded even for a load that ignores the input, so
+        // it can answer "are these still the suggestions for what is on
+        // screen?" in every case. Read here rather than after the await: the
+        // inline variant loads before it is mounted, and any load can outlive
+        // the input it started from.
+        const inputValue = this.inputRef.el?.value.trim() ?? "";
+        const request = useInput ? inputValue : null;
         this.state.sources = this.props.sources.map((pSource) =>
             this.makeSource(pSource),
         );
@@ -342,7 +383,8 @@ export class AutoComplete extends Component {
             return;
         }
         this._loadedRequest = request;
-        this.navigate(0);
+        this._loadedInputValue = inputValue;
+        this.navigate(entryDirection);
         this.scroll();
     }
 
@@ -467,11 +509,20 @@ export class AutoComplete extends Component {
         // Escape and Tab are the user saying "not this one". Leaving the field
         // afterwards must not resurrect the suggestion they just refused --
         // unlike a plain blur, which is what selectOnBlur is for.
+        //
+        // Neither must it commit suggestions that no longer answer what the box
+        // holds: a parent replacing the value from outside writes over the box
+        // and leaves the previous query's options behind, and committing the
+        // first of those would overrule the parent's own write. Comparing the
+        // two texts keeps that decision out of the render schedule -- both
+        // sides are read off the input, not off when a re-render happened to
+        // land.
         if (
             this.props.selectOnBlur &&
             !this.dismissed &&
             !this.isOptionSelected &&
-            !this.loadingPromise
+            !this.loadingPromise &&
+            this._loadedInputValue === this.inputRef.el.value.trim()
         ) {
             this.state.activeSourceOption = this.selectablePositions[0] ?? null;
             if (this.activeOption) {
@@ -578,19 +629,22 @@ export class AutoComplete extends Component {
                 this.close();
                 return;
             case "arrowup":
-                this.navigate(-1);
-                if (!this.isOpened) {
-                    this.open(true);
+            case "arrowdown": {
+                const direction = hotkey === "arrowdown" ? +1 : -1;
+                if (this.isOpened) {
+                    this.navigate(direction);
+                    this.scroll();
+                } else {
+                    // A closed list holds no option to step onto: the arrow has
+                    // to enter it from the end it points away from, and that end
+                    // is only known once the options exist. Stepping first would
+                    // walk whatever the previous query left behind and then be
+                    // overwritten by the load's own reset -- which is why both
+                    // arrows used to land on the first option.
+                    this.open(true, direction);
                 }
-                this.scroll();
                 break;
-            case "arrowdown":
-                this.navigate(+1);
-                if (!this.isOpened) {
-                    this.open(true);
-                }
-                this.scroll();
-                break;
+            }
             default:
                 return;
         }

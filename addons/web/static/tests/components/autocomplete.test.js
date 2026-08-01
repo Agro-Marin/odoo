@@ -12,6 +12,7 @@ import {
     pointerDown,
     pointerUp,
     press,
+    queryAll,
     queryAllAttributes,
     queryAllTexts,
     queryFirst,
@@ -1394,4 +1395,254 @@ test("reopening after a dismissal restores selectOnBlur", async () => {
     expect(".o-autocomplete--dropdown-item").toHaveCount(1);
     await contains(".elsewhere").click();
     expect.verifySteps(["select World"]);
+});
+
+test.tags("desktop");
+test("arrowup on a closed dropdown enters the list from the bottom", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`<AutoComplete value="''" sources="sources"/>`;
+        static props = [];
+
+        sources = buildSources(() => [item("A"), item("B"), item("C")]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").focus();
+    await press("ArrowUp");
+    await runAllTimers();
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(3);
+    expect(".o-autocomplete--dropdown-item .ui-state-active").toHaveText("C");
+});
+
+test.tags("desktop");
+test("arrowup still enters from the bottom after the list has been closed", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`<AutoComplete value="''" sources="sources"/>`;
+        static props = [];
+
+        sources = buildSources(() => [item("A"), item("B"), item("C")]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").focus();
+    await press("ArrowDown");
+    await runAllTimers();
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item .ui-state-active").toHaveText("A");
+
+    await press("Escape");
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-menu").toHaveCount(0);
+
+    await press("ArrowUp");
+    await runAllTimers();
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item .ui-state-active").toHaveText("C");
+});
+
+test.tags("desktop");
+test("menuPositionOptions is followed after it changes", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`
+            <div style="height: 400px"/>
+            <AutoComplete value="''" sources="sources" menuPositionOptions="state.opts"/>`;
+        static props = [];
+
+        state = useState({ opts: { position: "bottom-start" } });
+        sources = buildSources(() => [item("A")]);
+    }
+    const parent = await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    await runAllTimers();
+    await animationFrame();
+    let input = queryRect(".o-autocomplete input");
+    let menu = queryRect(".o-autocomplete--dropdown-menu");
+    expect(menu.top >= input.bottom - 1).toBe(true, {
+        message: "baseline: the menu opens below the input",
+    });
+
+    await contains(".o-autocomplete input").click();
+    await animationFrame();
+    parent.state.opts = { position: "top-start" };
+    await animationFrame();
+
+    await contains(".o-autocomplete input").click();
+    await runAllTimers();
+    await animationFrame();
+    input = queryRect(".o-autocomplete input");
+    menu = queryRect(".o-autocomplete--dropdown-menu");
+    expect(menu.bottom <= input.top + 1).toBe(true, {
+        message: "the menu now opens above the input",
+    });
+});
+
+test("selectOnBlur does not commit an option the parent already superseded", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`
+            <AutoComplete value="state.value" sources="sources" selectOnBlur="true"/>
+            <button class="elsewhere">elsewhere</button>`;
+        static props = [];
+
+        state = useState({ value: "" });
+        sources = buildSources(() => [
+            item("World", () => expect.step("select World")),
+            item("Hello", () => expect.step("select Hello")),
+        ]);
+    }
+    const parent = await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(2);
+
+    // The value is decided elsewhere -- a reload, another widget -- which
+    // closes the dropdown. The suggestions still in hand answer the old value.
+    parent.state.value = "Something else";
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-menu").toHaveCount(0);
+
+    await contains(".elsewhere").click();
+    expect.verifySteps([]);
+});
+
+test("selectOnBlur survives a parent that resets its value while typing", async () => {
+    // The website configurator's shape: `value` is derived from parent state
+    // that its own onInput handler clears on every keystroke, so the value prop
+    // moves mid-edit. That must not read as "the parent overruled this field".
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`
+            <AutoComplete value="state.chosen?.label ?? ''" sources="sources"
+                          onInput.bind="onInput" selectOnBlur="true" autoSelect="true"/>
+            <button class="elsewhere">elsewhere</button>`;
+        static props = [];
+
+        state = useState({ chosen: { label: "Restaurant" } });
+        onInput() {
+            this.state.chosen = undefined;
+        }
+        sources = buildSources(() => [
+            item("Bakery", () => expect.step("select Bakery")),
+        ]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").edit("ba", { confirm: false });
+    await runAllTimers();
+    await animationFrame();
+
+    await contains(".elsewhere").click();
+    expect.verifySteps(["select Bakery"]);
+});
+
+test("tab commits after a parent reset its value while typing", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`
+            <AutoComplete value="state.chosen?.label ?? ''" sources="sources"
+                          onInput.bind="onInput" selectOnBlur="true" autoSelect="true"/>
+            <button class="elsewhere">elsewhere</button>`;
+        static props = [];
+
+        state = useState({ chosen: { label: "Restaurant" } });
+        onInput() {
+            this.state.chosen = undefined;
+        }
+        sources = buildSources(() => [
+            item("Bakery", () => expect.step("select Bakery")),
+        ]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").edit("ba", { confirm: false });
+    await runAllTimers();
+    await animationFrame();
+    await press("Tab");
+    await animationFrame();
+    expect.verifySteps(["select Bakery"]);
+});
+
+test.tags("desktop");
+test("an arrow-opened list counts as browsed for the tab commit", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`
+            <AutoComplete value="''" sources="sources" autoSelect="true"/>
+            <button class="elsewhere">x</button>`;
+        static props = [];
+
+        // The input stays EMPTY, so the `value.length` half of the tab gate
+        // cannot fire: only navigationRev can, and the arrow now bumps it from
+        // inside the load rather than before it.
+        sources = buildSources(() => [
+            item("A", () => expect.step("A")),
+            item("B", () => expect.step("B")),
+        ]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").focus();
+    await press("ArrowDown");
+    await runAllTimers();
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item .ui-state-active").toHaveText("A");
+    await press("Tab");
+    await animationFrame();
+    expect.verifySteps(["A"]);
+});
+
+test.tags("desktop");
+test("an arrowup-opened list commits its last option on tab", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`<AutoComplete value="''" sources="sources" autoSelect="true"/>`;
+        static props = [];
+
+        sources = buildSources(() => [
+            item("A", () => expect.step("A")),
+            item("C", () => expect.step("C")),
+        ]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").focus();
+    await press("ArrowUp");
+    await runAllTimers();
+    await animationFrame();
+    await press("Tab");
+    await animationFrame();
+    expect.verifySteps(["C"]);
+});
+
+test("a loading source does not present itself as a selected option", async () => {
+    const def = new Deferred();
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static props = {};
+        static template = xml`<AutoComplete value="''" sources="sources"/>`;
+
+        sources = [
+            {
+                placeholder: "Loading...",
+                options: async () => {
+                    await def;
+                    return [item("done")];
+                },
+            },
+        ];
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    await animationFrame();
+    expect(".o-autocomplete .o_loading").toHaveCount(1);
+
+    // The combobox points at no option while results are pending, so nothing
+    // may claim to be the selected one; the listbox reports busy instead.
+    expect(".o-autocomplete input").not.toHaveAttribute("aria-activedescendant");
+    expect(
+        queryAll('.o-autocomplete [role="option"][aria-selected="true"]'),
+    ).toHaveLength(0);
+    expect(".o-autocomplete--dropdown-menu").toHaveAttribute("aria-busy", "true");
+
+    def.resolve();
+    await animationFrame();
+    expect(".o-autocomplete .o_loading").toHaveCount(0);
+    expect(".o-autocomplete--dropdown-menu").not.toHaveAttribute("aria-busy");
 });

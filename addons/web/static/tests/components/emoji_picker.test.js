@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, press, queryAll, waitFor } from "@odoo/hoot-dom";
+import { click, press, queryAll, waitFor, waitUntil } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, onRendered, reactive, useRef, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
@@ -359,5 +359,48 @@ test("the keyboard grid is rebuilt when the picker is resized", async () => {
     await animationFrame();
 
     expect(picker.emojiMatrix[0].length).not.toBe(widthBefore);
+    expect(picker.emojiMatrix[0]).toEqual(domRow());
+});
+
+test("the keyboard grid is rebuilt when picking an emoji grows the recents", async () => {
+    /** @type {any} */
+    let picker;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+    }
+    // Returning false keeps the picker open, the way a shift-click does.
+    await mountWithCleanup(Probe, { props: { onSelect: () => false } });
+    await animationFrame();
+
+    // Empty the frequency store through the service the picker actually reads,
+    // not through localStorage: the recents are capped, so a store another
+    // suite left full would swallow the one this test is about to add.
+    for (const codepoints of Object.keys(picker.frequentEmojiService.all)) {
+        delete picker.frequentEmojiService.all[codepoints];
+    }
+    await waitUntil(() => picker.recentEmojis.length === 0);
+    await animationFrame();
+
+    const domRow = () => {
+        const els = queryAll(".o-EmojiPicker-content .o-Emoji");
+        const top = els[0]?.offsetTop;
+        return els
+            .filter((el) => el.offsetTop === top)
+            .map((el) => Number.parseInt(el.dataset.index, 10));
+    };
+    expect(picker.emojiMatrix[0]).toEqual(domRow());
+
+    // Picking an emoji prepends a recents section, so the first row becomes the
+    // single recent and every data-index below it shifts: the matrix stops
+    // mapping the grid unless the pick rebuilds it.
+    const before = queryAll(".o-EmojiPicker-content .o-Emoji").length;
+    await click(".o-EmojiPicker-content .o-Emoji:eq(12)");
+    await waitUntil(
+        () => queryAll(".o-EmojiPicker-content .o-Emoji").length === before + 1,
+    );
+    await animationFrame();
     expect(picker.emojiMatrix[0]).toEqual(domRow());
 });

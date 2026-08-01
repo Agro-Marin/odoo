@@ -1696,3 +1696,72 @@ test("a toggler the slot stops rendering is left as it was found", async () => {
     expect(first).not.toHaveClass("dropdown");
     expect(first).not.toHaveAttribute("aria-expanded");
 });
+
+test.tags("desktop");
+test("a dropdown that opens in the tick it mounts still closes its peers", async () => {
+    // `activeEl` used to be assigned only in a microtask after the mount
+    // effect, and shouldIgnoreChanges reads a different activeEl as "another
+    // UI scope, not my business" -- so a dropdown opened in the same tick it
+    // mounted looked like it lived somewhere else, and the peer stayed open.
+    class Parent extends Component {
+        static components = { Dropdown, DropdownItem };
+        static template = xml`
+            <Dropdown state="a">
+                <button class="a">a</button>
+                <t t-set-slot="content"><DropdownItem>ca</DropdownItem></t>
+            </Dropdown>
+            <t t-if="state.showB">
+                <Dropdown state="b">
+                    <button class="b">b</button>
+                    <t t-set-slot="content"><DropdownItem>cb</DropdownItem></t>
+                </Dropdown>
+            </t>`;
+        static props = [];
+
+        setup() {
+            this.state = useState({ showB: false });
+            this.a = useDropdownState();
+            this.b = useDropdownState();
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    parent.a.open();
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["ca"]);
+
+    parent.state.showB = true;
+    parent.b.open();
+    await animationFrame();
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["cb"]);
+});
+
+test.tags("desktop");
+test("an established dropdown closes an already-open peer", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownItem };
+        static template = xml`
+            <Dropdown state="a">
+                <button class="a">a</button>
+                <t t-set-slot="content"><DropdownItem>ca</DropdownItem></t>
+            </Dropdown>
+            <Dropdown state="b">
+                <button class="b">b</button>
+                <t t-set-slot="content"><DropdownItem>cb</DropdownItem></t>
+            </Dropdown>`;
+        static props = [];
+
+        setup() {
+            this.a = useDropdownState();
+            this.b = useDropdownState();
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    parent.a.open();
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["ca"]);
+
+    parent.b.open();
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["cb"]);
+});

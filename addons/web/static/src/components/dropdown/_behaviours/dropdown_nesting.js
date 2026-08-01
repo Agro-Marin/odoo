@@ -79,6 +79,12 @@ export function useDropdownNesting(state) {
     });
 
     const uiService = useService("ui");
+    // Seed it now and settle it after the mount flush. The deferral is what
+    // lets a dropdown mounting alongside a dialog see the dialog rather than
+    // whatever was active before it; leaving the field undefined until then is
+    // what made a dropdown that opens in the same tick it mounts read as
+    // "somewhere else entirely" -- so its peers kept their menus open.
+    current.activeEl = /** @type {any} */ (uiService.activeElement);
     useEffect(
         () => {
             queueMicrotask(() => {
