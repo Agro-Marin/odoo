@@ -1327,6 +1327,7 @@ test("[adjust] statusbar with a lot of stages, click to change stage", async () 
     ]);
 });
 
+test.tags("desktop");
 test("statusbar: overflow measurement is not re-taken per hidden item", async () => {
     // The wrap loop hides one item per iteration and re-measures. It used to
     // take two forced layouts per step -- the root plus a single row's height,
@@ -1367,6 +1368,7 @@ test("statusbar: overflow measurement is not re-taken per hidden item", async ()
     }
 });
 
+test.tags("desktop");
 test("statusbar: an unrelated field edit does not re-run the overflow pass", async () => {
     // Any render used to schedule a full adjust pass, and a pass hides items
     // one at a time with a forced layout per step -- so typing in a sibling
