@@ -390,7 +390,10 @@ export class RPCCache {
         key,
         fallback,
         {
-            callback = () => {},
+            // No default no-op: `shape` is a full `deepCopy` of the payload,
+            // and it was being run to feed a callback that discards it. Half of
+            // every cached read's cloning was thrown away.
+            callback = null,
             type = "ram",
             update = "once",
             immutable = false,
@@ -414,13 +417,15 @@ export class RPCCache {
             Object.hasOwn(this.pendingRequests, requestKey) && ramValue !== undefined;
         if (hasPendingRequest) {
             const pending = this.pendingRequests[requestKey];
-            pending.callbacks.push({ callback, shape });
+            if (callback) {
+                pending.callbacks.push({ callback, shape });
+            }
             return ramValue.then(shape);
         }
 
         if (!ramValue || update === "always") {
             const request = {
-                callbacks: [{ callback, shape }],
+                callbacks: callback ? [{ callback, shape }] : [],
                 invalidated: false,
                 model,
             };
@@ -433,8 +438,13 @@ export class RPCCache {
                 let hasCacheValue = false;
                 const onFulfilled = (/** @type {any} */ result) => {
                     resolve(result);
+                    // `payloadChanged` deep-compares the whole payload and its
+                    // only consumer is the subscriber loop below, so it is not
+                    // worth computing when nobody subscribed.
                     const hasChanged =
-                        hasCacheValue && payloadChanged(fromCacheValue, result);
+                        hasCacheValue &&
+                        request.callbacks.length > 0 &&
+                        payloadChanged(fromCacheValue, result);
                     if (
                         !request.invalidated &&
                         this.pendingRequests[requestKey] === request

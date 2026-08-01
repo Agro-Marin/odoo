@@ -26,10 +26,14 @@ function getClone(template) {
 }
 
 /**
- * @param {unknown[]} args
+ * @param {[string, string, string]} args
+ * @returns {string}
  */
-function getKey(args) {
-    return String(cyrb53(JSON.stringify(args)));
+function getKey([name, url, templateString]) {
+    // Only the body is hashed, and the name and url are kept verbatim: hashing
+    // the whole triple let two unrelated templates share a key, and the
+    // unregister closure would then `registered.delete` the *other* one.
+    return JSON.stringify([name, url, cyrb53(templateString)]);
 }
 
 export class TemplateRegistry {

@@ -58,6 +58,7 @@ export function getMaxValidDate() {
 
 const nonAlphaRegex = /[^a-z]/gi;
 const nonDigitRegex = /[^\d]/g;
+const alphaCharRegex = /[a-z]/i;
 
 /** @type {Record<string, string>} */
 const normalizeFormatTable = {
@@ -217,7 +218,7 @@ export const strftimeToLuxonFormat = memoize(function strftimeToLuxonFormat(form
             inToken = true;
             continue;
         }
-        if (/[a-z]/gi.test(character)) {
+        if (alphaCharRegex.test(character)) {
             if (inToken && normalizeFormatTable[character] !== undefined) {
                 character = normalizeFormatTable[character];
             } else {

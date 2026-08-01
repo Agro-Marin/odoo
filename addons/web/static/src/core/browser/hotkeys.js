@@ -23,6 +23,7 @@ const NAV_KEYS = [
 ];
 export const MODIFIERS = ["alt", "control", "shift"];
 export const AUTHORIZED_KEYS = [...ALPHANUM_KEYS, ...NAV_KEYS, "escape", "<", ">"];
+const AUTHORIZED_KEY_SET = new Set(AUTHORIZED_KEYS);
 
 const MODIFIER_KEYS = new Set([
     ...MODIFIERS,
@@ -69,7 +70,7 @@ export function getActiveHotkey(ev) {
         key = "space";
     }
 
-    if (!AUTHORIZED_KEYS.includes(key)) {
+    if (!AUTHORIZED_KEY_SET.has(key)) {
         if (ev.code?.startsWith("Digit")) {
             key = ev.code.slice(-1);
         } else if (ev.code?.startsWith("Key")) {

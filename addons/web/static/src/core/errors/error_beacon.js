@@ -9,6 +9,11 @@ const seen = new Set();
 
 const MAX_MESSAGE = 4096;
 const MAX_STACK = 4096;
+// Bounded: the key embeds the message, so a page that fails once per record
+// grows this set without limit. A `Set` iterates in insertion order, so
+// dropping the oldest keeps de-duplication working for the recent errors --
+// the only ones a burst is likely to repeat.
+const MAX_SEEN_KEYS = 512;
 
 /**
  * @param {{
@@ -31,6 +36,9 @@ export function reportJsError(info) {
     const key = `${message}|${line}|${col}`;
     if (seen.has(key)) {
         return false;
+    }
+    if (seen.size >= MAX_SEEN_KEYS) {
+        seen.delete(seen.values().next().value);
     }
     seen.add(key);
     try {
