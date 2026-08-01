@@ -172,6 +172,19 @@ function configureBlobDownloadXHR(
                 error = makeErrorFromResponse(error);
                 onFailure(error);
             };
+            // `load` is not the reader's only terminal state. Leaving `error`
+            // and `abort` unhandled meant a body that could not be decoded
+            // settled the promise neither way, and `download()` hung for the
+            // lifetime of the page -- with the caller's spinner still up.
+            // `getDataURLFromFile` already covers all three.
+            const onDecoderFailure = (/** @type {string} */ what) => () =>
+                onFailure(
+                    new InvalidResponseError(url ?? "", xhr.status, {
+                        cause: decoder.error ?? new Error(`FileReader ${what}`),
+                    }),
+                );
+            decoder.onerror = onDecoderFailure("error");
+            decoder.onabort = onDecoderFailure("abort");
             decoder.readAsText(xhr.response);
         }
     };

@@ -4,7 +4,11 @@ import { Deferred, describe, expect, microTick, test, tick } from "@odoo/hoot";
 import { mockIndexedDBForTests } from "@web/../tests/_framework/mock_indexed_db.hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { RpcEvent } from "@web/core/events";
-import { ConnectionLostError, rpcBus } from "@web/core/network/rpc";
+import {
+    ConnectionAbortedError,
+    ConnectionLostError,
+    rpcBus,
+} from "@web/core/network/rpc";
 import { RAM_CACHE_MAX_ENTRIES, RPCCache } from "@web/core/network/rpc_cache";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 
@@ -1020,6 +1024,42 @@ test("DiskCache: multiple consecutive calls, fallback fails", async () => {
     await tick();
 
     expect.verifySteps([]);
+});
+
+test("update:always: an aborted refresh is not reported as a failure", async () => {
+    const rpcCache = new RPCCache("mockRpc", 1, null);
+    await rpcCache.read("table", "key", () => Promise.resolve({ v: 1 }), {
+        type: "ram",
+    });
+
+    /** @type {string[]} */
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (/** @type {any[]} */ ...args) => warnings.push(String(args[0])),
+    });
+    const failures = [];
+    const onFail = (/** @type {any} */ ev) => failures.push(ev.detail.error);
+    rpcBus.addEventListener(RpcEvent.BACKGROUND_REFRESH_FAILED, onFail);
+
+    const def = new Deferred();
+    // `rpc`'s abort() rejects the inner request with exactly this.
+    const res = await rpcCache.read("table", "key", () => def, {
+        type: "ram",
+        update: "always",
+    });
+    expect(res).toEqual({ v: 1 });
+
+    def.reject(new ConnectionAbortedError("fetch abort"));
+    await tick();
+    await tick();
+
+    // The caller asked for the refresh to stop; that is not a failure to
+    // report, on the console or on the bus.
+    expect(
+        warnings.filter((w) => w.includes("background refresh failed")),
+    ).toHaveLength(0);
+    expect(failures).toHaveLength(0);
+    rpcBus.removeEventListener(RpcEvent.BACKGROUND_REFRESH_FAILED, onFail);
 });
 
 test("silent update:always: ConnectionLostError refresh does not float a rejection", async () => {

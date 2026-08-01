@@ -5,7 +5,11 @@
 
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
-import { ConnectionLostError, rpcBus } from "@web/core/network/rpc";
+import {
+    ConnectionAbortedError,
+    ConnectionLostError,
+    rpcBus,
+} from "@web/core/network/rpc";
 import { deepCopy, deepEqual } from "@web/core/utils/collections/objects";
 import { Deferred } from "@web/core/utils/concurrency";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
@@ -507,6 +511,15 @@ export class RPCCache {
                         }
                     }
                     if (hasCacheValue) {
+                        if (error instanceof ConnectionAbortedError) {
+                            // The caller dropped its own refresh -- `rpc`'s
+                            // `abort()` rejects the inner request with this.
+                            // That is not a failure to report: it is the one
+                            // outcome the caller asked for, and warning about it
+                            // put a console line under every aborted
+                            // `update: "always"` read.
+                            return;
+                        }
                         if (error instanceof ConnectionLostError) {
                             rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, {
                                 error,

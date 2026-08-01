@@ -2,7 +2,7 @@
 
 import { after, describe, expect, test } from "@odoo/hoot";
 import { Deferred, mockFetch } from "@odoo/hoot-mock";
-import { allowTranslations } from "@web/../tests/web_test_helpers";
+import { allowTranslations, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { download } from "@web/core/network/download";
 import {
     ConnectionLostError,
@@ -118,4 +118,29 @@ test("handles success download", async () => {
     download({ data: { someKey: "someValue" }, url: "/some_url" });
     await deferred;
     expect.verifySteps(["fetching file", "file downloaded"]);
+});
+
+test("a FileReader failure rejects instead of hanging forever", async () => {
+    // `load` is not the reader's only terminal state. With `error`/`abort`
+    // unhandled, a body that could not be decoded settled the promise neither
+    // way and the caller waited for the lifetime of the page.
+    mockFetch(() => new Blob(["boom"], { type: "text/html" }));
+    patchWithCleanup(FileReader.prototype, {
+        readAsText() {
+            Promise.resolve().then(() => this.onerror?.(new Event("error")));
+        },
+    });
+
+    const PENDING = Symbol("pending");
+    const outcome = await Promise.race([
+        download({ data: {}, url: "/some_url" }).then(
+            () => "resolved",
+            (error) => error,
+        ),
+        new Promise((resolve) => setTimeout(() => resolve(PENDING), 500)),
+    ]);
+    expect(outcome).not.toBe(PENDING, {
+        message: "download() must settle even when the response cannot be decoded",
+    });
+    expect(outcome).toBeInstanceOf(InvalidResponseError);
 });
