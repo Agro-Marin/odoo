@@ -174,8 +174,8 @@ export class X2ManyField extends Component {
 
     /** @returns {boolean} */
     get displayControlPanelButtons() {
-        return (
-            this.props.viewMode === "kanban" && this.canCreate && this.controls.length
+        return Boolean(
+            this.props.viewMode === "kanban" && this.canCreate && this.controls.length,
         );
     }
 
