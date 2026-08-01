@@ -384,10 +384,9 @@ function onPopState(/** @type {any} */ ev) {
         ev.state?.nextState ||
         router.urlToState(new URL(/** @type {any} */ (browser.location)));
     const routeChanged = !deepEqual(previousState, _router.state);
-    if (!ev.state?.skipRouteChange && !router.skipLoad && routeChanged) {
+    if (!ev.state?.skipRouteChange && routeChanged) {
         routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
-    router.skipLoad = false;
 }
 
 function onPageShow(/** @type {any} */ ev) {
@@ -510,7 +509,6 @@ export const router = {
     },
     addLockedKey: (/** @type {string} */ key) => _router.lockedKeys.add(key),
     hideKeyFromUrl: (/** @type {string} */ key) => _router.hiddenKeysFromUrl.add(key),
-    skipLoad: false,
 
     /**
      * @param {object} marker
