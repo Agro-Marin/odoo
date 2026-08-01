@@ -173,6 +173,14 @@ export function parseFloat(value, { allowOperation = false } = {}) {
 }
 
 /**
+ * Read ``"1:30"`` as 1.5 hours.
+ *
+ * Minutes are read as a *number*, so ``"1:3"`` is 1 h 03. This deliberately
+ * differs from {@link import("@web/core/l10n/time").parseTime}, which
+ * right-pads (``"1:3"`` is 1:30) because a time picker is typed left to right.
+ * The two never see the same input: this one backs the ``float_time`` field,
+ * that one backs the time picker.
+ *
  * @param {string} value
  * @returns {number}
  */

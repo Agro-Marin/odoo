@@ -129,6 +129,10 @@ function isMeridiemFormat(format) {
 }
 
 /**
+ * Minutes and seconds are right-padded, so ``"1:3"`` is 1:30 -- a time picker
+ * is typed left to right. {@link import("@web/core/parsers").parseFloatTime}
+ * deliberately reads the same text differently; see its docstring.
+ *
  * @param {string} value
  * @param {boolean} [parseSeconds]
  * @returns {Time | null}
