@@ -6,11 +6,11 @@
 import { _t } from "@web/core/l10n/translation";
 import { isSafeUrlScheme } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
-import { TextInputFieldBase } from "@web/fields/basic/text_input_field_base";
+import { TrimmingInputFieldBase } from "@web/fields/basic/trimming_input_field_base";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class UrlField extends TextInputFieldBase {
+export class UrlField extends TrimmingInputFieldBase {
     static template = "web.UrlField";
     static props = {
         ...standardFieldProps,
