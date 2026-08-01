@@ -477,8 +477,11 @@ describe("Basic Properties", () => {
     });
 
     test("some expression with date stuff", () => {
+        // `contextToday`, not `today`: this exercises `context_today()`, which
+        // follows the user's timezone. `PyDate.today()` is `datetime.date.today()`
+        // and is UTC, as it is on the server.
         patchWithCleanup(PyDate, {
-            today() {
+            contextToday() {
                 return new PyDate(2013, 4, 24);
             },
         });

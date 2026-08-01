@@ -23,6 +23,9 @@ const formatDate = (d) => {
     return `${year}-${month}-${day}`;
 };
 
+const formatDateUTC = (d) =>
+    `${d.getUTCFullYear()}-${format(d.getUTCMonth() + 1)}-${format(d.getUTCDate())}`;
+
 const formatDateTimeUTC = (d) => {
     const year = d.getUTCFullYear();
     const month = format(d.getUTCMonth() + 1);
@@ -248,9 +251,29 @@ describe("datetime.datetime", () => {
 
 describe("datetime.date", () => {
     test("datetime.date.today", () => {
-        expect(check("(datetime.date.today()).strftime('%Y-%m-%d')", formatDate)).toBe(
-            true,
+        expect(
+            check("(datetime.date.today()).strftime('%Y-%m-%d')", formatDateUTC),
+        ).toBe(true);
+    });
+
+    test("datetime.date.today is UTC, not the client zone", () => {
+        // The server runs `date.today()` in a process pinned to UTC, so this
+        // is the one date builtin that must NOT follow the user's timezone --
+        // `context_today()` is.
+        mockDate("2026-07-20 18:30:00", -10);
+        expect(evaluateExpr("datetime.date.today().strftime('%Y-%m-%d')")).toBe(
+            "2026-07-20",
         );
+        mockDate("2026-07-21 13:30:00", +9);
+        expect(evaluateExpr("datetime.date.today().strftime('%Y-%m-%d')")).toBe(
+            "2026-07-21",
+        );
+        // Same instants, read through the client zone, land on other days.
+        mockDate("2026-07-20 18:30:00", +9);
+        expect(evaluateExpr("datetime.date.today().strftime('%Y-%m-%d')")).toBe(
+            "2026-07-20",
+        );
+        expect(evaluateExpr("context_today().strftime('%Y-%m-%d')")).toBe("2026-07-21");
     });
 
     test("various operations", () => {

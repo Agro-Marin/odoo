@@ -175,9 +175,30 @@ function assertTimeComponents(hour, minute, second, microsecond = 0) {
 
 export class PyDate {
     /**
+     * ``datetime.date.today()``. The server evaluates it in a process pinned to
+     * UTC (``odoo/_monkeypatches/__init__.py`` sets ``TZ`` and calls
+     * ``tzset()``), so this one is UTC as well. ``contextToday`` is the
+     * timezone-aware spelling.
+     *
      * @returns {PyDate}
      */
     static today() {
+        const now = new Date();
+        return new PyDate(
+            now.getUTCFullYear(),
+            now.getUTCMonth() + 1,
+            now.getUTCDate(),
+        );
+    }
+
+    /**
+     * ``context_today()``, which the server derives from the user's timezone
+     * (``fields.Date.context_today``). Luxon's default zone is set to
+     * ``user.tz`` at boot, so "now" in the default zone is that date.
+     *
+     * @returns {PyDate}
+     */
+    static contextToday() {
         const now = DateTime.now();
         return new PyDate(now.year, now.month, now.day);
     }

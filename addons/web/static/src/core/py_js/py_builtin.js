@@ -468,7 +468,7 @@ export const BUILTINS = {
     },
 
     context_today() {
-        return PyDate.today();
+        return PyDate.contextToday();
     },
 
     get current_date() {
@@ -476,7 +476,7 @@ export const BUILTINS = {
     },
 
     get today() {
-        return PyDate.today().strftime("%Y-%m-%d");
+        return PyDate.contextToday().strftime("%Y-%m-%d");
     },
 
     get now() {
