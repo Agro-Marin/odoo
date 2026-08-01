@@ -1395,3 +1395,21 @@ test("without isDateValid every in-month day stays selectable", async () => {
     expect(cells.filter((cell) => cell.disabled).length).toBe(0);
     expect(".o_date_item_cell:not(.o_out_of_range).opacity-50").toHaveCount(0);
 });
+
+test("the day grid restates today after the clock crosses midnight", async () => {
+    // The grid is memoised on the props it is built from, and "today" is not
+    // one of them: it comes from the clock. A picker left open overnight went
+    // on marking yesterday, and only a picker with `dayCellClass` or
+    // `isDateValid` -- which opts out of the memo entirely -- got it right.
+    mockDate("2023-04-25T12:00:00");
+    const picker = await mountWithCleanup(DateTimePicker, {
+        props: { type: "date" },
+    });
+    expect(queryAllTexts(".o_today")).toEqual(["25"]);
+
+    mockDate("2023-04-27T12:00:00");
+    picker.render(true);
+    await animationFrame();
+
+    expect(queryAllTexts(".o_today")).toEqual(["27"]);
+});

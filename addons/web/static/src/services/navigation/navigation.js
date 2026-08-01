@@ -89,7 +89,17 @@ class NavigationItem {
             this.target = el;
         }
 
-        if (supportsAriaSelected(this.el) && this.el.ariaSelected !== "true") {
+        // Whoever writes this attribute first owns it. Left to itself the
+        // navigator uses `aria-selected` for the cursor, which is the combobox
+        // convention and stays the default. But it is also the only channel a
+        // multi-select listbox has for "this one is held", and there the cursor
+        // would report every held option as unheld -- so a component with
+        // something of its own to say renders the attribute itself and keeps
+        // it. `aria-activedescendant` carries the cursor either way.
+        /** @private */
+        this._ownsAriaSelected =
+            supportsAriaSelected(this.el) && !this.el.hasAttribute("aria-selected");
+        if (this._ownsAriaSelected) {
             this.el.ariaSelected = "false";
         }
 
@@ -135,7 +145,7 @@ class NavigationItem {
      * @param {"true" | "false"} value
      */
     _setAriaSelected(value) {
-        if (supportsAriaSelected(this.el)) {
+        if (this._ownsAriaSelected) {
             this.el.ariaSelected = value;
         }
     }

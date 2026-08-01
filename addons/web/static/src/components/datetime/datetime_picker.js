@@ -42,7 +42,7 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
  * @property {() => any} [onToggleRange]
  * @property {boolean} [range]
  * @property {number} [rounding=5]
- * @property {() => boolean} [showRangeToggler]
+ * @property {boolean} [showRangeToggler]
  * @property {{ buttons?: any }} [slots]
  * @property {"date" | "datetime"} [type]
  * @property {NullableDateTime | NullableDateRange} [value]
@@ -432,6 +432,12 @@ export class DateTimePicker extends Component {
             this.minDate?.ts,
             this.maxDate?.ts,
             effShowWeekNumbers,
+            // The grid is not derived from the props alone: every cell records
+            // whether it holds today. `today()` is the start of the day, so
+            // this is one value for the whole day and does not weaken the
+            // memo -- it only stops a picker left open over midnight from
+            // going on marking yesterday.
+            today().ts,
         ];
         if (
             !isPureGrid ||

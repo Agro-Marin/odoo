@@ -159,11 +159,11 @@ export class SelectMenu extends Component {
         /** @type {Map<any, any>} */
         this._choiceMemory = new Map();
         /** @type {any[] | null} */
-        this._choiceRefs = null;
+        this._choiceSignature = null;
         this.choicesRevision = 0;
         /** @type {any} */
         this.selectedChoice = undefined;
-        /** @type {WeakMap<any[], { source: any[], sorted: any[] }>} */
+        /** @type {WeakMap<any[], { revision: number, sorted: any[] }>} */
         this._sortedChoicesCache = new WeakMap();
 
         onWillRender(() => {
@@ -328,6 +328,14 @@ export class SelectMenu extends Component {
 
     onStateChanged(open) {
         if (open) {
+            // The popover owns the menu element, so this is the first moment
+            // it exists. Without it a reader has no way to know several
+            // choices can be held at once, and reads each `aria-selected` as
+            // the single current value.
+            const menuEl = /** @type {any} */ (this.menuRef).el;
+            if (menuEl && this.props.multiSelect) {
+                menuEl.setAttribute("aria-multiselectable", "true");
+            }
             if (this.isBottomSheet) {
                 /** @type {HTMLElement} */ (document.activeElement).blur();
             }
@@ -381,6 +389,29 @@ export class SelectMenu extends Component {
         return this.props.value === choice.value;
     }
 
+    /**
+     * `aria-selected` normally belongs to the navigation service, which uses it
+     * for the cursor: that is the combobox convention, and it costs nothing
+     * when one value is held, because the value itself is the text in the box.
+     *
+     * Several values cannot be, so in multi-select this attribute is the only
+     * thing inside the listbox that can say which choices are held, and the
+     * cursor has to give it up -- `aria-activedescendant` names the cursor
+     * either way. Emitting it here is also what claims it: an item that
+     * arrives with the attribute keeps it.
+     *
+     * @param {any} choice
+     * @param {number} index
+     * @returns {Record<string, any>}
+     */
+    getItemAttrs(choice, index) {
+        const attrs = { "data-choice-index": index };
+        if (this.props.multiSelect) {
+            attrs["aria-selected"] = this.isOptionSelected(choice) ? "true" : "false";
+        }
+        return attrs;
+    }
+
     getItemClass(choice) {
         if (this.isOptionSelected(choice)) {
             return "o_select_menu_item fw-bolder selected";
@@ -402,31 +433,39 @@ export class SelectMenu extends Component {
 
     /**
      * Callers mutate the arrays they hand over in place, so neither `choices`
-     * nor `groups` nor `value` can be trusted to change identity when their
-     * contents do. Reading every entry here does two jobs: it subscribes this
-     * component to those mutations, and it turns them into a scalar the effect
-     * below can compare -- owl's useEffect diffs its dependencies with
-     * `newDeps.some((v, i) => v !== oldDeps[i])`, which never fires for a
-     * dependency array that only got shorter.
+     * nor `groups` can be trusted to change identity when their contents do --
+     * and neither can a choice, which callers edit field by field. Identity
+     * alone therefore cannot answer "is the menu still derived from this?": an
+     * edited label keeps its object, so a list sorted on the old spelling, or
+     * filtered by a query the new one no longer matches, would stay on screen.
+     *
+     * Every field the derivation below actually reads goes into the signature.
+     * That does two jobs: it subscribes this component to those fields -- the
+     * template only reads the ones currently on screen, never the ones the
+     * filter dropped -- and it turns a mutation into something a comparison
+     * can see.
      */
     syncChoicesRevision() {
-        const refs = [];
+        const signature = [];
+        const pushChoice = (choice) => {
+            signature.push(choice, choice.label, choice.value);
+        };
         for (const choice of this.props.choices) {
-            refs.push(choice);
+            pushChoice(choice);
         }
         for (const group of this.props.groups) {
-            refs.push(group);
+            signature.push(group, group.label, group.section);
             for (const choice of group.choices || []) {
-                refs.push(choice);
+                pushChoice(choice);
             }
         }
-        const previous = this._choiceRefs;
+        const previous = this._choiceSignature;
         if (
             !previous ||
-            previous.length !== refs.length ||
-            previous.some((ref, index) => ref !== refs[index])
+            previous.length !== signature.length ||
+            previous.some((entry, index) => entry !== signature[index])
         ) {
-            this._choiceRefs = refs;
+            this._choiceSignature = signature;
             this.choicesRevision++;
         }
     }
@@ -493,24 +532,27 @@ export class SelectMenu extends Component {
     /**
      * @param {String} searchString
      */
-    filterOptions(searchString = "", groups) {
+    filterOptions(searchString = "") {
         this._selectedValueSet = null;
         this._derivedKey = `${this.choicesRevision}\x00${searchString}`;
-        const groupsList = groups || [
+        const groupsList = [
             { choices: this.props.choices, section: "" },
             ...this.props.groups,
         ];
 
         const _choices = [];
         const _sections = new Set();
+        // Ranking is asked once per group by the sort's comparator, i.e. more
+        // than once per group; scanning `sections` each time makes ordering
+        // quadratic in the number of sections.
+        const sectionOrder = new Map(
+            this.props.sections.map((section, index) => [section.name, index]),
+        );
         const sectionRank = (group) => {
             if (!group.section) {
                 return -1;
             }
-            const index = this.props.sections.findIndex(
-                (s) => s.name === group.section,
-            );
-            return index === -1 ? Infinity : index;
+            return sectionOrder.get(group.section) ?? Infinity;
         };
         groupsList.sort((a, b) => {
             const rankA = sectionRank(a);
@@ -563,16 +605,19 @@ export class SelectMenu extends Component {
      * @returns {any[]}
      */
     getSortedChoices(choices) {
+        // The revision already covers every label the order depends on, so it
+        // is the whole answer: comparing the entries again here would only
+        // repeat a weaker version of that check -- one that a renamed choice
+        // passes, because its object never moved.
         const cached = this._sortedChoicesCache.get(choices);
-        if (
-            cached &&
-            cached.source.length === choices.length &&
-            cached.source.every((choice, index) => choice === choices[index])
-        ) {
+        if (cached && cached.revision === this.choicesRevision) {
             return cached.sorted;
         }
         const sorted = choices.toSorted((a, b) => collator.compare(a.label, b.label));
-        this._sortedChoicesCache.set(choices, { source: [...choices], sorted });
+        this._sortedChoicesCache.set(choices, {
+            revision: this.choicesRevision,
+            sorted,
+        });
         return sorted;
     }
 

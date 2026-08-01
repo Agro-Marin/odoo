@@ -119,10 +119,10 @@ export class DateTimeField extends Component {
                 value,
                 type: /** @type {any} */ (this.field.type),
                 range: this.isRange(value),
-                showRangeToggler: /** @type {any} */ (
+                showRangeToggler: Boolean(
                     this.relatedField &&
-                        !this.props.required &&
-                        !(/** @type {any} */ (this.props).alwaysRange)
+                    !this.props.required &&
+                    !(/** @type {any} */ (this.props).alwaysRange),
                 ),
                 onToggleRange,
             };
