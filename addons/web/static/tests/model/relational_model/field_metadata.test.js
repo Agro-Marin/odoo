@@ -234,6 +234,41 @@ describe("addFieldDependencies", () => {
         expect(activeFields.company_id.readonly).toBe("True");
     });
 
+    test("written dependency is writable when it introduces the field", () => {
+        // Declared readonly by default, a dependency the widget edits is
+        // stripped from web_save and the edit is silently lost.
+        const activeFields = {};
+        const fields = { doc_name: { type: "char" } };
+        addFieldDependencies(activeFields, fields, [
+            { name: "doc_name", optional: true, written: true },
+        ]);
+        expect(activeFields.doc_name.readonly).toBe("False");
+    });
+
+    test("written dependency leaves an existing field's modifiers alone", () => {
+        // `readonly: false` would AND with the arch modifier and unlock it.
+        const activeFields = {
+            doc_name: makeActiveField({ readonly: "not datas", required: true }),
+        };
+        const fields = { doc_name: { type: "char" } };
+        addFieldDependencies(activeFields, fields, [
+            { name: "doc_name", optional: true, written: true },
+        ]);
+        expect(activeFields.doc_name.readonly).toBe("not datas");
+        expect(activeFields.doc_name.required).toBe("True");
+    });
+
+    test("readonly:false dependency DOES override an existing modifier", () => {
+        // Pinned so the difference with `written` stays visible: this is the
+        // behaviour that makes `readonly: false` the wrong tool for a write.
+        const activeFields = { doc_name: makeActiveField({ readonly: "not datas" }) };
+        const fields = { doc_name: { type: "char" } };
+        addFieldDependencies(activeFields, fields, [
+            { name: "doc_name", readonly: false },
+        ]);
+        expect(activeFields.doc_name.readonly).toBe("False");
+    });
+
     test("patches existing active field (doesn't duplicate)", () => {
         const activeFields = { name: makeActiveField({ readonly: false }) };
         const fields = { name: { type: "char" } };

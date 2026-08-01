@@ -37,6 +37,22 @@ function toFiniteNumber(value) {
     return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/**
+ * The field names this widget writes to -- which are not necessarily the field
+ * it is placed on.
+ *
+ * @param {string} fieldName
+ * @param {Record<string, any>} options
+ * @returns {string[]}
+ */
+function editedFieldNames(fieldName, options) {
+    const names = [options.current_value || fieldName];
+    if (options.max_value && toFiniteNumber(options.max_value) === undefined) {
+        names.push(String(options.max_value));
+    }
+    return names;
+}
+
 /** @extends {Component<ProgressBarFieldProps>} */
 export class ProgressBarField extends Component {
     static template = "web.ProgressBarField";
@@ -234,18 +250,41 @@ export const progressBarField = {
             ),
             default: "bg-secondary",
         },
+        {
+            label: _t("Read-only"),
+            name: "readonly",
+            type: "boolean",
+            help: _t(
+                "Force the bar non-editable even when 'Can edit value' is set -- used to keep a card's bar inert in kanban.",
+            ),
+        },
     ],
     supportedTypes: ["integer", "float"],
+    // The bar edits `current_value` / `max_value`, not the field it is placed
+    // on, so the default `record.isFieldInvalid(props.name)` never sees a parse
+    // error from its own inputs and the widget stays unhighlighted.
+    isValid: (record, fieldName, fieldInfo) =>
+        !editedFieldNames(fieldName, fieldInfo.options || {}).some((name) =>
+            record.isFieldInvalid(name),
+        ),
     fieldDependencies: ({ options }) => {
+        // The widget renders a writable input for whichever field it edits, so
+        // that field cannot be declared readonly: a readonly dependency is
+        // dropped from web_save and the edit is silently discarded.
+        const editable = Boolean(options.editable) && !options.readonly;
         const deps = [];
         if (options.current_value) {
-            deps.push({ name: options.current_value, optional: true, readonly: true });
+            deps.push({
+                name: options.current_value,
+                optional: true,
+                readonly: !(editable && !options.edit_max_value),
+            });
         }
         if (options.max_value && toFiniteNumber(options.max_value) === undefined) {
             deps.push({
                 name: String(options.max_value),
                 optional: true,
-                readonly: true,
+                readonly: !(editable && options.edit_max_value),
             });
         }
         return deps;

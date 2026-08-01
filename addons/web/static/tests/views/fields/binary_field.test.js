@@ -571,3 +571,59 @@ test("download sends the filename field NAME, not its resolved value", async () 
     await deferred;
     expect.verifySteps(["/web/content"]);
 });
+
+test("BinaryField: the filename field is loaded even when the view omits it", async () => {
+    // `filename=` names a field the widget both reads and writes. Nothing
+    // declared it as a dependency, so a view that did not also render it left
+    // `record.data[filename]` unset -- and `fileName` fell through to slicing
+    // the base64 payload, labelling and *downloading* the file under a blob.
+    Partner._records[0].document = false;
+    Partner._records[0].foo = false;
+    onRpc("web_save", ({ args }) => {
+        expect.step(args[1]);
+    });
+    await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `<form><field name="document" filename="foo"/></form>`,
+    });
+
+    await click(`.o_select_file_button`);
+    await animationFrame();
+    await setInputFiles([new File(["hello"], "report.pdf", { type: "text/plain" })]);
+    await waitFor(`.o_form_button_save:visible`);
+    await clickSave();
+
+    expect.verifySteps([{ document: "aGVsbG8=", foo: "report.pdf" }]);
+    expect(`.o_field_binary .o_input`).toHaveValue("report.pdf");
+});
+
+test("BinaryField: a dependency never unlocks an arch-readonly filename field", async () => {
+    // The dependency must not hand itself write access: `patchActiveFields`
+    // combines readonly with AND, so a plain `readonly: false` would override
+    // the arch and silently make the field editable.
+    Partner._records[0].document = false;
+    Partner._records[0].foo = false;
+    onRpc("web_save", ({ args }) => {
+        expect.step(args[1]);
+    });
+    await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `
+            <form>
+                <field name="foo" readonly="1"/>
+                <field name="document" filename="foo"/>
+            </form>`,
+    });
+
+    await click(`.o_select_file_button`);
+    await animationFrame();
+    await setInputFiles([new File(["hello"], "report.pdf", { type: "text/plain" })]);
+    await waitFor(`.o_form_button_save:visible`);
+    await clickSave();
+
+    expect.verifySteps([{ document: "aGVsbG8=" }]);
+});

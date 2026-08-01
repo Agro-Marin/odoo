@@ -125,6 +125,12 @@ export const binaryField = {
         },
     ],
     supportedTypes: ["binary"],
+    // Read to label and name the download, and written on upload, so it has to
+    // be loaded even when the view does not render it -- otherwise `fileName`
+    // falls through to slicing the base64 payload and the file is shown, and
+    // downloaded, under a blob of base64.
+    fieldDependencies: ({ attrs }) =>
+        attrs.filename ? [{ name: attrs.filename, optional: true, written: true }] : [],
     extractProps: ({ attrs, options }) => ({
         acceptedFileExtensions: options.accepted_file_extensions,
         allowedMIMETypes: options.allowed_mime_type,
