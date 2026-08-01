@@ -5,11 +5,11 @@
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
-import { TextInputFieldBase } from "@web/fields/basic/text_input_field_base";
+import { TrimmingInputFieldBase } from "@web/fields/basic/trimming_input_field_base";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class PhoneField extends TextInputFieldBase {
+export class PhoneField extends TrimmingInputFieldBase {
     static template = "web.PhoneField";
     static props = {
         ...standardFieldProps,

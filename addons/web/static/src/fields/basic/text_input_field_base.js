@@ -3,10 +3,17 @@
 
 /** @module @web/fields/basic/text_input_field_base */
 
-import { Component, useEffect, useExternalListener } from "@odoo/owl";
+import { useEffect, useExternalListener } from "@odoo/owl";
 import { useDynamicPlaceholder } from "@web/fields/dynamic_placeholder_hook";
 
-export class TextInputFieldBase extends Component {
+import { TrimmingInputFieldBase } from "./trimming_input_field_base.js";
+
+/**
+ * A {@link TrimmingInputFieldBase} that can additionally host the dynamic
+ * placeholder popover. Extend this only when the template wires it up:
+ * `onBlur` dereferences `inputEl`, which the subclass must override.
+ */
+export class TextInputFieldBase extends TrimmingInputFieldBase {
     /**
      * @type {any}
      */
@@ -18,26 +25,6 @@ export class TextInputFieldBase extends Component {
      */
     get inputEl() {
         return null;
-    }
-
-    /** @returns {boolean} */
-    get isTranslatable() {
-        return this.props.record.fields[this.props.name].translate;
-    }
-
-    /**
-     * @returns {boolean}
-     */
-    get shouldTrim() {
-        return Boolean(this.props.record.fields[this.props.name].trim);
-    }
-
-    /**
-     * @param {string} value
-     * @returns {string}
-     */
-    parse(value) {
-        return this.shouldTrim ? value.trim() : value;
     }
 
     /**
