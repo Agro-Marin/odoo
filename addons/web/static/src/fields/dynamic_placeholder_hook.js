@@ -49,8 +49,10 @@ export function useDynamicPlaceholder(elementRef) {
             start -= 1;
         }
         element.setRangeText(dynamicPlaceholder, start, rangeIndex, "end");
+        // A synthetic KeyboardEvent carries no `key`, so getActiveHotkey()
+        // returns "" and every branch in useInputField's keydown handler
+        // misses: dispatching one only looked like it committed the change.
         element.dispatchEvent(new InputEvent("input"));
-        element.dispatchEvent(new KeyboardEvent("keydown"));
     };
 
     const onDynamicPlaceholderValidate = function (path, defaultValue) {
