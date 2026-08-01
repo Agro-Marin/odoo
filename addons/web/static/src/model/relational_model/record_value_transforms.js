@@ -202,7 +202,7 @@ export function parseServerValues(
                     staticList._applyInitialCommands(listValue);
                 }
             } else if (valueIsCommandList) {
-                staticList._trackCommandsPromise(staticList._applyCommands(listValue));
+                staticList.stageCommands(listValue);
             }
             parsedValues[fieldName] = staticList;
         } else {

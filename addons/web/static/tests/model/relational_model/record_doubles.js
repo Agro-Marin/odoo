@@ -136,7 +136,15 @@ export function makeRecordDouble({
         activeFields,
         data: merged,
         _values: { ...values },
-        _savePoint: undefined,
+
+        // `RelationalRecord` delegates this to the edit state; a plain property
+        // here would let a double disagree with the class it stands in for.
+        get _savePoint() {
+            return editState.savePoint;
+        },
+        set _savePoint(value) {
+            editState.savePoint = value;
+        },
 
         get dirty() {
             return editState.dirty;
@@ -178,8 +186,6 @@ export function makeRecordDouble({
         ...RECORD_STATE_TRANSITIONS,
         _clearChanges: () => editState.clearChanges(),
         _clearValidity: () => editState.clearValidity(),
-        _restoreValidity: (/** @type {any} */ snapshot) =>
-            editState.restoreValidity(snapshot),
         _isRequired: isRequired,
         _isInvisible: isInvisible,
         _setEvalContext: () => {},

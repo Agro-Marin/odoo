@@ -36,7 +36,7 @@ export function getRandomBool() {
 }
 
 /** @returns {any} */
-export function getRandomDate() {
+function getRandomDate() {
     const delta = Math.floor((Math.random() - Math.random()) * DATE_DELTA);
     return DateTime.local().plus({ hours: delta });
 }
@@ -45,7 +45,7 @@ export function getRandomDate() {
  * @param {number} max
  * @returns {number}
  */
-export function getRandomFloat(max) {
+function getRandomFloat(max) {
     return sanitizeNumber(Math.random() * max);
 }
 

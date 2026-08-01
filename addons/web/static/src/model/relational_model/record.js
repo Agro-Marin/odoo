@@ -449,13 +449,6 @@ export class RelationalRecord extends DataPoint {
         this._editState.clearValidity();
     }
 
-    /**
-     * @param {{ invalidFields: Iterable<string>, unsetRequiredFields: Iterable<string> }} snapshot
-     */
-    _restoreValidity(snapshot) {
-        this._editState.restoreValidity(snapshot);
-    }
-
     _markDirty() {
         this._editState.markDirty();
     }

@@ -10,38 +10,16 @@ import { modelLog } from "@web/core/utils/asset_log";
 
 import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
 import { FetchRecordError } from "./errors.js";
-import { getId, getSpecEvalContext, isX2Many } from "./field_context.js";
+import { getId, getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
+import {
+    buildCommitSpec,
+    collectPendingCommands,
+    commitSubtree,
+    x2manyLists,
+} from "./x2many_tree.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
-
-/**
- * @param {RelationalRecord} record
- * @param {Promise<void>[]} proms
- * @param {Set<any>} seen
- */
-function collectPendingCommandsPromises(record, proms, seen) {
-    for (const fieldName of Object.keys(record.activeFields)) {
-        const field = record.fields[fieldName];
-        if (!isX2Many(field)) {
-            continue;
-        }
-        const list = record.data[fieldName];
-        if (!list || seen.has(list)) {
-            continue;
-        }
-        seen.add(list);
-        if (list._commandsPromise) {
-            proms.push(list._commandsPromise);
-        }
-        for (const subRecord of Object.values(list._cache)) {
-            if (!seen.has(subRecord)) {
-                seen.add(subRecord);
-                collectPendingCommandsPromises(subRecord, proms, seen);
-            }
-        }
-    }
-}
 
 const PENDING_COMMANDS_MAX_ITERATIONS = 100;
 
@@ -50,9 +28,7 @@ const PENDING_COMMANDS_MAX_ITERATIONS = 100;
  */
 async function waitForPendingCommands(record) {
     for (let i = 0; i < PENDING_COMMANDS_MAX_ITERATIONS; i++) {
-        /** @type {Promise<void>[]} */
-        const proms = [];
-        collectPendingCommandsPromises(record, proms, new Set());
+        const proms = collectPendingCommands(record);
         if (!proms.length) {
             return;
         }
@@ -63,77 +39,6 @@ async function waitForPendingCommands(record) {
             `${PENDING_COMMANDS_MAX_ITERATIONS} barrier iterations ` +
             `(resModel: ${record.resModel}); proceeding with a best-effort save`,
     );
-}
-
-/**
- * @param {RelationalRecord} record
- * @returns {Generator<[string, any]>}
- */
-function* x2manyLists(record) {
-    for (const fieldName of Object.keys(record.activeFields)) {
-        const field = record.fields[fieldName];
-        if (!isX2Many(field) || field.relatedPropertyField) {
-            continue;
-        }
-        const list = record.data[fieldName];
-        if (list) {
-            yield [fieldName, list];
-        }
-    }
-}
-
-/**
- * @param {RelationalRecord} record
- * @param {Set<any>} [seen]
- * @returns {Record<string, any>}
- */
-function buildX2manyCommitSpec(record, seen = new Set()) {
-    /** @type {Record<string, any>} */
-    const spec = {};
-    if (seen.has(record)) {
-        return spec;
-    }
-    seen.add(record);
-    for (const [fieldName, list] of x2manyLists(record)) {
-        const nested = {};
-        for (const child of Object.values(list._cache)) {
-            Object.assign(nested, buildX2manyCommitSpec(child, seen));
-        }
-        const hasNested = Object.keys(nested).length > 0;
-        if (!list._commands.length && !hasNested) {
-            continue;
-        }
-        spec[fieldName] = hasNested ? { fields: nested } : {};
-    }
-    return spec;
-}
-
-/**
- * @param {RelationalRecord} record
- * @param {Record<string, any>} [values]
- * @param {Set<any>} [seen]
- */
-function commitX2manyLists(record, values, seen = new Set()) {
-    if (seen.has(record)) {
-        return;
-    }
-    seen.add(record);
-    for (const [fieldName, list] of x2manyLists(record)) {
-        const serverValue = values?.[fieldName];
-        if (serverValue === undefined) {
-            list._clearCommands();
-            continue;
-        }
-        list._commitSave(serverValue);
-        for (const row of serverValue) {
-            if (row && typeof row === "object") {
-                const child = list._cache[row.id];
-                if (child) {
-                    commitX2manyLists(child, row, seen);
-                }
-            }
-        }
-    }
 }
 
 /**
@@ -156,11 +61,8 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     if (!record.model.urgentSave.isActive) {
         await waitForPendingCommands(record);
     }
-    for (const fieldName of Object.keys(record.activeFields)) {
-        const field = record.fields[fieldName];
-        if (isX2Many(field) && !field.relatedPropertyField) {
-            record.data[fieldName]._abandonRecords();
-        }
+    for (const [, list] of x2manyLists(record)) {
+        list._abandonRecords();
     }
     if (!record._checkValidity({ displayNotification: true })) {
         return false;
@@ -240,11 +142,8 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         /** @type {Record<string, any>} */
         const orderBys = {};
         if (!nextId) {
-            const fieldNames = record.fieldNames;
-            for (const fieldName of fieldNames) {
-                if (isX2Many(record.fields[fieldName])) {
-                    orderBys[fieldName] = record.data[fieldName].orderBy;
-                }
+            for (const [fieldName, list] of x2manyLists(record)) {
+                orderBys[fieldName] = list.orderBy;
             }
         }
         let fieldSpec = {};
@@ -256,7 +155,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
                 { orderBys },
             );
         } else {
-            fieldSpec = buildX2manyCommitSpec(record);
+            fieldSpec = buildCommitSpec(record);
         }
         const kwargs = {
             context: record.context,
@@ -311,7 +210,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             }
             record._setData(records[0], { orderBys });
         } else {
-            commitX2manyLists(record, records[0]);
+            commitSubtree(record, records[0]);
             record._commitChanges(
                 "id" in record.activeFields ? { id: records[0].id } : undefined,
             );

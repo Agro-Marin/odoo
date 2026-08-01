@@ -210,6 +210,52 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
         self.assertEqual(category.name, "Renamed")
 
+    def test_uncomparable_baseline_shape_fails_open(self):
+        """A baseline of the wrong SHAPE must fail open like an uncomparable
+        type, not fail closed.
+
+        Every type that falls through to ``str()`` -- char, text, selection --
+        accepted anything, so a container baseline coerced to a
+        stable-but-bogus string that could never match the column. The save was
+        then refused with "modified by another user" on a record nobody had
+        touched, permanently: reloading re-sends the same shape."""
+        for baseline in ({"weird": 1}, ["a"], ("a",), {"a"}, b"a"):
+            with self.subTest(baseline=baseline):
+                self.partner.ref = "OLD"
+                self.env.flush_all()
+                self.partner.web_save(
+                    {"ref": "MINE"},
+                    specification={"ref": {}},
+                    known_values={"ref": baseline},
+                )
+                self.assertEqual(self.partner.ref, "MINE")
+
+    def test_uncomparable_baseline_still_detects_real_conflict(self):
+        """Failing open on a bad shape must not disarm the neighbouring
+        fields: a well-shaped baseline in the same payload is still checked."""
+        self.partner.write({"ref": "OLD", "function": "OLDFN"})
+        self.env.flush_all()
+        self._server_set(ref="CHANGED ELSEWHERE")
+        with self.assertRaises(UserError):
+            self.partner.web_save(
+                {"ref": "MINE", "function": "MINEFN"},
+                specification={"ref": {}},
+                known_values={"ref": "OLD", "function": {"bad": "shape"}},
+            )
+
+    def test_scalar_baselines_still_compare(self):
+        """The guard rejects containers only -- the scalars the client really
+        sends must keep comparing exactly as before."""
+        self.partner.ref = "OLD"
+        self.env.flush_all()
+        self._server_set(ref="CHANGED ELSEWHERE")
+        with self.assertRaises(UserError):
+            self.partner.web_save(
+                {"ref": "MINE"},
+                specification={"ref": {}},
+                known_values={"ref": "OLD"},
+            )
+
     def test_legacy_last_write_date_fallback(self):
         stale = self.partner.write_date - timedelta(seconds=10)
         self._server_set(write_date=self.partner.write_date + timedelta(seconds=5))
@@ -238,7 +284,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 specification={"phone": {}},
                 last_write_date="2020-01-01T00:00:00.000Z",
             )
-
 
     def _server_set_on(self, record, **col_vals):
         """Commit a change to ``record`` at the DB level (concurrent worker)."""
@@ -358,7 +403,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
         self.assertEqual(result[0]["phone"], "new")
 
-
     def test_web_save_multi_writes_all_no_locking(self):
         """Without known_values, web_save_multi writes each record's own vals."""
         recs = self.c1 + self.c2
@@ -418,7 +462,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
             },
         )
         self.assertEqual([r["phone"] for r in result], ["a1", "a2"])
-
 
     def test_stale_field_in_vals_raises_usererror(self):
         """A stale field name in web_save VALS (outdated cached form view)

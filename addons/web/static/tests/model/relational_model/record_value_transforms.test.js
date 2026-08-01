@@ -423,7 +423,7 @@ function makeParseRecord({
                 _applyInitialCommands(commands) {
                     this._appliedInitialCommands = commands;
                 },
-                _applyCommands(commands) {
+                stageCommands(commands) {
                     this._appliedCommands = commands;
                 },
             })),
@@ -553,15 +553,11 @@ describe("parseServerValues — x2many command list", () => {
             data: [{ id: 1 }],
             _appliedInitialCommands: null,
             _appliedCommands: null,
-            _trackedResults: [],
             _applyInitialCommands(commands) {
                 this._appliedInitialCommands = commands;
             },
-            _applyCommands(commands) {
+            stageCommands(commands) {
                 this._appliedCommands = commands;
-            },
-            _trackCommandsPromise(result) {
-                this._trackedResults.push(result);
             },
         };
         const rec = makeParseRecord({
@@ -585,7 +581,7 @@ describe("parseServerValues — x2many command list", () => {
             _appliedInitialCommands: null,
             _appliedCommands: null,
             _applyInitialCommands() {},
-            _applyCommands() {},
+            stageCommands() {},
         };
         const rec = makeParseRecord({
             activeFields: { line_ids: {} },

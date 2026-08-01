@@ -20,18 +20,10 @@ import { fromUnityToServerValues, invalidateAggregateSpecs } from "./field_value
 import { ListMembership } from "./list_membership.js";
 import { applyCommands } from "./static_list_command_engine.js";
 import { resequence, sort as sortRecords, sortBy } from "./static_list_sort.js";
-import { copyRecordData, pairCreatedRows } from "./static_list_utils.js";
+import { copyRecordData, listId, pairCreatedRows } from "./static_list_utils.js";
 
 /** @import { DatapointId } from "@web/model/types" */
 /** @import { RelationalRecord } from "./record.js" */
-
-/**
- * @param {RelationalRecord} record
- * @returns {DatapointId}
- */
-function listId(record) {
-    return /** @type {DatapointId} */ (record.resId || record._virtualId);
-}
 
 /**
  * @param {[number, any, any?][]} commands
@@ -178,6 +170,35 @@ export class StaticList extends DataPoint {
 
     get selection() {
         return [];
+    }
+
+    /**
+     * The three questions the save path asks of a list. Published so the
+     * traversal in x2many_tree.js can answer them without reaching into
+     * `_cache` / `_commands` / `_commandsPromise`.
+     *
+     * @returns {Promise<void> | null} in-flight command replay, if any
+     */
+    get pendingCommands() {
+        return this._commandsPromise;
+    }
+
+    /** @returns {RelationalRecord[]} every datapoint this list has built */
+    get cachedRecords() {
+        return Object.values(this._cache);
+    }
+
+    /** @returns {boolean} */
+    get hasStagedCommands() {
+        return this._commands.length > 0;
+    }
+
+    /**
+     * @param {DatapointId} id
+     * @returns {RelationalRecord | undefined}
+     */
+    getCachedRecord(id) {
+        return this._cache[id];
     }
 
     /**
@@ -682,7 +703,7 @@ export class StaticList extends DataPoint {
             return;
         }
         if (serverValue.length && Array.isArray(serverValue[0])) {
-            this._trackCommandsPromise(this._applyCommands(serverValue));
+            this.stageCommands(serverValue);
             return;
         }
         for (const row of serverValue) {
@@ -693,6 +714,21 @@ export class StaticList extends DataPoint {
                 this.records[index] = record;
             }
         }
+    }
+
+    /**
+     * Apply commands AND register the replay on this list's barrier, as one
+     * step. `_applyCommands` only returns a promise when it has records to
+     * load, and applying without registering that promise is precisely what a
+     * concurrent save races: `waitForPendingCommands` finds nothing to wait on
+     * and the `web_save` goes out mid-replay. Callers outside this file should
+     * use this rather than pairing the two by hand.
+     *
+     * @param {[number, any, any?][]} commands
+     * @param {{ canAddOverLimit?: boolean }} [options]
+     */
+    stageCommands(commands, options) {
+        this._trackCommandsPromise(this._applyCommands(commands, options));
     }
 
     /**
@@ -720,7 +756,7 @@ export class StaticList extends DataPoint {
     }
 
     _applyInitialCommands(commands) {
-        this._trackCommandsPromise(this._applyCommands(commands));
+        this.stageCommands(commands);
         this._initialCommands = [...commands];
     }
 
@@ -835,7 +871,7 @@ export class StaticList extends DataPoint {
             const commands = this._unknownRecordCommands[id];
             if (commands) {
                 delete this._unknownRecordCommands[id];
-                this._trackCommandsPromise(this._applyCommands(commands));
+                this.stageCommands(commands);
             }
         }
         return record;
@@ -977,7 +1013,7 @@ export class StaticList extends DataPoint {
         this._tmpIncreaseLimit = 0;
         this.model._patchConfig(this.config, { limit });
         this._materializeWindow();
-        this._trackCommandsPromise(this._applyCommands(this._initialCommands));
+        this.stageCommands(this._initialCommands);
         if (this._commandsPromise) {
             this._commandsPromise.then(() => this._pruneCache());
         } else {

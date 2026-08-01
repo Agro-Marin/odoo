@@ -19,6 +19,8 @@ const TRANSITIONS = {
     active: { end: "idle" },
 };
 
+const REENTRANT_DRAIN_MAX_ROUNDS = 100;
+
 export class InvalidUrgentSaveTransitionError extends Error {
     /**
      * @param {string} from
@@ -85,11 +87,24 @@ export class UrgentSaveCoordinator extends SignalStore {
             await Promise.allSettled(proms);
             return await fn();
         } finally {
+            let rounds = 0;
             while (this._reentrantProms.length) {
+                if (rounds++ >= REENTRANT_DRAIN_MAX_ROUNDS) {
+                    console.warn(
+                        `UrgentSaveCoordinator: reentrant saves did not settle ` +
+                            `after ${REENTRANT_DRAIN_MAX_ROUNDS} rounds; ` +
+                            `${this._reentrantProms.length} still in flight. ` +
+                            `Ending the urgent save anyway -- this runs inside a ` +
+                            `beforeunload handler, where blocking forever costs ` +
+                            `the user the whole tab.`,
+                    );
+                    break;
+                }
                 const reentrant = this._reentrantProms;
                 this._reentrantProms = [];
                 await Promise.allSettled(reentrant);
             }
+            this._reentrantProms = [];
             this._transition("end");
         }
     }

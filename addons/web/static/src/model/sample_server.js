@@ -177,13 +177,18 @@ export class SampleServer {
     }
 
     /**
+     * Overridable hook: `timesheet_grid` patches it, `web_cohort` calls it with
+     * `(modelName, fieldName)` only. The field descriptor is therefore resolved
+     * here rather than passed in — an extra parameter ahead of `id` shifts every
+     * external caller's arguments and makes the 2-argument call throw.
+     *
      * @param {string} modelName
      * @param {string} fieldName
-     * @param {Record<string, any>} field
-     * @param {number} id
+     * @param {number} [id]
      * @returns {any}
      */
-    _generateFieldValue(modelName, fieldName, field, id) {
+    _generateFieldValue(modelName, fieldName, id) {
+        const field = this.data[modelName].fields[fieldName];
         return generateFieldValue(modelName, fieldName, field, id, {
             getRandomBool: () => this._getRandomBool(),
             getRandomSubRecordId: () => this._getRandomSubRecordId(),
@@ -631,7 +636,6 @@ export class SampleServer {
                         record[fieldName] = this._generateFieldValue(
                             modelName,
                             fieldName,
-                            model.fields[fieldName],
                             id,
                         );
                     }
