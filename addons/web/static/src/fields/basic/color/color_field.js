@@ -4,6 +4,7 @@
 /** @module @web/fields/basic/color/color_field */
 
 import { Component, useState } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -51,6 +52,16 @@ export class ColorField extends Component {
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const colorField = {
     component: ColorField,
+    supportedOptions: [
+        {
+            label: _t("Autosave"),
+            name: "autosave",
+            type: "boolean",
+            help: _t(
+                "Save the record as soon as a colour is picked. Defaults to true in list and kanban views.",
+            ),
+        },
+    ],
     supportedTypes: ["char"],
     extractProps({ viewType, options }, dynamicInfo) {
         let autosave = false;

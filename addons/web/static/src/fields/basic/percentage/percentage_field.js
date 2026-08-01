@@ -60,6 +60,13 @@ export class PercentageField extends NumericInputFieldBase {
 export const percentageField = {
     component: PercentageField,
     displayName: _t("Percentage"),
+    supportedOptions: [
+        {
+            label: _t("Digits"),
+            name: "digits",
+            type: "digits",
+        },
+    ],
     supportedTypes: ["float"],
     isEmpty: isFalseEmpty,
     extractProps: ({ attrs, options }) => ({

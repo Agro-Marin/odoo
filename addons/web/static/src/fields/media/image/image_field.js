@@ -278,6 +278,12 @@ export const imageField = {
             type: "field",
             availableTypes: ["binary"],
         },
+        {
+            label: _t("Image class"),
+            name: "img_class",
+            type: "string",
+            help: _t("Extra CSS classes set on the <img> element."),
+        },
     ],
     supportedTypes: ["binary", "many2one"],
     fieldDependencies: [{ name: "write_date", type: "datetime" }],

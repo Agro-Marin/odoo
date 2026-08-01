@@ -44,7 +44,6 @@ export const many2ManyTagsAvatarField = {
     extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => ({
         ...many2ManyTagsField.extractProps(fieldInfo, dynamicInfo),
         withCommand: ["form", "list"].includes(fieldInfo.viewType),
-        domain: dynamicInfo.domain,
     }),
 };
 

@@ -7,6 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
 import {
     extractM2OFieldProps,
+    m2oSupportedOptions,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
 
@@ -51,6 +52,7 @@ export class Many2OneReferenceField extends Many2OneField {
 registerField("many2one_reference", {
     component: Many2OneReferenceField,
     displayName: _t("Many2OneReference"),
+    supportedOptions: m2oSupportedOptions,
     extractProps(staticInfo, dynamicInfo) {
         return extractM2OFieldProps(staticInfo, dynamicInfo);
     },

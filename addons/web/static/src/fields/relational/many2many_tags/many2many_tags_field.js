@@ -18,7 +18,10 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { m2oSupportedOptions } from "../many2one/many2one_field.js";
+import {
+    extractCreatePermissions,
+    m2oSupportedOptions,
+} from "../many2one/many2one_field.js";
 import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.js";
 import { useActiveActions } from "../relational_active_actions.js";
 import { useX2ManyCrud } from "../x2many_crud.js";
@@ -281,19 +284,10 @@ export const many2ManyTagsField = {
         /** @type {any} */ { attrs, options, string, placeholder },
         /** @type {any} */ dynamicInfo,
     ) {
-        const hasCreatePermission = attrs.can_create
-            ? evaluateBooleanExpr(attrs.can_create)
-            : true;
-        const noCreate = Boolean(options.no_create);
-        const canCreate = noCreate ? false : hasCreatePermission;
-        const noQuickCreate = Boolean(options.no_quick_create);
-        const noCreateEdit = Boolean(options.no_create_edit);
         return {
+            ...extractCreatePermissions({ attrs, options }),
             colorField: options.color_field,
             nameCreateField: options.create_name_field,
-            canCreate,
-            canQuickCreate: canCreate && !noQuickCreate,
-            canCreateEdit: canCreate && !noCreateEdit,
             createDomain: options.create,
             context: dynamicInfo.context,
             domain: dynamicInfo.domain,

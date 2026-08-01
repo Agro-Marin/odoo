@@ -102,6 +102,14 @@ function extractProps({ string, attrs }) {
 export const copyClipboardButtonField = {
     component: CopyClipboardButtonField,
     displayName: _t("Copy to Clipboard"),
+    supportedOptions: [
+        {
+            label: _t("Button style"),
+            name: "btn_class",
+            type: "string",
+            help: _t("Bootstrap button variant, e.g. 'primary' or 'secondary'."),
+        },
+    ],
     extractProps: (/** @type {any} */ fieldInfo) => ({
         ...extractProps(fieldInfo),
         btnClass: fieldInfo.options.btn_class,

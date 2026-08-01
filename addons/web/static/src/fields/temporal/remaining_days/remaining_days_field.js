@@ -121,6 +121,16 @@ export class RemainingDaysField extends Component {
 export const remainingDaysField = {
     component: RemainingDaysField,
     displayName: _t("Remaining Days"),
+    supportedOptions: [
+        {
+            label: _t("Decoration expressions"),
+            name: "classes",
+            type: "string",
+            help: _t(
+                "Map of decoration name to a python expression over `days`, e.g. {'danger': 'days < 0'}.",
+            ),
+        },
+    ],
     supportedTypes: ["date", "datetime"],
     extractProps: ({ options }) => ({
         classes: options.classes,

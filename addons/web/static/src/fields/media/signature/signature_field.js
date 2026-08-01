@@ -200,6 +200,16 @@ export const signatureField = {
             type: "field",
             availableTypes: ["binary"],
         },
+        {
+            label: _t("Kind"),
+            name: "type",
+            type: "selection",
+            choices: [
+                { label: _t("Signature"), value: "signature" },
+                { label: _t("Initials"), value: "initial" },
+            ],
+            default: "signature",
+        },
     ],
     extractProps: ({ attrs, options }) => ({
         defaultFont: options.default_font || "",

@@ -51,6 +51,11 @@ export const statInfoField = {
             type: "field",
             availableTypes: ["char"],
         },
+        {
+            label: _t("Digits"),
+            name: "digits",
+            type: "digits",
+        },
     ],
     supportedTypes: ["float", "integer", "monetary", "char", "one2many", "many2one"],
     isEmpty: () => false,
