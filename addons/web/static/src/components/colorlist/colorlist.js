@@ -3,7 +3,7 @@
 
 /** @module @web/components/colorlist/colorlist */
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 export class ColorList extends Component {
@@ -43,6 +43,13 @@ export class ColorList extends Component {
     setup() {
         this.colorlistRef = useRef("colorlist");
         this.state = useState({ isExpanded: this.props.isExpanded });
+        // The toggle also moves this, so it cannot simply mirror the prop: only
+        // a caller that actually changes its mind gets to overrule the user.
+        onWillUpdateProps((nextProps) => {
+            if (nextProps.isExpanded !== this.props.isExpanded) {
+                this.state.isExpanded = nextProps.isExpanded;
+            }
+        });
         useClickAway((node) => this.onOutsideClick(node), {
             getAnchor: () => this.colorlistRef.el,
             getContentEl: () => this.colorlistRef.el,

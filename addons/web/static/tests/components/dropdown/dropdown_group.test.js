@@ -1,9 +1,9 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, hover, press, queryOne } from "@odoo/hoot-dom";
+import { click, hover, press, queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
-import { Component, xml } from "@odoo/owl";
+import { Component, useState, xml } from "@odoo/owl";
 import { getDropdownMenu, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
@@ -247,4 +247,163 @@ test("DropdownGroup: keyboard close returns focus to the toggler, not <body>", a
     await press("Escape");
     await animationFrame();
     expect("button.one").toBeFocused();
+});
+
+test.tags("desktop");
+test("DropdownGroup: a changed group name moves its dropdowns to the new group", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownGroup, DropdownItem };
+        static template = xml`
+            <div class="away">away</div>
+            <DropdownGroup group="state.groupA">
+                <Dropdown>
+                    <button class="one">one</button>
+                    <t t-set-slot="content"><DropdownItem>c1</DropdownItem></t>
+                </Dropdown>
+            </DropdownGroup>
+            <DropdownGroup group="state.groupB">
+                <Dropdown>
+                    <button class="two">two</button>
+                    <t t-set-slot="content"><DropdownItem>c2</DropdownItem></t>
+                </Dropdown>
+            </DropdownGroup>`;
+        static props = [];
+
+        setup() {
+            this.state = useState({ groupA: "g1", groupB: "g2" });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+
+    // Different groups: hovering "two" while "one" is open leaves "one" open.
+    await click("button.one");
+    await animationFrame();
+    await hover("button.two");
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["c1"]);
+
+    // Same group: hovering "two" now hands the menu over.
+    parent.state.groupB = "g1";
+    await animationFrame();
+    await hover(".away"); // the pointer is still on "two": no mouseenter otherwise
+    await hover("button.two");
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["c2"]);
+});
+
+test.tags("desktop");
+test("DropdownGroup: a dropdown mounted after a group move joins the new group", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownGroup, DropdownItem };
+        static template = xml`
+            <div class="away">away</div>
+            <DropdownGroup group="'gx'">
+                <Dropdown>
+                    <button class="one">one</button>
+                    <t t-set-slot="content"><DropdownItem>c1</DropdownItem></t>
+                </Dropdown>
+            </DropdownGroup>
+            <DropdownGroup group="state.g">
+                <Dropdown t-if="state.show">
+                    <button class="two">two</button>
+                    <t t-set-slot="content"><DropdownItem>c2</DropdownItem></t>
+                </Dropdown>
+            </DropdownGroup>`;
+        static props = [];
+
+        setup() {
+            this.state = useState({ g: "gy", show: false });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    parent.state.g = "gx"; // the group moves before its dropdown exists
+    await animationFrame();
+    parent.state.show = true;
+    await animationFrame();
+
+    await click("button.one");
+    await animationFrame();
+    await hover(".away");
+    await hover("button.two");
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["c2"]);
+});
+
+test.tags("desktop");
+test("DropdownGroup: leaving a group while open stops the peers taking over", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownGroup, DropdownItem };
+        static template = xml`
+            <div class="away">away</div>
+            <DropdownGroup group="'ga'">
+                <Dropdown>
+                    <button class="one">one</button>
+                    <t t-set-slot="content"><DropdownItem>c1</DropdownItem></t>
+                </Dropdown>
+            </DropdownGroup>
+            <DropdownGroup group="state.g">
+                <Dropdown>
+                    <button class="two">two</button>
+                    <t t-set-slot="content"><DropdownItem>c2</DropdownItem></t>
+                </Dropdown>
+            </DropdownGroup>`;
+        static props = [];
+
+        setup() {
+            this.state = useState({ g: "ga" });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click("button.two");
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["c2"]);
+
+    parent.state.g = "gz";
+    await animationFrame();
+    await hover(".away");
+    await hover("button.one");
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["c2"]);
+});
+
+test.tags("desktop");
+test("DropdownGroup: unmounting one group leaves the others sharing its id intact", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownGroup, DropdownItem };
+        static template = xml`
+            <div class="away">away</div>
+            <DropdownGroup group="'gs'">
+                <Dropdown>
+                    <button class="one">one</button>
+                    <t t-set-slot="content"><DropdownItem>c1</DropdownItem></t>
+                </Dropdown>
+            </DropdownGroup>
+            <DropdownGroup group="'gs'">
+                <Dropdown>
+                    <button class="two">two</button>
+                    <t t-set-slot="content"><DropdownItem>c2</DropdownItem></t>
+                </Dropdown>
+            </DropdownGroup>
+            <DropdownGroup t-if="state.third" group="'gs'">
+                <Dropdown>
+                    <button class="three">three</button>
+                    <t t-set-slot="content"><DropdownItem>c3</DropdownItem></t>
+                </Dropdown>
+            </DropdownGroup>`;
+        static props = [];
+
+        setup() {
+            this.state = useState({ third: true });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    parent.state.third = false;
+    await animationFrame();
+
+    await click("button.one");
+    await animationFrame();
+    await hover(".away");
+    await hover("button.two");
+    await animationFrame();
+    expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["c2"]);
 });

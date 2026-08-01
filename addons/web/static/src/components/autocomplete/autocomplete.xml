@@ -32,6 +32,7 @@
                 <ul
                     t-attf-id="{{idPrefix}}_listbox"
                     role="listbox"
+                    t-att-aria-busy="isLoadingSources and 'true'"
                     class="o-autocomplete--dropdown-menu ui-widget show"
                     t-att-class="ulDropdownClass"
                     t-ref="sourcesList">
@@ -43,15 +44,13 @@
                                     'o-autocomplete--dropdown-item': props.dropdown,
                                     'd-block': !props.dropdown
                                 }">
-                                <a
-                                    t-attf-id="{{idPrefix}}_{{source_index}}_loading"
-                                    role="option"
-                                    href="#"
-                                    class="o_loading dropdown-item ui-menu-item-wrapper"
-                                    aria-selected="true"
-                                >
+                                <!-- Not an option: it cannot be navigated to or
+                                     selected, and aria-activedescendant never
+                                     names it. The listbox's aria-busy is what
+                                     says results are still coming. -->
+                                <span class="o_loading dropdown-item ui-menu-item-wrapper">
                                     <i class="fa-solid fa-circle-notch fa-spin" /> <t t-esc="source.placeholder" />
-                                </a>
+                                </span>
                             </li>
                         </t>
                         <t t-else="">

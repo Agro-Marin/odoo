@@ -19,13 +19,11 @@ export function useDropdownGroup() {
     const env = useEnv();
     const /** @type {any} */ envAny = env;
 
+    const membership = envAny[DROPDOWN_GROUP];
     const group = {
         isInGroup: DROPDOWN_GROUP in env,
         get isOpen() {
-            return (
-                this.isInGroup &&
-                [...envAny[DROPDOWN_GROUP]].some((dropdown) => dropdown.isOpen)
-            );
+            return this.isInGroup && membership.isOpen;
         },
     };
 
@@ -33,8 +31,8 @@ export function useDropdownGroup() {
         const dropdown = /** @type {any} */ (useComponent());
         useEffect(
             () => {
-                envAny[DROPDOWN_GROUP].add(dropdown.state);
-                return () => envAny[DROPDOWN_GROUP].delete(dropdown.state);
+                membership.add(dropdown.state);
+                return () => membership.delete(dropdown.state);
             },
             () => [],
         );

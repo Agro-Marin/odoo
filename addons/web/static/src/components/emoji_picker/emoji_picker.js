@@ -292,7 +292,11 @@ export class EmojiPicker extends Component {
         });
         useEffect(
             () => this.updateEmojiPickerRepr(),
-            () => [this.state.categoryId, this.searchTerm],
+            // The matrix maps grid cells to rows and columns, so it has to be
+            // rebuilt whenever the grid's *contents* move -- not only when the
+            // category or the search does. Picking an emoji that was not in the
+            // recents prepends a section and shifts every index below it.
+            () => [this.state.categoryId, this.searchTerm, this._emojisFromSearch],
         );
         useEffect(
             (el) => {
