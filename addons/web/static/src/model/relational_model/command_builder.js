@@ -5,7 +5,7 @@
 
 import { x2ManyCommands } from "./commands.js";
 
-const { CREATE, UPDATE, LINK, SET } = x2ManyCommands;
+const { CREATE, UPDATE, UNLINK, LINK, SET } = x2ManyCommands;
 
 /**
  * @param {Array<[number, string|number, any?]>} commands
@@ -94,7 +94,11 @@ export function shouldEmitUnlink(ownCommands) {
     if (linkIndex >= 0) {
         ownCommands.splice(linkIndex, 1);
         if (!ownCommands.some((x) => x.command[0] === LINK)) {
-            ownCommands.splice(0);
+            // The LINK is gone, so the staged UPDATEs are moot -- but an UNLINK
+            // BEFORE it means the row was a server member the user had already
+            // removed, and dropping that too silently re-links it on save.
+            const unlinks = ownCommands.filter((x) => x.command[0] === UNLINK);
+            ownCommands.splice(0, ownCommands.length, ...unlinks);
         }
         return false;
     }

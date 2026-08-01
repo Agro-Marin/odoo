@@ -2056,3 +2056,40 @@ test("tag colour is applied to the clicked record even if the list reloads", asy
         message: "the other tag must be untouched",
     });
 });
+
+test("removing a tag, restoring it, and removing it again still reaches the server", async () => {
+    // The compaction in `shouldEmitUnlink` used to cancel the re-LINK by
+    // clearing the tag's whole ledger, taking the FIRST unlink with it. The
+    // record then read as clean, so no `web_save` fired at all: the tag
+    // vanished from the UI and survived on the server, with nothing flagged
+    // dirty for the user to notice.
+    Partner._records[0].timmy = [12];
+    const saved = [];
+    onRpc("web_save", ({ args }) => {
+        saved.push(JSON.parse(JSON.stringify(args[1])));
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="timmy" widget="many2many_tags"/></form>`,
+    });
+    expect("[name=timmy] .o_tag").toHaveCount(1);
+
+    await contains("[name=timmy] .o_delete").click();
+    expect("[name=timmy] .o_tag").toHaveCount(0);
+
+    await selectFieldDropdownItem("timmy", "gold");
+    expect("[name=timmy] .o_tag").toHaveCount(1);
+
+    await contains("[name=timmy] .o_delete").click();
+    expect("[name=timmy] .o_tag").toHaveCount(0);
+
+    await clickSave();
+
+    expect(saved).toEqual([{ timmy: [[3, 12, false]] }], {
+        message: "the second removal must still ship an UNLINK",
+    });
+    expect(MockServer.env["partner"].browse(1)[0].timmy).toEqual([]);
+});

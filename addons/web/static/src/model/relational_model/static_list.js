@@ -1093,6 +1093,30 @@ export class StaticList extends DataPoint {
             this.records = this.records.filter(Boolean);
             nextCurrentIds = nextCurrentIds.filter((id) => !missing.has(id));
         }
+        // Both `_load` and its `sort` caller silently drop ids the server no
+        // longer returns; `count` is the x2many pager total, so it has to follow
+        // or a concurrently-unlinked row lives on as a phantom page entry until
+        // the next save. Only *departures* count -- `_addRecord` legitimately
+        // grows membership through this same path and does its own `count++` --
+        // and they are counted as a MULTISET difference, because an id present
+        // twice that comes back once is one departure, not zero.
+        if (nextCurrentIds !== this._currentIds) {
+            /** @type {Map<any, number>} */
+            const remaining = new Map();
+            for (const id of nextCurrentIds) {
+                remaining.set(id, (remaining.get(id) || 0) + 1);
+            }
+            let dropped = 0;
+            for (const id of this._currentIds) {
+                const left = remaining.get(id);
+                if (left) {
+                    remaining.set(id, left - 1);
+                } else {
+                    dropped++;
+                }
+            }
+            this.count -= dropped;
+        }
         this._currentIds = nextCurrentIds;
         this.model._patchConfig(this.config, { limit, offset, orderBy });
     }
