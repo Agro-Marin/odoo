@@ -150,7 +150,10 @@ export class ProductNameAndDescriptionField extends Component {
             ...p,
             canOpen: !this.props.readonly || this.isProductClickable,
             placeholder: _t("Search a product"),
-            preventMemoization: true,
+            // product.product name_search ORs in a barcode match, so a
+            // longer term can find what a shorter one did not -- no empty
+            // search here may be skipped.
+            searchMemoization: "none",
             value,
         };
     }

@@ -4140,7 +4140,7 @@ test("skip name search optimization", async () => {
             fieldString.translate="Field"
             getDomain.bind="getDomain"
             update.bind="update"
-            preventMemoization="true"
+            searchMemoization="'none'"
         />`;
         static components = { Many2XAutocomplete };
         static props = ["*"];
