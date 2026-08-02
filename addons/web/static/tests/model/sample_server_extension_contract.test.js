@@ -55,9 +55,14 @@ test("_generateFieldValue still honours id when given (the populate path)", () =
 });
 
 test("a 3-argument patch still receives (modelName, fieldName, id)", () => {
+    /** @type {[string, string, number][]} */
     const seen = [];
     class Patched extends SampleServer {
-        _generateFieldValue(modelName, fieldName, id) {
+        _generateFieldValue(
+            /** @type {string} */ modelName,
+            /** @type {string} */ fieldName,
+            /** @type {number} */ id,
+        ) {
             seen.push([modelName, fieldName, id]);
             return super._generateFieldValue(modelName, fieldName, id);
         }

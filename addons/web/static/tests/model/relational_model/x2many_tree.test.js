@@ -33,8 +33,11 @@ describe.current.tags("headless");
  *  activeFields / fields / data, so a full datapoint is not needed
  */
 function makeRecord(lists, fieldOverrides = {}) {
+    /** @type {Record<string, any>} */
     const activeFields = {};
+    /** @type {Record<string, any>} */
     const fields = {};
+    /** @type {Record<string, any>} */
     const data = {};
     for (const [name, list] of Object.entries(lists)) {
         activeFields[name] = {};
@@ -53,15 +56,18 @@ function makeRecord(lists, fieldOverrides = {}) {
  * @returns {any} a StaticList-shaped stub exposing only the published surface
  */
 function makeList({ pending = null, staged = false, cached = [] } = {}) {
+    /** @type {boolean[]} */
     const cleared = [];
+    /** @type {any[]} */
     const committed = [];
     return {
         pendingCommands: pending,
         hasStagedCommands: staged,
         cachedRecords: cached,
-        getCachedRecord: (id) => cached.find((r) => r.__id === id),
+        getCachedRecord: (/** @type {string} */ id) =>
+            cached.find((/** @type {any} */ r) => r.__id === id),
         _clearCommands: () => cleared.push(true),
-        _commitSave: (v) => committed.push(v),
+        _commitSave: (/** @type {any} */ v) => committed.push(v),
         cleared,
         committed,
     };

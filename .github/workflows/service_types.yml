@@ -16,9 +16,13 @@ name: Service Types Freshness
 # script.  Two minutes of friction here saves a real bug
 # (``useService("orm")`` silently resolving to ``any``) downstream.
 #
-# Phase 1 warn-only (``continue-on-error: true``) per the team
-# convention.  Flip to blocking once the generator has shipped one
-# release cycle without surprise regressions.
+# BLOCKING.  It was warn-only pending a quiet release cycle, and in the
+# meantime the file it guards went stale in exactly the way it exists to
+# catch: services.d.ts imported
+# ``@web/components/datetime/datetime_picker_service``, a module that does
+# not exist, and a second service from a file that no longer exported it.
+# The gate reported it for as long as anyone had been ignoring it.  A
+# warn-only freshness check on generated output is a check nobody runs.
 
 on:
   pull_request:
@@ -39,7 +43,6 @@ jobs:
     name: services_freshness_gate
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    continue-on-error: true  # Phase 1 warn-only — flip to false later
 
     steps:
       - name: Checkout
@@ -87,7 +90,7 @@ jobs:
             echo "Generator: \`tooling/codegen/generate_service_types.py\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Annotate PR (warn-only)
+      - name: Annotate PR on failure
         if: always() && steps.gate.outputs.exit_code != '0'
         uses: actions/github-script@v7
         with:

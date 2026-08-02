@@ -269,6 +269,9 @@ test("DropdownGroup: a changed group name moves its dropdowns to the new group",
             </DropdownGroup>`;
         static props = [];
 
+        /** @type {{ groupA: string, groupB: string }} */
+        state;
+
         setup() {
             this.state = useState({ groupA: "g1", groupB: "g2" });
         }
@@ -311,6 +314,9 @@ test("DropdownGroup: a dropdown mounted after a group move joins the new group",
             </DropdownGroup>`;
         static props = [];
 
+        /** @type {{ g: string, show: boolean }} */
+        state;
+
         setup() {
             this.state = useState({ g: "gy", show: false });
         }
@@ -348,6 +354,9 @@ test("DropdownGroup: leaving a group while open stops the peers taking over", as
                 </Dropdown>
             </DropdownGroup>`;
         static props = [];
+
+        /** @type {{ g: string }} */
+        state;
 
         setup() {
             this.state = useState({ g: "ga" });
@@ -391,6 +400,9 @@ test("DropdownGroup: unmounting one group leaves the others sharing its id intac
                 </Dropdown>
             </DropdownGroup>`;
         static props = [];
+
+        /** @type {{ third: boolean }} */
+        state;
 
         setup() {
             this.state = useState({ third: true });

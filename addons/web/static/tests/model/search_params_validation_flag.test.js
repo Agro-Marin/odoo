@@ -33,6 +33,7 @@ class Probe extends Model {
  * @returns {Promise<string[]>}
  */
 async function mountAndCollectWarnings() {
+    /** @type {string[]} */
     const warnings = [];
     patchWithCleanup(console, {
         warn: (...args) => warnings.push(args.join(" ")),

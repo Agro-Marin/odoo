@@ -121,6 +121,7 @@ test("steps from the nearest range value despite float imprecision", async () =>
 test("an unusable range option falls back instead of writing NaN", async () => {
     // `range` is arbitrary arch input; an empty list used to make the index
     // lookup return undefined and store NaN in the record.
+    /** @type {Record<string, any> | undefined} */
     let written;
     onRpc("partner", "web_save", ({ args }) => {
         written = args[1];
@@ -136,7 +137,7 @@ test("an unusable range option falls back instead of writing NaN", async () => {
     await clickSave();
 
     expect(written).toBeInstanceOf(Object);
-    expect(Number.isNaN(written.float_field)).toBe(false, {
+    expect(Number.isNaN(written?.float_field)).toBe(false, {
         message: "a broken range must never reach the record as NaN",
     });
 });

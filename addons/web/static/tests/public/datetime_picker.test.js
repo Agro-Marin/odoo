@@ -25,10 +25,16 @@ function mockPicker({ enableThrows = false, trackSteps = false } = {}) {
     /** @param {string} name */
     const step = (name) => trackSteps && expect.step(name);
     mockService("datetime_picker", {
-        /** @param {{ pickerProps: any }} arg */
+        /**
+         * Deliberately partial: these tests drive only enable/close/disable,
+         * so the object is cast rather than padded with unused no-ops. It
+         * type-checked before only because the service's own return type was
+         * wrong; now that it is right, the gap has to be stated.
+         * @param {{ pickerProps: any }} arg
+         */
         create({ pickerProps }) {
             captured.props = pickerProps;
-            return {
+            return /** @type {any} */ ({
                 enable: () => () => {
                     step("disableListeners");
                     if (enableThrows) {
@@ -37,7 +43,7 @@ function mockPicker({ enableThrows = false, trackSteps = false } = {}) {
                 },
                 close: () => step("close"),
                 disable: () => step("disable"),
-            };
+            });
         },
     });
     return captured;

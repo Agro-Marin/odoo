@@ -14,6 +14,9 @@ import { browser } from "@web/core/browser/browser";
  */
 beforeEach(() => {
     const fixture = getFixture();
+    if (!fixture) {
+        throw new Error("no hoot fixture: the whole suite depends on it");
+    }
     const form = document.createElement("form");
     form.className = "oe_login_form";
     form.innerHTML = `
@@ -69,7 +72,7 @@ test("dropping an account is a control, not decoration", async () => {
 
     // Both actions on a row have to be reachable without a mouse, which means
     // two real controls -- a button may not contain another one.
-    const row = queryFirst(".list-group-item");
+    const row = queryFirst(".list-group-item") ?? undefined;
     expect(queryAll("button", { root: row })).toHaveLength(2);
     const remove = queryAll(".o_user_switch_remove")[0];
     expect(remove.tagName).toBe("BUTTON");
@@ -90,8 +93,11 @@ test("dropping an account removes it and remembers that", async () => {
     await animationFrame();
 
     expect(queryAllTexts(".o_user_switch_login")).toEqual(["User 1", "User 2"]);
-    const stored = JSON.parse(browser.localStorage.getItem("web.lastConnectedUser"));
-    expect(stored.map((u) => u.login)).toEqual(["user1", "user2"]);
+    const stored = JSON.parse(browser.localStorage.getItem("web.lastConnectedUser") ?? "null");
+    expect(stored.map((/** @type {{ login: string }} */ u) => u.login)).toEqual([
+        "user1",
+        "user2",
+    ]);
 });
 
 test("dropping the last account hands the form back", async () => {
@@ -110,7 +116,9 @@ test("dropping the last account hands the form back", async () => {
     await animationFrame();
     expect(".o_user_switch").toHaveCount(0);
     expect(".oe_login_form").not.toHaveClass("d-none");
-    expect(JSON.parse(browser.localStorage.getItem("web.lastConnectedUser"))).toEqual(
+    expect(
+        JSON.parse(browser.localStorage.getItem("web.lastConnectedUser") ?? "null"),
+    ).toEqual(
         [],
     );
 });

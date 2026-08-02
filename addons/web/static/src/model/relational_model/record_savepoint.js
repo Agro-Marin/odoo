@@ -6,6 +6,7 @@
 import { isX2Many } from "./field_context.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
+/** @import { RecordEditState } from "@web/model/relational_model/record_edit_state" */
 
 export { createSavePoint } from "./record_edit_state.js";
 
@@ -17,7 +18,11 @@ export { createSavePoint } from "./record_edit_state.js";
  * @param {RelationalRecord} record
  */
 export function addSavePoint(record) {
-    record._editState.snapshot();
+    // Cast, not a class-field declaration: `_editState` is assigned in
+    // `setup()`, which the base constructor calls, so declaring the field would
+    // re-initialise it to undefined after that assignment.
+    const editState = /** @type {RecordEditState} */ (record._editState);
+    editState.snapshot();
     for (const fieldName of Object.keys(record._changes)) {
         if (isX2Many(record.fields[fieldName])) {
             record._changes[fieldName]._addSavePoint();
@@ -30,7 +35,7 @@ export function addSavePoint(record) {
  * @returns {boolean} whether a savepoint was actually restored
  */
 export function restoreFromSavePoint(record) {
-    return record._editState.restoreSnapshot();
+    return /** @type {RecordEditState} */ (record._editState).restoreSnapshot();
 }
 
 /**

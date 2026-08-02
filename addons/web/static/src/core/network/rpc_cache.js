@@ -407,7 +407,7 @@ export class RPCCache {
             // No default no-op: `shape` is a full `deepCopy` of the payload,
             // and it was being run to feed a callback that discards it. Half of
             // every cached read's cloning was thrown away.
-            callback = null,
+            callback,
             type = "ram",
             update = "once",
             immutable = false,

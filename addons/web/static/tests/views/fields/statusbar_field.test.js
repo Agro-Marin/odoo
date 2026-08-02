@@ -1333,6 +1333,7 @@ test("statusbar: overflow measurement is not re-taken per hidden item", async ()
     // take two forced layouts per step -- the root plus a single row's height,
     // which cannot change while the pass runs. Only the root reading is
     // per-step now; the visible outcome must be identical.
+    /** @type {[value: string | number, label: string][]} */
     const selection = [];
     for (let i = 0; i < 40; i++) {
         selection.push([`s${i}`, `A Rather Long Stage Name Number ${i}`]);
@@ -1342,9 +1343,11 @@ test("statusbar: overflow measurement is not re-taken per hidden item", async ()
 
     const original = Element.prototype.getBoundingClientRect;
     let rects = 0;
-    Element.prototype.getBoundingClientRect = function (...args) {
+    Element.prototype.getBoundingClientRect = function () {
         rects++;
-        return original.apply(this, args);
+        // getBoundingClientRect takes no arguments; forwarding a rest array
+        // typed it as `any[]` against a zero-arity signature.
+        return original.call(this);
     };
     try {
         await mountView({

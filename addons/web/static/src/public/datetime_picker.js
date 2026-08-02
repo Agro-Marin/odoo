@@ -34,14 +34,15 @@ export class DatetimePicker extends Interaction {
                 return undefined;
             }
         };
+        const { minDate, maxDate } = this;
         const picker = this.services.datetime_picker.create({
             target: this.el,
             pickerProps: {
                 type: /** @type {"date" | "datetime"} */ (this.type),
-                minDate:
-                    this.minDate && orNothing(() => deserializeFunction(this.minDate)),
-                maxDate:
-                    this.maxDate && orNothing(() => deserializeFunction(this.maxDate)),
+                // Captured first: the `&&` guard cannot narrow `this.minDate`
+                // inside the arrow function, which is evaluated later.
+                minDate: minDate && orNothing(() => deserializeFunction(minDate)),
+                maxDate: maxDate && orNothing(() => deserializeFunction(maxDate)),
                 value: orNothing(() =>
                     parseFunction(/** @type {HTMLInputElement} */ (this.el).value),
                 ),
