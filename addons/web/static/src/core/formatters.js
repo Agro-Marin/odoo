@@ -15,7 +15,7 @@ import {
 import { localization as l10n } from "@web/core/l10n/localization";
 import { _pl, _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { isBinarySize } from "@web/core/utils/format/binary";
+import { humanSize, isBinarySize } from "@web/core/utils/format/binary";
 import { extractDigits } from "@web/core/utils/format/digits";
 import {
     formatFloat as formatFloatNumber,
@@ -41,22 +41,6 @@ function isFiniteNumber(value) {
 }
 
 /**
- * @param {number} value
- * @returns {string}
- */
-function humanSize(value) {
-    if (!value) {
-        return "";
-    }
-    const suffix = value < 1024 ? " " + _t("Bytes") : "b";
-    return (
-        humanNumber(value, {
-            decimals: 2,
-        }) + suffix
-    );
-}
-
-/**
  * @param {string} [value]
  * @returns {string}
  */
@@ -65,6 +49,10 @@ export function formatBinary(value) {
         return "";
     }
     if (!isBinarySize(value)) {
+        // The shared `humanSize`, not a second private one. There used to be
+        // two: this formatter rendered 2048 bytes as "2.05kb" (`humanNumber`,
+        // powers of ten) while every upload widget rendered the same count as
+        // "2.00 KB" (powers of two) -- one byte size, two spellings, in one UI.
         return humanSize(value.length / 1.37);
     }
     return value;

@@ -6,6 +6,35 @@
 /** @type {number} */
 const COOKIE_TTL = 24 * 60 * 60 * 365;
 
+// eslint-disable-next-line no-control-regex
+const UNSAFE_VALUE_CHARS = /[%;\x00-\x1f\x7f]/g;
+// A cookie *name* is an RFC 6265 token: no separators, no whitespace. `=` and
+// `;` are the two that matter -- unescaped, `set("a=b", "c")` writes the cookie
+// `a` with value `b=c`, and `set("a; Max-Age=0", …)` clobbers whatever `a`
+// already held. The value was escaped from the start; the name never was.
+// eslint-disable-next-line no-control-regex
+const UNSAFE_KEY_CHARS = /[%;=,\s()<>@:\\"/[\]?{}\x00-\x1f\x7f]/g;
+
+/**
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeCookieComponent(str, pattern = UNSAFE_VALUE_CHARS) {
+    return String(str).replace(pattern, (c) => encodeURIComponent(c));
+}
+
+/**
+ * @param {string | undefined} str
+ * @returns {string}
+ */
+function decodeCookieComponent(str) {
+    try {
+        return decodeURIComponent(str ?? "");
+    } catch {
+        return str ?? "";
+    }
+}
+
 export const cookie = {
     /** @returns {string} */
     get _cookieMonster() {
@@ -22,16 +51,13 @@ export const cookie = {
     get(str) {
         const parts = this._cookieMonster.split("; ");
         for (const part of parts) {
-            const [key, value] = part.split(/=(.*)/);
+            const [rawKey, value] = part.split(/=(.*)/);
+            const key = decodeCookieComponent(rawKey);
             if (key === str) {
                 if (!value) {
                     return "";
                 }
-                try {
-                    return decodeURIComponent(value);
-                } catch {
-                    return value;
-                }
+                return decodeCookieComponent(value);
             }
         }
     },
@@ -45,13 +71,8 @@ export const cookie = {
             this.delete(key);
             return;
         }
-        const encoded = String(value).replace(
-            // eslint-disable-next-line no-control-regex
-            /[%;\x00-\x1f\x7f]/g,
-            (c) => encodeURIComponent(c),
-        );
         const parts = [
-            `${key}=${encoded}`,
+            `${escapeCookieComponent(key, UNSAFE_KEY_CHARS)}=${escapeCookieComponent(value)}`,
             "path=/",
             `max-age=${Math.floor(ttl)}`,
             "SameSite=Lax",

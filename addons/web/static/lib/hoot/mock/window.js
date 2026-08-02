@@ -354,6 +354,12 @@ function onAnchorHrefClick(ev) {
     if (ev.defaultPrevented) {
         return;
     }
+    // `ev.target` is not always an Element (a click dispatched at `document`,
+    // a text node): this listener is global, so throwing here aborts the
+    // capture phase for every other handler on the event.
+    if (typeof ev.target?.closest !== "function") {
+        return;
+    }
     const href = ev.target.closest("a[href]")?.href;
     if (!href) {
         return;

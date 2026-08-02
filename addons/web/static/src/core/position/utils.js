@@ -204,13 +204,22 @@ function computePosition(
             : [contBox.top + topCompensation, contBox.bottom + topCompensation];
 
         if (containerIsHTMLNode) {
-            if (vertical) {
-                directionMin += cont.scrollTop;
-                directionMax += cont.scrollTop;
-            } else {
-                variantMin += cont.scrollTop;
-                variantMax += cont.scrollTop;
-            }
+            // `<html>`'s box is viewport-relative, so it starts at -scrollLeft /
+            // -scrollTop; adding the scroll back puts the bounds where a
+            // position:fixed popper actually lives. Both axes need it, each
+            // with its own offset: adding `scrollTop` to the horizontal bounds
+            // (and nothing to them when the direction axis was the horizontal
+            // one) displaced every popper on a horizontally scrolled page by
+            // `scrollLeft`, far enough to leave the viewport entirely. The
+            // backend never scrolls `<html>` sideways; the frontend does, and
+            // `libs/popper_compat.js` routes all of Bootstrap through here.
+            const [directionScroll, variantScroll] = vertical
+                ? [cont.scrollTop, cont.scrollLeft]
+                : [cont.scrollLeft, cont.scrollTop];
+            directionMin += directionScroll;
+            directionMax += directionScroll;
+            variantMin += variantScroll;
+            variantMax += variantScroll;
         }
 
         let directionOverflow = 0;

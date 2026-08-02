@@ -155,13 +155,11 @@ function computePosition(popper, target, {
     let [directionMin, directionMax] = vertical ? [contBox.top + topCompensation, contBox.bottom + topCompensation] : [contBox.left + leftCompensation, contBox.right + leftCompensation];
     let [variantMin, variantMax] = vertical ? [contBox.left + leftCompensation, contBox.right + leftCompensation] : [contBox.top + topCompensation, contBox.bottom + topCompensation];
     if (containerIsHTMLNode) {
-      if (vertical) {
-        directionMin += cont.scrollTop;
-        directionMax += cont.scrollTop;
-      } else {
-        variantMin += cont.scrollTop;
-        variantMax += cont.scrollTop;
-      }
+      const [directionScroll, variantScroll] = vertical ? [cont.scrollTop, cont.scrollLeft] : [cont.scrollLeft, cont.scrollTop];
+      directionMin += directionScroll;
+      directionMax += directionScroll;
+      variantMin += variantScroll;
+      variantMax += variantScroll;
     }
     let directionOverflow = 0;
     if (Math.floor(directionValue) < Math.ceil(directionMin)) {

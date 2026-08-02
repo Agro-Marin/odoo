@@ -14,10 +14,13 @@ const _anchorScroll = globalSingleton("anchorScroll", () => ({ started: false })
 if (!_anchorScroll.started) {
     _anchorScroll.started = true;
     browser.addEventListener("click", (ev) => {
-        const href = /** @type {Element} */ (ev.target)
-            .closest("a")
-            ?.getAttribute("href");
-        if (href === "#") {
+        // See `router.js`'s own click handler: `ev.target` is not always an
+        // Element, and this listener is on the window.
+        const target = /** @type {Element} */ (ev.target);
+        if (typeof target?.closest !== "function") {
+            return;
+        }
+        if (target.closest("a")?.getAttribute("href") === "#") {
             ev.preventDefault();
         }
     });

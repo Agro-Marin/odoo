@@ -401,6 +401,12 @@ function onClick(/** @type {any} */ ev) {
         return;
     }
     const target = /** @type {Element} */ (ev.target);
+    // A click can be dispatched at a non-Element target (`document`, a text
+    // node): this is a window-level capture listener, so an unguarded
+    // `closest()` threw out of the capture phase for every other handler too.
+    if (typeof target?.closest !== "function") {
+        return;
+    }
     if (ev.defaultPrevented || target.closest("[contenteditable]")) {
         return;
     }

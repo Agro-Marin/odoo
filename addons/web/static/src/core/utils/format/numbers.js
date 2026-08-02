@@ -261,7 +261,13 @@ export function formatFloat(value, options = {}) {
     } else {
         precision = 2;
     }
-    const minPrecision = options.minDigits || precision;
+    // Clamped: `minDigits` is a floor on the decimals *shown*, never a licence
+    // to show more than the value carries. Left unclamped it padded a value
+    // already rounded to `precision`, so 12.5432 at digits=[16,2] minDigits=4
+    // rendered "12.5400" -- two invented zeros in place of two real digits,
+    // where the server's `ir.qweb.field.float` prints "12.54" (it applies
+    // min_precision only `if min_precision < precision`).
+    const minPrecision = Math.min(options.minDigits || precision, precision);
     if (floatIsZero(value, precision)) {
         value = 0.0;
     }

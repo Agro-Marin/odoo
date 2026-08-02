@@ -77,3 +77,33 @@ test("delete removes the cookie by name", () => {
     expect(writes[0]).toMatch(/^myKey=; /);
     expect(writes[0]).toMatch(/max-age=0/);
 });
+
+test("set escapes the characters that let a key smuggle cookie syntax", () => {
+    // Unescaped, `set("a=b", "c")` made the browser store the cookie `a` with
+    // the value `b=c`, and `set("a; Max-Age=0", ...)` clobbered whatever `a`
+    // already held. Only the value was ever escaped.
+    const writes = captureCookieWrites();
+    cookie.set("a=b", "c");
+    expect(writes[0].startsWith("a%3Db=c; ")).toBe(true);
+    expect(cookie.get("a=b")).toBe("c");
+    expect(cookie.get("a")).toBe(undefined);
+});
+
+test("a key carrying an attribute separator cannot reach the attribute list", () => {
+    const writes = captureCookieWrites();
+    cookie.set("victim; Max-Age=0", "v");
+    expect(writes[0]).toMatch(
+        /^victim%3B%20Max-Age%3D0=v; path=\/; max-age=\d+; SameSite=Lax$/,
+    );
+    expect(writes[0].split("; ").length).toBe(4);
+});
+
+test("keys round-trip through get()", () => {
+    captureCookieWrites();
+    for (const key of ["plain", "a=b", "a;b", "a b", "a,b", "a%b"]) {
+        cookie.set(key, "value");
+        expect(cookie.get(key)).toBe("value", {
+            message: `key ${JSON.stringify(key)}`,
+        });
+    }
+});

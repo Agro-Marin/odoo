@@ -584,3 +584,27 @@ describe("minDigits and minIntegerDigits are distinct options", () => {
         expect(formatterFloat(1234.5, { field, humanReadable: true })).toBe("1k");
     });
 });
+
+describe("minDigits never exceeds the precision the value was rounded to", () => {
+    // `minDigits` is a floor on the decimals shown, not a licence to invent
+    // them. Unclamped it padded a value already rounded to `digits[1]`, so real
+    // digits were replaced by zeros. The server prints the clamped form:
+    // `ir.qweb.field.float` applies min_precision only `if min_precision < precision`.
+    test("padding never outruns digits[1]", () => {
+        expect(formatFloat(12.5432, { digits: [16, 2], minDigits: 4 })).toBe("12.54");
+        expect(formatFloat(12.5, { digits: [16, 2], minDigits: 4 })).toBe("12.50");
+        expect(formatFloat(3.1239, { digits: [16, 2], minDigits: 6 })).toBe("3.12");
+    });
+
+    test("minDigits below digits[1] is unaffected", () => {
+        expect(formatFloat(3.1239, { digits: [15, 4], minDigits: 3 })).toBe("3.1239");
+        expect(formatFloat(3.1, { digits: [15, 4], minDigits: 3 })).toBe("3.100");
+        expect(formatFloat(3, { digits: [15, 3] })).toBe("3.000");
+    });
+
+    test("minDigits with no digits still caps at the computed precision", () => {
+        // precision is min(6, 15 - integer digits); the server caps identically.
+        expect(formatFloat(3.1, { minDigits: 8 })).toBe("3.100000");
+        expect(formatFloat(3.1, { minDigits: 3 })).toBe("3.100");
+    });
+});
