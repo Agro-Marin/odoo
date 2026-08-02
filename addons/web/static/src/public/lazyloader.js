@@ -17,15 +17,12 @@ const _allScriptsLoaded = new Promise((resolve) => {
 
 /** @type {Promise<any>[]} */
 const retriggeringWaitingProms = [];
-
 /**
- * Resolves once the lazy scripts have run and every registered page-readiness
- * delay has settled -- the point at which a swallowed interaction can be
- * replayed against the JS it was waiting for.
- *
+ * @param {Event} ev
  * @returns {Promise<void>}
  */
-async function whenLazyDone() {
+async function waitForLazyAndRetrigger(ev) {
+    const targetEl = /** @type {HTMLElement} */ (ev.target);
     try {
         await _allScriptsLoaded;
     } catch (error) {
@@ -37,15 +34,6 @@ async function whenLazyDone() {
             console.error("Page readiness delay rejected:", result.reason);
         }
     }
-}
-
-/**
- * @param {Event} ev
- * @returns {Promise<void>}
- */
-async function waitForLazyAndRetrigger(ev) {
-    const targetEl = /** @type {HTMLElement} */ (ev.target);
-    await whenLazyDone();
 
     setTimeout(() => {
         if (targetEl.isConnected) {
@@ -101,43 +89,6 @@ let frozenControls = new WeakSet();
  */
 let delegatedHandlers = new WeakMap();
 
-/** @type {WeakSet<HTMLFormElement>} */
-let replayingForms = new WeakSet();
-
-/**
- * A submit that never reached a frozen control -- an Enter keypress, a form
- * outside the delegation root, a `requestSubmit()` from other code -- has to be
- * held rather than dropped: blocking it alone loses what the visitor typed.
- *
- * The form stays marked across the replay, not just up to it: `requestSubmit`
- * fires a fresh submit event, and releasing the mark first would let that event
- * reach this handler again and schedule another replay, forever.
- *
- * @param {HTMLFormElement} formEl
- * @param {HTMLElement | null} submitterEl
- * @returns {Promise<void>}
- */
-async function replaySubmitWhenReady(formEl, submitterEl) {
-    if (replayingForms.has(formEl)) {
-        return;
-    }
-    replayingForms.add(formEl);
-    await whenLazyDone();
-    if (!formEl.isConnected) {
-        return;
-    }
-    try {
-        formEl.requestSubmit(
-            /** @type {HTMLElement & { form?: HTMLFormElement }} */ (submitterEl)
-                ?.form === formEl
-                ? /** @type {any} */ (submitterEl)
-                : null,
-        );
-    } catch (error) {
-        console.error("Could not replay the submit held during lazy loading:", error);
-    }
-}
-
 /**
  * @param {Element} el
  * @param {string} type
@@ -191,20 +142,12 @@ function waitLazy() {
         document.querySelectorAll("form:not(.o_no_wait_lazy_js)"),
     );
     registerLoadingEffectHandler(document, "submit", (ev) => {
-        const formEl = /** @type {HTMLFormElement | null} */ (
-            /** @type {Element | null} */ (ev.target)?.closest?.("form")
-        );
+        const formEl = /** @type {Element | null} */ (ev.target)?.closest?.("form");
         if (!formEl || !frozenForms.has(formEl)) {
             return;
         }
         ev.preventDefault();
         ev.stopImmediatePropagation();
-        replaySubmitWhenReady(
-            formEl,
-            /** @type {HTMLElement | null} */ (
-                /** @type {SubmitEvent} */ (ev).submitter ?? null
-            ),
-        );
     });
 }
 function stopWaitingLazy() {
@@ -221,7 +164,6 @@ function stopWaitingLazy() {
     loadingEffectHandlers.length = 0;
     delegatedHandlers = new WeakMap();
     frozenControls = new WeakSet();
-    replayingForms = new WeakSet();
 }
 
 if (document.readyState !== "loading") {

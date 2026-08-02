@@ -270,52 +270,6 @@ describe("waiting for the lazy JS", () => {
         expect(seen).toEqual(["form.opted"]);
     });
 
-    test("a form submit held during the wait is replayed once the JS is in", async () => {
-        fixtureWith(`<div id="wrapwrap"></div><form class="held"></form>`);
-        freeze();
-        const formEl = /** @type {HTMLFormElement} */ (queryOne("form.held"));
-        let submits = 0;
-        formEl.addEventListener("submit", (ev) => {
-            ev.preventDefault();
-            submits++;
-        });
-        formEl.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-        // cancelling alone loses whatever the visitor typed: an Enter keypress
-        // never reaches a frozen control, so nothing else would replay it
-        expect(submits).toBe(0);
-        // the loader releases the page in that order: the chain settles, then
-        // the freeze lifts, and only then may a held submit be handed back
-        lazyloader.loadScripts([]);
-        stopWaitingLazy();
-        await lazyloader.allScriptsLoaded;
-        await advanceTime(0);
-        expect(submits).toBe(1);
-    });
-
-    test("clicking submit during the wait replays it once, not twice", async () => {
-        fixtureWith(
-            `<div id="wrapwrap"><form class="held"><button type="submit">go</button></form></div>`,
-        );
-        freeze();
-        const formEl = /** @type {HTMLFormElement} */ (queryOne("form.held"));
-        let submits = 0;
-        formEl.addEventListener("submit", (ev) => {
-            ev.preventDefault();
-            submits++;
-        });
-        // the click path freezes the button and the submit path holds the
-        // form: only one of them may hand the submit back
-        queryOne("form.held button").dispatchEvent(
-            new MouseEvent("click", { bubbles: true, cancelable: true }),
-        );
-        expect(submits).toBe(0);
-        lazyloader.loadScripts([]);
-        stopWaitingLazy();
-        await lazyloader.allScriptsLoaded;
-        await advanceTime(0);
-        expect(submits).toBe(1);
-    });
-
     test("stopWaitingLazy releases the page", async () => {
         fixtureWith(`<div id="wrapwrap"><button class="a">x</button></div>`);
         freeze();
