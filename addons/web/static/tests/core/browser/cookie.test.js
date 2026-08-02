@@ -107,3 +107,49 @@ test("keys round-trip through get()", () => {
         });
     }
 });
+
+describe("against the real document.cookie jar", () => {
+    // These deliberately do NOT patch `_cookieMonster`: they run against HOOT's
+    // `MockCookie`, and the expected values are what real Chrome produced for
+    // the same calls. The jar used to disagree with Chrome on every one of
+    // them -- it treated each `;`-separated part as its own cookie, split the
+    // name/value pair on *every* `=`, and ignored `max-age`.
+    test("delete really removes the entry", () => {
+        cookie.set("gone", "here");
+        expect(cookie.get("gone")).toBe("here");
+        cookie.delete("gone");
+        expect(cookie.get("gone")).toBe(undefined);
+        expect(document.cookie).not.toInclude("gone");
+    });
+
+    test("cookie attributes are not stored as cookies", () => {
+        cookie.set("real", "1");
+        expect(document.cookie).toInclude("real=1");
+        for (const attribute of ["path", "max-age", "SameSite"]) {
+            expect(cookie.get(attribute)).toBe(undefined, {
+                message: `${attribute} must not become a cookie`,
+            });
+        }
+        cookie.delete("real");
+    });
+
+    test("values survive the round trip whatever they contain", () => {
+        // Chrome round-trips all of these; the jar truncated at the first `=`.
+        for (const value of ["a=b", "a b", "a,b", "a;b", "a%b", 'a"b', "1=2=3"]) {
+            cookie.set("probe", value);
+            expect(cookie.get("probe")).toBe(value, {
+                message: `value ${JSON.stringify(value)}`,
+            });
+        }
+        cookie.delete("probe");
+    });
+
+    test("writing a cookie leaves its neighbours alone", () => {
+        cookie.set("first", "1");
+        cookie.set("second", "2");
+        expect([cookie.get("first"), cookie.get("second")]).toEqual(["1", "2"]);
+        cookie.delete("first");
+        expect([cookie.get("first"), cookie.get("second")]).toEqual([undefined, "2"]);
+        cookie.delete("second");
+    });
+});

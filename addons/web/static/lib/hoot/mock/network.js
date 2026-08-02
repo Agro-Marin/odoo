@@ -44,6 +44,7 @@ const {
     Headers,
     Map,
     Math: { floor: $floor, max: $max, min: $min, random: $random },
+    Number: { parseInt: $parseInt },
     Object: {
         assign: $assign,
         create: $create,
@@ -524,14 +525,46 @@ export class MockCookie {
     }
 
     /**
+     * Follows the `document.cookie` setter (RFC 6265 §5.2), because the code
+     * under test is written against a browser, not against this jar. Treating
+     * every `;`-separated part as its own cookie and splitting each on *every*
+     * `=` made the double disagree with Chrome on every non-trivial case:
+     * `SameSite=Lax` was stored as a cookie of its own, a value containing `=`
+     * was truncated at the first one, and `max-age=0` was ignored so a delete
+     * left the name behind with an empty value instead of removing it.
+     *
      * @param {string} value
      */
     set(value) {
-        for (const cookie of String(value).split(R_SEMICOLON)) {
-            const [key, value] = cookie.split(R_EQUAL);
-            if (value !== "kill" && !["path", "max-age"].includes(key)) {
-                this._jar[key] = value;
+        const [pair, ...attributes] = String(value).split(R_SEMICOLON);
+        // Only the first part is the name/value pair, and it splits at the
+        // FIRST `=` -- everything after it, `=` included, is the value.
+        const separator = pair.indexOf("=");
+        const name = separator === -1 ? "" : pair.slice(0, separator).trim();
+        const cookieValue = separator === -1 ? pair : pair.slice(separator + 1);
+
+        let expired = false;
+        for (const attribute of attributes) {
+            const attrSeparator = attribute.indexOf("=");
+            const attrName = (
+                attrSeparator === -1 ? attribute : attribute.slice(0, attrSeparator)
+            )
+                .trim()
+                .toLowerCase();
+            const attrValue =
+                attrSeparator === -1 ? "" : attribute.slice(attrSeparator + 1).trim();
+            // Last occurrence wins, as it does in the browser. Only `max-age`
+            // is honoured: nothing in the code base writes `expires`, and
+            // reading it would tie the jar to the mocked clock.
+            if (attrName === "max-age") {
+                expired = $parseInt(attrValue, 10) <= 0;
             }
+        }
+
+        if (expired) {
+            delete this._jar[name];
+        } else {
+            this._jar[name] = cookieValue;
         }
     }
 }
