@@ -142,7 +142,7 @@ describe("bridge source with awkward export names", () => {
             "default",
             "1invalid",
         ]);
-        globalThis.odoo.loader.modules.set("@web/x", { ok: 1, class: 2 });
+        odoo.loader.modules.set("@web/x", { ok: 1, class: 2 });
         const mod = await import(toDataModuleUrl(source));
         expect(mod.ok).toBe(1);
         expect(mod["class"]).toBe(2);

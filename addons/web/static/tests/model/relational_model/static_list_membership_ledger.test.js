@@ -44,6 +44,7 @@ import { sort } from "@web/model/relational_model/static_list_sort";
 
 const { CLEAR, DELETE, LINK, UNLINK, UPDATE } = x2ManyCommands;
 
+/** @type {Record<number, { id: number, display_name: string }>} */
 const SERVER_ROWS = {
     1: { id: 1, display_name: "C" },
     2: { id: 2, display_name: "A" },
@@ -51,6 +52,7 @@ const SERVER_ROWS = {
     99: { id: 99, display_name: "Z" },
 };
 
+/** @type {Record<number, string>} */
 const NAMES = {
     0: "CREATE",
     1: "UPDATE",
@@ -60,15 +62,27 @@ const NAMES = {
     5: "CLEAR",
     6: "SET",
 };
-const readable = (commands) => commands.map(([code, id]) => `${NAMES[code]}:${id}`);
+const readable = (/** @type {[number, number][]} */ commands) =>
+    commands.map(([code, id]) => `${NAMES[code]}:${id}`);
 
+/**
+ * A StaticList over hand-rolled model/config/parent skeletons — enough of each
+ * for the membership paths under test, deliberately not the real objects. The
+ * defaults are typed because a bare `[]` infers `never[]`, which rejects every
+ * caller's id list.
+ *
+ * @param {{ resIds?: number[], limit?: number, deleted?: Set<number> }} [options]
+ */
 function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
+    /** @type {any} */
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids }) =>
+        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+            Object.assign(config, patch),
+        _loadRecords: async (/** @type {{ resIds: number[] }} */ { resIds: ids }) =>
             ids.filter((id) => !deleted.has(id)).map((id) => SERVER_ROWS[id]),
     };
+    /** @type {any} */
     const config = {
         resModel: "res.partner",
         activeFields: { display_name: makeActiveField() },
@@ -80,6 +94,7 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
         orderBy: [],
         context: {},
     };
+    /** @type {any} */
     const parent = {
         evalContext: {},
         evalContextWithVirtualIds: {},
@@ -91,7 +106,7 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
         .slice(0, limit)
         .filter((id) => !deleted.has(id))
         .map((id) => SERVER_ROWS[id]);
-    const list = new StaticList(model, config, data, {
+    const list = new StaticList(model, config, /** @type {any} */ (data), {
         parent,
         onUpdate: async () => {},
     });

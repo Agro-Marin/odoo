@@ -57,7 +57,7 @@ import { makePopover } from "@web/ui/popover/popover_hook";
  *  close: () => void;
  *  commitInputs: () => Promise<void>;
  *  state: DateTimePickerProps;
- * }} DateTimePicker
+ * }} DateTimePickerHandle
  */
 
 /**
@@ -104,7 +104,7 @@ export class DateTimePickerController {
      * @param {Partial<DateTimePickerServiceParams>} params
      * @param {any} env
      * @param {any} popoverService
-     * @param {Set<DateTimePicker>} dateTimePickerList
+     * @param {Set<DateTimePickerHandle>} dateTimePickerList
      */
     constructor(params, env, popoverService, dateTimePickerList) {
         this.params = params;
@@ -166,7 +166,7 @@ export class DateTimePickerController {
             onClose: () => this.onPopoverClose(),
         });
 
-        /** @type {DateTimePicker} */
+        /** @type {DateTimePickerHandle} */
         this.picker = {
             enable: this.enable,
             disable: () => this.dateTimePickerList.delete(this.picker),
@@ -602,7 +602,7 @@ export class DateTimePickerController {
 export const datetimePickerService = {
     dependencies: ["popover"],
     start(env, { popover: popoverService }) {
-        /** @type {Set<DateTimePicker>} */
+        /** @type {Set<DateTimePickerHandle>} */
         const dateTimePickerList = new Set();
         return {
             /**

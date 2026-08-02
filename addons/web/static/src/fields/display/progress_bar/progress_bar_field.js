@@ -275,7 +275,11 @@ export const progressBarField = {
     // The bar edits `current_value` / `max_value`, not the field it is placed
     // on, so the default `record.isFieldInvalid(props.name)` never sees a parse
     // error from its own inputs and the widget stays unhighlighted.
-    isValid: (record, fieldName, fieldInfo) =>
+    isValid: (
+        /** @type {any} */ record,
+        /** @type {string} */ fieldName,
+        /** @type {any} */ fieldInfo,
+    ) =>
         !editedFieldNames(fieldName, fieldInfo.options || {}).some((name) =>
             record.isFieldInvalid(name),
         ),

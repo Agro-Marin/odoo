@@ -112,7 +112,8 @@ export function buildM2OFieldDescription(component) {
  * `no_create_edit` option triad. Shared with the tags widgets, which used to
  * re-derive it by hand and drift from this one.
  *
- * @param {{ attrs: Record<string, any>, options: Record<string, any> }} staticInfo
+ * @param {Record<string, any>} staticInfo  the field's static info; only
+ *   `attrs` and `options` are read
  * @returns {{ canCreate: boolean, canCreateEdit: boolean, canQuickCreate: boolean }}
  */
 export function extractCreatePermissions({ attrs, options }) {

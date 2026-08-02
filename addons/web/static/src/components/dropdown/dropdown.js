@@ -78,6 +78,7 @@ export function getFirstElementOfNode(node) {
 export class Dropdown extends Component {
     static template = xml`<t t-slot="default"/>`;
     static components = {};
+
     static props = {
         menuClass: { optional: true },
         position: { type: String, optional: true },
@@ -286,7 +287,10 @@ export class Dropdown extends Component {
      */
     syncMenuClass(menuEl) {
         const wanted = this.menuClassNames;
-        for (const name of this._menuClassNames) {
+        // Assigned in setup(); cast rather than declared as a class field,
+        // which would re-initialise it to undefined after setup ran.
+        const applied = /** @type {string[]} */ (this._menuClassNames);
+        for (const name of applied) {
             if (!wanted.includes(name) && !STATIC_MENU_CLASSES.has(name)) {
                 menuEl.classList.remove(name);
             }

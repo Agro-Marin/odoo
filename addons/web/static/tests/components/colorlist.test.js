@@ -91,7 +91,10 @@ test("the isExpanded prop is followed after it changes", async () => {
     class Controller extends Component {
         static template = xml`<ColorList colors="[1,2,3]" onColorSelected="() => {}" isExpanded="state.expanded" canToggle="true"/>`;
         static components = { ColorList };
-        static props = [];
+        static props = /** @type {string[]} */ ([]);
+
+        /** @type {{ expanded: boolean }} */
+        state;
 
         setup() {
             this.state = useState({ expanded: false });
@@ -115,7 +118,10 @@ test("the isExpanded prop sync does not undo the user's own toggle", async () =>
             <ColorList colors="[1,2,3]" onColorSelected="() => {}" isExpanded="state.expanded" canToggle="true"/>
             <span t-esc="state.tick"/>`;
         static components = { ColorList };
-        static props = [];
+        static props = /** @type {string[]} */ ([]);
+
+        /** @type {{ expanded: boolean, tick: number }} */
+        state;
 
         setup() {
             this.state = useState({ expanded: false, tick: 0 });
@@ -137,7 +143,7 @@ test("a list that arrives expanded does not take focus from the page", async () 
             <input class="outside"/>
             <ColorList colors="[1,2,3]" isExpanded="true" canToggle="true" onColorSelected="() => {}"/>`;
         static components = { ColorList };
-        static props = [];
+        static props = /** @type {string[]} */ ([]);
     }
     await mountWithCleanup(Host);
     expect(".o_colorlist_item_color_1").toHaveCount(1);

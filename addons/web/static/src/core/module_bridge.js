@@ -21,6 +21,7 @@ export function buildBridgeModuleSource(specifier, exportNames) {
     // so `export { x as class }` is legal and `Object.keys` hands it back --
     // whereas `export const class = ...` is a SyntaxError that takes down the
     // whole bridge module, every other export of it included.
+    /** @type {string[]} */
     const aliases = [];
     for (const name of exportNames) {
         if (name === "default" || !VALID_EXPORT_NAME.test(name)) {

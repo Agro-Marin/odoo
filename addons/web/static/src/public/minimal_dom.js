@@ -101,6 +101,7 @@ export function makeButtonHandler(
         let showDebouncedLoading = false;
         // a handler that settles before the delay must take its timer with it,
         // otherwise every click arms one that outlives the work it described
+        /** @type {ReturnType<typeof setTimeout> | undefined} */
         let debounceTimer;
         const addLoadingIfPending = () => {
             clearTimeout(debounceTimer);

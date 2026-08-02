@@ -36,7 +36,7 @@ export class DynamicPlaceholderPopover extends Component {
         ] = /** @type {any} */ (
             await Promise.all([
                 user.hasGroup("mail.group_mail_template_editor"),
-                this.getAllowedQwebExpressions(
+                /** @type {any} */ (this).getAllowedQwebExpressions(
                     /** @type {any} */ (this.props).resModel,
                 ),
             ])

@@ -103,6 +103,7 @@ class ResUsers extends models.Model {
 
 defineModels([Partner, Sub, Currency, ResUsers]);
 
+/** @type {Record<string, string>} */
 const FIELD_OF_TYPE = {
     binary: "f_binary",
     boolean: "f_boolean",
@@ -167,6 +168,7 @@ test("every widget renders each type it claims in supportedTypes", async () => {
  * `daterange`; the range-only options belong to `daterange`'s declaration, not
  * to theirs. Every other entry here was real drift and has been declared.
  */
+/** @type {Record<string, string[]>} */
 const UNDECLARED_BY_DESIGN = {
     date: ["always_range", "end_date_field", "rounding", "start_date_field"],
     datetime: ["always_range", "end_date_field", "start_date_field"],
@@ -180,7 +182,7 @@ test("extractProps reads no option that supportedOptions does not declare", () =
             continue;
         }
         const read = new Set();
-        const record = (prop) => {
+        const record = (/** @type {string | symbol} */ prop) => {
             if (typeof prop === "string") {
                 read.add(prop);
             }
@@ -194,7 +196,9 @@ test("extractProps reads no option that supportedOptions does not declare", () =
         );
         try {
             descr.extractProps(
-                {
+                // Deliberately a skeleton, not a full StaticFieldInfo: the
+                // catch below treats "needs more than this" as out of scope.
+                /** @type {any} */ ({
                     attrs: {},
                     options,
                     string: "",
@@ -205,8 +209,13 @@ test("extractProps reads no option that supportedOptions does not declare", () =
                     name: "f_char",
                     views: {},
                     relatedFields: {},
-                },
-                { context: {}, domain: () => [], readonly: false, required: false },
+                }),
+                /** @type {any} */ ({
+                    context: {},
+                    domain: () => /** @type {any[]} */ ([]),
+                    readonly: false,
+                    required: false,
+                }),
             );
         } catch {
             // A widget whose extractProps needs more than this skeleton is out
@@ -214,7 +223,7 @@ test("extractProps reads no option that supportedOptions does not declare", () =
             continue;
         }
         const declared = new Set([
-            ...(descr.supportedOptions || []).map((o) => o.name),
+            ...(descr.supportedOptions || []).map((/** @type {any} */ o) => o.name),
             ...(UNDECLARED_BY_DESIGN[key] || []),
         ]);
         const undeclared = [...read].filter((name) => !declared.has(name)).sort();

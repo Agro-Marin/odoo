@@ -53,6 +53,7 @@ function getFormattedPlaceholder(value, type, options) {
  *  alwaysRange?: boolean;
  * }} DateTimeFieldProps
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
+ * @typedef {import("@web/core/l10n/dates").NullableDateRange} NullableDateRange
  */
 
 /** @extends {Component<DateTimeFieldProps>} */
@@ -150,15 +151,17 @@ export class DateTimeField extends Component {
             this.state.range = !this.state.range;
 
             if (this.state.range) {
-                let values = this.values;
-                const optionalFieldIndex = values[0] ? 1 : 0;
-
-                if (!values[0] && !values[1]) {
-                    values = [DateTime.local(), DateTime.local()];
-                }
-                values[optionalFieldIndex] = optionalFieldIndex
-                    ? values[0].plus({ hours: 1 })
-                    : values[1].minus({ hours: 1 });
+                // Whichever end is missing is derived an hour from the other;
+                // with neither set, "now" anchors the pair. Written as one
+                // expression so the non-null side is evident per branch: the
+                // previous form assigned through an index and reassigned the
+                // array, which no reader — or checker — can narrow.
+                const [start, end] = this.values;
+                const anchor = end || DateTime.local();
+                /** @type {NullableDateRange} */
+                const values = start
+                    ? [start, start.plus({ hours: 1 })]
+                    : [anchor.minus({ hours: 1 }), anchor];
 
                 this.state.focusedDateIndex = 0;
                 this.state.value = values;
