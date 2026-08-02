@@ -2,7 +2,7 @@
 #
 # Mirrors the trampoline in tooling/hoot/hoot: pick the single venv
 # under <workspace>/venv and pair it with config/<venv-name>.conf. Nothing is
-# hardcoded — the previous wrappers pinned `venv/agromarin` and `conf/odoo.conf`,
+# hardcoded — the previous wrappers pinned a named venv and `conf/odoo.conf`,
 # neither of which exists in this workspace, so both were dead on arrival and
 # failed only at the point of use.
 #

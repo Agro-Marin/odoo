@@ -245,6 +245,30 @@ class ShardResult:
             self.failed = max(self.failed, 1)
 
 
+#: Extra seconds a shard gets on top of its per-page budget: a cold shard DB
+#: pays a one-time `web` install plus a server boot before the first page load.
+SHARD_BOOT_GRACE_S = 600
+
+
+def _as_text(chunk) -> str:
+    if chunk is None:
+        return ""
+    return chunk if isinstance(chunk, str) else chunk.decode("utf-8", "replace")
+
+
+def shard_deadline(suites: list[str], args) -> float:
+    """Wall-clock ceiling for one shard's ``hoot`` subprocess.
+
+    ``--timeout`` is per PAGE LOAD and is handed to ``hoot``; with ``--isolate``
+    a shard loads one page per suite, so its own ceiling is the sum plus a boot
+    allowance. Without any ceiling the subprocess could hang forever: ``hoot``'s
+    timeout only bounds the in-page wait, and a Chrome that never reaches the
+    ready signal (or a warm server that dies mid-run) leaves ``subprocess.run``
+    blocking with no output, taking the whole ThreadPoolExecutor with it.
+    """
+    return len(suites) * args.timeout + SHARD_BOOT_GRACE_S
+
+
 def run_shard(index: int, suites: list[str], args) -> ShardResult:
     db = db_for(index, args.db_prefix)
     res = ShardResult(index, db)
@@ -255,11 +279,23 @@ def run_shard(index: int, suites: list[str], args) -> ShardResult:
     if args.verbose:
         extra.append("-v")
     extra += suites
-    proc = subprocess.run(
-        hoot_cmd(extra), capture_output=True, text=True, check=False
-    )
-    res.raw = proc.stdout + proc.stderr
-    res.rc = proc.returncode
+    try:
+        proc = subprocess.run(
+            hoot_cmd(extra), capture_output=True, text=True, check=False,
+            timeout=shard_deadline(suites, args),
+        )
+        res.raw = proc.stdout + proc.stderr
+        res.rc = proc.returncode
+    except subprocess.TimeoutExpired as exc:
+        # TimeoutExpired.stdout/.stderr are not reliably decoded even under
+        # text=True, so normalise before parsing.
+        res.raw = _as_text(exc.stdout) + _as_text(exc.stderr)
+        res.rc = 124
+        res.raw += (
+            f"\nhoot-shard: shard {index} exceeded "
+            f"{shard_deadline(suites, args):.0f}s and was killed; its warm "
+            f"server on {db} is left running (stop it with --stop).\n"
+        )
     res.parse()
     return res
 
@@ -284,9 +320,26 @@ def calibrate(suites: list[str], args) -> None:
     print(_color(f"Wrote {WEIGHTS_PATH}", C_DIM))
 
 
-def stop_all(n: int, prefix: str) -> None:
-    for i in range(n):
-        db = db_for(i, prefix)
+def stop_all(prefix: str) -> None:
+    """Stop every recorded shard server, not ``range(auto_shard_count)``.
+
+    The shard count is derived from the CPU count when ``-j`` is omitted, so a
+    bare ``--stop`` after ``hoot-shard -j 8`` used to walk shards 0..5 on a
+    22-core box and leave s6 and s7 running, still holding their ports. What
+    was started is recorded in the state files; read those instead of
+    recomputing a number that was never the one used.
+    """
+    dbs = sorted(
+        {
+            db
+            for state in H.read_all_states()
+            if (db := state.get("db")) and (db == prefix or db.startswith(f"{prefix}_s"))
+        }
+    )
+    if not dbs:
+        print("no shard server recorded")
+        return
+    for db in dbs:
         subprocess.run(hoot_cmd(["--db", db, "--stop"]), check=False)
         print(f"stopped {db}")
 
@@ -315,11 +368,29 @@ def main() -> int:
                    help="Stop every shard's warm server and exit.")
     args = p.parse_args()
 
+    # Before any suite discovery: stopping servers needs no shard plan, and
+    # building one costs an AST parse of every addon's test_js.py.
+    if args.stop:
+        stop_all(args.db_prefix)
+        return 0
+
     suites = args.suites or default_web_suites()
     if args.preset == "mobile" and not args.suites:
         # Explicit suites are someone asking for exactly what they typed, as in
         # MobileWebSuite._run_hoot; a bare whole-suite run must mirror CI.
         suites = H.mobile_suites(suites)
+    if not suites:
+        # `default_web_suites` reads the CI runner by parsing its AST, and that
+        # read is failure-suppressed — a moved or unparseable test_js.py yields
+        # an empty set rather than an error. Running nothing then presented
+        # itself as success: `--plan` printed "0 shards" and exited 0, and a
+        # real run died on `max_workers must be greater than 0`, a message
+        # about thread pools rather than about suites.
+        print(_color(
+            "hoot-shard: no suites to run. With no arguments the plan comes "
+            "from web/tests/test_js.py's _run_hoot calls; an empty result means "
+            "that file could not be read or no longer declares any.", C_RED))
+        return 2
     weights = load_weights()
 
     # Auto shard count: ~3 cores per shard (Chrome + threaded server), capped so
@@ -329,9 +400,6 @@ def main() -> int:
     n = args.shards or auto
     n = max(1, min(n, len(suites)))
 
-    if args.stop:
-        stop_all(n, args.db_prefix)
-        return 0
     if args.calibrate:
         calibrate(refine(suites, n, weights), args)
         return 0

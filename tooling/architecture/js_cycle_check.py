@@ -53,7 +53,7 @@ from js_layer_check import ROOT, collect_imports
 # Every addon's client source in this repo, not just ``web``'s: a cycle in
 # ``mail`` or ``point_of_sale`` fails exactly the same way, and the
 # named-export gate already scans this same wide surface for the same reason.
-# Sibling repos (enterprise, agromarin, design-themes) are absent from a CI
+# Sibling checkouts are absent from a CI
 # checkout, so they are covered by the pre-push hook rather than here.
 ADDON_ROOTS: tuple[Path, ...] = (ROOT / "addons", ROOT / "odoo" / "addons")
 

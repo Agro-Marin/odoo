@@ -277,7 +277,12 @@ def _watch(suites: list[str], state: dict, args) -> int:
                         C_DIM))
             run_suites = suites
             if args.affected:
-                run_suites = H.affected_suites(changed) or suites
+                # Same selection the non-watch path makes: dropping
+                # --downstream here silently narrowed re-runs to the edited
+                # addon while the first run had been wider.
+                run_suites = (
+                    H.affected_suites(changed, downstream=args.downstream) or suites
+                )
                 print(_color("Affected: " + " ".join(run_suites), C_DIM))
             _report(_run_once(run_suites, state, args))
     except KeyboardInterrupt:

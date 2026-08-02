@@ -14,7 +14,7 @@ def _specs(src: str) -> list[str]:
 
 
 def _by_line(src: str) -> dict[str, int]:
-    return {s: ln for s, ln in jlc.collect_imports(src)}
+    return dict(jlc.collect_imports(src))
 
 
 # --- comment stripping: the crux (a runtime import must not be a comment) ---
@@ -56,6 +56,82 @@ def test_string_with_double_slash_is_not_treated_as_comment():
     # string state or it would corrupt the following real import.
     src = 'const u = "https://example.com/x";\nimport { a } from "@web/fields/a";\n'
     assert _specs(src) == ["@web/fields/a"]
+
+
+def test_regex_literal_containing_slash_star_does_not_open_a_comment():
+    # `/^\/*/` appears verbatim at website/.../add_page_dialog.js:560. Without
+    # regex-literal handling its `/*` opened a block comment that never closed,
+    # blanking the rest of the file — so a real import after it was invisible
+    # and the gate passed a genuine layering violation.
+    src = (
+        'import { a } from "@web/core/a";\n'
+        "const re = /^\\/*/;\n"
+        'import { b } from "@web/webclient/b";\n'
+    )
+    assert _specs(src) == ["@web/core/a", "@web/webclient/b"]
+
+
+def test_regex_literal_containing_quote_does_not_open_a_string():
+    # `/["\\]/` at web/static/src/public/public_boot.js:92 opened a string
+    # state, after which comments stopped being stripped and a JSDoc
+    # `import("@web/env")` was collected as a runtime import.
+    src = (
+        'const s = x.replace(/["\\\\]/g, "");\n'
+        "/**\n"
+        ' * @returns {Promise<import("@web/views/gone").T>}\n'
+        " */\n"
+        'import { a } from "@web/core/a";\n'
+    )
+    assert _specs(src) == ["@web/core/a"]
+
+
+def test_division_is_not_mistaken_for_a_regex():
+    # The inverse error: blanking a division expression as if it were a regex
+    # would swallow real code. `/` after a value (identifier, `)`, `]`, string)
+    # is division.
+    src = (
+        "const half = total / 2;\n"
+        "const q = (a + b) / c / d;\n"
+        "const r = arr[0] / 2;\n"
+        'import { a } from "@web/core/a";\n'
+    )
+    assert _specs(src) == ["@web/core/a"]
+
+
+def test_regex_after_keyword_is_a_regex_not_division():
+    src = 'function f(s) { return /a\\/*b/.test(s); }\nimport { a } from "@web/core/a";\n'
+    assert _specs(src) == ["@web/core/a"]
+
+
+def test_unterminated_slash_does_not_swallow_the_rest_of_the_file():
+    # A `/` the scanner reads as a regex but that never closes on its line must
+    # backtrack, not consume everything after it.
+    src = 'const x = a / b;\nimport { a } from "@web/core/a";\n'
+    assert _specs(src) == ["@web/core/a"]
+
+
+def test_strip_comments_preserves_length_and_newlines():
+    # collect_imports maps match offsets to line numbers, so any rewrite must
+    # be length- and newline-preserving.
+    src = (
+        'import { a } from "@web/core/a";\n'
+        "const re = /^\\/*/; // trailing\n"
+        "/* block\n   comment */\n"
+        'const s = "str";\n'
+    )
+    out = jlc.strip_comments(src)
+    assert len(out) == len(src)
+    assert [i for i, c in enumerate(out) if c == "\n"] == [
+        i for i, c in enumerate(src) if c == "\n"
+    ]
+
+
+def test_specifier_never_spans_a_newline():
+    # A module specifier is a single-line string literal. Allowing a newline let
+    # the patterns run across unrelated template-literal content and invent
+    # specifiers hundreds of characters long.
+    src = 'const py = `from "a\nb" tail`;\nimport { a } from "@web/core/a";\n'
+    assert _specs(src) == ["@web/core/a"]
 
 
 def test_block_comment_preserves_line_numbers():

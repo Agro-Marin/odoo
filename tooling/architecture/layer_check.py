@@ -44,9 +44,13 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Repo root = the directory that contains the ``odoo/`` package. This file lives
-# at ``<root>/tooling/architecture/layer_check.py``.
-ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
+# Located by marker, not by counting parents: a counted depth silently resolves
+# to the wrong tree the moment a script moves, and this gate's whole value is
+# that it scanned the tree it claims to have scanned.
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="layer_check")
 PKG_ROOT = ROOT / "odoo"
 
 
@@ -380,11 +384,16 @@ def _is_known(module: str, target: str) -> bool:
     )
 
 
-def check() -> tuple[list[Violation], list[Violation]]:
-    """Return ``(new_violations, known_violations)``."""
+def check(files: list[Path] | None = None) -> tuple[list[Violation], list[Violation]]:
+    """Return ``(new_violations, known_violations)``.
+
+    ``files`` lets a caller that already walked the tree pass the result in;
+    the walk spans both addon trees (6193 files) and ``main`` used to repeat it
+    purely to print a count.
+    """
     new: list[Violation] = []
     known: list[Violation] = []
-    for path in iter_source_files():
+    for path in files if files is not None else iter_source_files():
         module = module_name_for(path)
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -423,7 +432,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args(argv)
 
-    new, known = check()
+    files = iter_source_files()
+    new, known = check(files)
 
     if args.json:
         print(json.dumps(
@@ -452,7 +462,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n{len(known)} known exception(s) tolerated (tracked debt):\n")
             for v in known:
                 print(f"  {v.path}:{v.lineno}  {v.module} -> {v.imports}")
-        print(f"\nFiles scanned: {len(iter_source_files())}")
+        print(f"\nFiles scanned: {len(files)}")
         print(f"New: {len(new)}   Known/tolerated: {len(known)}")
 
     if args.check and new:

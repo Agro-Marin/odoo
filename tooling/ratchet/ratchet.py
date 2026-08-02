@@ -212,18 +212,30 @@ def run(argv: list[str] | None = None) -> int:
 
 def _list_baselines(*, as_json: bool) -> int:
     rows = []
+    broken = []
     if BASELINES_DIR.exists():
         for path in sorted(BASELINES_DIR.glob("*.json")):
-            data = json.loads(path.read_text(encoding="utf-8"))
-            rows.append({"gate": path.stem, "count": data["count"], "note": data.get("note", "")})
+            # A malformed floor used to traceback out of --list, which is the
+            # one command a maintainer reaches for to find out what is wrong.
+            # The --count paths already answer it with EXIT_USAGE; match them.
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                rows.append(
+                    {"gate": path.stem, "count": int(data["count"]),
+                     "note": str(data.get("note", ""))}
+                )
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                broken.append({"gate": path.stem, "error": f"{type(exc).__name__}: {exc}"})
     if as_json:
-        print(json.dumps(rows, indent=2, sort_keys=True))
+        print(json.dumps({"baselines": rows, "broken": broken}, indent=2, sort_keys=True))
     else:
-        if not rows:
+        if not rows and not broken:
             print("no baselines yet")
         for row in rows:
             print(f"{row['gate']:<16} {row['count']:>8}   {row['note']}")
-    return EXIT_OK
+        for row in broken:
+            print(f"{row['gate']:<16} {'BROKEN':>8}   {row['error']}", file=sys.stderr)
+    return EXIT_USAGE if broken else EXIT_OK
 
 
 if __name__ == "__main__":

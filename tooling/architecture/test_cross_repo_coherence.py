@@ -106,3 +106,39 @@ def test_find_dangling_clean_when_specifier_unused(tmp_path):
     repo = _init_consumer(tmp_path)
     removed = {"@web/fields/gone": "addons/web/static/src/fields/gone.js"}
     assert crc.find_dangling(removed, [repo]) == []
+
+
+# --- an unusable consumer repo must be LOUD, never a silent zero result ------
+
+_REMOVED = {"@web/fields/file_handler": "addons/web/static/src/fields/file_handler.js"}
+
+
+def test_find_dangling_reports_a_directory_that_is_not_a_git_repo(tmp_path, capsys):
+    # The scan is `git grep`, so a plain directory yields nothing. Skipping it
+    # silently is indistinguishable from "checked it and it was clean" -- the
+    # exact failure the loud branch exists to prevent.
+    repo = tmp_path / "enterprise"
+    src = repo / "web_studio" / "static" / "src"
+    src.mkdir(parents=True)
+    (src / "uploader.js").write_text(
+        'import { FileHandler } from "@web/fields/file_handler";\n', encoding="utf-8"
+    )
+    assert crc.find_dangling(_REMOVED, [repo]) == []
+    assert "NOT checked" in capsys.readouterr().err
+
+
+def test_find_dangling_reports_a_missing_repo(tmp_path, capsys):
+    assert crc.find_dangling(_REMOVED, [tmp_path / "absent"]) == []
+    assert "not found, NOT checked" in capsys.readouterr().err
+
+
+# --- step 2: a specifier core still provides is not a removal ---------------
+
+
+def test_core_still_provides_existing_module():
+    # `@web/core/domain` -> addons/web/static/src/core/domain.js, which exists.
+    assert crc.core_still_provides("@web/core/domain")
+
+
+def test_core_still_provides_false_for_absent_module():
+    assert not crc.core_still_provides("@web/core/definitely_not_a_module")

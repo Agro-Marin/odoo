@@ -77,9 +77,14 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-# This file lives at ``<root>/tooling/typecheck/scope_gate.py``.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent.parent
+# Located by marker, not by counting parents — see _repo_root. Every exception
+# entry is stored repo-relative against this, so a wrong root silently turns
+# every locked file into a "stale" one.
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="scope_gate")
 EXCEPTIONS_DIR = HERE / "exceptions"
 
 # The gated modules. Committed here rather than passed on the command line so CI
@@ -473,40 +478,66 @@ def _render_module_detail(mv: ModuleVerdict, tally, mode: str) -> list[str]:
     return lines
 
 
+def _leverage(codes: dict[str, int]) -> tuple[int, float]:
+    total = sum(codes.values())
+    ease = sum(CODE_EASE.get(c, DEFAULT_EASE) * n for c, n in codes.items()) / total
+    return total, ease
+
+
 def render_report(
     tally: dict[str, dict[str, int]],
     exceptions_by_module: dict[str, list[str]],
+    regressed_by_module: dict[str, list[str]] | None,
     limit: int,
 ) -> str:
-    """Rank remaining exceptions by cleanup leverage: errors x average ease."""
-    rows = []
+    """Rank the work by cleanup leverage: errors x average ease.
+
+    Regressed files are listed FIRST and separately. They are what "what do I
+    fix next" means when the gate is red — they block the build, while an
+    excepted file merely sits on a list. Ranking only the exceptions omitted
+    them by construction (a regression is, by definition, not excepted), so the
+    one mode built to answer that question could not see the 14 files failing
+    the strict lock.
+    """
+    regressed_by_module = regressed_by_module or {}
+    blocking, excepted = [], []
+    for module, entries in regressed_by_module.items():
+        for path in entries:
+            if codes := tally.get(path):
+                total, ease = _leverage(codes)
+                blocking.append((total * ease, total, ease, module, path, codes))
     for module, entries in exceptions_by_module.items():
         for path in entries:
-            codes = tally.get(path)
-            if not codes:
-                continue
-            total = sum(codes.values())
-            ease = (
-                sum(CODE_EASE.get(c, DEFAULT_EASE) * n for c, n in codes.items())
-                / total
-            )
-            rows.append((total * ease, total, ease, module, path, codes))
-    rows.sort(reverse=True)
+            if codes := tally.get(path):
+                total, ease = _leverage(codes)
+                excepted.append((total * ease, total, ease, module, path, codes))
+    blocking.sort(reverse=True)
+    excepted.sort(reverse=True)
 
-    lines = [
-        (
-            f"{len(rows)} exception(s) with errors, ranked by cleanup leverage "
-            f"(errors x ease); showing {min(limit, len(rows))}:"
-        ),
-        f"{'score':>7} {'errs':>5} {'ease':>5}  {'module':<16} file",
-    ]
-    for score, total, ease, module, path, codes in rows[:limit]:
-        top = ", ".join(
-            f"{c}x{n}" for c, n in sorted(codes.items(), key=lambda kv: -kv[1])[:3]
-        )
+    def table(rows, cap):
+        out = [f"{'score':>7} {'errs':>5} {'ease':>5}  {'module':<16} file"]
+        for score, total, ease, module, path, codes in rows[:cap]:
+            top = ", ".join(
+                f"{c}x{n}" for c, n in sorted(codes.items(), key=lambda kv: -kv[1])[:3]
+            )
+            out.append(
+                f"{score:7.1f} {total:5d} {ease:5.2f}  {module:<16} {path}  [{top}]"
+            )
+        return out
+
+    lines = []
+    if blocking:
         lines.append(
-            f"{score:7.1f} {total:5d} {ease:5.2f}  {module:<16} {path}  [{top}]"
+            f"{len(blocking)} REGRESSED file(s) — in scope, not excepted, and "
+            f"erroring. These fail the gate; fix these first:"
         )
+        lines.extend(table(blocking, limit))
+        lines.append("")
+    lines.append(
+        f"{len(excepted)} exception(s) with errors, ranked by cleanup leverage "
+        f"(errors x ease); showing {min(limit, len(excepted))}:"
+    )
+    lines.extend(table(excepted, limit))
     return "\n".join(lines)
 
 
@@ -627,17 +658,19 @@ def run(argv: list[str] | None = None) -> int:
         )
         return EXIT_USAGE
 
+    verdict = evaluate(args.gate, tally, modules, args.mode, program)
+
     if args.report:
         print(
             render_report(
                 tally,
                 {m: read_exceptions(args.gate, m) for m in modules},
+                {mv.module: mv.regressed for mv in verdict.modules},
                 args.limit,
             )
         )
         return EXIT_OK
 
-    verdict = evaluate(args.gate, tally, modules, args.mode, program)
     if args.json:
         payload = asdict(verdict) | {
             "locked": verdict.locked,

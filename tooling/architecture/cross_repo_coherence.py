@@ -1,7 +1,7 @@
 """Cross-repo symbol-coherence gate for a ``core`` push.
 
 When ``core`` removes (or renames away) a JavaScript module that a *sibling*
-repo (``enterprise``, ``agromarin-addons``, ``design-themes``) still imports at
+checkout still imports at
 runtime, a ``git pull`` of core alone leaves the other checkout importing a
 module that no longer exists — the whole JS bundle fails to boot. The removal
 and the paired consumer-side adaptation live in two different repositories, so
@@ -31,8 +31,8 @@ Refs are taken from ``PRE_COMMIT_FROM_REF`` / ``PRE_COMMIT_TO_REF`` (set by the
 pre-commit framework for the ``pre-push`` stage), overridable with ``--from`` /
 ``--to``; they default to ``19.0-marin`` .. ``HEAD`` for a manual run.
 
-Consumer repos default to the workspace siblings and can be overridden with
-``AGROMARIN_CONSUMER_REPOS`` (a ``:``-separated list of absolute paths).
+Consumer repos are discovered beside this checkout and can be overridden with
+``ODOO_CONSUMER_REPOS`` (a ``:``-separated list of absolute paths).
 
 Usage::
 
@@ -59,9 +59,16 @@ from pathlib import Path
 
 from js_layer_check import collect_imports
 
-# This file lives at ``<root>/tooling/architecture/cross_repo_coherence.py``.
-ROOT = Path(__file__).resolve().parent.parent.parent
-WORKSPACE = ROOT.parent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root, sibling_repos_root
+
+# Located by marker, not by counting parents — see _repo_root.
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="cross_repo_coherence")
+# NOT named WORKSPACE: this is ``<ws>/addons``, the directory the sibling addon
+# repos live in, whereas ``hoot_lib.WORKSPACE`` is ``<ws>`` itself. The two
+# meanings shared one name across modules, which is how the consumer repos were
+# once configured at paths that had never existed.
+SIBLING_REPOS_ROOT = sibling_repos_root(ROOT)
 
 # ``addons/<mod>/static/src/<rest>.js`` -> capture ``<mod>`` and ``<rest>``.
 _MODULE_PATH_RE = re.compile(r"^addons/([^/]+)/static/src/(.+)\.js$")
@@ -72,24 +79,38 @@ DEFAULT_FROM_REF = "19.0-marin"
 DEFAULT_TO_REF = "HEAD"
 
 
-def default_consumer_repos() -> list[Path]:
-    """Workspace sibling repos that consume core JS, in scan order.
+CONSUMER_REPOS_ENV = "ODOO_CONSUMER_REPOS"
 
-    The siblings sit BESIDE this repo (``WORKSPACE/<repo>``), not under a
-    nested ``WORKSPACE/addons/``. Two of the three entries carried that extra
-    segment (and ``agromarin-addons`` a name the checkout does not use), so
-    they resolved to directories that have never existed and ``find_dangling``
-    skipped them silently -- the gate has only ever checked ``enterprise``
-    while reporting a clean bill of health for all three.
+
+def _is_addons_repo(path: Path) -> bool:
+    """Whether ``path`` is a checkout holding Odoo addons."""
+    if not path.is_dir() or path == ROOT:
+        return False
+    try:
+        return any((child / "__manifest__.py").is_file() for child in path.iterdir())
+    except OSError:  # pragma: no cover
+        return False
+
+
+def default_consumer_repos() -> list[Path]:
+    """Sibling checkouts that consume this repo's JS, in scan order.
+
+    DISCOVERED, not named. The list used to hardcode three specific
+    deployment-private repositories, which pinned a framework fork to one
+    organisation's workspace: a different checkout got a gate that silently
+    examined nothing, and the names themselves were wrong often enough that
+    two of the three had never been scanned at all. A sibling directory that
+    contains addon manifests is a consumer whatever it is called.
+
+    Override with ``$ODOO_CONSUMER_REPOS`` (``:``-separated absolute paths).
     """
-    env = os.environ.get("AGROMARIN_CONSUMER_REPOS")
+    env = os.environ.get(CONSUMER_REPOS_ENV)
     if env:
         return [Path(p) for p in env.split(":") if p.strip()]
-    return [
-        WORKSPACE / "enterprise",
-        WORKSPACE / "agromarin",
-        WORKSPACE / "design-themes",
-    ]
+    try:
+        return sorted(p for p in SIBLING_REPOS_ROOT.iterdir() if _is_addons_repo(p))
+    except OSError:  # pragma: no cover
+        return []
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -177,12 +198,21 @@ def find_dangling(
     """Runtime imports of a removed specifier still present in consumer repos."""
     dangling: list[Dangling] = []
     for repo in consumer_repos:
-        if not (repo / ".git").exists() and not repo.is_dir():
-            # Loud, because silence here is indistinguishable from "checked it
-            # and it was clean" -- which is exactly how a typo in the default
-            # paths hid two of the three consumer repos from this gate.
+        # Loud, because silence here is indistinguishable from "checked it and
+        # it was clean" -- which is exactly how a typo in the default paths hid
+        # two of the three consumer repos from this gate. The scan is `git
+        # grep`, so a directory that is not a git repository yields nothing and
+        # must be reported the same way a missing one is; `and` here let such a
+        # directory through to a silent zero-result scan.
+        if not repo.is_dir():
             print(
                 f"cross_repo_coherence: consumer repo not found, NOT checked: {repo}",
+                file=sys.stderr,
+            )
+            continue
+        if not _git(repo, "rev-parse", "--git-dir").strip():
+            print(
+                f"cross_repo_coherence: not a git repository, NOT checked: {repo}",
                 file=sys.stderr,
             )
             continue
@@ -227,8 +257,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     from_ref, to_ref = _resolve_refs(args)
-    removed = removed_specifiers(from_ref, to_ref)
-    consumer_repos = [r for r in default_consumer_repos() if r.is_dir()]
+    all_removed = removed_specifiers(from_ref, to_ref)
+    # Step 2 of the documented algorithm: a specifier another core file still
+    # provides -- because a file sits at the derived path, or because one
+    # re-homes it via `@module` -- was never actually removed, so reporting its
+    # consumers as dangling is a false positive. This filter was written but
+    # never wired in.
+    rehomed = {s: p for s, p in all_removed.items() if core_still_provides(s)}
+    removed = {s: p for s, p in all_removed.items() if s not in rehomed}
+    # Not pre-filtered by `is_dir()`: find_dangling reports an unusable repo on
+    # stderr, and dropping it here made that warning unreachable.
+    consumer_repos = default_consumer_repos()
     dangling = find_dangling(removed, consumer_repos)
 
     if args.json:
@@ -237,6 +276,7 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "range": f"{from_ref}..{to_ref}",
                     "removed": removed,
+                    "rehomed": rehomed,
                     "consumer_repos": [str(r) for r in consumer_repos],
                     "dangling": [d.__dict__ for d in dangling],
                 },
@@ -253,6 +293,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Core JS modules removed in range: {len(removed)}")
         for spec, old in removed.items():
             print(f"  - {spec}  ({old})")
+        if rehomed:
+            print(f"Still provided by core (not removed): {len(rehomed)}")
+            for spec, old in rehomed.items():
+                print(f"  = {spec}  (was {old})")
         if dangling:
             print(f"\n{len(dangling)} DANGLING import(s) — these fail the gate:\n")
             for d in dangling:

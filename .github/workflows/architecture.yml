@@ -74,14 +74,19 @@ jobs:
 
       - name: Run layer check
         id: layers
+        # ONE invocation, with --check. It prints the same readable report as a
+        # bare run and additionally exits 1 on a new violation, so the previous
+        # two-invocation form paid for the whole scan twice (~3.9s here, and
+        # 12s across the four gates in this job). It was also silently wrong:
+        # `exit_code` was captured from the BARE run, which returns 0 whatever
+        # it finds, so "Annotate PR on failure" could never fire.
         run: |
           set +e
-          python tooling/architecture/layer_check.py | tee /tmp/layers.log
-          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          python tooling/architecture/layer_check.py --check | tee /tmp/layers.log
+          GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          python tooling/architecture/layer_check.py --check
-        # The second invocation sets the job's pass/fail status (exit 1 on any
-        # new violation). The first produces the readable report for the log.
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
 
       - name: Run JS layer check
         id: js_layers
@@ -90,10 +95,11 @@ jobs:
         # Blocking by design: a new upward import is a real regression.
         run: |
           set +e
-          python tooling/architecture/js_layer_check.py | tee /tmp/js_layers.log
-          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          python tooling/architecture/js_layer_check.py --check | tee /tmp/js_layers.log
+          GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          python tooling/architecture/js_layer_check.py --check
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
 
       - name: Run JS import-cycle check
         id: js_cycles
@@ -110,10 +116,11 @@ jobs:
         # the safe one, so 1904 passing JS tests said nothing about it.
         run: |
           set +e
-          python tooling/architecture/js_cycle_check.py | tee /tmp/js_cycles.log
-          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          python tooling/architecture/js_cycle_check.py --check | tee /tmp/js_cycles.log
+          GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          python tooling/architecture/js_cycle_check.py --check
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
 
       - name: Run named-export coherence check
         id: named_exports
@@ -124,17 +131,17 @@ jobs:
         # either: the bundle never boots, so the run reports fewer tests
         # rather than a failure.
         #
-        # CI checks out this repo alone, so the cross-repo half (enterprise,
-        # agromarin, design-themes) only runs where those siblings are
-        # present — the pre-push hook that already drives
+        # CI checks out this repo alone, so the cross-repo half only runs
+        # where sibling checkouts are present — the pre-push hook that drives
         # cross_repo_coherence.py. Intra-repo drift is fully covered here.
         run: |
           set +e
-          python tooling/architecture/named_export_coherence.py \
+          python tooling/architecture/named_export_coherence.py --check \
             | tee /tmp/named_exports.log
-          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          GATE_EXIT=${PIPESTATUS[0]}
           set -e
-          python tooling/architecture/named_export_coherence.py --check
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
 
       - name: Summarise
         if: always()
@@ -144,29 +151,29 @@ jobs:
             echo ""
             echo "### Python (framework core)"
             echo '```'
-            cat /tmp/layers.log
+            cat /tmp/layers.log 2>/dev/null || echo "(gate did not run)"
             echo '```'
             echo ""
             echo "### JavaScript (web addon, Feature-Sliced Design)"
             echo '```'
-            cat /tmp/js_layers.log
+            cat /tmp/js_layers.log 2>/dev/null || echo "(gate did not run)"
             echo '```'
             echo ""
             echo "### JavaScript (import cycles)"
             echo '```'
-            cat /tmp/js_cycles.log
+            cat /tmp/js_cycles.log 2>/dev/null || echo "(gate did not run)"
             echo '```'
             echo ""
             echo "### JavaScript (named-export coherence)"
             echo '```'
-            cat /tmp/named_exports.log
+            cat /tmp/named_exports.log 2>/dev/null || echo "(gate did not run)"
             echo '```'
             echo ""
             echo "Contracts: \`odoo/ARCHITECTURE.md\` · Decisions: \`doc/adr/\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Annotate PR on failure
-        if: always() && (steps.layers.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0')
+        if: always() && (steps.layers.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0')
         uses: actions/github-script@v7
         with:
           script: |
