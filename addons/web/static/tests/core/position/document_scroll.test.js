@@ -36,7 +36,7 @@ async function withScrollableDocument(callback) {
 /**
  * @param {Window} win
  * @param {Document} doc
- * @param {string} position
+ * @param {import("@web/core/position/utils").ComputePositionOptions["position"]} position
  * @param {number} scrollLeft
  * @param {number} scrollTop
  */
