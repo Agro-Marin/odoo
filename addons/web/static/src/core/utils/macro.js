@@ -105,12 +105,15 @@ export async function waitUntil(predicate, { signal } = {}) {
     }
     /** @type {number} */
     let handle;
+    /** @type {(() => void) | undefined} */
+    let onAbort;
     return new Promise((resolve, reject) => {
-        signal?.addEventListener(
-            "abort",
-            () => reject(new DOMException("waitUntil has been aborted", "AbortError")),
-            { once: true },
-        );
+        onAbort = () =>
+            reject(new DOMException("waitUntil has been aborted", "AbortError"));
+        // `once` only fires on abort, so a call that settles normally leaves
+        // its listener behind: polling the same long-lived signal accumulated
+        // one per call.
+        signal?.addEventListener("abort", onAbort, { once: true });
         const runCheck = () => {
             let result;
             try {
@@ -128,6 +131,9 @@ export async function waitUntil(predicate, { signal } = {}) {
         handle = browser.requestAnimationFrame(runCheck);
     }).finally(() => {
         browser.cancelAnimationFrame(handle);
+        if (onAbort) {
+            signal?.removeEventListener("abort", onAbort);
+        }
     });
 }
 
@@ -311,14 +317,30 @@ export class MacroMutationObserver {
      * @param {ShadowRoot[]} [shadowRoots]
      */
     findAllShadowRoots(node, shadowRoots = []) {
-        const shadowRoot = /** @type {Element} */ (node).shadowRoot;
-        if (shadowRoot) {
-            shadowRoots.push(shadowRoot);
-            this.findAllShadowRoots(shadowRoot, shadowRoots);
+        // Iterative and over `children`, not `childNodes`: this runs inside the
+        // MutationObserver callback for every added node, so it walks whole
+        // subtrees on a mutation-heavy page. Only elements can host a shadow
+        // root, so text and comment nodes are pure overhead.
+        /** @type {any[]} */
+        const stack = [node];
+        while (stack.length) {
+            const current = stack.pop();
+            const children = current?.children;
+            if (!children) {
+                continue;
+            }
+            // Pushed in reverse, shadow root last, so popping reproduces the
+            // recursive version's order: self, own shadow tree, then children
+            // in document order.
+            for (let i = children.length - 1; i >= 0; i--) {
+                stack.push(children[i]);
+            }
+            const shadowRoot = current.shadowRoot;
+            if (shadowRoot) {
+                shadowRoots.push(shadowRoot);
+                stack.push(shadowRoot);
+            }
         }
-        node.childNodes.forEach((child) => {
-            this.findAllShadowRoots(child, shadowRoots);
-        });
         return shadowRoots;
     }
     /**

@@ -1,5 +1,7 @@
 // @ts-check
 
+import "@web/core/browser/anchor_scroll";
+
 import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { click, on } from "@odoo/hoot-dom";
 import { mockMatchMedia, tick } from "@odoo/hoot-mock";
@@ -2225,5 +2227,24 @@ describe("ephemeral history entries", () => {
         browser.history.back();
         await tick();
         expect.verifySteps([]);
+    });
+});
+
+test("a click whose target is not an Element does not throw out of the capture phase", () => {
+    // `router`'s and `anchor_scroll`'s handlers are window-level capture
+    // listeners; an unguarded `ev.target.closest()` threw for every other
+    // handler on the event too. Any uncaught error here fails the test.
+    /** @type {EventTarget[]} */
+    const reached = [];
+    const probe = (/** @type {Event} */ ev) =>
+        reached.push(/** @type {any} */ (ev.target));
+    window.addEventListener("click", probe, true);
+    try {
+        document.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+    } finally {
+        window.removeEventListener("click", probe, true);
+    }
+    expect(reached).toEqual([document], {
+        message: "the event reaches window-level capture listeners",
     });
 });

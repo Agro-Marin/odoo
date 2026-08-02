@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { markup } from "@odoo/owl";
 import { allowTranslations, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
+    formatBinary,
     formatDate,
     formatDateTime,
     formatFloat,
@@ -21,6 +22,7 @@ import {
 } from "@web/core/formatters";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
+import { humanSize } from "@web/core/utils/format/binary";
 import { currencies } from "@web/services/currency";
 
 const { DateTime } = luxon;
@@ -343,4 +345,15 @@ test("humanReadable numeric formatting is guarded too", () => {
     // Real numbers still format normally.
     expect(formatInteger(1500, { humanReadable: true })).toBe("2k");
     expect(formatFloat(1500, { humanReadable: true, decimals: 1 })).toBe("1.5k");
+});
+
+test("formatBinary reports sizes in the same units as every upload widget", () => {
+    // There used to be a second, private `humanSize` here rendering powers of
+    // ten with a "b" suffix, so one byte count had two spellings in one UI.
+    expect(formatBinary("")).toBe("");
+    expect(formatBinary(false)).toBe("");
+    expect(formatBinary("1.5 MB")).toBe("1.5 MB");
+    expect(formatBinary("a".repeat(1370))).toBe(humanSize(1000));
+    expect(formatBinary("a".repeat(1370))).toBe("1000.00 Bytes");
+    expect(formatBinary("a".repeat(2740))).toBe("1.95 KB");
 });

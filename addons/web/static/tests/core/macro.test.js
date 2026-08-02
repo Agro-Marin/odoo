@@ -9,10 +9,10 @@ import {
     queryOne,
     queryText,
 } from "@odoo/hoot-dom";
-import { runAllTimers } from "@odoo/hoot-mock";
+import { advanceFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { Macro, waitUntil } from "@web/core/utils/macro";
+import { Macro, MacroMutationObserver, waitUntil } from "@web/core/utils/macro";
 
 let macro;
 async function waitForMacro() {
@@ -430,4 +430,50 @@ test("stop() from a mid-macro step halts the remaining steps", async () => {
     await waitForMacro();
     expect(seen).toEqual(["a", "b"]);
     expect(macro.isComplete).toBe(true);
+});
+
+test("waitUntil removes its abort listener when it settles normally", async () => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    let added = 0;
+    let removed = 0;
+    const originalAdd = signal.addEventListener.bind(signal);
+    const originalRemove = signal.removeEventListener.bind(signal);
+    patchWithCleanup(signal, {
+        addEventListener(...args) {
+            added++;
+            return originalAdd(...args);
+        },
+        removeEventListener(...args) {
+            removed++;
+            return originalRemove(...args);
+        },
+    });
+    for (let i = 0; i < 5; i++) {
+        let ready = false;
+        const prom = waitUntil(() => ready, { signal });
+        ready = true;
+        advanceFrame();
+        await prom;
+    }
+    expect([added, removed]).toEqual([5, 5], {
+        message: "polling one long-lived signal must not accumulate listeners",
+    });
+});
+
+test("findAllShadowRoots reports roots in document order and skips text nodes", () => {
+    const observer = new MacroMutationObserver(() => {});
+    const root = document.createElement("div");
+    root.append("some text");
+    const a = document.createElement("div");
+    const b = document.createElement("div");
+    root.append(a, b);
+    const rootA = a.attachShadow({ mode: "open" });
+    const rootB = b.attachShadow({ mode: "open" });
+    const nested = document.createElement("div");
+    rootA.append(nested);
+    const rootNested = nested.attachShadow({ mode: "open" });
+
+    expect(observer.findAllShadowRoots(root)).toEqual([rootA, rootNested, rootB]);
+    expect(observer.findAllShadowRoots(document.createTextNode("x"))).toEqual([]);
 });
