@@ -82,7 +82,7 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 | `static/lib/` | 17 directories (16 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
 | `static/tests/` | 620 `.js` (incl. 563 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
 | `tests/` | 54 Python test files (`test_*.py`) | `TEST_TAGS.md` |
-| `doc/` | `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` | — |
+| `doc/` | `doc/COMPONENT_DIAGRAM.md` (18 audit areas) · `doc/FLOW_DIAGRAM.md` (14 sequence diagrams) · `doc/LAZY_VIEW_LOADING.md` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 
 The `static/src/` JS layers are summarized in **JavaScript Architecture** below; the full per-directory layer + responsibility map is in `DIRECTORY_MAP.md`.

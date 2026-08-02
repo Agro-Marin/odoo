@@ -320,7 +320,7 @@ ambient block omits reports as "no exported member" at every import site even
 though the source exports it, while the block's looser `any`-heavy signatures
 mask real errors in files that consume it.
 
-`@types/` holds only what its `readme.md` scopes it to — ambient declarations
+`@types/` holds only what its `static/src/@types/readme.md` scopes it to — ambient declarations
 for iife/global libs (`odoo`, owl, hoot, qunit, libs, registries, services,
 models) plus the one legitimate augmentation, `concurrency.d.ts`. No block there
 shadows a real `.js` source. **Only ever augment; never shadow.**

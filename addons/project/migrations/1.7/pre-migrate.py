@@ -30,7 +30,6 @@ Tasks without dates land at ``planned_hours = 0`` and ``allocation_state
 
 Idempotent: safe to re-run on partially migrated databases.
 
-See ``knowledge/agromarin-knowledge/reference/business/pmi-hours-model.md``.
 """
 
 
