@@ -425,7 +425,7 @@ class TestRestoreDbTypeCheck:
     deployments commonly use -O, making the original assert useless.
     """
 
-    @pytest.mark.parametrize("bad_arg", [42, None, b"bytes", 3.14, ["list"]])
+    @pytest.mark.parametrize("bad_arg", [42, None, b"bytes", 2.5, ["list"]])
     def test_raises_type_error(self, db_mod, bypass_db_mgmt, bad_arg):
         with pytest.raises(TypeError, match="db must be a str"):
             db_mod.restore_db(bad_arg, "/dev/null")
@@ -1203,8 +1203,7 @@ class TestExpRestoreBase64Decoder:
         captured = {}
 
         def _capture(db, dump_file, copy=False, neutralize_database=False):
-            with pathlib.Path(dump_file).open("rb") as fh:
-                captured["bytes"] = fh.read()
+            captured["bytes"] = pathlib.Path(dump_file).read_bytes()
 
         with patch.object(db_mod, "restore_db", side_effect=_capture):
             db_mod.exp_restore("dummy", b64_text)
@@ -2550,7 +2549,9 @@ class TestDumpSqlMetaCommandScanner:
         assert db_mod._find_disallowed_psql_meta_command(sql) is None
 
     def test_assert_dump_sql_safe_raises_on_evil_file(self, db_mod):
-        with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".sql", delete=False, encoding="utf-8"
+        ) as f:
             f.write("\\! touch /tmp/pwn\nSELECT 1;\n")
             path = f.name
         try:
@@ -2560,7 +2561,9 @@ class TestDumpSqlMetaCommandScanner:
             pathlib.Path(path).unlink()
 
     def test_assert_dump_sql_safe_passes_clean_file(self, db_mod):
-        with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".sql", delete=False, encoding="utf-8"
+        ) as f:
             f.write("\\restrict TOK\nCREATE TABLE t (id int);\n\\unrestrict TOK\n")
             path = f.name
         try:
