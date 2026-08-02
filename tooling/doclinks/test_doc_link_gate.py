@@ -15,11 +15,11 @@ from _repo_root import find_odoo_root
 
 
 class TestRootResolution:
-    def test_odoo_root_is_the_checkout_root(self):
-        assert (gate.ODOO_ROOT / "odoo-bin").is_file()
+    def test_repo_root_is_the_checkout_root(self):
+        assert (gate.REPO_ROOT / "odoo-bin").is_file()
 
     def test_this_file_lives_under_the_resolved_root(self):
-        assert Path(__file__).resolve().is_relative_to(gate.ODOO_ROOT)
+        assert Path(__file__).resolve().is_relative_to(gate.REPO_ROOT)
 
     def test_missing_marker_raises_instead_of_guessing_a_root(self):
         """A wrong root must abort, not silently scan the wrong tree."""
@@ -27,11 +27,14 @@ class TestRootResolution:
             find_odoo_root(Path("/nonexistent/deep/path"), tool="probe")
         assert "odoo-bin" in str(excinfo.value)
 
-    def test_repo_root_differs_from_odoo_root_only_in_a_workspace(self):
-        if gate.IN_WORKSPACE:
-            assert gate.ODOO_ROOT.parents[1] == gate.REPO_ROOT
-        else:
-            assert gate.REPO_ROOT == gate.ODOO_ROOT
+    def test_scope_never_leaves_this_checkout(self):
+        # The gate used to climb to the workspace and scan sibling checkouts by
+        # name. A framework fork can only verify its own tree.
+        assert find_odoo_root(Path(__file__).resolve()) == gate.REPO_ROOT
+        for glob in gate.DEFAULT_SCAN_GLOBS:
+            assert not glob.startswith(("/", "..")), glob
+        for path in gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES):
+            assert path.is_relative_to(gate.REPO_ROOT), path
 
 
 class TestScanCoverage:
@@ -59,8 +62,75 @@ class TestBaseline:
 
     def test_baseline_loads_as_violation_keys(self):
         entries = gate.load_baseline(gate.DEFAULT_BASELINE_PATH)
-        assert entries
         assert all(isinstance(key, tuple) and len(key) == 2 for key in entries)
+
+    def test_baseline_is_empty_so_the_gate_can_block(self):
+        # Scoped to this repo, there is nothing left to tolerate; doc_links.yml
+        # is blocking on that basis.
+        assert gate.load_baseline(gate.DEFAULT_BASELINE_PATH) == set()
+        assert gate.scan() == []
+
+
+class TestReferenceResolution:
+    """The documented order must FALL THROUGH, not first-match-wins."""
+
+    def test_rooted_looking_but_source_relative_ref_resolves(self, tmp_path, monkeypatch):
+        # `addons/odoo/CLAUDE.md` cites `addons/web/machine_doc_v1/TEST_TAGS.md`.
+        # It starts with a rooted-looking segment but is relative to the citing
+        # file. Step 2 used to `return None` on failure, so the gate reported a
+        # file that exists — and printed the existing path while doing it.
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+        src_dir = tmp_path / "addons" / "odoo"
+        target = src_dir / "addons" / "web" / "doc.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("x", encoding="utf-8")
+        source = src_dir / "CLAUDE.md"
+        source.write_text("see `addons/web/doc.md`\n", encoding="utf-8")
+        assert gate._resolve_ref(source, "addons/web/doc.md") == target.resolve()
+
+    def test_genuinely_rooted_ref_still_resolves_at_repo_root(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+        target = tmp_path / "addons" / "web" / "doc.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("x", encoding="utf-8")
+        source = tmp_path / "deep" / "nested" / "CLAUDE.md"
+        source.parent.mkdir(parents=True)
+        assert gate._resolve_ref(source, "addons/web/doc.md") == tmp_path / "addons/web/doc.md"
+
+    def test_a_ref_resolving_nowhere_is_still_a_violation(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+        source = tmp_path / "addons" / "odoo" / "CLAUDE.md"
+        source.parent.mkdir(parents=True)
+        assert gate._resolve_ref(source, "addons/web/absent.md") is None
+
+    def test_absolute_ref_does_not_fall_through_to_relative(self, tmp_path, monkeypatch):
+        # A leading `/` means repo-root-anchored and nothing else; resolving it
+        # relative to the source would silently accept the wrong file.
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+        source = tmp_path / "sub" / "CLAUDE.md"
+        source.parent.mkdir(parents=True)
+        (source.parent / "doc.md").write_text("x", encoding="utf-8")
+        assert gate._resolve_ref(source, "/doc.md") is None
+
+
+class TestNextTargetRanksReality:
+    """The ranker must answer "what is broken now", not "what was broken then"."""
+
+    def test_live_scan_is_the_default_source(self):
+        import doc_link_next_target as nt
+
+        live = nt._live_violations()
+        keys = {(v["source_file"], v["raw_path"]) for v in live["violations"]}
+        assert keys == {v.key() for v in gate.scan()}
+
+    def test_live_violations_are_rankable(self):
+        # Measured on this tree: 72 of 478 baseline entries were already fixed
+        # and 81 live violations were missing from it. Ranking live output is
+        # what stops that drift from misdirecting the cleanup.
+        import doc_link_next_target as nt
+
+        scores = nt.score_files(nt._live_violations())
+        assert all(s.total_refs > 0 and 0 < s.avg_ease <= 1 for s in scores)
 
 
 class TestReferenceExtraction:

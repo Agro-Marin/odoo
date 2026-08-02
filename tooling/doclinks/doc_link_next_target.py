@@ -24,9 +24,6 @@ USAGE
   # readers about how the system works.
   python doc_link_next_target.py --authoritative-only
 
-  # Skip the knowledge tree (working notes accumulate rot harmlessly):
-  python doc_link_next_target.py --skip-knowledge
-
   # Alternate baseline:
   python doc_link_next_target.py --baseline=PATH
 
@@ -66,14 +63,11 @@ DEFAULT_BASELINE_PATH = (
 )
 
 AUTHORITATIVE_PATHS = (
-    "addons/odoo/addons/web/machine_doc_v1/",
-    "addons/odoo/.github/workflows/",
+    "addons/web/machine_doc_v1/",
+    ".github/workflows/",
     "CLAUDE.md",
-    "addons/odoo/CLAUDE.md",
-    "addons/odoo/addons/web/CLAUDE.md",
+    "addons/web/CLAUDE.md",
 )
-
-KNOWLEDGE_PATHS = ("knowledge/",)
 
 
 @dataclass(frozen=True)
@@ -89,10 +83,6 @@ class FileScore:
     @property
     def is_authoritative(self) -> bool:
         return any(self.source_file.startswith(p) for p in AUTHORITATIVE_PATHS)
-
-    @property
-    def is_knowledge(self) -> bool:
-        return any(self.source_file.startswith(p) for p in KNOWLEDGE_PATHS)
 
 
 def _ease_for_ref(source_file: str, raw_path: str) -> float:
@@ -120,13 +110,13 @@ def _ease_for_ref(source_file: str, raw_path: str) -> float:
     if tgt_first in src_parts[:-1]:
         return 0.9
 
-    if tgt.startswith(("addons/", "knowledge/", "core/")):
+    if tgt.startswith(("addons/", "odoo/", "doc/")):
         return 0.7
 
     return 0.5
 
 
-def score_files(baseline: dict, *, include_knowledge: bool = True) -> list[FileScore]:
+def score_files(baseline: dict) -> list[FileScore]:
     """Aggregate baseline violations into per-file scores."""
     by_file: dict[str, list[tuple[str, float]]] = {}
     for v in baseline.get("violations", []):
@@ -137,8 +127,6 @@ def score_files(baseline: dict, *, include_knowledge: bool = True) -> list[FileS
 
     scores: list[FileScore] = []
     for sf, refs in by_file.items():
-        if not include_knowledge and any(sf.startswith(p) for p in KNOWLEDGE_PATHS):
-            continue
         total = len(refs)
         avg_ease = sum(e for _, e in refs) / total
         score = total * avg_ease
@@ -180,6 +168,27 @@ def _print_table(rows: list[FileScore], limit: int) -> None:
             print(f"      · `{rp}`")
 
 
+def _live_violations() -> dict:
+    """Scan the tree now, in the baseline's shape.
+
+    Ranking the committed baseline answers "what was broken when someone last
+    ran --update-baseline", which is not the question. Measured on this tree it
+    had drifted both ways: 72 of its 478 entries were already fixed, and 81
+    live violations were absent from it — so the ranker sent you at work that
+    was done and hid work that was not. The sibling ``scope_gate --report``
+    reads the live tsc log for exactly this reason. A scan costs ~0.5s.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from doc_link_gate import scan
+
+    return {
+        "violations": [
+            {"source_file": v.source_file, "raw_path": v.raw_path} for v in scan()
+        ]
+    }
+
+
 def _main() -> int:
     parser = argparse.ArgumentParser(
         description="Rank doc-link baseline files by cleanup leverage."
@@ -187,27 +196,32 @@ def _main() -> int:
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE_PATH)
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument(
+        "--from-baseline",
+        action="store_true",
+        help=(
+            "Rank the committed baseline instead of the live tree. Faster, but "
+            "only as accurate as the last --update-baseline."
+        ),
+    )
+    parser.add_argument(
         "--authoritative-only",
         action="store_true",
         help="Only show files in machine_doc/, CI workflows, and CLAUDE.md.",
     )
-    parser.add_argument(
-        "--skip-knowledge",
-        action="store_true",
-        help="Skip the knowledge/ tree (working notes accumulate rot).",
-    )
     args = parser.parse_args()
 
-    if not args.baseline.exists():
-        print(
-            f"✗ Baseline not found at {args.baseline}.\n"
-            f"  Run ``doc_link_gate.py --update-baseline`` first.",
-            file=sys.stderr,
-        )
-        return 2
-
-    baseline = json.loads(args.baseline.read_text())
-    scores = score_files(baseline, include_knowledge=not args.skip_knowledge)
+    if args.from_baseline:
+        if not args.baseline.exists():
+            print(
+                f"✗ Baseline not found at {args.baseline}.\n"
+                f"  Run ``doc_link_gate.py --update-baseline`` first.",
+                file=sys.stderr,
+            )
+            return 2
+        baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
+    else:
+        baseline = _live_violations()
+    scores = score_files(baseline)
     if args.authoritative_only:
         scores = [s for s in scores if s.is_authoritative]
     scores.sort(key=lambda s: s.score, reverse=True)

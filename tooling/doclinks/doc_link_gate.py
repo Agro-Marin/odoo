@@ -69,59 +69,28 @@ import json
 import re
 import sys
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _repo_root import ODOO_SUBPATH, find_odoo_root, in_workspace
+from _repo_root import find_odoo_root
 
-ODOO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="doc_link_gate")
-IN_WORKSPACE = in_workspace(ODOO_ROOT)
-
-# Scanning and reference resolution happen against whatever root actually exists;
-# baseline KEYS stay workspace-shaped in both, so one baseline file serves both.
-REPO_ROOT = ODOO_ROOT.parents[1] if IN_WORKSPACE else ODOO_ROOT
-KEY_PREFIX = "" if IN_WORKSPACE else ODOO_SUBPATH + "/"
+# This repo, always. The gate used to climb to the workspace and scan sibling
+# checkouts by name, which made a framework fork depend on the layout — and
+# the existence — of repositories that have nothing to do with it. Anything
+# outside this checkout is somebody else's gate to run.
+REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="doc_link_gate")
 
 DEFAULT_BASELINE_PATH = (
     Path(__file__).resolve().parent / "baselines" / "doc_link_baseline.json"
 )
 
-# Sibling repos that exist only in the workspace checkout. A reference into one
-# of them cannot be verified from a repo-alone checkout, so it is skipped rather
-# than reported as broken.
-WORKSPACE_ONLY_ROOTS = {
-    "knowledge",
-    "enterprise",
-    "design-themes",
-    "agromarin",
-    "venv",
-    "config",
-}
-
-# Written workspace-shaped, i.e. in the baseline's key space. `_localise` strips
-# the `addons/odoo/` prefix for a repo-alone checkout and drops the entries that
-# live outside this repo.
-CANONICAL_SCAN_GLOBS = [
-    "addons/odoo/addons/web/machine_doc_v1/*.md",
-    "addons/odoo/.github/workflows/*.yml",
+DEFAULT_SCAN_GLOBS = [
+    "addons/web/machine_doc_v1/*.md",
+    ".github/workflows/*.yml",
     "CLAUDE.md",
-    "addons/odoo/CLAUDE.md",
-    "addons/odoo/addons/web/CLAUDE.md",
-    "knowledge/agromarin-knowledge/research/*.md",
-    "knowledge/agromarin-knowledge/plans/*.md",
-    "knowledge/agromarin-knowledge/reference/**/*.md",
+    "addons/web/CLAUDE.md",
 ]
-
-
-def _localise(globs: list[str]) -> list[str]:
-    """Rewrite workspace-shaped globs for the current checkout layout."""
-    if IN_WORKSPACE:
-        return list(globs)
-    prefix = ODOO_SUBPATH + "/"
-    return [g[len(prefix) :] for g in globs if g.startswith(prefix)]
-
-
-DEFAULT_SCAN_GLOBS = _localise(CANONICAL_SCAN_GLOBS)
 
 DEFAULT_EXCLUDES = [
     "**/node_modules/**",
@@ -148,20 +117,37 @@ PLACEHOLDER_MARKERS = (
 )
 
 
+@lru_cache(maxsize=1)
+def _repo_top_level_dirs() -> frozenset[str]:
+    """Top-level directory names of this checkout.
+
+    Derived, not listed. The hardcoded list this replaces named sibling
+    checkouts that do not exist in this repo at all, so it encoded one
+    particular workspace layout into a gate that only ever reads its own tree.
+    """
+    try:
+        return frozenset(
+            p.name for p in REPO_ROOT.iterdir() if p.is_dir() and not p.name.startswith(".")
+        )
+    except OSError:  # pragma: no cover
+        return frozenset()
+
+
 def _is_placeholder(raw_path: str) -> bool:
     """True if the ref is documentation pseudo-syntax, not a real path."""
     return any(marker in raw_path for marker in PLACEHOLDER_MARKERS)
 
 
 def _is_unverifiable(raw_path: str) -> bool:
-    """True if the ref points into a sibling repo absent from this checkout.
+    """Refs this repo cannot check are refs this repo should not be making.
 
-    Reporting it as broken would be a false positive: the target may exist
-    perfectly well in the workspace this repo is normally mounted into.
+    There used to be an allowlist of sibling-checkout names whose refs were
+    skipped as "may exist in the workspace". That is what let a doc here cite
+    an external tree indefinitely: unverifiable by construction, so never
+    reported, so never removed. A framework fork that stands alone can only
+    point at itself, and a reference it cannot resolve is a reference to fix.
     """
-    if IN_WORKSPACE:
-        return False
-    return _strip_anchor(raw_path).lstrip("/").split("/", 1)[0] in WORKSPACE_ONLY_ROOTS
+    return False
 
 
 @dataclass(frozen=True)
@@ -214,11 +200,21 @@ def _resolve_ref(source_file: Path, raw_path: str) -> Path | None:
     candidate in turn matches authorial intent — the gate's job is to
     catch refs that resolve to NOTHING, not to enforce a single style.
 
-    Resolution order:
+    Resolution order — each step FALLS THROUGH to the next on failure:
       1. Absolute (``/`` prefix) → ``REPO_ROOT/<path>``
       2. Looks-rooted (starts with a known top-level dir) → ``REPO_ROOT/<path>``
       3. Walk up from source-file dir, trying each parent until repo root
       4. None — caller treats this as a violation
+
+    Step 2 used to ``return None`` rather than fall through, which made the
+    order a first-match-wins dispatch and produced false positives: a path
+    beginning with a rooted-looking segment that is in fact source-relative was
+    reported broken even though it resolved. ``addons/odoo/CLAUDE.md`` citing
+    ``addons/web/machine_doc_v1/TEST_TAGS.md`` is exactly that shape — the file
+    exists, and the gate even PRINTED the path that exists while calling it
+    missing, because the message is built by the source-relative rule the check
+    never reached. A false positive is the worst failure for a gate: it teaches
+    people to ignore it.
 
     Anchor fragments are stripped before existence check.
     """
@@ -226,22 +222,14 @@ def _resolve_ref(source_file: Path, raw_path: str) -> Path | None:
 
     if cleaned.startswith("/"):
         candidate = REPO_ROOT / cleaned.lstrip("/")
-        return candidate if candidate.exists() else None
+        if candidate.exists():
+            return candidate
+        return None
 
-    parts = cleaned.split("/", 1)
-    looks_rooted = parts[0] in {
-        "knowledge",
-        "addons",
-        "venv",
-        "config",
-        "core",
-        "enterprise",
-        "design-themes",
-        "agromarin",
-    }
-    if looks_rooted:
+    if cleaned.split("/", 1)[0] in _repo_top_level_dirs():
         candidate = REPO_ROOT / cleaned
-        return candidate if candidate.exists() else None
+        if candidate.exists():
+            return candidate
 
     current = source_file.parent
     while True:
@@ -316,8 +304,7 @@ def scan(
                 )
                 violations.append(
                     Violation(
-                        source_file=KEY_PREFIX
-                        + str(source_file.relative_to(REPO_ROOT)),
+                        source_file=str(source_file.relative_to(REPO_ROOT)),
                         line=line,
                         raw_path=raw_path,
                         resolved_path=attempted,
@@ -332,7 +319,7 @@ def load_baseline(path: Path) -> set[tuple[str, str]]:
     """Return the set of (source_file, raw_path) tuples currently allowed."""
     if not path.exists():
         return set()
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     return {(v["source_file"], v["raw_path"]) for v in data.get("violations", [])}
 
 
@@ -346,7 +333,7 @@ def write_baseline(path: Path, violations: list[Violation]) -> dict:
         "violations": [{"source_file": sf, "raw_path": rp} for sf, rp in keys],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n")
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return data
 
 

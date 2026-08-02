@@ -2,11 +2,10 @@ name: Doc Link Check
 
 # Phase 1 of the doc-link CI gate (companion to typecheck.yml + lint.yml).
 #
-# WARN-ONLY MODE. The job uses `continue-on-error: true` so broken
-# .md references surface in the PR summary and as workflow notices,
-# but do NOT block merges yet. The gate flips to blocking in Phase 3
-# once the baseline (~493 violations as of 2026-05-09) has been driven
-# down in Phase 2.
+# BLOCKING. Scoped to this repo's own documentation, the baseline is EMPTY:
+# every `.md` reference in it resolves. It was warn-only while it also
+# scanned sibling checkouts it cannot verify and carried a ~478-entry
+# tolerated baseline; removing that scope removed the reason to tolerate.
 #
 # What the gate catches: dangling references to `*.md` files in
 # CI workflows, machine_doc_v1, CLAUDE.md surfaces, and the knowledge
@@ -46,7 +45,11 @@ jobs:
     name: doc_link_gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true  # Phase 1 warn-only — flip to false in Phase 3
+    # BLOCKING. The baseline is empty: this repo's own docs have zero broken
+    # .md references. The gate was warn-only while it also scanned sibling
+    # checkouts and carried a ~478-entry tolerated baseline; scoped to this
+    # repo there is nothing left to tolerate, so a new broken reference is a
+    # regression and should block the commit that introduces it.
 
     steps:
       - name: Checkout

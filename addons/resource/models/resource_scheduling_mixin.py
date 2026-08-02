@@ -20,8 +20,7 @@ class ResourceSchedulingMixin(models.AbstractModel):
 
     Consumers that need a planning estimate independent of resource
     commitment (e.g. ``project.task.planned_hours``) declare it locally;
-    the mixin only computes the *committed* side.  See PMI hours model in
-    ``knowledge/agromarin-knowledge/reference/business/pmi-hours-model.md``.
+    the mixin only computes the *committed* side.
     """
 
     _name = "resource.scheduling.mixin"
