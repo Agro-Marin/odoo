@@ -32,24 +32,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
 
-def _find_odoo_root(start: Path) -> Path:
-    """Locate the checkout root by marker, not by counting directories.
-
-    A counted depth silently resolves to the wrong tree when a script moves —
-    the failure mode that once made the doc-link gate scan zero files and still
-    report success. Anchor on `odoo-bin`, and raise rather than guess.
-    """
-    for candidate in start.parents:
-        if (candidate / "odoo-bin").is_file():
-            return candidate
-    raise SystemExit(
-        f"check_vendored_libs: no `odoo-bin` in any parent of {start} — cannot "
-        f"locate the odoo checkout root."
-    )
-
-
-ODOO_ROOT = _find_odoo_root(Path(__file__).resolve())
+ODOO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="check_vendored_libs")
 LIB_DIR = ODOO_ROOT / "addons" / "web" / "static" / "lib"
 MANIFEST = LIB_DIR / "versions.json"
 OSV_ENDPOINT = "https://api.osv.dev/v1/query"

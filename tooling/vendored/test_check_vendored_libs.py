@@ -15,8 +15,9 @@ class TestRootResolution:
         assert gate.LIB_DIR == gate.ODOO_ROOT / "addons/web/static/lib"
 
     def test_missing_marker_raises_instead_of_guessing(self):
+        # Shares tooling/_repo_root now rather than carrying its own copy.
         with pytest.raises(SystemExit) as excinfo:
-            gate._find_odoo_root(Path("/nonexistent/deep/path"))
+            gate.find_odoo_root(Path("/nonexistent/deep/path"), tool="probe")
         assert "odoo-bin" in str(excinfo.value)
 
 
