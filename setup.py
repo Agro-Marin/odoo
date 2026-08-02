@@ -13,18 +13,31 @@ exec(
 )  # Load release variables
 lib_name = "odoo"
 
+LONG_DESCRIPTION = """\
+Odoo is a complete ERP and CRM. The main features are accounting (analytic
+and financial), stock management, sales and purchases management, tasks
+automation, marketing campaigns, help desk, POS, etc. Technical features include
+a distributed server, an object database, a dynamic GUI,
+customizable reports, and XML-RPC interfaces.
+"""
+
+CLASSIFIERS = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python",
+]
+
 setup(
     name="odoo",
     version=version,
     description=description,
-    long_description=long_desc,
+    long_description=LONG_DESCRIPTION,
     url=url,
     author=author,
-    author_email=author_email,
-    classifiers=[c for c in classifiers.split("\n") if c],
-    license=license,
+    author_email="info@odoo.com",
+    classifiers=CLASSIFIERS,
+    license="LGPL-3.0-only",
     scripts=["setup/odoo"],
-    packages=find_namespace_packages(),
+    packages=find_namespace_packages(include=["odoo*", "addons*"]),
     package_dir={"%s" % lib_name: "odoo"},
     include_package_data=True,
     install_requires=[
@@ -69,7 +82,4 @@ setup(
     extras_require={
         "ldap": ["python-ldap"],
     },
-    tests_require=[
-        "freezegun",
-    ],
 )
