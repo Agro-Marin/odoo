@@ -8,7 +8,7 @@ Run with::
     python -m pytest tests/service/test_common.py -v
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -83,6 +83,33 @@ class TestDispatchAllowlist:
             result = common_mod.exp_login("mydb", "alice", "pw")
         mock.assert_called_once_with("mydb", "alice", "pw", None)
         assert result == 42
+
+
+# ---------------------------------------------------------------------------
+# exp_version() — the wire contract
+# ---------------------------------------------------------------------------
+
+
+class TestVersionPayload:
+    """``exp_version()`` is an ``auth="none"`` verb every client reads on
+    connect, so its key names are a published interface, not an implementation
+    detail: dropping or renaming one breaks external callers silently.
+
+    Moved here from ``test_server.py``, which carried the only assertion on
+    these keys — the sole unique coverage in a class that otherwise re-tested
+    ``dispatch()`` more weakly than the suite above (``pytest.raises(Exception)``
+    where this file pins ``AttributeError``).
+    """
+
+    @pytest.mark.parametrize(
+        "key", ["server_version", "server_version_info", "server_serie"]
+    )
+    def test_version_keys_are_published(self, common_mod, key):
+        assert key in common_mod.exp_version()
+
+    def test_protocol_version_is_pinned(self, common_mod):
+        """A bump here is a protocol change; it must be deliberate."""
+        assert common_mod.exp_version()["protocol_version"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -380,6 +407,161 @@ class TestExpAuthenticateNeverServableNames:
 # ---------------------------------------------------------------------------
 # Module docstring — must be reachable
 # ---------------------------------------------------------------------------
+
+
+class TestExpAuthenticateArgumentTypes:
+    """Hostile argument TYPES collapse to ``False`` like every other failure.
+
+    ``exp_authenticate`` is reachable with ``auth="none"`` over ``/jsonrpc`` and
+    ``/xmlrpc/common``, so the arguments are whatever the caller put on the wire
+    — an int, ``None``, a list — not necessarily strings.  The sibling classes
+    above are exhaustive about the uniform-answer invariant, but every one of
+    them passes well-formed strings and drives the failure through ``Registry``;
+    none exercises the type guards that run before it.  Verified by mutation:
+    deleting the ``login``/``password`` or ``user_agent_env`` guard left the
+    whole 760-test suite green.  Without them a non-``str`` credential reaches
+    ``res.users.authenticate`` and a non-``dict`` ``user_agent_env`` reaches the
+    ``{**user_agent_env, ...}`` spread, which raises ``TypeError`` — neither a
+    ``psycopg.Error`` nor a ``PoolError``, so it escapes the catch as an RPC
+    Fault.  That is a distinguishable answer, i.e. the same defect class as the
+    ``InvalidCatalogName`` oracle, reached through the argument list instead.
+
+    The ``db`` case is different and the test below is deliberately weaker than
+    it looks: ``rpc_db_exposed`` (``_db_helpers.py``, typed ``db_name: object``)
+    opens with the identical ``isinstance`` check, so deleting ``exp_authenticate``'s
+    own copy is an EQUIVALENT mutation — the answer is still ``False``, one layer
+    down.  What is pinned here is therefore the observable behaviour of the
+    public verb, not that particular line; it holds whichever layer enforces it,
+    and it fails if BOTH are removed.
+    """
+
+    @pytest.mark.parametrize("db", [None, 42, b"bytes", ["mydb"], {"db": 1}, ""])
+    def test_non_string_or_empty_db_returns_false(self, common_mod, db):
+        def _must_not_run(*a, **kw):  # pragma: no cover - must not run
+            raise AssertionError(f"Registry({db!r}) must not be built")
+
+        with patch.object(common_mod, "Registry", side_effect=_must_not_run):
+            assert common_mod.exp_authenticate(db, "u", "p", None) is False
+
+    @pytest.mark.parametrize(
+        ("login", "password"), [(None, "p"), ("u", None), (42, "p"), ("u", ["p"])]
+    )
+    def test_non_string_credentials_return_false(self, common_mod, login, password):
+        def _must_not_run(*a, **kw):  # pragma: no cover - must not run
+            raise AssertionError("Registry must not be built for non-str credentials")
+
+        with patch.object(common_mod, "Registry", side_effect=_must_not_run):
+            assert common_mod.exp_authenticate("db", login, password, None) is False
+
+    @pytest.mark.parametrize("bad_env", [42, "string", ["list"], (1, 2)])
+    def test_non_dict_user_agent_env_returns_false(self, common_mod, bad_env):
+        def _must_not_run(*a, **kw):  # pragma: no cover - must not run
+            raise AssertionError("Registry must not be built for a non-dict env")
+
+        with patch.object(common_mod, "Registry", side_effect=_must_not_run):
+            assert common_mod.exp_authenticate("db", "u", "p", bad_env) is False
+
+    def test_none_user_agent_env_is_still_accepted(self, common_mod):
+        """``None`` is the documented "no metadata" value — ``exp_login`` passes
+        it on every call — and must NOT be refused by the dict guard."""
+        with patch.object(common_mod, "Registry", side_effect=RuntimeError("reached")):
+            with pytest.raises(RuntimeError, match="reached"):
+                common_mod.exp_authenticate("db", "u", "p", None)
+
+
+class TestExpAuthenticateCredentialOutcome:
+    """The paths where the registry LOADS and credentials are actually checked.
+
+    Everything else in this file drives ``Registry`` to raise or to lack
+    ``res.users``; both short-circuit before a cursor is ever opened (the
+    not-an-Odoo-database test asserts exactly that).  So the function's primary
+    job — hand the credential to ``res.users.authenticate`` and return its uid,
+    or ``False`` when it refuses — was pinned by nothing.  Verified by mutation:
+    changing ``except AccessDenied: return False`` to return ``999`` left the
+    suite green, so a wrong password could have started answering with a
+    truthy value without any test noticing.
+    """
+
+    @staticmethod
+    def _registry(authenticate):
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        users = MagicMock()
+        users.authenticate = authenticate
+        registry = MagicMock()
+        registry.models = {"res.users": object()}
+        registry.cursor.return_value = cursor
+        return registry, users
+
+    def test_valid_credentials_return_the_uid(self, common_mod):
+        registry, users = self._registry(lambda credential, env: {"uid": 7})
+        env = MagicMock()
+        env.__getitem__ = MagicMock(return_value=users)
+        with (
+            patch.object(common_mod, "Registry", return_value=registry),
+            patch("odoo.api.Environment", return_value=env),
+        ):
+            assert common_mod.exp_authenticate("db", "alice", "pw", None) == 7
+
+    def test_the_credential_dict_is_a_password_login(self, common_mod):
+        """The wire contract with ``res.users.authenticate``: a ``password``-type
+        credential carrying the caller's login, marked non-interactive."""
+        seen = {}
+
+        def authenticate(credential, env):
+            seen["credential"] = credential
+            seen["env"] = env
+            return {"uid": 1}
+
+        registry, users = self._registry(authenticate)
+        env = MagicMock()
+        env.__getitem__ = MagicMock(return_value=users)
+        with (
+            patch.object(common_mod, "Registry", return_value=registry),
+            patch("odoo.api.Environment", return_value=env),
+        ):
+            common_mod.exp_authenticate("db", "alice", "s3cret", {"base_location": "x"})
+        assert seen["credential"] == {
+            "login": "alice",
+            "password": "s3cret",
+            "type": "password",
+        }
+        assert seen["env"]["interactive"] is False
+        assert seen["env"]["base_location"] == "x"
+
+    def test_wrong_password_returns_false_not_a_truthy_value(self, common_mod):
+        from odoo.exceptions import AccessDenied
+
+        def authenticate(credential, env):
+            raise AccessDenied
+
+        registry, users = self._registry(authenticate)
+        env = MagicMock()
+        env.__getitem__ = MagicMock(return_value=users)
+        with (
+            patch.object(common_mod, "Registry", return_value=registry),
+            patch("odoo.api.Environment", return_value=env),
+        ):
+            result = common_mod.exp_authenticate("db", "alice", "wrong", None)
+        assert result is False
+
+    def test_an_unexpected_error_from_authenticate_still_propagates(self, common_mod):
+        """Only ``AccessDenied`` is collapsed here.  A bug inside the credential
+        check must not be laundered into "wrong password"."""
+
+        def authenticate(credential, env):
+            raise RuntimeError("bug in the auth provider")
+
+        registry, users = self._registry(authenticate)
+        env = MagicMock()
+        env.__getitem__ = MagicMock(return_value=users)
+        with (
+            patch.object(common_mod, "Registry", return_value=registry),
+            patch("odoo.api.Environment", return_value=env),
+        ):
+            with pytest.raises(RuntimeError, match="bug in the auth provider"):
+                common_mod.exp_authenticate("db", "alice", "pw", None)
 
 
 class TestServiceModuleDocstring:

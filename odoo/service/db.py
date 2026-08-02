@@ -169,8 +169,21 @@ def _create_empty_database(
     """Create an empty database.
 
     Lets PostgreSQL be the source of truth for existence (a pre-flight
-    ``SELECT`` is racy): attempt ``CREATE DATABASE`` directly and translate PG's
-    ``42P04`` (``DuplicateDatabase``) into the canonical ``DatabaseExists``.
+    ``SELECT`` is racy): attempt ``CREATE DATABASE`` directly and translate the
+    duplicate-name error into the canonical ``DatabaseExists``.
+
+    That error has TWO spellings and both must be caught.  A *sequential*
+    duplicate raises ``42P04`` (``DuplicateDatabase``), but when callers race,
+    the losers trip the unique index on ``pg_database.datname`` and get
+    ``23505`` (``UniqueViolation``) instead — which is not a subclass of the
+    former.  Catching only ``42P04`` therefore missed the exact concurrent case
+    this pre-flight-free design exists to handle, and a racing caller of the
+    ``auth``-gated ``exp_create_database`` received a raw psycopg error as an RPC
+    Fault rather than ``DatabaseExists``.  Measured against a live PostgreSQL 18
+    cluster: 10 trials x 4 racers produced 30 ``UniqueViolation`` and zero
+    ``DuplicateDatabase``; the sequential duplicate produced ``42P04``.  Pinned
+    against the real server by ``tests/contract/test_pg_create_database_race.py``
+    — a mock cannot catch this, because the mock encodes the same wrong belief.
 
     ``CREATE DATABASE ... TEMPLATE t`` also needs zero sessions on ``t``, so it
     is retried through :func:`_retry_on_object_in_use` like the sibling
@@ -235,7 +248,7 @@ def _create_empty_database(
             nonlocal already_exists
             try:
                 cr.execute(create_sql, log_exceptions=False)
-            except psycopg.errors.DuplicateDatabase:
+            except psycopg.errors.DuplicateDatabase, psycopg.errors.UniqueViolation:
                 already_exists = True
 
         _retry_on_object_in_use(

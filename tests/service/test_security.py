@@ -114,6 +114,81 @@ class TestCheckSession:
         assert result is True
         device_log._update_device.assert_called_once_with(mock_request)
 
+    def test_device_log_failure_keeps_the_session_authenticated(self, sec) -> None:
+        """A failing ``_update_device`` must NOT cost the user their session.
+
+        The device log is bookkeeping — a telemetry row about which device is
+        in use — while ``check_session`` is the gate every authenticated request
+        passes through.  Letting a write failure there propagate would turn a
+        full ``res.device.log`` table, a lock timeout or a serialization failure
+        into an instant logout for every user on the instance, which is why the
+        call is wrapped in ``except Exception``.
+
+        That wrapper was the one uncovered line in the module, and the only test
+        touching ``_update_device`` drives the SUCCESS path: verified by
+        mutation, narrowing the catch to ``except ZeroDivisionError`` left the
+        whole 760-test suite green.
+        """
+        session = _FakeSession(uid=1, sid="abc", token="good_token")
+
+        env = MagicMock()
+        user = MagicMock()
+        user._compute_session_token.return_value = "good_token"
+        device_log = MagicMock()
+        device_log._update_device.side_effect = RuntimeError("device log table full")
+
+        def env_getitem(key):
+            if key == "res.users":
+                return MagicMock(browse=MagicMock(return_value=user))
+            if key == "res.device.log":
+                return device_log
+            return MagicMock()
+
+        env.__getitem__ = MagicMock(side_effect=env_getitem)
+
+        mock_request = MagicMock()
+        with patch("odoo.service.security.consteq", return_value=True):
+            result = sec.check_session(session, env, request=mock_request)
+
+        assert result is True, (
+            "a device-log write failure logged the user out; the session was "
+            "valid and the device log is not part of the auth decision"
+        )
+        device_log._update_device.assert_called_once_with(mock_request)
+
+    def test_device_log_failure_is_logged_not_silently_swallowed(
+        self, sec, caplog
+    ) -> None:
+        """Keeping the session must not make the failure invisible: an operator
+        investigating an empty device log needs the warning to find it."""
+        import logging
+
+        session = _FakeSession(uid=1, sid="abc", token="good_token")
+        env = MagicMock()
+        user = MagicMock()
+        user._compute_session_token.return_value = "good_token"
+        device_log = MagicMock()
+        device_log._update_device.side_effect = RuntimeError("device log table full")
+
+        def env_getitem(key):
+            if key == "res.users":
+                return MagicMock(browse=MagicMock(return_value=user))
+            if key == "res.device.log":
+                return device_log
+            return MagicMock()
+
+        env.__getitem__ = MagicMock(side_effect=env_getitem)
+
+        with (
+            patch("odoo.service.security.consteq", return_value=True),
+            caplog.at_level(logging.WARNING, logger="odoo.service.security"),
+        ):
+            assert sec.check_session(session, env, request=MagicMock()) is True
+
+        assert any(r.levelno >= logging.WARNING for r in caplog.records), (
+            "the swallowed device-log failure produced no operator-visible record"
+        )
+
     def test_delete_old_sessions_always_called(self, sec) -> None:
         """``_delete_old_sessions()`` is invoked on every call, even before token check."""
         session = _FakeSession(uid=1, sid="abc", token="tok")
