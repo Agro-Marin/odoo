@@ -32,31 +32,37 @@ if [[ -z "$DB" ]]; then
     exit 2
 fi
 
-# Build the kwargs dict from the first positional or --models= flag.
+# Select what to emit. The names travel in the ENVIRONMENT, never spliced into
+# the Python below: the previous form built the call as a string
+# (`modules=[... '${ARG}' ...]`) and interpolated it into an unquoted heredoc,
+# so a single quote in an argument was a syntax error and anything else was
+# arbitrary code in the odoo shell.
 ARG="${1:-}"
 case "$ARG" in
-    --models=*)
-        MODELS_LIST="${ARG#--models=}"
-        KWARGS="models=[m.strip() for m in '${MODELS_LIST}'.split(',')]"
-        ;;
-    "")
-        KWARGS=""  # all installed modules
-        ;;
-    *)
-        KWARGS="modules=[m.strip() for m in '${ARG}'.split(',')]"
-        ;;
+    --models=*) REGEN_KIND="models";  REGEN_NAMES="${ARG#--models=}" ;;
+    "")         REGEN_KIND="all";     REGEN_NAMES="" ;;
+    *)          REGEN_KIND="modules"; REGEN_NAMES="$ARG" ;;
 esac
+export REGEN_KIND REGEN_NAMES
+REGEN_SCRIPT_DIR="$(dirname "$SCRIPT")"
+export REGEN_SCRIPT_DIR
 
 echo "▶ db=${DB} config=${CONFIG}"
-echo "▶ ${KWARGS:-(all installed modules)}"
+echo "▶ ${REGEN_NAMES:+${REGEN_KIND}=${REGEN_NAMES}}${REGEN_NAMES:-(all installed modules)}"
 echo
 
 # odoo-bin shell binds ``env`` and reads stdin. ``--no-http`` + a
 # non-default port avoid colliding with an already-running Odoo.
+# Quoted heredoc delimiter: nothing here is shell-expanded.
 "$VENV_PY" "${ODOO_ROOT}/odoo-bin" shell \
-    -c "$CONFIG" -d "$DB" --no-http --http-port=8169 <<PY
+    -c "$CONFIG" -d "$DB" --no-http --http-port=8169 <<'PY'
+import os
 import sys
-sys.path.insert(0, '$(dirname "$SCRIPT")')
+
+sys.path.insert(0, os.environ["REGEN_SCRIPT_DIR"])
 from generate_model_types import generate
-generate(env, ${KWARGS})
+
+kind = os.environ["REGEN_KIND"]
+names = [n.strip() for n in os.environ["REGEN_NAMES"].split(",") if n.strip()]
+generate(env, **({} if kind == "all" else {kind: names}))
 PY

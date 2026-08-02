@@ -1,0 +1,62 @@
+name: Tooling Self-Test
+
+# The gates in tooling/ police this repo; nothing policed them.
+#
+# Four workflows (ruff, lint, typecheck, architecture) already self-test the
+# checker they are about to trust, but they only cover the three suites they
+# happen to use. `tooling/hoot` had no workflow at all, and doc_links.yml /
+# service_types.yml run their gate without running its tests — so 36 of the 182
+# tooling tests executed nowhere in CI. A bare `pytest` from the repo root does
+# collect them (tooling IS in pytest.ini's testpaths), but no workflow runs a
+# bare pytest: every invocation names explicit paths.
+#
+# This job is the catch-all: the WHOLE tooling suite, on any change under
+# tooling/, so a new tool is covered the day it lands rather than whenever
+# someone remembers to wire it up. The per-workflow self-test steps stay where
+# they are — they guarantee a gate is never trusted untested inside its own job.
+#
+# BLOCKING. A broken gate is worse than no gate: it reports success over code
+# nobody checked, which is the exact failure mode most of these tools were
+# written to end.
+
+on:
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      - 'tooling/**'
+      - 'pytest.ini'
+      - '.github/workflows/tooling_selftest.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    name: tooling self-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Stdlib-only suites; 3.12 shares the image/cache with the doc-link,
+          # service-types and architecture gates.
+          python-version: '3.12'
+
+      - name: Install pytest
+        run: pip install --quiet "pytest==9.0.2"
+
+      - name: Run the whole tooling suite
+        # Explicit path, not a bare `pytest`: pytest.ini's addopts carry
+        # --doctest-modules and the Tier-1 testpaths, and this job is only
+        # about tooling/. conftest.py at the tooling root puts each tool's
+        # directory on sys.path so the sibling tests can import it.
+        run: python -m pytest tooling/ -q

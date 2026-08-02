@@ -18,7 +18,7 @@ from tempfile import TemporaryDirectory
 from unittest import mock
 
 import ratchet
-from ratchet import Baseline, EXIT_DRIFT, EXIT_OK, EXIT_USAGE, evaluate
+from ratchet import EXIT_DRIFT, EXIT_OK, EXIT_USAGE, Baseline, evaluate
 
 
 class EvaluatePureTests(unittest.TestCase):
@@ -156,6 +156,27 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK)
         self.assertIn("a", out)
         self.assertIn("b", out)
+
+    def test_list_reports_a_malformed_baseline_instead_of_crashing(self):
+        # --list is what a maintainer runs to find out what is wrong; an
+        # uncaught JSONDecodeError there hid the one file that needed fixing.
+        self._run(["good", "--count", "1", "--update"])
+        (ratchet.BASELINES_DIR / "broken.json").write_text("{not json")
+        (ratchet.BASELINES_DIR / "nocount.json").write_text('{"note": "oops"}')
+        code, out, err = self._run(["--list"])
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("good", out)
+        self.assertIn("broken", err)
+        self.assertIn("nocount", err)
+
+    def test_list_json_separates_good_from_broken(self):
+        self._run(["good", "--count", "3", "--update"])
+        (ratchet.BASELINES_DIR / "broken.json").write_text("{not json")
+        code, out, _ = self._run(["--list", "--json"])
+        self.assertEqual(code, EXIT_USAGE)
+        payload = json.loads(out)
+        self.assertEqual([r["gate"] for r in payload["baselines"]], ["good"])
+        self.assertEqual([r["gate"] for r in payload["broken"]], ["broken"])
 
 
 if __name__ == "__main__":

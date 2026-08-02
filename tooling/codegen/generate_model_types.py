@@ -97,6 +97,14 @@ DEFAULT_OUTPUT_DIR = ODOO_ROOT / "addons/web/static/src/@types/models"
 
 _SELECTION_KEY_CAP = 32
 
+
+def _rel(path: Path) -> Path:
+    """Path relative to the checkout root, so output never leaks a machine layout."""
+    try:
+        return path.resolve().relative_to(ODOO_ROOT)
+    except ValueError:
+        return path
+
 SCALAR_TYPE_MAP = {
     "char": "string",
     "text": "string",
@@ -259,6 +267,7 @@ def generate(
     models: Iterable[str] | None = None,
     output_dir: Path | str = DEFAULT_OUTPUT_DIR,
     quiet: bool = False,
+    check: bool = False,
 ) -> dict[str, Path]:
     """Emit .d.ts files for the given models.
 
@@ -269,13 +278,20 @@ def generate(
         Mutually exclusive with ``modules``.
     :param output_dir: where to write ``<module>/<model>.d.ts``.
     :param quiet: suppress per-file logging.
-    :return: mapping of model name → output Path written.
+    :param check: do not write; return only the models whose committed file is
+        missing or stale. The sibling ``generate_service_types.py`` has had a
+        ``--check`` mode wired into ``service_types.yml`` since it was written,
+        so a drifted services.d.ts is caught; model types had no equivalent and
+        could drift silently for as long as nobody happened to regenerate them.
+    :return: mapping of model name → output Path written (or, under ``check``,
+        → the path that disagrees with what the registry says it should hold).
     """
     if modules and models:
         raise ValueError("Pass either modules= or models=, not both.")
 
     output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if not check:
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     targets: list[tuple[str, str]] = []
     if models:
@@ -297,6 +313,11 @@ def generate(
                 targets.append((module, model_name))
 
     written: dict[str, Path] = {}
+    # `_file_name` maps "." to "_", so two model names can collapse onto one
+    # file: `res.partner.category` and `res.partner_category` both become
+    # `res_partner_category.d.ts`. Whichever is emitted second silently wins and
+    # the other model's types simply vanish. Detect it rather than lose a file.
+    claimed: dict[Path, str] = {}
     for module, model_name in sorted(targets):
         ir_model = env["ir.model"].search([("model", "=", model_name)], limit=1)
         if not ir_model:
@@ -311,19 +332,44 @@ def generate(
         content = _model_to_dts(model_name, fields, module)
 
         target_dir = output_dir / _module_name_safe(module)
-        target_dir.mkdir(parents=True, exist_ok=True)
         target_path = target_dir / _file_name(model_name)
-        target_path.write_text(content)
+
+        if (clash := claimed.get(target_path)) is not None:
+            raise ValueError(
+                f"model name collision: {clash!r} and {model_name!r} both map to "
+                f"{_rel(target_path)}. Emitting both would silently drop one; "
+                f"disambiguate _file_name() before regenerating."
+            )
+        claimed[target_path] = model_name
+
+        if check:
+            try:
+                current = target_path.read_text(encoding="utf-8")
+            except OSError:
+                current = None
+            if current == content:
+                continue
+            written[model_name] = target_path
+            if not quiet:
+                state = "missing" if current is None else "stale"
+                print(f"  {state}: {model_name:<40s} → {_rel(target_path)}")
+            continue
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(content, encoding="utf-8")
         written[model_name] = target_path
         if not quiet:
-            try:
-                rel = target_path.relative_to(ODOO_ROOT)
-            except ValueError:
-                rel = target_path
-            print(f"  emit: {model_name:<40s} → {rel}")
+            print(f"  emit: {model_name:<40s} → {_rel(target_path)}")
 
     if not quiet:
-        print(f"\nGenerated {len(written)} .d.ts files under {output_dir}")
+        if check:
+            print(
+                f"\n{len(written)} .d.ts file(s) out of date under {output_dir}"
+                if written
+                else f"\nAll .d.ts files under {output_dir} are up to date."
+            )
+        else:
+            print(f"\nGenerated {len(written)} .d.ts files under {output_dir}")
     return written
 
 
@@ -362,6 +408,14 @@ def _main() -> int:
         help=f"Output directory (default: {DEFAULT_OUTPUT_DIR}).",
     )
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help=(
+            "CI mode: exit non-zero if any committed .d.ts disagrees with the "
+            "registry. Does not write. Mirrors generate_service_types.py."
+        ),
+    )
     args = parser.parse_args()
 
     env = _bootstrap_odoo(args.config, args.db)
@@ -369,14 +423,22 @@ def _main() -> int:
         kwargs: dict[str, Any] = {
             "output_dir": args.output_dir,
             "quiet": args.quiet,
+            "check": args.check,
         }
         if args.modules:
             kwargs["modules"] = [m.strip() for m in args.modules.split(",")]
         if args.models:
             kwargs["models"] = [m.strip() for m in args.models.split(",")]
-        generate(env, **kwargs)
+        stale = generate(env, **kwargs)
     finally:
         env.cr.close()
+    if args.check and stale:
+        print(
+            f"✗ {len(stale)} model type file(s) are out of date. "
+            f"Regenerate with ./tooling/codegen/regen_model_types.sh",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

@@ -35,47 +35,51 @@ from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
+sys.path.insert(0, str(_SCRIPT_DIR.parent))
+from _repo_root import find_odoo_root, find_workspace  # noqa: E402
 
-def _find_odoo_root(start: Path) -> Path:
-    """Locate the checkout root by marker, not by counting directories.
-
-    A counted depth silently resolves to the wrong tree when a script moves —
-    the failure mode that once made the doc-link gate scan zero files and still
-    report success. Anchor on `odoo-bin`, and raise rather than guess.
-    """
-    for candidate in start.parents:
-        if (candidate / "odoo-bin").is_file():
-            return candidate
-    raise SystemExit(
-        f"hoot: no `odoo-bin` in any parent of {start} — cannot locate the "
-        f"odoo checkout root."
-    )
-
-
-ODOO_ROOT = _find_odoo_root(_SCRIPT_DIR)
-WORKSPACE = ODOO_ROOT.parents[1]
+ODOO_ROOT = find_odoo_root(_SCRIPT_DIR, tool="hoot")
+WORKSPACE = find_workspace(ODOO_ROOT)
 VENV_PY = Path(os.environ.get("ODOO_VENV_PYTHON", sys.executable))
 ODOO_BIN = ODOO_ROOT / "odoo-bin"
 
 
-def _find_conf() -> Path:
+def _find_conf() -> Path | None:
+    """The odoo config for this workspace, or ``None`` if there is not one.
+
+    Returns rather than raises: this is module-level, and a config is needed
+    only to install a database or boot a server. Raising here made ``import
+    hoot_lib`` itself impossible in a repo-alone checkout — which is how CI
+    checks this repo out, and therefore why the hoot suite could not run there
+    at all. Suite resolution, specifier mapping and id hashing need no config.
+    """
     override = os.environ.get("ODOO_CONF")
     if override:
         return Path(override)
+    if WORKSPACE is None:
+        return None
     venv_name = VENV_PY.parent.parent.name
     candidate = WORKSPACE / "config" / f"{venv_name}.conf"
     if candidate.exists():
         return candidate
     confs = sorted((WORKSPACE / "config").glob("*.conf"))
-    if len(confs) == 1:
-        return confs[0]
-    raise SystemExit(
-        f"hoot: cannot pick a config under {WORKSPACE / 'config'} "
-        f"(no {candidate.name}, found {[c.name for c in confs]}); set $ODOO_CONF"
-    )
+    return confs[0] if len(confs) == 1 else None
 
 
 CONF = _find_conf()
+
+
+def require_conf() -> Path:
+    """The odoo config, failing loudly at the point one is actually needed."""
+    if CONF is None:
+        where = (
+            f"under {WORKSPACE / 'config'}"
+            if WORKSPACE
+            else "(repo-alone checkout: no workspace config directory)"
+        )
+        raise SystemExit(f"hoot: no odoo config found {where}; set $ODOO_CONF")
+    return CONF
+
 
 PORT_RANGE = range(8085, 8100)
 DEFAULT_DB = "hoot_web"
@@ -115,28 +119,6 @@ def generate_hash(test_string: str) -> str:
     return f"{hash_val:08x}"
 
 
-def module_scope_param(suite_names: list[str]) -> str:
-    """Return the ``&module_scope=`` param for a run, or ``""``.
-
-    Mirrors ``HOOTCommon._get_module_scope_param``: every suite name starts
-    with the addon that owns it (``@web/search`` -> ``web``), and the param
-    narrows the unit-test bundle to that addon's dependency closure. Suites
-    spanning several addons carry no single closure, so they stay unscoped.
-
-    Omitting it made this runner load EVERY installed addon's ``src``, so a
-    broken import anywhere in the workspace took down runs that had nothing to
-    do with it — ``web_gantt`` importing a symbol ``web`` no longer exports
-    reduced ``hoot '@web/search'`` to "0 failed / 0 passed" with a bundle-level
-    SyntaxError, while CI, which sends the param, stayed green. A fast runner
-    that fails differently from CI is worse than a slow one.
-    """
-    addons = {name.partition("/")[0].removeprefix("@") for name in suite_names}
-    if len(addons) != 1:
-        return ""
-    addon = addons.pop()
-    return f"&module_scope={addon}" if addon else ""
-
-
 PG_USER = os.environ.get("PGUSER") or getpass.getuser()
 
 
@@ -150,8 +132,28 @@ def _psql(sql: str) -> str:
     return out.stdout.strip()
 
 
+_DB_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+
+def check_db_name(db: str) -> str:
+    """Validate a database name before it reaches SQL or ``--db-filter``.
+
+    ``--db`` is a user-supplied string that is spliced into a ``DROP DATABASE``
+    and into a ``--db-filter=^{db}$`` regex. Every name this tool generates is
+    ``hoot_<addons>``, so the safe set is exactly that shape; anything else is
+    a typo or a quoting accident and should fail before it reaches psql rather
+    than produce a confusing SQL error (or worse).
+    """
+    if not _DB_NAME_RE.match(db):
+        raise SystemExit(
+            f"hoot: refusing database name {db!r} — expected only letters, "
+            f"digits and underscores."
+        )
+    return db
+
+
 def db_exists(db: str) -> bool:
-    return _psql(f"SELECT 1 FROM pg_database WHERE datname='{db}'") == "1"
+    return _psql(f"SELECT 1 FROM pg_database WHERE datname='{check_db_name(db)}'") == "1"
 
 
 def drop_db(db: str) -> None:
@@ -163,7 +165,7 @@ def drop_db(db: str) -> None:
             "-d",
             "postgres",
             "-c",
-            f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)',
+            f'DROP DATABASE IF EXISTS "{check_db_name(db)}" WITH (FORCE)',
         ],
         capture_output=True,
         text=True,
@@ -182,6 +184,28 @@ def port_is_free(port: int) -> bool:
 
 
 _PORT_LOCKS: dict[int, object] = {}
+
+
+LOG_RETENTION = 20
+
+
+def _prune_logs(keep: int = LOG_RETENTION) -> None:
+    """Drop all but the ``keep`` most recent run logs.
+
+    Nothing ever removed them: the directory stood at 41 MB across 53 files,
+    one pair per database ever used, and ``--clean`` drops the database while
+    leaving its logs behind. Ordered by mtime, so a live server's log — which
+    is being written to — is always among the newest and never removed. The
+    ``.port_*.lock`` files are deliberately untouched: they are flocked by
+    running processes, not logs.
+    """
+    with contextlib.suppress(OSError):
+        logs = sorted(
+            LOG_DIR.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True
+        )
+        for stale in logs[keep:]:
+            with contextlib.suppress(OSError):
+                stale.unlink()
 
 
 def _reserve_port(port: int) -> bool:
@@ -207,14 +231,19 @@ def _release_port(port: int) -> None:
 
 
 def _http_alive(port: int) -> bool:
-    try:
-        import requests
+    # A missing `requests` is a broken environment, not a server that is not
+    # up yet: swallowing it here made every readiness poll return False, so a
+    # perfectly healthy server was declared dead after the full 120s boot wait
+    # with "Server did not become ready" — a diagnosis pointing at the server
+    # instead of at the interpreter.
+    import requests
 
+    try:
         resp = requests.get(
             f"http://{HOST}:{port}/web/login", timeout=2, allow_redirects=False
         )
         return resp.status_code < 500
-    except Exception:
+    except requests.RequestException:
         return False
 
 
@@ -288,7 +317,19 @@ def read_all_states() -> list[dict]:
 
 
 def write_state(state: dict) -> None:
-    state_file(state["db"]).write_text(json.dumps(state, indent=2))
+    """Write one server's state file atomically.
+
+    ``write_text`` truncates before writing, so a concurrent reader sees an
+    empty file for most of the call. ``read_all_states`` answers a torn read by
+    skipping that entry, which silently drops a live server from ``--status``
+    and from ``stop_server`` — under ``hoot-shard -j N`` several servers write
+    while others read. A rename within the same directory is atomic, so a
+    reader sees either the old file or the new one.
+    """
+    path = state_file(state["db"])
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(state, indent=2))
+    tmp.replace(path)
 
 
 def _pid_alive(pid: int) -> bool:
@@ -330,7 +371,7 @@ def _odoo_install(db: str, modules: tuple[str, ...], log_path: Path) -> None:
         str(VENV_PY),
         str(ODOO_BIN),
         "-c",
-        str(CONF),
+        str(require_conf()),
         "-d",
         db,
         "-i",
@@ -360,6 +401,7 @@ def ensure_db(
     is missing some of them (that path requires the DB's warm server, if any,
     to be stopped first — ``ensure_server`` handles that ordering)."""
     LOG_DIR.mkdir(exist_ok=True)
+    _prune_logs()
     log_path = LOG_DIR / f"init_{db}.log"
     if not db_exists(db):
         _log.info(
@@ -399,12 +441,13 @@ def boot_server(
 
 def _boot_server_on(db: str, port: int) -> dict:
     LOG_DIR.mkdir(exist_ok=True)
+    _prune_logs()
     log_path = LOG_DIR / f"server_{db}.log"
     cmd = [
         str(VENV_PY),
         str(ODOO_BIN),
         "-c",
-        str(CONF),
+        str(require_conf()),
         "-d",
         db,
         "-p",
@@ -760,27 +803,26 @@ def _addons_roots() -> list[Path]:
 
     Scanning only ``addons/odoo/addons`` made ``affected_suites`` return an
     empty list — read as "nothing to run" — for a changed ``src`` file in any
-    of the 84 enterprise and 4 agromarin modules that ship HOOT tests, because
+    of the sibling-checkout modules that ship HOOT tests, because
     none of their test files were in the import graph.
     """
     roots: list[Path] = []
-    with contextlib.suppress(OSError):
-        for line in CONF.read_text().splitlines():
-            key, sep, value = line.partition("=")
-            if sep and key.strip() == "addons_path":
-                roots = [Path(p.strip()) for p in value.split(",") if p.strip()]
-                break
+    if CONF is not None:
+        with contextlib.suppress(OSError):
+            for line in CONF.read_text(encoding="utf-8").splitlines():
+                key, sep, value = line.partition("=")
+                if sep and key.strip() == "addons_path":
+                    roots = [Path(p.strip()) for p in value.split(",") if p.strip()]
+                    break
     roots = [r for r in roots if r.is_dir()]
     return roots or [ODOO_ROOT / "addons"]
 
 
 ADDONS_ROOTS = _addons_roots()
 WEB_ADDONS_ROOT = ODOO_ROOT / "addons"
-RE_IMPORT = re.compile(
-    r"""(?:import|export)\s+(?:.+?\s+from\s+)?["']([^"']+)["']""",
-    re.DOTALL,
-)
-RE_DYNAMIC_IMPORT = re.compile(r"""import\(\s*["']([^"']+)["']\s*\)""")
+
+sys.path.insert(0, str(_SCRIPT_DIR.parent / "architecture"))
+from js_layer_check import collect_imports  # noqa: E402
 
 
 def _addon_of(path: Path) -> str | None:
@@ -971,13 +1013,22 @@ def child_suites(suite: str) -> list[str]:
 
 
 def _imports_of(path: Path) -> set[str]:
+    """The ``@addon/...`` specifiers ``path`` imports at runtime.
+
+    Delegates to the layering gate's collector, which is checked against a real
+    JS parser over every module in this repo. The local regex it replaces had
+    an optional ``(?:.+?\\s+from\\s+)?`` group under ``re.DOTALL``, so at a
+    side-effect import (``import "@web/views/view_utils";``) the ``.+?``
+    expanded across newlines to the next ``from`` and captured THAT specifier
+    instead, swallowing both statements in one match. Ten such imports existed;
+    each one is a suite ``--affected`` would fail to select while reporting
+    that it had selected the affected suites.
+    """
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return set()
-    specs = set(RE_IMPORT.findall(text))
-    specs |= set(RE_DYNAMIC_IMPORT.findall(text))
-    return {s for s in specs if s.startswith("@")}
+    return {spec for spec, _lineno in collect_imports(text) if spec.startswith("@")}
 
 
 def _git_toplevels() -> list[Path]:

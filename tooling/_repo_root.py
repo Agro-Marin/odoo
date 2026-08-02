@@ -42,3 +42,26 @@ def find_odoo_root(start: Path, *, tool: str = "tooling") -> Path:
 def in_workspace(odoo_root: Path) -> bool:
     """Whether ``odoo_root`` sits inside a workspace checkout as ``addons/odoo``."""
     return odoo_root.parent.name == "addons" and odoo_root.name == "odoo"
+
+
+def find_workspace(odoo_root: Path) -> Path | None:
+    """The workspace root above ``odoo_root``, or ``None`` in a repo-alone checkout.
+
+    ``None`` rather than a guess: in CI this repo IS the checkout root, so there
+    is no workspace, and climbing anyway lands on a directory that has nothing
+    to do with this tree. Callers that need a venv or a config from it must say
+    so instead of silently scanning the wrong place.
+    """
+    return odoo_root.parents[1] if in_workspace(odoo_root) else None
+
+
+def sibling_repos_root(odoo_root: Path) -> Path:
+    """Directory holding the sibling addon checkouts, if any.
+
+    Named apart from :func:`find_workspace` on purpose. Both used to be called
+    ``WORKSPACE`` in different modules while meaning different directories --
+    ``<ws>`` in ``hoot_lib`` and ``<ws>/addons`` in ``cross_repo_coherence`` --
+    which is exactly the confusion that put two of three consumer repos at
+    paths that never existed.
+    """
+    return odoo_root.parent

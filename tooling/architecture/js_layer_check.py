@@ -45,13 +45,17 @@ mirroring how ``layer_check.py`` skips ``if TYPE_CHECKING:`` blocks.
 import argparse
 import json
 import re
+import string
 import sys
-from dataclasses import dataclass, field
+from bisect import bisect_right
+from dataclasses import dataclass
 from pathlib import Path
 
-# Repo root = the directory that contains ``odoo/`` and ``addons/``. This file
-# lives at ``<root>/tooling/architecture/js_layer_check.py``.
-ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
+# Located by marker, not by counting parents — see _repo_root.
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_layer_check")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 
 
@@ -167,17 +171,92 @@ class Violation:
 #   export {a} from "spec";  export * from "spec";          -> _FROM_RE
 #   import "spec";                                           -> _SIDE_EFFECT_RE
 #   import("spec")                                           -> _DYNAMIC_RE
-_FROM_RE = re.compile(r"""\bfrom\s*['"]([^'"]+)['"]""")
-_SIDE_EFFECT_RE = re.compile(r"""\bimport\s*['"]([^'"]+)['"]""")
-_DYNAMIC_RE = re.compile(r"""\bimport\s*\(\s*['"]([^'"]+)['"]""")
+# The specifier class excludes newlines: a module specifier is a single-line
+# string literal, so allowing one let these patterns run across unrelated string
+# and template-literal content and invent specifiers hundreds of characters long
+# (a Python snippet in `api_doc`, a `console.error` block in `point_of_sale`).
+_FROM_RE = re.compile(r"""\bfrom\s*['"]([^'"\n]+)['"]""")
+_SIDE_EFFECT_RE = re.compile(r"""\bimport\s*['"]([^'"\n]+)['"]""")
+_DYNAMIC_RE = re.compile(r"""\bimport\s*\(\s*['"]([^'"\n]+)['"]""")
+
+
+#: Identifier characters, for deciding whether a ``/`` follows a value.
+_IDENT_CHARS = frozenset(string.ascii_letters + string.digits + "_$")
+
+#: A ``/`` right after one of these ends a VALUE, so it is division, not a
+#: regex. Everything else (operators, ``(``, ``,``, ``=``, ``{``, ``;``, ...)
+#: puts the scanner in expression position, where ``/`` opens a regex literal.
+_VALUE_END_CHARS = frozenset(")]\"'`")
+
+#: ...except after these keywords, which are followed by an expression.
+_REGEX_PRECEDING_KEYWORDS = frozenset(
+    {
+        "return", "typeof", "instanceof", "in", "of", "new", "delete", "void",
+        "throw", "case", "do", "else", "yield", "await",
+    }
+)
+
+
+def _starts_regex(tail: str) -> bool:
+    """Whether a ``/`` seen after ``tail`` opens a regex literal."""
+    stripped = tail.rstrip()
+    if not stripped:
+        return True
+    last = stripped[-1]
+    if last in _IDENT_CHARS:
+        end = len(stripped)
+        while end and stripped[end - 1] in _IDENT_CHARS:
+            end -= 1
+        return stripped[end:] in _REGEX_PRECEDING_KEYWORDS
+    return last not in _VALUE_END_CHARS
+
+
+def _regex_literal_end(src: str, start: int) -> int | None:
+    """Index just past the closing ``/`` of the regex literal at ``start``.
+
+    ``None`` when it does not close on the same line — a regex literal cannot
+    span a newline, so that means ``/`` was division after all. Bounding the
+    lookahead this way caps the blast radius of a misread: the scanner can
+    never swallow more than the rest of one line, and an ESM import statement
+    always begins its own.
+    """
+    i, n = start + 1, len(src)
+    in_class = False
+    while i < n:
+        c = src[i]
+        if c == "\n":
+            return None
+        if c == "\\":
+            i += 2
+            continue
+        if in_class:
+            if c == "]":
+                in_class = False
+        elif c == "[":
+            in_class = True
+        elif c == "/":
+            return i + 1
+        i += 1
+    return None
 
 
 def strip_comments(src: str) -> str:
-    """Blank out ``//`` line and ``/* */`` block comments, preserving every
-    newline (so line numbers stay exact) and respecting string / template
-    literals (so a ``"https://x"`` URL or a ``/regex/`` is never mistaken for
-    a comment). Comment characters become spaces; the text length and all
-    newline positions are preserved.
+    """Blank ``//`` line comments, ``/* */`` block comments and regex literals,
+    preserving every newline (so line numbers stay exact) and respecting string
+    / template literals. Blanked characters become spaces; the text length and
+    all newline positions are preserved.
+
+    Regex literals are recognised, not just tolerated, because the scanner has
+    no other way to know that the ``/*`` in ``name.replace(/^\\/*/, "")`` is not
+    a comment. Without it the scanner desynchronises at the first such literal
+    and everything after it is read in the wrong state — which is how a JSDoc
+    ``import("@web/env")`` at ``public/public_boot.js:110`` became a runtime
+    edge in the cycle graph, and how a real ``@web/webclient`` import placed
+    after ``const re = /^\\/*/;`` became invisible to the layering gate.
+
+    Their bodies are blanked rather than kept: no import, export or module
+    specifier can live inside a regex, so blanking them costs nothing and
+    removes the only remaining way a literal can be mistaken for one.
     """
     out = []
     i, n = 0, len(src)
@@ -196,6 +275,12 @@ def strip_comments(src: str) -> str:
                 out.append("  ")
                 i += 2
                 continue
+            if c == "/" and _starts_regex("".join(out[-32:])):
+                end = _regex_literal_end(src, i)
+                if end is not None:
+                    out.append(" " * (end - i))
+                    i = end
+                    continue
             if c == "'":
                 state = "sq"
             elif c == '"':
@@ -240,24 +325,14 @@ def collect_imports(src: str) -> list[tuple[str, int]]:
     cleaned = strip_comments(src)
     # Precompute line-start offsets for O(log n) line lookups.
     line_starts = [0]
-    for m in re.finditer("\n", cleaned):
-        line_starts.append(m.end())
+    line_starts.extend(m.end() for m in re.finditer(r"\n", cleaned))
 
     def lineno_at(pos: int) -> int:
-        # bisect_right without importing bisect for a couple of call sites.
-        lo, hi = 0, len(line_starts)
-        while lo < hi:
-            mid = (lo + hi) // 2
-            if line_starts[mid] <= pos:
-                lo = mid + 1
-            else:
-                hi = mid
-        return lo
+        return bisect_right(line_starts, pos)
 
     found: list[tuple[str, int]] = []
     for regex in (_FROM_RE, _SIDE_EFFECT_RE, _DYNAMIC_RE):
-        for m in regex.finditer(cleaned):
-            found.append((m.group(1), lineno_at(m.start(1))))
+        found.extend((m.group(1), lineno_at(m.start(1))) for m in regex.finditer(cleaned))
     return found
 
 

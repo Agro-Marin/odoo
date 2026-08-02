@@ -553,6 +553,40 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK)
         self.assertLess(out.index(f"{WEB_SRC}easy.js"), out.index(f"{WEB_SRC}hard.js"))
 
+    def test_report_lists_regressed_files_before_exceptions(self):
+        # --report exists to answer "what do I fix next". Ranking only the
+        # EXCEPTION list omitted every blocking file by construction — a
+        # regression is, by definition, not excepted — so on the real tree it
+        # showed 448 excepted files and none of the 14 failing the gate.
+        self.touch(f"{WEB_SRC}excepted.js")
+        self.touch(f"{WEB_SRC}regressed.js")
+        base = self.write_log(err(f"{WEB_SRC}excepted.js", "TS2532"))
+        self._run(["g", "--log", base, "--update"])  # excepted.js only
+
+        both = self.write_log(
+            "\n".join(
+                [err(f"{WEB_SRC}excepted.js", "TS2532")]
+                + [err(f"{WEB_SRC}regressed.js", "TS18048", i) for i in range(1, 4)]
+            )
+        )
+        code, out, _ = self._run(["g", "--log", both, "--report"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("REGRESSED", out)
+        self.assertIn(f"{WEB_SRC}regressed.js", out)
+        # Blocking work is listed ahead of the merely-excepted work.
+        self.assertLess(
+            out.index(f"{WEB_SRC}regressed.js"), out.index(f"{WEB_SRC}excepted.js")
+        )
+
+    def test_report_without_regressions_still_ranks_exceptions(self):
+        self.touch(f"{WEB_SRC}excepted.js")
+        log = self.write_log(err(f"{WEB_SRC}excepted.js", "TS2532"))
+        self._run(["g", "--log", log, "--update"])
+        code, out, _ = self._run(["g", "--log", log, "--report"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertNotIn("REGRESSED", out)
+        self.assertIn(f"{WEB_SRC}excepted.js", out)
+
     def test_stdin_log_accepted(self):
         self.touch(f"{WEB_SRC}dirty.js")
         log = self.write_log(err(f"{WEB_SRC}dirty.js"))

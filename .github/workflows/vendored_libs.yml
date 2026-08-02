@@ -1,0 +1,107 @@
+name: Vendored Libraries
+
+# tooling/vendored/check_vendored_libs.py was written and then wired to
+# nothing — not CI, not the pre-commit hooks. It is the gate whose own
+# docstring records why it exists: "DOMPurify sat eight advisories behind in
+# the html_editor sanitizer precisely because nothing checked". Nothing
+# checked.
+#
+# Two gates, on two schedules, because they answer different questions:
+#
+#   --drift  Do the shipped bytes still match versions.json? Deterministic,
+#            offline, fast. Changes only when someone touches static/lib, so it
+#            runs per-PR on that path and BLOCKS.
+#
+#   --audit  Does OSV know of an advisory against a pinned version? Depends on
+#            the advisory database, not on our commits: a library untouched for
+#            a year can become vulnerable overnight. A per-PR run would answer
+#            a question nobody asked and miss the day it changes, so it runs on
+#            a schedule instead. Warn-only — a fresh CVE is not a reason to
+#            block an unrelated merge, but it must be visible the day it lands.
+#
+# --audit degrades to exit 0 when OSV is unreachable and says so, so a network
+# blip reads as "not audited", never as a clean bill of health.
+
+on:
+  push:
+    branches: ['19.0-marin', '19.0']
+    paths:
+      - 'addons/web/static/lib/**'
+      - 'tooling/vendored/**'
+  pull_request:
+    branches: ['*']
+    paths:
+      - 'addons/web/static/lib/**'
+      - 'tooling/vendored/**'
+      - '.github/workflows/vendored_libs.yml'
+  schedule:
+    # Mondays 06:00 UTC. Advisories land independently of our commits.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: version drift (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Self-test the gate
+        run: |
+          pip install --quiet "pytest==9.0.2"
+          python -m pytest tooling/vendored/ -q
+
+      - name: Check manifest against shipped bytes
+        run: python tooling/vendored/check_vendored_libs.py --drift
+
+  audit:
+    name: OSV advisories (warn-only)
+    # Scheduled and manual runs only: on a PR this would report the state of an
+    # external database rather than anything the PR changed.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Query OSV for the pinned versions
+        id: osv
+        run: |
+          set +e
+          python tooling/vendored/check_vendored_libs.py --audit | tee /tmp/osv.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "## Vendored library audit"
+            echo ""
+            echo '```'
+            cat /tmp/osv.log 2>/dev/null || echo "(audit did not run)"
+            echo '```'
+            echo ""
+            echo "Manifest: \`addons/web/static/lib/versions.json\`"
+          } >> "$GITHUB_STEP_SUMMARY"

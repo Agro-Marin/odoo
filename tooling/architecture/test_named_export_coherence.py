@@ -172,6 +172,21 @@ def test_helpers() -> None:
     assert destructured_names("[ a, b ]") == {"a", "b"}
 
 
+def test_exported_names_ignores_a_template_built_export_statement() -> None:
+    # `core/module_bridge.js:34` does
+    #   lines.push(`export { ${aliases.join(", ")} };`)
+    # and NAMED_EXPORT_RE matches text, so the gate read `")` and
+    # `${aliases.join("` as published names. Harmless only because they are
+    # unimportable; a template emitting real identifiers would have made the
+    # gate believe an export exists and miss a genuinely broken import.
+    assert exported_names(' ${aliases.join(", ")} ') == set()
+    assert exported_names("a, b as c") == {"a", "c"}
+
+
+def test_exported_names_keeps_dollar_and_underscore_identifiers() -> None:
+    assert exported_names("$el, _private, a1") == {"$el", "_private", "a1"}
+
+
 def test_discovery_finds_this_repo() -> None:
     """A gate that scans nothing must not be able to report success."""
     roots = discover_addons_roots()

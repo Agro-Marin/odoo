@@ -39,11 +39,14 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from cross_repo_coherence import WORKSPACE, default_consumer_repos
+from cross_repo_coherence import SIBLING_REPOS_ROOT, default_consumer_repos
 from js_layer_check import strip_comments
 
-# This file lives at ``<root>/tooling/architecture/named_export_coherence.py``.
-ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
+# Located by marker, not by counting parents — see _repo_root.
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="named_export_coherence")
 
 #: ``import { a, b as c } from "@web/x/y";`` -- brace body plus specifier.
 NAMED_IMPORT_RE = re.compile(r"""import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']""")
@@ -128,14 +131,30 @@ def imported_names(brace_body: str) -> list[str]:
     return [n for n in names if n and n != "default"]
 
 
+#: An exported binding is a JS identifier. Verified against a real parser over
+#: every module in this repo: all 5942 named exports are plain identifiers.
+IDENTIFIER_RE = re.compile(r"^[A-Za-z_$][\w$]*$")
+
+
 def exported_names(brace_body: str) -> set[str]:
-    """The names an ``export { ... }`` clause publishes."""
+    """The names an ``export { ... }`` clause publishes.
+
+    Non-identifiers are dropped. ``NAMED_EXPORT_RE`` matches text, so it also
+    fires inside a template literal that BUILDS an export statement --
+    ``core/module_bridge.js:34`` does exactly that with
+    ``lines.push(`export { ${aliases.join(", ")} };`)`` -- and the gate then
+    believed the module published ``")`` and ``${aliases.join("``. Those are
+    unimportable, so nothing broke; a template producing real identifiers would
+    instead have made the gate miss a genuinely broken import.
+    """
     names = set()
     for part in brace_body.split(","):
         part = part.strip()
         if part:
             # ``export { a as b }`` publishes ``b``.
-            names.add(part.split(" as ")[-1].strip())
+            name = part.split(" as ")[-1].strip()
+            if IDENTIFIER_RE.match(name):
+                names.add(name)
     return names
 
 
@@ -284,7 +303,7 @@ def main(argv: list[str] | None = None) -> int:
 
     scan_roots = args.roots or discover_addons_roots()
     if not scan_roots:
-        parser.error(f"no addons root found around {ROOT} (workspace {WORKSPACE})")
+        parser.error(f"no addons root found around {ROOT} (siblings {SIBLING_REPOS_ROOT})")
     # Explicit scan roots also become the resolution universe unless told
     # otherwise: resolving an explicitly-scoped scan against the whole
     # workspace silently answered from a DIFFERENT copy of the module than the
