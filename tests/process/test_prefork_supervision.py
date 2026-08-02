@@ -63,7 +63,7 @@ class TestPreforkReplacesAKilledWorker:
         and respawn rather than any cooperative shutdown path in the worker.
         """
         before = {w.pid for w in _http_workers(prefork)}
-        victim = sorted(before)[0]
+        victim = min(before)
         os_kill(victim)
 
         replaced = prefork.wait_until(
@@ -87,7 +87,7 @@ class TestPreforkReplacesAKilledWorker:
         respawns without reaping leaks a process-table entry per recycle — over
         a long uptime with ``limit_request`` recycling, that is unbounded.
         """
-        victim = sorted(w.pid for w in _http_workers(prefork))[0]
+        victim = min(w.pid for w in _http_workers(prefork))
         os_kill(victim)
         assert prefork.wait_until(
             lambda: victim not in {w.pid for w in _http_workers(prefork)}, timeout=60

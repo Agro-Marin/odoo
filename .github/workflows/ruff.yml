@@ -29,7 +29,15 @@ on:
       - 'odoo/**/*.py'
       - 'ruff.toml'
       - 'requirements*.txt'
-      - 'tooling/ratchet/**'
+      # The whole of tooling/, not only the ratchet: the gates themselves were
+      # outside every CI lint scope, so ruff findings in them (including an
+      # F811 that left a dead, shadowed `module_scope_param` in hoot_lib) never
+      # blocked anything. The local pre-commit hook would have caught it, but
+      # hooks are opt-in and were not installed.
+      - 'tooling/**'
+      # tests/ for the same reason as tooling/: it sat outside every lint
+      # scope, so seven findings accumulated there unnoticed.
+      - 'tests/**'
       - '.github/workflows/ruff.yml'
 
 permissions:
@@ -57,6 +65,18 @@ jobs:
 
       - name: Self-test the ratchet
         run: python tooling/ratchet/test_ratchet.py
+
+      - name: Lint tooling/ and tests/ at zero
+        # The gates that police this repo were themselves unlinted: the ratchet
+        # scope is `odoo/` only. Both trees are small and clean today, so they
+        # get a hard zero rather than a floor — no ratchet bookkeeping, and a
+        # finding here blocks instead of hiding inside a 539-error aggregate.
+        #
+        # tests/ was added after the same gap showed up there: unlinted, it had
+        # quietly collected seven findings, among them two `assert_raises_
+        # exception` on `pytest.raises(Exception)` blind catches that let an
+        # unrelated AttributeError satisfy a rollback test.
+        run: ruff check tooling/ tests/ --no-cache --output-format=concise
 
       - name: Run ruff
         id: ruff

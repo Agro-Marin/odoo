@@ -114,7 +114,7 @@ class ServerHandle:
             return False
 
     def log_text(self):
-        return Path(self.logfile).read_text(errors="replace")
+        return Path(self.logfile).read_text(encoding="utf-8", errors="replace")
 
     def wait_for_log(self, needle, timeout=60):
         deadline = time.monotonic() + timeout
