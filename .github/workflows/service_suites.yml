@@ -21,11 +21,17 @@ name: Contract + Process Suites
 # only appears in pg_dump 17.6+. ubuntu-latest ships an older client, so the
 # PGDG repo is added to install a client matching the PostgreSQL 18 service.
 #
-# WARN-ONLY (Phase 1): continue-on-error keeps this informational for its first
-# runs, mirroring the phased rollout of freethreading.yml / py_typecheck.yml.
-# Flip to blocking (remove continue-on-error) once it has been green a few
-# times — these suites gate real security regressions and should not stay
-# advisory.
+# BLOCKING (Phase 2). Promoted from the Phase-1 warn-only rollout now that both
+# suites are consistently green.
+#
+# The promotion was overdue in a way that had teeth: tests/contract carries the
+# ONLY guard for the CREATE DATABASE sqlstate contract. PostgreSQL answers a
+# *sequential* duplicate with 42P04 (DuplicateDatabase) but a *concurrent* one
+# with 23505 (UniqueViolation), and the two are unrelated psycopg classes — so a
+# catch written against 42P04 alone drops precisely the race it exists to
+# handle. No mock can catch that: the mock is told which error to raise, so it
+# encodes the same wrong belief as the code. While this workflow stayed
+# advisory, that regression could return and CI would still report success.
 
 on:
   push:
@@ -48,7 +54,6 @@ jobs:
     name: contract + process (PostgreSQL 18)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    continue-on-error: true  # Phase 1 warn-only — remove once consistently green
 
     services:
       postgres:

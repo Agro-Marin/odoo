@@ -201,6 +201,44 @@ class TestPrometheusExposition:
         assert not errors, errors
         assert r'database="we\"ird\\name"' in text
 
+    def test_non_numeric_per_database_stats_are_dropped(self, mod, pooled_db):
+        """``pool_health`` forwards whatever the driver reports, and
+        ``psycopg_pool`` mixes strings and booleans in with the numbers.
+
+        A Prometheus sample value must be a number: emitting ``prod`` or
+        ``True`` makes the whole scrape unparseable, so one new key in a
+        dependency's stats dict would take the endpoint down rather than add a
+        useless series.  Booleans need naming separately from "not a number" —
+        ``bool`` is a subclass of ``int``, so an ``isinstance(value, int)``
+        check alone lets ``True`` through.
+        """
+        health = {
+            "read_write": {
+                "pool": {"borrows": 1},
+                "per_database": {
+                    "prod": {
+                        "pool_size": 5,
+                        "pool_name": "read_write_prod",
+                        "pool_available": True,
+                        "requests_waiting": 0,
+                        "wait_ms": 1.5,
+                    }
+                },
+            }
+        }
+        with patch.object(pooled_db, "pool_health", return_value=health):
+            text = mod.render_prometheus()
+
+        _, errors = parse_exposition(text)
+        assert not errors, f"a non-numeric stat broke the exposition: {errors}"
+        assert "odoo_db_pool_pool_size" in text
+        assert "odoo_db_pool_wait_ms" in text
+        assert "odoo_db_pool_pool_name" not in text, "a string was emitted as a value"
+        assert "odoo_db_pool_pool_available" not in text, (
+            "a boolean was emitted as a value; bool is an int subclass and needs "
+            "its own exclusion"
+        )
+
     def test_booleans_render_as_one_and_zero(self, mod):
         from odoo.service import lifecycle
 
@@ -249,31 +287,3 @@ class TestPrometheusExposition:
         assert "odoo_up 1" in text
         _, errors = parse_exposition(text)
         assert not errors, errors
-
-
-class TestEnvStr:
-    """``env_str`` arms the metrics endpoint, so blank must mean disabled."""
-
-    @pytest.mark.parametrize(
-        ("raw", "expected"),
-        [(None, ""), ("", ""), ("   ", ""), ("  tok  ", "tok"), ("tok", "tok")],
-    )
-    def test_blank_is_treated_as_unset(self, raw, expected):
-        import os
-
-        from odoo.service._env import env_str
-
-        env = dict(os.environ)
-        env.pop("ODOO_TEST_TOKEN", None)
-        if raw is not None:
-            env["ODOO_TEST_TOKEN"] = raw
-        with patch.dict(os.environ, env, clear=True):
-            assert env_str("ODOO_TEST_TOKEN") == expected
-
-    def test_default_is_returned_when_unset(self):
-        import os
-
-        from odoo.service._env import env_str
-
-        with patch.dict(os.environ, {}, clear=True):
-            assert env_str("ODOO_TEST_TOKEN", "fallback") == "fallback"

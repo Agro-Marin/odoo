@@ -5,21 +5,46 @@ Covers the mockable, database-free portions of the service layer:
   - ``get_public_method()`` — RPC access-control gate
   - ``_force_lazy_values()`` — recursive lazy-value forcing
   - ``retrying()`` — PostgreSQL serialization-retry loop
+  - ``call_kw()`` — result shaping and argument validation
+  - ``execute_cr()`` — the composition of all of the above
+  - ``dispatch()`` — pre-registry argument and database validation
 
-NOT covered here (require a live cursor / registry / ORM):
-  - ``call_kw()`` / ``execute_cr()`` / ``dispatch()`` — need real Environment
+``call_kw`` and ``execute_cr`` were long listed here as needing a live
+Environment.  They don't: ``get_public_method``, ``api.Environment`` and
+``retrying`` are the only collaborators and all three are patchable.  The
+assumption was load-bearing — while it stood, nothing verified that
+``execute_cr`` forces lazy values, so deleting that call left every test in
+this file green (including the eighteen written to protect the behaviour).
 
 Run with::
 
     python -m pytest tests/service/ -v
 """
 
+import threading
 from contextlib import suppress
 from unittest.mock import MagicMock, patch
 
 import psycopg
 import psycopg.errors
 import pytest
+
+import odoo.http  # noqa: F401 - see below; imported for its side effect
+
+# ``odoo.http`` is imported for a SIDE EFFECT, not for use: several tests below
+# ``patch("odoo.http")``, which resolves the attribute ``http`` on the ``odoo``
+# package and raises ``AttributeError`` if nothing has imported the submodule
+# yet.  Nothing in ``odoo.service.model``'s import chain does — the only import
+# is the deliberately lazy ``from odoo import http`` INSIDE
+# ``odoo.service.transaction.retrying`` (top-level would cycle, see that
+# module's docstring), which runs only when a test actually drives ``retrying``.
+#
+# So those patches used to work purely because ``TestRetrying``'s first two
+# tests happened to run first and populate the attribute.  Selecting one test on
+# its own — the single most common thing to do while debugging — failed with an
+# ``AttributeError`` unrelated to the change under test, and a shuffled
+# collection order failed in bulk (7 of 8 random seeds).  Importing it here
+# makes the dependency explicit and order-independent.
 
 
 @pytest.fixture(scope="module")
@@ -1024,6 +1049,164 @@ class TestRetryingRequestSideEffects:
                 mod.retrying(func, mock_env)
 
         assert mock_rewind.call_count == tx.MAX_TRIES_ON_CONCURRENCY_FAILURE - 1
+
+
+@pytest.fixture()
+def _restore_rpc_model_method():
+    """Restore ``current_thread().rpc_model_method`` after the test.
+
+    ``execute_cr`` stamps it on whichever thread runs the call, which under
+    pytest is the MainThread — so without this the label of the last RPC test
+    leaks into every later test and into the runner's own log records.
+    """
+    thread = threading.current_thread()
+    missing = object()
+    before = getattr(thread, "rpc_model_method", missing)
+    try:
+        yield
+    finally:
+        if before is missing:
+            with suppress(AttributeError):
+                del thread.rpc_model_method
+        else:
+            thread.rpc_model_method = before
+
+
+class TestExecuteCr:
+    """``execute_cr`` is the composition step: reset the cursor, build the env,
+    resolve the model, run through ``retrying``, force lazies, return.
+
+    Every piece it wires together is tested in isolation above — and that was
+    exactly the gap.  Nothing asserted that ``execute_cr`` actually CALLS them,
+    so the wiring itself was unpinned: verified by mutation, deleting the
+    ``result = _force_lazy_values(result)`` line entirely left the whole
+    760-test suite green, including the eighteen ``TestForceLazyValues`` tests
+    written to protect that very behaviour.  A lazy escaping to the marshaller
+    after the cursor closes is the failure those tests exist to prevent, and it
+    could have shipped with all of them passing.
+
+    The module docstring listed ``execute_cr`` under "NOT covered here (require
+    a live cursor / registry / ORM)".  It doesn't: ``api.Environment`` and
+    ``retrying`` are the only collaborators, and both are patchable — the same
+    realisation that let ``TestCallKw`` be written.
+    """
+
+    def _env(self, recs):
+        env = MagicMock()
+        env.get.return_value = recs
+        return env
+
+    def _run(self, mod, *, recs=None, retrying_returns="ok"):
+        """Drive ``execute_cr`` with ``api.Environment`` and ``retrying`` stubbed."""
+        cr = MagicMock()
+        env = self._env(MagicMock() if recs is None else recs)
+        with (
+            patch.object(mod.api, "Environment", return_value=env),
+            patch.object(mod, "retrying", return_value=retrying_returns) as retry,
+        ):
+            result = mod.execute_cr(cr, 7, "res.partner", "read", [[1]], {})
+        return result, cr, env, retry
+
+    def test_cursor_is_reset_before_the_call(self, mod, _restore_rpc_model_method):
+        """A retried request reuses the cursor; stale caches from the previous
+        attempt must not survive into this one."""
+        _result, cr, _env, _retry = self._run(mod)
+        cr.reset.assert_called_once_with()
+
+    def test_result_is_passed_through_force_lazy_values(
+        self, mod, _restore_rpc_model_method
+    ):
+        """The regression the mutation exposed: the forcing must actually happen."""
+        cr = MagicMock()
+        env = self._env(MagicMock())
+        sentinel = object()
+        with (
+            patch.object(mod.api, "Environment", return_value=env),
+            patch.object(mod, "retrying", return_value="raw"),
+            patch.object(mod, "_force_lazy_values", return_value=sentinel) as forced,
+        ):
+            out = mod.execute_cr(cr, 7, "res.partner", "read", [[1]], {})
+        forced.assert_called_once_with("raw")
+        assert out is sentinel, "execute_cr returned the unforced result"
+
+    def test_a_real_lazy_in_the_result_is_materialised(
+        self, mod, _restore_rpc_model_method
+    ):
+        """End-to-end through the real ``_force_lazy_values``.
+
+        What must hold is that the producer has ALREADY RUN by the time
+        ``execute_cr`` returns — while the cursor is still open — not that the
+        result stops being a ``lazy``.  ``lazy`` is a transparent proxy, so a
+        forced one still satisfies ``isinstance(x, lazy)``; it just no longer
+        needs the cursor to answer.  Counting producer calls is what actually
+        distinguishes "forced here" from "forced later by the marshaller, after
+        the cursor closed", which is the bug.
+        """
+        from odoo.tools import lazy
+
+        produced = []
+
+        def produce():
+            produced.append(1)
+            return 42
+
+        cr = MagicMock()
+        env = self._env(MagicMock())
+        with (
+            patch.object(mod.api, "Environment", return_value=env),
+            patch.object(mod, "retrying", return_value={"total": lazy(produce)}),
+        ):
+            out = mod.execute_cr(cr, 7, "res.partner", "read", [[1]], {})
+            assert produced == [1], (
+                "the lazy was still unevaluated when execute_cr returned; it "
+                "would materialise against a closed cursor"
+            )
+        assert out == {"total": 42}
+
+    def test_unknown_model_raises_user_error(self, mod, _restore_rpc_model_method):
+        """``env.get`` returning ``None`` is "no such model"; it must not fall
+        through to ``retrying`` with ``None`` as the recordset."""
+        from odoo.exceptions import UserError
+
+        cr = MagicMock()
+        env = self._env(None)
+        with (
+            patch.object(mod.api, "Environment", return_value=env),
+            patch.object(mod, "retrying") as retry,
+        ):
+            with pytest.raises(UserError, match="doesn't exist"):
+                mod.execute_cr(cr, 7, "no.such.model", "read", [[1]], {})
+        retry.assert_not_called()
+
+    def test_the_call_is_routed_through_retrying(self, mod, _restore_rpc_model_method):
+        """``call_kw`` must not be invoked directly — the serialization-retry
+        loop is the whole reason this indirection exists."""
+        _result, _cr, env, retry = self._run(mod)
+        retry.assert_called_once()
+        thunk, passed_env = retry.call_args.args
+        assert passed_env is env
+        assert thunk.func is mod.call_kw
+        assert thunk.args[1:] == ("read", [[1]], {})
+
+    def test_thread_is_labelled_with_model_and_method(
+        self, mod, _restore_rpc_model_method
+    ):
+        """The label the request log and ``rpc_model_method`` fragment read."""
+        self._run(mod)
+        assert threading.current_thread().rpc_model_method == "res.partner.read"
+
+    def test_environment_is_built_under_the_caller_uid(
+        self, mod, _restore_rpc_model_method
+    ):
+        cr = MagicMock()
+        env = self._env(MagicMock())
+        with (
+            patch.object(mod.api, "Environment", return_value=env) as environment,
+            patch.object(mod, "retrying", return_value="ok"),
+        ):
+            mod.execute_cr(cr, 7, "res.partner", "read", [[1]], {})
+        environment.assert_called_once_with(cr, 7, {})
+        assert env.transaction.default_env is env
 
 
 class TestCallKw:

@@ -214,3 +214,142 @@ class TestNarrowingTestSpec:
     def test_surrounding_whitespace_is_ignored(self, spec):
         with self._with_tags("  +standard  "):
             assert spec() == ""
+
+
+def preload_config(**overrides):
+    base = {
+        "limit_memory_soft": 0,
+        "init": None,
+        "update": None,
+        "reinit": None,
+        "test_enable": False,
+    }
+    base.update(overrides)
+    return base
+
+
+def make_report(*, successful=True, tests_run=1):
+    report = MagicMock()
+    report.wasSuccessful.return_value = successful
+    report.testsRun = tests_run
+    return report
+
+
+class TestPreloadRegistriesReturnCode:
+    """``preload_registries()`` is what ``odoo-bin`` returns to the shell.
+
+    Nothing exercised it: the whole function was uncovered, and deleting the
+    "matched no test at all" branch below flipped a real
+    ``--test-tags /no_such_module --test-enable`` run from exit ``1`` to exit
+    ``0`` — a vacuous run reporting success — while all 742 tests stayed green.
+    Measured against a live database on this fork.
+
+    ``Registry`` and the post-install runner are stubbed; the arithmetic that
+    decides the exit code is the subject.
+    """
+
+    @pytest.fixture()
+    def preload(self, mod):
+        def _run(dbnames, *, report=None, config_overrides=None, spec="", new=None):
+            registry = MagicMock()
+            registry._assertion_report = report
+            registry_cls = MagicMock()
+            registry_cls.new = new or MagicMock(return_value=registry)
+            registry_cls.registries.count = 1
+            logger = MagicMock()
+            with (
+                patch.object(mod, "Registry", registry_cls),
+                patch.object(mod, "config", preload_config(**(config_overrides or {}))),
+                patch.object(mod, "_run_post_install_tests") as post_install,
+                patch.object(mod, "_narrowing_test_spec", return_value=spec),
+                patch.object(mod, "_logger", logger),
+            ):
+                rc = mod.preload_registries(dbnames)
+            return rc, logger, registry_cls, post_install
+
+        return _run
+
+    def test_clean_preload_returns_zero(self, preload):
+        rc, _, _, _ = preload(["db1"], report=make_report())
+        assert rc == 0
+
+    def test_no_databases_is_not_a_failure(self, preload):
+        assert preload([])[0] == 0
+        assert preload(None)[0] == 0
+
+    def test_failed_assertions_raise_the_return_code(self, preload):
+        rc, _, _, _ = preload(
+            ["db1"],
+            report=make_report(successful=False),
+            config_overrides={"test_enable": True},
+        )
+        assert rc == 1
+
+    def test_every_failing_database_counts(self, preload):
+        """``rc`` accumulates, so a caller can tell one bad database from four."""
+        rc, _, _, _ = preload(
+            ["a", "b", "c"],
+            report=make_report(successful=False),
+            config_overrides={"test_enable": True},
+        )
+        assert rc == 3
+
+    def test_a_narrowed_spec_that_ran_nothing_fails_the_run(self, preload):
+        """The guard proper: zero tests run under an explicit ``--test-tags``
+        is a typo in the spec, not a pass."""
+        rc, logger, _, _ = preload(
+            ["db1"],
+            report=make_report(tests_run=0),
+            config_overrides={"test_enable": True},
+            spec="/web:WebSuite.test_core.@web/core/domain",
+        )
+        assert rc == 1
+        logged = " ".join(str(c) for c in logger.error.call_args_list)
+        assert "matched no test" in logged
+        assert "/web:WebSuite.test_core.@web/core/domain" in logged, (
+            "the operator has to see which spec matched nothing"
+        )
+
+    def test_zero_tests_without_an_explicit_spec_is_fine(self, preload):
+        """``--test-enable`` alone resolves to ``+standard``; a module that
+        ships no tests must not fail the build."""
+        rc, logger, _, _ = preload(
+            ["db1"],
+            report=make_report(tests_run=0),
+            config_overrides={"test_enable": True},
+            spec="",
+        )
+        assert rc == 0
+        logger.error.assert_not_called()
+
+    def test_a_successful_run_is_never_second_guessed(self, preload):
+        """``wasSuccessful`` wins: tests ran and passed under a narrowing spec."""
+        rc, _, _, _ = preload(
+            ["db1"],
+            report=make_report(tests_run=5),
+            config_overrides={"test_enable": True},
+            spec="/base",
+        )
+        assert rc == 0
+
+    def test_post_install_tests_are_skipped_without_test_enable(self, preload):
+        _, _, _, post_install = preload(["db1"], report=make_report())
+        post_install.assert_not_called()
+
+    def test_a_broken_database_aborts_the_whole_preload(self, preload):
+        """``-1`` and an immediate return: the remaining databases are not
+        attempted, and the caller must not read the failure as ``0``."""
+        boom = MagicMock(side_effect=RuntimeError("registry is toast"))
+        rc, logger, registry_cls, _ = preload(["db1", "db2"], new=boom)
+        assert rc == -1
+        assert registry_cls.new.call_count == 1, "db2 should never be attempted"
+        logger.critical.assert_called_once()
+        assert "db1" in str(logger.critical.call_args)
+
+    def test_the_registry_cache_grows_to_hold_every_database(self, preload):
+        """Fewer slots than databases means the last preload evicts the first,
+        and the server re-builds every registry on its first request."""
+        _, _, registry_cls, _ = preload(
+            [f"db{i}" for i in range(40)], report=make_report()
+        )
+        assert registry_cls.registries.count >= 40

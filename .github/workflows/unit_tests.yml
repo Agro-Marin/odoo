@@ -116,3 +116,25 @@ jobs:
         # including the regression tests for a restore RCE and an
         # unauthenticated database-existence oracle.
         run: python -m pytest odoo/orm/tests odoo/http/tests tests/service -q
+
+      - name: Re-run tests/service in shuffled order (order-independence gate)
+        # The service suite passed for months only because alphabetical
+        # collection hid two order dependencies: `test_metrics` required
+        # `test_server` NOT to have run yet (lifecycle.start assigns the module
+        # global `lifecycle.server`, which `patch` therefore never restored), and
+        # `test_model`'s `patch("odoo.http")` required an earlier test to have
+        # triggered a lazy import — so selecting one test from that file failed
+        # on its own. Both are fixed; this keeps them fixed.
+        #
+        # Two fixed seeds rather than a random one: a random seed makes a
+        # failure irreproducible, which is how an order gate turns into a flaky
+        # gate nobody trusts. tests/service alone is ~7s, so this is cheap.
+        # An autouse guard in tests/service/conftest.py additionally fails the
+        # test that leaks process-global state, naming it, rather than letting a
+        # later innocent test carry the failure.
+        run: |
+          for seed in 1 2; do
+            echo "::group::tests/service shuffled with seed $seed"
+            ODOO_SERVICE_TEST_SHUFFLE_SEED=$seed python -m pytest tests/service -q
+            echo "::endgroup::"
+          done

@@ -67,7 +67,9 @@ class TestBindFailureIsLogged:
         ):
             server.http_spawn()
 
-        message = caplog.records[0].getMessage()
+        critical = [r for r in caplog.records if r.levelno == logging.CRITICAL]
+        assert critical, "a failed bind must produce a CRITICAL log record"
+        message = critical[0].getMessage()
         assert "127.0.0.1" in message
         assert "8899" in message
 
