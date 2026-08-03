@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
+import { advanceTime, animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
@@ -160,4 +160,37 @@ test("Transition HOC", async () => {
     expect.verifySteps(["leave"]);
     await animationFrame();
     expect(".test").toHaveCount(0);
+});
+
+test("name and leaveDuration follow the props that carry them", async () => {
+    class Parent extends Component {
+        static components = { Transition };
+        static template = xml`
+            <Transition name="state.name" visible="state.visible" leaveDuration="state.leaveDuration" t-slot-scope="transition">
+                <div class="target" t-att-class="transition.className"/>
+            </Transition>`;
+        static props = [];
+        state = useState({ name: "first", visible: true, leaveDuration: 1000 });
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect(".target").toHaveClass("first-enter-active");
+
+    // A caller that changes its mind about the animation must reach the element
+    // it is animating; reading the prop once left it wearing the old one.
+    parent.state.name = "second";
+    await animationFrame();
+    expect(".target").toHaveClass("second-enter-active");
+    expect(".target").not.toHaveClass("first-enter-active");
+
+    // The leave delay is read when the leave starts, so a shortened one takes
+    // effect on the next leave rather than the next mount. Advancing by exactly
+    // the new delay is what tells the two apart: the old one would still be
+    // holding the element on screen.
+    parent.state.leaveDuration = 50;
+    parent.state.visible = false;
+    await animationFrame();
+    expect(".target").toHaveClass("second-leave");
+    await advanceTime(60);
+    await animationFrame();
+    expect(".target").toHaveCount(0);
 });

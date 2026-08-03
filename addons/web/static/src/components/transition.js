@@ -18,6 +18,12 @@ export const config = {
     disabled: false,
 };
 /**
+ * `initialVisibility` and `immediate` describe the first mount, so reading them
+ * once is what they mean. The other three describe every transition this hook
+ * will ever run, and a caller is free to hand them over behind getters -- which
+ * is what `Transition` does with its props. Destructuring them here would have
+ * frozen whatever they happened to be during setup.
+ *
  * @param {Object} options
  * @param {string} options.name
  * @param {boolean} [options.initialVisibility=true]
@@ -26,13 +32,11 @@ export const config = {
  * @param {Function} [options.onLeave]
  * @returns {{ shouldMount: boolean, className: string, stage: string }}
  */
-export function useTransition({
-    name,
-    initialVisibility = true,
-    immediate = false,
-    leaveDuration = 500,
-    onLeave = () => {},
-}) {
+export function useTransition(options) {
+    const { initialVisibility = true, immediate = false } = options;
+    const name = () => options.name;
+    const leaveDuration = () => options.leaveDuration ?? 500;
+    const onLeave = () => options.onLeave?.();
     const component = useComponent();
     const state = useState({
         shouldMount: initialVisibility,
@@ -51,7 +55,7 @@ export function useTransition({
                 state.shouldMount = val;
             },
             get className() {
-                return `${name} ${name}-enter-active`;
+                return `${name()} ${name()}-enter-active`;
             },
             get stage() {
                 return "enter-active";
@@ -95,12 +99,12 @@ export function useTransition({
                     timer = browser.setTimeout(() => {
                         state.shouldMount = false;
                         onLeave();
-                    }, leaveDuration);
+                    }, leaveDuration());
                 }
             }
         },
         get className() {
-            return `${name} ${name}-${state.stage}`;
+            return `${name()} ${name()}-${state.stage}`;
         },
         get stage() {
             return state.stage;
@@ -128,16 +132,29 @@ export class Transition extends Component {
     transition;
 
     setup() {
-        const { immediate, visible, leaveDuration, name, onLeave } = this.props;
+        const self = this;
+        // The leave is started from onWillUpdateProps, which owl runs *before*
+        // it swaps `this.props`. Reading the incoming props from there would
+        // otherwise start the leave on the duration the caller just replaced.
+        // Afterwards owl assigns the same object to `this.props`, so this stays
+        // the current props for every later read.
+        this.latestProps = this.props;
         this.transition = useTransition({
-            initialVisibility: visible,
-            immediate,
-            leaveDuration,
-            name,
-            onLeave,
+            initialVisibility: this.props.visible,
+            immediate: this.props.immediate,
+            get leaveDuration() {
+                return self.latestProps.leaveDuration;
+            },
+            get name() {
+                return self.latestProps.name;
+            },
+            get onLeave() {
+                return self.latestProps.onLeave;
+            },
         });
-        onWillUpdateProps(({ visible = true }) => {
-            this.transition.shouldMount = visible;
+        onWillUpdateProps((nextProps) => {
+            this.latestProps = nextProps;
+            this.transition.shouldMount = nextProps.visible ?? true;
         });
     }
 }
