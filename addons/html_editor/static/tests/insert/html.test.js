@@ -183,10 +183,8 @@ describe("collapsed selection", () => {
     });
 
     test("never unwrap tables in breakable paragrap", async () => {
-        // P elements' content can only be "phrasing" content
-        // Adding a table within p is not possible
-        // We have split the p and insert the table unwrapped in between
-        // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/p
+        // A p can only contain "phrasing" content, so the table cannot go
+        // inside it: the p is split and the table inserted, unwrapped, between.
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Content_categories#phrasing_content
         const { editor } = await setupEditor(`<p>cont[]ent</p>`, {});
         insertHTML("<table><tbody><tr><td/></tr></tbody></table>")(editor);
@@ -196,10 +194,8 @@ describe("collapsed selection", () => {
     });
 
     test("should not unwrap table in unbreakable paragraph find a suitable spot to insert table element", async () => {
-        // P elements' content can only be "phrasing" content
-        // Adding a table within an unbreakable p is not possible
-        // We have to find a better spot to insert the table
-        // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/p
+        // A p can only contain "phrasing" content, and this one is unbreakable,
+        // so the table has to be inserted after it instead.
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Content_categories#phrasing_content
         const { editor } = await setupEditor(
             `<p class="oe_unbreakable">cont[]ent</p>`,
@@ -213,10 +209,9 @@ describe("collapsed selection", () => {
     });
 
     test("stops at boundary when inserting unfit content", async () => {
-        // P elements' content can only be "phrasing" content
-        // This test forces to stop at the <p contenteditable="true" />
-        // This test is a bit odd and whitebox but this is because multiple
-        // parameters of the use case are interacting
+        // A p can only contain "phrasing" content, yet the search for a spot
+        // stops at the <p contenteditable="true">, which is where the table
+        // ends up (whitebox: several parameters of the use case interact).
         const { editor } = await setupEditor(
             `<div><p class="oe_unbreakable" contenteditable="true"><b class="oe_unbreakable">cont[]ent</b></p></div>`,
             {},
@@ -443,7 +438,7 @@ describe("not collapsed selection", () => {
         await testEditor({
             contentBefore: "<h1>[abc</h1><p>def]</p>",
             stepFunction: async (editor) => {
-                // There's an empty text node after the paragraph:
+                // Simulate an empty text node after the last paragraph.
                 editor.editable.lastChild.after(editor.document.createTextNode(""));
                 insertHTML("<p>ghi</p><p>jkl</p>")(editor);
             },

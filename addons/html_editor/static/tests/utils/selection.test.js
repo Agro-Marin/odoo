@@ -31,7 +31,7 @@ describe("ensureFocus", () => {
                 await dispatch(editor.editable, "keydown", { key: "Enter" });
                 const activeElement = document.activeElement;
                 editor.shared.selection.setCursorStart(activeElement.lastElementChild);
-                // TODO @phoenix still need it ?
+                // TODO: still needed?
                 // await nextTickFrame();
             },
             contentAfter: unformat(`
@@ -42,7 +42,7 @@ describe("ensureFocus", () => {
         });
     });
 
-    // TODO @phoenix: unskipped when ensureFocus is add in the code base
+    // TODO: unskip when ensureFocus is implemented (it is a no-op stub for now).
     test.todo(
         "should preserve the focus on the child of this.editable even if it is enclosed in a contenteditable=false",
         async () => {
@@ -90,13 +90,13 @@ describe("ensureFocus", () => {
                 stepFunction: async (editor) => {
                     const element = editor.editable.querySelector("#target");
                     ensureFocus(element);
-                    // TODO @phoenix still need it ?
+                    // TODO: still needed?
                     // await nextTickFrame();
                     const activeElement = document.activeElement;
                     editor.shared.selection.setCursorStart(
                         activeElement.lastElementChild,
                     );
-                    // TODO @phoenix still need it ?
+                    // TODO: still needed?
                     // await nextTickFrame();
                 },
                 contentAfter: unformat(`
