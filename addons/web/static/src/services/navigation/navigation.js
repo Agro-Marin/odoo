@@ -195,55 +195,53 @@ export class Navigator {
             itemsRevision: 0,
         });
 
-        /** @private */
-        this._options = deepMerge(
-            {
-                isNavigationAvailable: (
-                    /** @type {{ navigator: Navigator, target: HTMLElement }} */ {
-                        target,
-                    },
-                ) =>
-                    this.contains(target) &&
-                    (this.isFocused || this._options.virtualFocus),
-                shouldFocusChildInput: true,
-                shouldFocusFirstItem: false,
-                shouldRegisterHotkeys: true,
-                virtualFocus: false,
-                hotkeys: {
-                    home: () => this.items[0]?.setActive(),
-                    end: () => this.items.at(-1)?.setActive(),
-                    tab: {
-                        callback: () => this.next(),
-                        bypassEditableProtection: true,
-                    },
-                    "shift+tab": {
-                        callback: () => this.previous(),
-                        bypassEditableProtection: true,
-                    },
-                    arrowdown: {
-                        callback: () => this.next(),
-                        bypassEditableProtection: true,
-                    },
-                    arrowup: {
-                        callback: () => this.previous(),
-                        bypassEditableProtection: true,
-                    },
-                    enter: {
-                        isAvailable: (
-                            /** @type {{ navigator: Navigator, target: HTMLElement }} */ {
-                                navigator,
-                            },
-                        ) => Boolean(navigator.activeItem),
-                        callback: () => {
-                            const item = this.activeItem || this.items[0];
-                            item?.select();
+        const defaultOptions = {
+            isNavigationAvailable: (
+                /** @type {{ navigator: Navigator, target: HTMLElement }} */ { target },
+            ) =>
+                this.contains(target) && (this.isFocused || this._options.virtualFocus),
+            shouldFocusChildInput: true,
+            shouldFocusFirstItem: false,
+            shouldRegisterHotkeys: true,
+            virtualFocus: false,
+            hotkeys: {
+                home: () => this.items[0]?.setActive(),
+                end: () => this.items.at(-1)?.setActive(),
+                tab: {
+                    callback: () => this.next(),
+                    bypassEditableProtection: true,
+                },
+                "shift+tab": {
+                    callback: () => this.previous(),
+                    bypassEditableProtection: true,
+                },
+                arrowdown: {
+                    callback: () => this.next(),
+                    bypassEditableProtection: true,
+                },
+                arrowup: {
+                    callback: () => this.previous(),
+                    bypassEditableProtection: true,
+                },
+                enter: {
+                    isAvailable: (
+                        /** @type {{ navigator: Navigator, target: HTMLElement }} */ {
+                            navigator,
                         },
-                        bypassEditableProtection: true,
+                    ) => Boolean(navigator.activeItem),
+                    callback: () => {
+                        const item = this.activeItem || this.items[0];
+                        item?.select();
                     },
+                    bypassEditableProtection: true,
                 },
             },
-            options,
-        );
+        };
+        // deepMerge flattens the caller's getters into the values they
+        // happened to hold; keepLiveOptions puts them back, so an option
+        // declared as an accessor keeps answering for this navigator's life.
+        /** @private */
+        this._options = keepLiveOptions(deepMerge(defaultOptions, options), options);
 
         if (this._options.shouldRegisterHotkeys) {
             this.registerHotkeys();
@@ -523,6 +521,12 @@ export class Navigator {
 }
 
 /**
+ * A plain value in this object is read once, when the navigator is built. An
+ * option that has to follow something that moves is declared as a getter
+ * instead, and stays live for the navigator's whole life -- see
+ * `keepLiveOptions`, which is what carries the accessors across the copy and
+ * the merge that would otherwise flatten them into values.
+ *
  * @typedef {Object} NavigationOptions
  * @property {() => HTMLElement[]} [getItems]
  * @property {() => HTMLElement | null} [getContainer]
@@ -551,6 +555,45 @@ export class Navigator {
  */
 
 /**
+ * Copying an object -- by spread, by `deepMerge`, by anything that reads a key
+ * and writes its value -- turns a getter into whatever it returned at that
+ * moment. Restoring the accessors afterwards is what lets an option follow
+ * something that moves rather than freezing at setup.
+ *
+ * @template {Object} T
+ * @param {T} copy the flattened result
+ * @param {NavigationOptions} source the object the accessors were declared on
+ * @returns {T} `copy`
+ */
+export function keepLiveOptions(copy, source) {
+    for (const key of Reflect.ownKeys(source)) {
+        const descriptor = Object.getOwnPropertyDescriptor(source, key);
+        if (descriptor?.get) {
+            Object.defineProperty(copy, key, descriptor);
+        }
+    }
+    return copy;
+}
+
+/**
+ * A default for an option the caller left out. Defined rather than assigned:
+ * the caller may have declared the key as a getter with no setter, and an
+ * assignment onto one of those throws.
+ *
+ * @param {Object} options
+ * @param {string} key
+ * @param {any} value
+ */
+function defineOption(options, key, value) {
+    Object.defineProperty(options, key, {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+    });
+}
+
+/**
  * @param {string|Object} containerRef
  * @param {NavigationOptions} options
  * @returns {Navigator}
@@ -559,14 +602,24 @@ export function useNavigation(containerRef, options = {}) {
     containerRef =
         typeof containerRef === "string" ? useRef(containerRef) : containerRef;
 
-    const newOptions = { ...options };
+    const newOptions = keepLiveOptions({ ...options }, options);
     if (!newOptions.getItems) {
-        newOptions.getItems = () =>
-            /** @type {any} */ (containerRef).el?.querySelectorAll(
-                ":scope .o-navigable",
-            ) ?? [];
+        defineOption(
+            newOptions,
+            "getItems",
+            () =>
+                /** @type {any} */ (containerRef).el?.querySelectorAll(
+                    ":scope .o-navigable",
+                ) ?? [],
+        );
     }
-    newOptions.getContainer ??= () => /** @type {any} */ (containerRef).el ?? null;
+    if (!newOptions.getContainer) {
+        defineOption(
+            newOptions,
+            "getContainer",
+            () => /** @type {any} */ (containerRef).el ?? null,
+        );
+    }
 
     const hotkeyService = useService("hotkey");
     const navigator = new Navigator(newOptions, hotkeyService);

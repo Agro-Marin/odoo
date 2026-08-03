@@ -25,7 +25,7 @@ import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { disposableEffect } from "@web/core/utils/reactive";
-import { useNavigation } from "@web/services/navigation/navigation";
+import { keepLiveOptions, useNavigation } from "@web/services/navigation/navigation";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { utils } from "@web/ui/viewport";
 
@@ -168,7 +168,10 @@ export class Dropdown extends Component {
         this.nesting = useDropdownNesting(this.state);
         this.group = useDropdownGroup();
 
-        this.navigation = useNavigation(this.menuRef, {
+        // Both the merge and the spread would flatten a caller's getters into
+        // values, so whatever `navigationOptions` declared as live is restored
+        // afterwards -- see keepLiveOptions.
+        const navigationOptions = {
             shouldRegisterHotkeys: false,
             isNavigationAvailable: () => this.state.isOpen,
             getItems: () => {
@@ -181,7 +184,11 @@ export class Dropdown extends Component {
                 }
             },
             ...deepMerge(this.nesting.navigationOptions, this.props.navigationOptions),
-        });
+        };
+        this.navigation = useNavigation(
+            this.menuRef,
+            keepLiveOptions(navigationOptions, this.props.navigationOptions ?? {}),
+        );
 
         useChildSubEnv({ navigation: this.navigation });
 

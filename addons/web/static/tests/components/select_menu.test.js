@@ -2132,3 +2132,32 @@ test("the listbox wrapper is transparent to the menu's layout", async () => {
         firstTop - 100,
     );
 });
+
+test("a menu that loses its search box moves real focus again", async () => {
+    class Parent extends Component {
+        static template = xml`<SelectMenu choices="choices" value="'a'" searchable="state.searchable"/>`;
+        static components = { SelectMenu };
+        static props = [];
+        choices = [
+            { value: "a", label: "Alpha" },
+            { value: "b", label: "Beta" },
+        ];
+        state = useState({ searchable: true });
+    }
+    const parent = await mountWithCleanup(Parent);
+
+    // `searchable` moves under a live menu -- selection_field binds it to
+    // `!isBottomSheet`. The navigator only keeps a virtual cursor while a search
+    // box holds the focus; once there is none, it has to move real focus, or the
+    // arrow keys leave the caret on nothing.
+    parent.state.searchable = false;
+    await animationFrame();
+
+    await contains(".o_select_menu_toggler").click();
+    await animationFrame();
+    await press("ArrowDown");
+    await animationFrame();
+
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toHaveClass("o-dropdown-item");
+});

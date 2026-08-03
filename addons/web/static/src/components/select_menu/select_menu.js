@@ -109,7 +109,6 @@ export class SelectMenu extends Component {
         autoSort: { type: Boolean, optional: true },
         placeholder: { type: String, optional: true },
         searchPlaceholder: { type: String, optional: true },
-        searchClass: { type: String, optional: true },
         value: { optional: true },
         multiSelect: { type: Boolean, optional: true },
         onInput: { type: Function, optional: true },
@@ -186,9 +185,16 @@ export class SelectMenu extends Component {
             }
         });
 
+        const self = this;
         this.navigationOptions = {
             shouldFocusFirstItem: !hasTouch(),
-            virtualFocus: this.props.searchable,
+            // A getter, not a value: `searchable` moves -- selection_field binds
+            // it to `!isBottomSheet` -- and a menu that lost its search box has
+            // nowhere to park a virtual cursor, so the navigator has to move
+            // real focus again. Frozen, it left the arrow keys moving nothing.
+            get virtualFocus() {
+                return self.props.searchable;
+            },
             hotkeys: {
                 enter: {
                     isAvailable: ({ navigator }) => navigator.items.length,
