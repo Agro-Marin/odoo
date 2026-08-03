@@ -56,7 +56,8 @@ class FetchmailServer(models.Model):
 
     def _get_connection_type(self):
         """Return which connection must be used for this mail server (IMAP or POP).
-        The Outlook mail server used an IMAP connection.
+
+        The Outlook mail server uses an IMAP connection.
         """
         self.ensure_one()
         return 'imap' if self.server_type == 'outlook' else super()._get_connection_type()
