@@ -1166,7 +1166,7 @@ describe("color preview", () => {
         expect("p font").toHaveAttribute("style");
         await press("Escape"); // Close tab and cancel preview.
         await animationFrame();
-        expect(queryAll("font")).toHaveLength(0); // The color was deleted
+        expect(queryAll("font")).toHaveLength(0); // Preview reverted
     });
 
     test("should show the custom color preview in a color button", async () => {
@@ -1320,7 +1320,7 @@ describe("color preview", () => {
         expect("p font").not.toHaveAttribute("class");
         await press("Escape"); // Close tab and cancel preview.
         await animationFrame();
-        expect(queryAll("font")).toHaveLength(0); // The color was deleted
+        expect(queryAll("font")).toHaveLength(0); // Preview reverted
     });
 
     test("should not preview the custom color if it was not modified first", async () => {
@@ -1366,7 +1366,7 @@ describe("color preview", () => {
         expect("p font").toHaveClass("text-gradient");
         await hover(".btn:contains('Gradient')");
         await animationFrame();
-        expect(queryAll("font")).toHaveLength(0); // The color was deleted
+        expect(queryAll("font")).toHaveLength(0); // Preview reverted
     });
 
     test("should not apply the custom color when confirming another tab's color", async () => {

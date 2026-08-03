@@ -125,7 +125,7 @@ describe("qweb picker", () => {
         );
 
         await click(".o-we-qweb-picker select");
-        await select("0,2"); // t-elif test2
+        await select("0,2"); // t-elif test3
         await animationFrame();
         expect(".o-we-qweb-picker").toHaveCount(1);
         expect(".o-we-qweb-picker select option:selected").toHaveText("elif: test3");
