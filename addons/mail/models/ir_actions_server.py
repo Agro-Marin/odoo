@@ -378,10 +378,13 @@ class IrActionsServer(models.Model):
         return False
 
     def _is_recompute(self):
-        """When an activity is set on update of a record,
-        update might be triggered many times by recomputes.
-        When need to know it to skip these steps.
-        Except if the computed field is supposed to trigger the action
+        """Whether the current write is an extraneous one triggered by a recompute,
+        in which case the action must not run again.
+
+        Fields present in the 'domain_post' context key are ignored: a computed
+        field meant to trigger the action does not count.
+
+        :rtype: bool
         """
         records = self.env[self.model_name].browse(
             self.env.context.get("active_ids", self.env.context.get("active_id"))
@@ -410,7 +413,7 @@ class IrActionsServer(models.Model):
         return False
 
     def _run_action_mail_post_multi(self, eval_context=None):
-        # TDE CLEANME: when going to new api with server action, remove action
+        # CLEANME: when going to new api with server action, remove action
         if (
             not self.template_id
             or (
@@ -424,8 +427,8 @@ class IrActionsServer(models.Model):
             "active_ids", [self.env.context.get("active_id")]
         )
 
-        # Clean context from default_type to avoid making attachment
-        # with wrong values in subsequent operations
+        # Clean default_type / default_parent_id from the context to avoid making
+        # attachments with wrong values in subsequent operations
         cleaned_ctx = dict(self.env.context)
         cleaned_ctx.pop("default_type", None)
         cleaned_ctx.pop("default_parent_id", None)
@@ -501,11 +504,10 @@ class IrActionsServer(models.Model):
 
     @api.model
     def _get_eval_context(self, action=None):
-        """Override the method giving the evaluation context but also the
-        context used in all subsequent calls. Add the mail_notify_force_send
-        key set to False in the context. This way all notification emails linked
-        to the currently executed action will be set in the queue instead of
-        sent directly. This will avoid possible break in transactions."""
+        """Add 'mail_notify_force_send' set to False to the evaluation context,
+        which is also the context of all subsequent calls: notification emails
+        linked to the executed action are queued instead of sent directly, avoiding
+        possible breaks in transactions."""
         return super(
             IrActionsServer, self.with_context(mail_notify_force_send=False)
         )._get_eval_context(action=action)
