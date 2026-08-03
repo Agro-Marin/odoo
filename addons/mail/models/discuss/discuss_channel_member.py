@@ -329,13 +329,11 @@ class DiscussChannelMember(models.Model):
 
         sync_fields = self._sync_field_names()
         if "new_message_separator" not in vals:
-            # 'message_unread_counter' is an unstored GROUP BY compute over
-            # mail_message; on a member write it can only change through
-            # 'new_message_separator' (its sole writable dependency, channel_id
-            # being immutable here). Skip its recompute — snapshotted both before
-            # and after — when that field is not being written, so unrelated writes
-            # (mute, rename, unpin, last_interest_dt, ...) do not pay for a
-            # message-count aggregation each time.
+            # 'message_unread_counter' is an unstored GROUP BY over mail_message,
+            # and on a member write it can only change through
+            # 'new_message_separator' (channel_id being immutable here). Skipping
+            # it spares unrelated writes (mute, rename, unpin, ...) the two
+            # message-count aggregations of the before/after snapshot.
             sync_fields = [
                 field_description
                 for field_description in sync_fields
@@ -409,7 +407,7 @@ class DiscussChannelMember(models.Model):
             member.channel_id._action_unfollow(
                 partner=member.partner_id, guest=member.guest_id
             )
-        # sudo - discuss.channel: allowed to access channels to update member-based naming
+        # snapshot member-based names to detect the ones changed by the unlink
         name_members_by_channel = {
             channel: channel.channel_name_member_ids for channel in self.channel_id
         }
@@ -429,8 +427,9 @@ class DiscussChannelMember(models.Model):
         return self.partner_id.main_user_id or self.guest_id
 
     def _notify_typing(self, is_typing):
-        """Broadcast the typing notification to channel members
-        :param is_typing: (boolean) tells whether the members are typing or not
+        """Broadcast the typing notification to the members of the channel.
+
+        :param bool is_typing: whether the members are typing
         """
         for member in self:
             Store(bus_channel=member.channel_id).add(
@@ -450,9 +449,7 @@ class DiscussChannelMember(models.Model):
 
     @api.model
     def _cleanup_expired_mutes(self):
-        """
-        Cron job for cleanup expired unmute by resetting mute_until_dt and sending bus notifications.
-        """
+        """Cron: reset the mutes whose deadline passed; the write notifies members."""
         members = self.search([("mute_until_dt", "<=", fields.Datetime.now())])
         members.write({"mute_until_dt": False})
         members._notify_mute()
@@ -638,18 +635,15 @@ class DiscussChannelMember(models.Model):
           are returned as non-existing.
 
         :param list check_rtc_session_ids: list of the ids of the sessions to check
-        :returns: (current_rtc_sessions, outdated_rtc_sessions)
+        :return: (current_rtc_sessions, outdated_rtc_sessions)
         :rtype: tuple
         """
         self.ensure_one()
         self.channel_id.rtc_session_ids._delete_inactive_rtc_sessions()
-        # These ids come straight from the client -- '/discuss/channel/ping' and
-        # '/mail/rtc/channel/join_call' are auth="public" and pass the raw
-        # parameter through -- so a bare int() surfaced ValueError/TypeError as a
-        # server error. Skipping unparseable entries is the right answer rather
-        # than rejecting the whole call: the parameter asks "are these sessions
-        # still alive?", and something that is not an id was never a live
-        # session. Order carries no meaning here, unlike attachment ids.
+        # These ids come raw from the client ('/discuss/channel/ping' and
+        # '/mail/rtc/channel/join_call' are auth="public"), so unparseable
+        # entries are skipped rather than raising: the parameter asks which
+        # sessions are still alive, and a non-id was never a live session.
         checked_ids = []
         for check_rtc_session_id in check_rtc_session_ids or []:
             try:
@@ -663,10 +657,9 @@ class DiscussChannelMember(models.Model):
         )
 
     def _get_rtc_invite_members_domain(self, member_ids=None):
-        """Get the domain used to get the members to invite to and RTC call on
-        the member's channel.
+        """Return the domain of the members to invite to an RTC call on the channel.
 
-        :param list member_ids: List of the discuss.channel.member ids to invite.
+        :param list member_ids: discuss.channel.member ids to restrict the domain to
         """
         self.ensure_one()
         domain = Domain.AND(
@@ -689,10 +682,9 @@ class DiscussChannelMember(models.Model):
         return domain
 
     def _rtc_invite_members(self, member_ids=None):
-        """Sends invitations to join the RTC call to all connected members of the thread who are not already invited,
-        if member_ids is set, only the specified ids will be invited.
+        """Invite the available members of the channel who are not already invited.
 
-        :param list member_ids: list of the discuss.channel.member ids to invite
+        :param list member_ids: discuss.channel.member ids to restrict the invitation to
         """
         self.ensure_one()
         members = self.env["discuss.channel.member"].search(
@@ -721,10 +713,9 @@ class DiscussChannelMember(models.Model):
                 )
             )
             if devices:
-                # Default to the channel avatar; for a chat, prefer the caller's
-                # persona when resolvable. Without the default, a chat driven by
-                # a member whose persona is neither a context-guest nor a user
-                # partner left ``icon`` unbound -> NameError (500 on the invite).
+                # Default to the channel avatar; on a chat prefer the caller's
+                # persona, which is not always resolvable (neither a guest in
+                # context nor a user partner).
                 icon = f"/web/image/discuss.channel/{self.channel_id.id}/avatar_128"
                 if self.channel_id.channel_type == "chat":
                     if guest := self.env["mail.guest"]._get_guest_from_context():
@@ -771,11 +762,9 @@ class DiscussChannelMember(models.Model):
         return members
 
     def _mark_as_read(self, last_message_id):
-        """
-        Mark channel as read by updating the seen message id of the current
-        member as well as its new message separator.
+        """Mark the channel as read up to a message, moving the separator past it.
 
-        :param last_message_id: the id of the message to be marked as read.
+        :param last_message_id: id of the last message to be marked as read
         """
         self.ensure_one()
         domain = [
@@ -790,12 +779,10 @@ class DiscussChannelMember(models.Model):
         self._set_new_message_separator(last_message.id + 1)
 
     def _set_last_seen_message(self, message, notify=True):
-        """
-        Set the last seen message of the current member.
+        """Set the last seen message of the member, never moving it backwards.
 
-        :param message: the message to set as last seen message.
-        :param notify: whether to send a bus notification relative to the new
-            last seen message.
+        :param message: the message to set as last seen message
+        :param notify: whether to send a bus notification for the new last seen message
         """
         self.ensure_one()
         bus_channel = self._bus_channel()
@@ -825,8 +812,7 @@ class DiscussChannelMember(models.Model):
 
     def _set_new_message_separator(self, message_id):
         """
-        :param message_id: id of the message above which the new message
-            separator should be displayed.
+        :param message_id: id of the message before which the separator is displayed
         """
         self.ensure_one()
         if message_id == self.new_message_separator:
