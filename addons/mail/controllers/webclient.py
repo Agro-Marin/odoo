@@ -58,27 +58,13 @@ class WebclientController(ThreadController):
     def _process_one_request(cls, store: Store, name, params):
         """Run a single fetch param, isolated from its siblings.
 
-        These routes batch independent data requests into one round-trip, so an
-        unexpected failure in one of them must not void the others. The client
-        asks for ``["failures", "systray_get_activities", "init_messaging"]`` in
-        a single call on every boot: letting a crash in the best-effort
-        ``failures`` handler (e.g. corrupt data reaching an unguarded
-        ``env[model]``) propagate discarded the whole batch, so messaging init
-        was lost too -- and the client swallowed the rejection, showing the user
-        nothing at all.
-
-        Deliberate signals (HTTP redirects/404s, access and user errors) still
-        propagate: they are meaningful to the caller and must not be masked.
-        Anything else is a bug or corrupt data -- log it with its traceback so
-        monitoring still sees it, roll back any write it made, and let the rest
-        of the batch answer.
-
-        The savepoint reverts database work only; whatever the failed handler
-        already put in ``store`` stays. That is harmless by construction: the
-        payload is idempotent upsert data keyed by record id (the same shape the
-        bus pushes incrementally), so a half-filled contribution just sets fewer
-        fields on records the client would have received anyway.
+        These routes batch independent requests into one round-trip (the client
+        asks for ``failures``, ``systray_get_activities`` and ``init_messaging``
+        in a single call on every boot), so a crash in a best-effort handler must
+        not discard the whole batch. Deliberate signals still propagate.
         """
+        # The savepoint reverts database work only: whatever the failed handler
+        # already added to `store` stays, harmless as idempotent upsert data.
         try:
             with request.env.cr.savepoint():
                 cls._process_request_for_all(store, name, params)
@@ -152,14 +138,10 @@ class WebclientController(ThreadController):
             found = defaultdict(list)
             for message in notifications.mail_message_id:
                 found[message.model].append(message.res_id)
-            # 'mail.message.model' is a plain Char with no foreign key and no
-            # constraint -- write() accepts any string, and a renaming migration
-            # or direct SQL can leave a name that is no longer in the registry.
-            # Dereferencing it unguarded raised KeyError here, which is doubly
-            # unfortunate: the garbage collection just below is exactly what
-            # would have reaped those rows, so the crash kept its own cure from
-            # running and the failure list stayed broken forever. Treat an
-            # unknown model as "document gone" -- which is what it is.
+            # 'mail.message.model' is a plain Char with no constraint, so it can
+            # name a model that is no longer in the registry: treat that as
+            # "document gone" (the collection below reaps the rows) instead of
+            # dereferencing it into a KeyError that breaks the failure list.
             existing = {
                 model: set(request.env[model].browse(ids).exists().ids)
                 for model, ids in found.items()
@@ -172,10 +154,9 @@ class WebclientController(ThreadController):
                 )
             )
             lost = notifications - valid
-            # Garbage-collect notifications whose document was deleted. /mail/data
-            # is declared readonly=True, so on a read-replica cursor this unlink
-            # would raise and break the whole response; skip it there and let the
-            # next read/write request (or autovacuum) clean them up instead.
+            # Garbage-collect notifications whose document was deleted, but not on
+            # the readonly=True /mail/data cursor where the unlink would raise and
+            # break the response; the next read/write request cleans them up.
             if lost and not request.env.cr.readonly:
                 lost.sudo().unlink()  # no unlink right except admin, ok to remove as lost anyway
             valid.mail_message_id._message_notifications_to_store(store)

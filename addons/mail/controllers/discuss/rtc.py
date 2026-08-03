@@ -38,11 +38,9 @@ class RtcController(http.Controller):
             - string content: the content to send to the other sessions
         """
         guest = request.env["mail.guest"]._get_guest_from_context()
-        # auth="public": validate/bound the payload rather than trusting it.
-        # Blindly unpacking a malformed entry would 500 an anonymous caller, and
-        # relaying unbounded content/count is a channel-scoped bus-amplification
-        # primitive. WebRTC signaling (SDP/ICE) per request is small, so these
-        # caps are generous; malformed entries are skipped, not fatal.
+        # auth="public": unpacking a malformed entry would 500 an anonymous caller,
+        # and relaying unbounded content is bus amplification. Malformed entries
+        # are skipped rather than fatal; the caps are generous for SDP/ICE.
         if not isinstance(peer_notifications, (list, tuple)):
             raise NotFound
         notifications_by_session = defaultdict(list)
@@ -182,18 +180,14 @@ class RtcController(http.Controller):
         )
         if not channel:
             raise NotFound
-        # Require the caller to be a member: read access alone is too weak here
-        # (any internal user can read a group-open channel), which would let a
-        # non-participant cancel other members' ringing invitations. Membership
-        # is the correct gate — a participant managing a call is a member.
+        # Require membership, not read access: any internal user can read a
+        # group-open channel, and a non-participant must not cancel other
+        # members' ringing invitations.
         if not channel.self_member_id:
             raise NotFound
-        # Reject a malformed list rather than dropping its bad entries: an empty
+        # Reject a malformed list instead of dropping bad entries: an empty
         # member_ids means "cancel *every* invitation on this channel", so
-        # silently trimming ["abc"] to [] would escalate a typo into cancelling
-        # everyone's ringing invitation. The raw value reached a domain and
-        # surfaced psycopg InvalidTextRepresentation (which also poisons the
-        # transaction), so it has to be coerced one way or the other.
+        # trimming ["abc"] to [] would escalate a typo into cancelling all of them.
         # sudo: discuss.channel.rtc.session - can cancel invitations in accessible channel
         channel.sudo()._rtc_cancel_invitations(
             member_ids=_to_record_ids_strict(member_ids) if member_ids else None

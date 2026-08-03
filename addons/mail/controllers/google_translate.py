@@ -56,7 +56,6 @@ class GoogleTranslateController(Controller):
             try:
                 source_lang = self._detect_source_lang(message)
                 target_lang = request.env.user.lang.split("_")[0]
-                # sudo: mail.message.translation - create translation of a message that can be read with standard ACL
                 vals = {
                     "body": self._get_translation(
                         str(message.body), source_lang, target_lang
@@ -65,6 +64,7 @@ class GoogleTranslateController(Controller):
                     "source_lang": source_lang,
                     "target_lang": target_lang,
                 }
+                # sudo: mail.message.translation - create translation of a message that can be read with standard ACL
                 translation = (
                     request.env["mail.message.translation"].sudo().create(vals)
                 )

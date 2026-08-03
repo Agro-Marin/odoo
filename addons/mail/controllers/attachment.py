@@ -64,15 +64,16 @@ class AttachmentController(ThreadController):
         if not thread:
             raise NotFound
         vals = {
-            # reuse the id already coerced+access-checked by
-            # _get_thread_with_access_for_post rather than re-parsing the raw
-            # client input (which could diverge / ValueError).
+            "name": ufile.filename,
+            "raw": ufile.read(),
+            # reuse the id already coerced and access-checked by
+            # _get_thread_with_access_for_post, not the raw client input
             "res_id": thread.id,
             "res_model": thread_model,
         }
         if is_pending and str(is_pending).lower() not in ("false", "0", ""):
-            # Add this point, the message related to the uploaded file does
-            # not exist yet, so we use those placeholder values instead.
+            # At this point the message related to the uploaded file does not
+            # exist yet, so use those placeholder values instead.
             vals.update(
                 {
                     "res_id": 0,
@@ -136,10 +137,9 @@ class AttachmentController(ThreadController):
         except TypeError, ValueError:
             raise NotFound from None
         attachments = request.env["ir.attachment"].browse(ids_list).exists()
-        # Filter to readable attachments up front rather than letting
-        # _get_stream_from raise AccessError mid-stream, which would yield a
-        # truncated / corrupt zip on a mix of accessible and inaccessible ids.
-        # Unreadable ids are silently skipped; a fully-inaccessible request 404s.
+        # Filter to readable attachments up front: an AccessError raised mid-stream
+        # by _get_stream_from would yield a truncated zip. Unreadable ids are
+        # skipped; a fully-inaccessible request 404s.
         accessible = attachments.filtered(lambda a: a.has_access("read"))
         if not accessible:
             raise NotFound

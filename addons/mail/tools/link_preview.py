@@ -18,22 +18,19 @@ _logger = logging.getLogger(__name__)
 MAX_HEAD_BYTES = 512 * 1024
 # Cap redirect chains we follow ourselves (see _fetch_link_preview_response).
 MAX_REDIRECTS = 5
-# Total wall-clock budget for a single link preview across all redirect hops and
-# the body scan. requests' ``timeout=3`` is a per-read *inactivity* timeout, so a
-# host that dribbles bytes slower than the size cap fills (a slowloris) can hold
-# a request worker indefinitely; this bounds the whole operation regardless of
-# per-read progress.
+# Total wall-clock budget for one preview (all redirect hops plus the body scan).
+# requests' ``timeout=3`` is a per-read *inactivity* timeout, so a host dribbling
+# bytes (a slowloris) would otherwise hold a request worker indefinitely.
 MAX_FETCH_SECONDS = 10
 
 
 class UrlSafety(enum.Enum):
     """Outcome of resolving and classifying a URL's host.
 
-    Callers that only decide "may I fetch this?" collapse everything but SAFE
-    to "no" (see :func:`_url_is_safe`). Callers that also decide whether the
-    target is *permanently* bad (e.g. web push, which deletes the subscription)
-    must NOT confuse BLOCKED (definitively unsafe) with UNRESOLVABLE (transient
-    / undeterminable) — see ``web_push.push_to_end_point``.
+    Callers deciding only "may I fetch this?" collapse everything but SAFE to
+    "no" (see :func:`_url_is_safe`). Callers that also decide whether the target
+    is *permanently* bad (web push deletes the subscription) must not confuse
+    BLOCKED with the transient UNRESOLVABLE.
     """
 
     SAFE = "safe"  # resolved exclusively to public (global) addresses
@@ -44,23 +41,10 @@ class UrlSafety(enum.Enum):
 def _classify_url_safety(url):
     """Resolve ``url``'s host and classify it (see :class:`UrlSafety`).
 
-    ``url`` may be attacker-controlled (link-preview targets pulled from message
-    bodies, web-push endpoints registered by any user) and is contacted
-    server-side as sudo, so without this guard it becomes an SSRF primitive —
-    ``http://169.254.169.254/…`` (cloud metadata), ``http://localhost:8069/…``,
-    private ranges, etc. ``ipaddress.is_global`` is False for
-    loopback/private/link-local/reserved/multicast/CGNAT, exactly the set to
-    reject.
-
-    A DNS resolution failure is reported as UNRESOLVABLE, NOT BLOCKED: it is
-    transient (a resolver blip, or a proxy-only egress where getaddrinfo fails
-    but the request would still route), so a caller must not treat it as a
-    permanent "this target is bad" signal.
-
-    Caveat: validation happens at resolution time; an attacker who controls DNS
-    could still rebind between this check and the socket connect (residual
-    TOCTOU). Blocking direct internal URLs and redirect-to-internal covers the
-    overwhelming majority of the SSRF surface.
+    ``url`` is attacker-controlled (message bodies, user-registered push
+    endpoints) and fetched server-side as sudo, so without this guard it is an
+    SSRF primitive: ``ipaddress.is_global`` is False for exactly the set to
+    reject (loopback, private, link-local, reserved, multicast, CGNAT).
     """
     split = urlsplit(url)
     if split.scheme not in ("http", "https"):
@@ -75,6 +59,8 @@ def _classify_url_safety(url):
     try:
         addrinfos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror, UnicodeError, ValueError:
+        # UNRESOLVABLE, not BLOCKED: a resolver blip or a proxy-only egress where
+        # getaddrinfo fails is transient, not a permanently bad target.
         return UrlSafety.UNRESOLVABLE
     if not addrinfos:
         return UrlSafety.UNRESOLVABLE
@@ -87,6 +73,8 @@ def _classify_url_safety(url):
             return UrlSafety.UNRESOLVABLE
         if not ip.is_global:
             return UrlSafety.BLOCKED
+    # Residual TOCTOU: this classifies at resolution time, so an attacker
+    # controlling DNS can still rebind before the socket connect.
     return UrlSafety.SAFE
 
 
@@ -127,18 +115,13 @@ def _fetch_link_preview_response(url, request_session, headers, deadline=None):
 
 
 def get_link_preview_from_url(url, request_session=None):
-    """
-    Get the Open Graph properties of an url. (https://ogp.me/)
-    If the url leads directly to an image mimetype, return
-    the url as preview image else retrieve the properties from
-    the html page.
+    """Get the Open Graph properties of an url (https://ogp.me/).
 
-    Using a stream request to prevent loading the whole page
-    as those properties are declared in the <head> tag.
+    An url leading directly to an image mimetype is returned as the preview
+    image; otherwise the properties come from the html page, streamed since
+    they are declared in the <head> tag.
 
-    The request session is optional as in some cases using
-    a session could be beneficial performance wise
-    (e.g. a lot of url could have the same domain).
+    :param request_session: optional shared session, faster on same-domain urls
     """
     # Some websites are blocking non browser user agent.
     headers = {
@@ -154,10 +137,8 @@ def get_link_preview_from_url(url, request_session=None):
         return False
     if response is None:
         return False
-    # Close the streamed connection on every exit path (requests.Response as a
-    # context manager calls .close()); otherwise the image branch and
-    # get_link_preview_from_html's early break leave sockets dangling on the
-    # shared session until GC.
+    # Close the streamed connection on every exit path: the image branch and
+    # get_link_preview_from_html's early break leave sockets dangling otherwise.
     with response:
         if not response.ok or not response.headers.get("Content-Type"):
             return False
@@ -176,12 +157,10 @@ def get_link_preview_from_url(url, request_session=None):
 
 
 def get_link_preview_from_html(url, response, deadline=None):
-    """
-    Retrieve the Open Graph properties from the html page. (https://ogp.me/)
-    Load the page with chunks of 8kb to prevent loading the whole
-    html when we only need the <head> tag content.
-    Fallback on the <title> tag if the html doesn't have
-    any Open Graph title property.
+    """Retrieve the Open Graph properties from the html page (https://ogp.me/).
+
+    The page is read in 8kb chunks to avoid loading more than the <head> tag,
+    and the <title> tag is used when no Open Graph title property is present.
     """
     content = b""
     for chunk in response.iter_content(chunk_size=8192):
@@ -190,10 +169,8 @@ def get_link_preview_from_html(url, response, deadline=None):
         if pos != -1:
             content = content[: pos + 7]
             break
-        # requests' timeout is a per-read inactivity timeout, not a total-size
-        # cap: a server that streams a large body with no </head> would grow
-        # `content` without bound (memory DoS). The <head> we need is tiny; stop
-        # accumulating past a sane ceiling and parse what we have.
+        # requests' timeout is a per-read inactivity timeout, not a size cap: a
+        # large body with no </head> would grow `content` without bound.
         if len(content) > MAX_HEAD_BYTES:
             break
         # A slow trickle never trips the per-read timeout, so also stop once the
@@ -205,15 +182,11 @@ def get_link_preview_from_html(url, response, deadline=None):
     if not content:
         return False
 
-    # requests defaults a text/* response with no explicit charset in its
-    # Content-Type header to ISO-8859-1 (RFC 2616 §3.7.1), so response.encoding
-    # is essentially always truthy for text/html. Trusting it decodes a UTF-8
-    # page that declares its charset only via <meta charset> (very common) as
-    # latin-1 -> mojibake in og_title/og_description. When no charset was
-    # declared in the header, prefer the HTML5 default utf-8: valid UTF-8 bytes
-    # essentially never decode cleanly under an unintended charset, so a
-    # successful strict utf-8 decode is decisive. Only fall back to the header
-    # guess / chardet when the bytes are not valid utf-8.
+    # requests defaults a charset-less text/* response to ISO-8859-1 (RFC 2616
+    # §3.7.1), which decodes a page declaring utf-8 only via <meta charset> as
+    # latin-1 -> mojibake. With no charset in the header, prefer the HTML5
+    # default: a successful strict utf-8 decode is decisive, since valid UTF-8
+    # bytes essentially never decode cleanly under another charset.
     header_declared_charset = (
         "charset=" in response.headers.get("Content-Type", "").lower()
     )

@@ -97,11 +97,7 @@ class PublicPageController(http.Controller):
             try:
                 # Isolate the racy INSERT in a savepoint: on a concurrent create
                 # the UniqueViolation aborts only the savepoint, leaving the
-                # request transaction usable. The previous code called
-                # ``cr.commit()`` here, but by then the transaction was already
-                # aborted, and the fork's ``Cursor.commit()`` flushes first, so
-                # it raised ``InFailedSqlTransaction`` (a 500) instead of
-                # recovering — exactly in the race it was meant to survive.
+                # request transaction usable (a commit() here would not).
                 with request.env.cr.savepoint():
                     channel_sudo = channel_sudo.create(
                         {

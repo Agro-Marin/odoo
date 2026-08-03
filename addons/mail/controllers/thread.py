@@ -15,11 +15,9 @@ from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 def _to_record_id(value):
     """Coerce a client-supplied record id to ``int``, or raise ``NotFound``.
 
-    These chatter routes are ``auth="public"`` with fully client-controlled
-    ids. A non-numeric id used to reach ``int()`` / ``browse()`` and surface an
-    uncaught ``ValueError`` as an "Odoo Server Error" (leaking a traceback and
-    model internals to anonymous callers). A 404 is the correct answer: the id
-    namespace simply does not contain that value.
+    404 is the correct answer for a non-numeric id: the id namespace does not
+    contain that value, and letting it reach ``browse()`` surfaces a traceback
+    as a 500 (to anonymous callers on the ``auth="public"`` chatter routes).
     """
     try:
         return int(value)
@@ -31,12 +29,10 @@ def _to_record_ids_strict(values):
     """Coerce a client-supplied list of record ids to ``int``, or raise ``NotFound``.
 
     Unlike ``_to_record_ids`` this never drops an entry. Use it wherever the
-    position of an id carries meaning -- ``attachment_ids`` is zipped
+    position of an id carries meaning: ``attachment_ids`` is zipped
     ``strict=True`` against ``attachment_tokens`` in
-    ``ir.attachment._has_attachments_ownership``, so silently skipping a
-    malformed id would slide every later attachment onto its neighbour's
-    ownership token. Rejecting the whole call is both safer and more honest:
-    the caller sent something that is not an id list.
+    ``ir.attachment._has_attachments_ownership``, so skipping a malformed id
+    would slide every later attachment onto its neighbour's ownership token.
     """
     return [_to_record_id(value) for value in values or []]
 
@@ -45,9 +41,9 @@ def _to_record_ids(values, limit=None):
     """Coerce a client-supplied list of record ids to a list of ``int``.
 
     Non-integer entries are dropped rather than surfacing an uncaught
-    ``ValueError`` (same rationale as ``_to_record_id``). When ``limit`` is set,
-    at most that many ids are kept, bounding the size of the resulting domain on
-    ``auth="public"`` routes.
+    ``ValueError`` (same rationale as ``_to_record_id``).
+
+    :param limit: keep at most that many ids, bounding the resulting domain
     """
     result = []
     for value in values or []:
@@ -149,10 +145,8 @@ class ThreadController(http.Controller):
         """Fetch discussion-based suggested recipients, creating partners on the fly
         only when the caller can write the record."""
         thread = self._get_thread_with_access(thread_model, thread_id, mode="read")
-        # Only auto-create res.partner rows from the record's email fields when the
-        # caller can actually write the record. This route only needs read access,
-        # so a read-only viewer must not be able to spawn partners as a side effect
-        # of merely fetching suggestions.
+        # Only auto-create partners from the record's email fields when the caller
+        # can write it: a read-only viewer must not spawn partners by fetching.
         no_create = not thread.has_access("write")
         if message_id:
             message = self._get_message_with_access(message_id, mode="read")
@@ -232,13 +226,11 @@ class ThreadController(http.Controller):
         "/mail/partner/from_email", methods=["POST"], type="jsonrpc", auth="user"
     )
     def mail_thread_partner_from_email(self, thread_model, thread_id, emails):
-        # thread_model / thread_id are fully client-controlled. Validate the
-        # model (an unknown name used to KeyError -> 500) and bind to the record
-        # only when the caller can actually read it: an inaccessible record falls
-        # back to the generic (record-less) partner lookup — which
-        # _partner_find_from_emails_single explicitly supports on a void
-        # recordset — instead of deriving company/context from a thread the user
-        # cannot access.
+        # thread_model / thread_id are fully client-controlled: validate the model
+        # (an unknown name KeyErrors into a 500) and bind to the record only when
+        # the caller can read it. An inaccessible record falls back to the generic
+        # lookup (_partner_find_from_emails_single supports a void recordset)
+        # rather than deriving company/context from an unreachable thread.
         if thread_model not in request.env:
             raise NotFound
         thread = request.env[thread_model]
@@ -249,10 +241,8 @@ class ThreadController(http.Controller):
             emails,
             no_create=not request.env.user.has_group("base.group_partner_manager"),
         )
-        # The returned recordset is deduped and id-ordered, so a client cannot
-        # positionally pair it with the input ``emails``. Echo the input email
-        # that produced each partner (matched on normalized address) as
-        # ``source_email`` so the client can associate results reliably.
+        # The recordset is deduped and id-ordered, so it cannot be paired
+        # positionally with ``emails``: echo the source address per partner.
         source_by_normalized = {}
         for email in emails:
             source_by_normalized.setdefault(
@@ -278,8 +268,8 @@ class ThreadController(http.Controller):
         # limited to internal, who can read all followers
         follower = request.env["mail.followers"].browse(_to_record_id(follower_id))
         follower.check_access("read")
-        # 'mail.followers.res_model' carries no integrity check by design (see
-        # the model docstring), so it can outlive the model it names. Answer 404
+        # 'mail.followers.res_model' carries no integrity check by design (see the
+        # note on that field), so it can outlive the model it names. Answer 404
         # rather than dereferencing it into a KeyError.
         if follower.res_model not in request.env:
             raise NotFound
@@ -303,19 +293,13 @@ class ThreadController(http.Controller):
         """Whether a mention token may add ``partner`` as a recipient of a
         message posted on ``thread``.
 
-        A mention token proves the caller legitimately *saw* the partner; it says
-        nothing about *where*. The token is bound only to (partner, "id", scope)
-        and is valid for weeks, while ``/discuss/channel/members`` serves member
-        personas -- tokens included -- to anyone who can read the channel, which
-        for a channel with no authorized group means anonymous callers. Without
-        this check a share/guest caller could harvest tokens in one channel and
-        replay them on another thread, forcing notification e-mails about a
-        conversation the recipient has nothing to do with.
-
-        Restricted to channels: for other thread types, posting already requires
-        access to the record itself, and mentioning someone not yet involved
-        (adding a colleague to a document's chatter) is a legitimate flow.
+        The token is bound to (partner, "id", scope) and valid for weeks, so it
+        proves the caller saw the partner but not *where*: since
+        ``/discuss/channel/members`` serves member personas (tokens included) to
+        anyone who can read the channel, one could be replayed on any thread.
         """
+        # Channels only: elsewhere posting already requires access to the record,
+        # and mentioning someone not yet involved is a legitimate chatter flow.
         if thread._name != "discuss.channel":
             return True
         # sudo: discuss.channel.member - checking membership of the very channel
@@ -327,11 +311,9 @@ class ThreadController(http.Controller):
     def _prepare_message_data(self, post_data, *, thread, from_create=True, **kwargs):
         """Build the message values for a post (``from_create=True``) or an edit.
 
-        ``from_create`` is declared explicitly, not read out of ``**kwargs``: it
-        decides whether a default ``message_type`` is injected here, and
-        ``portal`` keys the author attribution of anonymous chatter posts on it.
-        Left undeclared, a caller-side typo degraded silently to "not a create"
-        -- no error, just posts that stop being attributed to the portal partner.
+        ``from_create`` is declared explicitly rather than read out of
+        ``**kwargs`` so a caller-side typo raises instead of degrading to
+        "not a create": ``portal`` keys anonymous author attribution on it.
         """
         res = {
             key: value
@@ -402,11 +384,9 @@ class ThreadController(http.Controller):
                 ),
             ).ids
         if from_create:
-            # Only a *new* message gets a default type. On the edit path this
-            # value reached _message_update_content, which ignores it -- inert,
-            # but its docstring invites kwargs "to match mail.message fields to
-            # update", so honouring it later would silently retype edited
-            # messages.
+            # Only a *new* message gets a default type: _message_update_content
+            # ignores it today, but its docstring invites kwargs "to match
+            # mail.message fields to update", so it could retype edited messages.
             res.setdefault("message_type", "comment")
         return res
 
