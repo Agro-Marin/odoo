@@ -7,8 +7,7 @@ from odoo.addons.mail.models.mail_alias import dot_atom_text
 
 class MailAliasDomain(models.Model):
     """Company-specific email domains used by catchall/bounce aliases and
-    mail.alias reply redirection. Replaces the pre-v16 ``mail.alias.domain``
-    config parameter.
+    mail.alias reply redirection.
     """
 
     _name = "mail.alias.domain"
@@ -191,21 +190,16 @@ class MailAliasDomain(models.Model):
     def _get_config(self):
         """Return every alias domain's routing-relevant values, cached.
 
-        This is a one-to-a-handful-of-rows, effectively immutable configuration
-        table, yet ``search([])`` against it was issued from a dozen call sites
-        -- four or more times for a single inbound ``message_process``, and
-        three times per composer send. Cached like ``ir.config_parameter``
-        (``cache="stable"``, invalidated from CRUD below).
-
-        Read as sudo and cached registry-wide on purpose: the model carries no
-        record rule and is readable by every internal user, so the values are
-        not caller-dependent. They are deployment configuration (the catchall /
-        bounce / default-from addresses this database sends from), not user
-        data.
+        A handful of effectively immutable rows, yet read from a dozen call sites
+        (several times per inbound ``message_process`` or composer send), hence
+        cached like ``ir.config_parameter`` (``cache="stable"``, invalidated by
+        the CRUD methods below).
 
         :return: tuple of (ids, names, bounce_emails, catchall_emails,
             default_from_emails), each a tuple, ordered by ``_order``.
         """
+        # sudo and cached registry-wide: the model has no record rule and is
+        # readable by every internal user, so values are not caller-dependent
         domains = self.sudo().search([])
         return (
             tuple(domains.ids),
@@ -248,11 +242,8 @@ class MailAliasDomain(models.Model):
         alias_domains._check_default_from_not_used_by_users()
 
         if alias_domains and self.search_count([]) == len(alias_domains):
-            # during first init we assume that we want to attribute this
-            # alias domain to all companies, irrespective of the fact
-            # that they are archived or not. So we run active_test=False
-            # on the just created alias domain
-
+            # at first init this alias domain is attributed to all companies,
+            # archived ones included, hence the active_test=False below
             self.env["res.company"].with_context(active_test=False).search(
                 [("alias_domain_id", "=", False)]
             ).alias_domain_id = alias_domains[0].id
@@ -277,7 +268,7 @@ class MailAliasDomain(models.Model):
         return super().unlink()
 
     def _check_default_from_not_used_by_users(self):
-        """Check that the default from is not used by a personal mail servers."""
+        """Check that the default from is not used by a personal mail server."""
         match_from_filter = self.env["ir.mail_server"]._match_from_filter
         personal_mail_servers = (
             self.env["ir.mail_server"].sudo().search([("owner_user_id", "!=", False)])
@@ -293,17 +284,10 @@ class MailAliasDomain(models.Model):
 
     @api.model
     def _sanitize_configuration(self, config_values):
-        """Tool sanitizing configuration values for domains.
-
-        The domain ``name`` is deliberately NOT sanitized here: _check_name
-        validates it and *raises* on anything invalid rather than silently
-        rewriting it (per its own contract "do not dynamically change it, would
-        be confusing"). Running the local-part sanitizer on the name would strip
-        accents / rewrite characters (e.g. 'provaïder.cöm' -> 'provaider.com'),
-        masking the very inputs _check_name must reject and turning an empty
-        name into a NOT NULL crash instead of a clean ValidationError. Only the
-        local-part aliases (bounce/catchall/default_from) are sanitized.
-        """
+        """Sanitize the local-part configuration values of domains."""
+        # ``name`` is deliberately left alone: _check_name raises on an invalid
+        # domain instead of rewriting it, and sanitizing here would mask the very
+        # inputs it must reject (e.g. 'provaïder.cöm' -> 'provaider.com')
         if config_values.get("bounce_alias"):
             config_values["bounce_alias"] = self.env["mail.alias"]._sanitize_alias_name(
                 config_values["bounce_alias"]
@@ -320,10 +304,10 @@ class MailAliasDomain(models.Model):
 
     @api.model
     def _find_aliases(self, email_list):
-        """Utility method to find both alias domains aliases (bounce, catchall
-        or default from) and mail aliases from an email list.
+        """Find both alias domain addresses (bounce, catchall or default from)
+        and mail.alias addresses within an email list.
 
-        :param email_list: list of normalized emails; normalization / removing
+        :param list email_list: list of normalized emails; normalization / removing
             wrong emails is considered as being caller's job
         """
         filtered_emails = [e for e in email_list if e and "@" in e]

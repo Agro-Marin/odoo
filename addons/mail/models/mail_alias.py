@@ -16,17 +16,11 @@ dot_atom_text = re.compile(r"^%s+(\.%s+)*$" % (atext, atext))
 
 
 class MailAlias(models.Model):
-    """A Mail Alias is a mapping of an email address with a given Odoo Document
-    model. It is used by Odoo's mail gateway when processing incoming emails
-    sent to the system. If the recipient address (To) of the message matches
-    a Mail MailAlias, the message will be either processed following the rules
-    of that alias. If the message is a reply it will be attached to the
-    existing discussion on the corresponding record, otherwise a new
-    record of the corresponding model will be created.
-
-    This is meant to be used in combination with a catch-all email configuration
-    on the company's mail server, so that as soon as a new mail.alias is
-    created, it becomes immediately usable and Odoo will accept email for it.
+    """Mapping of an email address with an Odoo document model, used by the mail
+    gateway on incoming emails: a message whose recipients match an alias is
+    attached to the record it replies to, otherwise a new record of the aliased
+    model is created. Meant to be used with a catch-all configuration on the
+    company's mail server, so a new alias is immediately usable.
     """
 
     _name = "mail.alias"
@@ -63,7 +57,7 @@ class MailAlias(models.Model):
         "existing record will cause the creation of a new record "
         "of this model (e.g. a Project Task)",
         # hack to only allow selecting mail_thread models (we might
-        # (have a few false positives, though)
+        # have a few false positives, though)
         domain="[('field_id.name', '=', 'message_ids')]",
     )
     alias_defaults = fields.Text(
@@ -248,11 +242,8 @@ class MailAlias(models.Model):
 
     @api.constrains("alias_name")
     def _check_alias_is_ascii(self):
-        """The local-part ("display-name" <local-part@domain>) of an
-        address only contains limited range of ascii characters.
-        We DO NOT allow anything else than ASCII dot-atom formed
-        local-part. Quoted-string and internationnal characters are
-        to be rejected. See rfc5322 sections 3.4.1 and 3.2.3
+        """Reject any local-part that is not an ASCII dot-atom: quoted-string and
+        international characters are not allowed (rfc5322 sections 3.4.1 and 3.2.3).
         """
         for alias in self.filtered("alias_name"):
             if not dot_atom_text.match(alias.alias_name):
@@ -331,11 +322,11 @@ class MailAlias(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Creates mail.alias records according to the values provided in
-        ``vals`` but sanitize 'alias_name' by replacing certain unsafe
-        characters; set default alias domain if not given.
+        """Create mail.alias records from ``vals_list``, sanitizing 'alias_name'
+        by replacing certain unsafe characters and setting the default alias
+        domain if not given.
 
-        :raise UserError: if given (alias_name, alias_domain_id) already exists
+        :raises UserError: if given (alias_name, alias_domain_id) already exists
           or if there are duplicates in given vals_list;
         """
         alias_names, alias_domains = [], []
@@ -385,8 +376,7 @@ class MailAlias(models.Model):
 
     def _check_unique(self, alias_names, alias_domains):
         """Check unicity constraint won't be raised, otherwise raise a UserError
-        with a complete error message. Also check unicity against alias config
-        parameters.
+        with a complete error message.
 
         :param list alias_names: a list of names (considered as sanitized
           and ready to be sent to DB);
@@ -396,9 +386,8 @@ class MailAlias(models.Model):
         """
         if len(alias_names) != len(alias_domains):
             # Build the diagnostic defensively: alias_names may hold False (a
-            # sanitized-away name) and alias_domains is a plain list here, so the
-            # old ', '.join(alias_names) / alias_domains.mapped('name') both
-            # raised (TypeError/AttributeError), masking the real coherency error.
+            # sanitized-away name) and alias_domains is a plain list, so joining
+            # them raw or 'mapped' would raise and mask this coherency error.
             names_repr = ", ".join(str(name) for name in alias_names)
             domains_repr = ", ".join(domain.display_name for domain in alias_domains)
             msg = (
@@ -488,8 +477,8 @@ class MailAlias(models.Model):
         :param bool is_email: whether to keep a right part, otherwise only
           left part is kept;
 
-        :returns: sanitized alias name
-        :rtype: str
+        :return: sanitized alias name, False if nothing survives sanitization
+        :rtype: str | bool
         """
         sanitized_name = name.strip() if name else ""
         if is_email:
@@ -504,11 +493,9 @@ class MailAlias(models.Model):
             sanitized_name = re.sub(
                 r"[^\w!#$%&\'*+\-/=?^_`{|}~.]+", "-", sanitized_name
             )
-            # Drop (not "?"-replace) any non-ASCII word chars that survived the
-            # filter: \w matches Cyrillic/CJK letters, and encoding them with
-            # errors="replace" produced "?" — a valid atext char — so a purely
-            # non-Latin name yielded a garbage-but-"valid" alias like "???".
-            # Dropping them leaves an empty string, correctly rejected below.
+            # Drop (not "?"-replace) the non-ASCII word chars \w let through
+            # (Cyrillic/CJK): "?" is a valid atext, so replacing them would keep a
+            # garbage-but-"valid" alias, while dropping leaves "", rejected below.
             sanitized_name = sanitized_name.encode("ascii", errors="ignore").decode()
         if not sanitized_name.strip():
             return False
@@ -520,10 +507,10 @@ class MailAlias(models.Model):
 
     @api.model
     def _is_encodable(self, alias_name, charset="ascii"):
-        """Check if alias_name is encodable. Standard charset is ascii, as
-        UTF-8 requires a specific extension. Not recommended for outgoing
-        aliases. 'remove_accents' is performed as sanitization process of
-        the name will do it anyway."""
+        """Whether alias_name can be encoded in ``charset`` (default ascii, as
+        UTF-8 requires a specific extension and is not recommended for outgoing
+        aliases). Accents are removed first, as name sanitization does it anyway.
+        """
         try:
             remove_accents(alias_name).encode(charset)
         except UnicodeEncodeError:
@@ -663,9 +650,7 @@ Please try again later or contact %(company_name)s instead.""")
             body,
             message,
             # must carry the loop-detection tag like every other bounce emitter:
-            # without it an autoresponder behind an unauthorized sender ping-pongs
-            # with us forever (the alias rejects, we bounce, it replies, ...).
-            # _detect_loop_sender never fires here because this path returns no
-            # route, so the tag is the only guard.
+            # this path returns no route, so _detect_loop_sender never runs and the
+            # tag read by _detect_loop_headers is the only guard against a loop.
             references=self.env["mail.thread"]._routing_bounce_references(message_dict),
         )
