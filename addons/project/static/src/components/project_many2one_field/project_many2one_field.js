@@ -1,12 +1,13 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
+import { _t } from "@web/core/translation";
 import {
     buildM2OFieldDescription,
+    computeM2OProps,
+    Many2One,
     Many2OneField,
-} from "@web/fields/relational/many2one/many2one_field";
+} from "@web/fields/relational/many2one";
 
 export class ProjectMany2OneField extends Component {
     static template = "project.ProjectMany2OneField";

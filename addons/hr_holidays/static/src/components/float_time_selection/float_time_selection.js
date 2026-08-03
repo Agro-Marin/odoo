@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { onWillStart, useState } from "@odoo/owl";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
-import { usePopover } from "@web/ui/popover/popover_hook";
-import { FloatTimeSelectionPopover } from "./float_time_selection_popover.js";
-
 import { FloatTimeField, floatTimeField } from "@web/fields/basic/float_time/float_time_field";
+import { usePopover } from "@web/ui/popover";
+
+import { FloatTimeSelectionPopover } from "./float_time_selection_popover.js";
 const { DateTime } = luxon;
 
 function floatToHoursMinutes(floatValue) {

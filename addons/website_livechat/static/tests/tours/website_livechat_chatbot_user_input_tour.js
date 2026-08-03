@@ -1,5 +1,5 @@
+import { rpcBus } from "@web/core/network";
 import { registry } from "@web/core/registry";
-import { rpcBus } from "@web/core/network/rpc";
 
 registry.category("web_tour.tours").add("website_livechat.chatbot_user_input_saved_on_last_step", {
     steps: () => [

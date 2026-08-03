@@ -52,7 +52,7 @@ class ProductDocumentController(Controller):
     @staticmethod
     def _error_result(message):
         # Shape recognized by the `file_upload` service (see handleResponse in
-        # web/static/src/services/file_upload_service.js): the message is only
+        # web/static/src/core/file_upload/file_upload_service.js): the message is only
         # displayed when nested as a JSON-RPC-style error object.
         return {"error": {"message": message}}
 

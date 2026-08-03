@@ -3,7 +3,7 @@
 
 /** @module @web/model/relational_model/dynamic_list */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 import { Operation } from "@web/core/utils/operation";
 
@@ -47,6 +47,18 @@ export class DynamicList extends DataPoint {
      */
     get evalContext() {
         return getSpecEvalContext(this.config);
+    }
+
+    /**
+     * Empties the list in place when a sample-data view is replaced by the real,
+     * empty result. Each subclass clears the storage it owns, so a caller never
+     * has to ask which kind of list it is holding.
+     *
+     * @abstract
+     * @returns {void}
+     */
+    clearSampleData() {
+        this._abstract("clearSampleData");
     }
 
     /**
@@ -340,9 +352,7 @@ export class DynamicList extends DataPoint {
         }
         let canProceed = true;
         if (discard) {
-            if (this.model._closeUrgentSaveNotification) {
-                this.model._closeUrgentSaveNotification();
-            }
+            this.model.closeUrgentSaveNotification();
             this._recordToDiscard = editedRecord;
             try {
                 editedRecord._discard();
@@ -403,7 +413,7 @@ export class DynamicList extends DataPoint {
                 if ("display_name" in list.activeFields) {
                     commands = commands.map((command) => {
                         if (command[0] === x2ManyCommands.LINK) {
-                            const relRecord = list._cache[command[1]];
+                            const relRecord = list.getCachedRecord(command[1]);
                             return [
                                 command[0],
                                 command[1],
@@ -502,10 +512,10 @@ export class DynamicList extends DataPoint {
                 _changes[fieldName] = {
                     add: list._commands
                         .filter((command) => command[0] === x2ManyCommands.LINK)
-                        .map((command) => list._cache[command[1]]),
+                        .map((command) => list.getCachedRecord(command[1])),
                     remove: list._commands
                         .filter((command) => command[0] === x2ManyCommands.UNLINK)
-                        .map((command) => list._cache[command[1]]),
+                        .map((command) => list.getCachedRecord(command[1])),
                 };
             }
         }

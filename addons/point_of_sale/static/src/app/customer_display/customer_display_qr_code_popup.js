@@ -2,9 +2,9 @@
 import { Component, xml } from "@odoo/owl";
 import { generateQRCodeDataUrl } from "@point_of_sale/utils";
 import { CopyButton } from "@web/components/copy_button/copy_button";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class QrCodeCustomerDisplay extends Component {
     static template = "point_of_sale.QrCodeCustomerDisplay";
     static components = { Dialog, CopyButton };

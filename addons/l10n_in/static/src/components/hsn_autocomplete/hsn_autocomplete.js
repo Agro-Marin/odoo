@@ -2,7 +2,7 @@
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { useChildRef } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 import { useInputField } from "@web/fields/input_field_hook";
 

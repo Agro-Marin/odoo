@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
 import { AttendeeCalendarCommonPopover } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_popover";
 import { Field } from "@web/fields/field"

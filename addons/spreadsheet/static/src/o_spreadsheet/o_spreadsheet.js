@@ -9,7 +9,7 @@
  */
 
 import { useEnv, useSubEnv, onWillUnmount, useComponent, status, Component, useRef, onMounted, useEffect, App, blockDom, useState, onPatched, useExternalListener, onWillUpdateProps, onWillStart, onWillPatch, xml, useChildSubEnv, markRaw, toRaw } from "@odoo/owl";
-import { appTranslateFn, translationLoaded, translatedTerms } from "@web/core/l10n/translation";
+import { appTranslateFn, translationLoaded, translatedTerms } from "@web/core/translation";
 
 function createActions(menuItems) {
     return menuItems.map(createAction).sort((a, b) => a.sequence - b.sequence);

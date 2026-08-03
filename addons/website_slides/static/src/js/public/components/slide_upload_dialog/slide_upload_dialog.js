@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { Component, onMounted, useState } from "@odoo/owl";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { DropdownItem } from "@web/components/dropdown";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { redirect } from "@web/core/utils/urls";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 import { SlideInstallModule } from "./slide_install_module.js";
 import { SlideUploadCategory } from "./slide_upload_category.js";

@@ -8,6 +8,7 @@ import { Domain } from "@web/core/domain";
 import { DynamicList } from "./dynamic_list.js";
 import { getGroupServerValue } from "./field_values.js";
 
+/** @import { DynamicListContract } from "./dynamic_list_contract.js" */
 /** @import { RelationalRecord } from "./record.js" */
 
 export const MOVABLE_RECORD_TYPES = [
@@ -83,6 +84,14 @@ export class DynamicGroupList extends DynamicList {
             return this._nbRecordsMatchingDomain;
         }
         return this.groups.reduce((acc, group) => acc + group.count, 0);
+    }
+
+    /**
+     * @type {DynamicList["clearSampleData"]}
+     */
+    clearSampleData() {
+        this.count = 0;
+        this.groups = [];
     }
 
     /**
@@ -173,6 +182,11 @@ export class DynamicGroupList extends DynamicList {
             );
         }
         if (!targetGroup.isFolded) {
+            // Typed to the contract rather than to `DynamicList`: this reaches a
+            // sibling group's list to invoke one operation on it, so the narrow
+            // surface is the honest annotation and widening it is a typecheck
+            // failure rather than a silent new coupling.
+            /** @type {DynamicListContract & { records: any[] }} */
             const targetList = targetGroup.list;
             const records = targetList.records;
             proms.push(

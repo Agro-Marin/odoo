@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { ListRenderer } from "@web/views/list";
 
 const fieldRegistry = registry.category("fields");
 

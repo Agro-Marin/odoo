@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
+import { KanbanRenderer } from "@web/views/kanban";
 
 import { FileUploadDropzoneRendererMixin } from "../file_upload_dropzone_renderer_mixin.js";
 

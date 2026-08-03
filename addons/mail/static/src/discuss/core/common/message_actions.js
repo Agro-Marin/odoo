@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { registerMessageAction } from "@mail/core/common/message_actions";
 import { toRaw } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 registerMessageAction("set-new-message-separator", {
     condition: ({ message, thread }) =>
         thread &&

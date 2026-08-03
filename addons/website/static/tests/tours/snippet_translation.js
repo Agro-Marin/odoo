@@ -1,5 +1,5 @@
 import { localization } from "@web/core/l10n/localization";
-import { translatedTermsGlobal } from "@web/core/l10n/translation";
+import { translatedTermsGlobal } from "@web/core/translation";
 import { stepUtils } from "@web_tour/tour_utils";
 import {
     clickOnEditAndWaitEditMode,

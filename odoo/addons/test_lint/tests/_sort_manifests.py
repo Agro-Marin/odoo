@@ -23,6 +23,7 @@ MANIFEST_KEY_ORDER: list[str] = [
     "data",
     "demo",
     "assets",
+    "esm",
     "installable",
     "application",
     "auto_install",

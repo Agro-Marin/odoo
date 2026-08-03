@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { _t, appTranslateFn } from "@web/core/l10n/translation";
 import { OdooUIPlugin } from "@spreadsheet/plugins";
+import { _t, appTranslateFn } from "@web/core/translation";
 
 const { arg, toString } = spreadsheet.helpers;
 const { functionRegistry, featurePluginRegistry } = spreadsheet.registries;

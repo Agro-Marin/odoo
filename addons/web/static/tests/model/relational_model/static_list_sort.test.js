@@ -33,6 +33,12 @@ function makeList(overrides = {}) {
         _load: async (params) => {
             loadCalls.push(params);
         },
+        // `sort` clears the pending-reorder flag through this published method
+        // (the StaticList reorder-flag encapsulation), so the fake provides it
+        // alongside `_load`.
+        markReordered() {
+            this._needsReordering = false;
+        },
         _createRecordDatapoint: () => {},
         model: {
             _loadRecords: async () => [],

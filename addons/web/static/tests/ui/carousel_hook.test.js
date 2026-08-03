@@ -3,7 +3,7 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
 import { advanceTime, animationFrame } from "@odoo/hoot-mock";
-import { Component, xml } from "@odoo/owl";
+import { Component, useState, xml } from "@odoo/owl";
 import { makeMockEnv, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useCarousel } from "@web/ui/carousel/carousel_hook";
 
@@ -101,4 +101,85 @@ test("autoplays on an interval and stops once destroyed", async () => {
     await advanceTime(1000);
     await animationFrame();
     expect(".item-c").toHaveClass("active");
+});
+
+function makeShrinkingParent() {
+    class Parent extends Component {
+        static props = ["*"];
+        static template = xml`
+            <div class="carousel">
+                <t t-foreach="state.slides" t-as="slide" t-key="slide">
+                    <div t-attf-class="carousel-item item-{{slide}}"
+                         t-att-class="{active: carousel.state.index === slide_index}"/>
+                </t>
+                <button class="next" t-on-click="() => this.carousel.next()">N</button>
+                <button class="drop" t-on-click="() => this.state.slides = ['a']">D</button>
+            </div>
+        `;
+        /** @type {{ slides: string[] }} */
+        state;
+        /** @type {ReturnType<typeof useCarousel>} */
+        carousel;
+
+        setup() {
+            this.state = useState({ slides: ["a", "b", "c"] });
+            this.carousel = useCarousel({ count: () => this.state.slides.length });
+        }
+    }
+    return Parent;
+}
+
+test("a slide list that shrinks under the index still shows a slide", async () => {
+    // `count` is a callback because the slides change after setup. The stored
+    // index outlived its slide, matched nothing, and left the carousel blank
+    // until the user happened to navigate.
+    const parent = await mountWithCleanup(makeShrinkingParent());
+
+    await click(".next");
+    await click(".next");
+    await animationFrame();
+    expect(".item-c").toHaveClass("active");
+
+    await click(".drop");
+    await animationFrame();
+
+    expect(".carousel-item").toHaveCount(1);
+    expect(".carousel-item.active").toHaveCount(1);
+    expect(parent.carousel.state.index).toBe(0);
+});
+
+test("a shrunk list reports its bounds correctly", async () => {
+    const parent = await mountWithCleanup(makeShrinkingParent());
+
+    await click(".next");
+    await click(".next");
+    await animationFrame();
+    expect(parent.carousel.atEnd).toBe(true);
+    expect(parent.carousel.atStart).toBe(false);
+
+    await click(".drop");
+    await animationFrame();
+
+    // A single-slide carousel is at both ends at once.
+    expect(parent.carousel.atStart).toBe(true);
+    expect(parent.carousel.atEnd).toBe(true);
+});
+
+test("an empty slide list reports index 0 and both bounds", async () => {
+    class Empty extends Component {
+        static props = ["*"];
+        static template = xml`<div class="carousel"/>`;
+
+        /** @type {ReturnType<typeof useCarousel>} */
+        carousel;
+
+        setup() {
+            this.carousel = useCarousel({ count: () => 0 });
+        }
+    }
+    const parent = await mountWithCleanup(Empty);
+
+    expect(parent.carousel.state.index).toBe(0);
+    expect(parent.carousel.atStart).toBe(true);
+    expect(parent.carousel.atEnd).toBe(true);
 });

@@ -1,12 +1,11 @@
 /** @odoo-module native */
 import { Component, onWillStart, useEffect, useRef, useState, xml } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { ConfirmationDialog, Dialog } from "@web/ui/dialog";
 
 import { SearchMedia } from "./search_media.js";
 

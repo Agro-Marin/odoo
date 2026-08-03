@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import {
     BadgeSelectionField,
     badgeSelectionField,
 } from "@web/fields/selection/badge_selection/badge_selection_field";
-import { getFieldDomain } from "@web/model/relational_model/utils";
+import { getFieldDomain } from "@web/model/relational_model";
 /**
  * Overrides BadgeSelectionField to insert a FontAwesome icon before each option's
  * title. Many2one only: the related options must carry the icon in the field named

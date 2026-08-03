@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
-import { ActionContainer } from "@web/webclient/actions/action_container";
-import { MainComponentsContainer } from "@web/components/main_components_container";
+import { ActionContainer } from "@web/webclient/actions";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { Component, onMounted } from "@odoo/owl";
 
 export class PortalWebclientWebClient extends Component {

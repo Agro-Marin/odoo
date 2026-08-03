@@ -4,7 +4,7 @@ import { click, contains } from "@mail/../tests/mail_test_helpers_contains";
 import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 describe.current.tags("desktop");
 

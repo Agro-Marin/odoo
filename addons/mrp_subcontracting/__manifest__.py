@@ -79,7 +79,6 @@
             'web/static/src/components/**/*',
             ('remove', 'web/static/src/components/emoji_picker/emoji_data.js'),
             'web/static/src/ui/**/*',
-            'web/static/src/services/**/*',
             'web/static/src/search/**/*',
             'web/static/src/views/*.js',
             'web/static/src/views/*.xml',

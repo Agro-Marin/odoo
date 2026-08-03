@@ -4,8 +4,8 @@
 /** @module @web/webclient/switch_company_menu/company_selector */
 
 import { router } from "@web/core/browser/router";
+import { user } from "@web/core/user";
 import { symmetricalDifference } from "@web/core/utils/collections/arrays";
-import { user } from "@web/services/user";
 
 /**
  * @type {WeakMap<object[], Map<number, any>>}
@@ -108,7 +108,14 @@ export class CompanySelector {
                     },
                 );
                 dropRecord = !hasReadRights;
-            } catch {}
+            } catch (error) {
+                // Keeping the record is the safe default: a server that cannot
+                // answer is not evidence the user lost access to it.
+                console.warn(
+                    "Could not check read access for the new company selection",
+                    error,
+                );
+            }
         }
 
         user.activateCompanies(newCompanyIds, {

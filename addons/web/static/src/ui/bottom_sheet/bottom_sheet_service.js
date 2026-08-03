@@ -6,7 +6,6 @@
 import { registry } from "@web/core/registry";
 import { BottomSheet } from "@web/ui/bottom_sheet/bottom_sheet";
 import {
-    asPredicate,
     declarePresenterOptions,
     makeOverlayPresenter,
 } from "@web/ui/overlay/presenter";
@@ -42,15 +41,8 @@ export const bottomSheetService = {
             overlay,
             component: BottomSheet,
             toProps: (options) => ({
-                class: options.class ?? options.popoverClass,
-                closeOnClickAway: asPredicate(options.closeOnClickAway),
-                closeOnEscape: options.closeOnEscape,
-                id: options.id,
                 onBack: options.onBack,
                 preventDismissOnContentScroll: options.preventDismissOnContentScroll,
-                ref: options.ref,
-                role: options.role,
-                setActiveElement: options.setActiveElement,
             }),
             onOpen: () => {
                 openCount++;

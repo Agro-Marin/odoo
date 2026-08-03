@@ -35,8 +35,8 @@ Usage::
     python tooling/architecture/js_cycle_check.py --check    # CI mode, exit 1 on any new cycle
     python tooling/architecture/js_cycle_check.py --json     # machine-readable
 
-Type-only imports do not count: ``collect_imports`` is reused from
-``js_layer_check``, so JSDoc ``@import`` tags and ``import("...")`` inside
+Type-only imports do not count: ``collect_imports`` is the shared parser in
+``js_imports``, so JSDoc ``@import`` tags and ``import("...")`` inside
 comments create no edge here either.
 """
 
@@ -48,7 +48,8 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-from js_layer_check import ROOT, collect_imports
+from js_imports import collect_imports
+from js_layer_check import ROOT
 
 # Every addon's client source in this repo, not just ``web``'s: a cycle in
 # ``mail`` or ``point_of_sale`` fails exactly the same way, and the
@@ -76,19 +77,6 @@ class KnownCycle:
 
 
 KNOWN_CYCLES: tuple[KnownCycle, ...] = (
-    KnownCycle(
-        modules=frozenset(
-            {"web/views/list/list_keyboard_nav", "web/views/list/list_keyboard_edit"}
-        ),
-        reason=(
-            "Mutual recursion between two halves of one deliberately split "
-            "module: `nav` calls `makeEditHandlers`, `edit` calls "
-            "`getElementToFocus`. Both references are inside function bodies, "
-            "so neither module reads the other while its own body evaluates "
-            "and no entry order can break it. Tolerated, not endorsed: merging "
-            "the pair or extracting the shared helper would remove it."
-        ),
-    ),
     KnownCycle(
         modules=frozenset(
             {
@@ -325,8 +313,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     files = iter_source_files()
-    new, known = check(files)
     scanned = len(files)
+    # A gate that finds no inputs must say so rather than scan nothing and
+    # report success. `cross_repo_coherence` shipped exactly that fault three
+    # times over: "0 violations" and "0 files examined" printed identically,
+    # and only one of them is a verdict.
+    if not scanned:
+        parser.error("no JS sources found — the scan reached nothing")
+
+    new, known = check(files)
 
     if args.json:
         print(

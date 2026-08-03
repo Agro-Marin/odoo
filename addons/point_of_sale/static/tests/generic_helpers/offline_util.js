@@ -1,6 +1,6 @@
 import { run } from "@point_of_sale/../tests/generic_helpers/utils";
 import { browser } from "@web/core/browser/browser";
-import { ConnectionLostError } from "@web/core/network/rpc";
+import { ConnectionLostError } from "@web/core/network";
 
 const originalBrowserFetch = browser.fetch;
 const originalWindowFetch = window.fetch;

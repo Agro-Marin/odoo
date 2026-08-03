@@ -85,7 +85,7 @@ export async function sort(list, currentIds = list.currentIds, orderBy = list.or
         orderBy,
         nextCurrentIds: entries.map((e) => e.id),
     });
-    list._needsReordering = false;
+    list.markReordered();
 }
 
 /**

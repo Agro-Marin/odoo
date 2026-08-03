@@ -15,7 +15,7 @@ import {
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Info } from "@web/core/l10n/luxon";
 import { Time } from "@web/core/l10n/time";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 
 /**

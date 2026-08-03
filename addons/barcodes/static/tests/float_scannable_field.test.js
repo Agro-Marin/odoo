@@ -2,7 +2,7 @@
 
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
-import { FormController } from "@web/views/form/form_controller";
+import { FormController } from "@web/views/form";
 import {
     contains,
     defineModels,

@@ -1,9 +1,9 @@
 /** @odoo-module native */
 /* global MercadoPago */
 
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 import { loadJS } from '@web/core/assets';
-import { rpc, RPCError } from '@web/core/network/rpc';
+import { rpc, RPCError } from "@web/core/network";
 import { patch } from '@web/core/utils/patch';
 
 import { PaymentForm } from '@payment/interactions/payment_form';

@@ -1,11 +1,13 @@
 /** @odoo-module native */
-import { useCommand } from "@web/services/commands/command_hook";
+import { useCommand } from "@web/ui/commands";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { FileUploadProgressContainer } from "@web/components/file_upload/file_upload_progress_container";
-import { FileUploadProgressDataRow } from "@web/components/file_upload/file_upload_progress_record";
-import { _t } from "@web/core/l10n/translation";
+import {
+    FileUploadProgressContainer,
+    FileUploadProgressDataRow,
+} from "@web/components/file_upload";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { ListRenderer } from "@web/views/list";
 
 import { DocumentsRightPanel } from "@documents/components/documents_right_panel/documents_right_panel";
 import { DocumentsActionHelper } from "@documents/views/helper/documents_action_helper";

@@ -2,9 +2,9 @@
 import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
 import { canLoadLivechat } from "@im_livechat/embed/common/misc";
 import { reactive } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { session } from "@web/session";
 
 export const RATING = Object.freeze({

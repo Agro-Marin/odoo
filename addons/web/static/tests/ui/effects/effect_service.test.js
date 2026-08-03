@@ -9,8 +9,8 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 let effectParams;
 
@@ -155,4 +155,35 @@ test("the reward message is announced, as it is when effects are off", async () 
     await animationFrame();
     expect(".o_reward_msg_content").toHaveAttribute("role", "status");
     expect(".o_reward_msg_content").toHaveText("Well Done!");
+});
+
+test("add() hands back a handle that dismisses the rainbowman", async () => {
+    const close = getService("effect").add({ message: "Well done" });
+    await animationFrame();
+    expect(".o_reward").toHaveCount(1);
+
+    expect(typeof close).toBe("function");
+    close();
+    await animationFrame();
+    expect(".o_reward").toHaveCount(0);
+});
+
+test("add() hands back a handle on the notification fallback too", async () => {
+    // `showEffect` off swaps the reward for a notification; the caller should
+    // not have to know which branch ran to be able to dismiss it.
+    patchWithCleanup(user, { showEffect: false });
+    const close = getService("effect").add({ message: "Well done" });
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+
+    expect(typeof close).toBe("function");
+    close();
+    await animationFrame();
+    expect(".o_notification").toHaveCount(0);
+});
+
+test("add() still returns a callable for an unknown effect type", async () => {
+    const close = getService("effect").add({ type: "no_such_effect" });
+    expect(typeof close).toBe("function");
+    expect(() => close()).not.toThrow();
 });

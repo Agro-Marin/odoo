@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
-import { _t } from "@web/core/l10n/translation";
+import { formatCurrency } from "@web/core/currency";
+import { _t } from "@web/core/translation";
 import { roundPrecision } from "@web/core/utils/format/numbers";
-import { formatCurrency } from "@web/services/currency";
 
 import { Base } from "../related_models/index.js";
 

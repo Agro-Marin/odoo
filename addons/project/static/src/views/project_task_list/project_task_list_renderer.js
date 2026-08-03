@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { getRawValue } from "@web/views/kanban/kanban_record";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { getRawValue } from "@web/views/kanban";
+import { ListRenderer } from "@web/views/list";
 
 import { ProjectTaskGroupConfigMenu } from "../project_task_kanban/project_task_group_config_menu.js";
 

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { getShowSubtasks } from "@project/utils/project_utils";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export const ProjectTaskAnalysisRendererMixin = (T) =>
     class ProjectTaskAnalysisRendererMixin extends T {

@@ -3,9 +3,9 @@
 
 /** @module @web/ui/effects/effect_service */
 
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 
 import { RainbowMan } from "./rainbow_man.js";
 
@@ -41,14 +41,19 @@ function rainbowMan(env, params = {}) {
         };
         return { Component: RainbowMan, props };
     }
-    env.services.notification.add(message);
+    // The fallback still opened something dismissable; hand its handle back so
+    // `effect.add` can return one whichever branch ran.
+    return { remove: env.services.notification.add(message) };
 }
 effectRegistry.add("rainbow_man", rainbowMan);
 
 effectRegistry.addValidation((v) => typeof v === "function");
 
 export const effectService = {
-    dependencies: ["overlay"],
+    // `notification` because the registry's own `rainbow_man` falls back to it
+    // when the user has effects switched off. It reads the service at `add`
+    // time rather than at start, which is why the edge could stay undeclared.
+    dependencies: ["notification", "overlay"],
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ overlay: any }} services
@@ -57,21 +62,27 @@ export const effectService = {
         /**
          * @param {Object} [params]
          * @param {string} [params.type="rainbow_man"]
+         * @returns {() => void} dismisses what this call opened
          */
         const add = (params = {}) => {
             const type = params.type || "rainbow_man";
             if (!effectRegistry.contains(type)) {
                 console.warn(`[effect] unknown effect type "${type}"; ignoring.`);
-                return;
+                return () => {};
             }
             const effect = effectRegistry.get(type);
-            const { Component, props } = effect(env, params) || {};
-            if (Component) {
-                const remove = overlay.add(Component, {
-                    ...props,
-                    close: () => remove(),
-                });
+            const { Component, props, remove: ownRemove } = effect(env, params) || {};
+            if (ownRemove) {
+                return ownRemove;
             }
+            if (!Component) {
+                return () => {};
+            }
+            const remove = overlay.add(Component, {
+                ...props,
+                close: () => remove(),
+            });
+            return remove;
         };
 
         return { add };

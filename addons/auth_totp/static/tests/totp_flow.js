@@ -1,5 +1,5 @@
 import { WORKER_STATE } from "@bus/workers/websocket_worker";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
 import { whenReady } from "@odoo/owl";

@@ -5,8 +5,8 @@ import { Plugin } from "@html_editor/plugin";
 import { isContentEditable } from "@html_editor/utils/dom_info";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 
 export class ChatGPTTranslatePlugin extends Plugin {
     static id = "chatgpt_translate";

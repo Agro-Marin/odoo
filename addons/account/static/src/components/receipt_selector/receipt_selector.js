@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { onWillStart, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { RadioField, radioField } from "@web/fields/selection/radio/radio_field";

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { Deferred } from "@web/core/utils/concurrency";
 export const STREAM_TYPE = Object.freeze({
     AUDIO: "audio",

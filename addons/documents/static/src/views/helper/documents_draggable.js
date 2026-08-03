@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { DRAGGED_CLASS } from "@web/core/utils/dnd/draggable_hook_builder";
-import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
+import { _t } from "@web/core/translation";
+import { DRAGGED_CLASS, makeDraggableHook } from "@web/core/utils/dnd";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 import { closestScrollableX, closestScrollableY } from "@web/core/utils/dom/scrolling";
 import { toFolderValueId } from "@documents/views/utils";

@@ -38,8 +38,13 @@ export class BaseRecordSelector extends Component {
     }
 
     /**
+     * Values are not all strings: `loadDisplayNames` resolves inaccessible or
+     * missing ids to the `ERROR_INACCESSIBLE_OR_MISSING` symbol. This used to
+     * claim `Record<number, string>`, which typechecked only because the name
+     * service published its surface as bare `Function`.
+     *
      * @param {Record<string, any>} props
-     * @returns {Promise<Record<number, string>>}
+     * @returns {Promise<import("@web/core/name_service").DisplayNames>}
      */
     async getDisplayNames(props) {
         const ids = this.getIds(props);

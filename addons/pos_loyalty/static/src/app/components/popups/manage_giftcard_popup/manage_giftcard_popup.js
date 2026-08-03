@@ -1,16 +1,15 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { debounce } from "@bus/workers/bus_worker_utils";
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { roundCurrency } from "@point_of_sale/app/models/utils/currency";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
-import { DateTimeInput } from "@web/components/datetime/datetime_input";
+import { DateTimeInput } from "@web/components/datetime";
 import { deserializeDateTime, serializeDate } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { AlertDialog, Dialog } from "@web/ui/dialog";
 export class ManageGiftCardPopup extends Component {
     static template = "pos_loyalty.ManageGiftCardPopup";
     static components = { Dialog, DateTimeInput };

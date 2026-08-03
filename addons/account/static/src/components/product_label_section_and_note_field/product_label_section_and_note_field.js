@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { ProductNameAndDescriptionField } from "@product/product_name_and_description/product_name_and_description";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import {
     buildM2OFieldDescription,
     extractM2OFieldProps,
     m2oSupportedOptions,
-} from "@web/fields/relational/many2one/many2one_field";
+} from "@web/fields/relational/many2one";
 
 export class ProductLabelSectionAndNoteField extends ProductNameAndDescriptionField {
     static template = "account.ProductLabelSectionAndNoteField";

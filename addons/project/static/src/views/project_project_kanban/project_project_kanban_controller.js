@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
-import { user } from "@web/services/user";
-import { KanbanController } from "@web/views/kanban/kanban_controller";
+import { user } from "@web/core/user";
+import { KanbanController } from "@web/views/kanban";
 
 import { ProjectTemplateDropdown } from "../components/project_template_dropdown.js";
 

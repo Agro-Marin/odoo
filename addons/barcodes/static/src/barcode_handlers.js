@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 import { getVisibleElements } from "@web/core/utils/dom/ui";
 import { Macro } from "@web/core/utils/macro";

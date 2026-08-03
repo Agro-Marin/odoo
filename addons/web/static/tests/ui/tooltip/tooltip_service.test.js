@@ -727,3 +727,42 @@ test("a service-registered tooltip survives the target taking focus", async () =
     await animationFrame();
     expect(".o_popover").toHaveCount(1);
 });
+
+// `parseInt` answers NaN for a hand-authored typo and `setTimeout(NaN)` fires on
+// the next tick, so a malformed delay produced an INSTANT tooltip -- the exact
+// opposite of asking for a longer one.
+test.tags("desktop");
+test("a malformed tooltip delay falls back to the default", async () => {
+    class Host extends Component {
+        static template = xml`<button class="t" data-tooltip="hi" data-tooltip-delay="abc">b</button>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Host);
+    await hover(".t");
+
+    await advanceTime(50);
+    await animationFrame();
+    expect(".o-tooltip").toHaveCount(0);
+
+    await advanceTime(OPEN_DELAY);
+    await animationFrame();
+    expect(".o-tooltip").toHaveCount(1);
+});
+
+test.tags("desktop");
+test("a negative tooltip delay falls back to the default too", async () => {
+    class Host extends Component {
+        static template = xml`<button class="t" data-tooltip="hi" data-tooltip-delay="-500">b</button>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Host);
+    await hover(".t");
+
+    await advanceTime(50);
+    await animationFrame();
+    expect(".o-tooltip").toHaveCount(0);
+
+    await advanceTime(OPEN_DELAY);
+    await animationFrame();
+    expect(".o-tooltip").toHaveCount(1);
+});

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { SelectionField, selectionField } from "@web/fields/selection/selection/selection_field";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 
 export class DocumentsServerActionEvaluationTypeField extends SelectionField {

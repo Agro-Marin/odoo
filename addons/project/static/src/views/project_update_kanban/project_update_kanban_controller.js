@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanController } from "@web/views/kanban/kanban_controller";
+import { KanbanController } from "@web/views/kanban";
 
 import { ProjectRightSidePanel } from "../../components/project_right_side_panel/project_right_side_panel.js";
 

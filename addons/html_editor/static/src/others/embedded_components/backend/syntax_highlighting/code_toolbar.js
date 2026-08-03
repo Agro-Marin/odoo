@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { CopyButton } from "@web/components/copy_button/copy_button";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
 
 export const LANGUAGES = {
     plaintext: "Plain Text",

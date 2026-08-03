@@ -5,10 +5,10 @@ import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/n
 import { SelectionPopup } from "@point_of_sale/app/components/popups/selection_popup/selection_popup";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
-import { _t } from "@web/core/l10n/translation";
 import { parseFloat } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 patch(PosStore.prototype, {
     async onClickSaleOrder(clickedOrderId) {
         const sale_order = await this._getSaleOrder(clickedOrderId);

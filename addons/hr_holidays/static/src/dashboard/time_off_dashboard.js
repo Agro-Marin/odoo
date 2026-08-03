@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { TimeOffCard } from "./time_off_card.js";
 import { useNewAllocationRequest } from "@hr_holidays/views/hooks";
+import { Component, onWillStart,useState } from "@odoo/owl";
+import { DateTimeInput } from "@web/components/datetime";
+import { luxon } from "@web/core/l10n/luxon";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { DateTimeInput } from "@web/components/datetime/datetime_input";
-import { Component, useState, onWillStart } from "@odoo/owl";
+
+import { TimeOffCard } from "./time_off_card.js";
 
 export class TimeOffDashboard extends Component {
     static components = { TimeOffCard, DateTimeInput };

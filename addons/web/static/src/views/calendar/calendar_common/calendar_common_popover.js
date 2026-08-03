@@ -5,9 +5,9 @@
 
 import { Component, useExternalListener } from "@odoo/owl";
 import { is24HourFormat } from "@web/core/l10n/time";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Field } from "@web/fields/field";
 import { Record } from "@web/model/record";
 import { Dialog } from "@web/ui/dialog/dialog";

@@ -3,7 +3,7 @@ import { registry } from "@web/core/registry";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
+} from "@web/fields/relational/many2many_tags";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 export class Many2ManyTagsJournalsMany2xAutocomplete extends Many2XAutocomplete {

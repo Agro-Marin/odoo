@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import {
-    many2ManyTagsFieldColorEditable,
-    Many2ManyTagsFieldColorEditable,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
-import { registry } from "@web/core/registry";
 import { TagsList } from "@web/components/tags_list/tags_list";
+import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import {
+    Many2ManyTagsFieldColorEditable,
+    many2ManyTagsFieldColorEditable,
+} from "@web/fields/relational/many2many_tags";
 
 export class FieldMany2ManyTagsSalaryBankTagsList extends TagsList {
     static template = "web.TagsList";

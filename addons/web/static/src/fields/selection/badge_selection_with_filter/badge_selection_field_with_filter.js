@@ -5,7 +5,7 @@
  * @module @web/fields/selection/badge_selection_with_filter/badge_selection_field_with_filter
  */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import {
     BadgeSelectionField,

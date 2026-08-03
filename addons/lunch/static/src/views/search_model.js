@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { Domain } from '@web/core/domain';
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { SearchModel } from '@web/search/search_model';
 import { useState, onWillStart } from "@odoo/owl";
 const { DateTime } = luxon;

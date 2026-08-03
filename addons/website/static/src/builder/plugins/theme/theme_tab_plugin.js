@@ -6,15 +6,15 @@ import { Plugin } from "@html_editor/plugin";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import {
     convertCSSColorToRgba,
     convertHslToRgb,
     convertRgbaToCSSColor,
     convertRgbToHsl,
 } from "@web/core/utils/format/colors";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 import { EditHeadBodyDialog } from "@website/components/edit_head_body_dialog/edit_head_body_dialog";
 
 import { CustomizeWebsiteVariableAction } from "../customize_website_plugin.js";

@@ -4,12 +4,13 @@
 /** @module @web/fields/relational/x2many_dialog */
 
 import { Component, useComponent, useEffect, useEnv, useSubEnv } from "@odoo/owl";
+import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
 import { ModelEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { sharedComponents as shared } from "@web/core/shared_components";
+import { _t } from "@web/core/translation";
 import { createElement, parseXML } from "@web/core/utils/dom/xml";
 import {
     useBus,
@@ -46,11 +47,11 @@ export class X2ManyFieldDialog extends Component {
     static defaultProps = {
         controls: [],
     };
-    /** @type {import("services").ServiceFactories["action"]} */
+    /** @type {import("@web/core/action_port").ActionPort} */
     actionService;
 
     setup() {
-        this.actionService = useService("action");
+        this.actionService = useAction();
         this.archInfo = this.props.archInfo;
         this.record = this.props.record;
         this.title = this.props.title;

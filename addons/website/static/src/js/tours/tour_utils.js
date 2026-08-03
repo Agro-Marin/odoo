@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
 import { cookie } from "@web/core/browser/cookie";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { omit } from "@web/core/utils/collections/objects";
 import { stepUtils } from "@web_tour/tour_utils";
 

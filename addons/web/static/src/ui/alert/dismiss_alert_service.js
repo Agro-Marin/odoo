@@ -36,11 +36,21 @@ export const dismissAlertService = {
             trigger.closest(".alert")?.remove();
         };
 
-        whenReady(() => document.body.addEventListener("click", onClick));
+        // Modules are deferred, so they run before DOMContentLoaded: `whenReady`
+        // is still pending when this service starts, and an env torn down in
+        // between would otherwise remove a listener that is only added
+        // afterwards -- leaking it for the life of the page.
+        let destroyed = false;
+        whenReady(() => {
+            if (!destroyed) {
+                document.body.addEventListener("click", onClick);
+            }
+        });
 
         return {
             /** Service-teardown hook: the listener outlives the env otherwise. */
             destroy() {
+                destroyed = true;
                 document.body.removeEventListener("click", onClick);
             },
         };

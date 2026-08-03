@@ -4,7 +4,7 @@
 /** @module @web/views/kanban/kanban_keyboard_nav */
 
 import { SearchModelEvent } from "@web/core/events";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 
 /**
  * @typedef {object} KanbanKeyboardNavOptions

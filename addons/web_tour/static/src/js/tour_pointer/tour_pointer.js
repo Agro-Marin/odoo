@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { AppEvent } from "@web/core/events";
 import { usePosition } from "@web/core/position/position_hook";
 import { useBus, useService } from "@web/core/utils/hooks";
 
@@ -177,7 +178,7 @@ export class TourPointer extends Component {
                 this.state.triggerBelow = !activeEl.contains(pointerAnchor);
             }
         };
-        useBus(uiService.bus, "active-element-changed", onActiveElementChanged);
+        useBus(uiService.bus, AppEvent.ACTIVE_ELEMENT_CHANGED, onActiveElementChanged);
     }
 
     get isVisible() {

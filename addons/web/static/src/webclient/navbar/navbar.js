@@ -14,10 +14,10 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { Transition } from "@web/components/transition";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+import { Transition } from "@web/core/transition";
 import { ErrorHandler } from "@web/core/utils/components";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
@@ -113,6 +113,13 @@ export class NavBar extends Component {
         );
     }
 
+    /**
+     * Never called. It exists so `patch()` can install a getter-only override
+     * without the property losing its setter: `website` overrides this getter
+     * (`website/components/navbar/navbar.js`, `.../burger_menu/burger_menu.js`)
+     * on top of the Enterprise NavBar extension, and the two conflict on a
+     * property that is get-only.
+     */
     set currentAppSections(_) {}
 
     get isScopedApp() {
@@ -135,6 +142,7 @@ export class NavBar extends Component {
             .reverse();
     }
 
+    /** Never called; see {@link NavBar#currentAppSections}'s setter. */
     set systrayItems(_) {}
 
     adapt() {
@@ -148,7 +156,6 @@ export class NavBar extends Component {
         }
 
         const initialAppSectionsExtra = this.currentAppSectionsExtra;
-        const initialAppId = initialAppSectionsExtra[0]?.appID;
 
         const sections = [
             ...sectionsMenu.querySelectorAll(":scope > *:not(.o_menu_sections_more)"),
@@ -188,10 +195,19 @@ export class NavBar extends Component {
             }
         }
 
-        const currentAppId = this.currentAppSectionsExtra[0]?.appID;
+        // Entry by entry, by identity. `getMenuAsTree` hands back the same
+        // objects until the menu service rebuilds its tree, so identity is
+        // exactly "the payload these sections came from is unchanged" — which
+        // also covers the app having changed. Comparing the LENGTH and the
+        // first entry's appID instead let a menu reload that swapped sections
+        // within one app through the guard: the render that carried the new
+        // sections had already happened with the previous overflow list, so
+        // the "more" dropdown went on offering menus that no longer existed.
         if (
             initialAppSectionsExtra.length === this.currentAppSectionsExtra.length &&
-            initialAppId === currentAppId
+            initialAppSectionsExtra.every(
+                (section, index) => section === this.currentAppSectionsExtra[index],
+            )
         ) {
             return;
         }

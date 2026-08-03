@@ -3,7 +3,7 @@ import {
     NewContentSystrayItem,
     MODULE_STATUS,
 } from "@website/client_actions/website_preview/new_content_systray_item";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 
 patch(NewContentSystrayItem.prototype, {

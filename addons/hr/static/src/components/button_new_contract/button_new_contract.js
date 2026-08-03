@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
+import { Component } from "@odoo/owl";
+import { useDateTimePicker } from "@web/components/datetime";
 import { serializeDate } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-import { Component } from "@odoo/owl";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class ButtonNewContractWidget extends Component {
     static template = "hr.ButtonNewContract";

@@ -1,8 +1,8 @@
 /** @odoo-module native */
+import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { BaseOptionComponent } from "@html_builder/core/utils";
+import { _t } from "@web/core/translation";
 
 export class BlogPostPageOption extends BaseOptionComponent {
     static template = "website_blog.blogPostPageOption";

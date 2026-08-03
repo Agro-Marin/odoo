@@ -6,7 +6,7 @@
 import { Component, onWillRender, onWillUnmount, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { ModelEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useBus } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";

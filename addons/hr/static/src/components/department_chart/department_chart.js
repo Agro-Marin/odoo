@@ -1,9 +1,8 @@
 /** @odoo-module native */
+import { Component,onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-import { onWillStart, useState, onWillUpdateProps, Component } from "@odoo/owl";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class DepartmentChart extends Component {
     static template = "hr.DepartmentChart";

@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
-import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
+import { GroupConfigMenu } from "@web/views/view_components";
 
 /**
  * Column-header config menu for views groupable by a stage-like many2one

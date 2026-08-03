@@ -1,13 +1,13 @@
 /** @odoo-module native */
 import { onWillUpdateProps } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 import {
     Many2ManyTagsFieldColorEditable,
     many2ManyTagsFieldColorEditable,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
+} from "@web/fields/relational/many2many_tags";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 // These three helpers are called with `this` bound to the host field component

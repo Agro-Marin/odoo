@@ -5,8 +5,9 @@
 
 import { Component } from "@odoo/owl";
 import { CallbackRecorder } from "@web/core/action_hook";
+import { useAction } from "@web/core/action_port";
 import { registry } from "@web/core/registry";
-import { useChildRef, useService } from "@web/core/utils/hooks";
+import { useChildRef } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { View } from "@web/views/view";
 
@@ -50,7 +51,7 @@ export class FormViewDialog extends Component {
     setup() {
         super.setup();
 
-        this.actionService = useService("action");
+        this.actionService = useAction();
         this.modalRef = useChildRef();
         this.env.dialogData.dismiss = () => this.discardRecord();
 

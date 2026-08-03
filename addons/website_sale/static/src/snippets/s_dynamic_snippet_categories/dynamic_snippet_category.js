@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 import { registry } from '@web/core/registry';
 import { utils as uiUtils } from '@web/ui/viewport';
 import { DynamicSnippet } from '@website/snippets/s_dynamic_snippet/dynamic_snippet';

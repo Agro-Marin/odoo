@@ -67,7 +67,7 @@ test(`display events`, async () => {
     mockService("popover", () => ({
         add(target, component, props) {
             expect.step(`${props.date.toISODate()} ${props.records[0].title}`);
-            return () => {};
+            return async () => {};
         },
     }));
 

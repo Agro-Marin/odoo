@@ -4,14 +4,22 @@
 /** @module @web/views/graph/graph_model */
 
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { InFlight, KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { addPropertyFieldDefs, Model } from "@web/model/model";
 import { rankInterval } from "@web/search/utils/dates";
 import { getGroupBy } from "@web/search/utils/group_by";
 import { GROUPABLE_TYPES } from "@web/search/utils/misc";
-import { user } from "@web/services/user";
+import {
+    applyCurrencyFallback,
+    foldCumulatedStart,
+    getGroupLabels,
+    getMeasureSpec,
+    getRawValue,
+    makeDataPoint,
+} from "@web/views/graph/graph_data_points";
 import { computeReportMeasures, processMeasure } from "@web/views/view_measurements";
 
 export const SEP = " / ";
@@ -391,38 +399,15 @@ export class GraphModel extends Model {
     async _loadDataPoints(metaData) {
         metaData.allIntegers = true;
         const { measure, domain, fields, groupBy, resModel, cumulatedStart } = metaData;
-        const fieldName = groupBy[0]?.fieldName;
+        const xFieldName = groupBy[0]?.fieldName;
         const sequentialField =
-            cumulatedStart && SEQUENTIAL_TYPES.includes(fields[fieldName]?.type)
-                ? fieldName
+            cumulatedStart && SEQUENTIAL_TYPES.includes(fields[xFieldName]?.type)
+                ? xFieldName
                 : null;
-        const sequentialSpec = sequentialField && groupBy[0].spec;
-        const measures = ["__count"];
-        let fieldAggregate = "__count",
-            monetaryAggregates;
-        if (measure !== "__count") {
-            const { currency_field, name, type } = fields[measure];
-            let { aggregator } = fields[measure];
-            if (type === "many2one") {
-                aggregator = "count_distinct";
-            }
-            if (aggregator === undefined) {
-                throw new Error(
-                    `No aggregate function has been provided for the measure '${measure}'`,
-                );
-            }
-            if (type === "monetary" && currency_field) {
-                monetaryAggregates = [
-                    `${currency_field}:array_agg_distinct`,
-                    `${name}:sum_currency`,
-                ];
-                measures.push(...monetaryAggregates);
-            }
-            fieldAggregate = `${measure}:${aggregator}`;
-            measures.push(fieldAggregate);
-        }
-
-        const numbering = {};
+        const { measures, fieldAggregate, monetaryAggregates } = getMeasureSpec(
+            measure,
+            fields,
+        );
 
         const groups = await this.orm.formattedReadGroup(
             resModel,
@@ -433,155 +418,105 @@ export class GraphModel extends Model {
                 context: { fill_temporal: true, ...this.searchParams.context },
             },
         );
-        /** @type {any} */
-        let startGroups = false;
-        const firstDatedGroup =
-            sequentialField && groups.find((group) => group[sequentialSpec]);
-        if (
-            cumulatedStart &&
-            firstDatedGroup &&
-            domain.some((leaf) => leaf.length === 3 && leaf[0] === sequentialField)
-        ) {
-            const firstDate = firstDatedGroup[sequentialSpec][0];
-            const newDomain = Domain.combine(
-                [
-                    new Domain([[sequentialField, "<", firstDate]]),
-                    Domain.removeDomainLeaves(domain, [sequentialField]),
-                ],
-                "AND",
-            ).toList();
-            startGroups = await this.orm.formattedReadGroup(
-                resModel,
-                newDomain,
-                groupBy
-                    .filter((gb) => gb.fieldName !== sequentialField)
-                    .map((gb) => gb.spec),
-                measures,
-                {
-                    context: { ...this.searchParams.context },
-                },
-            );
-        }
+
         const graphCurrencies = new Set();
         const defaultCurrency = user.activeCompany?.currency_id;
-        const dataPoints = [];
-        const cumulatedStartValue = {};
-        const cumulatedStartConverted = {};
-        if (startGroups) {
-            for (const group of /** @type {any[]} */ (startGroups)) {
-                const rawValues = [];
-                for (const gb of groupBy.filter(
-                    (gb) => gb.fieldName !== sequentialField,
-                )) {
-                    rawValues.push({ [gb.spec]: group[gb.spec] });
-                }
-                const key = JSON.stringify(rawValues);
-                let value = group[fieldAggregate];
-                if (monetaryAggregates) {
-                    const currencies = (group[monetaryAggregates[0]] || []).filter(
-                        (currencyId) => currencyId != null,
-                    );
-                    cumulatedStartConverted[key] = group[monetaryAggregates[1]];
-                    if (currencies.length > 1) {
-                        value = cumulatedStartConverted[key];
-                        graphCurrencies.add(defaultCurrency);
-                    } else if (currencies.length === 1) {
-                        graphCurrencies.add(currencies[0]);
-                    }
-                }
-                cumulatedStartValue[key] = value;
-            }
-        }
-        for (const group of groups) {
-            const { __domain, __count } = group;
-            const labels = [];
-            const rawValues = [];
-            let isFalsyXGroup = false;
-            for (const [gbIndex, gb] of groupBy.entries()) {
-                let label;
-                const val = group[gb.spec];
-                rawValues.push({ [gb.spec]: val });
-                const fieldName = gb.fieldName;
-                const { type } = fields[fieldName];
-                if (type === "boolean") {
-                    label = `${val}`;
-                } else if (type === "integer") {
-                    label = val === false ? "0" : `${val}`;
-                } else if (val === false) {
-                    label = this._getDefaultFilterLabel(gb);
-                    if (gbIndex === 0) {
-                        isFalsyXGroup = true;
-                    }
-                } else if (["many2many", "many2one"].includes(type)) {
-                    const [id, name] = val;
-                    const key = JSON.stringify([fieldName, name]);
-                    if (!numbering[key]) {
-                        numbering[key] = {};
-                    }
-                    const numbers = numbering[key];
-                    if (!numbers[id]) {
-                        numbers[id] = Object.keys(numbers).length + 1;
-                    }
-                    const num = numbers[id];
-                    label = num === 1 ? name : `${name} (${num})`;
-                } else if (type === "selection") {
-                    const selected = fields[fieldName].selection.find(
-                        (s) => s[0] === val,
-                    );
-                    label = selected ? selected[1] : String(val);
-                } else if (["date", "datetime"].includes(type)) {
-                    label = val[1];
-                } else {
-                    label = val;
-                }
-                labels.push(label);
-            }
+        const startGroups = await this._fetchStartGroups(
+            metaData,
+            sequentialField,
+            measures,
+            groups,
+        );
+        const { cumulatedStartValue, cumulatedStartConverted } = startGroups
+            ? foldCumulatedStart(startGroups, {
+                  groupBy,
+                  sequentialField,
+                  fieldAggregate,
+                  monetaryAggregates,
+                  defaultCurrency,
+                  graphCurrencies,
+              })
+            : { cumulatedStartValue: {}, cumulatedStartConverted: {} };
 
-            const value = group[fieldAggregate] === false ? 0 : group[fieldAggregate];
-            if (!Number.isInteger(value)) {
+        const numbering = {};
+        const getDefaultFilterLabel = (gb) => this._getDefaultFilterLabel(gb);
+        const dataPoints = [];
+        for (const group of groups) {
+            // Read before makeDataPoint, which may swap in a converted value.
+            if (!Number.isInteger(getRawValue(group, fieldAggregate))) {
                 metaData.allIntegers = false;
             }
-            const groupId = JSON.stringify(rawValues.slice(1));
-            const dataPoint = {
-                count: __count,
-                domain: __domain,
-                value,
-                labels,
-                isFalsyXGroup,
-                identifier: JSON.stringify(rawValues),
-                xIdentifier: JSON.stringify(rawValues.slice(0, 1)),
-                datasetId: groupId,
-                cumulatedStart: cumulatedStartValue[groupId] || 0,
-                convertedCumulatedStart: cumulatedStartConverted[groupId] || 0,
-            };
-            if (monetaryAggregates) {
-                const currencies = (group[monetaryAggregates[0]] || []).filter(
-                    (currencyId) => currencyId != null,
-                );
-                dataPoint.currencyId = currencies[0];
-                dataPoint.convertedValue = group[monetaryAggregates[1]];
-                if (currencies.length > 1) {
-                    dataPoint.currencyId = defaultCurrency;
-                    dataPoint.value = dataPoint.convertedValue;
-                }
-                if (currencies.length && __count !== 0) {
-                    graphCurrencies.add(dataPoint.currencyId);
-                }
-            }
-            dataPoints.push(dataPoint);
+            const { labels, rawValues, isFalsyXGroup } = getGroupLabels(group, {
+                groupBy,
+                fields,
+                numbering,
+                getDefaultFilterLabel,
+            });
+            dataPoints.push(
+                makeDataPoint(group, {
+                    labels,
+                    rawValues,
+                    isFalsyXGroup,
+                    fieldAggregate,
+                    monetaryAggregates,
+                    defaultCurrency,
+                    graphCurrencies,
+                    cumulatedStartValue,
+                    cumulatedStartConverted,
+                }),
+            );
         }
-        for (const dataPoint of dataPoints) {
-            if (graphCurrencies.size > 1) {
-                dataPoint.currencyId = defaultCurrency;
-                if (monetaryAggregates) {
-                    dataPoint.value = dataPoint.convertedValue;
-                    dataPoint.cumulatedStart = dataPoint.convertedCumulatedStart;
-                }
-            }
-            delete dataPoint.convertedValue;
-            delete dataPoint.convertedCumulatedStart;
+        return applyCurrencyFallback(dataPoints, {
+            graphCurrencies,
+            defaultCurrency,
+            hasMonetaryAggregates: Boolean(monetaryAggregates),
+        });
+    }
+
+    /**
+     * The pre-window groups a cumulated graph starts from, or `false` when there
+     * is nothing to accumulate from: no cumulated start, no sequential x field,
+     * no dated group, or a domain that does not bound the sequential field.
+     *
+     * @protected
+     * @param {Object} metaData
+     * @param {string | null} sequentialField
+     * @param {string[]} measures
+     * @param {Object[]} groups
+     * @returns {Promise<any>}
+     */
+    async _fetchStartGroups(metaData, sequentialField, measures, groups) {
+        const { domain, groupBy, resModel, cumulatedStart } = metaData;
+        if (!cumulatedStart || !sequentialField) {
+            return false;
         }
-        return dataPoints;
+        const sequentialSpec = groupBy[0].spec;
+        const firstDatedGroup = groups.find((group) => group[sequentialSpec]);
+        if (
+            !firstDatedGroup ||
+            !domain.some((leaf) => leaf.length === 3 && leaf[0] === sequentialField)
+        ) {
+            return false;
+        }
+        const firstDate = firstDatedGroup[sequentialSpec][0];
+        const newDomain = Domain.combine(
+            [
+                new Domain([[sequentialField, "<", firstDate]]),
+                Domain.removeDomainLeaves(domain, [sequentialField]),
+            ],
+            "AND",
+        ).toList();
+        return this.orm.formattedReadGroup(
+            resModel,
+            newDomain,
+            groupBy
+                .filter((gb) => gb.fieldName !== sequentialField)
+                .map((gb) => gb.spec),
+            measures,
+            {
+                context: { ...this.searchParams.context },
+            },
+        );
     }
 
     /**

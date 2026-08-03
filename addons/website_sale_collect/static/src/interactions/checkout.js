@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 import { patch } from '@web/core/utils/patch';
 import { patchDynamicContent } from '@web/public/utils';
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { Checkout } from '@website_sale/interactions/checkout';
 
 patch(Checkout.prototype, {

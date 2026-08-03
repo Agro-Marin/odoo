@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { fuzzyLookup } from "@web/core/utils/search";
 
 import { Plugin } from "../../plugin.js";

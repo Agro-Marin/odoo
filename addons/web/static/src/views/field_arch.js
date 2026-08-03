@@ -6,12 +6,61 @@
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { getFieldFromRegistry } from "@web/fields/field";
+import { getFieldFromRegistry, getSupportedOptionNames } from "@web/fields/field";
 import { X2M_TYPES } from "@web/fields/field_types";
 import { utils } from "@web/ui/viewport";
 
 const isSmall = utils.isSmall;
 const viewRegistry = registry.category("views");
+
+/**
+ * Arch options read by the framework rather than by the widget, so no
+ * `supportedOptions` list can be expected to declare them.
+ */
+const FRAMEWORK_FIELD_OPTIONS = new Set(["group_by_tooltip"]);
+
+/** @type {Set<string>} */
+const warnedUnknownOptions = new Set();
+
+export function resetUnknownOptionWarnings() {
+    warnedUnknownOptions.clear();
+}
+
+/**
+ * An option a widget does not declare is silently dropped: `extractProps` reads
+ * a key that is not there, the prop is omitted, and the default applies. A
+ * `no_open` copied onto `many2many_tags` (which, unlike `many2one`, does not
+ * support it) therefore reads as "open is disabled" while the widget opens.
+ *
+ * Only widgets that declare `supportedOptions` are checked; see
+ * `getSupportedOptionNames`.
+ *
+ * @param {string} widget
+ * @param {ReturnType<typeof getFieldFromRegistry>} field
+ * @param {Record<string, unknown>} options
+ */
+function warnUnknownOptions(widget, field, options) {
+    const supported = getSupportedOptionNames(field);
+    if (!supported) {
+        return;
+    }
+    const unknown = Object.keys(options).filter(
+        (name) => !supported.has(name) && !FRAMEWORK_FIELD_OPTIONS.has(name),
+    );
+    if (!unknown.length) {
+        return;
+    }
+    const key = `${widget}|${unknown.join(",")}`;
+    if (warnedUnknownOptions.has(key)) {
+        return;
+    }
+    warnedUnknownOptions.add(key);
+    console.warn(
+        `[field_arch] widget "${widget}" does not support option(s) ` +
+            `${unknown.map((n) => `"${n}"`).join(", ")}; they are ignored. ` +
+            `Supported: ${[...supported].join(", ") || "(none)"}.`,
+    );
+}
 
 /**
  * @param {Element} node
@@ -82,6 +131,10 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
     }
     if (name === "id") {
         fieldInfo.readonly = "True";
+    }
+
+    if (odoo.debug && widget && Object.keys(fieldInfo.options).length) {
+        warnUnknownOptions(widget, field, fieldInfo.options);
     }
 
     if (widget === "handle") {

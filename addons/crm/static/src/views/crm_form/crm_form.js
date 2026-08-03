@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { checkRainbowmanMessage } from "@crm/views/check_rainbowman_message";
 import { registry } from "@web/core/registry";
-import { formView } from "@web/views/form/form_view";
+import { formView } from "@web/views/form";
 
 class CrmFormRecord extends formView.Model.Record {
      /**

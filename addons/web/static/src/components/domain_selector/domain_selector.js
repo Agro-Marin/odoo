@@ -10,7 +10,7 @@ import { ModelFieldSelector } from "@web/components/model_field_selector/model_f
 import { TreeEditor } from "@web/components/tree_editor/tree_editor";
 import { getOperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import {
     areEqualTrees,
     condition,

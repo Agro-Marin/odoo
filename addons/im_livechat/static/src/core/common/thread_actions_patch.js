@@ -1,4 +1,7 @@
 /** @odoo-module native */
+import "@mail/discuss/call/common/thread_actions";
+import "@mail/discuss/core/common/thread_actions";
+
 import { ThreadAction, threadActionsRegistry } from "@mail/core/common/thread_actions";
 import { patch } from "@web/core/utils/patch";
 

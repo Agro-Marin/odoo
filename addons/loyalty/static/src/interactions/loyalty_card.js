@@ -2,7 +2,7 @@
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { PortalLoyaltyCardDialog } from '../js/portal/loyalty_card_dialog/loyalty_card_dialog.js';
 
 export class LoyaltyCard extends Interaction {

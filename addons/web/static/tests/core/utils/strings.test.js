@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { patchTranslations } from "@web/../tests/web_test_helpers";
-import { _t as basic_t } from "@web/core/l10n/translation";
+import { _t as basic_t } from "@web/core/translation";
 import {
     capitalize,
     escape,

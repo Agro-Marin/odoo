@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
+} from "@web/fields/relational/many2many_tags";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 export class Many2XTaxTagsAutocomplete extends Many2XAutocomplete {

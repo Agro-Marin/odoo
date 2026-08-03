@@ -2,9 +2,9 @@
 
 import { patch } from '@web/core/utils/patch';
 import { patchDynamicContent } from '@web/public/utils';
-import { ConfirmationDialog } from '@web/ui/dialog/confirmation_dialog';
-import { _t } from '@web/core/l10n/translation';
-import { rpc } from '@web/core/network/rpc';
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { _t } from '@web/core/translation';
+import { rpc } from "@web/core/network";
 import { ExpressCheckout } from '@payment/interactions/express_checkout';
 import paymentDemoMixin from '@payment_demo/interactions/payment_demo_mixin';
 

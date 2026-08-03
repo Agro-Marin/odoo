@@ -10,8 +10,8 @@ import {
 } from "@html_editor/utils/dom_traversal";
 import { childNodeIndex, DIRECTIONS, nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 
 import { AnimateOption } from "./animate_option.js";

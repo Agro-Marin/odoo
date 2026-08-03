@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
 
 const FIELDS = [

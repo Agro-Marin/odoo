@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { RatingPopupComposer } from "@portal_rating/interactions/portal_rating_composer";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 patch(RatingPopupComposer.prototype, {

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { listView } from "@web/views/list/list_view";
+import { listView } from "@web/views/list";
 
 import { StockReportSearchModel } from "../search/stock_report_search_model.js";
 import { StockReportSearchPanel } from "../search/stock_report_search_panel.js";

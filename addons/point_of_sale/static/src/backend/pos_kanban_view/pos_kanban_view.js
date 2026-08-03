@@ -2,14 +2,12 @@
 import { onWillRender, onWillStart, useState } from "@odoo/owl";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
 import { colorScheme } from "@web/core/color_scheme";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-import { KanbanController } from "@web/views/kanban/kanban_controller";
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
-import { kanbanView } from "@web/views/kanban/kanban_view";
+import { AlertDialog } from "@web/ui/dialog";
+import { KanbanController, KanbanRenderer, kanbanView } from "@web/views/kanban";
 async function updatePosKanbanViewState(orm, stateObj) {
     const result = await orm.call("pos.config", "get_pos_kanban_view_state");
     Object.assign(stateObj, result);

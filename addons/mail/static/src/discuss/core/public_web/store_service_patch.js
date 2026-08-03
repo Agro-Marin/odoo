@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Store } from "@mail/core/common/store_service";
 import { makeSequential } from "@mail/utils/common/misc";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 /** @type {import("models").Store} */
 const StorePatch = {

@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Component, onWillUpdateProps } from "@odoo/owl";
 import {
     dateFilterValueToString,
@@ -8,9 +7,10 @@ import {
     getPreviousDateFilterValue,
     RELATIVE_PERIODS,
 } from "@spreadsheet/global_filters/helpers";
-import { DateTimeInput } from "@web/components/datetime/datetime_input";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { _t } from "@web/core/l10n/translation";
+import { DateTimeInput } from "@web/components/datetime";
+import { DropdownItem } from "@web/components/dropdown";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/translation";
 const { DateTime } = luxon;
 
 const DATE_OPTIONS = [

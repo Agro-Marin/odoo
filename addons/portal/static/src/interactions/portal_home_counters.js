@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
-import { rpc } from "@web/core/network/rpc";
+import { Interaction } from "@web/public/interaction";
 
 export class PortalHomeCounters extends Interaction {
     static selector = ".o_portal_my_home";

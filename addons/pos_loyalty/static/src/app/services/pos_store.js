@@ -1,15 +1,15 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { SelectionPopup } from "@point_of_sale/app/components/popups/selection_popup/selection_popup";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { Domain, InvalidDomainError } from "@web/core/domain";
 import { serializeDate } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/translation";
 import { omit } from "@web/core/utils/collections/objects";
 import { Mutex } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 let nextId = -1;
 const mutex = new Mutex();
 const updateRewardsMutex = new Mutex();

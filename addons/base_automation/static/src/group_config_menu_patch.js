@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
-import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
+import { GroupConfigMenu } from "@web/views/view_components";
 import { TRIGGER_FILTERS } from "./utils.js";
 
 const SUPPORTED_TRIGGERS = [
@@ -93,5 +93,5 @@ registry.category("group_config_items").add(
         class: "o_column_automations",
         icon: "fa-magic",
     },
-    { sequence: 25, force: true }
+    { sequence: 25, force: true },
 );

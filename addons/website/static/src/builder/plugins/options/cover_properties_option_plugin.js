@@ -2,7 +2,7 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { COVER_PROPERTIES } from "@website/builder/option_sequence";
 import { CoverPropertiesOption } from "@website/builder/plugins/options/cover_properties_option";

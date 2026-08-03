@@ -17,7 +17,7 @@ import {
 } from "@web/core/colors/colors";
 import { getFieldCodec } from "@web/core/field_codec";
 import { formatFloat, formatMonetary } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
 
 import { SEP } from "./graph_model.js";

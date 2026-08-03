@@ -4,8 +4,8 @@
 /** @module @web/ui/notification/notification_container */
 
 import { Component, useState } from "@odoo/owl";
-import { Transition } from "@web/components/transition";
 import { reportUncaught } from "@web/core/errors/error_utils";
+import { Transition } from "@web/core/transition";
 import { ErrorHandler } from "@web/core/utils/components";
 
 import { Notification } from "./notification.js";

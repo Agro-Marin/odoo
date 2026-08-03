@@ -32,6 +32,7 @@ GRAPH_PIVOT_SUITES = (
     "@web/views/graph",
     "@web/views/pivot",
     "@web/views/pivot_view",
+    "@web/views/field_arch",
     "@web/views/view_components",
     "@web/views/view_compiler",
     "@web/views/view_dialogs",
@@ -44,6 +45,10 @@ GRAPH_PIVOT_SUITES = (
     "@web/views/view",
     "@web/views/view_utils",
     "@web/views/module_views",
+    # Settings: source is `src/views/settings/`, so its tests belong at
+    # `tests/views/settings/`. Three of the four lived under
+    # `tests/webclient/settings_form_view/` and ran as `@web/webclient`;
+    # the fourth sat in the right place and therefore ran NOWHERE.
     "@web/views/settings",
 )
 MISC_SUITES = (
@@ -60,10 +65,9 @@ MISC_SUITES = (
 ALL_WEB_SUITE_PREFIXES = (
     "@web/core",
     "@web/components",
-    "@web/services",
     "@web/ui",
     "@web/views/calendar",
-    "@web/views/fields",
+    "@web/fields",
     "@web/views/form",
     "@web/views/kanban",
     "@web/views/list",
@@ -290,9 +294,7 @@ class HOOTCommon(odoo.tests.HttpCase):
 
     def test_generate_hoot_hash(self):
         self.assertEqual(self._generate_hash("@web/core"), "e39ce9ba")
-        self.assertEqual(
-            self._generate_hash("@web/core/autocomplete"), "69a6561d"
-        )
+        self.assertEqual(self._generate_hash("@web/core/autocomplete"), "69a6561d")
         self.assertEqual(
             self._generate_hash("@web/core/autocomplete/open dropdown on input"),
             "ee565d54",
@@ -389,11 +391,6 @@ class WebSuite(HOOTCommon):
         self._run_hoot("@web/components", preset="desktop", timeout=900)
 
     @odoo.tests.no_retry
-    def test_services(self):
-        """@web/services — ORM, hotkeys, commands, field service, etc."""
-        self._run_hoot("@web/services", preset="desktop")
-
-    @odoo.tests.no_retry
     def test_ui(self):
         """@web/ui — dialog, notification, popover, tooltip, overlay."""
         self._run_hoot("@web/ui", preset="desktop")
@@ -405,8 +402,8 @@ class WebSuite(HOOTCommon):
 
     @odoo.tests.no_retry
     def test_fields(self):
-        """@web/views/fields — all field widget tests."""
-        self._run_hoot("@web/views/fields", preset="desktop", timeout=900)
+        """@web/fields — all field widget tests."""
+        self._run_hoot("@web/fields", preset="desktop", timeout=900)
 
     @odoo.tests.no_retry
     def test_form(self):
@@ -674,11 +671,6 @@ class MobileWebSuite(HOOTCommon):
         self._run_hoot("@web/components", preset="mobile", tag="-headless", timeout=900)
 
     @odoo.tests.no_retry
-    def test_services(self):
-        """@web/services — ORM, hotkeys, commands, field service, etc."""
-        self._run_hoot("@web/services", preset="mobile", tag="-headless")
-
-    @odoo.tests.no_retry
     def test_ui(self):
         """@web/ui — dialog, notification, popover, tooltip, overlay."""
         self._run_hoot("@web/ui", preset="mobile", tag="-headless")
@@ -690,10 +682,8 @@ class MobileWebSuite(HOOTCommon):
 
     @odoo.tests.no_retry
     def test_fields(self):
-        """@web/views/fields — all field widget tests."""
-        self._run_hoot(
-            "@web/views/fields", preset="mobile", tag="-headless", timeout=900
-        )
+        """@web/fields — all field widget tests."""
+        self._run_hoot("@web/fields", preset="mobile", tag="-headless", timeout=900)
 
     @odoo.tests.no_retry
     def test_form(self):

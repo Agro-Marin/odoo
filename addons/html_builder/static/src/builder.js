@@ -1,5 +1,13 @@
 /** @odoo-module native */
+import { BlockTab } from "@html_builder/sidebar/block_tab";
+import { CustomizeTab } from "@html_builder/sidebar/customize_tab";
+import { InvisibleElementsPanel } from "@html_builder/sidebar/invisible_elements_panel";
+import { useSnippets } from "@html_builder/snippets/snippet_service";
+import { isVisible } from "@html_builder/utils/utils";
+import { setBuilderCSSVariables } from "@html_builder/utils/utils_css";
 import { Editor } from "@html_editor/editor";
+import { getHtmlStyle } from "@html_editor/utils/formatting";
+import { withSequence } from "@html_editor/utils/resource";
 import {
     Component,
     EventBus,
@@ -13,19 +21,11 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { _t } from "@web/core/l10n/translation";
-import { SIZES, MEDIAS_BREAKPOINTS } from "@web/ui/viewport";
-import { useService } from "@web/core/utils/hooks";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { _t } from "@web/core/translation";
 import { addLoadingEffect as addButtonLoadingEffect } from "@web/core/utils/dom/ui";
-import { InvisibleElementsPanel } from "@html_builder/sidebar/invisible_elements_panel";
-import { BlockTab } from "@html_builder/sidebar/block_tab";
-import { CustomizeTab } from "@html_builder/sidebar/customize_tab";
-import { useSnippets } from "@html_builder/snippets/snippet_service";
-import { setBuilderCSSVariables } from "@html_builder/utils/utils_css";
-import { withSequence } from "@html_editor/utils/resource";
-import { getHtmlStyle } from "@html_editor/utils/formatting";
-import { isVisible } from "@html_builder/utils/utils";
+import { useService } from "@web/core/utils/hooks";
+import { MEDIAS_BREAKPOINTS,SIZES } from "@web/ui/viewport";
 
 // These elements should only have inline content (even if they have a `block`
 // display style, for example if they are in a flex)

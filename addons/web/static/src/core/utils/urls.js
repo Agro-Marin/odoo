@@ -135,10 +135,17 @@ export function getDataURLFromFile(file) {
 const SAFE_URL_SCHEMES = ["http", "https", "ftp", "ftps", "mailto", "tel"];
 
 /**
+ * The default list governs urls that arrive as DATA — a record's url field, a
+ * link in a server-sent notification. `extraSchemes` is for the callers that
+ * also dispatch urls the app built itself, where a scheme meaningless as data
+ * is meaningful as a target: `blob:` can only name an object this document
+ * created, so it is inert in a record but real in an `ir.actions.act_url`.
+ *
  * @param {string} href
+ * @param {string[]} [extraSchemes] lowercase, without the colon
  * @returns {boolean}
  */
-export function isSafeUrlScheme(href) {
+export function isSafeUrlScheme(href, extraSchemes = []) {
     if (typeof href !== "string") {
         return false;
     }
@@ -153,7 +160,8 @@ export function isSafeUrlScheme(href) {
     }
     const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);
     if (scheme) {
-        return SAFE_URL_SCHEMES.includes(scheme[1].toLowerCase());
+        const name = scheme[1].toLowerCase();
+        return SAFE_URL_SCHEMES.includes(name) || extraSchemes.includes(name);
     }
     return true;
 }

@@ -6,7 +6,7 @@
 import { reactive } from "@odoo/owl";
 import { cookie } from "@web/core/browser/cookie";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 /**
  * @type {string[]}
@@ -30,50 +30,66 @@ export function nextDensity(density) {
     return DENSITIES[(index + 1) % DENSITIES.length];
 }
 
-export const densityService = {
-    /**
-     * @returns {{ state: { density: string }, current: string, set: (density: string) => Promise<void>, cycle: () => Promise<void> }}
-     */
-    start() {
+/**
+ * The `density` service.
+ *
+ * A class rather than a closure returning an object literal; see
+ * `core/hotkeys/hotkey_service.js` for the reasoning and
+ * `tooling/architecture/js_service_shape.py` for the budget.
+ *
+ * Only `state` is reactive here, not the service — consumers read
+ * `service.state.density` or `service.current` — so this needs no
+ * `reactive(new …)` wrapper, unlike `pwa` and `ui` whose whole surface is read
+ * from templates.
+ */
+export class DensityService {
+    constructor() {
         const userDensity = user.settings?.density;
-        const state = reactive({
+        this.state = reactive({
             density: DENSITIES.includes(userDensity) ? userDensity : "default",
         });
 
-        function apply(/** @type {string} */ density) {
-            state.density = density;
-            applyDensityClass(density);
-            cookie.set("content_density", density);
+        if (cookie.get("content_density") !== this.state.density) {
+            cookie.set("content_density", this.state.density);
         }
+        applyDensityClass(this.state.density);
+    }
 
-        if (cookie.get("content_density") !== state.density) {
-            cookie.set("content_density", state.density);
+    get current() {
+        return this.state.density;
+    }
+
+    /** @param {string} density */
+    _apply(density) {
+        this.state.density = density;
+        applyDensityClass(density);
+        cookie.set("content_density", density);
+    }
+
+    /** @param {string} density */
+    async set(density) {
+        if (!DENSITIES.includes(density)) {
+            return;
         }
+        const previous = this.state.density;
+        this._apply(density);
+        try {
+            await user.setUserSettings("density", density);
+        } catch (error) {
+            this._apply(previous);
+            console.warn("Could not persist the content density", error);
+        }
+    }
 
-        applyDensityClass(state.density);
+    async cycle() {
+        await this.set(nextDensity(this.state.density));
+    }
+}
 
-        return {
-            state,
-            get current() {
-                return state.density;
-            },
-            async set(density) {
-                if (!DENSITIES.includes(density)) {
-                    return;
-                }
-                const previous = state.density;
-                apply(density);
-                try {
-                    await user.setUserSettings("density", density);
-                } catch (error) {
-                    apply(previous);
-                    console.warn("Could not persist the content density", error);
-                }
-            },
-            async cycle() {
-                await this.set(nextDensity(state.density));
-            },
-        };
+export const densityService = {
+    /** @returns {DensityService} */
+    start() {
+        return new DensityService();
     },
 };
 

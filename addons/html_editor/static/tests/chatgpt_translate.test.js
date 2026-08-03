@@ -4,8 +4,8 @@ import { expect, test } from "@odoo/hoot";
 import { press, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
-import { loadLanguages } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+import { loadLanguages } from "@web/core/translation";
+import { user } from "@web/core/user";
 
 import { setupEditor } from "./_helpers/editor.js";
 import { getContent } from "./_helpers/selection.js";

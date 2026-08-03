@@ -8,8 +8,8 @@ import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
-import { user } from "@web/services/user";
 
 const actionRegistry = registry.category("actions");
 

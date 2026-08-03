@@ -1,4 +1,4 @@
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 import { ResUsers } from "@documents/../tests/mock_server/mock_models/res_users";
 import { mailModels } from "@mail/../tests/mail_test_helpers";

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { registry } from '@web/core/registry';
 import { Interaction } from '@web/public/interaction';
 import wSaleUtils from '@website_sale/js/website_sale_utils';

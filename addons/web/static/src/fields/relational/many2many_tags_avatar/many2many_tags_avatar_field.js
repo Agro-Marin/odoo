@@ -4,7 +4,7 @@
 /** @module @web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field */
 
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
 import {

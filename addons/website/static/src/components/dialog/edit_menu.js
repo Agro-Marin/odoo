@@ -8,10 +8,10 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
-import { useNestedSortable } from "@web/core/utils/dnd/nested_sortable";
+import { useNestedSortable } from "@web/core/utils/dnd";
 import { isEmail } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";

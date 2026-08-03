@@ -1,10 +1,7 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-
-import { formView } from "@web/views/form/form_view";
-import { FormController } from "@web/views/form/form_controller";
-
 import { useArchiveEmployee } from "@hr/views/archive_employee_hook";
+import { registry } from "@web/core/registry";
+import { FormController,formView } from "@web/views/form";
 
 export class EmployeeFormController extends FormController {
     setup() {

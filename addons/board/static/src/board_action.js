@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
+import { Component, onWillStart } from "@odoo/owl";
+import { makeContext } from "@web/core/context";
+import { rpc } from "@web/core/network";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { View } from "@web/views/view";
-import { makeContext } from "@web/core/context";
-import { user } from "@web/services/user";
-import { Component, onWillStart } from "@odoo/owl";
 
 export class BoardAction extends Component {
     static template = "board.BoardAction";

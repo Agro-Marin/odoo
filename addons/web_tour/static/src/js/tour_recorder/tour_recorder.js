@@ -1,12 +1,11 @@
 /** @odoo-module native */
 import { queryAll, queryFirst, queryOne } from "@odoo/hoot-dom";
 import { Component, useExternalListener, useState } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { x2ManyCommands } from "@web/model/relational_model";
 
 import { tourRecorderState } from "./tour_recorder_state.js";
 

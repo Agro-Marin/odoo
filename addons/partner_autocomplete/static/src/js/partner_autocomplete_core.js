@@ -2,7 +2,7 @@
 /* global checkVATNumber */
 
 import { loadJS } from "@web/core/assets";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { renderToMarkup } from "@web/core/utils/render";

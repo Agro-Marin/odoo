@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { App } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { appTranslateFn } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
+import { appTranslateFn } from "@web/core/translation";
 const DEFAULT_ID = Symbol("default");
 
 export const mailPopoutService = {

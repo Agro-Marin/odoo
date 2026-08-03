@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { ResPartner } from "@mail/core/common/res_partner_model";
 import { deserializeDateTime } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 const { DateTime } = luxon;

@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { ErrorDialog } from "@web/components/errors/error_dialogs";
-import { _t } from "@web/core/l10n/translation";
+import { ErrorDialog } from "@web/components/errors";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 
 function turnstileErrorHandler(env, error) {

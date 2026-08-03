@@ -5,10 +5,11 @@
 
 import { status, useComponent } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors/error_dialogs";
+import { useAction } from "@web/core/action_port";
 import { getFieldCodec } from "@web/core/field_codec";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { sharedComponents } from "@web/core/shared_components";
+import { _t } from "@web/core/translation";
 import { omit } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
@@ -227,7 +228,7 @@ export function buildMultiRecordModelParams({
  */
 export function useControllerServices() {
     const component = useComponent();
-    const action = useService("action");
+    const action = useAction();
     const dialog = useService("dialog");
     const notification = useService("notification");
     const orm = useService("orm");

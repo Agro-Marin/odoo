@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { ProductCatalogOrderLine } from "@product/product_catalog/order_line/order_line";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class ProductCatalogSaleOrderLine extends ProductCatalogOrderLine {
     static props = {

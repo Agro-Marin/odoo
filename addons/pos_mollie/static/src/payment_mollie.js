@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
 import { register_payment_method } from "@point_of_sale/app/services/pos_store";
 

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { pick } from "@web/core/utils/collections/objects";
-import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder";
+import { makeNativeDraggableHook } from "@web/core/utils/dnd";
 import { closest, touching } from "@web/core/utils/dom/ui";
 import { throttleForAnimation } from "@web/core/utils/timing";
 
@@ -76,7 +76,7 @@ export function useNativeDraggable(hookParams, initialParams) {
     el.classList.add("o_draggable");
     cleanupFunctions.push(() => el.classList.remove("o_draggable"));
 
-    const draggableState = makeDraggableHook({ setupHooks, ...hookParams })(
+    const draggableState = makeNativeDraggableHook({ setupHooks, ...hookParams })(
         currentParams,
     );
     draggableState.enable = true;

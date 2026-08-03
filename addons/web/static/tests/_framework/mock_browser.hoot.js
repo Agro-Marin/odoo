@@ -1,6 +1,6 @@
 // @ts-check
 
-import { mockHistory, mockLocation } from "@odoo/hoot";
+import { afterEach, beforeEach, mockHistory, mockLocation } from "@odoo/hoot";
 
 /**
  * Timer/animation primitives that HOOT already mocks (via its virtual clock:
@@ -63,4 +63,70 @@ export function patchBrowserLocation() {
             get: () => originalValue,
         });
     }
+}
+
+/**
+ * Isolate `localStorage`/`sessionStorage` between tests.
+ *
+ * Without this, `browser.localStorage` IS `window.localStorage` — the real one —
+ * so any test that writes a key leaves it for every test that runs afterwards.
+ * The warm-server runner (`tooling/hoot/hoot`) reuses one browser across
+ * invocations, so it leaks between RUNS too, which is why two `emoji_picker`
+ * tests failed or passed depending on what had run before them rather than on
+ * anything they did: `emoji_picker.test.js` writes `web.emoji.frequent` and
+ * never restores it, and the picker caps its recents, so a store another suite
+ * left full silently changed which emojis rendered.
+ *
+ * **Snapshot and restore the real objects rather than substituting a fake one.**
+ * A hand-rolled `Storage` was tried first and is a trap: the real thing is a
+ * property bag as well as an API (`store.foo = 1`), it enumerates entries rather
+ * than methods, and — the one that bites hardest — it keeps its API on
+ * `Storage.prototype`, which is what makes
+ * `patchWithCleanup(browser.localStorage, { removeItem() { … super.getItem(k) …
+ * } })` resolve. A literal with own-property methods ends that `super` chain at
+ * `Object.prototype`. Reproducing all of it faithfully is strictly more work
+ * than not replacing the object at all.
+ *
+ * HOOT keeps its own keys in `localStorage` (see `hoot_utils.js`); restoring the
+ * exact prior contents leaves those untouched, where a blanket `clear()` would
+ * not.
+ */
+export function patchBrowserStorage() {
+    const snapshot = (/** @type {Storage} */ storage) => {
+        /** @type {[string, string][]} */
+        const entries = [];
+        for (let i = 0; i < storage.length; i++) {
+            const key = /** @type {string} */ (storage.key(i));
+            entries.push([key, /** @type {string} */ (storage.getItem(key))]);
+        }
+        return entries;
+    };
+    const restore = (
+        /** @type {Storage} */ storage,
+        /** @type {[string, string][]} */ entries,
+    ) => {
+        storage.clear();
+        for (const [key, value] of entries) {
+            storage.setItem(key, value);
+        }
+    };
+
+    /** @type {[Storage, [string, string][]][]} */
+    let taken = [];
+    beforeEach(
+        () => {
+            const stores = [globalThis.localStorage, globalThis.sessionStorage];
+            taken = stores.filter(Boolean).map((s) => [s, snapshot(s)]);
+        },
+        { global: true },
+    );
+    afterEach(
+        () => {
+            for (const [storage, entries] of taken) {
+                restore(storage, entries);
+            }
+            taken = [];
+        },
+        { global: true },
+    );
 }

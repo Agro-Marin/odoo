@@ -12,7 +12,7 @@ import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef PopoverHookReturnType
  * @property {(target: string | HTMLElement, props: object) => void} open
- * @property {(removeParams?: any) => void} close
+ * @property {(removeParams?: any) => Promise<void> | undefined} close
  * @property {boolean} isOpen
  */
 
@@ -25,8 +25,12 @@ import { useService } from "@web/core/utils/hooks";
 export function makePopover(addFn, component, options) {
     /** @type {((removeParams?: any) => Promise<void>) | null} */
     let removeFn = null;
+    // Returned, not discarded: removal awaits the caller's `onClose`, so this
+    // promise is the only way to know the popover has actually gone. The
+    // dialog service already hands its own back and `form_controller` awaits
+    // it; dropping it here made the same close unawaitable through the hook.
     function close(/** @type {any} */ removeParams = undefined) {
-        removeFn?.(removeParams);
+        return removeFn?.(removeParams);
     }
     return {
         open(target, props) {
@@ -63,6 +67,10 @@ export function usePopover(component, options = {}) {
     const popoverService = useService("popover");
     const owner = useComponent();
 
+    // Pass a FUNCTION for anything that can change after setup. A bare value is
+    // read once, here, and a breakpoint crossing does not remount the owner --
+    // so `useBottomSheet: ui.isSmall` pins the choice to whatever the screen
+    // was when the component was created, for its whole life.
     const { useBottomSheet } = /** @type {any} */ (options);
     const wantsBottomSheet =
         typeof useBottomSheet === "function"

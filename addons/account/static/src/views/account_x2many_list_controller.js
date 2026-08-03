@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { ListController } from "@web/views/list/list_controller";
-import { listView } from "@web/views/list/list_view";
+import { ListController, listView } from "@web/views/list";
 
 export class AccountX2ManyListController extends ListController {
     setup() {

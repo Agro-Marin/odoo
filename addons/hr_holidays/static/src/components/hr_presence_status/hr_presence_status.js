@@ -1,17 +1,16 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { patch } from "@web/core/utils/patch";
-
 import { HrPresenceStatus, hrPresenceStatus } from "@hr/components/hr_presence_status/hr_presence_status";
-import { HrPresenceStatusPrivate, hrPresenceStatusPrivate } from "@hr/components/hr_presence_status_private/hr_presence_status_private";
 import {
     HrPresenceStatusPill,
     hrPresenceStatusPill,
 } from "@hr/components/hr_presence_status_pill/hr_presence_status_pill";
+import { HrPresenceStatusPrivate, hrPresenceStatusPrivate } from "@hr/components/hr_presence_status_private/hr_presence_status_private";
 import {
     HrPresenceStatusPrivatePill,
     hrPresenceStatusPrivatePill,
 } from "@hr/components/hr_presence_status_private_pill/hr_presence_status_private_pill";
+import { _t } from "@web/core/translation";
+import { patch } from "@web/core/utils/patch";
 
 const patchHrPresenceStatus = () => ({
 

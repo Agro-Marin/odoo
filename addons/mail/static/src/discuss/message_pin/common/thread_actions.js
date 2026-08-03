@@ -2,7 +2,7 @@
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { PinnedMessagesPanel } from "@mail/discuss/message_pin/common/pinned_messages_panel";
 import { useChildSubEnv } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 registerThreadAction("pinned-messages", {
     actionPanelComponent: PinnedMessagesPanel,
     condition: ({ owner, thread }) =>

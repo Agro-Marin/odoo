@@ -3,7 +3,7 @@ import { registry } from "@web/core/registry";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
+} from "@web/fields/relational/many2many_tags";
 export class Many2ManyPlaceholderListView extends Many2ManyTagsField {
     static template = "point_of_sale.Many2ManyPlaceholderListView";
 }

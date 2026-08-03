@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { isValidEmail } from "@point_of_sale/utils";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { localization } from "@web/core/l10n/localization";
-import { rpc } from "@web/core/network/rpc";
+import { luxon } from "@web/core/l10n/luxon";
+import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
 const { DateTime } = luxon;
 export class PresetInfoPopup extends Component {

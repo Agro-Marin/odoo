@@ -14,13 +14,12 @@ import { QrCodeCustomerDisplay } from "@point_of_sale/app/customer_display/custo
 import { useAsyncLockedMethod } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { getDeviceUuid } from "@point_of_sale/utils";
-import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video_scanner";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { isBarcodeScannerSupported } from "@web/components/barcode";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { isDisplayStandalone } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 export class Navbar extends Component {
     static template = "point_of_sale.Navbar";
     static components = {

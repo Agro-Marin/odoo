@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 export class Failure extends Record {
     static id = "id";
 

@@ -4,7 +4,7 @@ import { Store } from "@mail/core/common/store_service";
 import { browser } from "@web/core/browser/browser";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 const { DateTime } = luxon;
 
 export class ChannelMember extends Record {

@@ -2,10 +2,9 @@
 import { Component } from "@odoo/owl";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { AlertDialog, Dialog } from "@web/ui/dialog";
 export class CashMoveListPopup extends Component {
     static template = "point_of_sale.CashMoveListPopup";
     static components = { Dialog };

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { _t } from "@web/core/translation";
+import { Dialog } from "@web/ui/dialog";
 
 import { discussComponentRegistry } from "./discuss_component_registry.js";
 

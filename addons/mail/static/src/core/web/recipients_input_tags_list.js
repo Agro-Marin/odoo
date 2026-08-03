@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { onWillUpdateProps, toRaw, useEffect, useRef, useState } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 import { RecipientsInputTagsListPopover } from "./recipients_input_tags_list_popover.js";
 

@@ -5,10 +5,10 @@
 
 import { Component } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useOwnedDialogs } from "@web/core/utils/hooks";
 import { RelationalRecord } from "@web/model/relational_model/record";
-import { user } from "@web/services/user";
 
 import { TranslationDialog } from "./translation_dialog.js";
 

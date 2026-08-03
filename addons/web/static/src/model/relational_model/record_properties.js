@@ -3,17 +3,22 @@
 
 /** @module @web/model/relational_model/record_properties */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { x2ManyCommands } from "./commands.js";
 import { createPropertyActiveField } from "./field_metadata.js";
 import { invalidateAggregateSpecs } from "./field_values.js";
 import { invalidateModifierDependencies } from "./record_utils.js";
 
-/** @import { RelationalRecord } from "@web/model/relational_model/record" */
+/** @import { RecordContract } from "@web/model/relational_model/record_contract" */
 
 /**
- * @param {RelationalRecord} record
+ * Declared against the record CONTRACT rather than `RelationalRecord`: this
+ * reads `fields`, `activeFields` and `_createStaticListDatapoint`, and saying so
+ * makes reaching for a fourth member a typecheck failure. See
+ * `record_contract.js`.
+ *
+ * @param {RecordContract} record
  * @param {Object[]} properties
  * @param {string} fieldName
  * @param {{ id?: number; display_name?: string } | false} parent

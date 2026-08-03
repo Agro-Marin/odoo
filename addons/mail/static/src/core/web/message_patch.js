@@ -15,11 +15,11 @@ import {
     formatDate,
     formatDateTime,
 } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 patch(Message.prototype, {
     setup() {
         super.setup(...arguments);

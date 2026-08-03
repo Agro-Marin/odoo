@@ -262,7 +262,7 @@ export function throttleForAnimation(func) {
  * @param {T} callback
  * @param {number | "animationFrame" | (() => number)} delay
  * @param {{execBeforeUnmount?: boolean, immediate?: boolean, trailing?: boolean}} [options]
- * @returns {T & { cancel: () => void }}
+ * @returns {T & { cancel: (execNow?: boolean) => void }}
  */
 export function useDebounced(
     callback,

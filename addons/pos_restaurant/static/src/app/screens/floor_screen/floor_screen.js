@@ -23,18 +23,17 @@ import { getOrderChanges } from "@point_of_sale/app/models/utils/order_change";
 import { ask } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { loadImage } from "@point_of_sale/utils";
 import { NumpadDropdown } from "@pos_restaurant/app/components/numpad_dropdown/numpad_dropdown";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { cookie } from "@web/core/browser/cookie";
 import { hasTouch } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
-import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
+import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { getDataURLFromFile } from "@web/core/utils/urls";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 function constrain(num, min, max) {
     return Math.min(Math.max(num, min), max);
 }

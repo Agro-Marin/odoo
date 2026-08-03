@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { omit } from "@web/core/utils/collections/objects";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
+import { computeM2OProps, Many2One } from "@web/fields/relational/many2one";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { ProjectTaskStateSelection } from "../project_task_state_selection.js";

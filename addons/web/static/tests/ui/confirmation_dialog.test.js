@@ -11,8 +11,8 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 describe.current.tags("desktop");
 

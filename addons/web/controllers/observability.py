@@ -83,6 +83,23 @@ _MAX_ERROR_STACK_LEN = 4_096
 _MAX_ERROR_CAUSE_LEN = 4_096
 _MAX_ERROR_FILENAME_LEN = 500
 
+# The js_error taxonomy the client is allowed to send, kept in step with the
+# beacon emitters under web/static/src (error_beacon.js, module_loader.js,
+# boot_failure_overlay.js). ``TestJsErrorTaxonomy`` asserts every emitted
+# kind/phase appears here, so a newly-emitted one cannot silently degrade to
+# ``"error"`` / ``"unknown"`` -- which is what hid asset-load failures and
+# boot-mount failures, the two most operationally interesting of them.
+_JS_ERROR_KINDS = frozenset(
+    {
+        "error",
+        "unhandledrejection",
+        "module_rebind",
+        "service_start",
+        "asset_load_error",
+    }
+)
+_JS_ERROR_PHASES = frozenset({"pre_boot", "post_boot", "boot_mount_failed"})
+
 
 def _clamp_latency(value):
     """Return ``value`` if it looks like a valid latency in ms, else ``None``."""
@@ -213,15 +230,17 @@ class Observability(Controller):
         csrf=False,
     )
     def js_error(self) -> Response:
-        """Receive a JS error beacon from ``module_loader.js``.
+        """Receive a JS error beacon from ``module_loader.js``, ``error_beacon.js``
+        or ``boot_failure_overlay.js``.
 
         Payload fields (all optional, all clamped to per-field length caps):
-        ``phase`` (``"pre_boot"`` | ``"post_boot"``), ``kind`` (``"error"`` |
-        ``"unhandledrejection"`` | ``"module_rebind"`` | ``"service_start"`` |
-        ``"asset_load_error"``), ``message``, ``cause``, ``filename``,
-        ``line``, ``col``, ``stack``, ``url``, ``user_agent``, and
-        ``reloaded`` (``asset_load_error`` only — whether the loader's
-        self-heal reload fired or the once-a-minute guard suppressed it).
+        ``phase`` (``_JS_ERROR_PHASES``: ``pre_boot`` | ``post_boot`` |
+        ``boot_mount_failed``), ``kind`` (``_JS_ERROR_KINDS``: ``error`` |
+        ``unhandledrejection`` | ``module_rebind`` | ``service_start`` |
+        ``asset_load_error``), ``message``, ``cause``, ``filename``, ``line``,
+        ``col``, ``stack``, ``url``, ``user_agent``, and ``reloaded``
+        (``asset_load_error`` only — whether the loader's self-heal reload
+        fired or the once-a-minute guard suppressed it).
 
         Logs each beacon as ``[js_error]`` at WARNING and persists it to
         ``web.js.error`` (list/form under Settings → Technical → Observability
@@ -264,22 +283,9 @@ class Observability(Controller):
         if not message:
             return Response("", status=204)
 
-        kind = (
-            payload.get("kind")
-            if payload.get("kind")
-            in (
-                "error",
-                "unhandledrejection",
-                "module_rebind",
-                "service_start",
-                "asset_load_error",
-            )
-            else "error"
-        )
+        kind = payload.get("kind") if payload.get("kind") in _JS_ERROR_KINDS else "error"
         phase = (
-            payload.get("phase")
-            if payload.get("phase") in ("pre_boot", "post_boot")
-            else "unknown"
+            payload.get("phase") if payload.get("phase") in _JS_ERROR_PHASES else "unknown"
         )
         filename = _str_field(payload.get("filename"), _MAX_ERROR_FILENAME_LEN)
         url = _str_field(payload.get("url"), _MAX_URL_LEN)

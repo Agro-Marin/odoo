@@ -1,11 +1,10 @@
 /** @odoo-module native */
-import { onWillStart } from "@odoo/owl";
-import { CalendarCommonPopover } from "@web/views/calendar/calendar_common/calendar_common_popover";
-import { useService } from "@web/core/utils/hooks";
 import { useAskRecurrenceUpdatePolicy } from "@calendar/views/ask_recurrence_update_policy_hook";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { user } from "@web/services/user";
+import { onWillStart } from "@odoo/owl";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { user } from "@web/core/user";
+import { useService } from "@web/core/utils/hooks";
+import { CalendarCommonPopover } from "@web/views/calendar";
 
 export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
     static components = {

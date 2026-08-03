@@ -9,15 +9,15 @@ import {
   useRef,
   useState,
 } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 import { localization } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { rpc } from "@web/core/network";
+import { user } from "@web/core/user";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
 import { isEmail } from "@web/core/utils/format/strings";
-import { FileUploader } from "@web/core/file_upload/file_handler";
+import { FileUploader } from "@web/core/file_upload";
 import { endPos } from "@html_editor/utils/position";
 
 export class ProfileDialog extends Component {

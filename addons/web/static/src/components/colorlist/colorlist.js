@@ -4,7 +4,7 @@
 /** @module @web/components/colorlist/colorlist */
 
 import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 export class ColorList extends Component {
     static COLORS = [

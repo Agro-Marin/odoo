@@ -46,7 +46,7 @@ import { childNodeIndex, nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { reactive } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { isColorGradient } from "@web/core/utils/format/colors";
 

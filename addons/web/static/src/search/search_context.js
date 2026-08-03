@@ -10,8 +10,8 @@
  */
 
 import { makeContext } from "@web/core/context";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 export function computeSearchItemContext(activeItem, searchItems) {
     const { searchItemId } = activeItem;

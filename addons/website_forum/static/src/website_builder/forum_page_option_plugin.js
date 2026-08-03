@@ -3,7 +3,7 @@ import { DEFAULT } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 
 export const FORUMS_INDEX = DEFAULT;

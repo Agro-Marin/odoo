@@ -10,7 +10,7 @@ import {
 } from "@odoo/owl";
 import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class MessageReactionMenu extends Component {
     static props = ["close", "message", "initialReaction?"];
     static components = { Dialog };

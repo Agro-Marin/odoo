@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class FormattedDate extends Component {

@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { router } from "@web/core/browser/router";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 patch(Thread.prototype, {
     /**
      * Handle the notification of a new message based on the notification setting of the user.

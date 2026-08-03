@@ -6,10 +6,9 @@ import { discussSidebarItemsRegistry } from "@mail/core/public_web/discuss_sideb
 import { DiscussSidebarChannelActions } from "@mail/discuss/core/public_web/discuss_sidebar_channel_actions";
 import { useHover, UseHoverOverlay } from "@mail/utils/common/hooks";
 import { Component, useSubEnv } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
-import { _t } from "@web/core/l10n/translation";
+import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
 export const discussSidebarChannelIndicatorsRegistry = registry.category(

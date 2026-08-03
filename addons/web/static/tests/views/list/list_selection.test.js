@@ -25,14 +25,16 @@ function mountSelectionHost(/** @type {any} */ onToggle) {
         sel;
 
         setup() {
-            this.sel = useListSelection({
-                getProps: () =>
-                    /** @type {any} */ ({ list: { selection: [], records: [] } }),
-                getAllowSelectors: () => true,
-                toggleRecordSelection: onToggle,
-                longTouchThreshold: LONG_TOUCH_THRESHOLD,
-                getEnv: () => ({ isSmall: true }),
-            });
+            this.sel = useListSelection(
+                {
+                    getProps: () =>
+                        /** @type {any} */ ({ list: { selection: [], records: [] } }),
+                    getAllowSelectors: () => true,
+                    toggleRecordSelection: onToggle,
+                    getEnv: () => ({ isSmall: true }),
+                },
+                { longTouchThreshold: LONG_TOUCH_THRESHOLD },
+            );
         }
     }
     return mountWithCleanup(Host);

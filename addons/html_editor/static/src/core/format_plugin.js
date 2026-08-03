@@ -3,7 +3,7 @@ import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { prepareUpdate } from "@html_editor/utils/dom_state";
 import { withSequence } from "@html_editor/utils/resource";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { Plugin } from "../plugin.js";
 import { closestBlock, isBlock } from "../utils/blocks.js";

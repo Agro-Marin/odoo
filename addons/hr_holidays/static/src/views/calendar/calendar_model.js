@@ -1,13 +1,13 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { CalendarModel } from "@web/views/calendar/calendar_model";
 import {
     deserializeDate,
     deserializeDateTime,
     serializeDate,
     serializeDateTime,
 } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { Cache } from "@web/core/utils/collections/cache";
+import { CalendarModel } from "@web/views/calendar";
 const { DateTime } = luxon;
 
 export class TimeOffCalendarModel extends CalendarModel {

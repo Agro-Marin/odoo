@@ -2,8 +2,7 @@
 import { EventRegistrationSummaryDialog } from "@event/client_action/event_registration_summary_dialog";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { listView } from "@web/views/list/list_view";
-import { ListController } from "@web/views/list/list_controller";
+import { listView, ListController } from "@web/views/list";
 
 export class EventRegistrationListController extends ListController {
 

@@ -4,11 +4,11 @@
 /** @module @web/webclient/burger_menu/burger_menu */
 
 import { Component, useState } from "@odoo/owl";
-import { Transition } from "@web/components/transition";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+import { Transition } from "@web/core/transition";
+import { user } from "@web/core/user";
 import { useBus } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
 
 import { SWIPE_RIGHT, SwipeTracker } from "../swipe.js";
 import { BurgerUserMenu } from "./burger_user_menu/burger_user_menu.js";

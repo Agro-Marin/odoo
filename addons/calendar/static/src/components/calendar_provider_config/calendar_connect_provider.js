@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
-import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
+import { rpc } from "@web/core/network";
+import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
+import { useService } from "@web/core/utils/hooks";
+import { standardWidgetProps } from "@web/views/widgets";
 
 const providerData = {
     google: {

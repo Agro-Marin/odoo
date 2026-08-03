@@ -60,6 +60,16 @@ let sharedMedias = [];
  */
 let sharedMatchMedia = null;
 
+/**
+ * A point-in-time reading of the viewport, for code that has no env: tour steps,
+ * website interactions, anything outside a component.
+ *
+ * NOT reactive, and that is the whole distinction from the `ui` service. Both
+ * read the same live media queries so they can never disagree on the value, but
+ * only `ui.size` / `ui.isSmall` sit in a `reactive` and re-render their readers
+ * on a resize. Called from a component, these two answer correctly once and then
+ * never again -- reach for `useService("ui")` there instead.
+ */
 export const utils = {
     getSize() {
         if (sharedMatchMedia !== browser.matchMedia) {

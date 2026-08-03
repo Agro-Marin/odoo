@@ -1,14 +1,13 @@
 /** @odoo-module native */
 import { useDiscussSystray } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { useCommand } from "@web/services/commands/command_hook";
-import { user } from "@web/services/user";
+import { useCommand } from "@web/ui/commands";
 export class ActivityMenu extends Component {
     static components = { Dropdown };
     static props = [];

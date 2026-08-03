@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { renderToElement } from "@web/core/utils/render";
 import { Interaction } from "@web/public/interaction";
 import { session } from "@web/session";

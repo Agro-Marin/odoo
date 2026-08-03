@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 /**
  * This popover is used to show a card with details for the recipients' partner with its name,

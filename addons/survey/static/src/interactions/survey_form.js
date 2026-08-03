@@ -11,14 +11,14 @@ import {
     serializeDateTime,
 } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { resizeTextArea } from "@web/core/utils/dom/autoresize";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { redirect } from "@web/core/utils/urls";
 import { Interaction } from "@web/public/interaction";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 import { utils as uiUtils } from "@web/ui/viewport";
 
 const { DateTime } = luxon;

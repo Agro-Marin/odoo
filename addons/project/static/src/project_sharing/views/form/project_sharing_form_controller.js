@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { useExternalListener } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { FormController } from "@web/views/form/form_controller";
+import { FormController } from "@web/views/form";
 
 export class ProjectSharingFormController extends FormController {
     static components = {

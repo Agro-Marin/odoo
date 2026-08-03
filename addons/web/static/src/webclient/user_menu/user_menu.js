@@ -9,8 +9,8 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { imageUrl } from "@web/core/utils/urls";
-import { user } from "@web/services/user";
 import { session } from "@web/session";
 
 const userMenuRegistry = registry.category("user_menuitems");

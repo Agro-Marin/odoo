@@ -11,8 +11,8 @@ import {
     mountView,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { PropertyValue } from "@web/fields/specialized/properties/property_value";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
+import { PropertyValue } from "@web/fields/specialized/properties";
 
 const VERSIONS = htmlEditorVersions();
 const CURRENT_VERSION = VERSIONS.at(-1);

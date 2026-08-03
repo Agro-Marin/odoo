@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanArchParser } from "@web/views/kanban/kanban_arch_parser";
+import { KanbanArchParser } from "@web/views/kanban";
 import { extractAttributes } from "@web/core/utils/dom/xml";
 
 export class CrmKanbanArchParser extends KanbanArchParser {

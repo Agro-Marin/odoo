@@ -10,8 +10,8 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { user } from "@web/services/user";
-import { AnimatedNumber } from "@web/views/kanban/animated_number";
+import { user } from "@web/core/user";
+import { AnimatedNumber } from "@web/views/kanban";
 
 class Users extends models.Model {
     name = fields.Char();

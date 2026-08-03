@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState, useSubEnv } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
-import { formatCurrency } from "@web/services/currency";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { formatCurrency } from "@web/core/currency";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { Dialog } from "@web/ui/dialog";
 
 import { ProductList } from "../product_list/product_list.js";
 import {

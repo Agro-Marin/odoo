@@ -16,7 +16,7 @@ import { defineMailModels, start, startServer } from "@mail/../tests/mail_test_h
 import storeContract from "@mail/../tests/mock_server/contract/store_shapes";
 import { describe, expect, test } from "@odoo/hoot";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 describe.current.tags("desktop");
 defineMailModels();

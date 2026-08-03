@@ -16,24 +16,19 @@ Translation between industry vocabulary and the OWL primitives in this codebase:
 | Computed / derived value (on a class) | Plain JS getter reading signals (OWL is Proxy-based — getters track automatically) | Solid `createMemo` accessed via class field / Vue `computed` ref on `this` |
 | Computed / derived value (free-standing) | `derived(() => …)` (from `@web/core/utils/reactive`) — read via `.value` | Solid `createMemo` / Vue `computed` / Svelte 5 `$derived` |
 
-The two effect rows reflect a real distinction: a component using
-`useEffect` cleans up automatically on unmount, while a service-level
-`effect(cb, deps)` survives as long as the captured `deps` proxy
-survives. Don't substitute one for the other.
+`useEffect` cleans up on unmount; `effect(cb, deps)` survives as long as the
+captured `deps` proxy does. Not interchangeable.
 
-The two derived rows reflect the API shape choice: a class getter is
-ergonomic when the derived value naturally belongs to an instance
-(``record.dirty``, ``coordinator.isSaving``); `derived(fn)` is the
-right tool when the computation spans multiple sources or wants to be
-passed around as a value object — same shape as Vue's `ref` (`.value`
-read) but for read-only derivations. Neither is memoized; OWL's
-scheduler batches renders within a tick.
+Use a class getter when the derived value belongs to an instance
+(``record.dirty``, ``coordinator.isSaving``), `derived(fn)` when the computation
+spans sources or is passed around as a value. Neither is memoized; OWL batches
+renders within a tick.
 
 **SignalStore.**  ``SignalStore`` is the canonical class name and the only
 export; there is no `Reactive` alias, so
 `import { Reactive } from "@web/core/utils/reactive"` fails at module-load
-with a native "no such export" error.  All 32 production sites fork-wide use
-``extends SignalStore``.
+with a native "no such export" error.  26 production class declarations fork-wide
+use ``extends SignalStore``.
 
 ## Decision Tree
 
@@ -109,9 +104,9 @@ const fileUpload = useService("file_upload");
 file uploads, emoji frequency, currency rates, user preferences.
 
 **Key files**:
-- `services/file_upload_service.js` — reactive upload tracking with progress
+- `core/file_upload/file_upload_service.js` — reactive upload tracking with progress
 - `ui/notification/notification_service.js` — reactive notification dict
-- `services/frequent_emoji_service.js` — reactive usage counters with localStorage sync
+- `components/emoji_picker/frequent_emoji_service.js` — reactive usage counters with localStorage sync
 
 ### Browser-storage schemas have a single owner
 
@@ -121,7 +116,7 @@ never read or written by raw string literal from anywhere else:
 | Module | Keys | Notes |
 |---|---|---|
 | `webclient/actions/action_storage.js` | `current_action`, `current_state`, `current_lang` | The action-restore cache. Reads are **total**: missing, empty, or corrupt all resolve to `{}`, because the URL is the source of truth. `withTemporaryEntry()` performs the synchronous swap that seeds a new tab (sessionStorage is copied into an auxiliary browsing context at open time). |
-| `webclient/menus/menu_storage.js` | `webclient_menus`, `webclient_menus_version`, `webclient_menus_hash` | The menu tree cache. Written as a unit with the **version last** (it gates reuse on the next boot); a corrupt read discards the whole trio. |
+| `webclient/menus/menu_storage.js` | `webclient_menus`, `webclient_menus_version`, `webclient_menus_hash` (localStorage), `menu_id` (sessionStorage) | The menu tree cache. Written as a unit with the **version last** (it gates reuse on the next boot); a corrupt read discards the whole trio. `menu_id` is the current app, written by `menu_service` and read by `webclient.js` — the one key that was still open-coded at both ends. |
 
 Both are centralised here rather than open-coded per consumer, so the parse
 policy (what a corrupt or missing value resolves to) is uniform across readers.
@@ -192,14 +187,13 @@ this.quickCreateState = reactive({
 });
 ```
 
-**Why this is a smell.**  The setter is an *effect* pretending to be
-part of the *state*.  Conflating the two makes the dependency graph
-opaque (readers can't see that mutating `groupId` clears sample data),
-harder to test (every setter call has hidden downstream mutations),
-and awkward to compose (side effects don't chain like data flows).
+The setter is an effect pretending to be state: the dependency graph goes
+opaque (nothing shows that mutating `groupId` clears sample data), every setter
+call carries hidden downstream mutations, and side effects do not compose like
+data flows.
 
-**Preferred alternative.**  Keep the state plain and express the side
-effect with `useEffect` watching a signal dependency:
+**Preferred alternative** — plain state, side effect in a `useEffect` watching a
+signal dependency:
 
 ```javascript
 this.quickCreateState = reactive({ groupId: null });
@@ -223,16 +217,15 @@ remains fine on a `SignalStore` getter.
 > | Site | Verdict |
 > |---|---|
 > | `views/kanban/kanban_controller.js` (`set groupId`) | ⛔ Canonical exception to Pattern 4. The setter MUST clear sample data synchronously on the same microtask as the `groupId` mutation, or sample records still paint while the quick-create form mounts. A previous `useEffect` migration (commit `19fb5d01bb81`) was reverted because deferred cleanup broke 3 sample-data integration tests in `kanban_view.test.js` ("empty grouped kanban with sample data and click quick create" and siblings). **This page is the rationale of record** — the source carries only a self-contained `eslint-disable` pointing back here, per the no-explanatory-comments rule. **Keep as-is.** |
-> | `components/transition.js` (`set shouldMount`) | ⚠ Pattern 4 by syntax, but the setter implements a deliberate state-machine timing contract (`clearTimeout`, `prevState` tracking, `onNextPatch` scheduling). A `useEffect` rewrite changes observable timing. **Leave**. |
-> | `components/transition.js` (`set shouldMount`, disabled-config branch) | ✗ Not Pattern 4. Pure passthrough `state.shouldMount = val`. |
+> | `core/transition.js` (`set shouldMount`) | ⚠ Pattern 4 by syntax, but the setter implements a deliberate state-machine timing contract (`clearTimeout`, `prevState` tracking, `onNextPatch` scheduling). A `useEffect` rewrite changes observable timing. **Leave**. |
+> | `core/transition.js` (`set shouldMount`, disabled-config branch) | ✗ Not Pattern 4. Pure passthrough `state.shouldMount = val`. |
 > | `components/emoji_picker/emoji_picker.js` (`set searchTerm`) | ✗ Not Pattern 4. Delegation between `props.state` and `this.state`. |
 > | `components/dropdown/_behaviours/dropdown_nesting.js` (`set isOpen`) | ⚠ Edge case — fires `BUS.trigger("dropdown-opened", this)` (fire-once-on-edge signal, not state mutation). `useEffect` rewrite would either fire too often or require a `prev`-tracking dance uglier than the setter. **Leave**. |
 >
-> Pattern 4 is a *vocabulary check* for new code review, not a backlog. When a new
-> setter introduces cross-state side effects, the reviewer's question is:
-> "is this the canonical synchronous-timing exception (kanban quick-create
-> kind), the state-machine timing kind (transition kind), or genuinely an
-> effect masquerading as state?" Only the third is a refactor.
+> Pattern 4 is a review vocabulary, not a backlog. For a new cross-state setter,
+> ask whether it is the synchronous-timing exception (kanban kind), the
+> state-machine timing kind (transition kind), or an effect masquerading as
+> state. Only the third is a refactor.
 
 ## Model → renderer subscription: `useReactiveModel`
 
@@ -387,14 +380,14 @@ the mutex and normal flow.
 - `model/relational_model/record_edit_state.js` — `RecordEditState` owner (change set, `dirty`, validity, text-values, savepoint; `clearChanges()`/`markDirty()`)
 - `model/relational_model/record.js` — `_applyChanges()` (dirty tracking)
 - `model/relational_model/record.js` — `discard()` (mutex-wrapped)
-- `services/result_set_cache_invalidator_service.js` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined by `RESULT_SET_REMOVING_METHODS`; model-scoped on BOTH layers: RAM via reverse index, IndexedDB via cursor filter on the stored `model` — see Flow 14).
+- `core/network/result_set_cache_invalidator_service.js` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined by `RESULT_SET_REMOVING_METHODS`; model-scoped on BOTH layers: RAM via reverse index, IndexedDB via cursor filter on the stored `model` — see Flow 14).
 
 **All 6 CLEAR-CACHES emission sites in the web module:**
 
 | File:Line | Trigger | Scope |
 |---|---|---|
-| `services/result_set_cache_invalidator_service.js` | `unlink` / `action_archive` / `action_unarchive` RPC response (set defined by `RESULT_SET_REMOVING_METHODS`) | tables: web_read, web_search_read, web_read_group; model-scoped in RAM only |
-| `services/result_set_cache_invalidator_service.js` | `base.language.install` `lang_install` RPC response (a new language invalidates virtually everything cached) | all |
+| `core/network/result_set_cache_invalidator_service.js` | `unlink` / `action_archive` / `action_unarchive` RPC response (set defined by `RESULT_SET_REMOVING_METHODS`) | tables: web_read, web_search_read, web_read_group; model-scoped in RAM only |
+| `core/network/result_set_cache_invalidator_service.js` | `base.language.install` `lang_install` RPC response (a new language invalidates virtually everything cached) | all |
 | `search/search_favorites_mixin.js` | `ir.filters` write/unlink (saved-favorite mutations) | `"get_views"` table |
 | `webclient/actions/action_cache_invalidation.js` | `ir.actions.act_window` write/unlink | `"/web/action/load"` table |
 | `views/view_service.js` | `ir.ui.view` / `ir.filters` write/unlink | `"get_views"` table |
@@ -429,6 +422,7 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 | `AppEvent.ACTION_MANAGER_UI_UPDATED` | `ACTION_MANAGER:UI-UPDATED` | env.bus | UI render done |
 | `AppEvent.WEBCLIENT_LOAD_DEFAULT_APP` | `WEBCLIENT:LOAD_DEFAULT_APP` | env.bus | Load home |
 | `AppEvent.CLEAR_UNCOMMITTED_CHANGES` | `CLEAR-UNCOMMITTED-CHANGES` | env.bus | Save/discard all |
+| `AppEvent.ACTION_MANAGER_SETTLED` | `ACTION_MANAGER:SETTLED` | env.bus | Action dispatch fully unwound — fired once per user gesture, on the outermost unwind only (`_dispatchDepth === 0` in `webclient/actions/action_service.js`), so re-entrant dispatches (server action, function client action, `act_url` close, report close) do not announce a premature settle. Consumed by `webclient/clickbot/clickbot.js` |
 | `AppEvent.MENUS_APP_CHANGED` | `MENUS:APP-CHANGED` | env.bus | App switched |
 | `AppEvent.BLOCK` / `UNBLOCK` | `BLOCK` / `UNBLOCK` | env.bus | UI blocking |
 | `AppEvent.ACTIVE_ELEMENT_CHANGED` | `active-element-changed` | env.bus | Dialog focus |
@@ -449,9 +443,9 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 | `ModelEvent.FIELD_IS_DIRTY` | `FIELD_IS_DIRTY` | `getBus()` | Per-field dirty signal (`fields/field_dirty_signal.js`) |
 | `ModelEvent.PROPERTY_FIELD_EDIT` | `PROPERTY_FIELD:EDIT` | `model.bus` | Enter property-definition edit mode (`fields/specialized/properties/properties_field.js`) |
 | `ModelEvent.SCROLL_TO_CURRENT_HOUR` | `SCROLL_TO_CURRENT_HOUR` | `model.bus` | Calendar scroll request (`views/calendar/calendar_controller.js`) |
-| `UserEvent.ACTIVE_COMPANIES_CHANGED` | `ACTIVE_COMPANIES_CHANGED` | `userBus` | Allowed-company selection changed (`services/user.js`). Load-bearing for `name_service` cache clearing — see ARCHITECTURE.md |
-| `FileUploadEvent.ADDED` / `LOADED` / `ERROR` | `FILE_UPLOAD_ADDED` / `FILE_UPLOAD_LOADED` / `FILE_UPLOAD_ERROR` | `file_upload` service bus | Upload lifecycle (`services/file_upload_service.js`) |
-| `CommandPaletteEvent.SET_CONFIG` | `SET-CONFIG` | command palette bus | Reconfigure the open palette (`services/commands/command_service.js`) |
+| `UserEvent.ACTIVE_COMPANIES_CHANGED` | `ACTIVE_COMPANIES_CHANGED` | `userBus` | Allowed-company selection changed (`core/user.js`). Load-bearing for `name_service` cache clearing — see ARCHITECTURE.md |
+| `FileUploadEvent.ADDED` / `LOADED` / `ERROR` | `FILE_UPLOAD_ADDED` / `FILE_UPLOAD_LOADED` / `FILE_UPLOAD_ERROR` | `file_upload` service bus | Upload lifecycle (`core/file_upload/file_upload_service.js`) |
+| `CommandPaletteEvent.SET_CONFIG` | `SET-CONFIG` | command palette bus | Reconfigure the open palette (`ui/commands/command_service.js`) |
 
 ## Server-side `__version` stamp for cached endpoints
 

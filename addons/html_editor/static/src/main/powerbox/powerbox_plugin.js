@@ -4,7 +4,7 @@ import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { rotate } from "@web/core/utils/collections/arrays";
 import { omit, pick } from "@web/core/utils/collections/objects";
 

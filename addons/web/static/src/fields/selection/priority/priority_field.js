@@ -4,11 +4,11 @@
 /** @module @web/fields/selection/priority/priority_field */
 
 import { Component, onWillRender, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { extractAutosave } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { useCommand } from "@web/services/commands/command_hook";
+import { useCommand } from "@web/ui/commands/command_hook";
 
 export class PriorityField extends Component {
     static template = "web.PriorityField";

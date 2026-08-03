@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { cookie } from '@web/core/browser/cookie';
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { Interaction } from '@web/public/interaction';
 import { registry } from '@web/core/registry';
 

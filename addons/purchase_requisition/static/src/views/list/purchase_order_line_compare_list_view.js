@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { listView } from '@web/views/list/list_view';
+import { listView } from "@web/views/list";
 import { registry } from "@web/core/registry";
 import { PurchaseOrderLineCompareListRenderer } from "./purchase_order_line_compare_list_renderer.js";
 

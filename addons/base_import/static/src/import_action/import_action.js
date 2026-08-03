@@ -1,14 +1,15 @@
 /** @odoo-module native */
 import { Component, onWillStart, useRef, useState } from "@odoo/owl";
-import { useDropzone } from "@web/components/dropzone/dropzone_hook";
+import { useDropzone } from "@web/components/dropzone";
 import { FileInput } from "@web/components/file_input/file_input";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useFileUploader } from "@web/core/utils/files";
 import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
-import { DocumentationLink } from "@web/views/widgets/documentation_link/documentation_link";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { DocumentationLink } from "@web/views/widgets";
+import { standardActionServiceProps } from "@web/webclient/actions";
+
 import { ImportDataContent } from "../import_data_content/import_data_content.js";
 import { ImportDataProgress } from "../import_data_progress/import_data_progress.js";
 import { ImportDataSidepanel } from "../import_data_sidepanel/import_data_sidepanel.js";

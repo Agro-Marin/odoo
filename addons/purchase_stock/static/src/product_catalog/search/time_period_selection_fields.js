@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import {
     SelectionField,
     selectionField,

@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { post } from "@web/services/http_service";
 import { Component, markup } from "@odoo/owl";
-import { rpc, RPCError } from "@web/core/network/rpc";
+import { post, rpc, RPCError } from "@web/core/network";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { Interaction } from "@web/public/interaction";
 
 /**
  * Display the composer (according to access right)

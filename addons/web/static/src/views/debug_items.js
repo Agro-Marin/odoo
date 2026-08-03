@@ -4,6 +4,8 @@
 /** @module @web/views/debug_items */
 
 import { Component, onWillStart, useState, xml } from "@odoo/owl";
+import { getAction } from "@web/core/action_port";
+import { editModelDebug } from "@web/core/debug/debug_utils";
 import { formatMany2one } from "@web/core/formatters";
 import {
     deserializeDateTime,
@@ -11,11 +13,10 @@ import {
     serializeDate,
     serializeDateTime,
 } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { editModelDebug } from "@web/services/debug/debug_utils";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
@@ -435,7 +436,7 @@ export function manageAttachments({ component, env }) {
         type: "item",
         description,
         callback: () => {
-            env.services.action.doAction({
+            getAction(env).doAction({
                 res_model: "ir.attachment",
                 name: description,
                 views: [

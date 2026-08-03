@@ -3,8 +3,8 @@
 
 /** @module @web/core/tree/operator_labels */
 
-import { _t } from "@web/core/l10n/translation";
 import { parseExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 
 import { formatValue, toValue } from "./condition_tree.js";
 

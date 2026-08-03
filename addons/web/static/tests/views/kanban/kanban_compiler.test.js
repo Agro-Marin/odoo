@@ -2,6 +2,7 @@
 
 import { expect, test } from "@odoo/hoot";
 import { KanbanCompiler } from "@web/views/kanban/kanban_compiler";
+import { resetViewCompilerCache, useViewCompiler } from "@web/views/view_compiler";
 
 function compileTemplate(/** @type {string} */ arch) {
     const parser = new DOMParser();
@@ -72,4 +73,28 @@ test("data-self-handled is honoured like data-bs-toggle and left as is", async (
             </kanban>
         </t>`;
     expect(compileTemplate(arch)).toHaveOuterHTML(expected);
+});
+
+test("a t-call is compiled against the sibling set it arrived with", async () => {
+    // The compiled `t-call` differs depending on whether the called name is a
+    // sibling template, so two views whose card arch is byte-identical must not
+    // share a compiled template.
+    resetViewCompilerCache();
+    const card = `<div class="probe-card"><t t-call="sub"/></div>`;
+    const parse = (/** @type {string} */ s) =>
+        new DOMParser().parseFromString(s, "text/xml").documentElement;
+
+    const withSibling = { card: parse(card), sub: parse(`<span>S</span>`) };
+    const withoutSibling = { card: parse(card) };
+
+    const keysWith = useViewCompiler(KanbanCompiler, withSibling);
+    const keysWithout = useViewCompiler(KanbanCompiler, withoutSibling);
+
+    expect(keysWith.card).not.toBe(keysWithout.card);
+    expect(new KanbanCompiler(withSibling).compile("card").outerHTML).toInclude(
+        "__comp__.templates",
+    );
+    expect(new KanbanCompiler(withoutSibling).compile("card").outerHTML).not.toInclude(
+        "__comp__.templates",
+    );
 });

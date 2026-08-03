@@ -3,9 +3,9 @@
 
 /** @module @web/core/tree/in_range_options */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
-/** @type {Array<[string, string | import("@web/core/l10n/translation").TranslatedString]>} */
+/** @type {Array<[string, string | import("@web/core/translation").TranslatedString]>} */
 export const IN_RANGE_OPTIONS = [
     ["today", _t("Today")],
     ["last 7 days", _t("Last 7 days")],

@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, markup } from "@odoo/owl";
-import { FileUploader } from "@web/core/file_upload/file_handler";
+import { FileUploader } from "@web/core/file_upload";
 import { useService } from "@web/core/utils/hooks";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class DocumentFileUploader extends Component {
     static template = "account.DocumentFileUploader";

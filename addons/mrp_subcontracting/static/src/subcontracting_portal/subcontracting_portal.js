@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { useService } from '@web/core/utils/hooks';
-import { ActionContainer } from '@web/webclient/actions/action_container';
-import { MainComponentsContainer } from "@web/components/main_components_container";
-import { useOwnDebugContext } from "@web/services/debug/debug_context";
+import { ActionContainer } from "@web/webclient/actions";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
+import { useOwnDebugContext } from "@web/core/debug/debug_context";
 import { session } from '@web/session';
 import { Component, useEffect, useExternalListener } from "@odoo/owl";
 

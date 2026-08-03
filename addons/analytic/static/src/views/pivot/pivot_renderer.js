@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { PivotRenderer } from "@web/views/pivot/pivot_renderer";
+import { PivotRenderer } from "@web/views/pivot";
 
 export class AnalyticPivotRenderer extends PivotRenderer {
     /**

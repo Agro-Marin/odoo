@@ -166,3 +166,13 @@ def test_every_known_cycle_still_exists():
 def test_known_cycles_carry_a_reason():
     for entry in jcc.KNOWN_CYCLES:
         assert entry.reason.strip(), f"{entry.modules} is pinned without a rationale"
+
+
+def test_the_gate_refuses_a_tree_it_cannot_find(tmp_path, monkeypatch):
+    # See test_layer_check for why every gate now proves it found its inputs.
+    import pytest
+
+    monkeypatch.setattr(jcc, "iter_source_files", list)
+    with pytest.raises(SystemExit) as exc:
+        jcc.main(["--check"])
+    assert exc.value.code == 2

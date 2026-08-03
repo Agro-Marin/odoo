@@ -12,7 +12,7 @@ import {
     Many2ManyTagsAvatarField,
     many2ManyTagsAvatarField,
 } from "@web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 import { Many2XAvatarUserAutocomplete } from "../avatar_autocomplete/avatar_many2x_autocomplete.js";
 

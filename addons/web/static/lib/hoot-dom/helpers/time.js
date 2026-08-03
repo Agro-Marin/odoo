@@ -388,7 +388,9 @@ export function tick() {
  * The `predicate` is run once initially, and then on each animation frame until
  * it succeeds or fail.
  *
- * The promise automatically rejects after a given `timeout` (defaults to 5 seconds).
+ * The promise automatically rejects after a given `timeout` (defaults to 200
+ * milliseconds — see the `?? 200` below; pass `timeout` explicitly for slower
+ * conditions).
  *
  * @template T
  * @param {(last: boolean) => T} predicate

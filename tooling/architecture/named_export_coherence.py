@@ -9,7 +9,9 @@ module does not export is a **link-time SyntaxError**: the browser refuses the
 whole module graph, so the entire asset bundle dies for every database that
 installs the importing module. No JS test can catch it either, because no test
 file gets to run -- the suite simply reports fewer tests than it should, which
-reads as green.
+reads as green. Both ``static/src`` and ``static/tests`` are scanned for exactly
+this reason: the same broken import in a test file kills the test bundle with
+the identical silent symptom.
 
 Motivating incident (2026-07-28): ``@web/views/view_compiler`` renamed
 ``compileViewTemplates``/``useViewCompiler`` while ``web_gantt`` and
@@ -40,7 +42,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cross_repo_coherence import SIBLING_REPOS_ROOT, default_consumer_repos
-from js_layer_check import strip_comments
+from js_imports import strip_comments
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
@@ -257,12 +259,25 @@ class Resolver:
         return result
 
 
+# Both trees are scanned: a bad named import in a *test* file is the same
+# link-time SyntaxError as in src, and its symptom is exactly the "reports fewer
+# tests, reads as green" failure this gate's docstring describes. Test-only
+# specifiers (@odoo/hoot, `@web/../tests/...`) resolve to None and are skipped,
+# so scanning tests adds no false positives.
+SCAN_GLOBS = ("static/src/**/*.js", "static/tests/**/*.js")
+
+
+def _scan_files(root: Path):
+    for glob in SCAN_GLOBS:
+        yield from root.rglob(glob)
+
+
 def find_unsatisfied(roots: list[Path], addons_roots: list[Path]) -> list[Unsatisfied]:
     """Every named import in ``roots`` with no matching export."""
     resolver = Resolver(addons_roots)
     found: list[Unsatisfied] = []
     for root in roots:
-        for js_file in sorted(root.rglob("static/src/**/*.js")):
+        for js_file in sorted(_scan_files(root)):
             if "/lib/" in str(js_file):
                 continue
             try:
@@ -331,6 +346,17 @@ def main(argv: list[str] | None = None) -> int:
         for root in scan_roots:
             print(root)
         return 0
+
+    scanned = sum(1 for root in scan_roots for _ in _scan_files(root))
+    # Roots that exist but hold no JS scan clean, which is indistinguishable
+    # from clean. `cross_repo_coherence` shipped that fault three times over
+    # (1cd6f1667ba) — including one where two of its three consumer paths had
+    # never existed and it reported all three healthy.
+    if not scanned:
+        parser.error(
+            f"no JS sources under {len(scan_roots)} scanned root(s) — "
+            "the scan reached nothing"
+        )
 
     unsatisfied = find_unsatisfied(scan_roots, addons_roots)
     if args.json:

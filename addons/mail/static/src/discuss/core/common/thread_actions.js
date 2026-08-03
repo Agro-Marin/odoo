@@ -6,9 +6,9 @@ import { ChannelInvitation } from "@mail/discuss/core/common/channel_invitation"
 import { DeleteThreadDialog } from "@mail/discuss/core/common/delete_thread_dialog";
 import { NotificationSettings } from "@mail/discuss/core/common/notification_settings";
 import { Component, xml } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { Dialog } from "@web/ui/dialog/dialog";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { _t } from "@web/core/translation";
+import { Dialog } from "@web/ui/dialog";
+import { usePopover } from "@web/ui/popover";
 class ChannelActionDialog extends Component {
     static props = ["title", "contentComponent", "contentProps", "close?"];
     static components = { Dialog };

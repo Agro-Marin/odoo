@@ -3,7 +3,7 @@ import { luxon } from "@web/core/l10n/luxon";
 import { ProductCombo } from '@sale/js/models/product_combo';
 import { serializeComboItem } from '@sale/js/sale_utils';
 import { serializeDateTime } from '@web/core/l10n/dates';
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { registry } from '@web/core/registry';
 import { Interaction } from '@web/public/interaction';
 import wSaleUtils from '@website_sale/js/website_sale_utils';

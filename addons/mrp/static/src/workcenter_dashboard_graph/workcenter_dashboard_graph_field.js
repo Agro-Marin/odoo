@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { darkenColor, getColor, hexToRGBA } from "@web/core/colors/colors";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { JournalDashboardGraphField } from "@web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field";
 
 export class WorkcenterDashboardGraphField extends JournalDashboardGraphField {

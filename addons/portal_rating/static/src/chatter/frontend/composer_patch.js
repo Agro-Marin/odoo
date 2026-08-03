@@ -2,7 +2,7 @@
 import { Composer } from "@mail/core/common/composer";
 
 import { patch } from "@web/core/utils/patch";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 

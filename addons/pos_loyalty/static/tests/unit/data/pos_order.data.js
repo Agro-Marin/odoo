@@ -1,6 +1,6 @@
-import { patch } from "@web/core/utils/patch";
 import { PosOrder } from "@point_of_sale/../tests/unit/data/pos_order.data";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+import { patch } from "@web/core/utils/patch";
 
 patch(PosOrder.prototype, {
     validate_coupon_programs(self, point_changes) {

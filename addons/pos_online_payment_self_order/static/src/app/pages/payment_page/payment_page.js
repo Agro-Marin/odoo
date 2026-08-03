@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { generateQRCodeDataUrl } from "@point_of_sale/utils";
 import { PaymentPage } from "@pos_self_order/app/pages/payment_page/payment_page";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 patch(PaymentPage.prototype, {
     async startPayment() {

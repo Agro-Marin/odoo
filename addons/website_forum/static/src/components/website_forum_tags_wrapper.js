@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, useState, onWillStart } from "@odoo/owl";
-import { get } from "@web/services/http_service";
+import { get } from "@web/core/network";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { DropdownItem } from "@web/components/dropdown";
 
 export class WebsiteForumTagsWrapper extends Component {
     static template = "website_forum.WebsiteForumTagsWrapper";

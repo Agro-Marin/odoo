@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 export class DiscussCoreWeb {
     /**
      * @param {import("@web/env").OdooEnv} env

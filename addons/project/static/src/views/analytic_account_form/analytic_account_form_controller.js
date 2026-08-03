@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { FormController } from "@web/views/form/form_controller";
+import { _t } from "@web/core/translation";
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { FormController } from "@web/views/form";
 
 export class AnalyticAccountFormController extends FormController {
     getStaticActionMenuItems() {

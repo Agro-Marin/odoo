@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { browser } from "@web/core/browser/browser";
-import { ConnectionLostError, rpc } from "@web/core/network/rpc";
+import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
 export const calendarNotificationService = {
     dependencies: ["action", "bus_service", "notification"],

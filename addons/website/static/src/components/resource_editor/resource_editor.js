@@ -8,17 +8,15 @@ import {
     useState,
 } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
-import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { CheckboxItem, Dropdown, DropdownItem } from "@web/components/dropdown";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 import { ResourceEditorWarningOverlay } from "./resource_editor_warning.js";
 import { checkSCSS, checkXML, formatXML } from "./utils.js";

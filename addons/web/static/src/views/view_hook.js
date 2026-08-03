@@ -4,12 +4,13 @@
 /** @module @web/views/view_hook */
 
 import { useComponent, useEffect } from "@odoo/owl";
+import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { SearchModelEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
 import { rpc } from "@web/core/network/rpc";
 import { evaluateExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { orderByToString } from "@web/core/utils/order_by";
 import { DynamicList } from "@web/model/relational_model/dynamic_list";
@@ -29,7 +30,7 @@ export function useActionLinks({ resModel, reload }) {
     const keepLast = component.env.keepLast;
 
     const orm = useService("orm");
-    const { doAction } = useService("action");
+    const { doAction } = useAction();
 
     /**
      * @param {Event} ev

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
 import { Plugin } from "../../plugin.js";
 import { ImageCrop } from "./image_crop.js";

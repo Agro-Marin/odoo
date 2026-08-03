@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { omit } from "@web/core/utils/collections/objects";
-import { Many2OneField } from "@web/fields/relational/many2one/many2one_field";
+import { Many2OneField } from "@web/fields/relational/many2one";
 
 import { Component, toRaw } from "@odoo/owl";
 

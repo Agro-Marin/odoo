@@ -6,8 +6,9 @@
 import { Component, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { AccordionItem } from "@web/components/dropdown/accordion_item";
-import { _t } from "@web/core/l10n/translation";
+import { useAction } from "@web/core/action_port";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { editFavoriteFilter } from "@web/search/utils/misc";
 const favoriteMenuRegistry = registry.category("favoriteMenu");
@@ -18,7 +19,7 @@ export class CustomFavoriteItem extends Component {
     static props = {};
 
     setup() {
-        this.actionService = useService("action");
+        this.actionService = useAction();
         this.notificationService = useService("notification");
         this.descriptionRef = useRef("description");
         this.state = useState({

@@ -8,10 +8,11 @@ import { AccordionItem } from "@web/components/dropdown/accordion_item";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useAction } from "@web/core/action_port";
 import { SearchModelEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { sortBy } from "@web/core/utils/collections/arrays";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus } from "@web/core/utils/hooks";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
 import {
@@ -52,7 +53,7 @@ export class SearchBarMenu extends Component {
 
     setup() {
         this.facet_icons = FACET_ICONS;
-        this.actionService = useService("action");
+        this.actionService = useAction();
         this.state = useState({ sharedFavoritesExpanded: false });
         useBus(
             this.env.searchModel,

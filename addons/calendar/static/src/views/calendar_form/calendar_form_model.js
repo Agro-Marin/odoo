@@ -1,8 +1,6 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
-
-import { RelationalModel } from "@web/model/relational_model/relational_model";
-import { RelationalRecord } from "@web/model/relational_model/record";
+import { RelationalModel, RelationalRecord } from "@web/model/relational_model";
 
 class CalendarFormRecord extends RelationalRecord {
 

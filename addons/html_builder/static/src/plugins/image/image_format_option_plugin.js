@@ -5,10 +5,10 @@ import {
     shouldPreventGifTransformation,
 } from "@html_editor/main/media/image_post_process_plugin";
 import { Plugin } from "@html_editor/plugin";
-import { loadImage, loadImageInfo } from "@html_editor/utils/image_processing";
-import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { selectElements } from "@html_editor/utils/dom_traversal";
+import { loadImage, loadImageInfo } from "@html_editor/utils/image_processing";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
 class ImageFormatOptionPlugin extends Plugin {
     static id = "imageFormatOption";

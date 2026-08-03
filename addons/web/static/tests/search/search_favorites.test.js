@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
+import { user } from "@web/core/user";
 import {
     buildIrFilterDescription,
     irFilterToFavorite,
@@ -17,7 +18,6 @@ import {
     FAVORITE_PRIVATE_GROUP,
     FAVORITE_SHARED_GROUP,
 } from "@web/search/search_state";
-import { user } from "@web/services/user";
 
 describe.current.tags("headless");
 

@@ -59,6 +59,14 @@ export class DynamicRecordList extends DynamicList {
         });
     }
 
+    /**
+     * @type {DynamicList["clearSampleData"]}
+     */
+    clearSampleData() {
+        this.count = 0;
+        this._records = [];
+    }
+
     async fetchCount() {
         this.count = await this.model._updateCount(this.config);
         this.hasLimitedCount = false;

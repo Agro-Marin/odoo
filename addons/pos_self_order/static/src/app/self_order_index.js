@@ -14,7 +14,7 @@ import { ProductPage } from "@pos_self_order/app/pages/product_page/product_page
 import { StandNumberPage } from "@pos_self_order/app/pages/stand_number_page/stand_number_page";
 import { Router } from "@pos_self_order/app/router";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
-import { MainComponentsContainer } from "@web/components/main_components_container";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { insertKioskStyle } from "./kiosk_style.js";
 

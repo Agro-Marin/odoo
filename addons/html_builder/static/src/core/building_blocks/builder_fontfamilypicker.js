@@ -1,15 +1,15 @@
 /** @odoo-module native */
-import { Component, onWillStart } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { useService } from "@web/core/utils/hooks";
-import {
-    basicContainerBuilderComponentProps,
-    useVisibilityObserver,
-    useApplyVisibility,
-} from "@html_builder/core/utils";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { BuilderSelect } from "@html_builder/core/building_blocks/builder_select";
 import { BuilderSelectItem } from "@html_builder/core/building_blocks/builder_select_item";
+import {
+    basicContainerBuilderComponentProps,
+    useApplyVisibility,
+    useVisibilityObserver,
+} from "@html_builder/core/utils";
+import { Component, onWillStart } from "@odoo/owl";
+import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 export class BuilderFontFamilyPicker extends Component {
     static template = "html_builder.BuilderFontFamilyPicker";

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 export class Follower extends Record {
     static _name = "mail.followers";
     static id = "id";

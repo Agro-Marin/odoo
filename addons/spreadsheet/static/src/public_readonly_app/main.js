@@ -1,10 +1,11 @@
 /** @odoo-module native */
 import { App, whenReady } from "@odoo/owl";
-import { PublicReadonlySpreadsheet } from "./public_readonly.js";
 import { getTemplate } from "@web/core/templates";
+import { appTranslateFn } from "@web/core/translation";
 import { makeEnv, startServices } from "@web/env";
 import { session } from "@web/session";
-import { appTranslateFn } from "@web/core/l10n/translation";
+
+import { PublicReadonlySpreadsheet } from "./public_readonly.js";
 
 (async function boot() {
     odoo.info = {

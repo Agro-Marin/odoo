@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillUnmount } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 export class PrintingFailurePopup extends Component {
     static template = "pos_self_order.PrintingFailurePopup";
     static props = {

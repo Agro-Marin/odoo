@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Failure } from "@mail/core/common/failure_model";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 patch(Failure.prototype, {

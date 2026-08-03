@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { StockValuationReport } from "@stock_account/stock_valuation/stock_valuation_report";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 patch(StockValuationReport.prototype, {

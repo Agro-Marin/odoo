@@ -1,10 +1,11 @@
 /** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { OdooChartCorePlugin } from "./plugins/odoo_chart_core_plugin.js";
-import { ChartOdooMenuPlugin } from "./plugins/chart_odoo_menu_plugin.js";
-import { OdooChartCoreViewPlugin } from "./plugins/odoo_chart_core_view_plugin.js";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+
 import { chartOdooMenuPlugin } from "./odoo_menu/odoo_menu_chartjs_plugin.js";
+import { ChartOdooMenuPlugin } from "./plugins/chart_odoo_menu_plugin.js";
+import { OdooChartCorePlugin } from "./plugins/odoo_chart_core_plugin.js";
+import { OdooChartCoreViewPlugin } from "./plugins/odoo_chart_core_view_plugin.js";
 
 const { chartComponentRegistry, chartSubtypeRegistry, chartJsExtensionRegistry } =
     spreadsheet.registries;
@@ -203,4 +204,4 @@ chartJsExtensionRegistry.add("chartOdooMenuPlugin", {
     unregister: (Chart) => Chart.unregister(chartOdooMenuPlugin),
 });
 
-export { OdooChartCorePlugin, ChartOdooMenuPlugin, OdooChartCoreViewPlugin };
+export { ChartOdooMenuPlugin, OdooChartCorePlugin, OdooChartCoreViewPlugin };

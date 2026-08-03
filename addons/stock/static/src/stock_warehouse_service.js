@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
-import { onModelMutation } from "@web/core/network/model_mutation";
+import { onModelMutation } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { debounce } from "@web/core/utils/timing";
 

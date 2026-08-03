@@ -14,9 +14,9 @@ import {
     xml,
 } from "@odoo/owl";
 import { CallbackRecorder } from "@web/core/action_hook";
+import { useDebugCategory } from "@web/core/debug/debug_context";
 import { AppEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
-import { useDebugCategory } from "@web/services/debug/debug_context";
 import { View } from "@web/views/view";
 
 const ControllerComponentTemplate = xml`<t t-component="Component" t-props="componentProps"/>`;

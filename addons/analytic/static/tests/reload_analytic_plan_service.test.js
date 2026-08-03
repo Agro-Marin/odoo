@@ -12,7 +12,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
-import { ConnectionLostError, rpcBus, RPCError } from "@web/core/network/rpc";
+import { ConnectionLostError, rpcBus, RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
 
 describe.current.tags("headless");

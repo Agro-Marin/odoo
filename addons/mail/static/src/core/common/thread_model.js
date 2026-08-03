@@ -4,10 +4,10 @@ import { AND, fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import { assignDefined, makeSequential } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { Deferred } from "@web/core/utils/concurrency";
-import { user } from "@web/services/user";
 /**
  * @typedef SuggestedRecipient
  * @property {string} display_name

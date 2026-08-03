@@ -4,8 +4,8 @@
 /** @module @web/model/relational_model/record_save */
 
 import { markup } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { RequestEntityTooLargeError } from "@web/core/network/rpc";
+import { _t } from "@web/core/translation";
 import { modelLog } from "@web/core/utils/asset_log";
 
 import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
@@ -48,9 +48,7 @@ async function waitForPendingCommands(record) {
  */
 export async function save(record, { reload = true, onError, nextId } = {}) {
     modelLog("save", record.resModel, record.resId || "(new)");
-    if (record.model._closeUrgentSaveNotification) {
-        record.model._closeUrgentSaveNotification();
-    }
+    record.model.closeUrgentSaveNotification();
     const creation = !record.resId;
     if (nextId) {
         if (creation) {
@@ -68,7 +66,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         return false;
     }
     const changes = record._getChanges();
-    record._urgentBeaconFired = false;
+    record.saveState.clearBeacon();
     const concurrencyBaseline = buildConcurrencyBaseline(record, Object.keys(changes));
     if (!creation && !Object.keys(changes).length) {
         if (nextId) {
@@ -105,21 +103,20 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         });
         const succeeded = navigator.sendBeacon(route, blob);
         if (succeeded) {
-            record._urgentBeaconFired = true;
+            record.saveState.noteBeaconFired();
             for (const [, list] of x2manyLists(record)) {
                 list._clearCommands();
             }
             record._commitChanges();
         } else {
-            record.model._closeUrgentSaveNotification =
-                record.model.hooks.ui.onDisplayUrgentSave(
-                    _t(
-                        `Heads up! Your recent changes are too large to save automatically. Please click the %(upload_icon)s button now to ensure your work is saved before you exit this tab.`,
-                        {
-                            upload_icon: markup`<i class="fa-solid fa-cloud-arrow-up"></i>`,
-                        },
-                    ),
-                );
+            record.model.displayUrgentSaveNotification(
+                _t(
+                    `Heads up! Your recent changes are too large to save automatically. Please click the %(upload_icon)s button now to ensure your work is saved before you exit this tab.`,
+                    {
+                        upload_icon: markup`<i class="fa-solid fa-cloud-arrow-up"></i>`,
+                    },
+                ),
+            );
         }
         return succeeded;
     }
@@ -129,15 +126,14 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         record,
         changes,
     );
-    const beaconFiredWhileParked = record._urgentBeaconFired;
-    record._urgentBeaconFired = false;
+    const beaconFiredWhileParked = record.saveState.consumeBeaconFired();
     if (canProceed === false) {
         return false;
     }
     if (beaconFiredWhileParked) {
         return true;
     }
-    record._saveInFlight = true;
+    record.saveState.enter();
     try {
         /** @type {Record<string, any>} */
         const orderBys = {};
@@ -216,7 +212,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             );
         }
     } finally {
-        record._saveInFlight = false;
+        record.saveState.exit();
     }
     return true;
 }

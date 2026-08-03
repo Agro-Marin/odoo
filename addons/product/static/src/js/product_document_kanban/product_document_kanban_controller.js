@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { UploadButton } from "@product/js/product_document_kanban/upload_button/upload_button";
-import { KanbanController } from "@web/views/kanban/kanban_controller";
+import { KanbanController } from "@web/views/kanban";
 
 export class ProductDocumentKanbanController extends KanbanController {
     static components = { ...KanbanController.components, UploadButton };

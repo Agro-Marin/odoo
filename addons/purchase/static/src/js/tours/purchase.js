@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import PurchaseAdditionalTourSteps from "@purchase/js/tours/purchase_steps";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { stepUtils } from "@web_tour/tour_utils";
 
 registry.category("web_tour.tours").add("purchase_tour", {

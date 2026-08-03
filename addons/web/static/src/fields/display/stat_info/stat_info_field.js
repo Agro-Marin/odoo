@@ -5,7 +5,7 @@
 
 import { Component } from "@odoo/owl";
 import { getFieldCodec } from "@web/core/field_codec";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";

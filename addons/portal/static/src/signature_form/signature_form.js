@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { addLoadingEffect } from '@web/core/utils/dom/ui';
-import { rpc } from "@web/core/network/rpc";
+import { NameAndSignature } from "@web/components/signature";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { addLoadingEffect } from '@web/core/utils/dom/ui';
 import { redirect } from "@web/core/utils/urls";
-import { NameAndSignature } from "@web/components/signature/name_and_signature";
 
 /**
  * This Component is a signature request form. It uses

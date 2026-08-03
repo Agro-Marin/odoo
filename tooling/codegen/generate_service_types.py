@@ -6,7 +6,7 @@ the actual ``registry.category("services").add(...)`` call sites under
 ``addons/web/static/src/``.  The hand-maintained file drifts
 silently when a service is added or moved (one observed drift on
 2026-05-10: ``httpService`` was imported from ``@web/core/network/http_service``
-but the registration lives in ``@web/services/http_service``).  Pairs
+but the registration lives in ``@web/core/network/http_service``).  Pairs
 with ``tooling/typecheck/scope_gate.py``: a typed service registry resolves
 ``useService("orm")`` to ``ORM`` instead of ``any``, shrinking the
 TS18047/TS18048 baseline.
@@ -137,8 +137,8 @@ class Registration:
 def _js_to_import_path(file: Path) -> str:
     """Convert a JS file path to its ``@web/...`` import specifier.
 
-    ``addons/odoo/addons/web/static/src/services/orm_service.js``
-    → ``@web/services/orm_service``
+    ``addons/odoo/addons/web/static/src/core/network/orm_service.js``
+    → ``@web/core/network/orm_service``
     """
     rel = file.relative_to(WEB_SRC_ROOT)
     return "@web/" + rel.with_suffix("").as_posix()

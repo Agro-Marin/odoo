@@ -5,8 +5,8 @@ import { EventBus } from "@odoo/owl";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
+import { user } from "@web/core/user";
 import { SupersededError } from "@web/core/utils/concurrency";
-import { user } from "@web/services/user";
 import { actionStorage } from "@web/webclient/actions/action_storage";
 import { loadState } from "@web/webclient/actions/load_state";
 
@@ -162,31 +162,62 @@ test("the reconstructed stack is handed to doAction whole", async () => {
     expect(am.__calls.doAction[0].options.newStack).toBe(stack);
 });
 
-test("poppedLeaves drops that many entries off the END and is consumed", async () => {
-    const stack = [{ jsId: "a" }, { jsId: "b" }, { jsId: "c" }];
+/**
+ * A url four actions deep whose leaf `getActionParams` could not resolve, so it
+ * settled on the entry at index 2 and reported one popped leaf. The crumbs of
+ * THAT action are the entries at index 0 and 1.
+ */
+const POPPED_STATE = {
+    actionStack: [{ action: 1 }, { action: 2 }, { action: 3 }, { action: 4 }],
+};
+
+const POPPED_PARAMS = () => ({ actionRequest: 7, options: { poppedLeaves: 1 } });
+
+test("poppedLeaves cuts at the entry it settled on, and is consumed", async () => {
+    const stack = [
+        { jsId: "a", stackIndex: 0 },
+        { jsId: "b", stackIndex: 1 },
+        { jsId: "c", stackIndex: 2 },
+    ];
     const am = makeFakeAm({
         _controllersFromState: async () => stack,
-        _getActionParams: () => ({ actionRequest: 7, options: { poppedLeaves: 1 } }),
+        _getActionParams: POPPED_PARAMS,
     });
 
-    await loadState(am);
+    await loadState(am, POPPED_STATE);
 
     const { options } = am.__calls.doAction[0];
-    expect(options.newStack).toEqual([{ jsId: "a" }, { jsId: "b" }]);
+    expect(options.newStack).toEqual([stack[0], stack[1]]);
     expect("poppedLeaves" in options).toBe(false);
 });
 
-test("poppedLeaves counts from the end, so a dropped ancestor cannot shift it", async () => {
-    // `controllersFromState` removed the deleted/inaccessible record that used
-    // to sit at index 0, so the rebuilt stack is SHORTER than the URL's
-    // actionStack. An absolute index would keep "b" — the controller for the
+test("a dropped ancestor cannot shift the cut", async () => {
+    // `controllersFromState` removed the deleted/inaccessible records that used
+    // to sit at index 0 and 1, so the rebuilt stack is SHORTER than the url's
+    // actionStack. Counting survivors would keep "c" — the controller for the
     // very action about to be dispatched — as its own breadcrumb parent.
     const am = makeFakeAm({
-        _controllersFromState: async () => [{ jsId: "b" }],
-        _getActionParams: () => ({ actionRequest: 7, options: { poppedLeaves: 1 } }),
+        _controllersFromState: async () => [{ jsId: "c", stackIndex: 2 }],
+        _getActionParams: POPPED_PARAMS,
     });
-    await loadState(am);
+    await loadState(am, POPPED_STATE);
     expect(am.__calls.doAction[0].options.newStack).toEqual([]);
+});
+
+test("a drop inside the popped tail does not take a live crumb with it", async () => {
+    // The entry at index 2 is the one being dispatched AND the one the server
+    // could not name — the same unreadable record explains both. Counting
+    // survivors cut one crumb too many and lost "b".
+    const stack = [
+        { jsId: "a", stackIndex: 0 },
+        { jsId: "b", stackIndex: 1 },
+    ];
+    const am = makeFakeAm({
+        _controllersFromState: async () => stack,
+        _getActionParams: POPPED_PARAMS,
+    });
+    await loadState(am, POPPED_STATE);
+    expect(am.__calls.doAction[0].options.newStack).toEqual(stack);
 });
 
 test("poppedLeaves of 0 leaves the stack alone", async () => {

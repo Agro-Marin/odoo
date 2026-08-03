@@ -1,13 +1,13 @@
 /** @odoo-module native */
-import { useCommand } from "@web/services/commands/command_hook";
-import { _t } from "@web/core/l10n/translation";
+import { useCommand } from "@web/ui/commands";
+import { _t } from "@web/core/translation";
 import { useService, useBus } from "@web/core/utils/hooks";
 import {
     preprocessMany2oneChanges,
     preprocessMany2OneReferenceChanges,
     preprocessReferenceChanges,
     preprocessX2manyChanges,
-} from "@web/model/relational_model/record_preprocessors";
+} from "@web/model/relational_model";
 import {
     onWillRender,
     onWillUnmount,

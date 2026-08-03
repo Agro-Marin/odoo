@@ -2,8 +2,8 @@
 
 Module-specific patterns, rules, and gotchas for working in `addons/web/`.
 
-> **See also**: `doc/COMPONENT_DIAGRAM.md` — 18 audit areas with key invariants
-> to verify per area. `doc/FLOW_DIAGRAM.md` — 14 end-to-end sequence diagrams.
+> **See also**: `COMPONENT_DIAGRAM.md` — 18 audit areas with key invariants
+> to verify per area. `FLOW_DIAGRAM.md` — 14 end-to-end sequence diagrams.
 
 ## RPC Convention
 
@@ -139,12 +139,12 @@ brief 503, pool exhaustion, worker restart during deploy) cascades into
 broken UX with no user recovery action. Never apply to writes — a partial
 server-side mutation could be re-applied.
 
+The three `.retry(1)` call sites in `static/src`:
+
 | Call site | Reason | Budget |
 |---|---|---|
-| `services/currency.js getCurrencyRates` | Cold-cache failure breaks monetary formatting page-wide | `retry: 1` |
-| `services/field_service.js loadFields` | Cold-cache `fields_get` failure prevents any view from rendering for the model | `retry: 1` |
+| `core/field_service.js` (2 sites) | Cold-cache `fields_get` failure prevents any view from rendering for the model | `retry: 1` |
 | `views/view_service.js loadViews` | Cold-cache `get_views` failure prevents any view from rendering | `retry: 1` |
-| `webclient/actions/action_service.js _getAction` | Cold-cache `/web/action/load` failure breaks navigation — every menu click, button, and breadcrumb hop hits this path | `retry: 1` |
 
 **Default budget rationale** (`retry: 1`): caps user-perceived delay on
 persistent outage at one backoff interval (~200ms). Higher budgets can
@@ -179,7 +179,7 @@ mutates at runtime, so there is no state machine to formalize.
 
 ### Feature Flags
 
-Pure-function API at `@web/services/feature_flags` for gating
+Pure-function API at `@web/core/feature_flags` for gating
 behaviour without bespoke `odoo.debug` / `localStorage.getItem` /
 `?debug=...` plumbing scattered across the codebase.
 
@@ -195,7 +195,7 @@ behaviour without bespoke `odoo.debug` / `localStorage.getItem` /
 **Usage**:
 
 ```js
-import { featureFlag } from "@web/services/feature_flags";
+import { featureFlag } from "@web/core/feature_flags";
 
 if (featureFlag("perf_marks", { default: false })) {
     performance.mark("model:load:start");
@@ -221,23 +221,23 @@ The 4 most frequently-used categories are:
 - `registry.category("fields")` — Field widget implementations
 - `registry.category("actions")` — Client action components
 
-The web module itself registers into ~30 categories total, including:
-`main_components`, `systray`, `user_menuitems`, `error_handlers`,
-`error_dialogs`, `error_notifications`, `dialogs`, `debug`, `debug_section`,
-`command_categories`, `command_provider`, `command_setup`, `effects`,
-`favoriteMenu`, `cogMenu`, `formatters`, `parsers`, `form_compilers`,
-`view_widgets`, `public_components`, `public.interactions`,
-`sample_server`, `shared_components`, `color_picker_tabs`,
-`action_handlers`, `group_config_items`. Use
-`grep -rn 'registry.category(' static/src` to see the full current set —
-new categories get added without a schema change.
+The web module registers into 35 categories. The other 31:
+`action_handlers`, `cogMenu`, `color_picker_tabs`, `command_categories`,
+`command_provider`, `command_setup`, `debug`, `debug_section`, `deserializers`,
+`dialogs`, `effects`, `error_dialogs`, `error_handlers`, `error_notifications`,
+`favoriteMenu`, `form_compilers`, `formatters`, `group_config_items`,
+`ir.actions.report handlers`, `lazy_components`, `main_components`, `parsers`,
+`public.interactions`, `public_components`, `sample_server`, `serializers`,
+`share_target_apps`, `shared_components`, `systray`, `user_menuitems`,
+`view_widgets`. Re-derive with
+`grep -rhoE 'registry\.category\("[^"]+"' static/src | sort -u`.
 
 ### Field Widgets
 Field widgets live in `static/src/fields/` (top-level, organized into 7 subcategories:
 `basic/`, `display/`, `media/`, `relational/`, `selection/`, `specialized/`, `temporal/`).
 Each field type (char, integer, many2one, etc.) has a directory with its component,
-extractors, and optional variants. There are 68 widget directories (~95 registry entries
-counting view-specific variants like `list.text`, `form.phone`).
+extractors, and optional variants. There are 68 widget directories and 110 fork-wide `registerField` /
+`registerFallbackField` sites (79 plain, 31 through the typed spec form).
 Import path: `@web/fields/*` (e.g. `@web/fields/basic/char/char_field`).
 
 **Multi-key registrations — refactor hazard.** A single widget file often
@@ -247,24 +247,32 @@ multi-key registrations in the base fields:
 
 | File | Registry keys |
 |---|---|
-| `basic/text/text_field.js` | `text` + `list.text` |
-| `basic/url/url_field.js` | `url` + `form.url` |
+| `basic/copy_clipboard/copy_clipboard_field.js` | `CopyClipboardButton` + `CopyClipboardChar` + `CopyClipboardURL` (CamelCase aliases) |
 | `basic/email/email_field.js` | `email` + `form.email` |
 | `basic/phone/phone_field.js` | `phone` + `form.phone` |
+| `basic/text/text_field.js` | `text` + `list.text` |
+| `basic/url/url_field.js` | `url` + `form.url` |
 | `media/binary/binary_field.js` | `binary` + `list.binary` |
-| `relational/many2many_tags/many2many_tags_field.js` | `many2many_tags` + `calendar.one2many` + `calendar.many2many` + `form.many2many_tags` |
+| `relational/many2many_tags/many2many_tags_field.js` | `calendar.many2many_tags` + `calendar.one2many` + `calendar.many2many` + `form.many2many_tags` |
+| `relational/many2many_tags_avatar/many2many_tags_avatar_field.js` | `many2many_tags_avatar` + `list.many2many_tags_avatar` + `kanban.many2many_tags_avatar` |
 | `relational/many2one/many2one_field.js` | `many2one` + `res_partner_many2one` |
 | `relational/x2many/x2many_field.js` | `one2many` + `many2many` (filename misleads) |
 | `relational/x2many/list_x2many_field.js` | `list.one2many` + `list.many2many` |
 | `specialized/ace/ace_field.js` | `ace` + `code` |
 | `specialized/ir_ui_view_ace/ace_field.js` | `code_ir_ui_view` (NOT `ace`) |
 | `specialized/properties/card_properties_field.js` | `kanban.properties` + `hierarchy.properties` |
-| `basic/copy_clipboard/copy_clipboard_field.js` | `CopyClipboardButton` + `CopyClipboardChar` + `CopyClipboardURL` (CamelCase aliases) |
+| `temporal/datetime/datetime_field.js` | `date` + `daterange` + `datetime` |
+| `temporal/datetime/list_datetime_field.js` | `list.date` + `list.daterange` + `list.datetime` |
 | `display/percent_pie/percent_pie_field.js` | `percentpie` (no underscore) |
 | `display/stat_info/stat_info_field.js` | `statinfo` (no underscore) |
 | `display/progress_bar/progress_bar_field.js` | `progressbar` (no underscore) |
+| `selection/badge_selection/badge_selection_field.js` | `selection_badge` (word order reversed) |
 
-Before renaming a widget file, run `grep -rn 'registerField(' addons/` to enumerate every key a file registers. Registration uses the `registerField()` helper from `@web/fields/_registry`; the older `registry.category("fields").add(...)` pattern survives in only two sites — `static/src/fields/_registry.js` and `static/src/fields/basic/html/html_field.js` — so grepping for it will miss everything else.
+Extra keys come from a spec's `aliases` array
+(`registerField({ name: "one2many", aliases: ["many2many"] }, x2ManyField)`), so a
+grep for the key string alone finds nothing — read the spec object.
+
+Before renaming a widget file, run `grep -rn 'registerField(' addons/` to enumerate every key a file registers. Registration goes exclusively through `registerField()` / `registerFallbackField()` from `@web/fields/_registry` (97 call sites inside `fields/`, 110 fork-wide); `registry.category("fields").add(...)` appears only inside `_registry.js` itself, so grepping for it finds nothing.
 
 ## Test Conventions
 
@@ -335,11 +343,10 @@ under `models/` (group by concern: CRUD in `web_read.py`, grouping in
 
 ### JavaScript
 - `static/src/boot/` — App entry points (env, main, session, start)
-- `static/src/core/` — Framework primitives: registry, utils, browser, l10n, network, py_js
-- `static/src/components/` — Reusable OWL UI components (dropdown, colorpicker, etc.)
-- `static/src/services/` — Data & input services (orm, hotkey, field, file_upload, etc.)
-- `static/src/ui/` — UI overlay services & components (dialog, popover, tooltip, notification, effects, block)
-- `static/src/fields/` — 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); ~95 registry entries counting view-specific variants
+- `static/src/core/` — Framework primitives: registry, utils, reactivity, browser, l10n, network + ORM, errors, py_js, tree
+- `static/src/components/` — Reusable OWL UI components (dropdown, pickers, editors, file handling)
+- `static/src/ui/` — Overlay layer and its services (dialog, popover, tooltip, notification, overlay, effects, block, command palette)
+- `static/src/fields/` — 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal)
 - `static/src/views/` — View type implementations (form, list, kanban, calendar, graph, pivot) + view utilities
 - `static/src/webclient/` — App shell (navbar, menus, action container)
 - `static/src/search/` — Search bar and filter components
@@ -361,7 +368,7 @@ static/src/<layer>/<name>/
     <name>.scss     # Optional component-scoped styles
 ```
 
-About 257 of the 657 JS files in `static/src/` (~39.1%) have a sibling `.xml`.
+261 of the 743 JS files in `static/src/` (35.1%) have a sibling `.xml`.
 Templates are registered by the asset pipeline — the manifest's glob
 patterns (e.g. `web/static/src/fields/**/*`) pull `.js`, `.xml`, `.scss`
 together, and `ir.qweb` collects every `.xml` into the template registry
@@ -400,8 +407,8 @@ When refactoring a widget:
    load balancer/proxy to route to a read replica. A `readonly=True` route that
    accidentally writes will corrupt data on replicated setups.
 
-5. **Image URL variants** — `/web/image/` has 17 URL patterns that all resolve to
-   `content_image()`. `/web/content/` has another 7. When matching or rewriting image
+5. **Image URL variants** — `/web/image/` has 17 declared URL patterns, all resolving to
+   `content_image()`; `/web/content/` has another 7 on `content_common()`. When matching or rewriting image
    URLs, account for all variants (by xmlid, by id, by model/id/field, with/without
    dimensions, with/without filename).
 
@@ -444,7 +451,7 @@ When refactoring a widget:
      attribution. Examples: PayPal SDK, Adyen SDK, Google Maps, YouTube
      IFrame API, Vimeo player, Leaflet from unpkg.
 
-   **Edge cases worth documenting at the call site**:
+   **Edge cases**:
 
    - `delivery_mondialrelay` vendors a slim jQuery (`jquery.slim.min.js`)
      because the external Mondial Relay widget requires the global
@@ -489,12 +496,12 @@ When refactoring a widget:
    and get rewritten as responses come back through the cache.
 
    Method-set source of truth:
-   `services/result_set_cache_invalidator_service.js`
+   `core/network/result_set_cache_invalidator_service.js`
    `RESULT_SET_REMOVING_METHODS`. Emission site:
-   `services/result_set_cache_invalidator_service.js`. The listener
+   `core/network/result_set_cache_invalidator_service.js`. The listener
    lives in a dedicated service (not `relational_model.js`) so wiring is owned
    by env lifecycle — one subscription per page, one per Hoot test, torn down
-   with the env. See `doc/FLOW_DIAGRAM.md` Flow 14 for the full invalidation chain.
+   with the env. See `FLOW_DIAGRAM.md` Flow 14 for the full invalidation chain.
 
    **Write/create methods are intentionally excluded.** `create` / `write`
    / `web_save` / `web_save_multi` return the updated record and let the
@@ -568,7 +575,7 @@ When refactoring a widget:
     environment. In debug mode it throws (fail fast for developers); in production
     it emits a `console.warn` prefixed `[registry]` so a single malformed
     registration cannot crash the page while still surfacing schema mismatches.
-    Schema coverage is **32 of 34 web-module categories**; `serializers` and
+    Schema coverage is **33 of 35 web-module categories**; `serializers` and
     `deserializers` (`core/field_codec.js`) have no schema yet. The `debug` registry IS
     schemable despite being "parent-only": its entries are sub-Registry instances
     created by `category()`, so `entry instanceof Registry` catches accidental
@@ -701,8 +708,8 @@ When refactoring a widget:
 
 17. **`py_js` matches CPython on `%` formatting, but still has no int/float
     type** — `core/py_js/`. The evaluator is checked against CPython by a
-    differential corpus; the remaining divergences are worth knowing before
-    you write an expression into a view's `domain=` / `context=`.
+    differential corpus. The remaining divergences, before you write an
+    expression into a view's `domain=` / `context=`:
 
     **Tuples are distinguishable now (only where it matters).** Tuples and
     lists still both evaluate to plain JS arrays — every consumer (`Domain`,

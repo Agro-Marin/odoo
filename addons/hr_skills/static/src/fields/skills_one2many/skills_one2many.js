@@ -1,13 +1,14 @@
 /** @odoo-module native */
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { onWillStart } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
+import { useService } from '@web/core/utils/hooks';
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
-import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+
 import { CommonSkillsListRenderer } from "../../views/skills_list_renderer.js";
-import { useService } from '@web/core/utils/hooks';
-import { onWillStart } from "@odoo/owl";
 
 
 export class SkillsListRenderer extends CommonSkillsListRenderer {

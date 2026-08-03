@@ -98,10 +98,260 @@ export { DRAGGED_CLASS };
  */
 
 /**
+ * Records where the pointer is, in the coordinate space the rest of the hook
+ * compares against.
+ *
+ * @param {DraggableHookContext} ctx
+ * @param {PointerEvent} ev
+ * @returns {void}
+ */
+function updatePointerPosition(ctx, ev) {
+    ctx.pointer.x = ev.clientX;
+    ctx.pointer.y = ev.clientY;
+}
+
+/**
+ * Whether the pointer has travelled far enough from the press to mean a drag
+ * rather than a click.
+ *
+ * @param {DraggableHookContext} ctx
+ * @returns {boolean}
+ */
+function canStartDrag(ctx) {
+    const {
+        pointer,
+        current: { initialPosition },
+    } = ctx;
+    return (
+        !ctx.tolerance ||
+        Math.hypot(pointer.x - initialPosition.x, pointer.y - initialPosition.y) >=
+            ctx.tolerance
+    );
+}
+
+/**
+ * Moves the dragged element under the cursor.
+ *
+ * @param {DraggableHookContext} ctx
+ * @param {Record<string, any>} dom
+ * @returns {void}
+ */
+function updateElementPosition(ctx, dom) {
+    const { containerRect, element, elementRect, offset } = ctx.current;
+    const { width: ew, height: eh } = elementRect;
+    const { x: cx, y: cy, width: cw, height: ch } = containerRect;
+
+    dom.addStyle(element, {
+        left: `${clamp(ctx.pointer.x - offset.x, cx, cx + cw - ew)}px`,
+        top: `${clamp(ctx.pointer.y - offset.y, cy, cy + ch - eh)}px`,
+    });
+}
+
+/**
+ * Recomputes the container and scroll-parent geometry the drag compares the
+ * pointer against. Called once on drag start and again whenever a scroll or a
+ * resize invalidates it.
+ *
+ * @param {DraggableHookContext} ctx
+ * @param {Record<string, any>} dom
+ * @returns {void}
+ */
+function updateRects(ctx, dom) {
+    const { current } = ctx;
+    const { container, element, scrollParentX, scrollParentY } = current;
+    current.containerRect = dom.getRect(container, {
+        adjust: true,
+    });
+    let iframeOffsetX = 0;
+    let iframeOffsetY = 0;
+    const iframeEl = /** @type {HTMLIFrameElement | null} */ (
+        container.ownerDocument.defaultView?.frameElement ?? null
+    );
+    if (iframeEl && !iframeEl.contentDocument?.contains(element)) {
+        const { x, y } = dom.getRect(/** @type {HTMLElement} */ (iframeEl));
+        iframeOffsetX = x;
+        iframeOffsetY = y;
+        current.containerRect.x += iframeOffsetX;
+        current.containerRect.y += iframeOffsetY;
+    }
+    current.containerRect.width = container.scrollWidth;
+    current.containerRect.height = container.scrollHeight;
+    current.scrollParentXRect = null;
+    current.scrollParentYRect = null;
+    if (ctx.edgeScrolling.enabled) {
+        if (scrollParentX) {
+            current.scrollParentXRect = dom.getRect(scrollParentX, {
+                adjust: true,
+            });
+            current.scrollParentXRect.x += iframeOffsetX;
+            current.scrollParentXRect.y += iframeOffsetY;
+            const right = Math.min(
+                current.containerRect.left + container.scrollWidth,
+                current.scrollParentXRect.right,
+            );
+            current.containerRect.x = Math.max(
+                current.containerRect.x,
+                current.scrollParentXRect.x,
+            );
+            current.containerRect.width = right - current.containerRect.x;
+        }
+        if (scrollParentY) {
+            current.scrollParentYRect = dom.getRect(scrollParentY, {
+                adjust: true,
+            });
+            current.scrollParentYRect.x += iframeOffsetX;
+            current.scrollParentYRect.y += iframeOffsetY;
+            const bottom = Math.min(
+                current.containerRect.top + container.scrollHeight,
+                current.scrollParentYRect.bottom,
+            );
+            current.containerRect.y = Math.max(
+                current.containerRect.y,
+                current.scrollParentYRect.y,
+            );
+            current.containerRect.height = bottom - current.containerRect.y;
+        }
+    }
+
+    ctx.current.elementRect = dom.getRect(element);
+}
+
+/**
+ * One frame of edge scrolling: if the pointer is within `threshold` of a scroll
+ * parent's edge, scroll that parent proportionally to how close it is, and tell
+ * the drag its geometry moved.
+ *
+ * Lifted out of the hook because it needs nothing from it but the context and
+ * two callbacks — the enclosing method is 670 lines and every closure inside it
+ * looked equally entangled until each one was measured.
+ *
+ * @param {number} deltaTime
+ * @param {DraggableHookContext} ctx
+ * @param {{ updateRects: () => void, onDrag: () => void }} deps
+ * @returns {void}
+ */
+function handleEdgeScrolling(deltaTime, ctx, { updateRects, onDrag }) {
+    const wereRectsDirty = ctx.current.rectsDirty;
+    if (wereRectsDirty) {
+        ctx.current.rectsDirty = false;
+        updateRects();
+    }
+    const { x: pointerX, y: pointerY } = ctx.pointer;
+    const xRect = ctx.current.scrollParentXRect;
+    const yRect = ctx.current.scrollParentYRect;
+
+    const { direction, speed, threshold } = ctx.edgeScrolling;
+
+    /** @type {{ x?: [number, number], y?: [number, number] }} */
+    const diff = {};
+    if (xRect) {
+        const maxWidth = xRect.x + xRect.width;
+        if (pointerX - xRect.x < threshold) {
+            diff.x = [pointerX - xRect.x, -1];
+        } else if (maxWidth - pointerX < threshold) {
+            diff.x = [maxWidth - pointerX, 1];
+        }
+    }
+    if (yRect) {
+        let yRectY = yRect.y;
+        const scrollParentYEl = /** @type {HTMLElement} */ (ctx.current.scrollParentY);
+        if (scrollParentYEl === ctx.current.container.ownerDocument.scrollingElement) {
+            yRectY += scrollParentYEl.scrollTop;
+        }
+        const maxHeight = yRectY + yRect.height;
+        if (pointerY - yRectY < threshold) {
+            diff.y = [pointerY - yRectY, -1];
+        } else if (maxHeight - pointerY < threshold) {
+            diff.y = [maxHeight - pointerY, 1];
+        }
+    }
+
+    let scrolled = false;
+    if (diff.x || diff.y) {
+        const correctedSpeed = (speed / 16) * deltaTime;
+        const diffToScroll = (/** @type {[number, number]} */ [delta, sign]) =>
+            (1 - Math.max(delta, 0) / threshold) * correctedSpeed * sign;
+        if ((!direction || direction === "vertical") && diff.y) {
+            const scrollParentY = /** @type {HTMLElement} */ (
+                ctx.current.scrollParentY
+            );
+            const previousScrollTop = scrollParentY.scrollTop;
+            scrollParentY.scrollBy({
+                top: diffToScroll(diff.y),
+                behavior: "instant",
+            });
+            scrolled ||= scrollParentY.scrollTop !== previousScrollTop;
+        }
+        if ((!direction || direction === "horizontal") && diff.x) {
+            const scrollParentX = /** @type {HTMLElement} */ (
+                ctx.current.scrollParentX
+            );
+            const previousScrollLeft = scrollParentX.scrollLeft;
+            scrollParentX.scrollBy({
+                left: diffToScroll(diff.x),
+                behavior: "instant",
+            });
+            scrolled ||= scrollParentX.scrollLeft !== previousScrollLeft;
+        }
+        if (scrolled) {
+            ctx.current.rectsDirty = true;
+        }
+    }
+    if (scrolled || wereRectsDirty) {
+        onDrag();
+    }
+}
+
+/**
+ * While a delayed press waits to become a drag, stop the mobile browser doing
+ * its own thing with it: mark the element so the user sees the press landed,
+ * drop hrefs on Firefox so releasing on a link does not navigate, and
+ * un-draggable images on iOS so the OS drag does not take the pointer away.
+ *
+ * At module scope rather than inside the hook because it needs nothing from the
+ * drag context beyond the selector — everything else is the event and the DOM
+ * helpers, and those are passed. All three changes go through `dom`, so the
+ * cleanup manager restores them when the press ends.
+ *
+ * @param {PointerEvent} ev
+ * @param {HTMLElement} target
+ * @param {HTMLElement} currentTarget
+ * @param {{ dom: Record<string, any>, elementSelector: string }} deps
+ * @returns {void}
+ */
+function neutralizeTouchInterference(
+    ev,
+    target,
+    currentTarget,
+    { dom, elementSelector },
+) {
+    if (!hasTouch()) {
+        return;
+    }
+    if (ev.pointerType === "touch") {
+        dom.addClass(target.closest(elementSelector), "o_touch_bounce");
+    }
+    if (isBrowserFirefox()) {
+        const links = [...currentTarget.querySelectorAll("[href]")];
+        if (currentTarget.hasAttribute("href")) {
+            links.unshift(currentTarget);
+        }
+        for (const link of links) {
+            dom.removeAttribute(link, "href");
+        }
+    }
+    if (isIOS()) {
+        for (const image of currentTarget.getElementsByTagName("img")) {
+            dom.setAttribute(image, "draggable", false);
+        }
+    }
+}
+
+/**
  * @param {DraggableBuilderParams} hookParams
  * @returns {(params: Record<keyof typeof DEFAULT_ACCEPTED_PARAMS, any>) => { dragging: boolean }}
  */
-export function makeDraggableHook(hookParams) {
+export function makeNativeDraggableHook(hookParams) {
     hookParams = getReturnValue(hookParams);
 
     const hookName = hookParams.name || "useAnonymousDraggable";
@@ -187,20 +437,6 @@ export function makeDraggableHook(hookParams) {
                 }
             };
 
-            const canStartDrag = () => {
-                const {
-                    pointer,
-                    current: { initialPosition },
-                } = ctx;
-                return (
-                    !ctx.tolerance ||
-                    Math.hypot(
-                        pointer.x - initialPosition.x,
-                        pointer.y - initialPosition.y,
-                    ) >= ctx.tolerance
-                );
-            };
-
             const dragStart = () => {
                 state.dragging = true;
                 state.willDrag = false;
@@ -213,7 +449,7 @@ export function makeDraggableHook(hookParams) {
                         ? [ctx.current.container, ctx.current.container]
                         : getScrollParents(ctx.current.container);
 
-                updateRects();
+                updateRects(ctx, dom);
                 const { x, y, width, height } = ctx.current.elementRect;
 
                 ctx.current.offset = {
@@ -230,7 +466,7 @@ export function makeDraggableHook(hookParams) {
                         position: "fixed !important",
                     });
 
-                    updateElementPosition();
+                    updateElementPosition(ctx, dom);
                 }
 
                 dom.addClass(document.body, "pe-none", "user-select-none");
@@ -259,7 +495,12 @@ export function makeDraggableHook(hookParams) {
                         markRectsDirty,
                         { capture: true, passive: true },
                     );
-                    const cleanupFn = setRecurringAnimationFrame(handleEdgeScrolling);
+                    const cleanupFn = setRecurringAnimationFrame((deltaTime) =>
+                        handleEdgeScrolling(deltaTime, ctx, {
+                            updateRects: () => updateRects(ctx, dom),
+                            onDrag: () => callBuildHandler("onDrag"),
+                        }),
+                    );
                     cleanup.add(cleanupFn);
                 }
 
@@ -289,84 +530,6 @@ export function makeDraggableHook(hookParams) {
                     }
                 } finally {
                     cleanup.cleanup();
-                }
-            };
-
-            const handleEdgeScrolling = (/** @type {number} */ deltaTime) => {
-                const wereRectsDirty = ctx.current.rectsDirty;
-                if (wereRectsDirty) {
-                    ctx.current.rectsDirty = false;
-                    updateRects();
-                }
-                const { x: pointerX, y: pointerY } = ctx.pointer;
-                const xRect = ctx.current.scrollParentXRect;
-                const yRect = ctx.current.scrollParentYRect;
-
-                const { direction, speed, threshold } = ctx.edgeScrolling;
-
-                /** @type {{ x?: [number, number], y?: [number, number] }} */
-                const diff = {};
-                if (xRect) {
-                    const maxWidth = xRect.x + xRect.width;
-                    if (pointerX - xRect.x < threshold) {
-                        diff.x = [pointerX - xRect.x, -1];
-                    } else if (maxWidth - pointerX < threshold) {
-                        diff.x = [maxWidth - pointerX, 1];
-                    }
-                }
-                if (yRect) {
-                    let yRectY = yRect.y;
-                    const scrollParentYEl = /** @type {HTMLElement} */ (
-                        ctx.current.scrollParentY
-                    );
-                    if (
-                        scrollParentYEl ===
-                        ctx.current.container.ownerDocument.scrollingElement
-                    ) {
-                        yRectY += scrollParentYEl.scrollTop;
-                    }
-                    const maxHeight = yRectY + yRect.height;
-                    if (pointerY - yRectY < threshold) {
-                        diff.y = [pointerY - yRectY, -1];
-                    } else if (maxHeight - pointerY < threshold) {
-                        diff.y = [maxHeight - pointerY, 1];
-                    }
-                }
-
-                let scrolled = false;
-                if (diff.x || diff.y) {
-                    const correctedSpeed = (speed / 16) * deltaTime;
-                    const diffToScroll = (
-                        /** @type {[number, number]} */ [delta, sign],
-                    ) => (1 - Math.max(delta, 0) / threshold) * correctedSpeed * sign;
-                    if ((!direction || direction === "vertical") && diff.y) {
-                        const scrollParentY = /** @type {HTMLElement} */ (
-                            ctx.current.scrollParentY
-                        );
-                        const previousScrollTop = scrollParentY.scrollTop;
-                        scrollParentY.scrollBy({
-                            top: diffToScroll(diff.y),
-                            behavior: "instant",
-                        });
-                        scrolled ||= scrollParentY.scrollTop !== previousScrollTop;
-                    }
-                    if ((!direction || direction === "horizontal") && diff.x) {
-                        const scrollParentX = /** @type {HTMLElement} */ (
-                            ctx.current.scrollParentX
-                        );
-                        const previousScrollLeft = scrollParentX.scrollLeft;
-                        scrollParentX.scrollBy({
-                            left: diffToScroll(diff.x),
-                            behavior: "instant",
-                        });
-                        scrolled ||= scrollParentX.scrollLeft !== previousScrollLeft;
-                    }
-                    if (scrolled) {
-                        ctx.current.rectsDirty = true;
-                    }
-                }
-                if (scrolled || wereRectsDirty) {
-                    callBuildHandler("onDrag");
                 }
             };
 
@@ -402,7 +565,7 @@ export function makeDraggableHook(hookParams) {
              */
             const onPointerDown = (ev) => {
                 preventClick = false;
-                updatePointerPosition(ev);
+                updatePointerPosition(ctx, ev);
 
                 const target = /** @type {HTMLElement} */ (ev.target);
                 const initiationDelay =
@@ -446,32 +609,10 @@ export function makeDraggableHook(hookParams) {
                 attachDragListeners();
 
                 if (initiationDelay) {
-                    if (hasTouch()) {
-                        if (ev.pointerType === "touch") {
-                            dom.addClass(
-                                target.closest(
-                                    /** @type {string} */ (ctx.elementSelector),
-                                ),
-                                "o_touch_bounce",
-                            );
-                        }
-                        if (isBrowserFirefox()) {
-                            const links = [...currentTarget.querySelectorAll("[href]")];
-                            if (currentTarget.hasAttribute("href")) {
-                                links.unshift(currentTarget);
-                            }
-                            for (const link of links) {
-                                dom.removeAttribute(link, "href");
-                            }
-                        }
-                        if (isIOS()) {
-                            for (const image of currentTarget.getElementsByTagName(
-                                "img",
-                            )) {
-                                dom.setAttribute(image, "draggable", false);
-                            }
-                        }
-                    }
+                    neutralizeTouchInterference(ev, target, currentTarget, {
+                        dom,
+                        elementSelector: /** @type {string} */ (ctx.elementSelector),
+                    });
 
                     ctx.current.timeout = browser.setTimeout(() => {
                         ctx.current.initialPosition = { ...ctx.pointer };
@@ -496,7 +637,7 @@ export function makeDraggableHook(hookParams) {
              * @param {PointerEvent} ev
              */
             const onPointerMove = (ev) => {
-                updatePointerPosition(ev);
+                updatePointerPosition(ctx, ev);
 
                 if (!ctx.current.element || !ctx.enable()) {
                     return;
@@ -505,7 +646,7 @@ export function makeDraggableHook(hookParams) {
                 safePrevent(ev);
 
                 if (!state.dragging) {
-                    if (!canStartDrag()) {
+                    if (!canStartDrag(ctx)) {
                         return;
                     }
                     dragStart();
@@ -517,7 +658,7 @@ export function makeDraggableHook(hookParams) {
                 }
 
                 if (ctx.followCursor) {
-                    updateElementPosition();
+                    updateElementPosition(ctx, dom);
                 }
 
                 callBuildHandler("onDrag");
@@ -527,89 +668,13 @@ export function makeDraggableHook(hookParams) {
              * @param {PointerEvent} ev
              */
             const onPointerUp = (ev) => {
-                updatePointerPosition(ev);
+                updatePointerPosition(ctx, ev);
                 dragEnd(/** @type {HTMLElement} */ (ev.target));
-            };
-
-            const updateElementPosition = () => {
-                const { containerRect, element, elementRect, offset } = ctx.current;
-                const { width: ew, height: eh } = elementRect;
-                const { x: cx, y: cy, width: cw, height: ch } = containerRect;
-
-                dom.addStyle(element, {
-                    left: `${clamp(ctx.pointer.x - offset.x, cx, cx + cw - ew)}px`,
-                    top: `${clamp(ctx.pointer.y - offset.y, cy, cy + ch - eh)}px`,
-                });
             };
 
             /**
              * @param {PointerEvent} ev
              */
-            const updatePointerPosition = (ev) => {
-                ctx.pointer.x = ev.clientX;
-                ctx.pointer.y = ev.clientY;
-            };
-
-            const updateRects = () => {
-                const { current } = ctx;
-                const { container, element, scrollParentX, scrollParentY } = current;
-                current.containerRect = dom.getRect(container, {
-                    adjust: true,
-                });
-                let iframeOffsetX = 0;
-                let iframeOffsetY = 0;
-                const iframeEl = /** @type {HTMLIFrameElement | null} */ (
-                    container.ownerDocument.defaultView?.frameElement ?? null
-                );
-                if (iframeEl && !iframeEl.contentDocument?.contains(element)) {
-                    const { x, y } = dom.getRect(/** @type {HTMLElement} */ (iframeEl));
-                    iframeOffsetX = x;
-                    iframeOffsetY = y;
-                    current.containerRect.x += iframeOffsetX;
-                    current.containerRect.y += iframeOffsetY;
-                }
-                current.containerRect.width = container.scrollWidth;
-                current.containerRect.height = container.scrollHeight;
-                current.scrollParentXRect = null;
-                current.scrollParentYRect = null;
-                if (ctx.edgeScrolling.enabled) {
-                    if (scrollParentX) {
-                        current.scrollParentXRect = dom.getRect(scrollParentX, {
-                            adjust: true,
-                        });
-                        current.scrollParentXRect.x += iframeOffsetX;
-                        current.scrollParentXRect.y += iframeOffsetY;
-                        const right = Math.min(
-                            current.containerRect.left + container.scrollWidth,
-                            current.scrollParentXRect.right,
-                        );
-                        current.containerRect.x = Math.max(
-                            current.containerRect.x,
-                            current.scrollParentXRect.x,
-                        );
-                        current.containerRect.width = right - current.containerRect.x;
-                    }
-                    if (scrollParentY) {
-                        current.scrollParentYRect = dom.getRect(scrollParentY, {
-                            adjust: true,
-                        });
-                        current.scrollParentYRect.x += iframeOffsetX;
-                        current.scrollParentYRect.y += iframeOffsetY;
-                        const bottom = Math.min(
-                            current.containerRect.top + container.scrollHeight,
-                            current.scrollParentYRect.bottom,
-                        );
-                        current.containerRect.y = Math.max(
-                            current.containerRect.y,
-                            current.scrollParentYRect.y,
-                        );
-                        current.containerRect.height = bottom - current.containerRect.y;
-                    }
-                }
-
-                ctx.current.elementRect = dom.getRect(element);
-            };
-
             /**
              * @param {Element} target
              */

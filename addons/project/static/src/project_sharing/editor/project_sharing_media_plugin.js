@@ -4,7 +4,7 @@ import { ImageSavePlugin } from "@html_editor/main/media/image_save_plugin";
 import { MediaPlugin } from "@html_editor/main/media/media_plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class ProjectSharingMediaPlugin extends MediaPlugin {
     resources = {

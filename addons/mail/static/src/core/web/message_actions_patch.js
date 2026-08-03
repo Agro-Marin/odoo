@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { registerMessageAction } from "@mail/core/common/message_actions";
 import { getNonEditableMentions, parseEmail } from "@mail/utils/common/format";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { renderToMarkup } from "@web/core/utils/render";
 export function messageActionOpenFullComposer(title, context, component) {
     const message = component.props.message;

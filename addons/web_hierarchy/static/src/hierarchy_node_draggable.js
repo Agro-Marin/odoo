@@ -2,7 +2,7 @@
 import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { pick } from "@web/core/utils/collections/objects";
-import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder";
+import { makeNativeDraggableHook } from "@web/core/utils/dnd";
 
 const hookParams = {
     name: "useHierarchyNodeDraggable",
@@ -98,5 +98,5 @@ export function useHierarchyNodeDraggable(params) {
         throttle: useThrottleForAnimation,
         wrapState: reactive,
     }
-    return makeDraggableHook({ ...hookParams, setupHooks })(params);
+    return makeNativeDraggableHook({ ...hookParams, setupHooks })(params);
 }

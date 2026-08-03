@@ -2,7 +2,7 @@
 import { Component, EventBus, onWillStart, useState, useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
 import { BomOverviewControlPanel } from "../bom_overview_control_panel/mrp_bom_overview_control_panel.js";
 import { BomOverviewTable } from "../bom_overview_table/mrp_bom_overview_table.js";

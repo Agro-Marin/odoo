@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState, useGetItemValue } from "@html_builder/core/utils";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export const addToCartValues = {
     addToCart: { action: "add_to_cart", icon: "fa-cart-plus", label: _t("Add to Cart") },

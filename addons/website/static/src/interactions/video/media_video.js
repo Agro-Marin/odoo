@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
 import { generateVideoIframe } from "@website/js/content/generate_video_iframe";
 import { setupAutoplay, triggerAutoplay } from "@website/utils/videos";

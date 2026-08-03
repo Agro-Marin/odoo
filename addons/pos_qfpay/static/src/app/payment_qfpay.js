@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-import { _t } from "@web/core/l10n/translation";
+import { AlertDialog } from "@web/ui/dialog";
+import { _t } from "@web/core/translation";
 import { register_payment_method } from "@point_of_sale/app/services/pos_store";
 
 import { QFPay, QFPayError } from "./qfpay.js";

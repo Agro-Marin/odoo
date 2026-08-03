@@ -11,10 +11,10 @@ import {
     useState,
 } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { useActiveElement } from "@web/ui/ui_service";
 
 const useDialogDraggable = makeDraggableHook(

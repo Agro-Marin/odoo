@@ -10,7 +10,7 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { Pager } from "@web/components/pager/pager";
-import { config as transitionConfig } from "@web/components/transition";
+import { config as transitionConfig } from "@web/core/transition";
 
 class PagerController extends Component {
     static template = xml`<Pager t-props="state" />`;

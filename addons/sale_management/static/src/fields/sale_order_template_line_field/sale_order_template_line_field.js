@@ -6,7 +6,7 @@ import {
     getSectionRecords,
 } from '@account/components/section_and_note_fields_backend/section_and_note_fields_backend';
 import { makeContext } from '@web/core/context';
-import { x2ManyCommands } from '@web/model/relational_model/commands';
+import { x2ManyCommands } from "@web/model/relational_model";
 import { registry } from '@web/core/registry';
 
 export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRenderer {

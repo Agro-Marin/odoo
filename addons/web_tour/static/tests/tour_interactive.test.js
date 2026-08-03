@@ -33,7 +33,7 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 import { WebClient } from "@web/webclient/webclient";
 
 describe.current.tags("desktop");

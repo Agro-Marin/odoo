@@ -97,7 +97,11 @@ async function waitForServer() {
 }
 
 async function home() {
-    await waitForServer();
+    if (!(await waitForServer())) {
+        console.warn(
+            `The server did not answer within ${HOME_POLL_DEADLINE / 1000}s; reloading anyway.`,
+        );
+    }
     const url = "/" + (browser.location.search || "");
     browser.location.assign(url);
 }

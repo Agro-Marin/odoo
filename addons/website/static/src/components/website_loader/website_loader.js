@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, EventBus, markup, useEffect, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { sprintf } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
 

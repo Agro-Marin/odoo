@@ -6,10 +6,7 @@
 /**
  * @param {string} keyOptionalFields
  * @param {string} keyDebugOpenView
- * @param {object} options
- * @param {() => import("./list_renderer").Column[]} options.getAllColumns
- * @param {() => Record<string, boolean>} options.getOptionalActiveFields
- * @param {() => void} options.onSave
+ * @param {import("./list_renderer").ListGridContext} ctx
  * @returns {{
  *   debugOpenView: boolean,
  *   computeOptionalActiveFields: () => Record<string, boolean>,
@@ -21,17 +18,18 @@
  */
 import { browser } from "@web/core/browser/browser";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-export function useListOptionalFields(
-    keyOptionalFields,
-    keyDebugOpenView,
-    { getAllColumns, getOptionalActiveFields, onSave },
-) {
-    let optionalFieldsStorageValue = browser.localStorage.getItem(keyOptionalFields);
+export function useListOptionalFields(keyOptionalFields, keyDebugOpenView, ctx) {
+    const { getAllColumns, getOptionalActiveFields, onSave } = ctx;
     const self = {
         debugOpenView: exprToBoolean(browser.localStorage.getItem(keyDebugOpenView)),
 
+        // Read through to storage rather than snapshotting it: the key is
+        // shared by every renderer that resolves to the same view, and by every
+        // tab, so a snapshot goes stale as soon as one of them writes. A read
+        // costs ~0.02us against a ~50ms list render, which is all the snapshot
+        // was buying.
         computeOptionalActiveFields() {
-            const localStorageValue = optionalFieldsStorageValue;
+            const localStorageValue = browser.localStorage.getItem(keyOptionalFields);
             const optionalColumns = getAllColumns().filter(
                 (col) => col.type === "field" && col.optional,
             );
@@ -54,9 +52,7 @@ export function useListOptionalFields(
             const activeFieldNames = Object.keys(optionalActiveFields).filter(
                 (fieldName) => optionalActiveFields[fieldName],
             );
-            const serialized = activeFieldNames.join(",");
-            browser.localStorage.setItem(keyOptionalFields, serialized);
-            optionalFieldsStorageValue = serialized;
+            browser.localStorage.setItem(keyOptionalFields, activeFieldNames.join(","));
         },
 
         /**

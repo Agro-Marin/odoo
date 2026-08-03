@@ -3,16 +3,16 @@
 
 /** @module @web/webclient/currency_service */
 
+import { currencies } from "@web/core/currency";
 import { onModelMutation } from "@web/core/network/model_mutation";
 import { registry } from "@web/core/registry";
-import { currencies } from "@web/services/currency";
 
 export const currencyService = {
     dependencies: ["orm"],
     async: ["reloadCurrencies"],
     /**
      * @param {import("@web/env").OdooEnv} env
-     * @param {{ orm: import("@web/services/orm_service").ORM }} services
+     * @param {{ orm: import("@web/core/network/orm_service").ORM }} services
      * @returns {{ reloadCurrencies: () => Promise<void> }}
      */
     start(env, { orm }) {
@@ -28,10 +28,13 @@ export const currencyService = {
             }
             Object.assign(currencies, result);
         }
+        const currencyServiceApi = { reloadCurrencies };
+        // Facade-routed so a downstream patch of `reloadCurrencies` is seen by
+        // this listener too; calling the closure would capture the pre-patch fn.
         onModelMutation(["res.currency"], () => {
-            reloadCurrencies().catch(console.warn);
+            currencyServiceApi.reloadCurrencies().catch(console.warn);
         });
-        return { reloadCurrencies };
+        return currencyServiceApi;
     },
 };
 

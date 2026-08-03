@@ -3,8 +3,8 @@
 
 /** @module @web/model/relational_model/errors */
 
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 export class FetchRecordError extends Error {
     /**
      * @param {number[]} resIds

@@ -40,7 +40,7 @@ import { assets } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import { delay } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
-import { FormController } from "@web/views/form/form_controller";
+import { FormController } from "@web/views/form";
 
 import { Counter, EmbeddedWrapperMixin } from "./_helpers/embedded_component.js";
 import { unformat } from "./_helpers/format.js";

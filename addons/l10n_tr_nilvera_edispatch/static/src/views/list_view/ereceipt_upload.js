@@ -1,13 +1,13 @@
 /** @odoo-module native */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { Component, onWillStart } from "@odoo/owl";
-import { FileUploader } from "@web/core/file_upload/file_handler";
-import { ListController } from "@web/views/list/list_controller";
+import { FileUploader } from "@web/core/file_upload";
+import { ListController } from "@web/views/list";
 import { registry } from "@web/core/registry";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { StockListView } from "@stock/views/stock_empty_list_help";
 
 export class L10nTrEreceiptUploader extends Component {

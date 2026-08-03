@@ -36,52 +36,102 @@ const getShareTargetDataFromServiceWorker = () =>
         serviceWorker.controller.postMessage("odoo_share_target");
     });
 
-export const shareTargetService = {
-    dependencies: ["menu"],
+/**
+ * Action paths that can receive files shared into the app, most-preferred
+ * first (`sequence`). An app claims the share target by registering its own
+ * path here; `web` has no business naming one, and did — the sole candidate was
+ * spelled `"expenses"` in this file, so `hr_expense` owned a behaviour it could
+ * not see and no other app could take part.
+ */
+const shareTargetRegistry = registry.category("share_target_apps");
+
+shareTargetRegistry.addValidation((entry) => typeof entry === "string");
+
+/**
+ * @param {{ getApps: () => Record<string, any>[] }} menu
+ * @returns {Record<string, any> | undefined}
+ */
+function findShareTargetApp(menu) {
+    const apps = menu.getApps();
+    for (const actionPath of shareTargetRegistry.getAll()) {
+        const app = apps.find((app) => app.actionPath === actionPath);
+        if (app) {
+            return app;
+        }
+    }
+}
+
+/**
+ * The `shareTarget` service.
+ *
+ * A class rather than a closure returning an object literal; see
+ * `core/hotkeys/hotkey_service.js` for the reasoning and
+ * `tooling/architecture/js_service_shape.py` for the budget.
+ *
+ * The share-target detection stays in the constructor rather than `start()`:
+ * unlike `web_vitals` or `scss_error_display`, failing it does not mean there is
+ * no service — `hasSharedFiles()` must still answer `false` for every caller.
+ */
+export class ShareTargetService {
     /**
-     * @param {Object} env
+     * @param {import("@web/env").OdooEnv} env
      * @param {{ menu: Object }} services
-     * @returns {{ hasSharedFiles: () => boolean, getSharedFilesToUpload: () => File[] | null }}
      */
-    start(env, { menu }) {
-        let sharedFiles = null;
+    constructor(env, { menu }) {
+        this.env = env;
+        this.menu = menu;
+        /** @type {File[] | null} */
+        this.sharedFiles = null;
         if (
             browser.navigator.serviceWorker &&
             new URL(browser.location.href).searchParams.get("share_target") ===
                 "trigger"
         ) {
-            const app = menu.getApps().find((app) => "expenses" === app.actionPath);
+            const app = findShareTargetApp(/** @type {any} */ (menu));
             if (app) {
                 env.bus.addEventListener(
                     AppEvent.WEB_CLIENT_READY,
-                    async () => {
-                        try {
-                            sharedFiles = await getShareTargetDataFromServiceWorker();
-                            if (sharedFiles?.length) {
-                                await menu.selectMenu(app);
-                            }
-                        } catch (error) {
-                            console.warn("Failed to receive shared files", error);
-                        }
-                    },
+                    () => this.receiveSharedFiles(app),
                     { once: true },
                 );
             }
         }
-        return {
-            /**
-             * @return {boolean}
-             */
-            hasSharedFiles: () => !!sharedFiles?.length,
-            /**
-             * @return {null|File[]}
-             */
-            getSharedFilesToUpload: () => {
-                const files = sharedFiles;
-                sharedFiles = null;
-                return files;
-            },
-        };
+    }
+
+    /** @param {any} app */
+    async receiveSharedFiles(app) {
+        try {
+            this.sharedFiles = await getShareTargetDataFromServiceWorker();
+            if (this.sharedFiles?.length) {
+                await this.menu.selectMenu(app);
+            }
+        } catch (error) {
+            console.warn("Failed to receive shared files", error);
+        }
+    }
+
+    /** @return {boolean} */
+    hasSharedFiles() {
+        return !!this.sharedFiles?.length;
+    }
+
+    /** @return {null|File[]} */
+    getSharedFilesToUpload() {
+        const files = this.sharedFiles;
+        this.sharedFiles = null;
+        return files;
+    }
+}
+
+export const shareTargetService = {
+    dependencies: ["menu"],
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ menu: Object }} services
+     * @returns {ShareTargetService}
+     */
+    start(env, services) {
+        return new ShareTargetService(env, services);
     },
 };
 

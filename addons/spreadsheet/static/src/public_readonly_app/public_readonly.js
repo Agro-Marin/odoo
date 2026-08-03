@@ -1,13 +1,12 @@
 /** @odoo-module native */
-import { Component, onWillStart, useChildSubEnv, useState } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
-import { download } from "@web/core/network/download";
-
-import { useSpreadsheetNotificationStore } from "@spreadsheet/hooks";
-
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { Spreadsheet, Model, registries } from "@odoo/o-spreadsheet";
-import { _t } from "@web/core/l10n/translation";
+import { Model, registries,Spreadsheet } from "@odoo/o-spreadsheet";
+import { Component, onWillStart, useChildSubEnv, useState } from "@odoo/owl";
+import { useSpreadsheetNotificationStore } from "@spreadsheet/hooks";
+import { download } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+
 import { useSpreadsheetPrint } from "../hooks.js";
 
 registries.topbarMenuRegistry.addChild("download_public_excel", ["file"], {

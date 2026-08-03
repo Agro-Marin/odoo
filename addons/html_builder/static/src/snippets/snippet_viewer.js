@@ -1,12 +1,13 @@
 /** @odoo-module native */
+import { Img } from "@html_builder/core/img";
 import { Component, markup, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { localization } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { InputConfirmationDialog } from "./input_confirmation_dialog.js";
 import { fuzzyLookup } from "@web/core/utils/search";
-import { Img } from "@html_builder/core/img";
+
+import { InputConfirmationDialog } from "./input_confirmation_dialog.js";
 
 export class SnippetViewer extends Component {
     static template = "html_builder.SnippetViewer";

@@ -3,9 +3,9 @@
 
 /** @module @web/webclient/actions/debug_items */
 
-import { _t } from "@web/core/l10n/translation";
+import { editModelDebug } from "@web/core/debug/debug_utils";
 import { registry } from "@web/core/registry";
-import { editModelDebug } from "@web/services/debug/debug_utils";
+import { _t } from "@web/core/translation";
 
 /** @import { Action } from "./action_service.js" */
 

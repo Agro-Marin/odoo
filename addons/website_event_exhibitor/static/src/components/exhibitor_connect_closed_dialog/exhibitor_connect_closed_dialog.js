@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { Component, onWillStart, markup } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
-import { rpc } from "@web/core/network/rpc";
+import { Dialog } from "@web/ui/dialog";
+import { rpc } from "@web/core/network";
 import { formatDuration, deserializeDateTime } from "@web/core/l10n/dates";
 
 const { DateTime } = luxon;

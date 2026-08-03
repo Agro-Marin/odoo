@@ -3,7 +3,7 @@
 
 /** @module @web/fields/basic/float_factor/float_factor_field */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { Operation } from "@web/core/utils/operation";
 import { registerField } from "@web/fields/_registry";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";

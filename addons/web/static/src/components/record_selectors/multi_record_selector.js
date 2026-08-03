@@ -5,7 +5,7 @@
 
 import { useState } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { isId } from "@web/core/tree/utils";
 import { imageUrl } from "@web/core/utils/urls";
 

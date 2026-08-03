@@ -2,8 +2,9 @@
 import { getVideoUrl } from "@html_editor/utils/url";
 import { useChildSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 
 import { CustomMediaDialog } from "./custom_media_dialog.js";
 
@@ -183,6 +184,17 @@ export class X2ManyMediaViewer extends X2ManyField {
 export const x2ManyMediaViewer = {
     ...x2ManyField,
     component: X2ManyMediaViewer,
+    supportedOptions: [
+        ...(x2ManyField.supportedOptions || []),
+        {
+            label: _t("Convert to WebP"),
+            name: "convert_to_webp",
+            type: "boolean",
+            help: _t(
+                "Re-encode uploaded images to WebP, with JPEG copies and smaller sizes for reports.",
+            ),
+        },
+    ],
     extractProps: (
         { attrs, relatedFields, viewMode, views, widget, options, string },
         dynamicInfo,

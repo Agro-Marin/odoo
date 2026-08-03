@@ -44,8 +44,9 @@ def _ns(**kw):
 def test_resolve_refs_falls_back_on_zero_sha(monkeypatch):
     monkeypatch.setenv("PRE_COMMIT_FROM_REF", "0" * 40)
     monkeypatch.setenv("PRE_COMMIT_TO_REF", "abc123")
+    monkeypatch.setattr(crc, "_default_from_ref", lambda: "origin/19.0-marin")
     from_ref, to_ref = crc._resolve_refs(argparse.Namespace(from_ref=None, to_ref=None))
-    assert from_ref == crc.DEFAULT_FROM_REF  # zero sha -> base
+    assert from_ref == "origin/19.0-marin"  # zero sha -> what a push would send
     assert to_ref == "abc123"
 
 
@@ -58,8 +59,35 @@ def test_resolve_refs_explicit_args_win(monkeypatch):
 def test_resolve_refs_defaults_when_unset(monkeypatch):
     monkeypatch.delenv("PRE_COMMIT_FROM_REF", raising=False)
     monkeypatch.delenv("PRE_COMMIT_TO_REF", raising=False)
+    monkeypatch.setattr(crc, "_default_from_ref", lambda: "origin/19.0-marin")
     args = argparse.Namespace(from_ref=None, to_ref=None)
-    assert crc._resolve_refs(args) == (crc.DEFAULT_FROM_REF, crc.DEFAULT_TO_REF)
+    assert crc._resolve_refs(args) == ("origin/19.0-marin", crc.DEFAULT_TO_REF)
+
+
+# --- the default range must be what a push sends, not the branch you are on --
+
+
+def test_default_from_ref_prefers_the_upstream_tracking_ref(monkeypatch):
+    monkeypatch.setattr(crc, "_git", lambda *a: "origin/19.0-marin\n")
+    assert crc._default_from_ref() == "origin/19.0-marin"
+
+
+def test_default_from_ref_falls_back_without_an_upstream(monkeypatch):
+    # A fresh branch with no tracking ref: `rev-parse @{upstream}` fails and
+    # `_git` returns "". The shared base is the only sane answer left.
+    monkeypatch.setattr(crc, "_git", lambda *a: "")
+    assert crc._default_from_ref() == crc.DEFAULT_FROM_REF
+
+
+def test_the_default_range_is_not_empty_on_the_base_branch():
+    # The bug this replaced: DEFAULT_FROM_REF is `19.0-marin`, work lands
+    # directly on `19.0-marin`, and `19.0-marin..HEAD` is empty — so the gate
+    # inspected nothing and passed. Whatever the default resolves to, it must
+    # not be the branch we are standing on.
+    head = crc._git(crc.ROOT, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    if not head or head == "HEAD":  # pragma: no cover - detached checkout
+        return
+    assert crc._default_from_ref() != head
 
 
 # --- find_dangling: the crux (runtime import counts, comment does not) ------

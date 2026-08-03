@@ -1,13 +1,13 @@
 /** @odoo-module native */
 import { onMounted } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import {
     Many2ManyTagsFieldColorEditable,
     many2ManyTagsFieldColorEditable,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
+} from "@web/fields/relational/many2many_tags";
 
 export class FieldMany2ManyTagsBanksTagsList extends TagsList {
     static template = "FieldMany2ManyTagsBanksTagsList";

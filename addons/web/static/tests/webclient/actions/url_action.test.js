@@ -1,12 +1,15 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
+import { animationFrame } from "@odoo/hoot-mock";
 import {
     getService,
     makeMockEnv,
+    mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 test("execute an 'ir.actions.act_url' action with target 'self'", async () => {
     patchWithCleanup(browser.location, {
@@ -56,19 +59,114 @@ test("an 'ir.actions.act_url' action without url does nothing", async () => {
     expect.verifySteps([]);
 });
 
-test("execute an 'ir.actions.act_url' action with url javascript:", async () => {
-    patchWithCleanup(browser.location, {
-        assign: (url) => {
+/**
+ * The scheme is judged on the url as the action gave it, before `normalizeUrl`
+ * prefixes a slash onto anything that does not already look like one. Checked
+ * after, `javascript:alert()` had become the relative path `/javascript:alert()`
+ * — no scheme for the guard to see, so the guard fired only for the shapes that
+ * survive normalisation (`//host`, `httpx://`) and never for the scheme family
+ * it exists to reject, which was opened instead.
+ */
+const UNSAFE_URLS = [
+    "javascript:alert()",
+    "JavaScript:alert()",
+    "  javascript:alert()",
+    "data:text/html,<script></script>",
+    "vbscript:msgbox(1)",
+    "//evil.example",
+    "httpx://evil.example",
+];
+
+for (const url of UNSAFE_URLS) {
+    test(`an 'ir.actions.act_url' action is blocked for ${JSON.stringify(url)}`, async () => {
+        patchWithCleanup(browser.location, {
+            assign: (assigned) => expect.step(`assign ${assigned}`),
+        });
+        patchWithCleanup(browser, {
+            open: (opened) => expect.step(`open ${opened}`),
+        });
+        await makeMockEnv();
+        await mountWithCleanup(MainComponentsContainer);
+        await getService("action").doAction({
+            type: "ir.actions.act_url",
+            target: "self",
+            url,
+        });
+        await animationFrame();
+        expect.verifySteps([]);
+        expect(".o_notification").toHaveCount(1);
+        expect(".o_notification").toHaveText(/unsafe URL/);
+    });
+}
+
+test("a blob url is opened as-is, not turned into a relative path", async () => {
+    // The pdf viewer downloads a not-yet-saved upload through an act_url whose
+    // url is an object url this document created. `blob:` is meaningless as
+    // DATA, so it is not on the shared safe list, but it is the real target
+    // here — and prefixing a slash onto it could only 404.
+    // A real window object, or `openURL` reports the popup as blocked.
+    patchWithCleanup(browser, {
+        open: (url) => {
             expect.step(url);
+            return { closed: false };
         },
+    });
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    await getService("action").doAction({
+        type: "ir.actions.act_url",
+        url: "blob:http://localhost:8069/2f1c-4a6b",
+    });
+    await animationFrame();
+    expect(".o_notification").toHaveCount(0);
+    expect.verifySteps(["blob:http://localhost:8069/2f1c-4a6b"]);
+});
+
+test("an absolute url keeps its scheme untouched", async () => {
+    patchWithCleanup(browser, {
+        open: (url) => {
+            expect.step(url);
+            return { closed: false };
+        },
+    });
+    await makeMockEnv();
+    for (const url of [
+        "https://example.com/x",
+        "http://example.com/x",
+        "mailto:a@b.c",
+        "ftp://example.com/x",
+    ]) {
+        await getService("action").doAction({ type: "ir.actions.act_url", url });
+    }
+    expect.verifySteps([
+        "https://example.com/x",
+        "http://example.com/x",
+        "mailto:a@b.c",
+        "ftp://example.com/x",
+    ]);
+});
+
+test("a safe relative url is still normalized and opened", async () => {
+    patchWithCleanup(browser.location, {
+        assign: (url) => expect.step(url),
     });
     await makeMockEnv();
     await getService("action").doAction({
         type: "ir.actions.act_url",
         target: "self",
-        url: "javascript:alert()",
+        url: "my/test/url",
     });
-    expect.verifySteps(["/javascript:alert()"]);
+    expect.verifySteps(["/my/test/url"]);
+});
+
+test("a blocked url still settles the action's onClose", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    await getService("action").doAction(
+        { type: "ir.actions.act_url", url: "javascript:alert()" },
+        { onClose: () => expect.step("onClose") },
+    );
+    expect.verifySteps(["onClose"]);
 });
 
 test("execute an 'ir.actions.act_url' action with target 'download'", async () => {

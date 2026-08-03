@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import SESSION_CHART_COLORS from "@survey/interactions/survey_session_colors";
 import { fadeIn, fadeOut } from "@survey/utils";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 

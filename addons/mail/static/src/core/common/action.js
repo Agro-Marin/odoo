@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { isRecord, STORE_SYM } from "@mail/model/misc";
 import { Component, toRaw } from "@odoo/owl";
-import { DropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { DropdownState } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
 import { SignalStore } from "@web/core/utils/reactive";
 export const ACTION_TAGS = Object.freeze({

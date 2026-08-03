@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { ListController } from "@web/views/list/list_controller";
-import { listView } from "@web/views/list/list_view";
+import { ListController, listView } from "@web/views/list";
 
 import { LivechatViewControllerMixin } from "../livechat_view_controller_mixin.js";
 

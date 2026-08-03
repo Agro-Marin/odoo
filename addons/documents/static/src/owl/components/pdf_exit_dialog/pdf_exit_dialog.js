@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 import { useChildRef } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
 

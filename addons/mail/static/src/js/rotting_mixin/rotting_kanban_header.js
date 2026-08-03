@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanHeader } from "@web/views/kanban/kanban_header";
+import { KanbanHeader } from "@web/views/kanban";
 
 import { RottingColumnProgress } from "./rotting_column_progress.js";
 export class RottingKanbanHeader extends KanbanHeader {

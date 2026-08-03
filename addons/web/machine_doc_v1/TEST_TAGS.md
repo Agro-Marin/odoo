@@ -9,11 +9,11 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
-| `web_unit` | TransactionCase (pure Python, + 1 stray HttpCase) | 290 tests | ~45s |
+| `web_unit` | TransactionCase (pure Python, + 1 stray HttpCase) | 291 tests | ~45s |
 | `web_http` | HttpCase (url_open, no browser) | 87 tests | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 5 tests | ~2 min |
-| `web_js` | Full JS suites (HOOT) | 39 tests | ~1-2 hr † |
-| `addon_js` | HOOT suites of addons with no runner of their own | 159 tests | depends on the DB's module set |
+| `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr † |
+| `addon_js` | HOOT suites of addons with no runner of their own | 158 tests | depends on the DB's module set |
 | `web_perf` | Query count regression (@warmup) | 26 tests | ~2 min |
 | `web_benchmark` | Statistical timing (run_benchmark) | 8 tests | ~5 min |
 | `click_all` | Click-everywhere (-standard) | 2 tests (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
@@ -32,7 +32,7 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 > `odoo.tests.result: … of N tests`. Give the HttpCase tags (`web_http`,
 > `web_js`, `click_all`) a real port — under `--no-http` they collect 0.
 >
-> `web_unit` runs 288, not 290, under `--no-http`: `TestJsonExportRoute`
+> `web_unit` runs 289, not 291, under `--no-http`: `TestJsonExportRoute`
 > (`tests/test_json_export.py`) is an **`HttpCase` tagged `web_unit`** rather
 > than `web_http`, so its 2 tests disappear silently without a port. That tag
 > is inconsistent with this table's own definition of `web_unit`.
@@ -127,7 +127,7 @@ excludes only `desktop`-tagged tests, and 49% of `@web` plus 97% of
 `MobileWebSuite._run_hoot` narrows each category to the 45 test files that own a
 mobile test (`_mobile_suites_under`), keeping every mobile test and the untagged
 tests beside it: **2225 tests, 261 s**. A category with no mobile test at all
-(`test_core`, `test_services`, `test_public`, `test_model`, `test_misc`) skips
+(`test_core`, `test_public`, `test_model`, `test_misc`) skips
 with a message rather than running — an empty id list would otherwise mean *no
 filter*, i.e. the whole bundle.
 
@@ -156,20 +156,19 @@ mobile-only suite as a silent zero — see `tooling/hoot/README.md`.
 |--------|---------------|-------|
 | `test_core` | `@web/core` | utils, registries, RPC, ORM, domain |
 | `test_components` | `@web/components` | reusable OWL components (dropdown, pickers, etc.) |
-| `test_services` | `@web/services` | orm, hotkey, field, file_upload, debug, etc. |
 | `test_ui` | `@web/ui` | overlay services: dialog, popover, tooltip, notification |
 | `test_calendar` | `@web/views/calendar` | calendar view |
-| `test_fields` | `@web/views/fields` | field widgets (suite path from `tests/views/fields/`, source at `@web/fields/`) |
+| `test_fields` | `@web/fields` | field widgets |
 | `test_form` | `@web/views/form` | form view |
 | `test_kanban` | `@web/views/kanban` | kanban view |
 | `test_list` | `@web/views/list` | list view |
-| `test_graph_pivot` | `@web/views/graph`, `@web/views/pivot_view`, `@web/views/view_components`, `@web/views/view_dialogs`, `@web/views/widgets`, `@web/views/layout`, `@web/views/view_button_hook`, `@web/views/view_service`, `@web/views/view`, `@web/views/view_utils` | graph, pivot, misc view utilities |
+| `test_graph_pivot` | `GRAPH_PIVOT_SUITES` in `tests/test_js.py` — `@web/views/{graph,pivot,pivot_view,field_arch,view_components,view_compiler,view_dialogs,widgets,layout,view_button,…}` | graph, pivot, misc view utilities |
 | `test_search` | `@web/search` | search bar, filters, groupby |
 | `test_webclient` | `@web/webclient` | action manager, navbar, settings |
 | `test_public` | `@web/public` | public page components |
 | `test_html_editor` | `@html_editor` | rich text editor |
 | `test_model` | `@web/model` | client-side relational data model (Record, StaticList, DynamicList, etc.) |
-| `test_misc` | `@web/env`, `@web/reactivity`, `@web/t_custom_click` | root-level test files |
+| `test_misc` | `MISC_SUITES` in `tests/test_js.py` — `@web/{env,reactivity,t_custom_click,helpers,interactions,l10n,libs,mock_server,modules}` | root-level and helper suites |
 
 ```bash
 # Single group — desktop only (~30s-2min)
@@ -241,9 +240,10 @@ runs — and the page still reports success for the tests it *did* run, so nothi
 goes red.
 
 `tests/test_js_addons.py` closes that hole structurally: it walks every addon
-that bundles `*.test.js`, subtracts what the 14 explicit runners already select,
-and **generates one test method per remaining addon** (`AddonSuite.test_<addon>`,
-tag `addon_js`). A new addon is covered the day it lands.
+that bundles `*.test.js`, subtracts what the explicit `WebSuite` runners already
+select, and **generates one test method per remaining addon**
+(`AddonSuite.test_<addon>`, tag `addon_js`, `-web_js` to drop the inherited tag).
+A new addon is covered the day it lands.
 
 - Selection is per **suite**, not per addon: `point_of_sale` has a runner for
   `@point_of_sale/unit` and bundles one file outside it, so its generated method
@@ -251,8 +251,9 @@ tag `addon_js`). A new addon is covered the day it lands.
 - A method **skips** when its addon is not installed on the test database —
   coverage follows whatever module set the CI job built.
 - `KNOWN_FAILING_ADDONS` in that module is the remaining debt: addons whose
-  suites do not pass yet. `test_every_addon_unit_suite_is_selected_by_a_runner`
-  asserts it exact in both directions, so it can only shrink.
+  suites do not pass yet. It is currently **empty**.
+  `test_every_addon_unit_suite_is_selected_by_a_runner` asserts it exact in both
+  directions, so an addon that starts passing fails the build until it is removed.
 
 ```bash
 --test-tags 'addon_js'                        # every generated addon runner

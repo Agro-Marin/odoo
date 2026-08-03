@@ -53,7 +53,7 @@ declare module "plugins" {
     import { DynamicPlaceholderShared } from "@html_editor/others/dynamic_placeholder_plugin";
     import { EmbeddedComponentShared, mount_component_handlers, post_mount_component_handlers } from "@html_editor/others/embedded_component_plugin";
 
-    import { _t } from "@web/core/l10n/translation.js";
+    import { _t } from "@web/core/translation.js";
 
     /* Misc */
     export interface CSSSelector extends String {}

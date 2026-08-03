@@ -41,7 +41,7 @@
 
             # Re-include debug and router files that were removed in point_of_sale.base_app
             # but are required for running unit tests
-            'web/static/src/services/debug/**/*',
+            'web/static/src/webclient/debug/**/*',
             'web/static/src/core/browser/router.js',
         ],
         'web.assets_unit_tests': [
@@ -59,7 +59,7 @@
             "pos_self_order/static/src/app/primary_variables.scss",
             "pos_self_order/static/src/app/bootstrap_overridden.scss",
             ("include", "point_of_sale.base_app"),
-            'web/static/src/services/currency.js',
+            'web/static/src/core/currency.js',
             'barcodes/static/src/barcode_service.js',
             'point_of_sale/static/src/utils.js',
             'point_of_sale/static/src/proxy_trap.js',
@@ -123,6 +123,17 @@
     'esm': {
         'bundles': [
             'pos_self_order.assets',
+            # Rendered after the app bundle on the same page under
+            # `'tests' in debug or test_mode_enabled`, and module-syntax
+            # throughout (web_tour, hoot-dom, the self-order tours). Left
+            # undeclared it is concatenated as legacy JS, which replaces every
+            # one of those files with a console error and starts no tour.
+            'pos_self_order.assets_tests',
         ],
+        # Share the app's module singletons rather than resolve to re-bundled
+        # copies, as the customer-display pair does.
+        'secondary_import_map_includes': {
+            'pos_self_order.assets': ['pos_self_order.assets_tests'],
+        },
     },
 }

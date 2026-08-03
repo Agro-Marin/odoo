@@ -2,9 +2,9 @@
 import { iconClasses } from "@html_editor/utils/dom_info";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { Notebook } from "@web/components/notebook/notebook";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 import { IconSelector } from "./icon_selector.js";
 import { ImageSelector } from "./image_selector.js";

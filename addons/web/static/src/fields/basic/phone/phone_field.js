@@ -3,7 +3,7 @@
 
 /** @module @web/fields/basic/phone/phone_field */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { TrimmingInputFieldBase } from "@web/fields/basic/trimming_input_field_base";
 import { useInputField } from "@web/fields/input_field_hook";

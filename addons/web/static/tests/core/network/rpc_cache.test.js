@@ -7,6 +7,7 @@ import { RpcEvent } from "@web/core/events";
 import {
     ConnectionAbortedError,
     ConnectionLostError,
+    InvalidResponseError,
     rpcBus,
 } from "@web/core/network/rpc";
 import { RAM_CACHE_MAX_ENTRIES, RPCCache } from "@web/core/network/rpc_cache";
@@ -1093,6 +1094,43 @@ test("silent update:always: ConnectionLostError refresh does not float a rejecti
     rpcBus.removeEventListener(RpcEvent.BACKGROUND_REFRESH_FAILED, onFail);
 });
 
+test("update:always: an InvalidResponseError refresh warns but does not signal offline", async () => {
+    // `InvalidResponseError` extends `ConnectionLostError` but is not
+    // connectivity loss (e.g. a session-expired refresh got a login page, not
+    // JSON), so it must NOT fire the offline `BACKGROUND_REFRESH_FAILED` signal
+    // -- only a genuine `ConnectionLostError` does. It falls to a plain warning.
+    const rpcCache = new RPCCache("mockRpc", 1, null);
+    await rpcCache.read("table", "key", () => Promise.resolve({ v: 1 }), {
+        type: "ram",
+    });
+
+    /** @type {string[]} */
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (/** @type {any[]} */ ...args) => warnings.push(String(args[0])),
+    });
+    const failures = [];
+    const onFail = (/** @type {any} */ ev) => failures.push(ev.detail.error);
+    rpcBus.addEventListener(RpcEvent.BACKGROUND_REFRESH_FAILED, onFail);
+
+    const def = new Deferred();
+    const res = await rpcCache.read("table", "key", () => def, {
+        type: "ram",
+        update: "always",
+    });
+    expect(res).toEqual({ v: 1 });
+
+    def.reject(new InvalidResponseError("/web/dataset/call_kw", 200));
+    await tick();
+    await tick();
+
+    expect(failures).toHaveLength(0); // not signalled as offline
+    expect(
+        warnings.filter((w) => w.includes("background refresh failed")),
+    ).toHaveLength(1);
+    rpcBus.removeEventListener(RpcEvent.BACKGROUND_REFRESH_FAILED, onFail);
+});
+
 test("DiskCache: multiple consecutive calls, empty cache, fallback fails", async () => {
     const rpcCache = new RPCCache(
         "mockRpc",
@@ -1813,6 +1851,30 @@ test("checkSize: prefers the IndexedDB-specific usage over the origin-wide figur
     await rpcCache.checkSize();
     expect.verifySteps([]);
     expect(warnings.length).toBe(1);
+});
+
+test("purgeStorage deletes the on-disk database", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    /** @type {any} */ (rpcCache).indexedDB = {
+        deleteDatabase: () => expect.step("deleteDatabase"),
+    };
+
+    await rpcCache.purgeStorage();
+
+    expect.verifySteps(["deleteDatabase"]);
+});
+
+test("purgeStorage is a no-op (and does not throw) without a disk cache", async () => {
+    const rpcCache = new RPCCache("mockRpc", 1); // no secret -> disk cache disabled
+    expect(rpcCache.indexedDB).toBe(null);
+
+    await rpcCache.purgeStorage();
+
+    expect.verifySteps([]);
 });
 
 const RAM_SECRET = "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b";

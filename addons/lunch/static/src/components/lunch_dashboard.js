@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
-import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
+import { rpc } from "@web/core/network";
+import { user } from "@web/core/user";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
-import { DateTimeInput } from '@web/components/datetime/datetime_input';
+import { DateTimeInput } from "@web/components/datetime";
 import { Component, useState, onWillStart, markup, xml } from "@odoo/owl";
 import { Collapse } from "@web/ui/collapse/collapse";
 import { Offcanvas } from "@web/ui/offcanvas/offcanvas";

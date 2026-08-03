@@ -4,7 +4,7 @@
 /** @module search/search_facets */
 
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { computeActiveItemDomains } from "./search_domain.js";
 import { SPECIAL } from "./search_state.js";

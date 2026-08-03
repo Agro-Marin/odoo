@@ -6,6 +6,7 @@
 import { toRaw } from "@odoo/owl";
 
 import { isX2Many } from "./field_context.js";
+import { listId } from "./static_list_utils.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
@@ -136,8 +137,8 @@ export function checkValidity(
         isRequired: (fieldName) => record._isRequired(fieldName),
         isChildListValid: (_fieldName, list) => {
             const membership = new Set(list._currentIds);
-            return Object.values(list._cache).every((r) => {
-                if (!membership.has(r.resId || r._virtualId)) {
+            return list.cachedRecords.every((r) => {
+                if (!membership.has(listId(r))) {
                     return true;
                 }
                 if (!r.hasPendingChanges) {
@@ -186,8 +187,9 @@ export function checkValidity(
         }
         const isValid = !record._invalidFields.size;
         if (!isValid && displayNotification) {
-            record._closeInvalidFieldsNotification =
-                displayInvalidFieldNotification(record);
+            record.setInvalidFieldsNotification(
+                displayInvalidFieldNotification(record),
+            );
         }
         return isValid;
     }
@@ -213,8 +215,7 @@ export function checkValidity(
     }
     const isValid = !record._invalidFields.size;
     if (!isValid && displayNotification) {
-        record._closeInvalidFieldsNotification =
-            displayInvalidFieldNotification(record);
+        record.setInvalidFieldsNotification(displayInvalidFieldNotification(record));
     }
     return isValid;
 }

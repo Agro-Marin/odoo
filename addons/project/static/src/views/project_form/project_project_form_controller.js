@@ -2,7 +2,7 @@
 import { onWillStart } from "@odoo/owl";
 import { useFocusTitle } from "@project/utils/project_utils";
 import { FormControllerWithHTMLExpander } from "@resource/views/form_with_html_expander/form_controller_with_html_expander";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 import { ProjectTemplateDropdown } from "../components/project_template_dropdown.js";
 

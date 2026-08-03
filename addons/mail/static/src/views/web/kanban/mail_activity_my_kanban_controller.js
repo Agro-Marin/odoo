@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
-import { KanbanController } from "@web/views/kanban/kanban_controller";
+import { KanbanController } from "@web/views/kanban";
 export class MailActivityMyKanbanController extends KanbanController {
     setup() {
         super.setup();

@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { components, readonlyAllowedCommands,registries } from "@odoo/o-spreadsheet";
 import { SEE_RECORD_LIST, SEE_RECORD_LIST_VISIBLE } from "@spreadsheet/list/list_actions";
-import { registries, components, readonlyAllowedCommands } from "@odoo/o-spreadsheet";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 const { clickableCellRegistry } = registries;
 const { ClickableCellSortIcon } = components;

@@ -4,8 +4,8 @@
 /** @module @web/fields/basic/float/float_field */
 
 import { formatFloat } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
 import { parseFloat } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { registerField } from "@web/fields/_registry";
 import { extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";

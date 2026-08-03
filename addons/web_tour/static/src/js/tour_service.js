@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { Component, markup, validate, whenReady } from "@odoo/owl";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { DropdownItem } from "@web/components/dropdown";
 import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
-import { translationIsReady } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { translationIsReady } from "@web/core/translation";
 import { redirect } from "@web/core/utils/urls";
 import { session } from "@web/session";
 import { createPointerState } from "@web_tour/js/tour_pointer/tour_pointer_state";

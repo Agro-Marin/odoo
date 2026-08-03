@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { AND, fields, Record } from "@mail/core/common/record";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 export class MessageReactions extends Record {
     static id = AND("message", "content");
 

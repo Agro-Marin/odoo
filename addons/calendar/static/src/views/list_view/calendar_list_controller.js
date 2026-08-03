@@ -1,8 +1,8 @@
 /** @odoo-module native */
 
-import { useService } from "@web/core/utils/hooks";
-import { ListController } from "@web/views/list/list_controller";
 import { useAskRecurrenceUpdatePolicy } from "@calendar/views/ask_recurrence_update_policy_hook";
+import { useService } from "@web/core/utils/hooks";
+import { ListController } from "@web/views/list";
 
 export class CaledarListController extends ListController {
     setup() {

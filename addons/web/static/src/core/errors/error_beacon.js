@@ -111,7 +111,14 @@ function serializeCause(cause) {
  *   col?: number,
  *   stack?: string,
  *   cause?: unknown,
+ *   phase?: string,
+ *   dedup?: boolean,
  * }} info
+ *   `phase` overrides the default (`post_boot`/`pre_boot`, read off `odoo.isReady`)
+ *   for callers that report a specific lifecycle moment, e.g. a boot-mount
+ *   failure. `dedup` (default `true`) can be turned off for a caller that wants
+ *   every occurrence beaconed rather than the first per
+ *   `(message,line,col,hash(stack+cause))`.
  * @returns {boolean}
  */
 export function reportJsError(info) {
@@ -123,23 +130,24 @@ export function reportJsError(info) {
     const col = (info.col ?? 0) | 0;
     const stack = info.stack ? String(info.stack).slice(0, MAX_STACK) : "";
     const cause = serializeCause(info.cause);
-    // Cause is in the key, not just the stack: OWL wraps inside handleError
-    // (owl.es.js:1661), so the wrapper's stack is the scheduler frames and two
-    // component crashes in one tick collide. The component frames are the cause.
-    const key = `${message}|${line}|${col}|${hashCode(stack + cause)}`;
-    if (seen.has(key)) {
-        return false;
+    if (info.dedup ?? true) {
+        // Cause is in the key, not just the stack: OWL wraps inside handleError
+        // (owl.es.js:1661), so the wrapper's stack is the scheduler frames and two
+        // component crashes in one tick collide. The component frames are the cause.
+        const key = `${message}|${line}|${col}|${hashCode(stack + cause)}`;
+        if (seen.has(key)) {
+            return false;
+        }
+        if (seen.size >= MAX_SEEN_KEYS) {
+            seen.delete(seen.values().next().value);
+        }
+        seen.add(key);
     }
-    if (seen.size >= MAX_SEEN_KEYS) {
-        seen.delete(seen.values().next().value);
-    }
-    seen.add(key);
+    const isReady = /** @type {{ odoo?: { isReady?: boolean } }} */ (globalThis).odoo
+        ?.isReady;
     try {
         const payload = {
-            phase: /** @type {{ odoo?: { isReady?: boolean } }} */ (globalThis).odoo
-                ?.isReady
-                ? "post_boot"
-                : "pre_boot",
+            phase: info.phase ?? (isReady ? "post_boot" : "pre_boot"),
             kind: KINDS.has(/** @type {string} */ (info.kind)) ? info.kind : "error",
             message: message.slice(0, MAX_MESSAGE),
             cause,

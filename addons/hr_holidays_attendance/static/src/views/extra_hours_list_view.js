@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { Component, useState, useEffect } from "@odoo/owl";
-import { ListRenderer } from "@web/views/list/list_renderer";
-import { listView } from "@web/views/list/list_view";
+import { ListRenderer, listView } from "@web/views/list";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 

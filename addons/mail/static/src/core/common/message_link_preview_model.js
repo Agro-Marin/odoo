@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 export class MessageLinkPreview extends Record {
     static _name = "mail.message.link.preview";
     static id = "id";

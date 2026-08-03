@@ -6,6 +6,7 @@
  */
 
 import { markup } from "@odoo/owl";
+import { formatCurrency } from "@web/core/currency";
 import {
     formatDate as _formatDate,
     formatDateTime as _formatDateTime,
@@ -13,8 +14,8 @@ import {
     toLocaleDateTimeString,
 } from "@web/core/l10n/dates";
 import { localization as l10n } from "@web/core/l10n/localization";
-import { _pl, _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _pl, _t } from "@web/core/translation";
 import { humanSize, isBinarySize } from "@web/core/utils/format/binary";
 import { extractDigits } from "@web/core/utils/format/digits";
 import {
@@ -23,7 +24,6 @@ import {
     insertThousandsSep,
 } from "@web/core/utils/format/numbers";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { formatCurrency } from "@web/services/currency";
 
 /**
  * The view node a formatter's `extractOptions` reads: the field's XML

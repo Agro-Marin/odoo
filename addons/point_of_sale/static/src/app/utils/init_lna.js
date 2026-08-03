@@ -7,7 +7,7 @@
  *  message: string
  * }>}
  */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 export const initLNA = async (notificationService, callback = () => {}) => {
     if (!odoo.use_lna) {
         callback("info", _t("Local Network Access is not configured for this POS."));

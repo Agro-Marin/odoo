@@ -13,7 +13,7 @@ import {
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { isEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
 const HIDDEN_CONNECTION_STATES = new Set(["connected", "completed"]);

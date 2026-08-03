@@ -4,9 +4,9 @@ import {
     constructFullProductName,
 } from "@point_of_sale/utils";
 import { localization as l10n } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
 import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { formatFloat } from "@web/core/utils/format/numbers";
 
 import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";

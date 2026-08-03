@@ -19,7 +19,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { deserializeDateTime } from "@web/core/l10n/dates";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { url } from "@web/core/utils/urls";
 
 import { defineLivechatModels } from "./livechat_test_helpers.js";

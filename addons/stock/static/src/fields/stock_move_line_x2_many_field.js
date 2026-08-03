@@ -1,13 +1,13 @@
 /** @odoo-module native */
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import {
     useOpenMany2XRecord,
     useSelectCreate,
 } from "@web/fields/relational/many2x_autocomplete";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 
 export class SMLX2ManyField extends X2ManyField {
     setup() {

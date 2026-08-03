@@ -1,9 +1,10 @@
+// @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useColorScheme } from "@web/core/color_scheme";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { colorSchemeService } from "@web/webclient/color_scheme/color_scheme_service";
 
 /**

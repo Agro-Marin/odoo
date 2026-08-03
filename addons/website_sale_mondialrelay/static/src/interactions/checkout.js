@@ -2,12 +2,12 @@
 import { patch } from '@web/core/utils/patch';
 import { Tooltip, Modal } from "@web/libs/bootstrap";
 import { patchDynamicContent } from '@web/public/utils';
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { Checkout } from '@website_sale/interactions/checkout';
 
 // temporary for OnNoResultReturned bug
 import { registry } from '@web/core/registry';
-import { ThirdPartyScriptError } from '@web/services/error_service';
+import { ThirdPartyScriptError } from '@web/core/errors/error_service';
 const errorHandlerRegistry = registry.category('error_handlers');
 
 function corsIgnoredErrorHandler(env, error) {

@@ -22,7 +22,6 @@ const OPTION_FIELDS = {
     hasActionsColumn: "_hasActionsColumn",
     isRTL: "_isRTL",
     showGroupAddLine: "_showGroupAddLine",
-    isCellReadonly: "_isCellReadonly",
 };
 
 export class ListGridState {
@@ -30,12 +29,11 @@ export class ListGridState {
      * @param {object} options
      * @param {object} options.list
      * @param {object[]} options.columns
-     * @param {boolean} options.hasSelectors
-     * @param {boolean} options.hasOpenFormViewColumn
-     * @param {boolean} options.hasActionsColumn
-     * @param {boolean} options.isRTL
-     * @param {boolean} options.showGroupAddLine
-     * @param {(col: object, rec: object) => boolean} options.isCellReadonly
+     * @param {boolean} [options.hasSelectors]
+     * @param {boolean} [options.hasOpenFormViewColumn]
+     * @param {boolean} [options.hasActionsColumn]
+     * @param {boolean} [options.isRTL]
+     * @param {boolean} [options.showGroupAddLine]
      */
     constructor({
         list,
@@ -45,7 +43,6 @@ export class ListGridState {
         hasActionsColumn = false,
         isRTL = false,
         showGroupAddLine = false,
-        isCellReadonly = () => false,
     }) {
         this._list = list;
         this._setColumns(columns);
@@ -54,7 +51,6 @@ export class ListGridState {
         this._hasActionsColumn = hasActionsColumn;
         this._isRTL = isRTL;
         this._showGroupAddLine = showGroupAddLine;
-        this._isCellReadonly = isCellReadonly;
 
         /** @type {FlatRow[]} */
         this._flatRows = [];
@@ -66,6 +62,11 @@ export class ListGridState {
         this._addLineByGroupId = new Map();
 
         this._lastColIndex = 0;
+
+        /** write position within `_flatRows` during a rebuild @type {number} */
+        this._cursor = 0;
+        /** whether the current rebuild changed anything @type {boolean} */
+        this._dirty = false;
 
         /**
          * @type {number}
@@ -92,13 +93,53 @@ export class ListGridState {
         }
     }
 
+    /**
+     * Re-materializes the flat rows. This runs on every render of the renderer,
+     * over every LOADED record — a 400-row page re-materializes 400 rows to put
+     * ~27 in the DOM — so rows are updated in place and the maps are cleared
+     * rather than reallocated. `_generation` only advances when the structure
+     * actually changed, which is what lets row components skip their lookup.
+     */
     rebuild() {
-        this._generation++;
-        this._flatRows = [];
-        this._rowByRecordId = new Map();
-        this._rowByGroupId = new Map();
-        this._addLineByGroupId = new Map();
+        this._rowByRecordId.clear();
+        this._rowByGroupId.clear();
+        this._addLineByGroupId.clear();
+        this._cursor = 0;
+        this._dirty = false;
         this._materialize(this._list, 0, null);
+        if (this._flatRows.length !== this._cursor) {
+            this._flatRows.length = this._cursor;
+            this._dirty = true;
+        }
+        if (this._dirty) {
+            this._generation++;
+        }
+    }
+
+    /**
+     * Writes the row for the current cursor position, reusing the object
+     * already there when it describes the same thing.
+     *
+     * @param {FlatRowType} type
+     * @param {object} fields
+     */
+    _emitRow(type, fields) {
+        const index = this._cursor++;
+        const existing = this._flatRows[index];
+        if (
+            existing &&
+            existing.type === type &&
+            existing.record === fields.record &&
+            existing.group === fields.group &&
+            existing.parentGroup === fields.parentGroup &&
+            existing.depth === fields.depth
+        ) {
+            return existing;
+        }
+        const row = { type, globalIndex: index, ...fields };
+        this._flatRows[index] = row;
+        this._dirty = true;
+        return row;
     }
 
     /** @returns {FlatRow[]} */
@@ -173,16 +214,6 @@ export class ListGridState {
     }
 
     /**
-     * @param {string} name
-     * @returns {number}
-     */
-    getColIndexByName(name) {
-        const offset = this._hasSelectors ? 1 : 0;
-        const idx = this._columns.findIndex((col) => col.name === name);
-        return idx === -1 ? -1 : idx + offset;
-    }
-
-    /**
      * @param {object} column
      * @returns {number | undefined}
      */
@@ -224,102 +255,6 @@ export class ListGridState {
     }
 
     /**
-     * @param {number} rowIndex
-     * @param {number} colIndex
-     * @param {boolean} forward
-     * @returns {{ rowIndex: number, colIndex: number } | null}
-     */
-    findNextEditableCell(rowIndex, colIndex, forward = true) {
-        const row = this._flatRows[rowIndex];
-        if (!row || row.type !== "record") {
-            return null;
-        }
-        const step = forward ? 1 : -1;
-        const offset = this._hasSelectors ? 1 : 0;
-        let ci = colIndex + step;
-        while (ci >= offset && ci < offset + this._columns.length) {
-            const col = this._columns[ci - offset];
-            if (
-                col.type === "field" &&
-                row.record &&
-                !this._isCellReadonly(col, row.record)
-            ) {
-                return { rowIndex, colIndex: ci };
-            }
-            ci += step;
-        }
-        return null;
-    }
-
-    /**
-     * @param {number} rowIndex
-     * @param {number} startColIndex
-     * @param {boolean} forward
-     * @returns {{ rowIndex: number, colIndex: number, column: object } | null}
-     */
-    findEditableCellWrapping(rowIndex, startColIndex, forward = true) {
-        const row = this._flatRows[rowIndex];
-        if (!row || row.type !== "record" || !row.record) {
-            return null;
-        }
-        const offset = this._hasSelectors ? 1 : 0;
-        const fieldCount = this._columns.length;
-        if (fieldCount === 0) {
-            return null;
-        }
-        const startFieldIdx = Math.max(
-            0,
-            Math.min(startColIndex - offset, fieldCount - 1),
-        );
-
-        for (let i = 0; i < fieldCount; i++) {
-            let fieldIdx;
-            if (forward) {
-                fieldIdx = (startFieldIdx + i) % fieldCount;
-            } else {
-                fieldIdx = (startFieldIdx - i + fieldCount) % fieldCount;
-            }
-            const col = this._columns[fieldIdx];
-            if (col.type === "field" && !this._isCellReadonly(col, row.record)) {
-                return { rowIndex, colIndex: fieldIdx + offset, column: col };
-            }
-        }
-        return null;
-    }
-
-    /**
-     * @param {number} colIndex
-     * @returns {object | null}
-     */
-    getColumnAt(colIndex) {
-        const offset = this._hasSelectors ? 1 : 0;
-        const fieldIdx = colIndex - offset;
-        if (fieldIdx < 0 || fieldIdx >= this._columns.length) {
-            return null;
-        }
-        return this._columns[fieldIdx];
-    }
-
-    /**
-     * @param {number} rowIndex
-     * @param {number} colIndex
-     * @returns {boolean}
-     */
-    isCellEditable(rowIndex, colIndex) {
-        const row = this._flatRows[rowIndex];
-        if (!row || row.type !== "record" || !row.record) {
-            return false;
-        }
-        const offset = this._hasSelectors ? 1 : 0;
-        const colArrayIdx = colIndex - offset;
-        if (colArrayIdx < 0 || colArrayIdx >= this._columns.length) {
-            return false;
-        }
-        const col = this._columns[colArrayIdx];
-        return col.type === "field" && !this._isCellReadonly(col, row.record);
-    }
-
-    /**
      * @param {object} list
      * @param {number} depth
      * @param {object | null} parentGroup
@@ -327,14 +262,12 @@ export class ListGridState {
     _materialize(list, depth, parentGroup) {
         if (list.isGrouped) {
             for (const group of list.groups) {
-                const groupRow = {
-                    type: /** @type {const} */ ("group"),
-                    globalIndex: this._flatRows.length,
+                const groupRow = this._emitRow("group", {
                     group,
+                    record: undefined,
                     parentGroup,
                     depth,
-                };
-                this._flatRows.push(groupRow);
+                });
                 this._rowByGroupId.set(String(group.id), groupRow);
 
                 if (!group.isFolded) {
@@ -343,24 +276,21 @@ export class ListGridState {
             }
         } else {
             for (const record of list.records) {
-                const recordRow = {
-                    type: /** @type {const} */ ("record"),
-                    globalIndex: this._flatRows.length,
+                const recordRow = this._emitRow("record", {
                     record,
+                    group: undefined,
                     parentGroup,
                     depth,
-                };
-                this._flatRows.push(recordRow);
+                });
                 this._rowByRecordId.set(String(record.id), recordRow);
             }
             if (parentGroup && this._showGroupAddLine) {
-                const addLineRow = {
-                    type: /** @type {const} */ ("add-line"),
-                    globalIndex: this._flatRows.length,
+                const addLineRow = this._emitRow("add-line", {
+                    record: undefined,
+                    group: undefined,
                     parentGroup,
                     depth,
-                };
-                this._flatRows.push(addLineRow);
+                });
                 this._addLineByGroupId.set(String(parentGroup.id), addLineRow);
             }
         }

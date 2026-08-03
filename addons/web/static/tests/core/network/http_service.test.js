@@ -2,13 +2,13 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { mockFetch } from "@odoo/hoot-mock";
+import { get, post } from "@web/core/network/http_service";
 import {
     ConnectionLostError,
     InvalidResponseError,
     NetworkError,
     RequestEntityTooLargeError,
 } from "@web/core/network/rpc";
-import { get, post } from "@web/services/http_service";
 
 describe.current.tags("headless");
 

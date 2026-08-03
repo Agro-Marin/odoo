@@ -4,8 +4,8 @@ import { enhancedButtons } from "@point_of_sale/app/components/numpad/numpad";
 import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/number_popup";
 import { PriceFormatter } from "@point_of_sale/app/components/price_formatter/price_formatter";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { _t } from "@web/core/l10n/translation";
 import { parseFloat } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 export class PaymentScreenPaymentLines extends Component {
     static template = "point_of_sale.PaymentScreenPaymentLines";

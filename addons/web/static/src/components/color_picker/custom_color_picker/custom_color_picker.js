@@ -11,7 +11,7 @@ import {
     useRef,
 } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import {
     convertCSSColorToRgba,
     convertHslToRgb,

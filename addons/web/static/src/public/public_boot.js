@@ -4,12 +4,12 @@
 /** @module @web/public/public_boot */
 
 import { App, Component, whenReady } from "@odoo/owl";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { browser } from "@web/core/browser/browser";
-import { appTranslateFn } from "@web/core/l10n/translation";
 import { getTemplate } from "@web/core/templates";
+import { appTranslateFn } from "@web/core/translation";
 import { makeEnv, startServices } from "@web/env";
 import lazyloader from "@web/public/lazyloader";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 function noop() {}
 

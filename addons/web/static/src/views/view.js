@@ -12,6 +12,7 @@ import {
     toRaw,
     useSubEnv,
 } from "@odoo/owl";
+import { useDebugCategory } from "@web/core/debug/debug_context";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { deepCopy } from "@web/core/utils/collections/objects";
@@ -21,7 +22,6 @@ import { nbsp } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 import { extractLayoutComponents } from "@web/search/layout";
 import { WithSearch } from "@web/search/with_search/with_search";
-import { useDebugCategory } from "@web/services/debug/debug_context";
 import { session } from "@web/session";
 import { useActionLinks } from "@web/views/view_hook";
 

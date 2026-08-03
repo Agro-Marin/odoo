@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 
-import { listView } from "@web/views/list/list_view";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { listView, ListRenderer } from "@web/views/list";
 import { RecruitmentActionHelper } from "@hr_recruitment/views/recruitment_helper_view";
 import { RecruitmentListController } from "@hr_recruitment/views/recruitment_list_controller";
 

@@ -1,4 +1,3 @@
-import { luxon } from "@web/core/l10n/luxon";
 import {
     click,
     contains,
@@ -21,19 +20,19 @@ import { MailTestActivity } from "@test_mail/../tests/mock_server/models/mail_te
 import { defineTestMailModels } from "@test_mail/../tests/test_mail_test_helpers";
 import {
     asyncStep,
+    contains as webContains,
     mockService,
     onRpc,
     patchWithCleanup,
     serverState,
     waitForSteps,
-    contains as webContains,
 } from "@web/../tests/web_test_helpers";
 import { Domain } from "@web/core/domain";
 import { formatDate, serializeDate } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { deepEqual, omit } from "@web/core/utils/collections/objects";
 import { getOrigin } from "@web/core/utils/urls";
-import { DynamicList } from "@web/model/relational_model/dynamic_list";
-import { RelationalModel } from "@web/model/relational_model/relational_model";
+import { DynamicList, RelationalModel } from "@web/model/relational_model";
 
 const { DateTime } = luxon;
 

@@ -2,7 +2,7 @@
 import { Avatar } from "@mail/views/web/fields/avatar/avatar";
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class DocumentsMany2OneAvatarField extends Component {

@@ -1,15 +1,15 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { serializeDate } from "@web/core/l10n/dates";
 import { onWillUpdateProps, useComponent, useState } from "@odoo/owl";
-import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
+import { useDateTimePicker } from "@web/components/datetime";
 import { Domain } from "@web/core/domain";
+import { serializeDate } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { getFieldDomain } from "@web/model/relational_model/utils";
+import { StatusBarField,statusBarField } from "@web/fields/display/statusbar/statusbar_field";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
-import { statusBarField, StatusBarField } from "@web/fields/display/statusbar/statusbar_field";
-import { _t } from "@web/core/l10n/translation";
+import { getFieldDomain } from "@web/model/relational_model";
 
 export class VersionsTimeline extends StatusBarField {
     static template = "hr.VersionsTimeline";

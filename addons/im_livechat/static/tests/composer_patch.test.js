@@ -15,7 +15,7 @@ import {
     serverState,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 import { defineLivechatModels } from "./livechat_test_helpers.js";
 

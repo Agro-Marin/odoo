@@ -6,9 +6,9 @@
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { makeContext } from "@web/core/context";
-import { _t } from "@web/core/l10n/translation";
 import { RPCError } from "@web/core/network/rpc";
-import { registry } from "@web/core/registry";
+import { getFormViewDialog, getSelectCreateDialog } from "@web/core/record_dialog_port";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { highlightText, odoomark } from "@web/core/utils/dom/html";
 import {
@@ -43,7 +43,7 @@ export function useSelectCreate({
     isToMany,
 }) {
     const addDialog = useOwnedDialogs();
-    const SelectCreateDialog = registry.category("dialogs").get("select_create");
+    const SelectCreateDialog = getSelectCreateDialog();
 
     function selectCreate({ domain, context, filters, title }) {
         addDialog(SelectCreateDialog, {
@@ -233,7 +233,7 @@ export class Many2XAutocomplete extends Component {
 
     /** @returns {import("@odoo/owl").ComponentConstructor} */
     get createDialog() {
-        return registry.category("dialogs").get("form_view");
+        return getFormViewDialog();
     }
 
     /** @returns {string} */
@@ -674,7 +674,7 @@ export function useOpenMany2XRecord({
     component = null,
     size = "lg",
 }) {
-    component ??= registry.category("dialogs").get("form_view");
+    component ??= getFormViewDialog();
     const addDialog = useOwnedDialogs();
     const orm = useService("orm");
 

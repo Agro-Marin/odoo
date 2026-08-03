@@ -2,9 +2,9 @@
 
 import { beforeEach, expect, getFixture, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { DateTimePickerController } from "@web/components/datetime/datetime_picker_service";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
-import { DateTimePickerController } from "@web/services/datetime_picker_service";
 
 const { DateTime } = luxon;
 

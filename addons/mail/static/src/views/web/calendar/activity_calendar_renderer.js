@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { CalendarRenderer } from "@web/views/calendar/calendar_renderer";
+import { CalendarRenderer } from "@web/views/calendar";
 
 import { ActivityCalendarCommonRender } from "./calendar_common/activity_calendar_common_renderer.js";
 import { ActivityCalendarYearRenderer } from "./calendar_year/activity_calendar_year_renderer.js";

@@ -1,15 +1,15 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
 import {
  addMobileOrders,
  fillRemovedItemGap,
  removeMobileOrders,
 } from "@html_builder/utils/column_layout_utils";
-import { isElementInViewport } from "@html_builder/utils/utils";
 import { scrollTo } from "@html_builder/utils/scrolling";
+import { isElementInViewport } from "@html_builder/utils/utils";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
 import { localization } from "@web/core/l10n/localization";
+import { _t } from "@web/core/translation";
 
 /** @typedef {import("plugins").CSSSelector} CSSSelector */
 /**

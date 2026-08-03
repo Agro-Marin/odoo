@@ -4,8 +4,8 @@ import {
     PopoverWidgetField,
     popoverWidgetField,
 } from "@stock/widgets/popover_widget";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 export class StockReschedulingPopoverComponent extends PopoverComponent {

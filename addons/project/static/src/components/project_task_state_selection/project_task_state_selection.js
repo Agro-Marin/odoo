@@ -1,13 +1,13 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { formatSelection } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import {
     StateSelectionField,
     stateSelectionField,
 } from "@web/fields/selection/state_selection/state_selection_field";
-import { useCommand } from "@web/services/commands/command_hook";
+import { useCommand } from "@web/ui/commands";
 
 export class ProjectTaskStateSelection extends StateSelectionField {
     static template = "project.ProjectTaskStateSelection";

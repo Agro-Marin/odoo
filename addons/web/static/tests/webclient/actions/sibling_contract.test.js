@@ -4,22 +4,18 @@ import { describe, expect, test } from "@odoo/hoot";
 import { ActionManager } from "@web/webclient/actions/action_service";
 
 /**
- * THE SIBLING CONTRACT, EXECUTABLE.
+ * THE SIBLING CONTRACT.
  *
- * ``action_service.js`` documents in prose exactly which of its members the
- * ~10 modules it delegates to (``action_executors/*``, ``breadcrumb_manager``,
- * ``load_state``, ``action_dispatch``, ``action_button_executor``,
- * ``controller_component``, ``reports/report_executor``, ``action_loader``,
- * ``action_info_builders``, ``action_cache_invalidation``) are allowed to
- * reach, and closes with:
+ * ``action_service.js`` hands itself whole to the ~10 modules it delegates to
+ * (``action_executors/*``, ``breadcrumb_manager``, ``load_state``,
+ * ``action_dispatch``, ``action_button_executor``, ``controller_component``,
+ * ``reports/report_executor``, ``action_loader``, ``action_info_builders``,
+ * ``action_cache_invalidation``), so "what may a sibling touch?" has no answer
+ * in the type system and could only be re-derived by grepping.
  *
- *     "Adding a member to this surface means adding it to this list.
- *      Anything not listed is private to this file."
- *
- * Nothing enforced that. A contributor reaching a new ``am.something`` from a
- * sibling got no signal, and the list could only be re-derived by grepping.
- *
- * These tests give the list teeth in both directions:
+ * This file IS the answer — there is no prose copy anywhere, deliberately: one
+ * would drift out of step with the assertion that enforces it. The lists below
+ * are the contract, and they have teeth in both directions:
  *
  *  - {@link SANCTIONED} must all still exist, so the doc cannot silently name
  *    a member that was renamed or deleted;
@@ -76,16 +72,20 @@ const INTERNAL = [
     "loadState",
     "loadAction",
     "currentController",
-    "currentAction",
+    "getCurrentAction",
     "ControllerComponent",
     "uninstallActionCacheInvalidation",
     "_id",
     "_skeletonDef",
     "_actionExecutors",
+    // The body of `doAction`; `doAction` itself is only the wrapper that
+    // announces ACTION_MANAGER:SETTLED once the dispatch is over.
+    "_doAction",
     "_preprocessAction",
     "_getCurrentController",
     "_getCurrentAction",
     "_pendingDispatch",
+    "_dispatchDepth",
     "_effectiveStack",
     "_navGeneration",
     "_isSupersededNav",

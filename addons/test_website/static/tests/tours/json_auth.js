@@ -1,5 +1,5 @@
 import { registry } from "@web/core/registry";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 registry.category("web_tour.tours").add('test_json_auth', {
     steps: () => [{

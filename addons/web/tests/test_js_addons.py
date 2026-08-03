@@ -33,7 +33,7 @@ class AddonSuite(HOOTCommon):
 
     ``-web_js`` drops the tag inherited from :class:`HOOTCommon` on purpose:
     ``web_js`` means "web's own JS suites" and is already a 1-2 hour tag, and
-    these 159 methods test other addons. They get their own ``addon_js``.
+    these 158 methods test other addons. They get their own ``addon_js``.
     """
 
 

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { PosData } from "@point_of_sale/app/services/data_service";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 import { session } from "@web/session";
 

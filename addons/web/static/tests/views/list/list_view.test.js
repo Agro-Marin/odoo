@@ -78,18 +78,19 @@ import {
     validateSearch,
     webModels,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
+import { currencies } from "@web/core/currency";
 import { Domain } from "@web/core/domain";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { omit } from "@web/core/utils/collections/objects";
 import { useBus } from "@web/core/utils/hooks";
 import { floatField } from "@web/fields/basic/float/float_field";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
-import { currencies } from "@web/services/currency";
-import { user } from "@web/services/user";
 import { session } from "@web/session";
 import { ListController } from "@web/views/list/list_controller";
 import { ListRenderer } from "@web/views/list/list_renderer";
@@ -751,7 +752,7 @@ test(`editable list with open_form_view in debug`, async () => {
 
 test.tags("desktop");
 test(`editable list without open_form_view in debug`, async () => {
-    patchWithCleanup(localStorage, {
+    patchWithCleanup(browser.localStorage, {
         getItem(key) {
             const value = super.getItem(...arguments);
             if (key.startsWith("debug_open_view")) {
@@ -15925,9 +15926,46 @@ test(`change the viewType of the current action`, async () => {
     expect(`.o-dropdown--menu span.dropdown-item [name=o2m]`).not.toBeChecked();
 });
 
+test(`optional columns follow a storage write made elsewhere`, async () => {
+    // The key is shared by every renderer resolving to the same view, and by
+    // every tab. Snapshotting it at setup left each renderer with a private
+    // copy that went stale the moment anyone else wrote.
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list>
+                <field name="foo"/>
+                <field name="m2o" optional="hide"/>
+            </list>
+        `,
+        viewId: 42,
+    });
+    expect(`th[data-name=m2o]`).toHaveCount(0);
+
+    // enable it through the UI so the real key is the one under test
+    await contains(`table .o_optional_columns_dropdown_toggle`).click();
+    await contains(`.o-dropdown--menu span.dropdown-item [name=m2o]`).click();
+    expect(`th[data-name=m2o]`).toHaveCount(1);
+
+    // Enumerated through the Storage API rather than `Object.keys`: a real
+    // `Storage` exposes its entries as own properties, but neither the RAM
+    // fallback in `browser.js` nor the per-test store the framework installs
+    // does — and `length`/`key(i)` is the contract all three actually honour.
+    const key = Array.from({ length: browser.localStorage.length }, (_, i) =>
+        browser.localStorage.key(i),
+    ).find((k) => k.startsWith("optional_fields,"));
+    expect(typeof key).toBe("string");
+
+    // another renderer / another tab hides it again
+    browser.localStorage.setItem(key, "");
+    await contains(`th[data-name=foo]`).click();
+    expect(`th[data-name=m2o]`).toHaveCount(0);
+});
+
 test(`list view with optional fields rendering and local storage mock`, async () => {
     let forceLocalStorage = true;
-    patchWithCleanup(localStorage, {
+    patchWithCleanup(browser.localStorage, {
         getItem(key) {
             if (key.startsWith("optional_fields")) {
                 expect.step(["getItem", key]);
@@ -15974,7 +16012,10 @@ test(`list view with optional fields rendering and local storage mock`, async ()
 
     forceLocalStorage = false;
     await contains(`.o-dropdown--menu span.dropdown-item:eq(1) input`).click();
-    expect.verifySteps([[`setItem ${localStorageKey}`, "m2o,reference"]]);
+    expect.verifySteps([
+        [`setItem ${localStorageKey}`, "m2o,reference"],
+        ["getItem", localStorageKey],
+    ]);
     expect(`th:not(.o_list_record_selector)`).toHaveCount(4, {
         message:
             "should have 1 for checkbox (desktop only), 3 for columns, 1 for optional columns",
@@ -15984,7 +16025,7 @@ test(`list view with optional fields rendering and local storage mock`, async ()
 });
 
 test(`list view with optional fields from local storage being the empty array`, async () => {
-    patchWithCleanup(localStorage, {
+    patchWithCleanup(browser.localStorage, {
         getItem(key) {
             if (key.startsWith("optional_fields")) {
                 expect.step(["getItem", key]);
@@ -16045,7 +16086,10 @@ test(`list view with optional fields from local storage being the empty array`, 
         `.o-dropdown--menu span.dropdown-item:not(.dropdown-item-studio)`,
     ).toHaveCount(2, { message: "dropdown has 2 optional column headers" });
     await contains(`.o-dropdown--menu span.dropdown-item input:eq(1)`).click();
-    expect.verifySteps([[`setItem ${localStorageKey}`, ""]]);
+    expect.verifySteps([
+        [`setItem ${localStorageKey}`, ""],
+        ["getItem", localStorageKey],
+    ]);
     verifyHeaders(["foo"]);
     await getService("action").doAction(1);
     expect.verifySteps([["getItem", localStorageKey]]);
@@ -18165,7 +18209,7 @@ test(`properties: optional show/hide (config from local storage)`, async () => {
         }
     }
 
-    localStorage.setItem(
+    browser.localStorage.setItem(
         "optional_fields,foo,list,1,m2o,properties",
         "properties.property_char",
     );
@@ -18202,7 +18246,7 @@ test(`properties: optional show/hide (at reload, config from local storage)`, as
         }
     }
 
-    localStorage.setItem(
+    browser.localStorage.setItem(
         "optional_fields,foo,list,1,m2o,properties",
         "properties.property_char",
     );

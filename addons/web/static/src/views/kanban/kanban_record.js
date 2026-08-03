@@ -13,12 +13,13 @@ import {
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { Field } from "@web/fields/field";
@@ -234,7 +235,7 @@ export class KanbanRecord extends Component {
     setup() {
         this.LONG_TOUCH_THRESHOLD = this.props.canResequence ? 600 : 400;
         this.evaluateBooleanExpr = evaluateBooleanExpr;
-        this.action = useService("action");
+        this.action = useAction();
         this.dialog = useService("dialog");
         this.notification = useService("notification");
 

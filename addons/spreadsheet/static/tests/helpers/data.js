@@ -1,15 +1,15 @@
+import { mailModels } from "@mail/../tests/mail_test_helpers";
 import {
-    MockServer,
     defineActions,
     defineModels,
     fields,
+    MockServer,
     models,
     onRpc,
     serverState,
     webModels,
 } from "@web/../tests/web_test_helpers";
-import { mailModels } from "@mail/../tests/mail_test_helpers";
-import { RPCError } from "@web/core/network/rpc";
+import { RPCError } from "@web/core/network";
 
 /**
  * @typedef {object} ServerData

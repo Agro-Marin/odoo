@@ -1,22 +1,22 @@
 /** @ts-check */
-import { luxon } from "@web/core/l10n/luxon";
-import { describe, expect, test, beforeEach } from "@odoo/hoot";
+import { beforeEach,describe, expect, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
 import {
-    getDateDomain,
-    getRelativeDateFromTo,
+    assertDateDomainEqual,
+    getDateDomainDurationInDays,
+} from "@spreadsheet/../tests/helpers/date_domain";
+import {
     dateFilterValueToString,
+    getDateDomain,
+    getFacetInfo,
     getNextDateFilterValue,
     getPreviousDateFilterValue,
-    getFacetInfo,
+    getRelativeDateFromTo,
     RELATIVE_PERIODS,
 } from "@spreadsheet/global_filters/helpers";
-import {
-    getDateDomainDurationInDays,
-    assertDateDomainEqual,
-} from "@spreadsheet/../tests/helpers/date_domain";
-import { makeMockEnv, allowTranslations } from "@web/../tests/web_test_helpers";
-import { getOperatorLabel } from "@web/core/tree/operator_labels";
+import { allowTranslations,makeMockEnv } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
+import { getOperatorLabel } from "@web/core/tree";
 
 import { defineSpreadsheetModels } from "../helpers/data.js";
 

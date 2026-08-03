@@ -11,13 +11,13 @@ import {
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { post } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { delay } from "@web/core/utils/concurrency";
 import { Popover } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
-import { post } from "@web/services/http_service";
-import { user } from "@web/services/user";
 import { session } from "@web/session";
 import wUtils from "@website/js/utils";
 

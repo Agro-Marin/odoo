@@ -5,8 +5,8 @@ import { CONSOLE_COLOR, PosStore } from "@point_of_sale/app/services/pos_store";
 import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { EditOrderNamePopup } from "@pos_restaurant/app/components/popup/edit_order_name_popup/edit_order_name_popup";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError } from "@web/core/network/rpc";
+import { ConnectionLostError } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 patch(PosStore.prototype, {
     /**
@@ -56,16 +56,24 @@ patch(PosStore.prototype, {
             ...super.idleTimeout,
             {
                 timeout: 180000, // 3 minutes
-                action: () =>
-                    this.dialog.closeAll() &&
-                    this.config.module_pos_restaurant &&
-                    ![
-                        "PaymentScreen",
-                        "TicketScreen",
-                        "ActionScreen",
-                        "LoginScreen",
-                    ].includes(this.router.state.current) &&
-                    this.navigate("FloorScreen"),
+                // A statement body, not an `&&` chain: `closeAll()` answers
+                // nothing, so the chain died on its first link and the
+                // navigation below it never ran at all -- an idle restaurant
+                // POS closed its dialogs and then sat where it was.
+                action: () => {
+                    this.dialog.closeAll();
+                    if (
+                        this.config.module_pos_restaurant &&
+                        ![
+                            "PaymentScreen",
+                            "TicketScreen",
+                            "ActionScreen",
+                            "LoginScreen",
+                        ].includes(this.router.state.current)
+                    ) {
+                        this.navigate("FloorScreen");
+                    }
+                },
             },
         ];
     },

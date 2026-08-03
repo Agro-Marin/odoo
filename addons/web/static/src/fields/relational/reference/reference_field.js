@@ -4,7 +4,7 @@
 /** @module @web/fields/relational/reference/reference_field */
 
 import { Component, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";

@@ -99,17 +99,15 @@ DEFAULT_BASELINE_PATH = (
 # that stays; what widens here is coverage inside the repo, from 24 files to
 # ~72, with the baseline still empty.
 #
-# `doc/adr/*.md` and `doc/*.md`, not `doc/**`: `doc/cla/` is upstream Odoo's
-# and carries upstream's own rot (`sign-cla.md` cites a corporate CLA that was
-# never added). Baselining another project's broken links teaches nobody
-# anything; the fork's ADRs are ours and are worth holding at zero.
+# `doc/*.md`, not `doc/**`: `doc/cla/` is upstream Odoo's and carries upstream's
+# own rot (`sign-cla.md` cites a corporate CLA that was never added).
+# Baselining another project's broken links teaches nobody anything.
 DEFAULT_SCAN_GLOBS = [
     "addons/*/machine_doc_v1/*.md",
     "odoo/**/machine_doc_v1/*.md",
     ".github/workflows/*.yml",
     "CLAUDE.md",
     "addons/*/CLAUDE.md",
-    "doc/adr/*.md",
     "doc/*.md",
     "tooling/**/*.md",
 ]

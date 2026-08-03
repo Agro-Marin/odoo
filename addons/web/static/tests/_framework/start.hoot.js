@@ -9,7 +9,7 @@ import {
     start,
 } from "@odoo/hoot";
 
-import { patchBrowserLocation } from "./mock_browser.hoot.js";
+import { patchBrowserLocation, patchBrowserStorage } from "./mock_browser.hoot.js";
 import { setupTestEnvironment } from "./module_set.hoot.js";
 
 /**
@@ -85,6 +85,7 @@ defineTags(
 setupTestEnvironment();
 
 patchBrowserLocation();
+patchBrowserStorage();
 
 /**
  * Disarm the module loader's production asset-recovery reload for the whole run.

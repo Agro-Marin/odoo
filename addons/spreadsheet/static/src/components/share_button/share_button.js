@@ -1,13 +1,11 @@
 /** @odoo-module native */
-import { Component, useState } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { CopyButton } from "@web/components/copy_button/copy_button";
-import { waitForDataLoaded, freezeOdooData } from "@spreadsheet/helpers/model";
 import { Model } from "@odoo/o-spreadsheet";
+import { Component, useState } from "@odoo/owl";
+import { freezeOdooData, waitForDataLoaded } from "@spreadsheet/helpers/model";
+import { CopyButton } from "@web/components/copy_button/copy_button";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { browser } from "@web/core/browser/browser";
+import { _t } from "@web/core/translation";
 
 /**
  * Share button to share a spreadsheet

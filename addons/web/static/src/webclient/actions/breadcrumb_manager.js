@@ -49,16 +49,59 @@ function fetchBreadcrumbs(toFetch, breadcrumbCache) {
 }
 
 /**
- * @param {{controller: Controller, key: string}[]} controllerKeys
- * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
- * @returns {Promise<Record<string, any>[]>}
+ * What identifies a crumb to the server, and the cache key that stands for it.
+ *
+ * @param {Controller} controller
+ * @returns {{ key: string, actionInfo: Record<string, any> }}
  */
-function settleBreadcrumbs(controllerKeys, breadcrumbCache) {
-    return Promise.all(
-        controllerKeys.map((ck) =>
-            Promise.resolve(breadcrumbCache.get(ck.key)).catch((error) => ({ error })),
+function breadcrumbKey(controller) {
+    const actionInfo = pick(
+        /** @type {Record<string, any>} */ (controller.state),
+        "action",
+        "model",
+        "resId",
+    );
+    return { actionInfo, key: JSON.stringify(actionInfo) };
+}
+
+/**
+ * @typedef {{ controller: Controller, key: string, actionInfo: Record<string, any> }} BreadcrumbEntry
+ */
+
+/**
+ * Ask the server for whatever `entries` the cache cannot answer, then settle
+ * every entry against it, in order. One round-trip for the lot: duplicates
+ * within a call share a key and are asked for once.
+ *
+ * A rejected fetch settles as `{ error }` rather than rejecting the batch —
+ * what each caller does about a crumb it could not name is its own business.
+ *
+ * @param {BreadcrumbEntry[]} entries
+ * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
+ * @returns {Promise<[BreadcrumbEntry, Record<string, any>][]>}
+ */
+async function resolveBreadcrumbs(entries, breadcrumbCache) {
+    const toFetch = [];
+    const queued = new Set();
+    for (const { key, actionInfo } of entries) {
+        if (breadcrumbCache.has(key)) {
+            breadcrumbCache.touch(key);
+        } else if (!queued.has(key)) {
+            queued.add(key);
+            toFetch.push(actionInfo);
+        }
+    }
+    if (toFetch.length) {
+        fetchBreadcrumbs(toFetch, breadcrumbCache);
+    }
+    const results = await Promise.all(
+        entries.map((entry) =>
+            Promise.resolve(breadcrumbCache.get(entry.key)).catch((error) => ({
+                error,
+            })),
         ),
     );
+    return zip(entries, results);
 }
 
 /**
@@ -101,61 +144,68 @@ export function buildBreadcrumbs(stack, am) {
  * @returns {Promise<Controller[]>}
  */
 async function loadBreadcrumbs(controllers, breadcrumbCache) {
-    const toFetch = [];
-    const controllerKeys = [];
+    const candidates = [];
     /**
-     * @type {Set<string>}
+     * Keys whose name the url already carried. Good enough to render THIS
+     * restore without a round-trip, but not a fact about the record: it was
+     * written when the crumb was last visited and the record may have been
+     * renamed since. Kept per call so it cannot outlive the url that supplied
+     * it — writing it into `breadcrumbCache` pinned the stale name for the rest
+     * of the session, and suppressed the fetch even on later navigations whose
+     * url carried no name at all.
+     *
+     * @type {Map<string, string>}
      */
-    const queued = new Set();
+    const namedFromUrl = new Map();
     for (const controller of controllers) {
-        const { action, state, displayName } = controller;
+        const { action, displayName } = controller;
         if (
             isMenuController(action) ||
             (action.type === "ir.actions.client" && !displayName)
         ) {
             continue;
         }
-        const actionInfo = pick(
-            /** @type {Record<string, any>} */ (state),
-            "action",
-            "model",
-            "resId",
-        );
-        const key = JSON.stringify(actionInfo);
-        controllerKeys.push({ controller, key });
+        const { key, actionInfo } = breadcrumbKey(controller);
+        candidates.push({ controller, key, actionInfo });
         if (displayName) {
-            breadcrumbCache.set(key, { display_name: displayName });
-        }
-        if (breadcrumbCache.has(key)) {
-            breadcrumbCache.touch(key);
-            continue;
-        }
-        if (!queued.has(key)) {
-            queued.add(key);
-            toFetch.push(actionInfo);
+            namedFromUrl.set(key, displayName);
         }
     }
-    if (toFetch.length) {
-        fetchBreadcrumbs(toFetch, breadcrumbCache);
+
+    // Second pass: a key is named if ANY controller on it was, whatever the
+    // order they appear in. The one the url named lends its name to the others
+    // on the same record, as they used to borrow it through the cache.
+    const entries = [];
+    for (const candidate of candidates) {
+        const urlName = namedFromUrl.get(candidate.key);
+        if (urlName !== undefined) {
+            candidate.controller.displayName = urlName;
+        } else {
+            entries.push(candidate);
+        }
     }
-    const results = await settleBreadcrumbs(controllerKeys, breadcrumbCache);
-    const controllersToRemove = [];
-    for (const [{ controller }, res] of zip(controllerKeys, results)) {
+
+    const dropped = new Set();
+    for (const [{ controller }, res] of await resolveBreadcrumbs(
+        entries,
+        breadcrumbCache,
+    )) {
         if (res && "display_name" in res) {
             controller.displayName = res.display_name;
-        } else {
-            controllersToRemove.push(controller);
-            if (res && "error" in res) {
-                console.warn(
-                    "The following element was removed from the breadcrumb and from the url.\n",
-                    controller.state,
-                    "\nThis could be because the action wasn't found or because the user doesn't have the right to access to the record, the original error is :\n",
-                    res.error,
-                );
-            }
+            continue;
         }
+        if (res && "error" in res) {
+            console.warn(
+                "A breadcrumb could not be loaded and was dropped from the trail " +
+                    "and from the url. The server did not answer for:\n",
+                controller.state,
+                "\n",
+                res.error,
+            );
+        }
+        dropped.add(controller);
     }
-    return controllers.filter((c) => !controllersToRemove.includes(c));
+    return controllers.filter((c) => !dropped.has(c));
 }
 
 /**
@@ -164,32 +214,21 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
  * @returns {Promise<void>}
  */
 export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache) {
-    const toFetch = [];
-    const controllerKeys = [];
-    const seen = new Set();
+    const entries = [];
     for (const controller of controllers) {
         const { action, state } = controller;
         if (!state || isMenuController(action) || action.type === "ir.actions.client") {
             continue;
         }
-        const actionInfo = pick(
-            /** @type {Record<string, any>} */ (state),
-            "action",
-            "model",
-            "resId",
-        );
-        const key = JSON.stringify(actionInfo);
-        controllerKeys.push({ controller, key });
-        if (!breadcrumbCache.has(key) && !seen.has(key)) {
-            seen.add(key);
-            toFetch.push(actionInfo);
-        }
+        entries.push({ controller, ...breadcrumbKey(controller) });
     }
-    if (toFetch.length) {
-        fetchBreadcrumbs(toFetch, breadcrumbCache);
-    }
-    const results = await settleBreadcrumbs(controllerKeys, breadcrumbCache);
-    for (const [{ controller }, res] of zip(controllerKeys, results)) {
+    // Unlike a restore, a refresh keeps a crumb it could not name: the trail on
+    // screen is already correct, and an action record changing under it is no
+    // reason to take an entry out of it.
+    for (const [{ controller }, res] of await resolveBreadcrumbs(
+        entries,
+        breadcrumbCache,
+    )) {
         if (res && "display_name" in res) {
             controller.displayName = res.display_name;
         }
@@ -215,6 +254,11 @@ export async function controllersFromState(state, am) {
             const controller = am._makeController({
                 displayName: actionState.displayName,
                 virtual: true,
+                // Where in `state.actionStack` this crumb came from. The list
+                // returned here is shorter than the actionStack whenever a
+                // crumb could not be named, so a caller holding a position
+                // measured on the url cannot count its way back into it.
+                stackIndex: index,
                 action: {},
                 props: {},
                 state: {

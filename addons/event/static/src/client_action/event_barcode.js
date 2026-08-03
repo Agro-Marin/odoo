@@ -1,15 +1,15 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { BarcodeScanner } from "@barcodes/components/barcode_scanner";
 import { Component, onWillStart } from "@odoo/owl";
 import { isDisplayStandalone } from "@web/core/browser/feature_detection";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { url } from '@web/core/utils/urls';
 import { EventRegistrationSummaryDialog } from "./event_registration_summary_dialog.js";
-import { scanBarcode } from "@web/components/barcode/barcode_dialog";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { scanBarcode } from "@web/components/barcode";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
 export class EventScanView extends Component {
     static template = "event.EventScanView";

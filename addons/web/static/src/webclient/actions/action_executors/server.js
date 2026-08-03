@@ -6,7 +6,7 @@
 import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 import { nextActionDepth } from "../action_constants.js";
 

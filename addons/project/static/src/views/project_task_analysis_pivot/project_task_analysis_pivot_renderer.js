@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { PivotRenderer } from "@web/views/pivot/pivot_renderer";
+import { PivotRenderer } from "@web/views/pivot";
 
 import { ProjectTaskAnalysisRendererMixin } from "../project_task_analysis_renderer_mixin.js";
 

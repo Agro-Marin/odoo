@@ -4,7 +4,7 @@ import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
 import { ReceptionReportTable } from "../reception_report_table/stock_reception_report_table.js";
 import {

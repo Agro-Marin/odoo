@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 const ARIA_LABELS = {
     ".o_editor_banner.alert-danger": _t("Banner Danger"),

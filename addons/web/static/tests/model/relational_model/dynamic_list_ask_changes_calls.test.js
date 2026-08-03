@@ -42,7 +42,7 @@ function makeList({ hasEditedRecord }) {
     list.model = {
         urgentSave: { isActive: false },
         mutex: new Mutex(),
-        _closeUrgentSaveNotification: null,
+        closeUrgentSaveNotification() {},
         _askChanges: async () => {
             askChangesCalls++;
         },

@@ -58,8 +58,8 @@ The ratchets
 **``ruff check`` is not expected to be clean, and CI does not require it to be.**
 The fork inherits a large upstream codebase, so the countable gates are
 *ratchets*: each workflow measures a total and compares it against a committed
-floor in ``tooling/ratchet/baselines/``. The rationale is ADR-0006, and ADR-0009
-closed the gaps that let the floors drift.
+floor in ``tooling/ratchet/baselines/``. *How rules are enforced* states the
+model and what closed the gaps that let the floors drift.
 
 **A ratchet fails in both directions.** ``ratchet.py`` defaults to ``exact`` mode
 and all four workflows invoke it without ``--mode``, so the count must *equal* the
@@ -301,7 +301,6 @@ Scope and precedence
 When rules disagree, the first that speaks wins:
 
 #. This file — ``doc/coding_guidelines.rst`` in the ``odoo`` repo
-#. The ADRs in ``doc/adr/`` for architecture and enforcement decisions
 #. Odoo 19 official guidelines
 #. OCA ``CONTRIBUTING.rst``
 
@@ -470,8 +469,8 @@ Keys must come from the known set and appear in the canonical order
 
 **Reach the ORM through the public façade** ``[test_lint test_orm_import]``. Addon
 runtime code imports from ``odoo.api``, ``odoo.fields``, ``odoo.models`` — never
-from the ``odoo.orm`` package, whose internals are restructured freely by the fork
-(ADR-0008). Test files are exempt by location, since testing an internal
+from the ``odoo.orm`` package, whose internals are restructured freely by the
+fork. Test files are exempt by location, since testing an internal
 necessarily imports it.
 
 **On running the formatter.** ``ruff format`` is deliberately not automated and has
@@ -1677,6 +1676,35 @@ or for a file outside those paths:
 * ``@odoo-module native`` — treat as a true native ES module.
 * ``@odoo-module alias=<specifier>`` — register under an additional import path.
 * ``@odoo-module default=<name>`` — control default-export bridging.
+
+Two asset mistakes take a whole page down while the HTTP response stays ``200``,
+because the pipeline degrades rather than raises. Both are cheap to check and
+neither is caught by a module's own test suite:
+
+* **Every ``@addon/...`` import must resolve to a file.** esbuild fails the
+  *entire bundle* on one unresolvable specifier, and a failed build is served as
+  an empty one. A module moved inside ``web`` therefore blanks the web client of
+  every database carrying an addon that still imports the old path — including
+  addons that are not installed on yours ``[test_lint test_esm_specifiers]``.
+* **A bundle rendered by ``t-call-assets`` must be declared under the manifest's
+  ``esm`` key if it carries ES-module sources.** Undeclared, it is concatenated
+  as legacy JS and every module-syntax file in it is replaced by a
+  ``console.error`` stub, so the page boots into nothing. A bundle that only
+  ever gets ``('include', ...)``-ed into another needs no declaration of its own
+  ``[test_lint test_esm_bundles]``.
+
+Run both after any move, rename or new bundle — they take about two seconds::
+
+   odoo-bin -d <db> -i test_lint --test-enable --stop-after-init --no-http \
+       --test-tags '/test_lint:TestEsmSpecifiers,/test_lint:TestEsmBundles'
+
+Under ``--test-enable`` or ``--dev=assets`` a failed esbuild build now **raises**
+(``EsbuildBundleError``) instead of degrading to an empty bundle. A run that
+dies naming a bundle is reporting a real breakage in it — the same breakage
+that, in production, shows up as a page that loads with no JavaScript. Do not
+work around it by ignoring the bundle; fix the import or the declaration. The
+escape hatch, for a run that has to survive a known-broken bundle, is
+``ir.config_parameter`` ``web.esbuild.fail_closed = 0``.
 
 4.2 Naming
 ----------
@@ -3023,8 +3051,6 @@ In this repo:
 
 * ``ruff.toml`` — linter and formatter configuration, with the rationale for every
   suppression
-* ``doc/adr/`` — architecture decision records; 0005–0009 define the enforcement
-  model summarised in *How rules are enforced*
 * ``odoo/addons/test_lint/`` — the fork's own checkers
 * ``tooling/ratchet/baselines/`` — the committed floors
 * ``pytest.ini`` — the Tier 1 suite definition

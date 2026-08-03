@@ -4,7 +4,7 @@
 /** @module @web/views/settings/settings_form_controller */
 
 import { useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { formView } from "@web/views/form/form_view";

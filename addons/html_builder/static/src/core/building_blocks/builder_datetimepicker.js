@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { Component, useState } from "@odoo/owl";
-import { effect } from "@web/core/utils/reactive";
+import { useDateTimePicker } from "@web/components/datetime";
 import { ConversionError, formatDate, formatDateTime, parseDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { pick } from "@web/core/utils/collections/objects";
+import { effect } from "@web/core/utils/reactive";
+
 import {
     basicContainerBuilderComponentProps,
     useBuilderComponent,

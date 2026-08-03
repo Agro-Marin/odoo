@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 export class SaveTranslationPlugin extends Plugin {
     static id = "saveTranslation";

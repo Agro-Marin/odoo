@@ -4,10 +4,10 @@
 /** @module @web/webclient/menus/menu_providers */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { fuzzyLookup } from "@web/core/utils/search";
-import { DefaultCommandItem } from "@web/services/commands/command_palette";
+import { DefaultCommandItem } from "@web/ui/commands/command_palette";
 
 import { computeAppsAndMenuItems } from "./menu_helpers.js";
 
@@ -31,13 +31,32 @@ commandSetupRegistry.add("/", {
     placeholder: _t("Search for a menu..."),
 });
 
+/**
+ * The palette re-queries every provider on each keystroke, and the tree it
+ * flattens only changes when the menu service rebuilds it — `getMenuAsTree`
+ * hands back the same object until then, which makes it the cache key.
+ *
+ * @type {WeakMap<object, ReturnType<typeof computeAppsAndMenuItems>>}
+ */
+const flattenedTrees = new WeakMap();
+
+/** @param {object} tree */
+function flattenMenuTree(tree) {
+    let flattened = flattenedTrees.get(tree);
+    if (!flattened) {
+        flattened = computeAppsAndMenuItems(tree);
+        flattenedTrees.set(tree, flattened);
+    }
+    return flattened;
+}
+
 const commandProviderRegistry = registry.category("command_provider");
 commandProviderRegistry.add("menu", {
     namespace: "/",
     async provide(env, options) {
         const result = [];
         const menuService = env.services.menu;
-        const computed = computeAppsAndMenuItems(menuService.getMenuAsTree("root"));
+        const computed = flattenMenuTree(menuService.getMenuAsTree("root"));
         const { menuItems } = computed;
         let { apps } = computed;
         if (options.searchValue !== "") {

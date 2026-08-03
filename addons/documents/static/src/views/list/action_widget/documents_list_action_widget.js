@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 
 import { DocumentsListActionItemDetails } from "./documents_list_action_item_details.js";
 import { DocumentsListActionItemDownload } from "./documents_list_action_item_download.js";

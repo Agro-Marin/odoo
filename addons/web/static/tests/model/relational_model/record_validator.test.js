@@ -419,7 +419,10 @@ function makeOrchestrationRecord({
         dirty: false,
         _invalidFields: new Set(invalid),
         _unsetRequiredFields: new Set(unsetRequired),
-        _closeInvalidFieldsNotification: () => {},
+        invalidFieldsNotificationCloser: () => {},
+        setInvalidFieldsNotification(/** @type {any} */ close) {
+            this.invalidFieldsNotificationCloser = close;
+        },
         _isInvisible: (name) => invisible.includes(name),
         _isRequired: (name) => required.includes(name),
         _checkValidity(options) {
@@ -567,7 +570,7 @@ describe("checkValidity — displayNotification", () => {
         expect(displayCalled).toBe(false);
     });
 
-    test("stores the close callback on record._closeInvalidFieldsNotification", () => {
+    test("stores the close callback via setInvalidFieldsNotification", () => {
         const closer = () => {};
         const rec = makeOrchestrationRecord({
             activeFields: { name: {} },
@@ -577,7 +580,7 @@ describe("checkValidity — displayNotification", () => {
             onDisplayInvalidFields: () => closer,
         });
         checkValidity(rec, { displayNotification: true });
-        expect(rec._closeInvalidFieldsNotification).toBe(closer);
+        expect(rec.invalidFieldsNotificationCloser).toBe(closer);
     });
 });
 
@@ -880,8 +883,13 @@ function makeChildRecord({ valid, dirty = true }) {
 
 /**
  * Build a mock StaticList shape for ``isChildListValid``: the validator
- * iterates ``_cache`` scoped to ``_currentIds`` membership (off-page dirty
- * rows must be validated too), not ``records``.
+ * iterates the cached records scoped to ``_currentIds`` membership (off-page
+ * dirty rows must be validated too), not ``records``.
+ *
+ * ``cachedRecords`` is a declared member of ``STATIC_LIST_OWNER_SURFACE``, so a
+ * double standing in for a list has to carry it. It is a getter over the same
+ * ``_cache`` the real class derives it from, rather than a snapshot, so a test
+ * that mutates ``_cache`` after construction still sees a consistent list.
  */
 function makeChildList(children) {
     const _cache = {};
@@ -891,7 +899,15 @@ function makeChildList(children) {
         _cache[id] = child;
         _currentIds.push(id);
     }
-    return { records: children, count: children.length, _cache, _currentIds };
+    return {
+        records: children,
+        count: children.length,
+        _cache,
+        _currentIds,
+        get cachedRecords() {
+            return Object.values(_cache);
+        },
+    };
 }
 
 describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {

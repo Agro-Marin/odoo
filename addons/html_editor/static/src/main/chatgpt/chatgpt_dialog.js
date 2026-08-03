@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, markup, onWillDestroy, status, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 const POSTPROCESS_GENERATED_CONTENT = (content, baseContainer) => {
     let lines = content.split("\n");

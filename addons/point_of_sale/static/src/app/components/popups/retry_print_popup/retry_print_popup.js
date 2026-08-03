@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { _t } from "@web/core/translation";
+import { Dialog } from "@web/ui/dialog";
 export class RetryPrintPopup extends Component {
     static template = "point_of_sale.RetryPrintPopup";
     static components = { Dialog };

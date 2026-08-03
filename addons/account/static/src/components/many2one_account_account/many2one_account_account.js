@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { Many2One } from "@web/fields/relational/many2one/many2one";
+import { _t } from "@web/core/translation";
 import {
     buildM2OFieldDescription,
+    Many2One,
     Many2OneField,
-} from "@web/fields/relational/many2one/many2one_field";
+} from "@web/fields/relational/many2one";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 export class Many2XAccountAccountAutocomplete extends Many2XAutocomplete {

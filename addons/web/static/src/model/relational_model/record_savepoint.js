@@ -5,17 +5,21 @@
 
 import { isX2Many } from "./field_context.js";
 
-/** @import { RelationalRecord } from "@web/model/relational_model/record" */
-/** @import { RecordEditState } from "@web/model/relational_model/record_edit_state" */
+/** @import { RecordContract } from "@web/model/relational_model/record_contract" */
 
 /**
- * `_editState` is set in `setup()`, which `DataPoint`'s constructor calls, so
- * every constructed record has one. It cannot be declared as a class field to
- * say so: field initializers run *after* the base constructor, and `setup()`
- * reaches `_setData()`, which reads the edit state — a field would blank it
- * first.
+ * Declared against the record CONTRACT rather than `RelationalRecord`, so
+ * reaching past it is a typecheck failure instead of a silent entry in the
+ * private-access budget. See `record_contract.js`.
  *
- * @typedef {RelationalRecord & { _editState: RecordEditState }} ConstructedRecord
+ * This replaces a local `RelationalRecord & { _editState }` intersection, which
+ * existed because `_editState` is set in `setup()` — called by `DataPoint`'s
+ * constructor — and so cannot be declared as a class field: field initializers
+ * run *after* the base constructor, and `setup()` reaches `_setData()`, which
+ * reads the edit state, so a field would blank it first. The contract names
+ * `_editState` outright, which says the same thing without the intersection.
+ *
+ * @typedef {RecordContract} ConstructedRecord
  */
 
 export { createSavePoint } from "./record_edit_state.js";
@@ -68,7 +72,6 @@ export function discard(record) {
     if (!record.isNew) {
         record._checkValidity();
     }
-    record._closeInvalidFieldsNotification();
-    record._closeInvalidFieldsNotification = () => {};
+    record.closeInvalidFieldsNotification();
     record._restoreActiveFields();
 }

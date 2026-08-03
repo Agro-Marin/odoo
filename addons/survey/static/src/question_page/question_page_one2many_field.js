@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { useSubEnv } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { _t } from "@web/core/translation";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
 

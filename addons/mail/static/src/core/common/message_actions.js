@@ -5,9 +5,9 @@ import { toRaw, useComponent, useState } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { download } from "@web/core/network/download";
+import { download } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 

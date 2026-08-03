@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
-import { _t } from "@web/core/l10n/translation";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { _t } from "@web/core/translation";
+import { AlertDialog } from "@web/ui/dialog";
 
 const BATCH_SIZE = 500; // Can be adjusted based on performance testing
 const TRANSACTION_TIMEOUT = 5000; // 5 seconds timeout for transactions

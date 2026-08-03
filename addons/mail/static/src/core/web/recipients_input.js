@@ -2,14 +2,14 @@
 import { parseEmail } from "@mail/utils/common/format";
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
-import { useTagNavigation } from "@web/components/record_selectors/tag_navigation_hook";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { useTagNavigation } from "@web/components/record_selectors";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { isEmail } from "@web/core/utils/format/strings";
 import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { useSelectCreate } from "@web/fields/relational/many2x_autocomplete";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 import { RecipientsInputTagsList } from "./recipients_input_tags_list.js";
 import { RecipientsPopover } from "./recipients_popover.js";

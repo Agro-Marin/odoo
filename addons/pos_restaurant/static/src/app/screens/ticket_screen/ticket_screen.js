@@ -2,7 +2,7 @@
 import { Component, useState } from "@odoo/owl";
 import { TicketScreen } from "@point_of_sale/app/screens/ticket_screen/ticket_screen";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 patch(TicketScreen.prototype, {

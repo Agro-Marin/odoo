@@ -3,7 +3,7 @@ import {
     MapContainer
 } from '@delivery/js/location_selector/map_container/map_container';
 import { patch } from '@web/core/utils/patch';
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 
 patch(MapContainer.prototype, {
     get errorMessage() {

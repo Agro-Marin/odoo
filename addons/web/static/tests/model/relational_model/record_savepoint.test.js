@@ -410,11 +410,14 @@ describe("discard — common post-branch behavior", () => {
         const originalCloser = () => {
             closeCalled = true;
         };
-        rec._closeInvalidFieldsNotification = originalCloser;
+        rec.setInvalidFieldsNotification(originalCloser);
         discard(rec);
         expect(closeCalled).toBe(true);
-        expect(rec._closeInvalidFieldsNotification).not.toBe(originalCloser);
-        rec._closeInvalidFieldsNotification();
+        // The reset is what stops a second discard re-closing a notification
+        // that is already gone, so assert it by behaviour rather than identity.
+        closeCalled = false;
+        rec.closeInvalidFieldsNotification();
+        expect(closeCalled).toBe(false);
     });
 
     test("calls _restoreActiveFields at the end of the discard sequence", () => {

@@ -5,7 +5,7 @@ import { useHover } from "@mail/utils/common/hooks";
 import { Component, useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 class ChatBubblePreview extends Component {
     static props = ["chatWindow", "close"];
     static template = "mail.ChatBubblePreview";

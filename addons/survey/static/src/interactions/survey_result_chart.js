@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
 
 // The given colors are the same as those used by D3

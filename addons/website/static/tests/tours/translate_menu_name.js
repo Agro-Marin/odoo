@@ -1,4 +1,4 @@
-import { translationIsReady } from "@web/core/l10n/translation";
+import { translationIsReady } from "@web/core/translation";
 import { stepUtils } from "@web_tour/tour_utils";
 import {
     clickOnExtraMenuItem,

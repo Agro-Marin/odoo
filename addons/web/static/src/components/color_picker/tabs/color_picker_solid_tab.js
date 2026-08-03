@@ -4,8 +4,8 @@
 /** @module @web/components/color_picker/tabs/color_picker_solid_tab */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 export class ColorPickerSolidTab extends Component {
     static template = "web.ColorPickerSolidTab";
     static props = {

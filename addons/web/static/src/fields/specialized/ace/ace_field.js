@@ -8,7 +8,7 @@ import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { colorScheme } from "@web/core/color_scheme";
 import { ModelEvent } from "@web/core/events";
 import { formatText } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useBus } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";

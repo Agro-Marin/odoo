@@ -1,10 +1,11 @@
 /** @odoo-module native */
+import { BuilderAction } from "@html_builder/core/builder_action";
+import { isElementInViewport } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
-import { isElementInViewport } from "@html_builder/utils/utils";
+import { _t } from "@web/core/translation";
+
 import { isRemovable } from "./remove_plugin.js";
-import { BuilderAction } from "@html_builder/core/builder_action";
 
 /**
  * @typedef { Object } CloneShared

@@ -5,7 +5,7 @@
 
 import { Component } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { Operation } from "@web/core/utils/operation";
 import { Field, fieldVisualFeedback } from "@web/fields/field";

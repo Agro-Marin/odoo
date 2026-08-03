@@ -123,7 +123,7 @@ test("Display a tooltip on clicking copy button", async () => {
     mockService("popover", () => ({
         add(el, comp, params) {
             expect(params).toEqual({ tooltip: "Copied" });
-            return () => {};
+            return async () => {};
         },
     }));
 

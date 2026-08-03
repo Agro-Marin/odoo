@@ -30,11 +30,11 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus, startRouter } from "@web/core/browser/router";
-import { _t as basic_t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t as basic_t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { redirect } from "@web/core/utils/urls";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { user } from "@web/services/user";
 import { WebClient } from "@web/webclient/webclient";
 
 function _t() {

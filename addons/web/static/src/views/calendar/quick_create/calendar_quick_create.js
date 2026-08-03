@@ -4,8 +4,8 @@
 /** @module @web/views/calendar/quick_create/calendar_quick_create */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { RPCError } from "@web/core/network/rpc";
+import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 

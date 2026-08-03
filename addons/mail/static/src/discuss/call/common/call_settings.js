@@ -5,10 +5,10 @@ import { useMicrophoneVolume } from "@mail/utils/common/hooks";
 import { Component, onWillStart, useExternalListener, useState, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class CallSettings extends Component {
     static template = "discuss.CallSettings";
     static props = ["withActionPanel?", "*"];

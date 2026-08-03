@@ -1,0 +1,485 @@
+"""Cross-module private-access budget for the ``web`` addon's JavaScript.
+
+A leading underscore is the only thing marking a member as internal in this
+tree's JS. Nothing checks it. `doc/coding_guidelines.rst` defines the convention
+for **Python** only (RPC exposure, §2), so in JavaScript ``_`` currently means
+whatever each file decided it meant.
+
+Measured, it means very little. 293 accesses in 33 files read or write a member
+declared in a *different* module, and they are not spread evenly — they are the
+residue of two decompositions:
+
+    model/relational_model/    ~260   the Record / StaticList / RelationalModel split
+    webclient/actions/          ~20   the action_service split
+
+Those splits were real improvements: the satellites are separately unit-tested
+with mock objects, and mutation-testing them confirms the tests discriminate
+(neutering ``list._clearCommands()`` and ``record._saveInFlight`` fails exactly
+the two suites that cover them). What the splits did not do is narrow the
+interface. ``record_save.js`` is 222 lines and touches 21 members across three
+classes it does not own, twelve of them private, and it **writes** six of them::
+
+    record._saveInFlight = true;                    -> record.js
+    record._urgentBeaconFired = false;              -> record.js
+    record.model._closeUrgentSaveNotification = ..; -> relational_model.js
+
+So the coupling that used to be ``this._x`` inside one long class is now
+``record._x`` across twenty files, where no gate sees it and the naming
+convention actively says it is not there. That is what this budget counts.
+
+**Reads and writes are counted separately.** A read of a foreign private is a
+coupling; a write is that plus a lifecycle nobody owns. The two ratchet apart so
+the worse half can be driven to zero first — it is 18 sites, not 293.
+
+**Attribution.** A violation is ``X._m`` in a file that does not itself declare
+``_m``, where some module does. Which module is deliberately not resolved: the
+heaviest names are polymorphic over the DataPoint hierarchy (``_load`` is
+declared in five subclasses, ``_setData`` in three), so "who owns it" has no
+single answer, while "the caller is not one of them" always does. Candidate
+owners are reported, not chosen.
+
+**Undeclared names are reported apart, not counted.** 46 accesses name a member
+no module declares — ``_originalAction``, ``_flatRowId``, ``_startServicesPromise``
+— because they are stamped onto a foreign object at runtime. That is arguably
+worse than what is counted here, but it has no owner to attribute to and no
+declaration to remove, so it is surfaced separately rather than folded into a
+number it would make meaningless.
+
+**Why a count and not a tolerated list.** 293 entries would be a list nobody
+reads, and every legitimate edit inside the cluster would churn it. The shared
+ratchet already models "a number that may only fall" (`jsfunclen`, `tsc`,
+`eslint`), so this uses that.
+
+**The gaming move, and the guard.** This count falls to zero by renaming every
+``_x`` to ``x``, which changes no coupling whatsoever. So the gate also reports
+``public_members``: the public members declared on the ``model/relational_model``
+datapoint classes. Promoting a private to satisfy the budget raises that number
+in the same commit, where a reviewer sees both. Neither number means anything
+alone.
+
+**Two verdicts, not one.** The count is shrink-only; CROSS-LAYER access is
+drift-zero and fails outright. An access is cross-layer when no module declaring
+the member shares the accessor's top-level layer — `views/` reaching into
+`model/`, as `kanban_controller` did for `dynamic_record_list._records` and
+`pivot_renderer` did for `model._updateEpoch`. Both are fixed; the set is empty
+and must stay empty. There is no tolerated list, because a first entry is a
+decision someone should have to argue for rather than append to.
+
+**What the remaining count is, and what it is not.** Every one of it is a
+subsystem reaching into its own satellites, in its own directory::
+
+    model/relational_model      229   Record / StaticList / RelationalModel
+    webclient/actions (+ subs)   23   action_service
+    public                        1   colibri -> interaction_service
+
+That residue is not automatically debt, and driving it to zero is not the goal.
+The two clusters were split for a reason that paid: 9 test files and 1979 lines
+drive `applyCommands` and `sort` with plain-object lists without ever
+constructing a StaticList, and `sort` is published through the module face and
+imported by `addons/sale`. Folding them back would buy a smaller number and cost
+all of that.
+
+So the question to ask of an entry here is not "can it be removed" but:
+
+* Does the satellite have tests that drive it directly? If not, the file
+  boundary is costing coupling and buying nothing — fold it or fix it.
+* Is the shared state an explicit value, or a captured closure? `applyCommands`
+  was 325 lines sharing six accumulators through closures, so no handler's
+  coupling could be read on its own; passing an explicit batch made each one
+  measurable without moving a single member. That is the precedent to follow.
+* Would the fix be a rename? Then it is not a fix — see ``public_members``.
+
+Usage::
+
+    python tooling/architecture/js_private_access.py            # report
+    python tooling/architecture/js_private_access.py --check    # CI, exit 1 over budget
+    python tooling/architecture/js_private_access.py --count    # the number only
+    python tooling/architecture/js_private_access.py --json
+
+    python tooling/architecture/js_private_access.py --count \\
+        | xargs python tooling/ratchet/ratchet.py jsprivate --count
+"""
+
+import argparse
+import json
+import re
+import sys
+from collections import Counter, defaultdict
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
+
+# Where the datapoint classes live, for the companion public-member count.
+DATAPOINT_DIR = "model/relational_model"
+
+# `_x() {`, `get _x()`, `static _x()` at class-body indentation.
+DECL_METHOD = re.compile(
+    r"^\s{4}(?:static\s+)?(?:async\s+)?(?:get\s+|set\s+|\*\s*)?(_[A-Za-z][\w$]*)\s*\(",
+    re.MULTILINE,
+)
+# `_x = ...` as a class field, and `this._x = ...` anywhere in the class.
+DECL_FIELD = re.compile(r"^\s{4}(_[A-Za-z][\w$]*)\s*=", re.MULTILINE)
+DECL_THIS = re.compile(r"\bthis\.(_[A-Za-z][\w$]*)\s*=")
+
+PUBLIC_MEMBER = re.compile(
+    r"^\s{4}(?:static\s+)?(?:async\s+)?(?:get\s+|set\s+|\*\s*)?([a-z][\w$]*)\s*[(=]",
+    re.MULTILINE,
+)
+
+# `props` is excluded with `this`/`super`: an OWL props bag is a plain object
+# whose keys are a contract between a component and whoever instantiates it,
+# not members of a class. `_` there marks an internal PROP, a different
+# convention — `controller_component.js` reads `props._context`, which
+# `action_service.js` sets as `{...controller.props, _context: dispatch}`, and
+# name-based attribution blamed it on `SearchModel._context` for having the
+# same field name. Five accesses, all of them noise.
+ACCESS = re.compile(
+    r"\b(?!this\b|super\b|props\b)([A-Za-z_$][\w$]*)\.(_[A-Za-z][\w$]*)\b"
+)
+# Assignment, not comparison (`==`, `===`) and not an arrow (`=>`).
+WRITE_TAIL = re.compile(r"\s*(?:=(?![=>])|\+\+|--|\+=|-=|\?\?=|\|\|=)")
+
+
+@dataclass(frozen=True)
+class Access:
+    module: str
+    line: int
+    base: str
+    member: str
+    write: bool
+    owners: tuple[str, ...]
+
+    def __str__(self):
+        kind = "write" if self.write else "read "
+        return (
+            f"  {kind}  {self.module}:{self.line}  {self.base}.{self.member}"
+            f"   declared in: {', '.join(self.owners)}"
+        )
+
+
+CONTRACT_SURFACE = re.compile(r"export const \w*_SURFACE = \[(.*?)\n\];", re.DOTALL)
+
+
+def declared_contracts(web_src: Path = WEB_SRC) -> dict[str, set[str]]:
+    """``{owning module: members its contract declares}``.
+
+    A file named ``<x>_contract.js`` declares the interface of ``<x>.js`` beside
+    it, in one or more ``export const <NAME>_SURFACE`` arrays. The suffix is what
+    distinguishes an interface from a list of members that merely exist:
+    ``static_list_contract.js`` also exports ``INTERNAL_STATE_REACHED``, which
+    names the working memory helpers still reach for and is deliberately NOT a
+    contract. Reading every array in the file would count that residue as
+    declared, which is precisely backwards.
+
+    Why this matters to a budget. Before contracts existed, every access here was
+    the same thing: a module reaching into a neighbour's internals. It is not any
+    more. A satellite calling ``list._snapshot()`` — an operation the owning
+    class publishes and typechecks — and one reading ``list._currentIds`` are
+    both ``base._member`` to the regex, but only the second is debt. Counting
+    them together means the number cannot fall when the debt does, and cannot
+    rise when a genuinely new reach appears next to a declared one.
+    """
+    contracts: dict[str, set[str]] = {}
+    for path in web_src.rglob("*_contract.js"):
+        owner = path.with_name(path.name.replace("_contract.js", ".js"))
+        if not owner.is_file():
+            continue
+        members: set[str] = set()
+        for block in CONTRACT_SURFACE.findall(path.read_text(encoding="utf8")):
+            members |= set(re.findall(r'"([^"]+)"', block))
+        if members:
+            contracts[owner.relative_to(web_src).as_posix()] = members
+    return contracts
+
+
+COLLABORATORS = re.compile(
+    r"export const INTERNAL_COLLABORATORS = \[(.*?)\n\];", re.DOTALL
+)
+
+
+def internal_collaborators(web_src: Path = WEB_SRC) -> dict[str, set[str]]:
+    """``{owning module: modules that are PART OF it}``.
+
+    A class split for size and testability has a boundary its files do not
+    describe. `static_list.js` is the case: its helpers were moved out while the
+    state stayed, and the class remains the dominant user of every member they
+    share, so the state cannot follow the behaviour and folding the helpers back
+    would delete the suites that cover them apart.
+
+    Their reach is intra-module. Counting it as cross-module coupling is the
+    metric measuring a file boundary where the design has a module boundary —
+    and it dominates: 52 of the 59 undeclared reaches into `StaticList` come
+    from its own three helpers, so the 7 that are real cannot be seen to move.
+
+    Declared in the same `<x>_contract.js`, next to what the contract publishes
+    and what it refuses to. An entry is a design claim someone reviewed, which
+    is the only thing keeping this from being a hole to widen.
+    """
+    groups: dict[str, set[str]] = {}
+    for path in web_src.rglob("*_contract.js"):
+        owner = path.with_name(path.name.replace("_contract.js", ".js"))
+        if not owner.is_file():
+            continue
+        members: set[str] = set()
+        for block in COLLABORATORS.findall(path.read_text(encoding="utf8")):
+            members |= set(re.findall(r'"([^"]+)"', block))
+        if members:
+            groups[owner.relative_to(web_src).as_posix()] = members
+    return groups
+
+
+def is_internal(access: Access, groups: dict[str, set[str]]) -> bool:
+    """True when the accessing module is declared part of the owning module."""
+    return any(access.module in groups.get(owner, ()) for owner in access.owners)
+
+
+def is_declared(access: Access, contracts: dict[str, set[str]]) -> bool:
+    """True when a module declaring this member publishes it in its contract."""
+    return any(access.member in contracts.get(owner, ()) for owner in access.owners)
+
+
+def is_cross_layer(access: Access) -> bool:
+    """True when no module declaring the member sits in the accessor's layer."""
+    layer = access.module.split("/")[0]
+    return all(owner.split("/")[0] != layer for owner in access.owners)
+
+
+def strip_literals(src: str) -> str:
+    """Blank out comments and string/template bodies, preserving line structure."""
+    out, i, n = [], 0, len(src)
+    while i < n:
+        c = src[i]
+        if c == "/" and src.startswith("//", i):
+            j = src.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
+        elif c == "/" and src.startswith("/*", i):
+            j = src.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            out.append("".join(ch if ch == "\n" else " " for ch in src[i:j]))
+            i = j
+        elif c in "\"'`":
+            quote, j = c, i + 1
+            while j < n:
+                if src[j] == "\\":
+                    j += 2
+                    continue
+                if src[j] == quote:
+                    break
+                j += 1
+            j = min(j, n - 1)
+            out.append("".join(ch if ch == "\n" else " " for ch in src[i : j + 1]))
+            i = j + 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def iter_source_files(web_src: Path = WEB_SRC) -> list[Path]:
+    if not web_src.is_dir():
+        return []
+    return sorted(web_src.rglob("*.js"))
+
+
+def _declarations(files: list[Path], web_src: Path) -> dict[str, set[str]]:
+    """member name -> set of modules declaring it."""
+    owners: dict[str, set[str]] = defaultdict(set)
+    for path in files:
+        module = path.relative_to(web_src).as_posix()
+        text = path.read_text(encoding="utf8", errors="replace")
+        for rx in (DECL_METHOD, DECL_FIELD, DECL_THIS):
+            for name in rx.findall(text):
+                owners[name].add(module)
+    return owners
+
+
+def measure(web_src: Path = WEB_SRC) -> tuple[list[Access], Counter, int]:
+    files = iter_source_files(web_src)
+    owners = _declarations(files, web_src)
+    found: list[Access] = []
+    undeclared: Counter = Counter()
+
+    for path in files:
+        module = path.relative_to(web_src).as_posix()
+        code = strip_literals(path.read_text(encoding="utf8", errors="replace"))
+        for lineno, line in enumerate(code.split("\n"), 1):
+            for base, member in ACCESS.findall(line):
+                declared_in = owners.get(member)
+                if not declared_in:
+                    undeclared[member] += 1
+                    continue
+                if module in declared_in:
+                    continue
+                tail = line.split(f"{base}.{member}", 1)[1]
+                found.append(
+                    Access(
+                        module=module,
+                        line=lineno,
+                        base=base,
+                        member=member,
+                        write=bool(WRITE_TAIL.match(tail)),
+                        owners=tuple(sorted(declared_in)),
+                    )
+                )
+
+    public = 0
+    for path in files:
+        if path.relative_to(web_src).as_posix().startswith(DATAPOINT_DIR):
+            text = path.read_text(encoding="utf8", errors="replace")
+            public += len(set(PUBLIC_MEMBER.findall(text)))
+    return found, undeclared, public
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--count", action="store_true", help="print the count only")
+    parser.add_argument(
+        "--check", action="store_true", help="CI mode: exit 1 over the pinned budget"
+    )
+    parser.add_argument(
+        "--count-undeclared",
+        action="store_true",
+        help="print only accesses NOT named by the owner's declared contract",
+    )
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--top", type=int, default=20, help="offenders to list (0 = all)"
+    )
+    args = parser.parse_args(argv)
+
+    scanned = len(iter_source_files())
+    # A gate that finds no inputs must say so rather than scan nothing and
+    # report success. `cross_repo_coherence` shipped exactly that fault three
+    # times over (1cd6f1667ba), and `js_layer_cohesion` guarded on the directory
+    # rather than the inputs, so a present-but-empty tree still passed.
+    if not scanned:
+        parser.error(f"no JS sources under {WEB_SRC} — the scan reached nothing")
+
+    found, undeclared, public = measure()
+    writes = [a for a in found if a.write]
+    cross_layer = [a for a in found if is_cross_layer(a)]
+
+    contracts = declared_contracts()
+    groups = internal_collaborators()
+    declared = [a for a in found if is_declared(a, contracts)]
+    internal = [
+        a for a in found if not is_declared(a, contracts) and is_internal(a, groups)
+    ]
+    undeclared_reaches = [
+        a for a in found if not is_declared(a, contracts) and not is_internal(a, groups)
+    ]
+
+    if args.count:
+        # Unchanged on purpose: this feeds the committed ratchet floor. The
+        # split below is reported, not ratcheted, until someone pins it.
+        print(len(found))
+        return 0
+    if args.count_undeclared:
+        print(len(undeclared_reaches))
+        return 0
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "total": len(found),
+                    "declared": len(declared),
+                    "undeclared_reaches": len(undeclared_reaches),
+                    "module_internal": len(internal),
+                    "declared_members": sum(len(m) for m in contracts.values()),
+                    "collaborators": {k: sorted(v) for k, v in sorted(groups.items())},
+                    "contracts": {k: sorted(v) for k, v in sorted(contracts.items())},
+                    "writes": len(writes),
+                    "cross_layer": [asdict(a) for a in cross_layer],
+                    "reads": len(found) - len(writes),
+                    "public_members": public,
+                    "undeclared": dict(undeclared.most_common()),
+                    "accesses": [asdict(a) for a in found],
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    print("JS cross-module private-access budget (web/static/src)")
+    print("=" * 72)
+    print("\nWrites to another module's private — the half to clear first:\n")
+    for access in writes:
+        print(access)
+
+    if contracts:
+        print(f"\nDeclared contracts ({len(contracts)}):\n")
+        for owner, members in sorted(contracts.items()):
+            reached = sum(1 for a in declared if owner in a.owners)
+            print(
+                f"  {owner}  — {len(members)} members, {reached} access(es) honour it"
+            )
+        print(
+            f"\n  {len(declared)} of {len(found)} access(es) name a declared contract "
+            f"member;\n  {len(internal)} are intra-module, from a declared "
+            f"collaborator;\n  {len(undeclared_reaches)} reach a member no contract "
+            f"publishes, from outside."
+        )
+        declared_members = sum(len(m) for m in contracts.values())
+        print(
+            "  Only the LAST number is debt. It is reported, not ratcheted —\n"
+            "  pin it with --count-undeclared once it stops moving."
+        )
+        collaborator_count = sum(len(v) for v in groups.values())
+        print(
+            f"\n  Companion: {declared_members} member(s) declared across "
+            f"{len(contracts)} contract(s), and {collaborator_count} module(s)\n"
+            f"  declared as internal collaborators.\n"
+            "  The debt figure falls when coupling is removed AND when it is\n"
+            "  merely reclassified — by publishing a member, or by declaring the\n"
+            "  reaching file part of the module it reaches into. Both are\n"
+            "  legitimate and both are visible here on purpose: a companion\n"
+            "  rising as the debt falls is classification, not improvement. Same\n"
+            "  reason the public-member count sits beside the budget above."
+        )
+
+    by_file = Counter(a.module for a in found)
+    shown = by_file.most_common(None if args.top == 0 else args.top)
+    print("\nBy file:\n")
+    for module, count in shown:
+        w = sum(1 for a in writes if a.module == module)
+        print(f"  {count:4d}  ({w} write{'' if w == 1 else 's'})  {module}")
+    if len(by_file) > len(shown):
+        print(f"  ... and {len(by_file) - len(shown)} more (--top 0 for all)")
+
+    print("-" * 72)
+    if cross_layer:
+        print(f"\n{len(cross_layer)} CROSS-LAYER access(es) — these fail the gate:\n")
+        for access in cross_layer:
+            print(access)
+        print(
+            "\n  A layer reaching into another layer's privates is not the friend\n"
+            "  coupling the count tolerates. Publish what the caller needs on the\n"
+            "  owner, as Model.updateEpoch and DynamicList#clearSampleData were."
+        )
+    print(f"\n{len(found)} cross-module private access(es) in {len(by_file)} file(s)")
+    print(f"  reads: {len(found) - len(writes)}   writes: {len(writes)}")
+    print(f"  cross-layer: {len(cross_layer)} (must be 0)")
+    print(
+        f"  {sum(undeclared.values())} further access(es) name a member no module "
+        f"declares\n  (stamped on a foreign object at runtime; reported, not counted)"
+    )
+    print(
+        f"\n  companion: {public} public member(s) on {DATAPOINT_DIR} classes — "
+        f"this\n  number rising as the budget falls means privates were promoted, "
+        f"not removed."
+    )
+    print("\nRatchet this number:")
+    print("  python tooling/architecture/js_private_access.py --count \\")
+    print("      | xargs python tooling/ratchet/ratchet.py jsprivate --count")
+
+    # Two verdicts: the total is shrink-only and ratcheted elsewhere, so it does
+    # not fail here; cross-layer access is drift-zero and does.
+    return 1 if (args.check and cross_layer) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

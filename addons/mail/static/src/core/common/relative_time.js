@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillDestroy, onWillUpdateProps, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
 /** Below this distance the label is the fixed "now" / "in a few seconds" text. */

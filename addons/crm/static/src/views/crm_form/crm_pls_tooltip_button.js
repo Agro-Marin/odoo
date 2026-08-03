@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, status } from "@odoo/owl";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 import { localization } from "@web/core/l10n/localization";
 import { registry } from '@web/core/registry';
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 import { useService } from "@web/core/utils/hooks";
 
 

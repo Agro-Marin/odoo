@@ -5,8 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { CustomColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { isColorGradient } from "@web/core/utils/format/colors";
 export class ColorPickerCustomTab extends Component {
     static template = "web.ColorPickerCustomTab";

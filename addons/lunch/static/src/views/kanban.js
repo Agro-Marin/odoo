@@ -1,10 +1,12 @@
 /** @odoo-module native */
 import { registry } from '@web/core/registry';
 
-import { kanbanView } from '@web/views/kanban/kanban_view';
-import { KanbanRecord } from '@web/views/kanban/kanban_record';
-import { KanbanRenderer } from '@web/views/kanban/kanban_renderer';
-import { KanbanController } from '@web/views/kanban/kanban_controller';
+import {
+    kanbanView,
+    KanbanRecord,
+    KanbanRenderer,
+    KanbanController,
+} from "@web/views/kanban";
 
 import { LunchDashboard } from '../components/lunch_dashboard.js';
 import { LunchRendererMixin } from '../mixins/lunch_renderer_mixin.js';

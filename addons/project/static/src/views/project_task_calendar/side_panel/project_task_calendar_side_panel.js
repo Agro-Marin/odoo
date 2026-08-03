@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { CalendarSidePanel } from "@web/views/calendar/calendar_side_panel/calendar_side_panel";
+import { CalendarSidePanel } from "@web/views/calendar";
 
 import { ProjectTaskCalendarFilterSection } from "../project_task_calendar_filter_section/project_task_calendar_filter_section.js";
 import { ProjectTaskCalendarListToPlan } from "../project_task_calendar_list_to_plan/project_task_calendar_list_to_plan.js";

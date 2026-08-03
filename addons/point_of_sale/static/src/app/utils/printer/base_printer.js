@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { htmlToCanvas } from "@point_of_sale/app/services/render_service";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError } from "@web/core/network/rpc";
+import { ConnectionLostError } from "@web/core/network";
+import { _t } from "@web/core/translation";
 /**
  * Implements basic printer functions.
  */

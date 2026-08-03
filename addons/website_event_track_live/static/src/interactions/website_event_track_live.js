@@ -3,7 +3,7 @@
 
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 class WebsiteEventTrackLive extends Interaction {
     static selector = ".o_wevent_event_track_live";

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { formatXML } from "@web/core/utils/dom/xml";
 
 const MAPPING = {

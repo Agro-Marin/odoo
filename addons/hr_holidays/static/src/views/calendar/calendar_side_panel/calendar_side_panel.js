@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { CalendarSidePanel } from "@web/views/calendar/calendar_side_panel/calendar_side_panel";
+import { onWillStart, onWillUpdateProps,useState } from "@odoo/owl";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { Cache } from "@web/core/utils/collections/cache";
 import { useService } from "@web/core/utils/hooks";
-import { useState, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { CalendarSidePanel } from "@web/views/calendar";
+
 import { TimeOffCalendarFilterSection } from "../filter_section/calendar_filter_section.js";
 
 export class TimeOffCalendarSidePanel extends CalendarSidePanel {

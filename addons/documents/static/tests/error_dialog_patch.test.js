@@ -11,8 +11,8 @@ import {
 } from "@web/../tests/web_test_helpers";
 
 import { browser } from "@web/core/browser/browser";
-import { MainComponentsContainer } from "@web/components/main_components_container";
-import { user } from "@web/services/user";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
+import { user } from "@web/core/user";
 import { DocumentsModels } from "@documents/../tests/helpers/data";
 
 defineModels(DocumentsModels);

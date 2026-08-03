@@ -21,8 +21,8 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { getOrigin } from "@web/core/utils/urls";
-import { user } from "@web/services/user";
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
 import {
     odooAccountItem,

@@ -16,9 +16,9 @@ import {
     xml,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
-import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
+import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 function useLazyExternalListener(target, eventName, handler, eventParams) {

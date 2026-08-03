@@ -4,8 +4,8 @@
 /** @module @web/fields/relational/many2one/many2one_field */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 

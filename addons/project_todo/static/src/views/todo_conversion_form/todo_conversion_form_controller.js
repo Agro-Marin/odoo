@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { onMounted } from "@odoo/owl";
-import { FormController } from "@web/views/form/form_controller";
+import { FormController } from "@web/views/form";
 
 export class TodoConversionFormController extends FormController {
     /**

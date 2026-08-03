@@ -28,13 +28,13 @@ import { loader } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { colorScheme } from "@web/core/color_scheme";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError, rpc } from "@web/core/network/rpc";
+import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
 import { getOrigin } from "@web/core/utils/urls";
-import { user } from "@web/services/user";
 import { session } from "@web/session";
 
 /**

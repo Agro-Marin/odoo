@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, useState, xml } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { OptimizeSEODialog } from "@website/components/dialog/seo";
 import { checkAndNotifySEO } from "@website/js/utils";

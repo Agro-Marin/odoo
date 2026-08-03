@@ -1,10 +1,8 @@
 /** @odoo-module native */
 import { useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
-import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
-import { kanbanView } from "@web/views/kanban/kanban_view";
+import { DynamicGroupList, DynamicRecordList } from "@web/model/relational_model";
+import { KanbanRenderer, kanbanView } from "@web/views/kanban";
 
 export class StockDashboardKanbanRenderer extends KanbanRenderer {
     setup() {

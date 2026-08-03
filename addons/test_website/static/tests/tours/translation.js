@@ -5,7 +5,7 @@ import {
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 import { stepUtils } from "@web_tour/tour_utils";
-import { translationIsReady } from "@web/core/l10n/translation";
+import { translationIsReady } from "@web/core/translation";
 
 function createNewPage() {
     return [

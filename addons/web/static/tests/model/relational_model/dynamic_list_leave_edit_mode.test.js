@@ -53,7 +53,7 @@ function makeList(records, steps, { mutex = new Mutex() } = {}) {
         model: {
             mutex,
             urgentSave: { isActive: false },
-            _closeUrgentSaveNotification: null,
+            closeUrgentSaveNotification() {},
             _askChanges: async () => {
                 steps.push(`askChanges:${list._recordToDiscard?.id ?? "none"}`);
             },

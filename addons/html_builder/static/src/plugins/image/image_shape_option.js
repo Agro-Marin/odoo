@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
-import { toRatio } from "@html_builder/utils/utils";
-import { _t } from "@web/core/l10n/translation";
 import { ShapeSelector } from "@html_builder/plugins/shape/shape_selector";
-import { deepCopy } from "@web/core/utils/collections/objects";
-import { loadImageInfo } from "@html_editor/utils/image_processing";
-import { isImageSupportedForProcessing } from "@html_editor/main/media/image_post_process_plugin";
 import { getMimetypeBeforeShape } from "@html_builder/utils/image";
+import { toRatio } from "@html_builder/utils/utils";
+import { isImageSupportedForProcessing } from "@html_editor/main/media/image_post_process_plugin";
+import { loadImageInfo } from "@html_editor/utils/image_processing";
+import { _t } from "@web/core/translation";
+import { deepCopy } from "@web/core/utils/collections/objects";
 
 export class ImageShapeOption extends BaseOptionComponent {
     static template = "html_builder.ImageShapeOption";

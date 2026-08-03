@@ -4,10 +4,10 @@
 /** @module @web/fields/translation_dialog */
 
 import { Component, onWillStart } from "@odoo/owl";
-import { _t, loadLanguages } from "@web/core/l10n/translation";
 import { jsToPyLocale } from "@web/core/l10n/utils";
+import { _t, loadLanguages } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 export class TranslationDialog extends Component {

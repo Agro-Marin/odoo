@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { ActivityMenu } from "@mail/core/web/activity_menu";
-import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
-import { useCommand } from "@web/services/commands/command_hook";
+import { FormViewDialog } from "@web/views/view_dialogs";
+import { useCommand } from "@web/ui/commands";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 

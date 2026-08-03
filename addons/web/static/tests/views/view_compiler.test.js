@@ -9,6 +9,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { App, Component } from "@odoo/owl";
+import { patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
 import {
     makeIsVisibleExpr,
     resetViewCompilerCache,
@@ -132,7 +133,7 @@ describe("useViewCompiler — cache coherence after reset", () => {
         const name = useViewCompiler(TestCompiler, { list: arch }).list;
         const bigName = useViewCompiler(TestCompiler, { list: bigArch }).list;
 
-        expect(name).toMatch(/^TestCompiler#\d+\/\/\d+-\d+$/);
+        expect(name).toMatch(/^TestCompiler#\d+\/\/\d+\/\d+-\d+$/);
         expect(name).not.toInclude(arch.outerHTML);
         expect(bigName.length).toBeLessThan(bigArch.outerHTML.length);
         expect(bigName).not.toBe(name);
@@ -186,6 +187,55 @@ describe("useViewCompiler — template name uniqueness", () => {
         const nameB = useViewCompiler(CompilerB, templates).form;
 
         expect(nameA).not.toBe(nameB);
+    });
+
+    test("the same arch under a different sibling set gets a different name", () => {
+        resetViewCompilerCache();
+        // `KanbanCompiler.compileTCall` reads the sibling names while compiling,
+        // so an identical template compiles two ways depending on the set it
+        // arrives in. Sharing a cache slot let whichever view compiled first
+        // decide how the other rendered.
+        const withSibling = makeTemplates([
+            ["card", "div", { class: "c" }],
+            ["sub", "div", {}],
+        ]);
+        const withoutSibling = makeTemplates([["card", "div", { class: "c" }]]);
+
+        expect(withSibling.card.outerHTML).toBe(withoutSibling.card.outerHTML);
+        expect(useViewCompiler(TestCompiler, withSibling).card).not.toBe(
+            useViewCompiler(TestCompiler, withoutSibling).card,
+        );
+    });
+
+    test("a renamed sibling changes the name too", () => {
+        resetViewCompilerCache();
+        const asSub = makeTemplates([
+            ["card", "div", { class: "c" }],
+            ["sub", "div", {}],
+        ]);
+        const asOther = makeTemplates([
+            ["card", "div", { class: "c" }],
+            ["other", "div", {}],
+        ]);
+
+        expect(useViewCompiler(TestCompiler, asSub).card).not.toBe(
+            useViewCompiler(TestCompiler, asOther).card,
+        );
+    });
+
+    test("sibling order does not change the name", () => {
+        resetViewCompilerCache();
+        const a = makeTemplates([
+            ["card", "div", { class: "c" }],
+            ["sub", "div", {}],
+        ]);
+        const b = {};
+        b.sub = makeTemplates([["sub", "div", {}]]).sub;
+        b.card = makeTemplates([["card", "div", { class: "c" }]]).card;
+
+        expect(useViewCompiler(TestCompiler, a).card).toBe(
+            useViewCompiler(TestCompiler, b).card,
+        );
     });
 
     test("multiple templates in one call each get a distinct name", () => {
@@ -558,4 +608,72 @@ test("the Odoo spelling drives the same modal construct as the Bootstrap one", a
             .querySelector("t[t-set-slot='footer'] .cancel")
             .getAttribute("t-on-click"),
     ).toInclude(`['${key}'] = false`);
+});
+
+describe("ViewCompiler — shadowed compiler warning", () => {
+    /** Build a bare ViewCompiler and drive its dispatch with a controlled set. */
+    function compilerWith(base, appended) {
+        const compiler = new ViewCompiler({});
+        compiler.compilers = [...base];
+        compiler.baseCompilerCount = compiler.compilers.length;
+        compiler.compilers.push(...appended);
+        return compiler;
+    }
+
+    test("warns once when a registered compiler is shadowed by an earlier one (debug)", () => {
+        serverState.debug = "1";
+        const compiler = compilerWith(
+            [{ selector: "div", fn: () => document.createElement("span") }],
+            [{ selector: "div.shadow_probe", fn: () => document.createElement("b") }],
+        );
+        const warnings = [];
+        patchWithCleanup(console, { warn: (m) => warnings.push(m) });
+
+        const node = document.createElement("div");
+        node.classList.add("shadow_probe");
+        compiler.compileNode(node, {}, false);
+
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toInclude(`The compiler for "div.shadow_probe" never runs`);
+        expect(warnings[0]).toInclude(`"div"`);
+
+        // Once per selector: a second matching node does not re-warn.
+        const node2 = document.createElement("div");
+        node2.classList.add("shadow_probe");
+        compiler.compileNode(node2, {}, false);
+        expect(warnings).toHaveLength(1);
+    });
+
+    test("does not warn without debug", () => {
+        serverState.debug = "";
+        const compiler = compilerWith(
+            [{ selector: "div", fn: () => document.createElement("span") }],
+            [{ selector: "div.no_warn_probe", fn: () => document.createElement("b") }],
+        );
+        const warnings = [];
+        patchWithCleanup(console, { warn: (m) => warnings.push(m) });
+
+        const node = document.createElement("div");
+        node.classList.add("no_warn_probe");
+        compiler.compileNode(node, {}, false);
+        expect(warnings).toHaveLength(0);
+    });
+
+    test("does not warn for a built-in-vs-built-in overlap (deliberate ordering)", () => {
+        serverState.debug = "1";
+        const compiler = new ViewCompiler({});
+        // Both entries are built-ins (before the boundary): overlap is intended.
+        compiler.compilers = [
+            { selector: "div", fn: () => document.createElement("span") },
+            { selector: "div.builtin_probe", fn: () => document.createElement("i") },
+        ];
+        compiler.baseCompilerCount = compiler.compilers.length;
+        const warnings = [];
+        patchWithCleanup(console, { warn: (m) => warnings.push(m) });
+
+        const node = document.createElement("div");
+        node.classList.add("builtin_probe");
+        compiler.compileNode(node, {}, false);
+        expect(warnings).toHaveLength(0);
+    });
 });

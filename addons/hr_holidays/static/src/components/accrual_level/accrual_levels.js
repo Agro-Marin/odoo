@@ -1,15 +1,12 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Component, onWillStart, useState } from "@odoo/owl";
-
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { _t } from "@web/core/l10n/translation";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
-
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 export class AccrualLevels extends Component {
     static template = "hr_holidays.AccrualLevels";

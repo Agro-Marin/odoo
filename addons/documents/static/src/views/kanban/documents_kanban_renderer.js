@@ -1,10 +1,12 @@
 /** @odoo-module native */
-import { useCommand } from "@web/services/commands/command_hook";
-import { FileUploadProgressContainer } from "@web/components/file_upload/file_upload_progress_container";
-import { FileUploadProgressKanbanRecord } from "@web/components/file_upload/file_upload_progress_record";
-import { _t } from "@web/core/l10n/translation";
+import { useCommand } from "@web/ui/commands";
+import {
+    FileUploadProgressContainer,
+    FileUploadProgressKanbanRecord,
+} from "@web/components/file_upload";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
+import { KanbanRenderer } from "@web/views/kanban";
 
 import { DocumentsRightPanel } from "@documents/components/documents_right_panel/documents_right_panel";
 import { DocumentsRendererMixin } from "@documents/views/documents_renderer_mixin";

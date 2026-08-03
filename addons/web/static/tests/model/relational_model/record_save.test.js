@@ -24,6 +24,7 @@ import { FetchRecordError } from "@web/model/relational_model/errors";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 import { save } from "@web/model/relational_model/record_save";
+import { RecordSaveCoordinator } from "@web/model/relational_model/record_save_coordinator";
 import { computeChangeset } from "@web/model/relational_model/record_utils";
 import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_coordinator";
 
@@ -57,6 +58,7 @@ function makeRecord({
         resId,
         resIds,
         resModel: "res.partner",
+        saveState: new RecordSaveCoordinator(),
         context: {},
         dirty: true,
         activeFields: {},
@@ -82,7 +84,7 @@ function makeRecord({
         _setData: () => {},
         _setEvalContext: () => {},
         model: {
-            _closeUrgentSaveNotification: null,
+            closeUrgentSaveNotification() {},
             urgentSave: { isActive: false },
             useSendBeaconToSaveUrgently: false,
             env: { inDialog: false },
@@ -390,6 +392,7 @@ describe("urgent save (sendBeacon path)", () => {
             resId: 7,
             resIds: [7],
             resModel: "res.partner",
+            saveState: new RecordSaveCoordinator(),
             context: {},
             dirty: true,
             activeFields: { lines: {} },
@@ -415,7 +418,7 @@ describe("urgent save (sendBeacon path)", () => {
             _setData: () => {},
             _setEvalContext: () => {},
             model: {
-                _closeUrgentSaveNotification: null,
+                closeUrgentSaveNotification() {},
                 urgentSave: { isActive: true },
                 useSendBeaconToSaveUrgently: true,
                 env: { inDialog: false },
@@ -465,8 +468,7 @@ describe("urgentSave in-flight guard", () => {
         };
         rec.data = {};
         rec.dirty = true;
-        rec._saveInFlight = false;
-        rec._urgentBeaconFired = false;
+        rec.saveState = new RecordSaveCoordinator();
         rec._values = markRaw({ name: "orig" });
         rec._checkValidity = () => true;
         rec._getChanges = () => ({ name: "X" });
@@ -499,7 +501,7 @@ describe("urgentSave in-flight guard", () => {
         const saveProm = save(rec, { reload: false });
         await animationFrame();
         expect(webSaveCalls).toBe(1);
-        expect(rec._saveInFlight).toBe(true);
+        expect(rec.saveState.isInFlight).toBe(true);
 
         const urgentResult = await rec.urgentSave();
         expect(urgentResult).toBe(true);
@@ -508,7 +510,7 @@ describe("urgentSave in-flight guard", () => {
 
         def.resolve();
         await saveProm;
-        expect(rec._saveInFlight).toBe(false);
+        expect(rec.saveState.isInFlight).toBe(false);
         expect(webSaveCalls).toBe(1);
     });
 
@@ -533,7 +535,7 @@ describe("urgentSave in-flight guard", () => {
         const saveProm = save(rec, { reload: false });
         await animationFrame();
         expect(webSaveCalls).toBe(0);
-        expect(rec._saveInFlight).toBe(false);
+        expect(rec.saveState.isInFlight).toBe(false);
 
         const urgentResult = await rec.urgentSave();
         expect(urgentResult).toBe(true);
@@ -542,9 +544,9 @@ describe("urgentSave in-flight guard", () => {
 
         hookDef.resolve();
         expect(await saveProm).toBe(true);
-        expect(rec._saveInFlight).toBe(false);
+        expect(rec.saveState.isInFlight).toBe(false);
         expect(webSaveCalls).toBe(0);
-        expect(rec._urgentBeaconFired).toBe(false);
+        expect(rec.saveState.beaconFired).toBe(false);
     });
 
     test("urgentSave still fires when no save is in flight", async () => {
@@ -568,7 +570,7 @@ describe("urgentSave in-flight guard", () => {
         expect(webSaveCalls).toBe(0);
     });
 
-    test("a leaked _urgentBeaconFired does not short-circuit a later real save", async () => {
+    test("a leaked beacon flag does not short-circuit a later real save", async () => {
         let beaconCalls = 0;
         mockSendBeacon(() => {
             beaconCalls++;
@@ -584,11 +586,11 @@ describe("urgentSave in-flight guard", () => {
 
         await rec.urgentSave();
         expect(beaconCalls).toBe(1);
-        expect(rec._urgentBeaconFired).toBe(true);
+        expect(rec.saveState.beaconFired).toBe(true);
 
         const result = await save(rec, { reload: false });
         expect(result).toBe(true);
         expect(webSaveCalls).toBe(1);
-        expect(rec._urgentBeaconFired).toBe(false);
+        expect(rec.saveState.beaconFired).toBe(false);
     });
 });

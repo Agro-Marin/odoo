@@ -1,6 +1,6 @@
-import { SpreadsheetModels, defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
+import { defineSpreadsheetModels,SpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { fields, models, onRpc } from "@web/../tests/web_test_helpers";
-import { RPCError } from "@web/core/network/rpc";
+import { RPCError } from "@web/core/network";
 
 export function getDashboardServerData() {
     return {

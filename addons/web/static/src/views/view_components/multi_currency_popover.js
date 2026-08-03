@@ -10,10 +10,10 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { getCurrency, getCurrencyRates } from "@web/core/currency";
 import { formatMonetary } from "@web/core/formatters";
 import { toLocaleDateString } from "@web/core/l10n/dates";
-import { getCurrency, getCurrencyRates } from "@web/services/currency";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 export class MultiCurrencyPopover extends Component {
     static template = "web.MultiCurrencyPopover";
@@ -53,9 +53,10 @@ export class MultiCurrencyPopover extends Component {
                 currencies.push({
                     ...getCurrency(currencyId),
                     id: currencyId,
-                    rate: rateInfo.rate,
+                    toCompanyRate: rateInfo.toCompanyRate,
                     date: toLocaleDateString(rateInfo.date),
-                    value: this.props.value / rateInfo.rate,
+                    // props.value is already in the company currency
+                    value: this.props.value / rateInfo.toCompanyRate,
                 });
             }
             return currencies;

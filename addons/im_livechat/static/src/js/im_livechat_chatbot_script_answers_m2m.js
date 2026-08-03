@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
-import { user } from "@web/services/user";
+} from "@web/fields/relational/many2many_tags";
 
 const fieldRegistry = registry.category("fields");
 

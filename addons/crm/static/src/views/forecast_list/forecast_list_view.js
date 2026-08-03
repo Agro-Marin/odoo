@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { listView } from "@web/views/list/list_view";
+import { listView } from "@web/views/list";
 import { ForecastSearchModel } from "@crm/views/forecast_search_model";
 
 export const forecastListView = {

@@ -4,6 +4,7 @@
 /** @module @web/views/view_button/view_button_hook */
 
 import { status, useComponent, useEnv, useSubEnv } from "@odoo/owl";
+import { useAction } from "@web/core/action_port";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { sharedComponents } from "@web/core/shared_components";
 import { useService } from "@web/core/utils/hooks";
@@ -59,7 +60,7 @@ function undefinedAsTrue(val) {
  * @param {ViewButtonsOptions} [options={}]
  */
 export function useViewButtons(ref, options = {}) {
-    const action = useService("action");
+    const action = useAction();
     const dialog = useService("dialog");
     const comp = useComponent();
     const env = useEnv();

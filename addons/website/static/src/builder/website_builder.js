@@ -27,12 +27,12 @@ import { closestElement } from "@html_editor/utils/dom_traversal";
 import { Component, onMounted, onWillStart } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { redirect } from "@web/core/utils/urls";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 import { CustomizeTranslationTab } from "@website/builder/plugins/translation_tab/customize_translation_tab";
 
 import { CarouselOptionTranslationPlugin } from "./plugins/carousel_option_translation_plugin.js";

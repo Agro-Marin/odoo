@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class ScrollButtonOption extends BaseOptionComponent {
     static template = "website.ScrollButtonOption";

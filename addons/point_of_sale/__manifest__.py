@@ -106,7 +106,7 @@
             # CSS files make html_editor tests fail
             ("remove", "point_of_sale/static/src/**/*.css"),
             # Adding error handler back since they are removed in the prod bundle
-            "web/static/src/services/error_handlers.js",
+            "web/static/src/components/errors/error_handlers.js",
             "web/static/src/ui/dialog/dialog.scss",
         ],
         "web.assets_unit_tests": [
@@ -128,7 +128,7 @@
             "web/static/src/scss/tokens.scss",
             ("include", "web._assets_core"),
             ("remove", "web/static/src/core/browser/router.js"),
-            ("remove", "web/static/src/services/debug/**/*"),
+            ("remove", "web/static/src/webclient/debug/**/*"),
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
@@ -163,10 +163,10 @@
             "web/static/src/scss/ui.scss",
             (
                 "remove",
-                "web/static/src/services/error_handlers.js",
+                "web/static/src/components/errors/error_handlers.js",
             ),  # error handling in PoS is different from the webclient
             ("remove", "/web/static/src/ui/dialog/dialog.scss"),
-            "web/static/src/services/currency.js",
+            "web/static/src/core/currency.js",
             # barcode scanner
             "barcodes/static/src/barcode_service.js",
             "barcodes/static/src/js/barcode_parser.js",
@@ -188,7 +188,7 @@
             "account/static/src/services/account_move_service.js",
             "mail/static/src/core/common/sound_effects_service.js",
             "web/static/src/core/browser/router.js",
-            "web/static/src/services/debug/**/*",
+            "web/static/src/webclient/debug/**/*",
             "web/static/src/model/**/*",
             "web/static/src/fields/**/*",
             "web/static/src/views/**/*",

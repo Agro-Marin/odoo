@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { kanbanView } from "@web/views/kanban/kanban_view";
+import { kanbanView } from "@web/views/kanban";
 
 import { RottingKanbanController } from "./rotting_kanban_controller.js";
 import { RottingKanbanRenderer } from "./rotting_kanban_renderer.js";

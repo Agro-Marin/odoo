@@ -4,7 +4,7 @@ import { QuantityButtons } from "@point_of_sale/app/components/buttons/quantity_
 import { ProductCard } from "@point_of_sale/app/components/product_card/product_card";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class ComboConfiguratorPopup extends Component {
     static template = "point_of_sale.ComboConfiguratorPopup";
     static components = { ProductCard, Dialog, QuantityButtons };

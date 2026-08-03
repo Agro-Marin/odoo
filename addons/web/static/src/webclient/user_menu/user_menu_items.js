@@ -6,10 +6,10 @@
 import { Component, markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMacOS } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { session } from "@web/session";
 
 /**
@@ -160,8 +160,14 @@ function logOutItem(env) {
         id: "logout",
         description: _t("Log out"),
         href: `${browser.location.origin}${route}`,
-        callback: () => {
+        callback: async () => {
             browser.navigator.serviceWorker?.controller?.postMessage("user_logout");
+            // The service worker purges the static Cache storage; the on-disk RPC
+            // cache is IndexedDB, which it does not touch -- delete it here so a
+            // user's cached data does not outlive their session on a shared
+            // browser. Awaited (it self-resolves on block/absence) so it runs
+            // before the navigation tears the page down.
+            await rpc.purgeCacheStorage();
             browser.location.href = route;
         },
         sequence: 70,

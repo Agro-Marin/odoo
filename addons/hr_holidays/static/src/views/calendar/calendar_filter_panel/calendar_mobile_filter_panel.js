@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useState, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { onWillStart, onWillUpdateProps,useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { CalendarMobileFilterPanel } from "@web/views/calendar/mobile_filter_panel/calendar_mobile_filter_panel";
+import { CalendarMobileFilterPanel } from "@web/views/calendar";
 
 export class TimeOffCalendarMobileFilterPanel extends CalendarMobileFilterPanel {
     static components = {

@@ -74,10 +74,19 @@ function mockLocation(search) {
     });
 }
 
-/** Register a fake "expenses" app so `menu.getApps()` finds a target. */
-function mockExpensesApp({ onSelect } = {}) {
+/**
+ * Register a fake "expenses" app so `menu.getApps()` finds a target, and claim
+ * the share target for it the way `hr_expense` does.
+ *
+ * @param {{ onSelect?: () => any, apps?: Record<string, any>[], claims?: string[] }} [options]
+ */
+function mockExpensesApp({
+    onSelect,
+    apps = [{ actionPath: "expenses", id: 42 }],
+    claims = ["expenses"],
+} = {}) {
     const menu = {
-        getApps: () => [{ actionPath: "expenses", id: 42 }],
+        getApps: () => apps,
         selectMenu: async (app) => {
             expect.step(`selectMenu:${app.actionPath}`);
             if (onSelect) {
@@ -88,6 +97,10 @@ function mockExpensesApp({ onSelect } = {}) {
     const services = registry.category("services");
     services.add("menu", { start: () => menu }, { force: true });
     after(() => services.remove("menu"));
+
+    const shareTargets = registry.category("share_target_apps");
+    claims.forEach((path, index) => shareTargets.add(`claim${index}`, path));
+    after(() => claims.forEach((_, index) => shareTargets.remove(`claim${index}`)));
 }
 
 test("does nothing when the page was not opened from a share", async () => {
@@ -201,4 +214,38 @@ test("a rejecting navigation is contained, not left unhandled", async () => {
     expect(unhandled).toHaveLength(0);
     // The files survive the failed navigation, so a retry can still upload them.
     expect(getService("shareTarget").hasSharedFiles()).toBe(true);
+});
+
+test("no app claims the share target: nothing is asked of the worker", async () => {
+    // `web` used to name the "expenses" action path itself, so a database
+    // without hr_expense still went looking for it.
+    mockLocation("?share_target=trigger");
+    mockServiceWorker({
+        reply: { action: "odoo_share_target_ack", shared_files: [{}] },
+    });
+    mockExpensesApp({ claims: [] });
+    const env = await makeMockEnv();
+
+    env.bus.trigger(AppEvent.WEB_CLIENT_READY);
+    await animationFrame();
+
+    expect.verifySteps([]);
+    expect(getService("shareTarget").hasSharedFiles()).toBe(false);
+});
+
+test("the first claim that matches an installed app wins", async () => {
+    mockLocation("?share_target=trigger");
+    mockServiceWorker({
+        reply: { action: "odoo_share_target_ack", shared_files: [{ name: "a.png" }] },
+    });
+    mockExpensesApp({
+        apps: [{ actionPath: "expenses", id: 42 }],
+        claims: ["not-installed", "expenses"],
+    });
+    const env = await makeMockEnv();
+
+    env.bus.trigger(AppEvent.WEB_CLIENT_READY);
+    await animationFrame();
+
+    expect.verifySteps(["postMessage:odoo_share_target", "selectMenu:expenses"]);
 });

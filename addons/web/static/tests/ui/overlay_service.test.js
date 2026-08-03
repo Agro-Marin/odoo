@@ -9,7 +9,8 @@ import {
     makeMockEnv,
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
+import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 
 test("simple case", async () => {
     await mountWithCleanup(MainComponentsContainer);
@@ -93,6 +94,42 @@ test("double remove runs onRemove once (idempotent)", async () => {
 
     remove();
     expect.verifySteps([]);
+});
+
+// Closing again while a removal is in flight used to hand back nothing at all,
+// so `await close()` on the second call resolved while the overlay was still on
+// screen and its `onClose` still running. The second caller must join the
+// removal already under way.
+test("a second close joins the removal already in flight", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+    class MyComp extends Component {
+        static template = xml`<div class="joined"/>`;
+        static props = ["*"];
+    }
+
+    /** @type {() => void} */
+    let release = () => {};
+    const remove = getService("overlay").add(
+        MyComp,
+        {},
+        {
+            onRemove: () =>
+                new Promise((resolve) => (release = () => resolve(undefined))),
+        },
+    );
+    await animationFrame();
+    expect(".joined").toHaveCount(1);
+
+    remove();
+    let settled = false;
+    Promise.resolve(remove()).then(() => (settled = true));
+    await animationFrame();
+    expect(settled).toBe(false);
+
+    release();
+    await animationFrame();
+    expect(settled).toBe(true);
+    expect(".joined").toHaveCount(0);
 });
 
 test("multiple overlays", async () => {
@@ -328,4 +365,86 @@ test("click-away containment spans sub-overlays without allocating per sibling",
     expect(items[0].contains(low)).toBe(true);
     expect(items[1].contains(high)).toBe(true);
     expect(items[1].contains(low)).toBe(false);
+});
+
+test("a hosted env REPLACES the container's env instead of extending it", async () => {
+    // Pins the contract `useHostedSubEnv` implements by writing
+    // `__owl__.childEnv` -- Owl internals, since it exposes no API for replacing
+    // an env. If an Owl upgrade changes that field, this fails loudly here
+    // rather than silently leaking the webclient env into hosted overlays.
+    await mountWithCleanup(MainComponentsContainer);
+
+    let seen;
+    class Probe extends Component {
+        static props = ["*"];
+        static template = xml`<div class="probe"/>`;
+        setup() {
+            seen = {
+                hosted: this.env.HOSTED,
+                // `services` is on every real env, so its absence is proof the
+                // inherited env was replaced rather than merged.
+                inheritedServices: "services" in this.env,
+                overlay: Boolean(this.env[OVERLAY_SYMBOL]),
+            };
+        }
+    }
+
+    getService("overlay").add(Probe, {}, { env: { HOSTED: "yes" } });
+    await animationFrame();
+
+    expect(seen.hosted).toBe("yes");
+    expect(seen.inheritedServices).toBe(false);
+    // The click-away extension must survive the replacement: applied in the
+    // other order it would be dropped, and containment would silently break.
+    expect(seen.overlay).toBe(true);
+});
+
+test("a hosted overlay still reports containment to click-away", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+
+    let contains;
+    class Probe extends Component {
+        static props = ["*"];
+        static template = xml`<div class="hosted-probe"/>`;
+        setup() {
+            contains = (/** @type {Node} */ node) =>
+                this.env[OVERLAY_SYMBOL].contains(node);
+        }
+    }
+    getService("overlay").add(Probe, {}, { env: { HOSTED: "yes" } });
+    await animationFrame();
+
+    expect(contains(document.querySelector(".hosted-probe"))).toBe(true);
+    expect(contains(document.body)).toBe(false);
+});
+
+// The asymmetry with `destroy()` above is the contract, not an oversight: here
+// the rejection belongs to the caller that asked to close, and reaches the
+// global handler when nobody catches it. Either way the entry is gone, because
+// `remove` drops it in a `finally` -- a caller's failing `onClose` must never
+// strand an overlay on screen.
+test("a throwing onRemove removes the overlay and hands the caller the error", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+    class MyComp extends Component {
+        static template = xml`<div class="overlayed"/>`;
+        static props = ["*"];
+    }
+    const remove = getService("overlay").add(
+        MyComp,
+        {},
+        {
+            onRemove: () => {
+                expect.step("onRemove");
+                throw new Error("onClose blew up");
+            },
+        },
+    );
+    await animationFrame();
+    expect(".overlayed").toHaveCount(1);
+
+    await remove().catch((error) => expect.step(error.message));
+    await animationFrame();
+
+    expect(".overlayed").toHaveCount(0);
+    expect.verifySteps(["onRemove", "onClose blew up"]);
 });

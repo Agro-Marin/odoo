@@ -2,9 +2,8 @@
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
-import { _t } from "@web/core/l10n/translation";
-import { post } from "@web/services/http_service";
-import { rpc } from "@web/core/network/rpc";
+import { _t } from "@web/core/translation";
+import { post, rpc } from "@web/core/network";
 import { redirect } from "@web/core/utils/urls";
 
 export class BoothRegistration extends Interaction {

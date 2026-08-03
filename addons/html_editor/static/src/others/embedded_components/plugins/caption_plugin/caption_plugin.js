@@ -11,7 +11,7 @@ import {
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { boundariesOut, rightPos } from "@html_editor/utils/position";
 import { findInSelection } from "@html_editor/utils/selection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { renderToElement } from "@web/core/utils/render";
 
 export class CaptionPlugin extends Plugin {

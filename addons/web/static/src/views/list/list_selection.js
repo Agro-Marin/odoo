@@ -8,12 +8,11 @@ import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 /**
- * @param {object} options
- * @param {() => import("./list_renderer").ListRendererProps} options.getProps
- * @param {() => boolean} options.getAllowSelectors
- * @param {(record: object) => void} options.toggleRecordSelection
- * @param {number} options.longTouchThreshold
- * @param {() => any} options.getEnv
+ * @param {Pick<import("./list_renderer").ListGridContext, "getProps" | "getAllowSelectors" | "toggleRecordSelection" | "getEnv">} ctx
+ *   the subset of the grid context this hook reads; the ListRenderer passes its
+ *   full `gridContext`.
+ * @param {object} config
+ * @param {number} config.longTouchThreshold
  * @returns {{
  *   toggleRangeSelection: (record: object) => void,
  *   expandCheckboxes: (record: object, direction: "up" | "down") => boolean,
@@ -28,13 +27,8 @@ import { getActiveHotkey } from "@web/core/browser/hotkeys";
  *   lastCheckedRecord: object | undefined,
  * }}
  */
-export function useListSelection({
-    getProps,
-    getAllowSelectors,
-    toggleRecordSelection,
-    longTouchThreshold,
-    getEnv,
-}) {
+export function useListSelection(ctx, { longTouchThreshold }) {
+    const { getProps, getAllowSelectors, toggleRecordSelection, getEnv } = ctx;
     let longTouchTimer = null;
     let touchStartMs = 0;
 

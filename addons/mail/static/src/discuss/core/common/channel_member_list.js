@@ -2,7 +2,7 @@
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 export class ChannelMemberList extends Component {
     static components = { ImStatus, ActionPanel };

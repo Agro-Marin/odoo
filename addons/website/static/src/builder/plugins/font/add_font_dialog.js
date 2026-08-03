@@ -1,11 +1,10 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { ConfirmationDialog, Dialog } from "@web/ui/dialog";
 
 class GoogleFontAutoComplete extends AutoComplete {
     setup() {

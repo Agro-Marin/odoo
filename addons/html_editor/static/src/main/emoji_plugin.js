@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { EmojiPicker } from "@web/components/emoji_picker/emoji_picker";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 /**
  * @typedef { Object } EmojiShared

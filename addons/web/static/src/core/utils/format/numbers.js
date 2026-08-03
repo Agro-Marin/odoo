@@ -4,7 +4,7 @@
 /** @module @web/core/utils/format/numbers */
 
 import { localization as l10n } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { intersperse } from "@web/core/utils/format/strings";
 
 /**

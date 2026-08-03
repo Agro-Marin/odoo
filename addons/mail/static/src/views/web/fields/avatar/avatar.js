@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { Component } from "@odoo/owl";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 export class Avatar extends Component {
     static template = "mail.Avatar";
     static components = { Popover: AvatarCardPopover };

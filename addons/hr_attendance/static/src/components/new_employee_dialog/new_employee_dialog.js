@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { rpc } from "@web/core/network/rpc";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { rpc } from "@web/core/network";
+import { Dialog } from "@web/ui/dialog";
 import { Many2One } from "./many2one/many2one.js";
 
 export class NewEmployeeDialog extends Component {

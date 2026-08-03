@@ -1,6 +1,6 @@
 // @ts-check
 
-import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { beforeEach, describe, expect, mockSendBeacon, test } from "@odoo/hoot";
 import { manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, onError, onWillStart, OwlError, xml } from "@odoo/owl";
@@ -19,17 +19,23 @@ import {
     standardErrorDialogProps,
     WarningDialog,
 } from "@web/components/errors/error_dialogs";
+import {
+    defaultHandler,
+    supersededErrorHandler,
+} from "@web/components/errors/error_handlers";
 import { browser } from "@web/core/browser/browser";
+import { UncaughtPromiseError } from "@web/core/errors/error_service";
 import {
     ConnectionLostError,
     makeErrorFromResponse,
     RPCError,
 } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { omit } from "@web/core/utils/collections/objects";
 import { SupersededError } from "@web/core/utils/concurrency";
-import { defaultHandler, supersededErrorHandler } from "@web/services/error_handlers";
-import { UncaughtPromiseError } from "@web/services/error_service";
+import { session } from "@web/session";
+import { swallowAllVisitorErrors } from "@web/webclient/errors/visitor_error_handler";
 
 const errorDialogRegistry = registry.category("error_dialogs");
 const errorHandlerRegistry = registry.category("error_handlers");
@@ -612,6 +618,86 @@ describe("Error Service Logs", () => {
         expect(errorEvent.defaultPrevented).toBe(true);
     });
 
+    test("a genuine defect is beaconed to js_error", async () => {
+        const beacons = [];
+        mockSendBeacon((url, blob) => {
+            beacons.push({ url, blob });
+            return true;
+        });
+        patchWithCleanup(console, { error() {} });
+        await makeMockEnv();
+        const errorEvent = new Event("error", { cancelable: true });
+        errorEvent.error = new Error("a real defect");
+        errorEvent.filename = "foo.js";
+        errorEvent.lineno = 7;
+        errorEvent.colno = 3;
+        await errorCb(errorEvent);
+        expect(beacons).toHaveLength(1);
+        expect(beacons[0].url).toBe("/web/observability/js_error");
+        const payload = JSON.parse(await beacons[0].blob.text());
+        expect(payload.kind).toBe("error");
+        expect(payload.message).toBe("a real defect");
+    });
+
+    test("a handled business error is not beaconed", async () => {
+        const beacons = [];
+        mockSendBeacon((url, blob) => {
+            beacons.push({ url, blob });
+            return true;
+        });
+        await makeMockEnv();
+        // SupersededError is handled (supersededErrorHandler default-prevents it),
+        // so it is never logged -- and therefore never beaconed.
+        const errorEvent = new PromiseRejectionEvent("unhandledrejection", {
+            reason: new SupersededError(),
+            promise: null,
+            cancelable: true,
+        });
+        await unhandledRejectionCb(errorEvent);
+        expect(beacons).toHaveLength(0);
+    });
+
+    test("a visitor's swallowed defect is still beaconed (dialog hidden, defect observable)", async () => {
+        // The visitor handler hides the crash dialog from a public visitor by
+        // returning true, which breaks the handler chain before the dialog
+        // handler runs -- but it must NOT preventDefault, so `shouldLogError()`
+        // stays true and the defect still beacons. This locks that separation
+        // end to end: a plausible "fix" that preventDefaulted the swallow would
+        // blind ops to every public-page error with this suite still green.
+        patchWithCleanup(user, { isInternalUser: false });
+        patchWithCleanup(session, { test_mode: false });
+        errorHandlerRegistry.add("swallowAllVisitorErrors", swallowAllVisitorErrors, {
+            sequence: 0,
+        });
+        const beacons = [];
+        mockSendBeacon((url, blob) => {
+            beacons.push({ url, blob });
+            return true;
+        });
+        let dialogShown = false;
+        mockService("dialog", {
+            add() {
+                dialogShown = true;
+                return () => {};
+            },
+        });
+        patchWithCleanup(console, { error() {} });
+        await makeMockEnv();
+
+        const errorEvent = /** @type {any} */ (
+            new Event("error", { cancelable: true })
+        );
+        errorEvent.error = new Error("public page defect");
+        errorEvent.filename = "foo.js";
+        await errorCb(errorEvent);
+
+        expect(dialogShown).toBe(false); // swallowed: the visitor sees no crash dialog
+        expect(beacons).toHaveLength(1); // ...but the defect still reaches ops
+        expect(errorEvent.defaultPrevented).toBe(true); // the log/beacon path ran
+        const payload = JSON.parse(await beacons[0].blob.text());
+        expect(payload.message).toBe("public page defect");
+    });
+
     test("error in handlers while handling an error", async () => {
         errorHandlerRegistry.add(
             "__test_handler__",
@@ -633,7 +719,7 @@ describe("Error Service Logs", () => {
                 const msg = String(errorMessage);
                 if (
                     msg.startsWith(
-                        '@web/services/error_service: handler "__test_handler__"',
+                        '@web/core/errors/error_service: handler "__test_handler__"',
                     )
                 ) {
                     expect(msg).toMatch(

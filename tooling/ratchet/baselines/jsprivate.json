@@ -1,0 +1,4 @@
+{
+  "count": 253,
+  "note": "253: restored by publishing StaticList.markReordered() so the sort helper no longer writes list._needsReordering directly (one of the three cross-module writes the gate flags 'clear first'). The remaining two (command_engine writing list._commands / list._currentIds in commitBatch) are intertwined with the batch interpreter and belong to the larger static_list command-path unification (audit F-U05-9), not a setter wrapper. PRIOR: 257 -> 253 via the applyCommands decomposition."
+}

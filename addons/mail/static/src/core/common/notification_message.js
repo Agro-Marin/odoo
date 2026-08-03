@@ -8,7 +8,7 @@ import {
     useRef,
 } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { escape } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 export class NotificationMessage extends Component {

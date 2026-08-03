@@ -10,8 +10,8 @@ import { ICON_SELECTOR } from "@html_editor/utils/dom_info";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { fonts } from "@html_editor/utils/fonts";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { renderToFragment } from "@web/core/utils/render";
 
 import { SocialMediaLinks } from "./social_media_links.js";

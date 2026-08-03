@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { CalendarFilterSection } from "@web/views/calendar/calendar_filter_section/calendar_filter_section";
+import { CalendarFilterSection } from "@web/views/calendar";
 
 export class ProjectTaskCalendarFilterSection extends CalendarFilterSection {
     static subTemplates = {

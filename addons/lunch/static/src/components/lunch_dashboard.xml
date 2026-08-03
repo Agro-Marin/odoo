@@ -266,6 +266,8 @@
             <Offcanvas
                 open="state.cartOpen"
                 onClose="() => this.state.cartOpen = false"
+                id="'lunch_order_mobile'"
+                ariaLabelledBy="'lunch_order_mobile_title'"
                 class="'bg-view'"
             >
                 <div class="offcanvas-header">
@@ -275,6 +277,11 @@
                         t-on-click="() => state.cartOpen = false"
                         aria-label="Close"
                     />
+                    <!-- Hidden rather than shown: the header is a bare back
+                         control by design, but the panel is a `role="dialog"`
+                         and needs a name that survives translation, which a
+                         `t-att-aria-label` expression would not. -->
+                    <h5 class="offcanvas-title visually-hidden" id="lunch_order_mobile_title">Your Cart</h5>
                 </div>
                 <div class="offcanvas-body p-0">
                     <t t-call="lunch.LunchDashboardOrder">

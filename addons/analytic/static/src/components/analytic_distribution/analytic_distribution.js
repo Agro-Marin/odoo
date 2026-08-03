@@ -11,10 +11,10 @@ import { TagsList } from "@web/components/tags_list/tags_list";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { formatPercentage } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
 import { usePosition } from "@web/core/position/position_hook";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import {
     getNextTabableElement,

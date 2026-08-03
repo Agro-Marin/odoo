@@ -2,7 +2,7 @@
 import { Component, useState } from "@odoo/owl";
 import { ProductInfoBanner } from "@point_of_sale/app/components/product_info_banner/product_info_banner";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class BaseProductAttribute extends Component {
     static template = "";
     static props = [

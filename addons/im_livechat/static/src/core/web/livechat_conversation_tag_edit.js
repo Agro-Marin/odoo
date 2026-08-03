@@ -2,7 +2,7 @@
 import { NavigableList } from "@mail/core/common/navigable_list";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, useEffect, useState, xml } from "@odoo/owl";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { highlightText } from "@web/core/utils/dom/html";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";

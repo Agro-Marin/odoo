@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { useComponent } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { getFieldDomain } from "@web/model/relational_model/utils";
-import { useCommand } from "@web/services/commands/command_hook";
-import { user } from "@web/services/user";
+import { getFieldDomain } from "@web/model/relational_model";
+import { useCommand } from "@web/ui/commands";
 /**
  * Use this hook to add "Assign to.." and "Assign/Unassign me" to the command palette.
  */

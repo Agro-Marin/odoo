@@ -1,6 +1,5 @@
 /** @odoo-module native */
-import { kanbanView } from "@web/views/kanban/kanban_view";
-import { KanbanController } from "@web/views/kanban/kanban_controller";
+import { kanbanView, KanbanController } from "@web/views/kanban";
 import { EventRegistrationSummaryDialog } from "@event/client_action/event_registration_summary_dialog";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";

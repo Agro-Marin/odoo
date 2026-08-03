@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { DocumentsAction } from "@documents/views/action/documents_action";
 import { useService } from "@web/core/utils/hooks";
-import { FileViewer as WebFileViewer } from "@web/components/file_viewer/file_viewer";
+import { FileViewer as WebFileViewer } from "@web/components/file_viewer";
 import { onWillStart, onWillUpdateProps, reactive, useState } from "@odoo/owl";
 
 export class FileViewer extends WebFileViewer {

@@ -94,6 +94,7 @@ jobs:
         run: |
           python tooling/ratchet/test_ratchet.py
           python tooling/typecheck/test_scope_gate.py
+          python tooling/typecheck/test_excepted_budget.py
 
       - name: Install dependencies
         # npm ci, not npm install: the tsc version is pinned in package-lock and
@@ -122,12 +123,24 @@ jobs:
           set -e
           python tooling/typecheck/scope_gate.py strict --log /tmp/tsc-strict.log
 
+      - name: strictNullChecks excepted-file budgets
+        # scope_gate answers one question per file — clean, or excepted. For an
+        # excepted file the answer stops there: it may hold 5 errors or 500, and
+        # may go from 5 to 500 with the lock still reporting "excepted" and the
+        # project ratchet absorbing the difference in a four-figure aggregate.
+        # Two defects had already landed through that gap, both found by
+        # reading. Same log, so this costs no extra tsc run.
+        run: python tooling/typecheck/excepted_budget.py strict --log /tmp/tsc-strict.log
+
       - name: noImplicitAny gate (default-deny over the web module)
         run: |
           set +e
           npx tsc --project tsconfig.noimplicitany.json --noEmit --listFiles > /tmp/tsc-noimplicitany.log 2>&1
           set -e
           python tooling/typecheck/scope_gate.py noimplicitany --log /tmp/tsc-noimplicitany.log
+
+      - name: noImplicitAny excepted-file budgets
+        run: python tooling/typecheck/excepted_budget.py noimplicitany --log /tmp/tsc-noimplicitany.log
 
       - name: Summarise
         if: always()

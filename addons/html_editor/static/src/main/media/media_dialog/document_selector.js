@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { renderToElement } from "@web/core/utils/render";
 
 import { Attachment, FileSelector, IMAGE_MIMETYPES } from "./file_selector.js";

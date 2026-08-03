@@ -269,9 +269,7 @@ export class StaticList extends DataPoint {
 
     delete(record) {
         return this.model.mutex.exec(async () => {
-            await this._applyCommands([
-                x2ManyCommands.delete(record.resId || record._virtualId),
-            ]);
+            await this._applyCommands([x2ManyCommands.delete(listId(record))]);
             await this._onUpdate();
         });
     }
@@ -298,6 +296,32 @@ export class StaticList extends DataPoint {
     }
 
     /**
+     * Build the record's active-field set from the extension request, merged
+     * over this list's own active fields: the request's fields win, and any
+     * this list already tracks but the request omits are carried through.
+     *
+     * @param {{ activeFields: Object, fields: Object }} params
+     * @returns {Object}
+     */
+    _mergeExtensionActiveFields(params) {
+        const activeFields = cloneActiveFields(params.activeFields);
+        completeActiveFields(this.config.activeFields, activeFields);
+        Object.assign(this.fields, params.fields);
+        invalidateAggregateSpecs(this.fields);
+        for (const fieldName of Object.keys(this.activeFields)) {
+            if (fieldName in activeFields) {
+                patchActiveFields(
+                    activeFields[fieldName],
+                    this.activeFields[fieldName],
+                );
+            } else {
+                activeFields[fieldName] = this.activeFields[fieldName];
+            }
+        }
+        return activeFields;
+    }
+
+    /**
      * @param {Object} params
      * @param {Object} params.activeFields
      * @param {Object} params.fields
@@ -309,24 +333,9 @@ export class StaticList extends DataPoint {
      */
     extendRecord(params, record) {
         return this.model.mutex.exec(async () => {
-            const activeFields = cloneActiveFields(params.activeFields);
-            completeActiveFields(this.config.activeFields, activeFields);
-            Object.assign(this.fields, params.fields);
-            invalidateAggregateSpecs(this.fields);
-            for (const fieldName of Object.keys(this.activeFields)) {
-                if (fieldName in activeFields) {
-                    patchActiveFields(
-                        activeFields[fieldName],
-                        this.activeFields[fieldName],
-                    );
-                } else {
-                    activeFields[fieldName] = this.activeFields[fieldName];
-                }
-            }
-
+            const activeFields = this._mergeExtensionActiveFields(params);
             if (record) {
-                record._noUpdateParent = true;
-                record._activeFieldsToRestore = { ...this.config.activeFields };
+                record.extendActiveFields(this.config.activeFields);
                 /** @type {any} */
                 const config = {
                     ...record.config,
@@ -382,8 +391,7 @@ export class StaticList extends DataPoint {
                     withoutParent: params.withoutParent,
                     manuallyAdded: true,
                 });
-                record._activeFieldsToRestore = { ...this.config.activeFields };
-                record._noUpdateParent = true;
+                record.extendActiveFields(this.config.activeFields);
             }
             this._extendedRecords.add(record.id);
 
@@ -596,30 +604,19 @@ export class StaticList extends DataPoint {
      * @param {{ position?: string, sort?: boolean }} [options]
      */
     async _addRecord(record, { position, sort = true } = {}) {
-        const command = [x2ManyCommands.CREATE, record._virtualId];
-        if (position === "top") {
-            this.records.unshift(record);
-            if (this.records.length > this.limit) {
-                this.records.pop();
-            }
-            this._currentIds.splice(this.offset, 0, listId(record));
-            let insertAt = 0;
-            while (
-                insertAt < this._commands.length &&
-                (this._commands[insertAt][0] === x2ManyCommands.SET ||
-                    this._commands[insertAt][0] === x2ManyCommands.CLEAR)
-            ) {
-                insertAt++;
-            }
-            this._commands.splice(insertAt, 0, command);
-        } else if (position === "bottom") {
-            this.records.push(record);
-            this._currentIds.splice(this.offset + this.limit, 0, listId(record));
-            if (this.records.length > this.limit) {
-                this._bumpLimit(1);
-            }
-            this._commands.push(command);
+        const virtualId = record._virtualId;
+        if (position === "top" || position === "bottom") {
+            // Interactive editable-list add. The record is already a cached
+            // datapoint, so the engine's CREATE handler echoes it and owns the
+            // window insertion for both ends (see `applyCreate`) -- one command
+            // interpreter instead of a parallel splice here.
+            await this._applyCommands([[x2ManyCommands.CREATE, virtualId]], {
+                position,
+            });
         } else {
+            // Non-editable / programmatic add: append to the relation, respect
+            // the page (only push into the window when it is not full), and sort
+            // when the list is ordered.
             const currentIds = [...this._currentIds, listId(record)];
             if (this.orderBy.length && sort) {
                 await sortRecords(this, currentIds);
@@ -629,9 +626,18 @@ export class StaticList extends DataPoint {
                 }
                 this._currentIds = currentIds;
             }
-            this._commands.push(command);
+            this._commands.push([x2ManyCommands.CREATE, virtualId]);
         }
         this._needsReordering = true;
+    }
+
+    /**
+     * Cleared by the sort helper once it has applied the reorder-load for the
+     * pending-reorder flag {@link _addRecord} raises when a record is inserted
+     * out of order. Published so the helper need not write the private.
+     */
+    markReordered() {
+        this._needsReordering = false;
     }
 
     async _addNewRecordAtIndex(index, options = {}) {
@@ -860,7 +866,7 @@ export class StaticList extends DataPoint {
                 if (!hasCommand) {
                     this._commands.push([UPDATE, id]);
                 }
-                if (record._noUpdateParent) {
+                if (record.skipsParentUpdate) {
                     return;
                 }
                 if (!withoutParentUpdate) {
@@ -938,8 +944,7 @@ export class StaticList extends DataPoint {
             return;
         }
         delete this._cache[virtualId];
-        this.model._patchConfig(record.config, { resId, resIds: [resId] });
-        record._virtualId = false;
+        record.assignResId(resId);
         this._cache[resId] = record;
         const index = this._currentIds.indexOf(virtualId);
         if (index >= 0) {
@@ -1068,7 +1073,7 @@ export class StaticList extends DataPoint {
         const commands = [];
         for (const record of this.records.slice(targetIndex)) {
             commands.push(
-                x2ManyCommands.update(record.resId || record._virtualId, {
+                x2ManyCommands.update(listId(record), {
                     [this.handleField]: sequence++,
                 }),
             );

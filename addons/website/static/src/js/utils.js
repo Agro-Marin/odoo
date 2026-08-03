@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { urlFunctions } from "@html_editor/utils/url";
 import { App, Component } from "@odoo/owl";
-import { _t, appTranslateFn } from "@web/core/l10n/translation";
 import { getTemplate } from "@web/core/templates";
+import { _t, appTranslateFn } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { UrlAutoComplete } from "@website/components/autocomplete_with_pages/url_autocomplete";
 

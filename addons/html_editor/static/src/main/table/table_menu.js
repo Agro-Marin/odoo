@@ -7,9 +7,8 @@ import {
     useExternalListener,
     useRef,
 } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { _t } from "@web/core/l10n/translation";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { _t } from "@web/core/translation";
 
 export class TableMenu extends Component {
     static template = "html_editor.TableMenu";

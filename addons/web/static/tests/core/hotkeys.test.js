@@ -1,7 +1,13 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import {
+    getService,
+    makeMockEnv,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { hotkeyService } from "@web/core/hotkeys/hotkey_service";
 
 describe.current.tags("headless");
 
@@ -90,5 +96,29 @@ describe("getActiveHotkey never reports a modifier as the pressed key", () => {
                 }),
             ),
         ).toBe("control+s");
+    });
+});
+
+describe("includesOverlayModifier matches whole tokens, not substrings", () => {
+    test("exact modifier token matches; a look-alike substring does not", async () => {
+        await makeMockEnv();
+        const hotkey = getService("hotkey"); // default overlayModifier is "alt"
+        expect(hotkey.includesOverlayModifier("alt+a")).toBe(true);
+        expect(hotkey.includesOverlayModifier("control+a")).toBe(false);
+        // Regression: the former `hotkey.includes("alt")` matched any token
+        // *containing* the modifier name -- "salt" and "alter" both contain
+        // "alt". Whole-token matching rejects them.
+        expect(hotkey.includesOverlayModifier("salt+a")).toBe(false);
+        expect(hotkey.includesOverlayModifier("alter+a")).toBe(false);
+    });
+
+    test("compound overlay modifier needs every token present", async () => {
+        // `includesOverlayModifier` reads the module-level `hotkeyService.overlayModifier`.
+        patchWithCleanup(hotkeyService, { overlayModifier: "control+alt" });
+        await makeMockEnv();
+        const hotkey = getService("hotkey");
+        expect(hotkey.includesOverlayModifier("control+alt+a")).toBe(true);
+        expect(hotkey.includesOverlayModifier("alt+a")).toBe(false);
+        expect(hotkey.includesOverlayModifier("control+a")).toBe(false);
     });
 });

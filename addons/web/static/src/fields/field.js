@@ -155,6 +155,34 @@ export function resetWidgetMissWarnings() {
 }
 
 /**
+ * Option names a widget declares in `supportedOptions`, flattened: an entry may
+ * be a descriptor or an array of them (a group rendered together in the widget
+ * dialog), and a widget composes its parent's list by spreading it.
+ *
+ * Returns `null` when the widget declares nothing, which is NOT the same as
+ * declaring no options — most of the registry is undeclared, and treating that
+ * as "accepts nothing" would report every option it does read.
+ *
+ * @param {{ supportedOptions?: any[], [key: string]: any }} field a `fields`
+ *  registry entry
+ * @returns {Set<string> | null}
+ */
+export function getSupportedOptionNames(field) {
+    if (!field?.supportedOptions) {
+        return null;
+    }
+    const names = new Set();
+    for (const entry of field.supportedOptions) {
+        for (const descriptor of Array.isArray(entry) ? entry : [entry]) {
+            if (descriptor?.name) {
+                names.add(descriptor.name);
+            }
+        }
+    }
+    return names;
+}
+
+/**
  * @param {string} fieldType
  * @param {string} [widget]
  * @param {string} [viewType]

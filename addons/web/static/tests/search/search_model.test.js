@@ -12,8 +12,55 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { SearchModelEvent } from "@web/core/events";
+import { SearchModel } from "@web/search/search_model";
 
 describe.current.tags("headless");
+
+describe("_notify — the single UPDATE-emission path", () => {
+    /** A minimal `this` for `SearchModel.prototype._notify` run in isolation. */
+    function notifyStub(overrides = {}) {
+        const steps = [];
+        return /** @type {any} */ ({
+            _steps: steps,
+            blockNotification: false,
+            _reset() {
+                steps.push("reset");
+            },
+            _reloadSections() {
+                steps.push("reloadSections");
+                return Promise.resolve();
+            },
+            trigger(ev) {
+                steps.push(`trigger:${ev}`);
+            },
+            ...overrides,
+        });
+    }
+
+    test("defaults to reloading the sections before triggering", async () => {
+        const model = notifyStub();
+        await SearchModel.prototype._notify.call(model);
+        expect(model._steps).toEqual(["reset", "reloadSections", "trigger:update"]);
+    });
+
+    test("reloadSections:false triggers without re-fetching the sections", () => {
+        // The section-refresh path: a caller reacting to a section that already
+        // refreshed announces the change without re-triggering that fetch.
+        const model = notifyStub();
+        SearchModel.prototype._notify.call(model, { reloadSections: false });
+        expect(model._steps).toEqual(["reset", "trigger:update"]);
+        expect(model._pendingNotification).toBe(undefined);
+    });
+
+    test("defers to the pending flag inside a blocked window", () => {
+        // A late disk-cache hit landing mid-`_reloadSections` must not trigger
+        // UPDATE on its own -- every path funnels through the same batching.
+        const model = notifyStub({ blockNotification: true });
+        SearchModel.prototype._notify.call(model, { reloadSections: false });
+        expect(model._steps).toEqual(["reset"]);
+        expect(model._pendingNotification).toBe(true);
+    });
+});
 
 class TestComponent extends Component {
     static template = xml`<div class="o_test_component"/>`;

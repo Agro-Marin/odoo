@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { Component } from "@odoo/owl";
 

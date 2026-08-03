@@ -25,6 +25,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
+import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { redirect } from "@web/core/utils/urls";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
@@ -209,7 +210,7 @@ test("action doesn't exists", async () => {
 test("getCurrentAction", async () => {
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
-    const currentAction = await getService("action").currentAction;
+    const currentAction = await getService("action").getCurrentAction();
     expect(currentAction).toEqual({
         binding_type: "action",
         binding_view_types: "list,form",
@@ -239,7 +240,7 @@ test("getCurrentAction (virtual controller)", async () => {
         static path = "plop";
         setup() {
             onWillStart(async () => {
-                const currentAction = await getService("action").currentAction;
+                const currentAction = await getService("action").getCurrentAction();
                 expect.step(currentAction);
             });
         }
@@ -862,4 +863,69 @@ test("_getView answers null — not a throw — when the tip is not a window act
     // No throw: the stale closure degrades to a no-op instead of an error dialog.
     await selectRecord(1, {});
     expect(".plain_client_action").toHaveCount(1);
+});
+
+test("a handler registered for a built-in action type is reported as dead", async () => {
+    // `action_handlers` is the extension point for NEW types; the six the
+    // service implements itself always win. Registering against one of them
+    // looks like it took effect and never runs.
+    patchWithCleanup(odoo, { debug: "1" });
+    patchWithCleanup(console, {
+        warn: (message) => expect.step(message),
+    });
+    actionHandlersRegistry.add("ir.actions.act_window_close", () =>
+        expect.step("never-runs"),
+    );
+
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction({ type: "ir.actions.act_window_close" });
+
+    expect.verifySteps([
+        `[action] "ir.actions.act_window_close" is dispatched by the action service itself; the "action_handlers" entry registered for it will never run.`,
+    ]);
+});
+
+test("ACTION_MANAGER:SETTLED fires for an action that changes nothing on screen", async () => {
+    // The signal exists for exactly this case: a server action returning
+    // nothing pushes no UI update, so anything waiting on the visible effect
+    // waits forever. `clickbot` is the caller that used to.
+    //
+    // Once, though: the server action becomes an act_window_close, which
+    // re-enters `doAction`. Announcing from every level told a waiter the
+    // dispatch was over while the outer one was still running.
+    onRpc("/web/action/run", () => false);
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(1);
+
+    let settled = 0;
+    getService("action").env.bus.addEventListener(
+        AppEvent.ACTION_MANAGER_SETTLED,
+        () => settled++,
+    );
+    const uiUpdates = [];
+    getService("action").env.bus.addEventListener(
+        AppEvent.ACTION_MANAGER_UI_UPDATED,
+        () => uiUpdates.push(1),
+    );
+
+    await getService("action").doAction({ type: "ir.actions.server", id: 99 });
+
+    expect(settled).toBe(1, {
+        message: "one gesture, however many actions it decomposes into",
+    });
+    expect(uiUpdates).toEqual([], { message: "nothing changed on screen" });
+});
+
+test("ACTION_MANAGER:SETTLED fires even when the dispatch fails", async () => {
+    // A waiter told only about successes hangs on the cases worth noticing.
+    await mountWithCleanup(WebClient);
+    let settled = 0;
+    getService("action").env.bus.addEventListener(
+        AppEvent.ACTION_MANAGER_SETTLED,
+        () => settled++,
+    );
+    await expect(
+        getService("action").doAction({ type: "ir.actions.does_not_exist" }),
+    ).rejects.toThrow();
+    expect(settled).toBe(1);
 });

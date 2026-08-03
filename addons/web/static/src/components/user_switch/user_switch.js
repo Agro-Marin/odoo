@@ -4,10 +4,10 @@
 /** @module @web/components/user_switch/user_switch */
 
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { getLastConnectedUsers, setLastConnectedUsers } from "@web/core/user";
 import { imageUrl } from "@web/core/utils/urls";
-import { getLastConnectedUsers, setLastConnectedUsers } from "@web/services/user";
 
 export class UserSwitch extends Component {
     static template = "web.login_user_switch";

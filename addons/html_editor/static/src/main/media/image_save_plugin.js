@@ -5,7 +5,7 @@ import {
     backgroundImagePartsToCss,
     getImageSrc,
 } from "@html_editor/utils/image";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 /**
  * @typedef { Object } ImageSaveShared

@@ -9,7 +9,7 @@
  * @returns {string}
  */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 function normalize(gb, fields) {
     const [fieldName, interval] = gb.split(":");
     const field = fields[fieldName];

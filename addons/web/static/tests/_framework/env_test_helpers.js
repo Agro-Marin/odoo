@@ -2,16 +2,16 @@
 
 import { after, afterEach, beforeEach, registerDebugInfo } from "@odoo/hoot";
 import { startRouter } from "@web/core/browser/router";
+import { createDebugContext } from "@web/core/debug/debug_context";
+import { registry } from "@web/core/registry";
 import {
     translatedTerms,
     translatedTermsGlobal,
     translationLoaded,
-} from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+} from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { patch } from "@web/core/utils/patch";
 import { makeEnv, startServices } from "@web/env";
-import { createDebugContext } from "@web/services/debug/debug_context";
 
 import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
 

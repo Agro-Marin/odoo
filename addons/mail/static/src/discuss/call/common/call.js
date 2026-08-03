@@ -20,7 +20,7 @@ import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 /**
  * @typedef CardData
  * @property {string} key

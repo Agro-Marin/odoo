@@ -2,7 +2,7 @@
 import { TranscriptSender } from "@im_livechat/core/common/transcript_sender";
 import { RATING } from "@im_livechat/embed/common/livechat_service";
 import { Component, useState } from "@odoo/owl";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
 import { url } from "@web/core/utils/urls";
 import { session } from "@web/session";

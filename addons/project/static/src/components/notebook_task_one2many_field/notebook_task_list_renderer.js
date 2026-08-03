@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { TaskListRenderer } from "../task_list_renderer.js";
 

@@ -3,7 +3,7 @@ import { registry } from "@web/core/registry";
 import { loadJS } from "@web/core/assets";
 
 // temporary for OnNoResultReturned bug
-import { ThirdPartyScriptError } from "@web/services/error_service";
+import { ThirdPartyScriptError } from "@web/core/errors/error_service";
 
 import { Component, onWillRender, useEffect, useRef, useState, xml } from "@odoo/owl";
 import { standardFieldProps } from "@web/fields/standard_field_props";

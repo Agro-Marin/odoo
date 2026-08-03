@@ -3,8 +3,8 @@
 import { after, expect, test } from "@odoo/hoot";
 import { Deferred } from "@odoo/hoot-mock";
 import { EventBus } from "@odoo/owl";
+import { user } from "@web/core/user";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
-import { user } from "@web/services/user";
 import {
     buildCallButtonArgs,
     executeActionButton,

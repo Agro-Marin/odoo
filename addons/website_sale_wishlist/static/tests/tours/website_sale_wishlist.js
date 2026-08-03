@@ -1,4 +1,4 @@
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { delay } from "@web/core/utils/concurrency";
 

@@ -119,6 +119,11 @@ export const useServiceProtectMethodHandling = {
  * snapshot and silently ignore any later replacement of the method
  * (``patch``, ``mockService``, a module patching the service in place).
  *
+ * ``this`` is forwarded from the call site on purpose — a caller may rebind a
+ * protected method, and the protected view must otherwise be indistinguishable
+ * from the service. Keeping that transparency is why the view is a Proxy rather
+ * than ``Object.create(service)``; see ``useService``.
+ *
  * @param {import("@odoo/owl").Component} component
  * @param {() => Function} resolve
  * @returns {Function}
@@ -151,6 +156,68 @@ function _protectMethod(component, resolve) {
     };
 }
 
+/**
+ * Build the destroy-guarding view a component sees for a class-shaped service:
+ * a Proxy whose `async:` methods are swapped for guarded ones and whose every
+ * other member reads straight through.
+ *
+ * A Proxy, not `Object.create(observed)`. The view exists only to swap the
+ * `async:` methods for guarded ones; it must be transparent in every other
+ * respect, and a prototype-chain view is not. `this` inside a guarded method is
+ * the view (deliberately -- see `_protectMethod`), so with `Object.create` a
+ * `this.x = …` created an OWN property on the view and the service never saw the
+ * write. Reads still resolved down the chain, so nothing failed loudly: each
+ * component simply kept its own private copy from the moment it first wrote.
+ * `file_upload` minted duplicate upload ids that way -- every component started
+ * again from the service's stale `nextId`, and `uploads[id]` is shared, so one
+ * upload's record overwrote another's. A closure-shaped service was immune
+ * because its state lived in the closure rather than on `this`; returning an
+ * instance from `start()` is exactly what moves it, so this had to be fixed here
+ * rather than in each converted service.
+ *
+ * A getter modifier (the `orm.silent` / `orm.dedup` shape) returns an object
+ * created off the service via `Object.create(this)`. Read through this Proxy the
+ * getter runs with the raw service as `this` (the receiver below), so the
+ * derived object's async methods would resolve on the unguarded prototype and
+ * escape the destroy protection -- `orm.silent.read(...)` resolving into a view
+ * the user had already left. Such a derived view -- recognised by its prototype
+ * being this very target -- is therefore re-wrapped so its methods are guarded
+ * too. (Method modifiers like `orm.cache()` need no help: they are invoked with
+ * the Proxy as `this`, so their result already chains through it.)
+ *
+ * @param {import("@odoo/owl").Component} component
+ * @param {any} observed
+ * @param {string[]} methods
+ * @returns {any}
+ */
+function makeGuardedView(component, observed, methods) {
+    const guarded = new Map();
+    for (const method of methods) {
+        guarded.set(
+            method,
+            _protectMethod(component, () => observed[method]),
+        );
+    }
+    return new Proxy(observed, {
+        get(target, property) {
+            if (guarded.has(property)) {
+                return guarded.get(property);
+            }
+            // Receiver is the target, so a getter on the service reads the
+            // service rather than re-entering this trap.
+            const value = Reflect.get(target, property, target);
+            if (
+                value !== null &&
+                typeof value === "object" &&
+                Object.getPrototypeOf(value) === target
+            ) {
+                return makeGuardedView(component, value, methods);
+            }
+            return value;
+        },
+    });
+}
+
 /** @type {Record<string, string[]>} */
 export const SERVICES_METADATA = {};
 
@@ -177,11 +244,7 @@ export function useService(serviceName) {
             );
         }
         const methods = SERVICES_METADATA[serviceName] ?? [];
-        const result = Object.create(observed);
-        for (const method of methods) {
-            result[method] = _protectMethod(component, () => observed[method]);
-        }
-        return result;
+        return makeGuardedView(component, observed, methods);
     }
     return observed;
 }

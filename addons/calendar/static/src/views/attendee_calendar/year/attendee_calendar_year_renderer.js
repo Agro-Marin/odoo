@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";
 import { AttendeeCalendarYearPopover } from "@calendar/views/attendee_calendar/year/attendee_calendar_year_popover";
+import { CalendarYearRenderer } from "@web/views/calendar";
 
 export class AttendeeCalendarYearRenderer extends CalendarYearRenderer {
     static components = {

@@ -5,7 +5,7 @@ import {
     PineLabsError,
 } from "@pos_self_order_pine_labs/app/pine_labs";
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 patch(SelfOrder.prototype, {
     async setup() {

@@ -4,7 +4,7 @@
 /** @module @web/ui/dialog/confirmation_dialog */
 
 import { Component, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useChildRef } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 
@@ -92,18 +92,17 @@ export class ConfirmationDialog extends Component {
 
     /**
      * @param {Function} [callback]
-     * @param {any} [closeParams]
      */
-    async execButton(callback, closeParams) {
+    async execButton(callback) {
         let shouldClose;
         try {
             shouldClose = await this.runButton(callback);
         } catch (e) {
-            this.props.close(closeParams);
+            this.props.close();
             throw e;
         }
         if (shouldClose) {
-            this.props.close(closeParams);
+            this.props.close();
         }
     }
 }

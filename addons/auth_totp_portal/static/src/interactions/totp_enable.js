@@ -6,8 +6,8 @@ import { registry } from "@web/core/registry";
 import { InputConfirmationDialog } from "@portal/js/components/input_confirmation_dialog/input_confirmation_dialog";
 import { handleCheckIdentity } from "@portal/interactions/portal_security";
 import { browser } from "@web/core/browser/browser";
-import { user } from "@web/services/user";
-import { _t } from "@web/core/l10n/translation";
+import { user } from "@web/core/user";
+import { _t } from "@web/core/translation";
 
 import { markup } from "@odoo/owl";
 

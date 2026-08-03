@@ -103,3 +103,26 @@ test("clear cache when updating ir.ui.view", async () => {
     await loadView();
     expect.verifySteps([]);
 });
+
+test("clear cache when creating an ir.filters favorite (create_filter)", async () => {
+    // `create_filter` is not a plain create/write/unlink, but a get_views payload
+    // carries ir.filters, so it must still bust the cache. ViewService owns this
+    // invalidation declaratively; the favorites mixin no longer hand-fires it.
+    onRpc("get_views", () => {
+        expect.step("get_views");
+    });
+    onRpc("create_filter", () => [7]);
+    await makeMockEnv();
+    const loadView = () =>
+        getService("view").loadViews(
+            { resModel: "take.five", views: [[99, "list"]], context: {} },
+            {},
+        );
+    await loadView();
+    expect.verifySteps(["get_views"]);
+    await loadView();
+    expect.verifySteps([]);
+    await getService("orm").call("ir.filters", "create_filter", [{ name: "F" }]);
+    await loadView();
+    expect.verifySteps(["get_views"]);
+});

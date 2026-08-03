@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { deleteConfirmationMessage } from "@web/ui/dialog/confirmation_dialog";
+import { deleteConfirmationMessage } from "@web/ui/dialog";
 
 import { showAccountUploadButton } from "../account_file_uploader_mixin.js";
 import { AccountUploadListController } from "../account_upload_list/account_upload_list_controller.js";

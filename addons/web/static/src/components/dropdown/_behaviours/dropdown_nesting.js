@@ -118,7 +118,7 @@ export function useDropdownNesting(state) {
         get hasParent() {
             return Boolean(current.parent);
         },
-        /** @type {import("@web/services/navigation/navigation").NavigationOptions} */
+        /** @type {import("@web/core/navigation/navigation").NavigationOptions} */
         navigationOptions: {
             onUpdated: (navigator) => {
                 if (current.parent && !navigator.activeItem) {

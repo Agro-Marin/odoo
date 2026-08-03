@@ -4,8 +4,8 @@
 /** @module @web/fields/specialized/user_groups/res_user_group_ids_field */
 
 import { Component, onWillRender, toRaw, useChildSubEnv } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { escape } from "@web/core/utils/format/strings";

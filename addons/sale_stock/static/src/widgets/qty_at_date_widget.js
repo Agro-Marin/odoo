@@ -2,12 +2,12 @@
 import { Component, onWillRender } from "@odoo/owl";
 import { formatDateTime } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
-import { usePopover } from "@web/ui/popover/popover_hook";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { usePopover } from "@web/ui/popover";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class QtyAtDatePopover extends Component {
     static template = "sale_stock.QtyAtDatePopover";

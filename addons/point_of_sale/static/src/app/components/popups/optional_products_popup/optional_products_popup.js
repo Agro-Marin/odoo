@@ -4,7 +4,7 @@ import { ComboConfiguratorPopup } from "@point_of_sale/app/components/popups/com
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class OptionalProductPopup extends Component {
     static template = "point_of_sale.OptionalProductPopup";
     static components = { Dialog };

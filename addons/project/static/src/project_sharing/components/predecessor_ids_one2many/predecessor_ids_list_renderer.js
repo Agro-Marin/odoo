@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { ListRenderer } from "@web/views/list";
 
 export class PredecessorIdsListRenderer extends ListRenderer {
     get nbHiddenRecords() {

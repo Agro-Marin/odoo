@@ -69,8 +69,8 @@ capabilities so portal pages can be rendered without the ``website`` module.
         "portal.assets_chatter_helpers": [
             "web/static/src/views/view_dialogs/form_view_dialog.js",
             "web/static/src/views/view_dialogs/export_data_dialog.js",
-            "web/static/src/services/debug/*",
-            "web/static/src/services/commands/command_hook.js",
+            "web/static/src/webclient/debug/*",
+            "web/static/src/ui/commands/command_hook.js",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
             "web/static/src/views/view.js",

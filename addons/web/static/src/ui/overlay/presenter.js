@@ -64,13 +64,41 @@ export function asPredicate(value) {
 }
 
 /**
+ * The props every presented component takes, mapped once here rather than
+ * per presenter. Kept identical on purpose: `usePopover({ useBottomSheet })`
+ * hands ONE options object to whichever presenter the breakpoint picks, so any
+ * option these two read differently is a behaviour change on rotation alone.
+ *
+ * Defaults deliberately stay OUT of this: an option left undefined must fall
+ * through to the presented component's own `defaultProps`, so that the class
+ * used directly in a template behaves the same as one reached through the
+ * service. `setActiveElement` was defaulted here instead, which is why a
+ * `<Popover>` written in a template trapped no focus while a `<BottomSheet>`
+ * did.
+ *
+ * @param {any} options
+ * @returns {object}
+ */
+function commonProps(options) {
+    return {
+        class: options.class ?? options.popoverClass,
+        closeOnClickAway: asPredicate(options.closeOnClickAway),
+        closeOnEscape: options.closeOnEscape,
+        id: options.id,
+        ref: options.ref,
+        role: options.role,
+        setActiveElement: options.setActiveElement,
+    };
+}
+
+/**
  * @param {object} config
  * @param {any} config.overlay
  * @param {import("@odoo/owl").ComponentConstructor} config.component
  * @param {(options: any) => object} config.toProps
  * @param {(options: any) => void} [config.onOpen]
  * @param {() => void} [config.onClosed]
- * @returns {(target: HTMLElement, component: any, props?: object, options?: any) => (removeParams?: any) => void}
+ * @returns {(target: HTMLElement, component: any, props?: object, options?: any) => (removeParams?: any) => Promise<void>}
  */
 export function makeOverlayPresenter({
     overlay,
@@ -97,6 +125,7 @@ export function makeOverlayPresenter({
         const remove = overlay.add(
             component,
             {
+                ...commonProps(options),
                 ...toProps(options),
                 target,
                 component: hostedComponent,

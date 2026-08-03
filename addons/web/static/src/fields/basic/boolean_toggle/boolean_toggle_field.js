@@ -3,7 +3,7 @@
 
 /** @module @web/fields/basic/boolean_toggle/boolean_toggle_field */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { BooleanField, booleanField } from "@web/fields/basic/boolean/boolean_field";
 import { extractAutosave } from "@web/fields/field_utils";

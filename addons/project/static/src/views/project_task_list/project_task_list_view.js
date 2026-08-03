@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { listView } from "@web/views/list/list_view";
+import { listView } from "@web/views/list";
 
 import { ProjectTaskControlPanel } from "../project_task_control_panel/project_task_control_panel.js";
 import { ProjectTaskRelationalModel } from "../project_task_relational_model.js";

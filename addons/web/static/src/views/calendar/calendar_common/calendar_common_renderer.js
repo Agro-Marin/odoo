@@ -379,7 +379,7 @@ export class CalendarCommonRenderer extends Component {
         }
         return true;
     }
-    eventClassNames({ el, event }) {
+    eventClassNames({ event }) {
         const classesToAdd = [];
         classesToAdd.push("o_event");
         const record = this.props.model.records[event.id];

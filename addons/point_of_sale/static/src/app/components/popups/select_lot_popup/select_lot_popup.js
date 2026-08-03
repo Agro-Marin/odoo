@@ -2,9 +2,9 @@
 import { Component, onMounted, useState } from "@odoo/owl";
 import { useAutoFocusToLast } from "@point_of_sale/app/hooks/hooks";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class SelectLotPopup extends Component {
     static template = "point_of_sale.SelectLotPopup";
     static components = { Dialog, AutoComplete };

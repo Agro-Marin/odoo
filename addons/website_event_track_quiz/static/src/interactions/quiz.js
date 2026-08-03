@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { rpc } from "@web/core/network";
+import { user } from "@web/core/user";
 
 /**
  * This widget is responsible of displaying quiz questions and propositions. Submitting the quiz will fetch the

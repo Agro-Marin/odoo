@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { cookie } from "@web/core/browser/cookie";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { isVisible } from "@web/core/utils/dom/ui";
 import { Popup } from "@website/interactions/popup/popup";
 import { cloneContentEls } from "@website/js/utils";

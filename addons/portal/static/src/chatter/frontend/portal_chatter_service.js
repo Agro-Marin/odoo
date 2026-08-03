@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { PortalChatter } from "@portal/chatter/frontend/portal_chatter";
-import { App } from "@odoo/owl";
-import { registry } from "@web/core/registry";
-import { rpc } from "@web/core/network/rpc";
-import { session } from "@web/session";
-import { appTranslateFn } from "@web/core/l10n/translation";
-import { getTemplate } from "@web/core/templates";
 import { loadCssFromBundle } from "@mail/utils/common/misc";
+import { App } from "@odoo/owl";
+import { PortalChatter } from "@portal/chatter/frontend/portal_chatter";
+import { rpc } from "@web/core/network";
+import { registry } from "@web/core/registry";
+import { getTemplate } from "@web/core/templates";
+import { appTranslateFn } from "@web/core/translation";
+import { session } from "@web/session";
 
 export class PortalChatterService {
     constructor(env, services) {

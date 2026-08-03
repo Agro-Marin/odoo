@@ -8,12 +8,14 @@ milestone, retrospective non-cyclic chain) and the core computes.
 
 from datetime import timedelta
 
+from lxml import etree
 from psycopg import IntegrityError
 
 from odoo import fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.project.tests.test_project_base import TestProjectCommon
 
@@ -266,3 +268,168 @@ class TestPmModels(TestProjectCommon):
             self.assertEqual(
                 risk.risk_level, level, f"prob={prob} impact={impact} score={score}"
             )
+
+
+@tagged("-at_install", "post_install")
+class TestPortfolioViews(TestProjectCommon):
+    """The portfolio views must only sort and aggregate on stored columns.
+
+    `_compute_health_indicators` documents that its fields are deliberately
+    non-reactive and "cannot be searched or grouped". Anything the ORM has to
+    push into SQL -- an `order`, a `read_group` aggregate -- therefore raises
+    `Cannot convert ... to SQL because it is not stored`, and the view that
+    asked for it fails to open at all rather than degrading.
+    """
+
+    def test_portfolio_list_default_order_is_stored(self):
+        """The list view's default_order must be readable."""
+        view = self.env.ref("project.project_portfolio_list")
+        order = etree.fromstring(view.arch).get("default_order")
+        self.assertTrue(order, "the portfolio list should declare a default_order")
+        # Raises if any component of the order is a non-stored field.
+        self.env["project.project"].search([], order=order, limit=5)
+
+    def test_portfolio_health_fields_stay_unaggregatable(self):
+        """Pin the constraint the views have to respect.
+
+        If health_score ever becomes stored this fails, which is the moment to
+        revisit the graph and pivot measures rather than discover it in a view.
+        """
+        health = self.env["project.project"]._fields["health_score"]
+        self.assertFalse(
+            health.store,
+            "health_score became stored; _compute_health_indicators says it "
+            "must not be, and the portfolio graph/pivot measures depend on "
+            "that decision",
+        )
+
+    def test_reachable_aggregating_views_measure_stored_fields(self):
+        """No action may offer a graph/pivot that measures a non-stored field.
+
+        `read_group` pushes every measure into SQL, so a non-stored compute
+        cannot be aggregated at all -- the view opens on an error dialog rather
+        than on empty data. This is the general form of the portfolio bug, and
+        what made it easy to miss: the same field renders perfectly well in a
+        list, so it looks usable.
+
+        Checked through the actions rather than the views, because that is what
+        decides reachability: a view record kept around for future work is
+        harmless until something offers it.
+        """
+        Project = self.env["project.project"]
+        actions = self.env["ir.actions.act_window"].search(
+            [("res_model", "=", "project.project")]
+        )
+        self.assertTrue(actions, "expected act_window actions on project.project")
+        offenders = []
+        for action in actions:
+            # `views` federates view_mode / view_ids / view_id, so it is the
+            # pair the client actually opens.
+            for view_id, mode in action.views:
+                if mode not in ("graph", "pivot"):
+                    continue
+                arch = Project.get_view(view_id=view_id or None, view_type=mode)["arch"]
+                for node in etree.fromstring(arch).iter("field"):
+                    if node.get("type") != "measure":
+                        continue
+                    field = Project._fields.get(node.get("name"))
+                    if field is not None and not field.store:
+                        offenders.append(
+                            f"{action.xml_id or action.name}/{mode}:{node.get('name')}"
+                        )
+        self.assertFalse(
+            offenders,
+            "actions offering a view that aggregates a non-stored field: "
+            + ", ".join(offenders),
+        )
+
+
+@tagged("-at_install", "post_install")
+class TestProjectActionsOpen(TestProjectCommon):
+    """Every act_window this module ships must survive being opened.
+
+    The browser sweep that would catch this (`TestMenusAdmin`, tag
+    `click_all`) is `-standard`, so it never runs; the one that does
+    (`TestMenusAdminLight`) stops at each app's landing action and cannot
+    reach a submenu. That leaves the fork's PM menus — portfolio, sprints,
+    baselines, gates, risks, retrospectives — with no coverage of the one
+    thing a user does first: open them.
+
+    This is the cheap ORM-level half: it performs, per declared view mode, the
+    read the client would issue. It does not render anything, so it catches
+    what fails in SQL (an `order` or a measure over a non-stored compute), not
+    what fails in a template.
+    """
+
+    def test_every_project_action_opens(self):
+        actions = self.env["ir.actions.act_window"].search([])
+        actions = actions.filtered(
+            lambda a: (
+                (a.xml_id or "").startswith("project.") and a.res_model in self.env
+            )
+        )
+        self.assertTrue(actions, "expected act_window actions from project")
+        failures = []
+        for action in actions:
+            model = self.env[action.res_model]
+            for view_id, mode in action.views:
+                if mode not in ("list", "graph", "pivot"):
+                    continue
+                try:
+                    arch = etree.fromstring(
+                        model.get_view(view_id=view_id or None, view_type=mode)["arch"]
+                    )
+                    if mode == "list":
+                        order = arch.get("default_order")
+                        if order:
+                            model.search([], order=order, limit=1)
+                    else:
+                        measures = [
+                            f"{n.get('name')}:sum"
+                            for n in arch.iter("field")
+                            if n.get("type") == "measure"
+                        ]
+                        if measures:
+                            model.formatted_read_group([], aggregates=measures)
+                except Exception as exc:
+                    failures.append(
+                        f"{action.xml_id}/{mode}: {type(exc).__name__}: {str(exc)[:90]}"
+                    )
+        self.assertFalse(
+            failures, "actions that fail to open:\n  " + "\n  ".join(failures)
+        )
+
+    def test_menu_reachable_action_contexts_evaluate_without_a_record(self):
+        """A menu entry has no active record, so its action's context must not need one.
+
+        `active_id` is legitimate on an action opened from a form button -- the
+        button executor puts it in the evaluation context first. A menu does
+        not, so the same expression raises before any view is built and the
+        entry opens on an error dialog. The two cases are indistinguishable in
+        the action record itself; only reachability tells them apart.
+        """
+        menus = self.env["ir.ui.menu"].search([("action", "!=", False)])
+        external_ids = menus.get_external_id()
+        menus = menus.filtered(
+            lambda m: (external_ids.get(m.id) or "").startswith("project.")
+        )
+        self.assertTrue(menus, "expected menus from project")
+        failures = []
+        for menu in menus:
+            action = menu.action
+            context = getattr(action, "context", None)
+            if not context or not isinstance(context, str):
+                continue
+            try:
+                # What the client has: user context only, no active record.
+                safe_eval(context, {"uid": self.env.uid, "allowed_company_ids": []})
+            except Exception as exc:
+                failures.append(
+                    f"{external_ids.get(menu.id)} -> {action.xml_id or action.name}: "
+                    f"{type(exc).__name__}: {str(exc)[:70]}"
+                )
+        self.assertFalse(
+            failures,
+            "menu actions whose context needs an active record:\n  "
+            + "\n  ".join(failures),
+        )

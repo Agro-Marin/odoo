@@ -4,7 +4,7 @@ import { Interaction } from "@web/public/interaction";
 import { InputConfirmationDialog } from "@portal/js/components/input_confirmation_dialog/input_confirmation_dialog";
 import { registry } from "@web/core/registry";
 import { renderToMarkup } from "@web/core/utils/render";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class PortalPasskey extends Interaction {
     static selector = ".o_passkey_portal_entry";

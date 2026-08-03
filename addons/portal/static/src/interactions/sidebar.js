@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { Interaction } from "@web/public/interaction";
-
 import { deserializeDate } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/translation";
 import { uniqueId } from "@web/core/utils/functions";
+import { Interaction } from "@web/public/interaction";
 
 const { DateTime } = luxon;
 

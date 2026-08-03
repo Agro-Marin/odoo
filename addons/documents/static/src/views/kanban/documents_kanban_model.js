@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { RelationalModel } from "@web/model/relational_model/relational_model";
+import { RelationalModel } from "@web/model/relational_model";
 import { DocumentsModelMixin } from "../documents_model_mixin.js";
 import { DocumentsRecordMixin } from "../documents_record_mixin.js";
 

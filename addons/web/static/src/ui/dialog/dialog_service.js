@@ -36,120 +36,167 @@ class DialogWrapper extends Component {
  *          props?: {},
  *          options?: DialogServiceInterfaceAddOptions
  *      ): () => void;
- *      closeAll(params?: any): void;
+ *      closeAll(params?: any): Promise<void>;
  *      destroy(): void;
  *  }} DialogServiceInterface
  */
+
+/**
+ * The `dialog` service.
+ *
+ * A class rather than a closure returning an object literal; see
+ * `core/hotkeys/hotkey_service.js` for the reasoning and
+ * `tooling/architecture/js_service_shape.py` for the budget.
+ *
+ * `destroy()` calls `this.closeAll()` — the prototype form of the facade
+ * routing `js_patch_blind_facade` added here, so a downstream patch of
+ * `closeAll` still applies when the service tears itself down.
+ *
+ * Everything inside `add()` stays local to `add()`: `id`, `close`, `subEnv` and
+ * `remove` all belong to one dialog, not to the service, and the overlay's
+ * `onRemove` closes over exactly that dialog's identity.
+ */
+export class DialogService {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ overlay: any }} services
+     */
+    constructor(env, { overlay }) {
+        this.env = env;
+        this.overlay = overlay;
+        /**
+         * @type {Array<{ id: number, close: Function, isActive: boolean, scrollToOrigin?: () => void }>}
+         */
+        this.stack = [];
+        this.nextId = 0;
+        /**
+         * @type {{ top: number, left: number } | null}
+         */
+        this.scrollOrigin = null;
+    }
+
+    deactivate() {
+        for (const subEnv of this.stack) {
+            subEnv.isActive = false;
+        }
+    }
+
+    /**
+     * Typed as precisely as the `DialogServiceInterface` typedef this class
+     * replaced. Writing `options: any` here instead made 19 tsc errors
+     * disappear — not because anything was fixed, but because every consumer
+     * passing an option outside `{ onClose, env, rootId }` stopped being
+     * checked. A conversion must not buy a smaller number with a weaker
+     * contract; that is the same fault as `loadDisplayNames: Function`, pointed
+     * the other way.
+     *
+     * @param {import("@odoo/owl").ComponentConstructor} dialogClass
+     * @param {{}} [props]
+     * @param {DialogServiceInterfaceAddOptions} [options]
+     * @returns {() => void}
+     */
+    add(dialogClass, props, options = {}) {
+        const id = this.nextId++;
+        const close = (/** @type {any} */ params) => {
+            subEnv.isClosing = true;
+            return remove(params);
+        };
+        const subEnv = reactive(
+            /**
+             * @type {{ id: number, close: Function, isActive: boolean, isClosing: boolean, scrollToOrigin?: () => void }}
+             */ ({
+                id,
+                close,
+                isActive: true,
+                isClosing: false,
+            }),
+        );
+
+        if (!this.stack.length) {
+            this.scrollOrigin = { top: window.scrollY, left: window.scrollX };
+        }
+        this.deactivate();
+        this.stack.push(subEnv);
+        document.body.classList.add("modal-open");
+
+        subEnv.scrollToOrigin = () => {
+            if (!this.stack.length && this.scrollOrigin) {
+                window.scrollTo(this.scrollOrigin);
+                this.scrollOrigin = null;
+            }
+        };
+
+        const remove = this.overlay.add(
+            DialogWrapper,
+            {
+                subComponent: dialogClass,
+                subProps: markRaw({ ...props, close }),
+                subEnv,
+            },
+            {
+                env: options.env,
+                onRemove: async (/** @type {any} */ closeParams) => {
+                    try {
+                        await options.onClose?.(closeParams);
+                    } finally {
+                        const idx = this.stack.findIndex((d) => d.id === id);
+                        if (idx !== -1) {
+                            this.stack.splice(idx, 1);
+                        }
+                        subEnv.isClosing = false;
+                        this.deactivate();
+                        if (this.stack.length) {
+                            /** @type {{ isActive: boolean }} */ (
+                                this.stack.at(-1)
+                            ).isActive = true;
+                        } else {
+                            document.body.classList.remove("modal-open");
+                        }
+                    }
+                },
+                rootId: options.rootId,
+            },
+        );
+
+        return remove;
+    }
+
+    /**
+     * @param {any} [params]
+     * @returns {Promise<void>} settles once every dialog has actually gone
+     */
+    async closeAll(params) {
+        await Promise.all(
+            this.stack.toReversed().map((dialog) => dialog.close(params)),
+        );
+    }
+
+    destroy() {
+        // Through `closeAll`, so a caller's `onClose` still runs and the
+        // dialogs actually leave the screen. Dropping the stack alone
+        // left whoever called `destroy()` directly with a modal still
+        // mounted and a service that believed nothing was open; on the
+        // usual path it only looked right because `overlay` is a
+        // dependency, hence destroyed first, and tore them down itself.
+        // Swallowed for the reason `overlayService.destroy` gives: at
+        // teardown there is no caller left to hand a rejection to.
+        // Routed through `this` so a downstream patch of `closeAll` applies.
+        this.closeAll().catch(() => {});
+        this.stack.length = 0;
+        this.scrollOrigin = null;
+        document.body.classList.remove("modal-open");
+    }
+}
 
 export const dialogService = {
     dependencies: ["overlay"],
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ overlay: any }} services
-     * @returns {DialogServiceInterface}
+     * @returns {DialogService}
      */
-    start(env, { overlay }) {
-        /**
-         * @type {Array<{ id: number, close: Function, isActive: boolean, scrollToOrigin?: () => void }>}
-         */
-        const stack = [];
-        let nextId = 0;
-        /**
-         * @type {{ top: number, left: number } | null}
-         */
-        let scrollOrigin = null;
-
-        const deactivate = () => {
-            for (const subEnv of stack) {
-                subEnv.isActive = false;
-            }
-        };
-
-        const add = (
-            /** @type {import("@odoo/owl").ComponentConstructor} */ dialogClass,
-            /** @type {any} */ props,
-            /** @type {any} */ options = {},
-        ) => {
-            const id = nextId++;
-            const close = (/** @type {any} */ params) => {
-                subEnv.isClosing = true;
-                return remove(params);
-            };
-            const subEnv = reactive(
-                /**
-                 * @type {{ id: number, close: Function, isActive: boolean, isClosing: boolean, scrollToOrigin?: () => void }}
-                 */ ({
-                    id,
-                    close,
-                    isActive: true,
-                    isClosing: false,
-                }),
-            );
-
-            if (!stack.length) {
-                scrollOrigin = { top: window.scrollY, left: window.scrollX };
-            }
-            deactivate();
-            stack.push(subEnv);
-            document.body.classList.add("modal-open");
-
-            subEnv.scrollToOrigin = () => {
-                if (!stack.length && scrollOrigin) {
-                    window.scrollTo(scrollOrigin);
-                    scrollOrigin = null;
-                }
-            };
-
-            const remove = overlay.add(
-                DialogWrapper,
-                {
-                    subComponent: dialogClass,
-                    subProps: markRaw({ ...props, close }),
-                    subEnv,
-                },
-                {
-                    env: options.env,
-                    onRemove: async (/** @type {any} */ closeParams) => {
-                        try {
-                            await options.onClose?.(closeParams);
-                        } finally {
-                            const idx = stack.findIndex((d) => d.id === id);
-                            if (idx !== -1) {
-                                stack.splice(idx, 1);
-                            }
-                            subEnv.isClosing = false;
-                            deactivate();
-                            if (stack.length) {
-                                /** @type {{ isActive: boolean }} */ (
-                                    stack.at(-1)
-                                ).isActive = true;
-                            } else {
-                                document.body.classList.remove("modal-open");
-                            }
-                        }
-                    },
-                    rootId: options.rootId,
-                },
-            );
-
-            return remove;
-        };
-
-        function closeAll(/** @type {any} */ params) {
-            for (const dialog of stack.toReversed()) {
-                dialog.close(params);
-            }
-        }
-
-        return {
-            add,
-            closeAll,
-            destroy() {
-                stack.length = 0;
-                scrollOrigin = null;
-                document.body.classList.remove("modal-open");
-            },
-        };
+    start(env, services) {
+        return new DialogService(env, services);
     },
 };
 

@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { RPCError } from "@web/core/network/rpc";
+import { RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
+} from "@web/fields/relational/many2many_tags";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 export class Many2XBarcodeTagsAutocomplete extends Many2XAutocomplete {

@@ -4,7 +4,7 @@
 /** @module @web/fields/selection/badge_selection/list_badge_selection_field */
 
 import { badgeColorClass } from "@web/core/badge/badge_colors";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { registerField } from "@web/fields/_registry";
 

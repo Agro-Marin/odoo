@@ -4,10 +4,10 @@ import { useOnBottomScrolled } from "@mail/utils/common/hooks";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, useEffect, useState } from "@odoo/owl";
 import { PICKER_PROPS, usePicker } from "@web/components/emoji_picker/emoji_picker";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { user } from "@web/core/user";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-import { user } from "@web/services/user";
 // Server page size for /discuss/gif/favorites.
 const GIF_FAVORITES_LIMIT = 20;
 export function useGifPicker(...args) {

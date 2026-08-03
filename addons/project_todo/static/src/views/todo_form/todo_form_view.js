@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { formView } from "@web/views/form/form_view";
+import { formView } from "@web/views/form";
 import { TodoFormController } from "./todo_form_controller.js";
 import { TodoFormControlPanel } from "./todo_form_control_panel.js";
 import { TodoFormRenderer } from "./todo_form_renderer.js";

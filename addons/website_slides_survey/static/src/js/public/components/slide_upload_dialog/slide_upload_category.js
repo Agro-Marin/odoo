@@ -2,8 +2,8 @@
 import { SlideUploadCategory } from "@website_slides/js/public/components/slide_upload_dialog/slide_upload_category";
 import { patch } from "@web/core/utils/patch";
 import { onWillStart } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { _t } from "@web/core/translation";
+import { rpc } from "@web/core/network";
 
 patch(SlideUploadCategory.prototype, {
     setup() {

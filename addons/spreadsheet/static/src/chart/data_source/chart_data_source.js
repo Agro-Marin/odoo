@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { OdooViewsDataSource } from "@spreadsheet/data_sources/odoo_views_data_source";
-import { _t } from "@web/core/l10n/translation";
-import { GraphModel as ChartModel } from "@web/views/graph/graph_model";
 import { Domain } from "@web/core/domain";
+import { _t } from "@web/core/translation";
+import { GraphModel as ChartModel } from "@web/views/graph";
 
 export class ChartDataSource extends OdooViewsDataSource {
     /**

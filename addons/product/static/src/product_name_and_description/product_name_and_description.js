@@ -10,10 +10,13 @@ import {
     useState,
 } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useInputField } from "@web/fields/input_field_hook";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
-import { Many2OneField } from "@web/fields/relational/many2one/many2one_field";
+import {
+    computeM2OProps,
+    Many2One,
+    Many2OneField,
+} from "@web/fields/relational/many2one";
 
 import { useProductAndLabelAutoresize } from "./product_and_label_autoresize.js";
 

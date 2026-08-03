@@ -90,12 +90,12 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { FileInput } from "@web/components/file_input/file_input";
 import { browser } from "@web/core/browser/browser";
+import { currencies } from "@web/core/currency";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { SampleServer } from "@web/model/sample_server";
-import { currencies } from "@web/services/currency";
-import { user } from "@web/services/user";
 import { AnimatedNumber } from "@web/views/kanban/animated_number";
 import { KanbanCompiler } from "@web/views/kanban/kanban_compiler";
 import { KanbanController } from "@web/views/kanban/kanban_controller";

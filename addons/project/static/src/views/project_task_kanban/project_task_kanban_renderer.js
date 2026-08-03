@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { RottingKanbanRenderer } from "@mail/js/rotting_mixin/rotting_kanban_renderer";
 import { onWillStart } from "@odoo/owl";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 import { ProjectTaskKanbanHeader } from "./project_task_kanban_header.js";
 import { ProjectTaskKanbanRecord } from "./project_task_kanban_record.js";

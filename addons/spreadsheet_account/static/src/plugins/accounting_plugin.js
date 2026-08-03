@@ -2,10 +2,10 @@
 // @ts-check
 
 import { EvaluationError } from "@odoo/o-spreadsheet";
-import { OdooUIPlugin } from "@spreadsheet/plugins";
-import { _t } from "@web/core/l10n/translation";
-import { deepCopy } from "@web/core/utils/collections/objects";
 import { camelToSnakeObject, toServerDateString } from "@spreadsheet/helpers/helpers";
+import { OdooUIPlugin } from "@spreadsheet/plugins";
+import { _t } from "@web/core/translation";
+import { deepCopy } from "@web/core/utils/collections/objects";
 
 /**
  * @typedef {import("../accounting_functions").DateRange} DateRange

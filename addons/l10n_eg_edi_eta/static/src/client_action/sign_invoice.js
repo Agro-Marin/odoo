@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 async function actionGetDrive(env, action, type) {
     const { drive_id, sign_host: host } = action.params;

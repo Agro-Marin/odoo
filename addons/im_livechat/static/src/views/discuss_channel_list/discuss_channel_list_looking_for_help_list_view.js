@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { LivechatLookingForHelpReloadMixin } from "@im_livechat/views/livechat_looking_for_help_controller_mixin";
 import { registry } from "@web/core/registry";
-import { ListController } from "@web/views/list/list_controller";
-import { listView } from "@web/views/list/list_view";
+import { ListController, listView } from "@web/views/list";
 
 class DiscussChannelLookingForHelpListController extends LivechatLookingForHelpReloadMixin(
     ListController,

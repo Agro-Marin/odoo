@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { actionService } from "@web/webclient/actions/action_service";
+import { actionService } from "@web/webclient/actions";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
 

@@ -41,7 +41,7 @@ import {
     withUser,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 describe.current.tags("desktop");
 defineMailModels();

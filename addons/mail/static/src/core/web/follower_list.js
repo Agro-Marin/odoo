@@ -3,8 +3,8 @@ import { Follower } from "@mail/core/web/follower";
 import { FollowerSubtypeDialog } from "@mail/core/web/follower_subtype_dialog";
 import { useVisible } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { _t } from "@web/core/l10n/translation";
+import { DropdownItem } from "@web/components/dropdown";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props

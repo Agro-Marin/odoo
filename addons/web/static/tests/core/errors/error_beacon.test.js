@@ -181,7 +181,9 @@ test("reportJsError: a cyclic cause chain terminates instead of spinning", async
     const a = new Error("a");
     const b = new Error("b", { cause: a });
     /** @type {any} */ (a).cause = b;
-    expect(() => reportJsError({ message: "beacon-cause-cycle", cause: b })).not.toThrow();
+    expect(() =>
+        reportJsError({ message: "beacon-cause-cycle", cause: b }),
+    ).not.toThrow();
     const payload = await payloadOf(calls[0].blob);
     expect(payload.cause).toInclude("[circular]");
 });
@@ -244,9 +246,15 @@ test("reportJsError: same message and stack but a different cause is distinct", 
         message: "An error occured in the owl lifecycle",
         stack: "at handleError\n at Fiber.complete\n at Scheduler.flush",
     };
-    expect(reportJsError({ ...shared, cause: new TypeError("component A") })).toBe(true);
-    expect(reportJsError({ ...shared, cause: new TypeError("component B") })).toBe(true);
-    expect(reportJsError({ ...shared, cause: new TypeError("component A") })).toBe(false);
+    expect(reportJsError({ ...shared, cause: new TypeError("component A") })).toBe(
+        true,
+    );
+    expect(reportJsError({ ...shared, cause: new TypeError("component B") })).toBe(
+        true,
+    );
+    expect(reportJsError({ ...shared, cause: new TypeError("component A") })).toBe(
+        false,
+    );
     expect(calls).toHaveLength(2);
 });
 
@@ -256,4 +264,17 @@ test("reportJsError: a nested object cause is elided, not walked", async () => {
     reportJsError({ message: "beacon-cause-elide", cause: deep });
     const payload = await payloadOf(calls[0].blob);
     expect(payload.cause).toBe('Caused by: {"level":1,"child":"[object]"}');
+});
+test("reportJsError: an explicit phase overrides the odoo.isReady default", async () => {
+    const { calls } = spyBeacon();
+    patchWithCleanup(odoo, { isReady: true }); // would otherwise be post_boot
+    reportJsError({ message: "beacon-phase-override", phase: "boot_mount_failed" });
+    expect((await payloadOf(calls[0].blob)).phase).toBe("boot_mount_failed");
+});
+
+test("reportJsError: dedup:false beacons every occurrence", () => {
+    const { calls } = spyBeacon();
+    expect(reportJsError({ message: "beacon-every", dedup: false })).toBe(true);
+    expect(reportJsError({ message: "beacon-every", dedup: false })).toBe(true);
+    expect(calls).toHaveLength(2);
 });

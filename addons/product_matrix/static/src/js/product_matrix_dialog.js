@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Dialog } from '@web/ui/dialog/dialog';
+import { Dialog } from "@web/ui/dialog";
 import { formatMonetary } from "@web/core/formatters";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { Component, onMounted, markup, useRef } from "@odoo/owl";
 
 export class ProductMatrixDialog extends Component {

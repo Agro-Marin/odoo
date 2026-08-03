@@ -1,7 +1,7 @@
 import { animationFrame, expect, test } from "@odoo/hoot";
 import { ComboConfiguratorPopup } from "@point_of_sale/app/components/popups/combo_configurator_popup/combo_configurator_popup";
 import { getService, mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 import { definePosModels } from "../data/generate_model_definitions.js";
 import { setupPosEnv } from "../utils.js";

@@ -5,11 +5,11 @@ import { Component } from "@odoo/owl";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { Field } from "@web/fields/field";
 import { Record } from "@web/model/record";
-import { ViewButton } from "@web/views/view_button/view_button";
+import { ViewButton } from "@web/views/view_button";
 import { useViewCompiler } from "@web/views/view_compiler";
 
 import { HierarchyCompiler } from "./hierarchy_compiler.js";
-import { getFormattedRecord } from "@web/views/kanban/kanban_record";
+import { getFormattedRecord } from "@web/views/kanban";
 
 export class HierarchyCard extends Component {
     static components = {

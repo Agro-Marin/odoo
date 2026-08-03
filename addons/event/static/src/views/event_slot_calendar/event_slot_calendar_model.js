@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { CalendarModel } from "@web/views/calendar/calendar_model";
+import { CalendarModel } from "@web/views/calendar";
 import { serializeDate } from "@web/core/l10n/dates";
 
 /**

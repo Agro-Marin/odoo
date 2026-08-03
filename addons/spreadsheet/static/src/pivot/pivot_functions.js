@@ -1,9 +1,8 @@
 /** @odoo-module native */
 // @ts-check
 
-import { _t } from "@web/core/l10n/translation";
-
 import * as spreadsheet from "@odoo/o-spreadsheet";
+import { _t } from "@web/core/translation";
 
 const { arg, isMatrix, toJsDate, toString } = spreadsheet.helpers;
 const { functionRegistry } = spreadsheet.registries;

@@ -114,7 +114,13 @@ function validateRPCSettings(settings) {
     }
 }
 
-export class NetworkError extends Error {}
+export class NetworkError extends Error {
+    // Behaviour-as-data: whether an automatic retry could plausibly succeed.
+    // Consumers gate on this rather than on the class, so a new error type
+    // declares its own retryability instead of every retry site special-casing
+    // it. Default: not retryable.
+    retryable = false;
+}
 
 export class RPCError extends NetworkError {
     constructor(/** @type {any[]} */ ...args) {
@@ -139,6 +145,9 @@ export class RPCError extends NetworkError {
 }
 
 export class ConnectionLostError extends NetworkError {
+    // A dropped/unestablished connection: retrying may reach the server.
+    retryable = true;
+
     /**
      * @param {string} [url]
      * @param {...any} args
@@ -171,20 +180,29 @@ export class ServerOverloadError extends ConnectionLostError {
     }
 }
 
-export class InvalidResponseError extends ConnectionLostError {
+// NOT a ConnectionLostError: a well-formed HTTP response arrived, it just was
+// not the JSON-RPC we expected (e.g. a session-expired request redirected to a
+// login page). It is a distinct failure, so it extends NetworkError directly and
+// stays `retryable = false` -- the connection is fine, retrying returns the same
+// non-JSON. Consumers that must still react to it (the session-expired handler,
+// spreadsheet collaboration, POS sync) name it explicitly rather than relying on
+// a `ConnectionLostError` is-a they would otherwise all have to carve back out.
+export class InvalidResponseError extends NetworkError {
     /**
      * @param {string} url
      * @param {number} status
      * @param {...any} args
      */
     constructor(url, status, ...args) {
-        super(url, ...args);
+        const message = url
+            ? `Server returned an invalid (non JSON-RPC) response (HTTP ${status}) at "${url}"`
+            : `Server returned an invalid (non JSON-RPC) response (HTTP ${status})`;
+        super(message, ...args);
         this.name = "InvalidResponseError";
         /** @type {number} */
         this.status = status;
-        this.message = url
-            ? `Server returned an invalid (non JSON-RPC) response (HTTP ${status}) at "${url}"`
-            : `Server returned an invalid (non JSON-RPC) response (HTTP ${status})`;
+        /** @type {string | undefined} */
+        this.url = url;
     }
 }
 
@@ -202,6 +220,9 @@ export class RequestEntityTooLargeError extends NetworkError {
 }
 
 export class ConnectionTimeoutError extends NetworkError {
+    // A request that timed out: a fresh attempt may complete in time.
+    retryable = true;
+
     /**
      * @param {string} url
      * @param {number} timeoutMs
@@ -258,6 +279,17 @@ export function makeErrorFromResponse(response) {
  */
 rpc.setCache = function (cache) {
     _rpcState.rpcCache = cache;
+};
+
+/**
+ * Delete the persisted RPC cache (its IndexedDB store). Used on logout so a
+ * user's cached data does not outlive their session on a shared browser. A no-op
+ * that resolves when no disk cache is configured.
+ *
+ * @returns {Promise<void>}
+ */
+rpc.purgeCacheStorage = function () {
+    return _rpcState.rpcCache?.purgeStorage() ?? Promise.resolve();
 };
 
 if (!_rpcState.busListenersAttached) {
@@ -353,10 +385,11 @@ function backoffDelay(attempt, config, lastError) {
  * @returns {boolean}
  */
 function isRetryable(err) {
-    return (
-        (err instanceof ConnectionLostError || err instanceof ConnectionTimeoutError) &&
-        !(err instanceof InvalidResponseError)
-    );
+    // Behaviour-as-data: each NetworkError declares its own retryability, so this
+    // gate no longer enumerates types and carves InvalidResponseError back out
+    // (ConnectionLost/Timeout/ServerOverload are `retryable`; InvalidResponse and
+    // aborts are not).
+    return err instanceof NetworkError && err.retryable === true;
 }
 
 /**

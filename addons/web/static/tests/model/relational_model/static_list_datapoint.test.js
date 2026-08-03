@@ -47,6 +47,7 @@ describe("extendRecord fields identity", () => {
                 fields: { display_name: { type: "char", name: "display_name" } },
             },
             _addSavePoint() {},
+            extendActiveFields() {},
         };
         list._extendedRecords.add(record.id);
 

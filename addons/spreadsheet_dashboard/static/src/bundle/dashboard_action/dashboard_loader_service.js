@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { reactive } from "@odoo/owl";
 import { Model } from "@odoo/o-spreadsheet";
-import { registry } from "@web/core/registry";
-import { OdooDataProvider } from "@spreadsheet/data_sources/odoo_data_provider";
+import { reactive } from "@odoo/owl";
 import { createDefaultCurrency } from "@spreadsheet/currency/helpers";
-import { _t } from "@web/core/l10n/translation";
+import { OdooDataProvider } from "@spreadsheet/data_sources/odoo_data_provider";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
 /**
  * @type {{
@@ -41,7 +41,7 @@ export const Status = {
  *
  * @typedef {import("@web/env").OdooEnv} OdooEnv
  *
- * @typedef {import("@web/services/orm_service").ORM} ORM
+ * @typedef {import("@web/core/network/orm_service").ORM} ORM
  */
 
 export class DashboardLoader {

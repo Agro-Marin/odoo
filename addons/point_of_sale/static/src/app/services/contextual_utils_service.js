@@ -3,7 +3,7 @@ import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { escapeRegExp } from "@web/core/utils/format/strings";
-import { formatCurrency as webFormatCurrency } from "@web/services/currency";
+import { formatCurrency as webFormatCurrency } from "@web/core/currency";
 /**
  * This service introduces `utils` namespace in the `env` which can contain
  * functions that are parameterized by the data in `pos` service.

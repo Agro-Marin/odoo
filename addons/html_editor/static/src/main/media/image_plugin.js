@@ -7,8 +7,8 @@ import { READ, withSequence } from "@html_editor/utils/resource";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { isImageUrl } from "@html_editor/utils/url";
 import { reactive } from "@odoo/owl";
-import { createFileViewer } from "@web/components/file_viewer/file_viewer_hook";
-import { _t } from "@web/core/l10n/translation";
+import { createFileViewer } from "@web/components/file_viewer";
+import { _t } from "@web/core/translation";
 
 import { Plugin } from "../../plugin.js";
 import { ImageDescription, ImageDescriptionPopover } from "./image_description.js";

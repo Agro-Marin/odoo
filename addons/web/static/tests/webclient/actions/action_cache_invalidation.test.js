@@ -249,6 +249,51 @@ test("a non-act_window action write clears the cache but skips the refresh", asy
     uninstall();
 });
 
+/** Simulate a mutating RPC on `model` with an explicit method reaching the bus. */
+function fireMutation(model, method) {
+    rpcBus.trigger(RpcEvent.RESPONSE, {
+        data: { params: { model, method } },
+        settings: { silent: true },
+    });
+}
+
+test("an ir.embedded.actions create/unlink clears the cache but skips the refresh", async () => {
+    // `/web/action/load` inlines the action's embedded actions, so mutating one
+    // must bust the cache -- but the model is `ir.embedded.actions`, which a
+    // prefix-only `ir.actions.` match misses (the bug this guards). It is not an
+    // act_window, so the breadcrumb refresh must NOT run.
+    let refreshed = 0;
+    onRpc("/web/action/load_breadcrumbs", () => {
+        refreshed++;
+        return [];
+    });
+    const cacheBefore = new BreadcrumbCache();
+    /** @type {any} */
+    const am = {
+        breadcrumbCache: cacheBefore,
+        controllerStack: [
+            { state: { action: 1 }, action: {}, config: { breadcrumbs: [] } },
+        ],
+        _getBreadcrumbs: () => [],
+    };
+    const uninstall = installActionCacheInvalidation(am);
+
+    const cleared = [];
+    const onClear = (ev) => cleared.push(ev.detail);
+    rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    fireMutation("ir.embedded.actions", "create");
+    fireMutation("ir.embedded.actions", "unlink");
+    await animationFrame();
+
+    expect(cleared.filter((d) => d === "/web/action/load").length).toBe(2);
+    expect(refreshed).toBe(0);
+    expect(am.breadcrumbCache).toBe(cacheBefore);
+
+    rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear);
+    uninstall();
+});
+
 test("a write on an unrelated model is ignored entirely", async () => {
     const cacheBefore = new BreadcrumbCache();
     /** @type {any} */

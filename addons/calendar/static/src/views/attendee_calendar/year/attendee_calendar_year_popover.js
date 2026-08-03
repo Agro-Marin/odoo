@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { CalendarYearPopover } from "@web/views/calendar/calendar_year/calendar_year_popover";
+import { CalendarYearPopover } from "@web/views/calendar";
 
 export class AttendeeCalendarYearPopover extends CalendarYearPopover {
     static subTemplates = {

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Img } from "@html_builder/core/img";
-import { Component, useState, useRef } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { Component, useRef,useState } from "@odoo/owl";
+import { _t } from "@web/core/translation";
 import { useAutofocus } from "@web/core/utils/hooks";
 
 export class CustomInnerSnippet extends Component {

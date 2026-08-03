@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { deserializeDateTime } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 const { DateTime } = luxon;
 

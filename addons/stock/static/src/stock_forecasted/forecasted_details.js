@@ -2,7 +2,7 @@
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { formatFloat } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 export class ForecastedDetails extends Component {

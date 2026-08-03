@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-
 import { useOpenChat } from "@mail/core/web/open_chat_hook";
 import { Component } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class HrEmployeeChat extends Component {
     static props = {

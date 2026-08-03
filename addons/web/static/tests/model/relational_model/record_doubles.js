@@ -18,7 +18,14 @@
  */
 
 import { markRaw } from "@odoo/owl";
+import { RECORD_CONTRACT_SURFACE } from "@web/model/relational_model/record_contract";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
+import { RecordSaveCoordinator } from "@web/model/relational_model/record_save_coordinator";
+
+// The contract now lives in production, beside the class it describes; the
+// doubles are a consumer of it, not its owner. Re-exported so the suites that
+// import it from here keep working.
+export { RECORD_CONTRACT_SURFACE };
 
 /**
  * The record-level state transitions the model helpers now call. Expressed
@@ -75,48 +82,6 @@ export const RECORD_STATE_TRANSITIONS = {
 };
 
 /**
- * The record surface the ``relational_model/`` helpers and ``StaticList`` reach
- * for. Written down once here so the two directions of drift both fail loudly:
- * ``record_doubles_conformance.test.js`` asserts a REAL ``RelationalRecord``
- * has every entry (so a rename in the class breaks this list rather than
- * silently orphaning it) and that {@link makeRecordDouble} does too (so the
- * double cannot fall behind the list).
- *
- * @type {string[]}
- */
-export const RECORD_CONTRACT_SURFACE = [
-    // identity + shape
-    "activeFields",
-    "data",
-    "fields",
-    "isNew",
-    // editable state
-    "_changes",
-    "_initialTextValues",
-    "_invalidFields",
-    "_savePoint",
-    "_textValues",
-    "_unsetRequiredFields",
-    "_values",
-    "dirty",
-    "hasPendingChanges",
-    // list-facing
-    "_loadedFieldNames",
-    // behaviour the helpers invoke
-    "_checkValidity",
-    "_clearChanges",
-    "_clearValidity",
-    "_commitChanges",
-    "_discardChanges",
-    "_isInvisible",
-    "_isRequired",
-    "_rebuildData",
-    "_resetValues",
-    "_restoreActiveFields",
-    "_setEvalContext",
-];
-
-/**
  * @param {Object} [opts]
  * @param {Record<string, any>} [opts.changes] pending edits
  * @param {Record<string, any>} [opts.textValues]
@@ -131,6 +96,10 @@ export const RECORD_CONTRACT_SURFACE = [
  * @param {Record<string, any>} [opts.activeFields] defaults to one entry per field
  * @param {(fieldName: string) => boolean} [opts.isRequired]
  * @param {(fieldName: string) => boolean} [opts.isInvisible]
+ * @param {((data: any[], fieldName: string, options?: any) => any) | null} [opts.createStaticListDatapoint]
+ *        the contract member this double cannot fake; throws unless supplied
+ * @param {((properties: any, fieldName: string, parent: any, currentValues: any) => any) | null} [opts.processProperties]
+ *        the properties-processing seam; throws unless supplied
  * @returns {any} a record-shaped double
  */
 export function makeRecordDouble({
@@ -147,6 +116,8 @@ export function makeRecordDouble({
     activeFields = null,
     isRequired = () => false,
     isInvisible = () => false,
+    createStaticListDatapoint = null,
+    processProperties = null,
 } = {}) {
     const merged = data ?? { ...values, ...changes };
     if (fields === null) {
@@ -232,13 +203,42 @@ export function makeRecordDouble({
         _loadedFieldNames: new Set(Object.keys(merged)),
 
         ...RECORD_STATE_TRANSITIONS,
+        saveState: new RecordSaveCoordinator(),
         _clearChanges: () => editState.clearChanges(),
         _clearValidity: () => editState.clearValidity(),
         _isRequired: isRequired,
         _isInvisible: isInvisible,
+        // Part of the contract, but building a real StaticList is beyond what a
+        // DOM-free double should fake. Throwing says "not modelled here" rather
+        // than handing back an approximation a test could quietly believe.
+        // The seam two suites stub to test value transformation in isolation.
+        // Defaulting to the real `processProperties` would silently un-isolate
+        // any test that forgot to pass one.
+        _processProperties:
+            processProperties ??
+            (() => {
+                throw new Error(
+                    "makeRecordDouble: _processProperties is not modelled; " +
+                        "pass `processProperties` if the code under test needs it",
+                );
+            }),
+        _createStaticListDatapoint:
+            createStaticListDatapoint ??
+            (() => {
+                throw new Error(
+                    "makeRecordDouble: _createStaticListDatapoint is not modelled; " +
+                        "pass `createStaticListDatapoint` if the code under test needs it",
+                );
+            }),
         _setEvalContext: () => {},
         _restoreActiveFields: () => {},
-        _closeInvalidFieldsNotification: () => {},
+        setInvalidFieldsNotification: (close) => {
+            editState.closeInvalidFieldsNotification = close;
+        },
+        closeInvalidFieldsNotification: () => {
+            editState.closeInvalidFieldsNotification();
+            editState.closeInvalidFieldsNotification = () => {};
+        },
         _checkValidity: () => true,
     };
 }

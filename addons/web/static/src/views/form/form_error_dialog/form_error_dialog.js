@@ -4,7 +4,7 @@
 /** @module @web/views/form/form_error_dialog/form_error_dialog */
 
 import { Component } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
+import { useAction } from "@web/core/action_port";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 export class FormErrorDialog extends Component {
@@ -19,11 +19,11 @@ export class FormErrorDialog extends Component {
         close: Function,
     };
 
-    /** @type {import("services").ServiceFactories["action"]} */
+    /** @type {import("@web/core/action_port").ActionPort} */
     action;
 
     setup() {
-        this.action = useService("action");
+        this.action = useAction();
         this.message = this.props.message;
         if (this.props?.data.name === "odoo.exceptions.RedirectWarning") {
             this.message = this.props.data.arguments[0];

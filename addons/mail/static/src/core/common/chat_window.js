@@ -16,11 +16,11 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
+import { Dropdown } from "@web/components/dropdown";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { localization } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { isEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
 /**

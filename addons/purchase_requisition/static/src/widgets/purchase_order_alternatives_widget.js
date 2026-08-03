@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
+import { ListRenderer } from "@web/views/list";
 
 
 export class FieldMany2ManyAltPOsRenderer extends ListRenderer {

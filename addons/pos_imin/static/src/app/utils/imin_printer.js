@@ -2,7 +2,7 @@
 import { BasePrinter } from "@point_of_sale/app/utils/printer/base_printer";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 const CONSOLE_COLOR = "#28ffeb";
 
 /* global IminPrinter */

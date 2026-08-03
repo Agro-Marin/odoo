@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { FollowerSubtypeDialog } from "@mail/core/web/follower_subtype_dialog";
 import { Component } from "@odoo/owl";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props

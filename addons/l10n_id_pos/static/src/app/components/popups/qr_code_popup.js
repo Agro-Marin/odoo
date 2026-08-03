@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { QRPopup } from "@point_of_sale/app/components/popups/qr_code_popup/qr_code_popup";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-import { _t } from "@web/core/l10n/translation";
+import { AlertDialog } from "@web/ui/dialog";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 patch(QRPopup.prototype, {

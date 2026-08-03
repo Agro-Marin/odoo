@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { x2ManyField, X2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { x2ManyField, X2ManyField } from "@web/fields/relational/x2many";
 
 class DocumentsX2ManyFieldNoOpen extends X2ManyField {
     setup() {

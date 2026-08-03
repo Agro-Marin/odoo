@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { FormController } from "@web/views/form/form_controller";
 import { useAskRecurrenceUpdatePolicy } from "@calendar/views/ask_recurrence_update_policy_hook";
 import { useService } from "@web/core/utils/hooks";
+import { FormController } from "@web/views/form";
 
 export class CalendarFormController extends FormController {
     setup() {

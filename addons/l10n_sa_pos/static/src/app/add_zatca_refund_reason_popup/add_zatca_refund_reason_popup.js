@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class AddZatcaRefundReasonPopup extends Component {
     static template = "l10n_sa_pos.AddZatcaRefundReasonPopup";
     static components = { Dialog };

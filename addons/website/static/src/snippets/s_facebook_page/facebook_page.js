@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { clamp } from "@web/core/utils/format/numbers";
 import { Interaction } from "@web/public/interaction";

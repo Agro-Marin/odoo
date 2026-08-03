@@ -1,10 +1,9 @@
 /** @odoo-module native */
 
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { FormController } from "@web/views/form/form_controller";
-import { formView } from "@web/views/form/form_view";
+import { _t } from "@web/core/translation";
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { FormController, formView } from "@web/views/form";
 
 export class CurrencyFormController extends FormController {
     async onWillSaveRecord(record) {

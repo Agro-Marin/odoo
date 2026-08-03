@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { ForecastedHeader as Parent } from "@stock/stock_forecasted/forecasted_header";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 export class StockAccountForecastedHeader extends Parent {

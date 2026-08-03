@@ -2,8 +2,8 @@
 /* global paypal */
 
 import { loadJS } from '@web/core/assets';
-import { _t } from '@web/core/l10n/translation';
-import { rpc, RPCError } from '@web/core/network/rpc';
+import { _t } from '@web/core/translation';
+import { rpc, RPCError } from "@web/core/network";
 import { patch } from '@web/core/utils/patch';
 
 import { PaymentForm } from '@payment/interactions/payment_form';

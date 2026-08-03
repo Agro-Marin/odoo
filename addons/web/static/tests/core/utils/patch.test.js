@@ -1205,3 +1205,103 @@ describe("extension objects stay pristine", () => {
         expect(patchInfo(A.prototype)).toBe(null);
     });
 });
+
+describe("mixin chains", () => {
+    // `SearchModel` is
+    // `SearchQueryMixin(SearchSplitDomainMixin(SearchFavoritesMixin(
+    //     SearchPropertiesMixin(SearchPanelMixin(EventBus)))))`
+    // — five mixins holding 1,139 lines of class body. Every method they declare
+    // lives on an ANCESTOR prototype, not on `SearchModel.prototype`, so patching
+    // the composed class for one of those names is the case where `patch()` finds
+    // no own descriptor to record on its skeleton and `super` must resolve through
+    // the real prototype chain instead.
+    //
+    // Nothing else in this file covers that: every other test patches a key the
+    // target itself declares. The whole extensibility argument for mixin-composed
+    // classes rests on this working, so it is pinned here rather than assumed.
+
+    const withDeep = (Base) =>
+        class extends Base {
+            deep() {
+                expect.step("deep.mixin");
+            }
+            get deepValue() {
+                return "mixin";
+            }
+        };
+    const withMiddle = (Base) =>
+        class extends Base {
+            deep() {
+                super.deep();
+                expect.step("middle.mixin");
+            }
+        };
+
+    function createComposed() {
+        return class Composed extends withMiddle(withDeep(class {})) {};
+    }
+
+    test("patch a composed class for a method declared only in a mixin", () => {
+        const Composed = createComposed();
+        expect(Object.hasOwn(Composed.prototype, "deep")).toBe(false);
+
+        new Composed().deep();
+        expect.verifySteps(["deep.mixin", "middle.mixin"]);
+
+        const unpatch = patch(Composed.prototype, {
+            deep() {
+                super.deep();
+                expect.step("patch.deep");
+            },
+        });
+        new Composed().deep();
+        expect.verifySteps(["deep.mixin", "middle.mixin", "patch.deep"]);
+
+        unpatch();
+        new Composed().deep();
+        expect.verifySteps(["deep.mixin", "middle.mixin"]);
+    });
+
+    test("patch a getter declared only in a mixin", () => {
+        const Composed = createComposed();
+        expect(new Composed().deepValue).toBe("mixin");
+
+        const unpatch = patch(Composed.prototype, {
+            get deepValue() {
+                return `${super.deepValue}+patch`;
+            },
+        });
+        expect(new Composed().deepValue).toBe("mixin+patch");
+
+        unpatch();
+        expect(new Composed().deepValue).toBe("mixin");
+    });
+
+    test("two patches on a mixin-declared method chain in order", () => {
+        const Composed = createComposed();
+        const unpatch1 = patch(Composed.prototype, {
+            deep() {
+                super.deep();
+                expect.step("patch1.deep");
+            },
+        });
+        const unpatch2 = patch(Composed.prototype, {
+            deep() {
+                super.deep();
+                expect.step("patch2.deep");
+            },
+        });
+        new Composed().deep();
+        expect.verifySteps([
+            "deep.mixin",
+            "middle.mixin",
+            "patch1.deep",
+            "patch2.deep",
+        ]);
+
+        unpatch2();
+        unpatch1();
+        new Composed().deep();
+        expect.verifySteps(["deep.mixin", "middle.mixin"]);
+    });
+});

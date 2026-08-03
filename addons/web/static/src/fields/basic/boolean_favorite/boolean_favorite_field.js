@@ -4,7 +4,7 @@
 /** @module @web/fields/basic/boolean_favorite/boolean_favorite_field */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
 import { extractAutosave } from "@web/fields/field_utils";

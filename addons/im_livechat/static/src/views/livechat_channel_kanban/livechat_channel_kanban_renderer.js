@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
+import { KanbanRenderer } from "@web/views/kanban";
 
 import { LivechatChannelKanbanRecord } from "./livechat_channel_kanban_record.js";
 

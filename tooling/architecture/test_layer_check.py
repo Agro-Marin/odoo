@@ -89,7 +89,7 @@ def test_function_local_import_is_captured():
 
 # --- blind-spot regression: `from <pkg> import <submodule>` must be resolved ---
 # Without this, `from .. import models` resolved only to the *package* (odoo.orm)
-# and the real Layer-2 target (odoo.orm.models) was invisible. See ADR-0001.
+# and the real Layer-2 target (odoo.orm.models) was invisible.
 
 
 def test_from_relative_pkg_import_submodule_is_resolved():
@@ -145,7 +145,7 @@ def test_layer0_import_of_higher_shim_is_a_violation():
 
 
 def test_recordset_seam_is_under_enforcement():
-    # The ADR-0001 injection seam was previously outside every contract source.
+    # The injection seam was previously outside every contract source.
     sources = {p for c in lc.CONTRACTS for p in c.source}
     assert "odoo.orm._recordset" in sources
     assert _violates("odoo.orm._recordset", "from .models import BaseModel\n")
@@ -166,7 +166,8 @@ def test_legitimate_layer1_imports_do_not_violate():
 
 
 def test_addon_importing_orm_internal_is_a_violation():
-    # The whole point of ADR-0008: addon code must not reach into odoo.orm.*.
+    # The whole point of the facade boundary: addon code must not reach into
+    # odoo.orm.*.
     assert _violates(
         "odoo.addons.base.models.res_users",
         "from odoo.orm._typing import ValuesType\n",
@@ -445,7 +446,7 @@ def test_the_cron_exception_is_pinned_not_silent():
 
 def test_facade_boundary_scans_the_addon_tree():
     # iter_source_files derives its roots from contract sources; the contract is
-    # worthless if the addon tree is never walked (the bug ADR-0008 fixes).
+    # worthless if the addon tree is never walked.
     assert any("addons" in p.parts for p in lc.iter_source_files())
 
 
@@ -816,3 +817,13 @@ def test_tests_exemption_is_recorded_and_documented():
         "odoo.tests is exempt via CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT; "
         "listing it in source too would make the exemption ambiguous"
     )
+def test_the_gate_refuses_a_tree_it_cannot_find(tmp_path, monkeypatch):
+    # "0 violations" and "0 files examined" print the same and both exit 0.
+    # cross_repo_coherence shipped that fault three times (1cd6f1667ba), so
+    # every gate here now has to prove it reached its inputs.
+    import pytest
+
+    monkeypatch.setattr(lc, "ROOT", tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        lc.main(["--check"])
+    assert exc.value.code == 2

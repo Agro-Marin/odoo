@@ -5,7 +5,7 @@
 
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Duration, Settings } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { memoize } from "@web/core/utils/functions";
 
 import { isInRange, today } from "./date_utils.js";

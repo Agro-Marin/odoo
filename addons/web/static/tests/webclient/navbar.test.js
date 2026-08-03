@@ -11,6 +11,7 @@ import {
     getService,
     makeMockEnv,
     mountWithCleanup,
+    onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
@@ -394,6 +395,72 @@ test("'more' menu sections adaptations do not trigger render in some cases", asy
 });
 
 test.tags("desktop");
+test("'more' menu sections follow a menu reload that keeps the overflow count", async () => {
+    // The count and the app are unchanged, so the guard on the final render
+    // used to hold — while the render that carried the new sections had
+    // already gone out with the PREVIOUS overflow list. The bar showed the new
+    // menus and the "more" dropdown beside it went on offering the old ones.
+    const SECTIONS = [10, 11, 12, 13, 14, 15];
+    const build = (names) => {
+        const menus = {
+            root: { id: "root", name: "root", appID: "root", children: [1] },
+            1: {
+                id: 1,
+                appID: 1,
+                name: "App",
+                children: SECTIONS,
+                actionID: 1001,
+                xmlid: "app",
+            },
+        };
+        SECTIONS.forEach((id, i) => {
+            menus[id] = {
+                id,
+                appID: 1,
+                name: names[i],
+                children: [],
+                actionID: 2000 + id,
+                xmlid: `sec${id}`,
+            };
+        });
+        return menus;
+    };
+    const before = ["Aaaaaaaa", "Bbbbbbbb", "Cccccccc", "Dddddddd", "Eeeeeeee", "Ffffffff"]; // prettier-ignore
+    // Same lengths, so the same number of sections overflow.
+    const after = ["Aaaaaaaa", "Bbbbbbbb", "Cccccccc", "Wwwwwwww", "Xxxxxxxx", "Yyyyyyyy"]; // prettier-ignore
+
+    let names = before;
+    onRpc("/web/webclient/load_menus", () => build(names));
+
+    await resize({ width: 700 });
+    const env = await makeMockEnv();
+    Object.defineProperty(env, "isSmall", { get: () => false });
+
+    const menuService = getService("menu");
+    await menuService.reload();
+    menuService.setCurrentMenu(1);
+
+    const navbar = await mountWithCleanup(NavBar);
+    await waitNavbarAdaptation();
+    expect(navbar.currentAppSectionsExtra.map((s) => s.name)).toEqual([
+        "Dddddddd",
+        "Eeeeeeee",
+        "Ffffffff",
+    ]);
+
+    names = after;
+    await menuService.reload();
+    await waitNavbarAdaptation();
+
+    await contains(".o_menu_sections_more button").click();
+    expect(queryAllTexts(".o-dropdown--menu > *")).toEqual([
+        "Wwwwwwww",
+        "Xxxxxxxx",
+        "Yyyyyyyy",
+    ]);
+});
+
+test.tags("desktop");
 test("'more' menu sections properly updated on app change", async () => {
     defineMenus([
         {
@@ -557,4 +624,18 @@ test("the icon-only navbar toggles carry an accessible name", async () => {
     // The glyphs themselves must not be announced alongside the name.
     expect(".o_navbar_apps_menu button i").toHaveAttribute("aria-hidden", "true");
     expect(".o_menu_sections_more button i").toHaveAttribute("aria-hidden", "true");
+});
+
+test.tags("desktop");
+test("the systray holds only its items, with no filler elements between them", async () => {
+    systrayRegistry.add("addon.seconditem", { Component: MySystrayItem });
+    await mountWithCleanup(NavBar);
+    const systray = document.querySelector(".o_menu_systray");
+    const filler = [...systray.children].filter(
+        (el) => !el.hasAttributes() && !el.childNodes.length,
+    );
+    expect(filler.length).toBe(0, {
+        message: `empty filler elements in the systray: ${filler.length}`,
+    });
+    expect(systray.children.length).toBe(systrayRegistry.getEntries().length);
 });

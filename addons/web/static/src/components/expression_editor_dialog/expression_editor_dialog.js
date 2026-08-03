@@ -5,10 +5,10 @@
 
 import { Component, useRef, useState } from "@odoo/owl";
 import { ExpressionEditor } from "@web/components/expression_editor/expression_editor";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 export class ExpressionEditorDialog extends Component {

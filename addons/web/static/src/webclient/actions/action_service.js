@@ -6,8 +6,8 @@
 import { reactive } from "@odoo/owl";
 import { router as _router } from "@web/core/browser/router";
 import { AppEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { actionLog } from "@web/core/utils/asset_log";
 import { omit } from "@web/core/utils/collections/objects";
 import { Deferred, KeepLast, SupersededError } from "@web/core/utils/concurrency";
@@ -168,7 +168,9 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {Object} [props]
  * @property {ViewType} [viewType]
  * @property {"replaceCurrentAction" | "replacePreviousAction"} [stackPosition]
- * @property {number} [index]
+ * @property {(stack: Controller[]) => number} [spliceAt] Resolved against the
+ *           stack being spliced, so a position can never be measured on one
+ *           stack and applied to another.
  * @property {boolean} [newWindow]
  * @property {boolean} [forceLeave]
  * @property {Object[]} [newStack]
@@ -233,6 +235,7 @@ export class ActionManager {
         this.nextDialog = null;
         this._skeletonDef = null;
         this._loadStateGeneration = 0;
+        this._dispatchDepth = 0;
 
         router.hideKeyFromUrl("globalState");
 
@@ -441,6 +444,13 @@ export class ActionManager {
     }
 
     /**
+     * Where in `stack` the incoming controller goes. Every branch resolves
+     * against the stack being spliced, never against a position a caller
+     * measured somewhere else — `options.index` used to carry a raw number from
+     * `this.controllerStack` into a splice of `_effectiveStack`, the same
+     * two-coordinate-systems confusion `options.index` once had with the URL's
+     * actionStack. `spliceAt` is handed the stack instead of a number.
+     *
      * @param {ActionOptions} options
      * @param {Controller[]} [stack]
      */
@@ -460,8 +470,8 @@ export class ActionManager {
             if (target) {
                 return stack.findIndex((ct) => ct.action.jsId === target);
             }
-        } else if (options.index !== undefined) {
-            return options.index;
+        } else if (options.spliceAt) {
+            return options.spliceAt(stack);
         }
         return stack.length;
     }
@@ -470,7 +480,7 @@ export class ActionManager {
      * @param {Controller} controller
      * @param {Object} [options]
      * @param {boolean} [options.clearBreadcrumbs]
-     * @param {number} [options.index]
+     * @param {(stack: Controller[]) => number} [options.spliceAt]
      * @param {any[]} [options.newStack]
      * @param {boolean} [options.newWindow]
      * @param {Function} [options.onClose]
@@ -707,11 +717,43 @@ export class ActionManager {
     }
 
     /**
+     * Two dispatch paths, deliberately: `_actionExecutors` is the closed set of
+     * `ir.actions.*` types the manager implements itself — they are handed the
+     * instance, not just the env, and are not meant to be swapped out — while
+     * `action_handlers` is the open registry addons extend with new types.
+     * The former wins, so a handler registered for a built-in type would never
+     * run; say so rather than let it look registered.
+     *
      * @param {ActionRequest} actionRequest
      * @param {ActionOptions} options
      * @returns {Promise<number | undefined | void>}
      */
     async doAction(actionRequest, options = {}) {
+        this._dispatchDepth++;
+        try {
+            return await this._doAction(actionRequest, options);
+        } finally {
+            // In a `finally`: a dispatch that failed is still over, and a
+            // waiter that only learns about the successful ones hangs on
+            // exactly the cases worth noticing.
+            //
+            // Only on the outermost unwind: a server action, a function client
+            // action, an `act_url` close and a report's close all re-enter this
+            // method, so one gesture used to announce itself settled several
+            // times over — the first while the navigation it triggered was
+            // still running.
+            if (--this._dispatchDepth === 0) {
+                this.env.bus.trigger(AppEvent.ACTION_MANAGER_SETTLED);
+            }
+        }
+    }
+
+    /**
+     * @param {ActionRequest} actionRequest
+     * @param {ActionOptions} options
+     * @returns {Promise<number | undefined | void>}
+     */
+    async _doAction(actionRequest, options = {}) {
         actionLog("doAction", actionRequest, options);
         options = { ...options };
         const actionProm = this._loadAction(actionRequest, options.additionalContext);
@@ -720,6 +762,12 @@ export class ActionManager {
         options.clearBreadcrumbs = action.target === "main" || options.clearBreadcrumbs;
 
         if (Object.hasOwn(this._actionExecutors, action.type)) {
+            if (odoo.debug && actionHandlersRegistry.contains(action.type)) {
+                console.warn(
+                    `[action] "${action.type}" is dispatched by the action service itself; ` +
+                        `the "action_handlers" entry registered for it will never run.`,
+                );
+            }
             actionLog("dispatch", action.type, action.id || action.tag || "");
             return this._actionExecutors[action.type](action, options);
         }
@@ -752,7 +800,12 @@ export class ActionManager {
      */
     async switchView(viewType, props = {}, { newWindow } = {}) {
         await this.keepLast.add(Promise.resolve());
-        if (this.dialog) {
+        // A dispatch carrying its own `newStack` is landing on a stack that
+        // need not contain the action the user is looking at, so switching one
+        // of ITS views has nothing to mean: the switch would splice a view of
+        // the outgoing action onto the incoming stack. Declined, like a switch
+        // behind a dialog.
+        if (this.dialog || this._pendingDispatch) {
             return;
         }
         const controller = this.controllerStack.at(-1);
@@ -783,22 +836,25 @@ export class ActionManager {
             this._getViewInfo(view, controller.action, controller.views, props),
         );
         controller.action.controllers[viewType] = newController;
-        let index;
-        if (view.multiRecord) {
-            index = this.controllerStack.findIndex(
-                (ct) => ct.action.jsId === controller.action.jsId,
-            );
-            index = index > -1 ? index : this.controllerStack.length - 1;
-        } else {
-            index = this.controllerStack.findIndex(
-                (ct) =>
-                    ct.action.jsId === controller.action.jsId &&
-                    !ct.virtual &&
-                    !ct.view.multiRecord,
-            );
-            index = index > -1 ? index : this.controllerStack.length;
-        }
-        return this._updateUI(newController, { newWindow, index });
+        const actionJsId = controller.action.jsId;
+        // A multi-record view replaces its action's whole segment; a
+        // mono-record one replaces the mono-record view already there, or
+        // stacks on top when there is none.
+        const spliceAt = view.multiRecord
+            ? (/** @type {Controller[]} */ stack) => {
+                  const at = stack.findIndex((ct) => ct.action.jsId === actionJsId);
+                  return at > -1 ? at : stack.length - 1;
+              }
+            : (/** @type {Controller[]} */ stack) => {
+                  const at = stack.findIndex(
+                      (ct) =>
+                          ct.action.jsId === actionJsId &&
+                          !ct.virtual &&
+                          !ct.view?.multiRecord,
+                  );
+                  return at > -1 ? at : stack.length;
+              };
+        return this._updateUI(newController, { newWindow, spliceAt });
     }
 
     /**
@@ -849,7 +905,13 @@ export class ActionManager {
             }
             Object.assign(controller, this._getViewInfo(view, action, views, props));
         }
-        return this._updateUI(controller, { index, isBreadcrumbRestore: true });
+        return this._updateUI(controller, {
+            spliceAt: (stack) => {
+                const at = stack.findIndex((ct) => ct.jsId === controller.jsId);
+                return at > -1 ? at : stack.length;
+            },
+            isBreadcrumbRestore: true,
+        });
     }
 
     async loadState(state) {
@@ -877,7 +939,15 @@ export class ActionManager {
         return this._getCurrentController();
     }
 
-    get currentAction() {
+    /**
+     * A method, not an accessor beside `currentController`: resolving the
+     * current action can go to the server (a virtual controller only knows an
+     * id), and a getter that returns a promise reads like the synchronous one
+     * next to it right up until it is used as one.
+     *
+     * @returns {Promise<any>}
+     */
+    getCurrentAction() {
         return this._getCurrentAction();
     }
 }

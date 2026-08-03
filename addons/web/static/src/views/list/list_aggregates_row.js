@@ -58,6 +58,8 @@ export class ListAggregatesRow extends Component {
         this.groupInputRef = useRef("groupInput");
         useAutofocus({ refName: "groupInput" });
 
+        // This row is not a full ListRenderer, so it passes the aggregates hook a
+        // partial grid context -- exactly the four getters the hook reads.
         this.agg = useListAggregates({
             getColumns: () => this.columns,
             getFields: () => this.props.list.fields,

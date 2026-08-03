@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
 import { browser } from "@web/core/browser/browser";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 
 export class HistoryService {

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { SnippetModel } from "@html_builder/snippets/snippet_service";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { applyTextHighlight } from "@website/js/highlight_utils";
 

@@ -3,7 +3,7 @@ import {
     LocationSchedule
 } from '@delivery/js/location_selector/location_schedule/location_schedule';
 import { Component } from '@odoo/owl';
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 
 export class Location extends Component {
     static components = { LocationSchedule };

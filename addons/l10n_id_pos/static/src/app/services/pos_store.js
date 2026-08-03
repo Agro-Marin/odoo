@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { PosStore } from "@point_of_sale/app/services/pos_store";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
 patch(PosStore.prototype, {
     async showQR(payment) {

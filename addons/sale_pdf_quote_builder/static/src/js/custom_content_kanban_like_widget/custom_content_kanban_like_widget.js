@@ -3,10 +3,10 @@ import { Component, useEffect, useState } from "@odoo/owl";
 import {
     CustomFieldCard
 } from "@sale_pdf_quote_builder/js/custom_content_kanban_like_widget/custom_field_card/custom_field_card";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { x2ManyCommands } from "@web/model/relational_model";
 import { registry } from '@web/core/registry';
 import { useService } from "@web/core/utils/hooks";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class CustomContentKanbanLikeWidget extends Component {
     static components = { CustomFieldCard };

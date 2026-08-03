@@ -5,8 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { FileUploader } from "@web/core/file_upload/file_handler";
-import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
+import { _t } from "@web/core/translation";
 import { isBinarySize, toBase64Length } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";

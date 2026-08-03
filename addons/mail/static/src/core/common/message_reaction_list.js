@@ -1,10 +1,9 @@
 /** @odoo-module native */
 import { useHover } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 export class MessageReactionList extends Component {
     static template = "mail.MessageReactionList";

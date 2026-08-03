@@ -4,7 +4,7 @@ import {
     pickerSetup,
     registerComposerAction,
 } from "@mail/core/common/composer_actions";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 
 import { useGifPicker } from "./gif_picker.js";

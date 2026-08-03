@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { CalendarCommonPopover } from "@web/views/calendar/calendar_common/calendar_common_popover";
+import { CalendarCommonPopover } from "@web/views/calendar";
 
 export class WorkEntryCalendarCommonPopover extends CalendarCommonPopover {
     static subTemplates = {

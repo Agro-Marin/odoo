@@ -1,13 +1,12 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { _t } from "@web/core/l10n/translation";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { user } from "@web/services/user";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
+import { SelectCreateDialog } from "@web/views/view_dialogs";
 export class MailComposerTemplateSelector extends Component {
     static template = "mail.MailComposerTemplateSelector";
     static components = { Dropdown, DropdownItem };

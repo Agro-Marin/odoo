@@ -6,7 +6,7 @@ import {
     getNextDateFilterValue,
     getPreviousDateFilterValue,
 } from "@spreadsheet/global_filters/helpers";
-import { Dropdown } from "@web/components/dropdown/dropdown";
+import { Dropdown } from "@web/components/dropdown";
 
 /**
  * This component is used to select a date filter value in a dashboard.

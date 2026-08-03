@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 
-import { appTranslateFn } from "@web/core/l10n/translation";
+import { appTranslateFn } from "@web/core/translation";
 const _t = (/** @type {string} */ str) => JSON.stringify(appTranslateFn(str, "web")).slice(1, -1);
 
 const _getCategories = () =>

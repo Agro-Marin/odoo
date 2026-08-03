@@ -6,10 +6,10 @@ import { ActivityMarkAsDone } from "@mail/core/web/activity_markasdone_popover";
 import { computeDelay, getMsToTomorrow } from "@mail/utils/common/dates";
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { FileUploader } from "@web/core/file_upload/file_handler";
-import { _t } from "@web/core/l10n/translation";
+import { FileUploader } from "@web/core/file_upload";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 /**
  * @typedef {Object} Props
  * @property {import("models").Activity} activity

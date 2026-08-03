@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { ListController } from "@web/views/list/list_controller";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { ListController } from "@web/views/list";
 
 export class StockOrderpointListController extends ListController {
     static template = "stock.StockOrderpoint.listView";

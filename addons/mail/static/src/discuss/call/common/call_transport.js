@@ -2,8 +2,8 @@
 import { toRaw } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { memoize } from "@web/core/utils/functions";
 import { debounce } from "@web/core/utils/timing";
 

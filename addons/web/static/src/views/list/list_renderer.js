@@ -19,11 +19,12 @@ import { CheckBox } from "@web/components/checkbox/checkbox";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
+import { useAction } from "@web/core/action_port";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { AppEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
@@ -43,12 +44,10 @@ import {
     getPropertyFieldColumns as getPropertyFieldColumnsUtil,
     processAllColumns,
 } from "./list_column_utils.js";
+import { containsActiveElement } from "./list_focus.js";
 import { ListGridState } from "./list_grid_state.js";
 import { listGroupRenderingMixin } from "./list_group_rendering.js";
-import {
-    containsActiveElement,
-    useListKeyboardNavigation,
-} from "./list_keyboard_nav.js";
+import { useListKeyboardNavigation } from "./list_keyboard_nav.js";
 import { useListOptionalFields } from "./list_optional_fields.js";
 import { getRowComponentClass } from "./list_record_row.js";
 import { useListSelection } from "./list_selection.js";
@@ -76,6 +75,40 @@ import {
  *  allowSelectors?: boolean;
  *  [key: string]: any;
  * }} ListRendererProps
+ *
+ * The renderer's live surface, shared by every list satellite hook
+ * (selection, keyboard nav, optional fields, aggregates, virtualization) in
+ * place of a per-hook callback bag. Getters read renderer state at call time;
+ * the `on*`/action members are bound callbacks. Hooks destructure the subset
+ * they use. See where it is built in `ListRenderer.setup`.
+ * @typedef {{
+ *  getProps: () => ListRendererProps;
+ *  getEnv: () => any;
+ *  getColumns: () => Column[];
+ *  getAllColumns: () => Column[];
+ *  getFields: () => Record<string, object>;
+ *  getGridState: () => import("./list_grid_state").ListGridState;
+ *  getEditedRecord: () => any;
+ *  getOptionalActiveFields: () => Record<string, boolean>;
+ *  getAllowSelectors: () => boolean;
+ *  getCanCreate: () => boolean;
+ *  getDisplayRowCreates: () => boolean;
+ *  getControls: () => any[];
+ *  getSel: () => any;
+ *  getVirtualization: () => import("./list_virtualization").ListVirtualization | undefined;
+ *  canResequence: () => boolean;
+ *  toggleRecordSelection: (record: object) => void;
+ *  onToggleGroup: (group: object) => void;
+ *  onAdd: (params?: object) => void;
+ *  onOpenRecord: (record: object) => void;
+ *  onDeleteRecord: (record: object) => void;
+ *  onEditNextRecord: (record: object, group?: object) => any;
+ *  onSave: () => void;
+ *  findFocusFutureCell: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => HTMLElement | null;
+ *  isInlineEditable: (record: object) => boolean;
+ *  isCellReadonly: (column: any, record: object) => boolean;
+ *  expandCheckboxes: (record: object, direction: string) => boolean;
+ * }} ListGridContext
  */
 
 /** @extends Component */
@@ -169,7 +202,7 @@ export class ListRenderer extends Component {
         useRenderCounter("list.ListRenderer");
         this._rendererInstance = this;
         this._displaySaveNotification = this.displaySaveNotification.bind(this);
-        this.actionService = useService("action");
+        this.actionService = useAction();
         this.uiService = useService("ui");
         this.notificationService = useService("notification");
         this.orm = useService("orm");
@@ -186,33 +219,37 @@ export class ListRenderer extends Component {
         );
         this.tableRef = useRef("table");
 
-        this.sel = useListSelection({
+        // The single surface the list satellite hooks read from: one typed
+        // context built once, rather than a separate callback bag per hook (with
+        // the keyboard-nav hook cross-wiring into selection and virtualization).
+        // Every member is a lazy getter or a bound callback, so a hook built
+        // before `this.sel` / `this.virt` / `this.gridState` exist still resolves
+        // them at call time. Hook-specific *config* (refs, thresholds, storage
+        // keys) is passed separately -- it is not part of the shared surface.
+        /** @type {import("./list_renderer").ListGridContext} */
+        this.gridContext = {
             getProps: () => this.props,
-            getAllowSelectors: () => this.props.allowSelectors,
-            toggleRecordSelection: (record) => this.toggleRecordSelection(record),
-            longTouchThreshold: /** @type {any} */ (this.constructor)
-                .LONG_TOUCH_THRESHOLD,
             getEnv: () => this.env,
-        });
-
-        this.controls = this.props.archInfo.controls.length
-            ? this.props.archInfo.controls
-            : [{ type: "create", string: _t("Add a line") }];
-        this.deleteControl =
-            this.controls.find((control) => control.type === "delete") || {};
-
-        this.nav = useListKeyboardNavigation(/** @type {any} */ (this.tableRef), {
             getColumns: () => this.columns,
-            getEditedRecord: () => this.editedRecord,
-            getProps: () => this.props,
-            getEnv: () => this.env,
+            getAllColumns: () => this.allColumns,
+            getFields: () => this.fields,
             getGridState: () => this.gridState,
+            getEditedRecord: () => this.editedRecord,
+            getOptionalActiveFields: () => this.optionalActiveFields,
+            getAllowSelectors: () => this.props.allowSelectors,
+            getCanCreate: () => this.canCreate,
+            getDisplayRowCreates: () => this.displayRowCreates,
+            getControls: () => this.controls,
+            getSel: () => this.sel,
+            getVirtualization: () => this.virt,
+            canResequence: () => this.canResequenceRows,
+            toggleRecordSelection: (record) => this.toggleRecordSelection(record),
             onToggleGroup: (group) => this.toggleGroup(group),
-            onToggleRecordSelection: (record) => this.toggleRecordSelection(record),
             onAdd: (params) => this.add(params),
             onOpenRecord: (record) => this.props.openRecord(record),
             onDeleteRecord: (record) => this.onDeleteRecord(record),
             onEditNextRecord: (record, group) => this.editNextRecord(record, group),
+            onSave: () => this.saveOptionalActiveFields(),
             findFocusFutureCell: (cell, cellIsInGroupRow, direction) =>
                 this.findFocusFutureCell(cell, cellIsInGroupRow, direction),
             isInlineEditable: (record) => this.isInlineEditable(record),
@@ -222,12 +259,23 @@ export class ListRenderer extends Component {
                     record,
                     /** @type {"up" | "down"} */ (direction),
                 ),
-            getCanCreate: () => this.canCreate,
-            getDisplayRowCreates: () => this.displayRowCreates,
-            getControls: () => this.controls,
-            getSel: () => this.sel,
-            getVirtualization: () => this.virt,
+        };
+
+        this.sel = useListSelection(this.gridContext, {
+            longTouchThreshold: /** @type {any} */ (this.constructor)
+                .LONG_TOUCH_THRESHOLD,
         });
+
+        this.controls = this.props.archInfo.controls.length
+            ? this.props.archInfo.controls
+            : [{ type: "create", string: _t("Add a line") }];
+        this.deleteControl =
+            this.controls.find((control) => control.type === "delete") || {};
+
+        this.nav = useListKeyboardNavigation(
+            /** @type {any} */ (this.tableRef),
+            this.gridContext,
+        );
 
         this.activeRowId = null;
         onMounted(async () => {
@@ -243,11 +291,7 @@ export class ListRenderer extends Component {
         this.opt = useListOptionalFields(
             this.keyOptionalFields,
             this.keyDebugOpenView,
-            {
-                getAllColumns: () => this.allColumns,
-                getOptionalActiveFields: () => this.optionalActiveFields,
-                onSave: () => this.saveOptionalActiveFields(),
-            },
+            this.gridContext,
         );
         this.optionalActiveFields = useState(this.props.optionalActiveFields || {});
         /** @type {Column[]} */
@@ -255,12 +299,7 @@ export class ListRenderer extends Component {
         /** @type {Column[]} */
         this.columns = [];
         this.editedRecord = null;
-        this.agg = useListAggregates({
-            getColumns: () => this.columns,
-            getFields: () => this.fields,
-            getProps: () => this.props,
-            getOptionalActiveFields: () => this.optionalActiveFields,
-        });
+        this.agg = useListAggregates(this.gridContext);
         const mark = odoo.debug ? (name) => performance.mark(name) : () => {};
         const measure = odoo.debug
             ? (name, start) => performance.measure(name, start)
@@ -384,22 +423,17 @@ export class ListRenderer extends Component {
         });
         this.isRTL = localization.direction === "rtl";
 
+        // Everything else is (re)set by gridState.update() in onWillRender, which
+        // runs before the first render — passing it here would only read
+        // half-initialized getters (e.g. hasOpenFormViewColumn via debugOpenView).
         this.gridState = new ListGridState({
             list: this.props.list,
             columns: this.columns,
-            hasSelectors: this.hasSelectors,
-            hasOpenFormViewColumn: this.hasOpenFormViewColumn,
-            hasActionsColumn: this.hasActionsColumn,
             isRTL: this.isRTL,
-            showGroupAddLine: Boolean(this.props.editable && this.canCreate),
-            isCellReadonly: (col, rec) => this.isCellReadonly(col, rec),
         });
 
-        this.virt = useListVirtualization({
+        this.virt = useListVirtualization(this.gridContext, {
             rootRef: this.rootRef,
-            getGridState: () => this.gridState,
-            canResequence: () => this.canResequenceRows,
-            getEditedRecord: () => this.editedRecord,
             threshold: /** @type {any} */ (this.constructor).VIRTUALIZATION_THRESHOLD,
         });
 
@@ -1117,13 +1151,27 @@ export class ListRenderer extends Component {
     }
 }
 
-function installListRendererMixin(mixin) {
+/**
+ * Installs a mixin onto the prototype AFTER the class body, so a name defined
+ * in both would be silently won by the mixin — and the class body is where a
+ * reader looks first. Collisions are refused instead: the fix is to rename, or
+ * to drop the member from the mixin.
+ *
+ * @param {object} mixin
+ * @param {string} name
+ */
+function installListRendererMixin(mixin, name) {
     const descriptors = Object.getOwnPropertyDescriptors(mixin);
     for (const key of Object.keys(descriptors)) {
+        if (Object.hasOwn(ListRenderer.prototype, key)) {
+            throw new Error(
+                `${name} would override ListRenderer.prototype.${key} declared elsewhere`,
+            );
+        }
         descriptors[key].enumerable = false;
     }
     Object.defineProperties(ListRenderer.prototype, descriptors);
 }
-installListRendererMixin(listStylingMixin);
-installListRendererMixin(listGroupRenderingMixin);
-installListRendererMixin(listSortingMixin);
+installListRendererMixin(listStylingMixin, "listStylingMixin");
+installListRendererMixin(listGroupRenderingMixin, "listGroupRenderingMixin");
+installListRendererMixin(listSortingMixin, "listSortingMixin");

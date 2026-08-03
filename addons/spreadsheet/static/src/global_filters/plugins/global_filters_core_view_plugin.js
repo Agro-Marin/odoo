@@ -10,24 +10,23 @@
  * @typedef {import("@spreadsheet").DateDefaultValue} DateDefaultValue
  */
 
-import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { Domain } from "@web/core/domain";
-import { user } from "@web/services/user";
-
 import { EvaluationError, helpers } from "@odoo/o-spreadsheet";
-import { CommandResult } from "@spreadsheet/o_spreadsheet/cancelled_reason";
-
 import {
     checkFilterValueIsValid,
     getDateDomain,
     getDateRange,
 } from "@spreadsheet/global_filters/helpers";
+import { CommandResult } from "@spreadsheet/o_spreadsheet/cancelled_reason";
 import { OdooCoreViewPlugin } from "@spreadsheet/plugins";
-import { getItemId } from "../../helpers/model.js";
+import { Domain } from "@web/core/domain";
 import { serializeDate } from "@web/core/l10n/dates";
-import { getFilterCellValue, getFilterValueDomain } from "../helpers.js";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { deepEqual } from "@web/core/utils/collections/objects";
+
+import { getItemId } from "../../helpers/model.js";
+import { getFilterCellValue, getFilterValueDomain } from "../helpers.js";
 
 const { DateTime } = luxon;
 

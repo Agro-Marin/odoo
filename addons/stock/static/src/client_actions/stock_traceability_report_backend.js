@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
-import { _t } from "@web/core/l10n/translation";
-import { download } from "@web/core/network/download";
+import { download } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
 function processLine(line) {
     return { ...line, lines: [], isFolded: true };

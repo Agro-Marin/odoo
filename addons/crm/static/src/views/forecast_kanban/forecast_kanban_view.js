@@ -5,7 +5,7 @@ import { ForecastKanbanModel } from "@crm/views/forecast_kanban/forecast_kanban_
 import { ForecastKanbanRenderer } from "@crm/views/forecast_kanban/forecast_kanban_renderer";
 import { ForecastSearchModel } from "@crm/views/forecast_search_model";
 import { registry } from "@web/core/registry";
-import { kanbanView } from "@web/views/kanban/kanban_view";
+import { kanbanView } from "@web/views/kanban";
 
 export const forecastKanbanView = {
     ...kanbanView,

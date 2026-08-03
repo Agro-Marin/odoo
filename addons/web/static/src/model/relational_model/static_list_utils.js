@@ -19,6 +19,11 @@ import { x2ManyCommands } from "./commands.js";
  * The id a record answers to inside its list: its resId once the server knows
  * it, its virtual id until then. Exactly one of the two is set.
  *
+ * The single place that reads `_virtualId` across a module boundary, which is
+ * why it is a function here rather than a getter on the record: the static-list
+ * suites drive these paths with plain-object records, and a getter would make
+ * every one of them carry an accessor to say what two fields already say.
+ *
  * @param {RelationalRecord} record
  * @returns {DatapointId}
  */

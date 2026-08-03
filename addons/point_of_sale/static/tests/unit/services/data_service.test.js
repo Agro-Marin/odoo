@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { RPCError } from "@web/core/network/rpc";
+import { RPCError } from "@web/core/network";
 
 import { definePosModels } from "../data/generate_model_definitions.js";
 import { getFilledOrder, setupPosEnv } from "../utils.js";

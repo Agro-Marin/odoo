@@ -8,13 +8,12 @@ import { useAsyncLockedMethod } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { ask } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError } from "@web/core/network/rpc";
+import { ConnectionLostError } from "@web/core/network";
 import { parseFloat } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { Dialog } from "@web/ui/dialog/dialog";
-import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
+import { AlertDialog, ConfirmationDialog, Dialog } from "@web/ui/dialog";
+import { FormViewDialog } from "@web/views/view_dialogs";
 const { DateTime } = luxon;
 
 export class ClosePosPopup extends Component {

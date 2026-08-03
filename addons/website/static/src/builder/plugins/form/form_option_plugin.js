@@ -9,12 +9,12 @@ import { reactive } from "@odoo/owl";
 import { formatDate } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Cache } from "@web/core/utils/collections/cache";
 import { renderToElement } from "@web/core/utils/render";
 import { redirect } from "@web/core/utils/urls";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 import { FormFieldOptionRedraw } from "./form_field_option_redraw.js";
 import { FormOption } from "./form_option.js";

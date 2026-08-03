@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { WeekDays, weekDays } from "@web/views/widgets/week_days/week_days";
+import { WeekDays, weekDays } from "@web/views/widgets";
 
 export class CalendarWeekDays extends WeekDays {
     static template = "calendar.WeekDays";

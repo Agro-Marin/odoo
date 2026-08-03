@@ -1,13 +1,13 @@
 /** @odoo-module native */
 import { CheckBox } from "@web/components/checkbox/checkbox";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import {
     BooleanToggleField,
     booleanToggleField,
-} from "@web/fields/basic/boolean_toggle/boolean_toggle_field";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+} from "@web/fields/basic/boolean_toggle";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 export class ConfirmCheckBox extends CheckBox {
     onClick(ev) {

@@ -4,7 +4,7 @@ import { CharField } from "@web/fields/basic/char/char_field";
 import { GenerateContentAndCopyButton } from "../../buttons/generate_content_and_copy_button.js";
 import { useService } from "@web/core/utils/hooks";
 import { omit } from "@web/core/utils/collections/objects";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 
 class RecruitmentCopyClipboardCharField extends CopyClipboardCharField {

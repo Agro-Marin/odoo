@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { Component, useEffect, useRef } from "@odoo/owl";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { Dialog } from "@web/ui/dialog";
 
 export class ImageDescription extends Component {
     static components = { Dialog };

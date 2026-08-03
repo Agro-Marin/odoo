@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanArchParser } from "@web/views/kanban/kanban_arch_parser";
+import { KanbanArchParser } from "@web/views/kanban";
 
 export class DocumentsKanbanArchParser extends KanbanArchParser {
     parse(xmlDoc, models, modelName) {

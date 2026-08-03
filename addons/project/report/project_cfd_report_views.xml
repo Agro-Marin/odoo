@@ -45,8 +45,12 @@
         <field name="path">cfd</field>
         <field name="view_mode">graph</field>
         <field name="search_view_id" ref="project_cfd_report_view_search"/>
+        <!-- No `active_id` here: this action is reachable from the Reporting
+             menu, where nothing defines it and the whole expression fails to
+             evaluate ("Can not evaluate python expression"), so the menu entry
+             opens on an error dialog. The two project-form entry points pass
+             the project filter themselves. -->
         <field name="context">{
-            'search_default_project_id': active_id,
             'search_default_date': 1,
             'search_default_stage': 1,
             'search_default_filter_date': 1,

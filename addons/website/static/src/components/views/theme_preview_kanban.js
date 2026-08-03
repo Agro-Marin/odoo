@@ -2,10 +2,12 @@
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { KanbanController } from "@web/views/kanban/kanban_controller";
-import { KanbanRecord } from "@web/views/kanban/kanban_record";
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
-import { kanbanView } from "@web/views/kanban/kanban_view";
+import {
+    KanbanController,
+    KanbanRecord,
+    KanbanRenderer,
+    kanbanView,
+} from "@web/views/kanban";
 
 import { useLoaderOnClick } from "./theme_preview_form.js";
 

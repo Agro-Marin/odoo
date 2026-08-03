@@ -4,7 +4,7 @@
 /** @module @web/core/file_upload/file_handler */
 
 import { Component, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { checkFileSize } from "@web/core/utils/files";
 import { useService } from "@web/core/utils/hooks";
 import { getDataURLFromFile } from "@web/core/utils/urls";

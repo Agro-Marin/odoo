@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 
-import { kanbanView } from "@web/views/kanban/kanban_view";
+import { kanbanView } from "@web/views/kanban";
 import { DocumentsControlPanel } from "../search/documents_control_panel.js";
 import { DocumentsKanbanController } from "./documents_kanban_controller.js";
 import { DocumentsKanbanModel } from "./documents_kanban_model.js";

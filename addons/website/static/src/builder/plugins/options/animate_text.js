@@ -11,7 +11,7 @@ import {
     useState,
 } from "@odoo/owl";
 import { POSITION_BUS } from "@web/core/position/position_hook";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 import { AnimateOption } from "./animate_option.js";
 

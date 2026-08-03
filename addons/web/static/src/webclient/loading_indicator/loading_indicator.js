@@ -4,11 +4,11 @@
 /** @module @web/webclient/loading_indicator/loading_indicator */
 
 import { Component, onWillUnmount, useState } from "@odoo/owl";
-import { Transition } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { Transition } from "@web/core/transition";
 import { useBus } from "@web/core/utils/hooks";
 export class LoadingIndicator extends Component {
     static template = "web.LoadingIndicator";

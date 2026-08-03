@@ -4,8 +4,9 @@
 /** @module @web/views/settings/widgets/res_config_invite_users */
 
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { useAction } from "@web/core/action_port";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
@@ -15,7 +16,7 @@ class ResConfigInviteUsers extends Component {
         ...standardWidgetProps,
     };
 
-    /** @type {import("services").ServiceFactories["action"]} */
+    /** @type {import("@web/core/action_port").ActionPort} */
     action;
     /** @type {import("services").ServiceFactories["user_invite"]} */
     invite;
@@ -29,7 +30,7 @@ class ResConfigInviteUsers extends Component {
     setup() {
         this.orm = useService("orm");
         this.invite = useService("user_invite");
-        this.action = useService("action");
+        this.action = useAction();
         this.notification = useService("notification");
 
         this.state = useState({

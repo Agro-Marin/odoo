@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useFileViewer } from "@web/components/file_viewer/file_viewer_hook";
+import { useFileViewer } from "@web/components/file_viewer";
 import { useService } from "@web/core/utils/hooks";
-import { CANCEL_GLOBAL_CLICK, KanbanRecord } from "@web/views/kanban/kanban_record";
+import { CANCEL_GLOBAL_CLICK, KanbanRecord } from "@web/views/kanban";
 
 export class ProductDocumentKanbanRecord extends KanbanRecord {
     setup() {

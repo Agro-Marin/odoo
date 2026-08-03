@@ -2,7 +2,7 @@
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 export class TestError extends Interaction {
     static selector = ".rpc_error a";

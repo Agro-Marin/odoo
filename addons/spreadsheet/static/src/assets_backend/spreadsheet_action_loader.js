@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { loadBundle } from "@web/core/assets";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { ensureServicesStarted } from "@web/env";
 
 const actionRegistry = registry.category("actions");

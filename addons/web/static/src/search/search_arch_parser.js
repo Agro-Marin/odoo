@@ -4,8 +4,8 @@
 /** @module @web/search/search_arch_parser */
 
 import { makeContext } from "@web/core/context";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { visitXML } from "@web/core/utils/dom/xml";
 import { clamp } from "@web/core/utils/format/numbers";
 import { isInvisible } from "@web/search/search_state";
@@ -178,6 +178,10 @@ export class SearchArchParser {
         if (node.hasAttribute("name")) {
             const name = node.getAttribute("name");
             if (!this.fields[name]) {
+                console.warn(
+                    `[search] <field name="${name}">: no such field on the model; ` +
+                        `the search field is ignored (check for a typo).`,
+                );
                 return;
             }
             const fieldType = this.fields[name].type;
@@ -300,6 +304,10 @@ export class SearchArchParser {
                 const fieldName = node.getAttribute("date");
                 const dateField = this.fields[fieldName];
                 if (!dateField) {
+                    console.warn(
+                        `[search] <filter date="${fieldName}">: no such field on the ` +
+                            `model; the date filter is ignored (check for a typo).`,
+                    );
                     return;
                 }
                 preSearchItem.type = "dateFilter";

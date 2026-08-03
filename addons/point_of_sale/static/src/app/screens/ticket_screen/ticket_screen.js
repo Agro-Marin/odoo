@@ -19,16 +19,16 @@ import { BackButton } from "@point_of_sale/app/screens/product_screen/action_pad
 import { InvoiceButton } from "@point_of_sale/app/screens/ticket_screen/invoice_button/invoice_button";
 import { SearchBar } from "@point_of_sale/app/screens/ticket_screen/search_bar/search_bar";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
-import { BarcodeVideoScanner } from "@web/components/barcode/barcode_video_scanner";
+import { BarcodeVideoScanner } from "@web/components/barcode";
 import { parseDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError } from "@web/core/network/rpc";
+import { ConnectionLostError } from "@web/core/network";
 import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 const { DateTime } = luxon;
 const NBR_BY_PAGE = 30;
 

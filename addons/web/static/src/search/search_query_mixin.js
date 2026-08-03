@@ -3,7 +3,7 @@
 
 /** @module @web/search/search_query_mixin */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { findGroupByGroupId } from "./search_group_by.js";
 import { SPECIAL } from "./search_state.js";

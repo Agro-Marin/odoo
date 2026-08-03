@@ -1,14 +1,13 @@
 /** @odoo-module native */
-import { calendarView } from '@web/views/calendar/calendar_view';
+import { onWillStart } from "@odoo/owl";
+import { registry } from '@web/core/registry';
+import { user } from "@web/core/user";
+import { useService } from "@web/core/utils/hooks";
+import { calendarView } from "@web/views/calendar";
 
 import { TimeOffCalendarController, TimeOffReportCalendarController } from './calendar_controller.js';
 import { TimeOffCalendarModel } from './calendar_model.js';
 import { TimeOffCalendarRenderer, TimeOffDashboardCalendarRenderer } from './calendar_renderer.js';
-
-import { registry } from '@web/core/registry';
-import { user } from "@web/services/user";
-import { useService } from "@web/core/utils/hooks";
-import { onWillStart } from "@odoo/owl";
 
 class TimeOffCalendarControllerHrLeave extends TimeOffCalendarController {
     setup() {
