@@ -22,7 +22,7 @@ async function deleteRange(editor) {
     selection.setBaseAndExtent(startContainer, startOffset, endContainer, endOffset);
 }
 
-// Tests the DELETE_SELECTION command.
+// Tests the deleteSelection shared method.
 async function deleteSelection(editor) {
     editor.shared.delete.deleteSelection();
 }
@@ -129,8 +129,9 @@ describe("deleteRange method", () => {
         });
 
         test("should merge right block's content into fully selected left block", async () => {
-            // As opposed to the DELETE_SELECTION command, in which fully selected block on the left is removed.
-            // See "should remove fully selected left block and keep second block"
+            // As opposed to the deleteSelection method, which removes a fully
+            // selected left block. See "should remove fully selected left block
+            // and keep second block".
             await testEditor({
                 contentBefore: "<h1>[abc</h1><p>d]ef</p>",
                 stepFunction: deleteRange,
@@ -228,9 +229,8 @@ describe("deleteRange method", () => {
     });
     describe("Fake line breaks", () => {
         test("should not crash if cursor is inside a fake BR", async () => {
-            // The goal of this tests is to make sure deleteRange does not rely
-            // on selection normaliztion.  It should not assume that the cursor
-            // is never inside a BR.
+            // deleteRange must not rely on selection normalization: it should
+            // not assume the cursor is never inside a BR.
             const contentBefore = unformat(
                 `<table><tbody>
                     <tr><td><br></td><td><br></td></tr>
@@ -238,7 +238,7 @@ describe("deleteRange method", () => {
                 </tbody></table>`,
             );
             const { editor, el } = await setupEditor(contentBefore);
-            // Place the cursor inside the BR.
+            // Place the selection focus inside the BR.
             setSelection({
                 anchorNode: el,
                 anchorOffset: 0,
@@ -472,10 +472,10 @@ describe("deleteSelection", () => {
                     contentBefore: unformat(
                         `<table><tbody>
                             <tr>
-                                <td>[a</td> <td>b]</td> <td>c</td> 
+                                <td>[a</td> <td>b]</td> <td>c</td>
                             </tr>
                             <tr>
-                                <td>d</td> <td>e</td> <td>f</td> 
+                                <td>d</td> <td>e</td> <td>f</td>
                             </tr>
                         </tbody></table>`,
                     ),
@@ -486,7 +486,7 @@ describe("deleteSelection", () => {
                                 <td><p>[]<br></p></td> <td><p><br></p></td> <td>c</td>
                             </tr>
                             <tr>
-                                <td>d</td> <td>e</td> <td>f</td> 
+                                <td>d</td> <td>e</td> <td>f</td>
                             </tr>
                         </tbody></table>`,
                     ),

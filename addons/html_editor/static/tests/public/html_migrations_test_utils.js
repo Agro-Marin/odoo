@@ -8,11 +8,9 @@ export function migrate(container, env) {
     }
 }
 
-// `patchWithCleanup` registers its own teardown via HOOT's `after` hook, so the
-// patch must be applied at the moment the test asks for it (typically the test
-// body, before the migration runs). Wrapping it in `before` defers application
-// to a suite-scoped phase that has already completed by the time the test body
-// runs, leaving `migrateCallbacks` empty and silently skipping the migration.
+// `patchWithCleanup` registers its teardown via HOOT's `after` hook, so callers
+// must patch from the test body: doing it in `before` leaves `migrateCallbacks`
+// empty by the time the test runs, silently skipping the migration.
 export function setupMigrateFunctions(callbacks) {
     const newCallbacks = {};
     for (let i = 0; i < callbacks.length; i++) {
@@ -21,14 +19,11 @@ export function setupMigrateFunctions(callbacks) {
     patchWithCleanup(migrateCallbacks, newCallbacks);
 }
 
-// `HtmlUpgradeManager.upgrade()` resolves migration modules via
-// `odoo.loader.modules.get(<spec>)`. Files under `/static/tests/` are
-// deliberately excluded from `registerNativeModules` (see
-// assetsbundle.py:1042 — test files are loaded via the import map only),
-// so the lookup would return `undefined` and the upgrade silently no-ops
-// inside the manager's catch-all. Register this module's namespace
-// explicitly under the spec the registry stores so the upgrade pipeline
-// finds it.
+// `HtmlUpgradeManager.upgrade()` resolves migration modules through
+// `odoo.loader.modules.get(<spec>)`, and `/static/tests/` files are excluded
+// from `registerNativeModules` (odoo/tools/assets/esbuild.py), so the lookup
+// would return `undefined` and the upgrade would silently no-op. Register this
+// module under the spec the upgrade registry stores.
 odoo.loader.modules.set("@html_editor/../tests/public/html_migrations_test_utils", {
     migrate,
     setupMigrateFunctions,

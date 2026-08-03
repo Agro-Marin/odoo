@@ -150,7 +150,6 @@ test("should make a selection with strikeThrough text in the middle fully strike
 
 test("should make a selection ending with strikeThrough text fully strikeThrough", async () => {
     await testEditor({
-        // @phoenix content adapted to make it valid html
         contentBefore: `<p>[ab</p><p><s>c]d</s></p>`,
         stepFunction: strikeThrough,
         contentAfter: `<p><s>[ab</s></p><p><s>c]d</s></p>`,
