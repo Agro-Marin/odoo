@@ -53,13 +53,7 @@ mail_new_test_user = partial(
 
 
 class MockEmail(common.BaseCase, MockSmtplibCase):
-    """Tools, helpers and asserts for mailgateway-related tests
-
-    Useful reminders
-        Mail state: ('outgoing', 'Outgoing'), ('sent', 'Sent'),
-                    ('received', 'Received'), ('exception', 'Delivery Failed'),
-                    ('cancel', 'Cancelled')
-    """
+    """Tools, helpers and asserts for mailgateway-related tests."""
 
     @classmethod
     def setUpClass(cls):
@@ -68,16 +62,12 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
 
     @contextmanager
     def mock_datetime_and_now(self, mock_dt):
-        """Used when synchronization date (using env.cr.now()) is important
-        in addition to standard datetime mocks. Used mainly to detect sync
-        issues.
-
-        A string ``mock_dt`` is parsed to a naive datetime so ``cr.now()``'s
-        ``-> datetime`` contract is honoured (production code does datetime
-        arithmetic on it, e.g. ``ir.cron._now`` calls ``.replace(microsecond=0)``,
-        which a raw string return breaks). Datetime inputs pass through unchanged.
-        Delegates to :func:`freeze_all_time` so the cursor clock is frozen at the
-        ``BaseCursor`` level (every cursor, not just ``self.env.cr``)."""
+        """Freeze ``env.cr.now()`` in addition to the standard datetime mocks,
+        to detect synchronization issues. Delegates to :func:`freeze_all_time`,
+        which freezes every cursor at ``BaseCursor`` level, not only ``env.cr``.
+        """
+        # cr.now() must return a datetime, as production code does arithmetic on
+        # it (e.g. ir.cron._now calls .replace(microsecond=0)) which a str breaks
         if isinstance(mock_dt, str):
             mock_dt = fields.Datetime.to_datetime(mock_dt)
         with freeze_all_time(mock_dt):
@@ -539,7 +529,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
 
         # chatter: read more / read less TODO
 
-        # mass mailing: add base tag we have to remove
         expected_node = html.fragment_fromstring(expected, create_parent="body")
 
         if message:
@@ -553,7 +542,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         """Find an outgoing email based on from / to and optional subject, body
         and attachment names when having conflicts.
 
-        :return sent_email: an outgoing email generated during the mock;
+        :return: an outgoing email generated during the mock;
         """
         sent_emails = [
             mail
@@ -593,14 +582,10 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         return sent_email
 
     def _find_sent_email_wemail(self, email_to):
-        """Find a sent email with a given list of recipients. Email should match
-        exactly the recipients.
+        """Find a sent email whose recipients are exactly the given one.
 
-        :param email-to: a list of emails that will be compared to email_to
-          of sent emails (also a list of emails);
-
-        :return email: an email which is a dictionary mapping values given to
-          ``build_email``;
+        :param email_to: a single email, compared to ``email_to`` of sent emails;
+        :return: an email, as a dictionary mapping values given to ``build_email``;
         """
         for sent_email in self._mails:
             if set(sent_email["email_to"]) == {email_to}:
@@ -658,7 +643,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         """Find a ``mail.mail`` record based on a given ID (used notably when having
         mail ID in mailing traces).
 
-        :return mail: a ``mail.mail`` record generated during the mock and matching
+        :return: a ``mail.mail`` record generated during the mock and matching
           given ID;
         """
         filtered = self._filter_mail(
@@ -694,10 +679,9 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         """Find a mail.mail record based on various parameters, notably a list
         of recipients (partners).
 
-        :param recipients: a ``res.partner`` recordset Check all of them are in mail
-          recipients to find the right mail.mail record;
-
-        :return mail: a ``mail.mail`` record generated during the mock and matching
+        :param recipients: a ``res.partner`` recordset; all of them must be in the
+          mail recipients to find the right mail.mail record;
+        :return: a ``mail.mail`` record generated during the mock and matching
           given parameters and filters;
         """
         filtered = self._filter_mail(
@@ -739,10 +723,9 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         """Find a mail.mail record based on various parameters, notably a list
         of email to (string emails).
 
-        :param email_to: either matching mail.email_to value, either a mail sent
-          to a single recipient whose email is email_to;
-
-        :return mail: a ``mail.mail`` record generated during the mock and matching
+        :param email_to: either the mail.email_to value to match, or the email of
+          the single recipient the mail was sent to;
+        :return: a ``mail.mail`` record generated during the mock and matching
           given parameters and filters;
         """
         filtered = self._filter_mail(
@@ -779,7 +762,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
     ):
         """Find a mail.mail record based on model / res_id of a record.
 
-        :return mail: a ``mail.mail`` record generated during the mock;
+        :return: a ``mail.mail`` record generated during the mock;
         """
         filtered = self._filter_mail(
             status=status,
@@ -822,10 +805,10 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
           emails (both are supported, see ``_find_mail_mail_wpartners`` and
           ``_find_mail_mail_wemail``);
         :param status: mail.mail state used to filter mails. If ``sent`` this method
-          also check that emails have been sent trough gateway;
+          also checks that emails have been sent through the gateway;
         :param email_to_recipients: used for assertSentEmail to find email based
-          on 'email_to' when doing the match directly based on recipients_list
-          being partners it nos easy (e.g. multi emails, ...);
+          on 'email_to', when matching directly on recipients_list being partners
+          is not easy (e.g. multi emails, ...);
         :param author: see ``_find_mail_mail_wpartners``;
         :param content: if given, check it is contained within mail html body;
         :param email_to_all: list of email addresses used in email_to, checking
@@ -1048,7 +1031,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         method takes a record as source to find mails and check their content
         using model / res_id. See '_assertMailMail' for more details.
 
-        :param record: a record used to find emails sent related on it.
+        :param record: a record used to find the emails sent about it.
           See ``_find_mail_mail_wrecord``;
         :param mail_message: used to find the related email;
 
@@ -1085,10 +1068,9 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         fields_values=None,
         email_values=None,
     ):
-        """Assert mail.mail records are created and maybe sent as emails. Allow
-        asserting their content. Records to check are the one generated when
-        using mock (mail.mail and outgoing emails). This method takes partners
-        as source of record fetch and assert.
+        """Assert mail.mail records are created and maybe sent as emails. This
+        method takes a ``mail.mail`` DB ID as source of record fetch and assert;
+        recipients are not used to find the mail.
 
         :param mail_id: a ``mail.mail`` DB ID. See ``_find_mail_mail_wid``;
 
@@ -1169,13 +1151,10 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
     def assertNotSentEmail(self, recipients=None, message_id=None):
         """Check no email was generated during gateway mock.
 
-        :param recipients:
-            List of partner for which we will check that no email have been sent
-            Or list of email address
-            If empty, we will check that no email at all have been sent
-        :param message_id:
-            message-id associated with the email. Allows to identify emails originating
-            from the a specific message in odoo.
+        :param recipients: list of partners or of email addresses to check; if
+          void, check that no email at all has been sent;
+        :param message_id: message-id of the emails to consider, restricting the
+          check to emails originating from a specific message;
         """
         mails = self._mails
         if message_id:
@@ -1501,18 +1480,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
 
 class MailCase(common.TransactionCase, MockEmail, BusCase):
     """Tools, helpers and asserts for mail-related tests, including mail
-    gateway mock and helpers (see ``MockEmail``).
-
-    Useful reminders
-        Notif type:  (`inbox`, `Inbox`), (`email`, `Email`)
-        Notif status: (`ready`, `Ready to Send`), (`sent`, `Sent`),
-                      (`bounce`, `Bounced`), (`exception`, `Exception`),
-                      (`canceled`, `Canceled`)
-        Notif failure type: ("SMTP", "Connection failed (outgoing mail server problem)"),
-                            ("RECIPIENT", "Invalid email address"),
-                            ("BOUNCE", "Email address rejected by destination"),
-                            ("UNKNOWN", "Unknown error")
-    """
+    gateway mock and helpers (see ``MockEmail``)."""
 
     _test_context = {
         "mail_create_nolog": True,
@@ -1864,9 +1832,10 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
     @contextmanager
     def assertBus(self, channels=None, message_items=None, get_params=None):
         """Check content of bus notifications.
-        Params might not be determined in advance (newly created id, create_date, ...), in this case
-        the `get_params` function can be given to return the expected values, called after the
-        execution of the tested code.
+
+        :param get_params: callable returning ``(channels, message_items)``, called
+          after the tested code for expected values not known in advance (newly
+          created id, create_date, ...);
         """
 
         def format_notif(notif):
@@ -1924,8 +1893,8 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
             self.assertFalse(bool(self._new_notifs))
 
     def assertMailNotifications(self, messages, recipients_info, bus_notif_count=1):
-        """Check bus notifications content. Mandatory and basic check is about
-        channels being notified. Content check is optional.
+        """Check generated messages, their notifications and the resulting
+        <mail.mail> / outgoing emails against expected data.
 
         GENERATED INPUT
         :param <mail.message> messages: generated messages to check, coming
@@ -1963,9 +1932,8 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
           {...}
         ]
 
-        PARAMETERS
-        :param mail_unlink_sent: mock parameter, tells if mails are unlinked
-          and therefore we are able to check outgoing emails;
+        Whether <mail.mail> records or only outgoing emails can be checked depends
+        on ``self.mail_unlink_sent``, set by ``mock_mail_gateway``.
         """
         partners = (
             self.env["res.partner"]
@@ -2258,19 +2226,10 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
         channels being notified. Content check is optional.
 
         EXPECTED
-        :param channels: list of expected bus channels, like [
-          (self.cr.dbname, 'res.partner', self.partner_employee_2.id)
-        ]
-        :param message_items: if given, list of expected message making a valid
-          pair (channel, message) to be found in bus.bus, like [
-            {'type': 'mail.message/notification_update',
-             'elements': {self.msg.id: {
-                'message_id': self.msg.id,
-                'message_type': 'sms',
-                'notifications': {...},
-                ...
-              }}
-            }, {...}]
+        :param channels: list of expected bus channels, each being a tuple like
+          ``(self.cr.dbname, 'res.partner', partner.id)``;
+        :param message_items: if given, list of expected messages, each making a
+          valid pair (channel, message) to be found in bus.bus;
         """
         self.env.cr.precommit.run()  # trigger the creation of bus.bus records
         bus_notifs = (
@@ -2315,8 +2274,9 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
     @contextmanager
     def assertBusNotificationType(self, expected_pairs):
         """Check bus notifications type.
-        :param expected_pairs: list of tuples containing the expected bus channel and bus
-        notification type"""
+
+        :param expected_pairs: list of (bus channel, bus notification type) tuples;
+        """
         try:
             with self.mock_bus():
                 yield
@@ -2373,8 +2333,9 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
 
 
 class MailCommon(MailCase):
-    """Almost-void class definition setting the savepoint case + mock of mail.
-    Used mainly for class inheritance in other applications and test modules."""
+    """Set up the mail mocks plus a standard set of companies, users and email
+    aliases. Used mainly for class inheritance in other applications and test
+    modules."""
 
     @classmethod
     def setUpClass(cls):
@@ -2506,21 +2467,12 @@ class MailCommon(MailCase):
         test_record=False,
         test_template=False,
     ):
-        """Summary of es_ES matching done here (a bit hardcoded to ease tests)
-
-        * layout
-          * 'English Layout for' -> Spanish Layout para
-        * model
-          * description: English:    Lang Chatter Model (depends on test_record._name)
-                         translated: Spanish Model Description
-        * module
-          * _('View %s') -> SpanishView %s
-        * template
-          * body: English:    <p>EnglishBody for <t t-out="object.name"/></p> (depends on test_template.body)
-                  translated: <p>SpanishBody for <t t-out="object.name" /></p>
-          * subject: English:    EnglishSubject for {{ object.name }} (depends on test_template.subject)
-                     translated: SpanishSubject for {{ object.name }}
+        """Activate ``lang_code`` and translate what mail tests assert on: the
+        notification layout ('English Layout for' -> 'Spanish Layout para'), the
+        model description of ``test_record``, the ``_('View %s')`` code string
+        and the subject / body of ``test_template``.
         """
+        # activate translations; translated values are hardcoded to ease tests
         cls.env["res.lang"]._activate_lang(lang_code)
         with mute_logger("odoo.addons.base.models.ir_module", "odoo.tools.translate"):
             cls.env.ref("base.module_base")._update_translations([lang_code])
@@ -2603,9 +2555,8 @@ class MailCommon(MailCase):
         )
 
     def _filter_channels_fields(self, /, *channels_data):
-        """Remove store channel data dependant on other modules if they are not not installed.
-        Not written in a modular way to avoid complex override for a simple test tool.
-        """
+        """Remove store channel data dependent on other modules if not installed."""
+        # kept non-modular: overriding this for a simple test tool is not worth it
         ai_livechat_installed = (
             self.env["ir.module.module"]._get("ai_livechat").state == "installed"
         )
@@ -2617,24 +2568,21 @@ class MailCommon(MailCase):
         return list(channels_data)
 
     def _filter_messages_fields(self, /, *messages_data):
-        """Remove store message data dependant on other modules if they are not not installed.
-        Not written in a modular way to avoid complex override for a simple test tool.
-        """
+        """Remove store message data dependent on other modules if not installed."""
+        # kept non-modular: overriding this for a simple test tool is not worth it
         if "rating.rating" not in self.env:
             for data in messages_data:
                 data.pop("rating_id", None)
         return list(messages_data)
 
     def _filter_partners_fields(self, /, *partners_data):
-        """Remove store partner data dependant on other modules if they are not not installed.
-        Not written in a modular way to avoid complex override for a simple test tool.
-        """
+        """Remove store partner data dependent on other modules if not installed."""
+        # kept non-modular: overriding this for a simple test tool is not worth it
         return list(partners_data)
 
     def _filter_users_fields(self, /, *users_data):
-        """Remove store user data dependant on other modules if they are not not installed.
-        Not written in a modular way to avoid complex override for a simple test tool.
-        """
+        """Remove store user data dependent on other modules if not installed."""
+        # kept non-modular: overriding this for a simple test tool is not worth it
         for data in users_data:
             if "hr.leave" not in self.env:
                 data.pop("leave_date_to", None)
@@ -2642,9 +2590,8 @@ class MailCommon(MailCase):
         return list(users_data)
 
     def _filter_threads_fields(self, /, *threads_data):
-        """Remove store thread data dependant on other modules if they are not not installed.
-        Not written in a modular way to avoid complex override for a simple test tool.
-        """
+        """Remove store thread data dependent on other modules if not installed."""
+        # kept non-modular: overriding this for a simple test tool is not worth it
         for data in threads_data:
             if (
                 "rating.mixin" not in self.env.registry
@@ -2697,16 +2644,10 @@ def freeze_all_time(dt=None):
     """
     if not dt:
         dt = fields.Datetime.now()
-    # Odoo stores and manipulates datetimes as naive UTC; both cr.now() and
-    # fields.Datetime.now() honour that in production. Normalize a tz-aware
-    # freeze point (e.g. datetime.now(UTC)) to naive UTC so BOTH frozen clocks
-    # stay on that convention and agree with each other. Otherwise:
-    #   - cr.now() would be tz-aware, and comparing it against a naive Datetime
-    #     field (ir.cron._now() vs scheduled_datetime, mail.message.schedule, …)
-    #     raises "can't compare offset-naive and offset-aware datetimes";
-    #   - freezing cr.now() to naive UTC while leaving freeze_time on the aware
-    #     value would desync cr.now() (naive UTC) from datetime.now() (naive
-    #     local under freezegun) on any non-UTC host.
+    # Odoo stores datetimes as naive UTC: normalize a tz-aware freeze point so
+    # both clocks keep that convention and agree. A tz-aware cr.now() breaks
+    # comparisons against naive Datetime fields, and normalizing only cr.now()
+    # desyncs it from freezegun's naive-local datetime.now() on a non-UTC host.
     if dt.tzinfo is not None:
         dt = dt.astimezone(UTC).replace(tzinfo=None)
     with patch("odoo.db.BaseCursor.now", return_value=dt), freeze_time(dt):

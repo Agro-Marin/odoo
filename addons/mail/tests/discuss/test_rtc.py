@@ -14,11 +14,9 @@ from odoo.addons.mail.tools.discuss import Store
 @tagged("RTC", "post_install", "-at_install")
 class TestChannelRTC(MailCommon, HttpCase):
     def _backdate_sessions(self, sessions, days=2):
-        """Push ``write_date`` past the RTC garbage-collection threshold.
-
-        A regular ``write`` would reset ``write_date`` to now (defeating the
-        purpose), so update the column directly and drop the stale cache.
-        """
+        """Push ``write_date`` past the RTC garbage-collection threshold."""
+        # a regular write() would reset write_date to now, so update the column
+        # directly, then drop the stale cache
         sessions.flush_model()
         self.env.cr.execute(
             "UPDATE discuss_channel_rtc_session SET write_date = %s WHERE id = ANY(%s)",
@@ -30,7 +28,8 @@ class TestChannelRTC(MailCommon, HttpCase):
     @mute_logger("odoo.models.unlink")
     @freeze_time("2023-03-15 12:34:56")
     def test_01_join_call(self):
-        """Join call should remove existing sessions, remove invitation, create a new session, and return data."""
+        """Join call should remove existing sessions, create a new session and
+        return its data."""
         self.maxDiff = None
         channel = self.env["discuss.channel"]._create_channel(
             name="Test Channel", group_id=self.env.ref("base.group_user").id

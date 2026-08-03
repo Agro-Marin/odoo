@@ -115,12 +115,9 @@ class TestChannelInternals(MailCommon, HttpCase):
                                         "date": "2020-03-22 10:42:06",
                                         "default_subject": "Group",
                                         "id": message.id,
-                                        # incoming_email_to/cc are gated by the
-                                        # same predicate as email_from (which is
-                                        # likewise absent here): a discuss.channel
-                                        # bus target is not internal, and a channel
-                                        # may hold guests/portal members, so the
-                                        # incoming-email envelope is withheld.
+                                        # the envelope (from/to/cc) ships only to
+                                        # internal targets; a 'group' channel is
+                                        # not one, so email_from is absent too
                                         "message_link_preview_ids": [],
                                         "message_type": "notification",
                                         "model": "discuss.channel",
@@ -407,7 +404,8 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @mute_logger("odoo.models.unlink")
     def test_channel_user_synchronize(self):
-        """Archiving / deleting a user should automatically unsubscribe related partner from group restricted channels"""
+        """Archiving / deleting a user should automatically unsubscribe the related
+        partner from group restricted channels."""
         group_restricted_channel = self.env["discuss.channel"]._create_channel(
             name="Sic Mundus", group_id=self.env.ref("base.group_user").id
         )
@@ -419,7 +417,8 @@ class TestChannelInternals(MailCommon, HttpCase):
             users=self.user_employee | self.user_employee_nomail
         )
 
-        # Unsubscribe archived user from the private channels, but not from public channels
+        # unsubscribe the archived user from the group restricted channel, but not
+        # from the unrestricted one
         self.user_employee.active = False
         self.assertEqual(
             group_restricted_channel.channel_partner_ids, self.partner_employee_nomail
@@ -429,7 +428,8 @@ class TestChannelInternals(MailCommon, HttpCase):
             self.user_employee.partner_id | self.partner_employee_nomail,
         )
 
-        # Unsubscribe deleted user from the private channels, but not from public channels
+        # unsubscribe the deleted user from the group restricted channel, but not
+        # from the unrestricted one
         self.user_employee_nomail.unlink()
         self.assertEqual(
             group_restricted_channel.channel_partner_ids, self.env["res.partner"]
@@ -441,7 +441,8 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @users("employee_nomail")
     def test_channel_info_get(self):
-        # `channel_get` should return a new channel the first time a partner is given
+        # `_get_or_create_chat` should return a new channel the first time a
+        # partner is given
         channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=self.test_partner.ids
         )
@@ -452,14 +453,16 @@ class TestChannelInternals(MailCommon, HttpCase):
             {self.partner_employee_nomail.id, self.test_partner.id},
         )
 
-        # `channel_get` should return the existing channel every time the same partner is given
+        # `_get_or_create_chat` should return the existing channel every time the
+        # same partner is given
         same_channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=self.test_partner.ids
         )
         same_channel_info = Store().add(same_channel).get_result()["discuss.channel"][0]
         self.assertEqual(same_channel_info["id"], initial_channel_info["id"])
 
-        # `channel_get` should return the existing channel when the current partner is given together with the other partner
+        # `_get_or_create_chat` should return the existing channel when the current
+        # partner is given together with the other partner
         together_pids = (self.partner_employee_nomail + self.test_partner).ids
         together_channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=together_pids
@@ -469,8 +472,9 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
         self.assertEqual(together_channel_info["id"], initial_channel_info["id"])
 
-        # `channel_get` should return a new channel the first time just the current partner is given,
-        # even if a channel containing the current partner together with other partners already exists
+        # `_get_or_create_chat` should return a new channel the first time just the
+        # current partner is given, even if a channel containing the current partner
+        # together with other partners already exists
         solo_pids = self.partner_employee_nomail.ids
         solo_channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=solo_pids
@@ -483,7 +487,8 @@ class TestChannelInternals(MailCommon, HttpCase):
             {self.partner_employee_nomail.id},
         )
 
-        # `channel_get` should return the existing channel every time the current partner is given
+        # `_get_or_create_chat` should return the existing channel every time the
+        # current partner is given
         same_solo_pids = self.partner_employee_nomail.ids
         same_solo_channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=same_solo_pids
@@ -493,7 +498,7 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
         self.assertEqual(same_solo_channel_info["id"], solo_channel_info["id"])
 
-    # `channel_get` will pin the channel by default and thus last interest will be updated.
+    # `_get_or_create_chat` pins the channel by default, hence last interest is updated
     @users("employee")
     def test_get_or_create_chat_should_update_last_interest_dt(self):
         """Ensure last_interest_dt of the current user is updated when calling _get_or_create_chat.
@@ -521,7 +526,8 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @users("employee")
     def test_channel_info_mark_as_read(self):
-        """In case of concurrent channel_seen RPC, ensure the oldest call has no effect."""
+        """In case of concurrent mark_as_read RPC, ensure the oldest call has no
+        effect."""
         pids = (self.partner_employee | self.user_admin.partner_id).ids
         chat = (
             self.env["discuss.channel"]
@@ -665,8 +671,8 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @mute_logger("odoo.models.unlink")
     def test_channel_unsubscribe_auto(self):
-        """Archiving / deleting a user should automatically unsubscribe related
-        partner from private channels"""
+        """Archiving / deleting a user should automatically unsubscribe the related
+        partner from group restricted channels only."""
         test_user = self.env["res.users"].create(
             {
                 "login": "adam",
@@ -712,7 +718,8 @@ class TestChannelInternals(MailCommon, HttpCase):
             )
         )
 
-        # Unsubscribe archived user from the private channels, but not from public channels and not from group
+        # unsubscribe the archived user from the group restricted channel, but not
+        # from the unrestricted channel nor from the group
         self.user_employee.active = False
         (private_group | self.test_channel).invalidate_recordset(
             ["channel_partner_ids"]
@@ -727,7 +734,8 @@ class TestChannelInternals(MailCommon, HttpCase):
             self.user_employee.partner_id | test_partner,
         )
 
-        # Unsubscribe deleted user from the private channels, but not from public channels and not from group
+        # unsubscribe the deleted user from the group restricted channel, but not
+        # from the unrestricted channel nor from the group
         test_user.unlink()
         self.assertEqual(
             group_restricted_channel.channel_partner_ids, self.env["res.partner"]
@@ -775,13 +783,10 @@ class TestChannelInternals(MailCommon, HttpCase):
     def test_group_unfollow_should_not_post_message_if_the_partner_has_been_removed(
         self,
     ):
-        """
-        When a partner leaves a group, the system will help post a message under
-        that partner's name in the group to notify others if `email_sent` is set `False`.
-        The message should only be posted when the partner is still a member of the group
-        before method `_action_unfollow()` is called.
-        If the partner has been removed earlier, no more messages will be posted
-        even if `_action_unfollow()` is called again.
+        """Leaving a group posts a 'left the channel' message under the leaver's
+        name when ``post_leave_message`` is set. It is only posted while the
+        partner is still a member, so calling ``_action_unfollow()`` again on an
+        already removed partner posts nothing.
         """
         test_group = self.env["discuss.channel"].create(
             {
