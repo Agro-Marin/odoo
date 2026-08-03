@@ -90,8 +90,9 @@ class CustomerPortalLoyalty(CustomerPortal):
     def portal_get_card_history_values(self, card_id):
         """Retrieve card history values for portal card dialog.
 
-        :param card_id(str): The ID of the loyalty card.
-        :return(dict): A dictionary with card history values.
+        :param int card_id: The ID of the loyalty card.
+        :return: The card, its program, its latest history and its reachable rewards.
+        :rtype: dict
         """
         card_sudo = request.env['loyalty.card'].sudo().search([
             ('id', '=', int(card_id)),

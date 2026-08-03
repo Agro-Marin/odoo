@@ -15,9 +15,7 @@ class LoyaltyCard(models.Model):
 
     @api.model
     def _generate_code(self):
-        """
-        Barcode identifiable codes.
-        """
+        """Barcode identifiable codes."""
         return "044" + str(uuid4())[7:-18]
 
     @api.depends('program_id', 'code')
@@ -59,7 +57,7 @@ class LoyaltyCard(models.Model):
 
     @api.constrains('code')
     def _contrains_code(self):
-        # Prevent a coupon from having the same code a program
+        # Prevent a coupon from sharing its code with a program trigger
         if self.env['loyalty.rule'].search_count([('mode', '=', 'with_code'), ('code', 'in', self.mapped('code'))]):
             raise ValidationError(_("A trigger with the same code as one of your coupon already exists."))
 
@@ -82,7 +80,7 @@ class LoyaltyCard(models.Model):
             return f"{int(points)} {self.point_name or ''}"
         return f"{points:.2f} {self.point_name or ''}"
 
-    # Meant to be overriden
+    # Meant to be overridden
     def _compute_use_count(self):
         self.use_count = 0
 
@@ -97,16 +95,14 @@ class LoyaltyCard(models.Model):
         ).partner_id
 
     def _get_signature(self):
-        """To be overriden"""
+        """To be overridden."""
         self.ensure_one()
 
     def _has_source_order(self):
         return False
 
     def action_coupon_send(self):
-        """ Open a window to compose an email, with the default template returned by `_get_default_template`
-            message loaded by default
-        """
+        """Open the email composer preloaded with `_get_default_template`."""
         self.ensure_one()
         default_template = self._get_default_template()
         compose_form = self.env.ref('mail.email_compose_message_wizard_form', False)
@@ -130,9 +126,7 @@ class LoyaltyCard(models.Model):
         }
 
     def _send_creation_communication(self, force_send=False):
-        """
-        Sends the 'At Creation' communication plan if it exist for the given coupons.
-        """
+        """Send the 'At Creation' communication plans of the given coupons, if any."""
         if self.env.context.get('loyalty_no_mail', False) or self.env.context.get('action_no_send_mail', False):
             return
         # Ideally one per program, but multiple is supported
@@ -157,10 +151,9 @@ class LoyaltyCard(models.Model):
                 )
 
     def _send_points_reach_communication(self, points_changes):
-        """
-        Send the 'When Reaching' communicaton plans for the given coupons.
+        """Send the 'When Reaching' communication plans for the given coupons.
 
-        If a coupons passes multiple milestones we will only send the one with the highest target.
+        When a coupon passes several milestones, only the highest one reached is sent.
         """
         if self.env.context.get('loyalty_no_mail', False):
             return
@@ -173,7 +166,7 @@ class LoyaltyCard(models.Model):
             if not coupon._mail_get_customer():
                 continue
             coupon_change = points_changes[coupon]
-            # Do nothing if coupon lost points or did not change
+            # Skip cards without milestone or partner, and those that gained no points
             if not milestones_per_program[coupon.program_id] or\
                 not coupon.partner_id or\
                 coupon_change['old'] >= coupon_change['new']:
