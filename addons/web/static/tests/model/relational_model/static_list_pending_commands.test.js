@@ -45,7 +45,6 @@ function makeList({ loadRecords = async () => [] } = {}) {
             fields: { display_name: { type: "char" } },
         },
         records: [],
-        count: 0,
         _cache: markRaw({}),
         _commands: [],
         _initialCommands: [],
@@ -68,6 +67,10 @@ function makeList({ loadRecords = async () => [] } = {}) {
                 activeFields: {},
                 fields: {},
                 fieldNames: [],
+                // As RelationalRecord.setup builds it: the fields the server
+                // actually sent. `_getResIdsToLoad` reads this to decide
+                // whether a row still needs a webRead.
+                _loadedFieldNames: new Set(Object.keys(data)),
                 data: { ...data },
                 _changes: {},
                 _discard() {},

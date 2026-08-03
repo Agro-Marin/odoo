@@ -186,7 +186,6 @@ describe("_healMissingWindow in isolation", () => {
     test("reads only the window ids that have no datapoint", async () => {
         const { list, loaded } = makeList({ resIds: [1, 2], limit: 5 });
         list._currentIds = [1, 2, 3, 4];
-        list.count = 4;
 
         list._healMissingWindow();
         await list._commandsPromise;
@@ -205,7 +204,6 @@ describe("_healMissingWindow in isolation", () => {
     test("stays within the page window", async () => {
         const { list, loaded } = makeList({ resIds: [1], limit: 2 });
         list._currentIds = [1, 3, 4, 5];
-        list.count = 4;
 
         list._healMissingWindow();
         await list._commandsPromise;

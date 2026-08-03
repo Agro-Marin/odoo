@@ -40,7 +40,6 @@ function makeList(resIds) {
             fields: { display_name: { type: "char" } },
         },
         records: [],
-        count: resIds.length,
         _cache: markRaw({}),
         _commands: [],
         _initialCommands: [],

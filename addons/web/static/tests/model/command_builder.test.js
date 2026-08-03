@@ -295,16 +295,23 @@ describe("absorbUnlinkIntoSet", () => {
         expect(commands[0][2]).toEqual([]);
     });
 
-    test("also drops orphaned UPDATE commands for the absorbed id", () => {
+    test("touches ONLY the SET payload, never the rest of the log", () => {
+        // The caller rebuilds `list._commands` from its own index straight
+        // after this returns, so anything spliced out of the array passed in
+        // here is written to a value that is about to be discarded. Dropping
+        // the absorbed id's other commands is the caller's job -- see
+        // static_list_command_engine.test.js, "an UNLINK absorbed into a
+        // staged SET also drops that row's staged UPDATE", which asserts it
+        // where it is actually observable.
         const commands = [
             [SET, false, [1, 2, 3]],
             [UPDATE, 2, { name: "edited" }],
             [UPDATE, 3, { name: "keep" }],
         ];
         expect(absorbUnlinkIntoSet(commands, 2)).toBe(true);
-        expect(commands[0][2]).toEqual([1, 3]);
         expect(commands).toEqual([
             [SET, false, [1, 3]],
+            [UPDATE, 2, { name: "edited" }],
             [UPDATE, 3, { name: "keep" }],
         ]);
     });

@@ -38,7 +38,6 @@ function makeList(overrides = {}) {
             fields: { sequence: { type: "integer" } },
         },
         records: [],
-        count: 0,
         _cache: markRaw({}),
         _commands: [],
         _initialCommands: [],
@@ -79,7 +78,6 @@ describe("_pruneCache", () => {
         list._savePoint = markRaw({
             _commands: [],
             _currentIds: [1, 2],
-            count: 2,
         });
 
         list._pruneCache();
@@ -120,7 +118,6 @@ describe("_abandonRecords", () => {
         list.records = [rec];
         list._currentIds = ["virtual_1", 7];
         list._commands = [[0, "virtual_1"]];
-        list.count = 2;
 
         list._abandonRecords([rec], { force: true });
 
@@ -135,7 +132,6 @@ describe("_abandonRecords", () => {
         const rec = makeAbandonable("virtual_ghost");
         list.records = [];
         list._currentIds = [7, 8];
-        list.count = 2;
 
         list._abandonRecords([rec], { force: true });
 
@@ -181,7 +177,6 @@ describe("_addNewRecordAtIndex", () => {
             records: [r1, r2],
             _currentIds: [1, 2],
             _cache: cache,
-            count: 2,
         });
         list._createNewRecordDatapoint = async () => {
             const rec = {

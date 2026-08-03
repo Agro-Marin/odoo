@@ -112,7 +112,6 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
     });
     list.model._patchConfig(list.config, { resIds });
     list._currentIds = [...resIds];
-    list.count = resIds.length;
     return list;
 }
 
@@ -143,24 +142,30 @@ describe("count follows membership through a partial load", () => {
         expect(list.count).toBe(3);
     });
 
-    test("a growing load (_addRecord under an orderBy) is not counted as a drop", async () => {
+    test("a growing load (_addRecord under an orderBy) grows count with it", async () => {
+        // `_addRecord` under an orderBy reaches `_load` through `sort()` with
+        // the new id already in `nextCurrentIds`. `count` is derived, so it
+        // grows the moment the id list does -- there is no window in which the
+        // list holds N+1 members and reports N, which is what the old
+        // count-follows-by-hand protocol left open between here and
+        // `_addRecord`'s own increment.
         const list = makeList({ resIds: [1, 2, 3], limit: 10 });
 
         await list._load({ nextCurrentIds: [1, 2, 3, 99] });
 
         expect(list._currentIds).toEqual([1, 2, 3, 99]);
-        expect(list.count).toBe(3);
+        expect(list.count).toBe(4);
     });
 
     test("departures are a MULTISET difference, not a set difference", async () => {
-        // A set-based `!next.has(id)` under-reports here: 1 is still present,
-        // so neither of the two entries reads as a departure and count keeps a
-        // phantom. Only membership held twice can produce this, which the
-        // command engine now prevents -- but the two guards live in different
-        // files, so `_load` must not depend on that.
+        // Membership held twice used to need a MULTISET difference to count
+        // departures: an id present twice that comes back once is one
+        // departure, not zero, and a set-based `!next.has(id)` reported zero.
+        // Deriving `count` from the id list removes the question entirely --
+        // kept as a regression test because the duplicate-membership state it
+        // exercises is still reachable.
         const list = makeList({ resIds: [1, 2], limit: 10 });
         list._currentIds = [1, 1, 2];
-        list.count = 3;
 
         await list._load({ nextCurrentIds: [1, 2] });
 

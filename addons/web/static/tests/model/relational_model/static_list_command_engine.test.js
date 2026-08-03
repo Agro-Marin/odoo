@@ -38,7 +38,13 @@ function makeList(overrides = {}) {
         offset: 0,
         limit: 80,
         _tmpIncreaseLimit: 0,
-        count: 0,
+        // Derived, exactly as the real StaticList derives it. A fixture that
+        // can hold `count` out of step with `_currentIds` can be set up in a
+        // state the production code cannot reach, and then the assertions are
+        // about that impossible state rather than about the engine.
+        get count() {
+            return this._currentIds.length;
+        },
         config: {},
         fields: {},
         _createRecordDatapoint(data, opts = {}) {
@@ -119,7 +125,6 @@ function addRecord(list, resId) {
     list._cache[resId] = record;
     list.records.push(record);
     list._currentIds.push(resId);
-    list.count++;
     return record;
 }
 
@@ -164,7 +169,6 @@ describe("applyCommands — DELETE", () => {
         const fakeRecord = { resId: false, _virtualId: "virtual_1" };
         list.records = [fakeRecord];
         list._cache["virtual_1"] = fakeRecord;
-        list.count = 1;
 
         applyCommands(list, [[DELETE, "virtual_1"]]);
 
@@ -249,6 +253,25 @@ describe("applyCommands — UNLINK", () => {
         expect(list.records.map((r) => r.resId)).toEqual([1, 3]);
         expect(list.count).toBe(2);
     });
+
+    test("an UNLINK absorbed into a staged SET also drops that row's staged UPDATE", () => {
+        // The observable half of absorbUnlinkIntoSet: once the row is gone from
+        // the SET payload, an UPDATE still naming it would be sent for a row
+        // this batch never links.
+        const SET = 6;
+        const list = makeList();
+        list._commands = [[SET, false, [1, 2, 3]]];
+        addRecord(list, 1);
+        addRecord(list, 2);
+        addRecord(list, 3);
+
+        applyCommands(list, [[UPDATE, 2, { name: "edited" }]]);
+        expect(list._commands.some((c) => c[0] === UPDATE && c[1] === 2)).toBe(true);
+
+        applyCommands(list, [[UNLINK, 2]]);
+
+        expect(list._commands).toEqual([[SET, false, [1, 3]]]);
+    });
 });
 
 describe("applyCommands — LINK", () => {
@@ -315,7 +338,6 @@ describe("applyCommands — LINK", () => {
         addRecord(list, 1);
         addRecord(list, 2);
         list._currentIds = [1, 2, 90, 91];
-        list.count = 4;
 
         applyCommands(list, [[LINK, 9, { id: 9, display_name: "Rec 9" }]]);
 
@@ -330,7 +352,6 @@ describe("applyCommands — LINK", () => {
         addRecord(list, 1);
         addRecord(list, 2);
         list._currentIds = [1, 2];
-        list.count = 2;
 
         applyCommands(list, [[LINK, 9]]);
 
@@ -498,7 +519,6 @@ describe("applyCommands — command log integrity", () => {
         list.records.push(fakeVirtual);
         list._currentIds.push("virtual_1");
         list._cache["virtual_1"] = fakeVirtual;
-        list.count = 2;
 
         applyCommands(list, [[DELETE, 1]]);
 

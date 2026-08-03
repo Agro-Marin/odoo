@@ -51,7 +51,29 @@ export class RecordEditState {
 
         this.dirty = false;
 
-        /** @type {Set<string>} */
+        /**
+         * The two validity sets mean DIFFERENT things, and neither contains
+         * the other. The names suggest `unsetRequiredFields` is a subset of
+         * `invalidFields`; it is not, and enforcing that would break typing.
+         *
+         * `invalidFields` is what is currently flagged TO THE USER. It is
+         * cleared optimistically the moment they start fixing a field:
+         * `useInputField`'s `onInput` calls `resetFieldValidity`, which deletes
+         * from here and deliberately leaves the set below alone, so the error
+         * styling drops on the first keystroke rather than on blur.
+         *
+         * `unsetRequiredFields` is the last FULL validity pass's own record of
+         * what it found required-and-unset. `checkValidity` needs it to know
+         * which `invalidFields` entries are its own to clear, so that a flag a
+         * widget raised (an unparseable date) survives a pass that a required
+         * field did not fail.
+         *
+         * So between a keystroke and the next full pass the sets legitimately
+         * disagree, and a required field reads valid while still empty. The
+         * save path runs a full `checkValidity`, which re-derives both.
+         *
+         * @type {Set<string>}
+         */
         this.invalidFields = new Set();
         /** @type {Set<string>} */
         this.unsetRequiredFields = markRaw(new Set());
