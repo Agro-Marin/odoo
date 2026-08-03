@@ -7,13 +7,10 @@ class MailComposerMixin(models.AbstractModel):
     """Mixin used to edit and render some fields used when sending emails or
     notifications based on a mail template.
 
-    Main current purpose is to hide details related to subject and body computation
-    and rendering based on a mail.template. It also give the base tools to control
-    who is allowed to edit body, notably when dealing with templating language
-    like inline_template or qweb.
-
-    It is meant to evolve in a near future with upcoming support of qweb and fine
-    grain control of rendering access.
+    It hides the details of subject and body computation and rendering from a
+    mail.template, and gives the base tools controlling who is allowed to edit the
+    body, notably when dealing with a templating language like inline_template or
+    qweb.
     """
 
     _name = "mail.composer.mixin"
@@ -133,12 +130,13 @@ class MailComposerMixin(models.AbstractModel):
 
     def _render_lang(self, res_ids, engine="inline_template"):
         """Return the lang for each record from the template lang field or a
-        context key. Enters sudo to allow qweb rendering (normally reserved for
-        the 'mail template editor' group) when safe, i.e. the content comes from
-        the validated template. Heuristic:
+        context key. Whitelists qweb rendering (otherwise reserved for the
+        'mail.group_mail_template_editor' group) when safe, i.e. the content comes
+        from the validated template. Heuristic:
 
           * if no template, do not bypass the check;
-          * if record lang and template lang are the same, bypass the check;
+          * if record lang and template lang are the same, bypass the check for
+            non-editors (editors need no bypass);
         """
 
         if not self.template_id:
@@ -167,9 +165,9 @@ class MailComposerMixin(models.AbstractModel):
         return super(MailComposerMixin, record)._render_lang(res_ids, engine=engine)
 
     def _render_field(self, field, res_ids, *args, **kwargs):
-        """Render the given field on the given records. Enters sudo to allow
-        qweb rendering (normally reserved for the 'mail template editor' group)
-        when safe, i.e. the content comes from the validated template.
+        """Render the given field on the given records. Whitelists qweb rendering
+        (otherwise reserved for the 'mail.group_mail_template_editor' group) when
+        safe, i.e. the content comes from the validated template.
         Heuristic:
 
           * if no template, do not bypass the check;

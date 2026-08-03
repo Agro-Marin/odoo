@@ -41,20 +41,11 @@ class MailTrackingDurationMixin(models.AbstractModel):
     )
 
     def _compute_duration_tracking(self):
-        """
-        Computes duration_tracking, a Json field stored as { <many2one_id (str)>: <duration_spent_in_seconds (int)> }
+        """Compute duration_tracking, a Json mapping each id taken by the tracked
+        many2one field to the seconds spent on it, e.g. {"1": 1230, "5": 14}.
 
-            e.g. {"1": 1230, "2": 2220, "5": 14}
-
-        `_track_duration_field` must be present in the model that uses the mixin to specify on what
-        field to compute time spent. Besides, tracking must be activated for that field.
-
-            e.g.
-            class MyModel(models.Model):
-                _name = 'my.model'
-                _track_duration_field = "tracked_field"
-
-                tracked_field = fields.Many2one('tracked.model', tracking=True)
+        The model using the mixin must set `_track_duration_field` to a many2one
+        field having tracking enabled.
         """
 
         field = (
@@ -128,13 +119,11 @@ class MailTrackingDurationMixin(models.AbstractModel):
 
     @api.depends(lambda self: self._get_rotting_depends_fields())
     def _compute_rotting(self):
-        """
-        A resource is rotting if its stage has not been updated in a number of days depending on its
-        stage's rotting_threshold_days value, assuming it matches _get_rotting_domain() conditions.
+        """Flag records matching _get_rotting_domain() whose tracked value has not
+        changed for more days than that value's rotting_threshold_days.
 
-        If the rotting_threshold_days field is not defined on the tracked module,
-        or if the value of rotting_threshold_days is 0,
-        then the resource will never rot.
+        Records never rot when the tracked model has no rotting_threshold_days
+        field, or when its value is 0.
         """
         if not self._is_rotting_feature_enabled():
             self.is_rotting = False
@@ -201,7 +190,8 @@ class MailTrackingDurationMixin(models.AbstractModel):
                     ON %(stage_table_alias_name)s.id = %(table)s.%(stage_field)s
             """
 
-        # Items with a date_last_stage_update inferior to that number of months will not be returned by the search function.
+        # Records whose last update (_track_duration_last_update_field) is older than
+        # that number of months are not returned by the search.
         max_rotting_months = self.env["ir.config_parameter"]._get_int_param(
             "crm.lead.rot.max.months", 12
         )
@@ -291,10 +281,10 @@ class MailTrackingDurationMixin(models.AbstractModel):
         return json
 
     def _get_rotting_depends_fields(self):
-        """
-        fields added to this method through override should likely also be returned by _get_rotting_domain() override
+        """Return the fields whose change can affect a record's ability to rot.
 
-        :return: the array of fields that can affect the ability of a resource to rot
+        Fields added by an override should likely also appear in the matching
+        _get_rotting_domain() override.
         """
         if (
             hasattr(self, "_track_duration_field")
@@ -307,20 +297,23 @@ class MailTrackingDurationMixin(models.AbstractModel):
         return []
 
     def _get_rotting_domain(self):
-        """
-        fields added to this method through override should likely also be returned by _get_rotting_depends_fields() override
+        """Return the conditions a record must meet to be considered rotting.
 
-        :return: domain: conditions that must be met so that the field can be considered rotting
+        Fields added by an override should likely also appear in the matching
+        _get_rotting_depends_fields() override.
+
+        :rtype: Domain
         """
         return Domain(f"{self._track_duration_field}.rotting_threshold_days", "!=", 0)
 
     def _is_rotting_feature_enabled(self):
         """Rotting requires the '_track_duration_field' target model to have an
-        integer 'rotting_threshold_days' (days before a record rots), and this
-        model to have a stage-change tracking field
-        ('_track_duration_last_update_field').
+        integer 'rotting_threshold_days' (days before a record rots), this model to
+        have a '_track_duration_last_update_field' datetime field, and — on a
+        non-empty recordset — one tracked value with a non-zero threshold.
 
-        :return: bool: whether the rotting feature has been configured for this model
+        :return: whether the rotting feature has been configured for this model;
+        :rtype: bool
         """
         return (
             "rotting_threshold_days" in self[self._track_duration_field]
