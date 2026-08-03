@@ -35,6 +35,7 @@ export const kanbanColorPickerField = {
     component: KanbanColorPickerField,
     displayName: _t("Color Picker"),
     interactiveOutsideEdition: true,
+    supportedTypes: ["integer"],
 };
 
 registerField("kanban_color_picker", kanbanColorPickerField);

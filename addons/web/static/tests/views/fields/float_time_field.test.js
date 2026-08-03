@@ -120,3 +120,30 @@ test("float_time field does not have an inputmode attribute", async () => {
 
     expect(".o_field_widget[name='qux'] input").not.toHaveAttribute("inputmode");
 });
+
+test("display_seconds is honoured under the conventional spelling", async () => {
+    // `displaySeconds` is the historical camelCase name and stays live for the
+    // arches that already use it; `display_seconds` is the spelling every other
+    // option in this module uses and used to do nothing at all.
+    for (const option of ["display_seconds", "displaySeconds"]) {
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 5,
+            arch: `<form><field name="qux" widget="float_time" options="{'${option}': True}"/></form>`,
+        });
+        expect(`[name='qux'] input`).toHaveValue("09:06:00", {
+            message: `seconds shown for options={'${option}': True}`,
+        });
+    }
+});
+
+test("no seconds without the option", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 5,
+        arch: `<form><field name="qux" widget="float_time"/></form>`,
+    });
+    expect(`[name='qux'] input`).toHaveValue("09:06");
+});

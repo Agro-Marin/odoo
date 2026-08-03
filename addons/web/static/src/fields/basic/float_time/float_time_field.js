@@ -6,6 +6,7 @@
 import { formatFloatTime } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { parseFloatTime } from "@web/core/parsers";
+import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -41,14 +42,19 @@ export const floatTimeField = {
     supportedOptions: [
         {
             label: _t("Display seconds"),
-            name: "displaySeconds",
+            name: "display_seconds",
             type: "boolean",
         },
     ],
     supportedTypes: ["float"],
     isEmpty: () => false,
+    // `displaySeconds` is the historical spelling and is still live in a dozen
+    // arches (mail, im_livechat), so it keeps working; `display_seconds` is the
+    // one every other option in this module uses, and the only one declared.
     extractProps: ({ options }) => ({
-        displaySeconds: options.displaySeconds,
+        displaySeconds: exprToBoolean(
+            options.display_seconds ?? options.displaySeconds ?? false,
+        ),
     }),
 };
 

@@ -280,6 +280,7 @@ const resUserGroupIdsField = {
     component: ResUserGroupIdsField,
     fieldDependencies: [{ name: "view_group_hierarchy", type: "json", readonly: true }],
     additionalClasses: ["w-100"],
+    supportedTypes: ["many2many"],
 };
 
 registerField("res_user_group_ids", resUserGroupIdsField);

@@ -2136,3 +2136,29 @@ test("create-domain follows the record the pager lands on", async () => {
         message: "and paging back must restore it, not lag another step",
     });
 });
+
+test.tags("desktop");
+test("search_memoization reaches the embedded autocomplete", async () => {
+    // The option was inherited from the many2one declaration and advertised for
+    // a long time before anything forwarded it. Only the non-default value can
+    // show that: Many2XAutocomplete already defaults to "exact", so an "exact"
+    // assertion passes whether or not the field forwards anything.
+    const searched = [];
+    onRpc("web_name_search", ({ kwargs }) => void searched.push(kwargs.name));
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: `
+            <form>
+                <field name="timmy" widget="many2many_tags"
+                    options="{'search_memoization': 'none'}"/>
+            </form>`,
+    });
+    for (let i = 0; i < 3; i++) {
+        await contains(".o_field_widget[name=timmy] input").edit("zzz", {
+            confirm: false,
+        });
+        await runAllTimers();
+    }
+    expect(searched.filter((name) => name === "zzz")).toHaveLength(3);
+});

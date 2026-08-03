@@ -99,6 +99,19 @@ export const charField = {
             ),
         },
     ],
+    // `useDynamicPlaceholder.updateModel` reads this out of `record.data` to
+    // decide which model's fields the picker offers, so a view that names the
+    // option but not the field silently fell back to `record.data.model`.
+    fieldDependencies: ({ options }) =>
+        options.dynamic_placeholder_model_reference_field
+            ? [
+                  {
+                      name: options.dynamic_placeholder_model_reference_field,
+                      optional: true,
+                      readonly: true,
+                  },
+              ]
+            : [],
     extractProps: ({ attrs, options, placeholder }) => ({
         isPassword: exprToBoolean(attrs.password),
         dynamicPlaceholder: options.dynamic_placeholder || false,

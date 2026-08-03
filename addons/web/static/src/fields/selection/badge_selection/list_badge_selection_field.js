@@ -52,6 +52,13 @@ export const listBadgeSelectionField = {
             help: _t("Set an integer field to use colors with the badge."),
         },
     ],
+    // `badgeColorClass` reads the colour out of `record.data`, so a view that
+    // names the option but not the field fell back to the plain badge and the
+    // option silently did nothing.
+    fieldDependencies: ({ options }) =>
+        options.color_field
+            ? [{ name: options.color_field, optional: true, readonly: true }]
+            : [],
     extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => ({
         ...badgeSelectionField.extractProps(fieldInfo, dynamicInfo),
         colorField: fieldInfo.options.color_field,

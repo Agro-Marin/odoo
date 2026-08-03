@@ -18,12 +18,21 @@ export class BadgeSelectionWithFilterField extends BadgeSelectionField {
         allowedSelectionField: { type: String },
     };
 
-    /** @returns {Array<[string, string]>} */
+    /**
+     * The value the record actually holds always stays offered, even once it
+     * drops out of the allowed list -- otherwise the widget renders with no
+     * badge selected at all while the record holds one, so the user can neither
+     * read the current value nor tell the field apart from an empty one. The
+     * sibling `filterable_selection` has always kept it for the same reason.
+     *
+     * @returns {Array<[string, string]>}
+     */
     get options() {
         const allowedSelection =
             this.props.record.data[this.props.allowedSelectionField] || [];
-        return super.options.filter((/** @type {[any, any]} */ [value, _]) =>
-            allowedSelection.includes(value),
+        return super.options.filter(
+            (/** @type {[any, any]} */ [value, _]) =>
+                value === this.value || allowedSelection.includes(value),
         );
     }
 }

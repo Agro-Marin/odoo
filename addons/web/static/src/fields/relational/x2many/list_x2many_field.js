@@ -20,6 +20,7 @@ export class ListX2ManyField extends Component {
 
 export const listX2ManyField = {
     component: ListX2ManyField,
+    supportedTypes: ["one2many", "many2many"],
     useSubView: false,
 };
 

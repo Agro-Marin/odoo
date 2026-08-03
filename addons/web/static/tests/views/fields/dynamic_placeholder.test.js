@@ -194,3 +194,29 @@ test("correctly cache model qweb variables and don't prevent opening of other po
     expect(willStarts).toBe(2);
     expect.verifySteps(["mail_allowed_qweb_expressions"]);
 });
+
+test("the model reference field is loaded without the view naming it", async () => {
+    // `useDynamicPlaceholder.updateModel` reads the option's field out of
+    // `record.data`. Without a declared dependency it was absent from the read
+    // and the picker silently fell back to `record.data.model`, so every
+    // consumer needed an `<field name="..." invisible="1"/>` of its own -- the
+    // form view above still carries one.
+    onRpc("web_read", ({ kwargs }) => {
+        expect(Object.keys(kwargs.specification)).toInclude("placeholder");
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="char" options="{
+                    'dynamic_placeholder': true,
+                    'dynamic_placeholder_model_reference_field': 'placeholder'
+                }"/>
+            </form>`,
+    });
+
+    await contains(".o_field_char input").edit("#", { confirm: false });
+    expect(".o_model_field_selector_popover").toHaveCount(1);
+});

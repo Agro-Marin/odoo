@@ -58,6 +58,7 @@ export class Many2ManyTagsField extends Component {
         context: { type: Object, optional: true },
         placeholder: { type: String, optional: true },
         nameCreateField: { type: String, optional: true },
+        searchMemoization: { type: String, optional: true },
         searchThreshold: { type: Number, optional: true },
         string: { type: String, optional: true },
     };
@@ -81,6 +82,10 @@ export class Many2ManyTagsField extends Component {
     mutex;
     /** @type {Function} */
     linkRecords;
+    /** @type {import("../relational_active_actions").RelationalActiveActions} */
+    activeActions;
+    /** @type {((name: string) => Promise<any>) | undefined} */
+    quickCreate;
 
     setup() {
         useRenderCounter("fields.Many2ManyTagsField");
@@ -128,6 +133,7 @@ export class Many2ManyTagsField extends Component {
         );
 
         this.update = this.update.bind(this);
+        this.getDomain = this.getDomain.bind(this);
 
         if (this.props.canQuickCreate) {
             this.quickCreate = async (name) => {
@@ -202,6 +208,33 @@ export class Many2ManyTagsField extends Component {
         return !this.props.readonly;
     }
 
+    /**
+     * Every prop the embedded autocomplete gets, in one place. Each template
+     * used to spell its own list, so the subclass templates quietly dropped the
+     * props the base one passed -- `create_name_field` and `search_threshold`
+     * were declared options that did nothing on `many2many_tags_avatar`.
+     *
+     * @returns {Object}
+     */
+    get many2XAutocompleteProps() {
+        return {
+            activeActions: this.activeActions,
+            autoSelect: true,
+            context: this.props.context,
+            fieldString: this.string,
+            getDomain: this.getDomain,
+            id: this.props.id,
+            isToMany: true,
+            nameCreateField: this.props.nameCreateField,
+            placeholder: this.tags.length ? "" : this.props.placeholder,
+            quickCreate: this.activeActions.create ? (this.quickCreate ?? null) : null,
+            resModel: this.relation,
+            searchMemoization: this.props.searchMemoization,
+            searchThreshold: this.props.searchThreshold,
+            update: this.update,
+        };
+    }
+
     /** @param {number} index */
     async deleteTagByIndex(index) {
         return this.mutex.exec(() => {
@@ -248,7 +281,13 @@ export const many2ManyTagsField = {
     component: Many2ManyTagsField,
     displayName: _t("Tags"),
     supportedOptions: [
-        ...(m2oSupportedOptions ?? []).filter((o) => o.name !== "no_open"),
+        // The many2one options the tags widget actually honours. Inheriting the
+        // whole list and subtracting one name let every option later added to
+        // many2one leak in: `can_scan_barcode` has no button in this template,
+        // and `search_memoization` was advertised without being forwarded.
+        ...(m2oSupportedOptions ?? []).filter(
+            (o) => !["no_open", "can_scan_barcode"].includes(o.name),
+        ),
         {
             label: _t("Can create"),
             name: "create",
@@ -288,6 +327,7 @@ export const many2ManyTagsField = {
             context: dynamicInfo.context,
             domain: dynamicInfo.domain,
             placeholder,
+            searchMemoization: options.search_memoization,
             searchThreshold: options.search_threshold,
             string,
         };
