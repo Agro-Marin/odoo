@@ -20,8 +20,8 @@ class TestIrMailServer(MailCommon):
         cls.default_from_address = f"{cls.default_from}@{cls.alias_domain}"
 
     def test_alter_smtp_to_list(self):
-        """Check smtp_to_list alteration. Reminder: Message is the envelope,
-        SMTP is the actual sending."""
+        """Check smtp_to_list alteration. Reminder: Msg['To'] is the displayed
+        header, the SMTP To list is the actual envelope recipients."""
         IrMailServer = self.env["ir.mail_server"]
         mail_from = "specific_user@test.mycompany.com"
 
@@ -34,7 +34,7 @@ class TestIrMailServer(MailCommon):
                 [],
             ),
             # 'send_validated_to' context key: restrict SMTP To actual recipients
-            # but do not rewrite Msg['To'], aka envelope (main usage is to cleanup
+            # but do not rewrite the Msg['To'] header (main usage is to cleanup
             # addresses found by extract_rfc2822_addresses anyway)
             (
                 IrMailServer.with_context(
@@ -86,7 +86,7 @@ class TestIrMailServer(MailCommon):
                 ],
                 {},
             ),
-            # 'X-Forge-To' header: force envelope Msg['To'] (not SMTP recipients)
+            # 'X-Forge-To' header: force the Msg['To'] header (not SMTP recipients)
             # used notably for mailing lists
             (
                 IrMailServer,
@@ -244,7 +244,7 @@ class TestIrMailServer(MailCommon):
             for provide_smtp in [
                 False,
                 True,
-            ]:  # providing smtp session should ont impact test
+            ]:  # providing smtp session should not impact test
                 with self.subTest(mail_from=mail_from, provide_smtp=provide_smtp):
                     with self.mock_smtplib_connection():
                         if provide_smtp:
@@ -325,19 +325,10 @@ class TestIrMailServer(MailCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_mail_server_priorities(self):
-        """Test if we choose the right mail server to send an email.
-        Priorities are
-        1. Forced mail server (e.g.: in mass mailing)
-            - If the "from_filter" of the mail server match the notification email
-              use the notifications email in the "From header"
-            - Otherwise spoof the "From" (because we force the mail server but we don't
-              know which email use to send it)
-        2. A mail server for which the "from_filter" match the "From" header
-        3. A mail server for which the "from_filter" match the domain of the "From" header
-        4. The mail server used for notifications
-        5. A mail server without "from_filter" (and so spoof the "From" header because we
-           do not know for which email address it can be used)
-        """
+        """Test if we choose the right mail server to send an email. Priorities are
+        a forced mail server, then a "from_filter" matching the "From" header,
+        then one matching its domain, then the notifications mail server, then a
+        mail server without "from_filter" (which spoofs the "From" header)."""
         # this mail server can now be used for a specific email address and 2 domain names
         self.mail_server_user.from_filter = (
             "domain1.com, specific_user@test.mycompany.com, domain2.com"
@@ -467,12 +458,9 @@ class TestIrMailServer(MailCommon):
                         mail_server=expected_mail_server,
                     )
 
-        # remove the notification server
-        # so <notifications.test@test.mycompany.com> will use the <test.mycompany.com> mail server
-        # The mail server configured for the notifications email has been removed
-        # but we can still use the mail server configured for test.mycompany.com
-        # and so we will be able to use the bounce address
-        # because we use the mail server for "test.mycompany.com"
+        # remove the notification server: <notifications.test@test.mycompany.com>
+        # now falls back on the <test.mycompany.com> server, which supports the
+        # bounce address
         self.mail_server_notification.unlink()
         for provide_smtp in [False, True]:
             with self.mock_smtplib_connection():
@@ -537,7 +525,7 @@ class TestPersonalServer(MailCommon):
     def assert_mail_sent_then_scheduled(
         self, mails, to_process_count, sent_count, send_datetime
     ):
-        """Assert that X emails has been sent, and the other have been scheduled."""
+        """Assert that ``sent_count`` mails were sent and the rest scheduled."""
         TEST_LIMIT = 5
         outgoing = mails.filtered(
             lambda m: (
@@ -794,7 +782,7 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(mail_server_1.owner_limit_count, TEST_LIMIT)
         self.assertEqual(mail_server_1.owner_limit_time, DATE_SEND_3.replace(second=0))
 
-        # The CRON run in one minute later, we can 5 more emails
+        # The CRON runs one minute later, we can send 5 more emails
         DATE_SEND_5 = datetime(2025, 1, 1, 20, 7, 23)
         with (
             self.mock_smtplib_connection(),
@@ -1014,7 +1002,7 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(len(outgoing_2.recipient_ids), 7)
 
         # The next CRON will send all remaining emails of the first mail (1), and 4 mails for the second one
-        # and schedule the 3 last (7 recipients - 3 sent)
+        # and schedule the 3 last (7 recipients - 4 sent)
         with (
             self.mock_smtplib_connection(),
             self.mock_datetime_and_now("2025-01-01 20:39:29"),

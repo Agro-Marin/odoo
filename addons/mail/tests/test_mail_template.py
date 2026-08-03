@@ -14,7 +14,7 @@ class TestMailTemplate(MailCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Enable the Jinja rendering restriction
+        # Enable the dynamic rendering restriction
         cls.env["ir.config_parameter"].set_param(
             "mail.restrict.template.rendering", True
         )
@@ -113,10 +113,9 @@ class TestMailTemplate(MailCommon):
     @mute_logger("odoo.addons.mail.models.mail_template")
     @mute_logger("odoo.addons.mail.models.mail_render_mixin")
     def test_invalid_template_skipped_during_install(self):
-        """During module install/upgrade (install_mode) the render check is
-        skipped: data-file templates are written via _load_records_write and a
-        render failure against an arbitrary sample record must not abort the
-        upgrade (regression)."""
+        """During install/upgrade (install_mode) the render check is skipped:
+        data-file templates go through _load_records_write and a render failure
+        against an arbitrary sample record must not abort the upgrade."""
         mail_template = self.env["mail.template"].create(
             {
                 "name": "Installed template",
@@ -208,7 +207,7 @@ class TestMailTemplate(MailCommon):
         model = self.env["ir.model"]._get_id("res.users")
         record = self.user_employee
 
-        # Group System can create / write / unlink mail template
+        # Group System can create / write mail template
         mail_template = (
             self.env["mail.template"]
             .with_user(self.user_admin)
@@ -351,9 +350,9 @@ class TestMailTemplate(MailCommon):
             '<t t-set="namn" t-value="Hello {{world}} !"/>',
             '<t t-att-test="object.name"/>',
             '<p t-att-title="object.name"></p>',
-            # allowed expression with other attribute
+            # otherwise-allowed expression, made unsafe by another attribute
             '<p t-out="object.name" title="Test"></p>',
-            # allowed expression with child
+            # otherwise-allowed expression, made unsafe by a child node
             '<p t-out="object.name"><img/></p>',
             '<p t-out="object.password"></p>',
         )
@@ -435,7 +434,8 @@ class TestMailTemplate(MailCommon):
             mail_template._render_field("email_to", record.ids)
             self.assertTrue(unsafe_eval.called)
 
-        # malformed HTML (html_normalize should prevent the regex rendering on the malformed HTML)
+        # malformed HTML (html_normalize escapes the smuggled t-out, so the regex
+        # rendering cannot execute it)
         templates = (
             # here sanitizer adds an 'equals void' after object.name as properties
             # should have values (lxml 6 places ="" differently than older versions)
@@ -477,9 +477,8 @@ class TestMailTemplate(MailCommon):
         self.assertIn(self.user_admin.name, rendered)
 
     def test_mail_template_acl_translation(self):
-        """Test that a user that doesn't have the group_mail_template_editor cannot create / edit
-        translation with dynamic code if he cannot write dynamic code on the related record itself.
-        """
+        """Test that a user without the group_mail_template_editor cannot write
+        dynamic code in a template translation either."""
 
         self.env.ref("base.lang_fr").sudo().active = True
 
@@ -675,7 +674,7 @@ class TestMailTemplate(MailCommon):
                 self.assertListEqual(parsed, expected)
 
     def test_server_archived_usage_protection(self):
-        """Test the protection against using archived server (servers used cannot be archived)"""
+        """Test that a mail server used by a template cannot be archived."""
         IrMailServer = self.env["ir.mail_server"]
         server = IrMailServer.create(
             {
@@ -996,6 +995,7 @@ class TestSearchTemplateCategory(MailCommon):
             len(not_in_templates), expected_templates, "Not in templates count mismatch"
         )
 
+        # Search with 'not in' operator on multiple categories
         not_in_domain = [
             ("template_category", "not in", ["hidden_template", "base_template"])
         ]

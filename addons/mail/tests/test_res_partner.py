@@ -174,7 +174,7 @@ class TestPartner(MailCommon):
                 f"{self.env.company.name}, Some Other Street Name, Some Other City Name CA 94134, United States",
                 tracking_values.new_value_char,
             )
-            # none of the address fields are logged at the same time
+            # none of the address fields are logged individually
             self.assertEqual(
                 set(),
                 set(partner._address_fields())
@@ -345,7 +345,8 @@ class TestPartner(MailCommon):
                 self.assertEqual(
                     self.env["res.partner"].find_or_create(email), partners[1]
                 )
-        # multi-emails -> no normalized email -> fails each time, create new partner (FIXME)
+        # multi-emails: only the normalized (first) email finds the partner, the
+        # second one creates a new partner (FIXME)
         for email_input, match_partner in [
             ("find.me.multi.1@test.example.com", partners[2]),
             ("find.me.multi.2@test.example.com", self.env["res.partner"]),
@@ -411,7 +412,7 @@ class TestPartner(MailCommon):
         for (sample, exp_name, exp_email), partner in zip(
             self.samples, partners, strict=False
         ):
-            # specific to '_from_emails': name used as email is no email found
+            # specific to '_from_emails': name used as email if no email found
             exp_email = exp_email or exp_name
             with self.subTest(sample=sample):
                 self.assertFalse(partner.company_id)
@@ -471,7 +472,7 @@ class TestPartner(MailCommon):
             with self.subTest(
                 sample=sample, exp_name=exp_name, exp_email=exp_email, partner=partner
             ):
-                # specific to '_from_emails': name used as email is no email found
+                # specific to '_from_emails': name used as email if no email found
                 exp_email = exp_email or exp_name
                 exp_company = (
                     self.env.company
@@ -666,7 +667,7 @@ class TestPartner(MailCommon):
                 self.assertEqual(partner.name, expected_name)
 
     def test_message_get_default_recipients(self):
-        """Specific use case: partner should contact himself"""
+        """Default recipients of a partner: himself, without email_to / email_cc."""
         partners = self.env["res.partner"].create(
             [
                 {"name": "Raoulette", "email": '"Raoulette" <raoulette@example.com>'},
@@ -686,7 +687,7 @@ class TestPartner(MailCommon):
                 )
 
     def test_message_get_suggested_recipients(self):
-        """Specific use case: partner should contact himself"""
+        """Suggested recipients of a partner: himself, with his normalized email."""
         partners = self.env["res.partner"].create(
             [
                 {"name": "Raoulette", "email": '"Raoulette" <raoulette@example.com>'},
@@ -756,7 +757,7 @@ class TestPartner(MailCommon):
 
     @users("admin")
     def test_name_create_corner_cases(self):
-        """Test parsing (and fallback) or name given to name_create that should
+        """Test parsing (and fallback) of name given to name_create that should
         try to correctly find name and email, even with malformed input. Relies
         on 'parse_contact_from_email' and 'email_normalize'."""
         samples = [
@@ -838,7 +839,7 @@ class TestPartner(MailCommon):
         self.assertTrue(p2.exists())
         # check mail documents have been moved
         self.assertEqual(p2.activity_ids, p1_act1)
-        # TDE note: currently not working as soon as there is a single partner duplicated -> should be improved
+        # currently not working as soon as there is a single partner duplicated -> should be improved
         # self.assertEqual(p2.message_follower_ids.partner_id, self.partner_admin + p3)
         all_msg = p2_msg_ids_init + p1_msg_ids_init + p1_msg1
         self.assertEqual(
