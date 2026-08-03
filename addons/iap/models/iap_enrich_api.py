@@ -25,13 +25,8 @@ class IapEnrichApi(models.AbstractModel):
 
         :param lead_emails: dict{lead_id: email}
         :return: dict{lead_id: company data or False}
-        :raise: several errors, notably
-          * InsufficientCreditError: {
-            "credit": 4.0,
-            "service_name": "reveal",
-            "base_url": "https://iap.odoo.com/iap/1/credit",
-            "message": "You don't have enough credits on your account to use this service."
-            }
+        :raise InsufficientCreditError: not enough credits on the 'reveal' account; its
+          ``data`` holds the remaining credit, the service name and the purchase URL
         """
         params = {
             'domains': lead_emails,

@@ -48,7 +48,7 @@ _MAIL_PROVIDERS = {
 _MAIL_DOMAIN_BLACKLIST = _MAIL_PROVIDERS | {'odoo.com'}
 
 # List of country codes for which we should offer state filtering when mining new leads.
-# See crm.iap.lead.mining.request#_compute_available_state_ids() or task-2471703 for more details.
+# See crm.iap.lead.mining.request#_compute_available_state_ids() for more details.
 _STATES_FILTER_COUNTRIES_WHITELIST = {
     'AR', 'AU', 'BR', 'CA', 'IN', 'MY', 'MX', 'NZ', 'AE', 'US'
 }
@@ -61,9 +61,9 @@ _STATES_FILTER_COUNTRIES_WHITELIST = {
 def mail_prepare_for_domain_search(email, min_email_length=0):
     """ Return an email address to use for a domain-based search. For generic
     email providers like gmail (see ``_MAIL_DOMAIN_BLACKLIST``) we consider
-    each email as being independant (and return the whole email). Otherwise
-    we return only the right-part of the email (aka "mydomain.com" if email is
-    "Raoul Lachignole" <raoul@mydomain.com>).
+    each email as being independent (and return the whole email). Otherwise
+    we return only the domain part prefixed with "@" (aka "@mydomain.com" if
+    email is "Raoul Lachignole" <raoul@mydomain.com>).
 
     :param integer min_email_length: skip if email has not the sufficient minimal
       length, indicating a probably fake / wrong value (skip if 0);
@@ -99,9 +99,8 @@ class IAPServerError(Exception):
 
 
 def iap_jsonrpc(url, method='call', params=None, timeout=15):
-    """
-    Calls the provided JSON-RPC endpoint, unwraps the result and
-    returns JSON-RPC errors as exceptions.
+    """ Call the provided JSON-RPC endpoint, unwrap the result and raise
+    JSON-RPC errors as ``InsufficientCreditError`` or ``AccessError``.
     """
     if modules.module.current_test:
         raise exceptions.AccessError("Unavailable during tests.")  # pylint: disable=missing-gettext
