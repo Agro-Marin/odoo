@@ -313,9 +313,9 @@ describe("collapsed selection", () => {
         );
         editor.shared.history.addStep();
         cleanHints(editor);
-        // Insertion triggers selectionchange & addStep creates selection
-        // placeholder.fixSelectionInsideEditableRoot moves selection into it,
-        // trigger another selectionchange that removes selection placeholder.
+        // Insertion triggers selectionchange & addStep creates a selection
+        // placeholder. fixSelectionOnEditableRoot moves the selection into it,
+        // triggering another selectionchange that removes the placeholder.
         // So we must wait for the o-we-hint.
         await waitFor(".o-we-hint");
         cleanHints(editor);

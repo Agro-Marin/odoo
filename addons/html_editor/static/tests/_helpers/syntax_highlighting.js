@@ -8,7 +8,7 @@ import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 
 import { unformat } from "./format.js";
 
-/** @typedef {import("@html_editor/plugin").Editor} Editor */
+/** @typedef {import("@html_editor/editor").Editor} Editor */
 /**
  * @typedef {Object} HighlightedContent
  * @property {string} value

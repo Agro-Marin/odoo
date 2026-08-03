@@ -99,7 +99,7 @@ class TestEditor extends Component {
 
 /**
  * @typedef { import("@html_editor/plugin").Plugin } Plugin
- * @typedef { import("@html_editor/plugin").Editor } Editor
+ * @typedef { import("@html_editor/editor").Editor } Editor
  */
 
 /**

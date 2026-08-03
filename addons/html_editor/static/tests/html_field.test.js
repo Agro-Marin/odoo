@@ -994,9 +994,9 @@ test("Embed video by pasting video URL", async () => {
 
     // Press Enter to select first option in the powerbox ("Embed Youtube Video").
     await press("Enter");
-    // Insertion triggers selectionchange & addStep creates selection
-    // placeholder.fixSelectionInsideEditableRoot moves selection into it,
-    // trigger another selectionchange that removes selection placeholder.
+    // Insertion triggers selectionchange & addStep creates a selection
+    // placeholder. fixSelectionOnEditableRoot moves the selection into it,
+    // triggering another selectionchange that removes the placeholder.
     // So we must wait for the o-we-hint.
     await waitFor(".o-we-hint");
     const videoIframe = queryOne("div[data-embedded='video']");

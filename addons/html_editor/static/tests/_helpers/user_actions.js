@@ -15,7 +15,7 @@ import { isMobileOS } from "@web/core/browser/feature_detection";
 import { setSelection } from "./selection.js";
 import { execCommand } from "./userCommands.js";
 
-/** @typedef {import("@html_editor/plugin").Editor} Editor */
+/** @typedef {import("@html_editor/editor").Editor} Editor */
 
 /**
  * Simulates text insertion in the editor by dispatching keyboard/input events
