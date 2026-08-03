@@ -288,6 +288,8 @@ export class CustomColorPicker extends Component {
 
         const colorpickerPointer = this.colorPickerPointerRef.el;
         colorpickerPointer.style.top = `${top - 5}px`;
+        // Inline, so rtlcss never sees it: the saturation gradient it would
+        // otherwise mirror carries `/*rtl:ignore*/` to stay on the same axis.
         colorpickerPointer.style.left = `${left - 5}px`;
         colorpickerPointer.setAttribute(
             "aria-label",
