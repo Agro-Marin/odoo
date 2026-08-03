@@ -73,7 +73,7 @@ describe("inline code", () => {
         await testEditor({
             contentBefore: "<p>a`b`cd[]e`f</p>",
             stepFunction: async (editor) => await insertText(editor, "`"),
-            // The closest PREVIOUS backtick is prioritary
+            // The closest PREVIOUS backtick takes priority
             contentAfterEdit:
                 '<p>a`b\ufeff<code class="o_inline_code">\ufeffcd\ufeff</code>\ufeff[]e`f</p>',
             contentAfter: '<p>a`b<code class="o_inline_code">cd</code>[]e`f</p>',
@@ -363,7 +363,7 @@ describe("inline code", () => {
     test("should not open the odoo global command bar when pressing ctrl+k inside a inline code element", async () => {
         await setupEditor(`<p><code class="o_inline_code">[test]</code></p>`);
 
-        // Pressing ctrl+k to open odoo global command bar
+        // ctrl+k would normally open the odoo global command bar
         await press(["ctrl", "k"]);
         await animationFrame();
         expect('.o_command span[title="Create link"]').toHaveCount(0);
