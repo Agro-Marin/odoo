@@ -154,10 +154,8 @@ class MailAliasMixinOptional(models.AbstractModel):
             for record, alias_domain_id in alias_domain_values.items():
                 record.sudo().alias_domain_id = alias_domain_id.id
 
-        # self.browse() is an EMPTY recordset, so has_access() only evaluated the
-        # model-level ACL and never the record rules — an alias-only write (no
-        # record_vals) by a user a record rule forbids from writing these records
-        # still went through. Check access on the real records.
+        # check on 'self', not on an empty recordset: an alias-only write (no
+        # record_vals) must also honor the record rules, not only the model ACL
         if alias_vals and (record_vals or self.has_access("write")):
             self.mapped("alias_id").sudo().write(alias_vals)
 
@@ -188,12 +186,14 @@ class MailAliasMixinOptional(models.AbstractModel):
         return not record_vals.get("alias_id") and record_vals.get("alias_name")
 
     def _alias_get_alias_domain_id(self):
-        """Return alias domain value to synchronize with owner's company.
-        Implementing it with a compute is complicated, as its 'alias_domain_id'
-        is a field on 'mail.alias' model, coming from 'alias_id' field and due
-        to current implementation of the mixin, notably the create / write
-        overrides, compute is not called in all cases. We therefore use a tool
-        method to call in the mixin."""
+        """Return the alias domain to synchronize with the owner's company.
+
+        :return: alias domain per record
+        :rtype: dict
+        """
+        # a tool method rather than a compute: 'alias_domain_id' is related to
+        # 'alias_id', and the create / write overrides below do not always
+        # trigger the compute
         alias_domain_values = {}
         record_companies = self._mail_get_companies()
         for record in self:

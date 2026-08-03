@@ -34,13 +34,13 @@ class MailThreadMainAttachment(models.AbstractModel):
     ):
         """Update 'main' attachment.
 
-        :param list attachments: new main attachment IDS; if several attachments
-          are given, we search for pdf or image first;
-        :param boolean force: if set, replace an existing attachment; otherwise
+        :param recordset attachments: candidate 'ir.attachment' records; if
+          several are given, we search for pdf or image first;
+        :param bool force: if set, replace an existing attachment; otherwise
           update is skipped;
-        :param filter_xml: filters out xml (and octet-stream) attachments, as in
-          most cases you don't want that kind of file to end up as main attachment
-          of records;
+        :param bool filter_xml: filters out xml (and octet-stream) attachments,
+          as in most cases you don't want that kind of file to end up as main
+          attachment of records;
         """
         if attachments and (force or not self.message_main_attachment_id):
             if filter_xml:

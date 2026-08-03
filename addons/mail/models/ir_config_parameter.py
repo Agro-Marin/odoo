@@ -8,9 +8,7 @@ _logger = logging.getLogger(__name__)
 
 class IrConfig_Parameter(models.Model):
     # Override of config parameter to specifically handle the template
-    # rendering group (de)activation through ICP.
-
-    # While being there, let us document quickly mail ICP.
+    # rendering group (de)activation through ICP. Mail ICP are documented below.
 
     # Emailing
     # * 'mail.mail.queue.batch.size': used in MailMail.process_email_queue()
@@ -43,7 +41,7 @@ class IrConfig_Parameter(models.Model):
 
     # Mail Gateway
     #   * 'mail.gateway.loop.minutes' and 'mail.gateway.loop.threshold': block
-    #     emails with same email_from if gateway received more than THRESHOLD
+    #     emails with same email_from if gateway received THRESHOLD or more
     #     in MINUTES. This is used to break loops e.g. when email servers bounce
     #     each other. 20 emails / 120 minutes by default;
     #   * 'mail.default.from_filter': default from_filter used when there is
@@ -76,8 +74,9 @@ class IrConfig_Parameter(models.Model):
     #     google translate;
     #   * 'mail.web_push_vapid_private_key' and 'mail.web_push_vapid_public_key':
     #     configuration parameters when using web push notifications;
-    #   * 'mail.use_twilio_rtc_servers', 'mail.use_sfu_server', 'mail.sfu_server_url' and 'mail.
-    #     sfu_server_key': rtc server usage and configuration;
+    #   * 'mail.use_twilio_rtc_servers', 'mail.use_sfu_server',
+    #     'mail.sfu_server_url' and 'mail.sfu_server_key': rtc server usage and
+    #     configuration;
     #   * 'discuss.klipy_api_key': used for gif fetch service;
     #   * 'mail.server.outlook.iap.endpoint': URL of the IAP endpoint
     #     for outlook oauth server
@@ -90,24 +89,24 @@ class IrConfig_Parameter(models.Model):
     def _get_int_param(self, key, default):
         """Read an integer mail ICP, degrading to ``default`` if unusable.
 
-        Every numeric parameter documented above is consumed through ``int()``,
-        but the stored value is free text typed into Settings > Technical >
-        System Parameters. A stray character therefore used to raise
-        ``ValueError`` deep inside whichever flow happened to read it -- the
-        outgoing-queue cron, the incoming gateway, a list view -- turning a typo
-        in one place into an unrelated hard failure somewhere else. Degrade to
-        the documented default and warn, so the mistake is visible without
-        taking a subsystem down with it.
-
-        Parsing lives in ``base``'s :meth:`~odoo.addons.base.models.
-        ir_config_parameter.IrConfig_Parameter.get_param_int`; this stays as the
-        sudo wrapper its callers rely on, since these ICPs are read from flows
-        (gateway, queue cron, list views) whose user cannot read the table.
-
-        Callers that treat 0 as meaningful (``... or <fallback>``) keep doing so;
-        this only guarantees an ``int`` comes back.
+        :param str key: ICP key to read
+        :param int default: value returned when the stored value is not an int
+        :rtype: int
         """
-        return self.sudo().get_param_int(key, default)
+        # the stored value is free text typed in Settings > Technical > System
+        # Parameters: warn about a typo instead of raising in whichever flow
+        # happens to read it. 0 is returned as-is, callers may fall back on it.
+        raw = self.env["ir.config_parameter"].sudo().get_param(key, default)
+        try:
+            return int(raw)
+        except TypeError, ValueError:
+            _logger.warning(
+                "ir.config_parameter %r is not an integer (%r); falling back to %r.",
+                key,
+                raw,
+                default,
+            )
+            return default
 
     @api.model
     def set_param(self, key, value):
@@ -122,10 +121,8 @@ class IrConfig_Parameter(models.Model):
                 # remove existing users, including inactive template user
                 # admin will regain the right via implied_ids on group_system
                 group_user._remove_group(group_mail_template_editor)
-        # sanitize and normalize allowed catchall domains. An empty value means
-        # "no restriction", which is the *absence* of the parameter: coerce it
-        # to False so super() removes the row (it stores "" verbatim otherwise,
-        # so get_param would return "" instead of False).
+        # sanitize allowed catchall domains; "no restriction" is the absence of
+        # the parameter, so coerce an empty value to False for super() to unlink
         elif key == "mail.catchall.domain.allowed":
             value = (
                 self.env["mail.alias"]._sanitize_allowed_domains(value)
@@ -150,11 +147,9 @@ class IrConfig_Parameter(models.Model):
 
     def write(self, vals):
         if "value" in vals:
-            # The value may need key-dependent sanitizing and records can carry
-            # different keys, so group records by their sanitized value and write
-            # each group once. In the common case (uniform key / no-op sanitize)
-            # this stays a single batched write, while still giving each
-            # parameter its own value instead of leaking the last record's (A2).
+            # sanitizing is key-dependent and records may carry different keys:
+            # group by sanitized value so each parameter gets its own value,
+            # while a uniform key still writes in a single batch
             records_by_value = defaultdict(self.browse)
             for record in self:
                 key = vals.get("key", record.key)

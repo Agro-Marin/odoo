@@ -20,15 +20,13 @@ class MailThreadBlacklist(models.AbstractModel):
         compute="_compute_email_normalized",
         compute_sudo=True,
         store=True,
-        # Indexed (skipping NULLs): the mail gateway searches this column with
-        # an equality per blacklist-enabled model for every inbound email
-        # (_routing_reset_bounce) and every bounce (_routing_handle_bounce);
-        # on large crm.lead / mailing.contact / hr.applicant tables an
-        # unindexed scan per model dominates gateway latency.
+        # indexed (NULLs skipped): the gateway searches this column by equality
+        # once per blacklist-enabled model for every inbound email
+        # (_routing_reset_bounce) and every bounce (_routing_handle_bounce)
         index="btree_not_null",
         help="This field is used to search on email address as the primary email field can contain more than strictly an email address.",
     )
-    # Note : is_blacklisted sould only be used for display. As the compute is not depending on the blacklist,
+    # Note : is_blacklisted should only be used for display. As the compute is not depending on the blacklist,
     # once read, it won't be re-computed again if the blacklist is modified in the same request.
     is_blacklisted = fields.Boolean(
         string="Blacklist",
@@ -83,15 +81,14 @@ class MailThreadBlacklist(models.AbstractModel):
                 SQL.identifier(self._table),
             )
 
-        # Return the subquery domain directly. Probing it first with a
-        # "FETCH FIRST ROW ONLY" round-trip was redundant: an empty subquery makes
-        # ``id IN (…)`` match no rows anyway, exactly like the old [(0, "=", 1)].
+        # no need to probe the subquery first: when it is empty, ``id IN (…)``
+        # already matches no row
         return [("id", "in", SQL("(%s)", sql))]
 
     @api.depends("email_normalized")
     def _compute_is_blacklisted(self):
         # TODO : Should remove the sudo as compute_sudo defined on methods.
-        # But if user doesn't have access to mail.blacklist, doen't work without sudo().
+        # But if user doesn't have access to mail.blacklist, doesn't work without sudo().
         blacklist = set(
             self.env["mail.blacklist"]
             .sudo()

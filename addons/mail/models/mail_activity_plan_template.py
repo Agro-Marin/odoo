@@ -161,26 +161,20 @@ class MailActivityPlanTemplate(models.Model):
         return base_date - delta
 
     def _determine_responsible(self, on_demand_responsible, applied_on_record):
-        """Determine the responsible for the activity based on the template
-        for the given record and on demand responsible.
+        """Determine the responsible of the activity to create on a record.
 
-        Based on the responsible_type, this method will determine the responsible
-        to set on the activity for the given record (applied_on_record).
-        Following the responsible_type:
-        - on_demand: on_demand_responsible is used as responsible (allow to set it
-        when using the template)
-        - other: the responsible field is used (preset user at the template level)
+        'on_demand' uses ``on_demand_responsible``, 'other' the preset
+        ``responsible_id``.
 
-        Other module can extend it and base the responsible on the record on which
-        the activity will be set. Ex.: 'coach' on employee record will assign the
-        coach user of the employee.
-
-        :param <res.user> on_demand_responsible: on demand responsible
+        :param recordset on_demand_responsible: 'res.users' given at launch
         :param recordset applied_on_record: the record on which the activity
             will be created
-        :returns: {'responsible': <res.user>, error: str|False}
+        :return: {'responsible': <res.users>, 'error': str|False,
+            'warning': str|False}
         :rtype: dict
         """
+        # overrides may derive the responsible from the record itself, e.g. the
+        # 'coach' of an employee
         self.ensure_one()
         error = False
         warning = False

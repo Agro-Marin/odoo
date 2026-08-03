@@ -12,26 +12,18 @@ class IrUiMenu(models.Model):
         """Get the best menu root id for the given res_model and the access
         rights of the user.
 
-        When a link to a model was sent to a user it was targeting a page without
-        menu, so it was hard for the user to act on it.
-        The goal of this method is to find the best suited menu to display on a
-        page of a given model.
-
-        Technically, the method tries to find a menu root which has a sub menu
-        visible to the user that has an action linked to the given model.
-        If there is more than one possibility, it chooses the preferred one based
-        on the following preference function that determine the sub-menu from which
-        the root menu is extracted:
-        - favor the sub-menu linked to an action having a path as it probably indicates
-        a "major" action
-        - then favor the sub-menu with the smallest menu id as it probably indicates
-        that it belongs to the main module of the model and not a sub-one.
+        Looks for a menu root having a sub menu visible to the user with an
+        action on ``res_model``. Ties are broken by favoring an action with a
+        path (probably a "major" action), then the smallest menu id (probably
+        the model's main module rather than a sub-one).
 
         :param str res_model: the model name for which we want to find the best
             menu root id
         :return: the best menu root id or None if not found
-        :rtype: int
+        :rtype: int | None
         """
+        # a link to a record mailed to a user opens a page without menu, leaving
+        # them no way to act on it
         with contextlib.suppress(AccessError):  # if no access to the menu, return None
             visible_menu_ids = self._visible_menu_ids()
             # Try first to get a menu root from the model implementation (take the less specialized i.e. the first one)

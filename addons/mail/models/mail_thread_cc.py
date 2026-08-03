@@ -12,11 +12,9 @@ class MailThreadCc(models.AbstractModel):
         """return a dict of sanitize_email:raw_email from a string of cc"""
         if not cc_string:
             return {}
-        # email_split_tuples accepts any token containing '@', but email_normalize
-        # returns False when it cannot extract a valid address (e.g. a bare "a@").
-        # Feeding False to formataddr raises AttributeError, which aborts the whole
-        # inbound route (attacker-controllable DoS via a crafted Cc header) and also
-        # collapses every unparseable entry onto the same False key. Skip them.
+        # skip what email_normalize rejects (e.g. a bare "a@", which
+        # email_split_tuples still accepts): formataddr(False) raises
+        # AttributeError, aborting the whole inbound route on a crafted Cc header
         sanitized = {}
         for name, email in tools.mail.email_split_tuples(cc_string):
             normalized = tools.email_normalize(email)

@@ -17,10 +17,8 @@ class IrMail_Server(models.Model):
 
     owner_user_id = fields.Many2one("res.users", "Owner", copy=False)
 
-    # Store the current time, and the number of emails we sent
-    # Each minute, the time and the count will be reset
-    # Used to throttle the number of emails we send for the personal
-    # mail servers.
+    # throttle the personal mail servers: number of emails sent during the stored
+    # minute, both reset at the next one (MailMail._split_by_delayed_batch)
     owner_limit_time = fields.Datetime("Owner Limit Time", copy=False)
     owner_limit_count = fields.Integer("Owner Limit Count", copy=False)
 

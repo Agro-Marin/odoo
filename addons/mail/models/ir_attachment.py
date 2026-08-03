@@ -27,7 +27,9 @@ class IrAttachment(models.Model):
         - Having 'write' access to the attachment.
         - Providing a valid, scoped 'attachment_ownership' access token.
 
-        :param list attachment_tokens: A list of access tokens
+        :param list attachment_tokens: one access token per attachment, or None
+        :raises UserError: if the token count does not match the recordset
+        :rtype: bool
         """
         attachment_tokens = attachment_tokens or ([None] * len(self))
         if len(attachment_tokens) != len(self):
@@ -64,10 +66,8 @@ class IrAttachment(models.Model):
 
         for model, attachments in todo.grouped("res_model").items():
             if model not in self.env:
-                # 'res_model' is a free-form Char: it can name a model that is
-                # no longer in the registry. Skip that group like the
-                # non-threaded one below instead of raising KeyError and taking
-                # the whole batch down with it.
+                # 'res_model' is a free-form Char and may name a model that is
+                # no longer in the registry: skip that group instead of raising
                 continue
             related_records = self.env[model].browse(attachments.mapped("res_id"))
             if not hasattr(related_records, "_message_set_main_attachment_id"):
