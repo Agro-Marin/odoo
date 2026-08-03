@@ -478,6 +478,13 @@ export class RelationalModel extends Model {
             return records[0];
         }
         if (config.resIds) {
+            // Defaults first: this branch used to slice with a `limit` nothing
+            // had filled in yet, so `offset + undefined` was NaN and the slice
+            // silently produced an empty list instead of the first page.
+            Object.assign(config, {
+                limit: config.limit || this.initialLimit,
+                offset: config.offset || 0,
+            });
             const resIds = config.resIds.slice(
                 config.offset,
                 config.offset + config.limit,
