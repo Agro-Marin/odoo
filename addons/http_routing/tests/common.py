@@ -16,17 +16,13 @@ def setup_frontend_langs(env, langs, default):
     """Make ``langs`` the frontend languages and ``default`` the default one,
     whatever is installed on top of http_routing.
 
-    http_routing derives both from ``res.lang`` + ``ir.default``, but ``website``
-    overrides ``_get_frontend`` and ``_get_default_lang`` to read
-    ``website.language_ids`` / ``website.default_lang_id`` instead. A fixture
-    that only writes ``ir.default`` therefore silently configures nothing once
-    ``website`` is installed, and every assertion about lang prefixes fails --
-    which is exactly why this suite passed under ``-i http_routing`` but failed
-    wholesale on a website database. Configure whichever source is in play.
-
     :param langs: a ``res.lang`` recordset, the frontend languages
     :param default: a ``res.lang`` record, the default frontend language
     """
+    # http_routing derives both from ``res.lang`` + ``ir.default``, but
+    # ``website`` overrides ``_get_frontend``/``_get_default_lang`` to read
+    # ``website.language_ids``/``default_lang_id``: configure whichever source
+    # is in play, or the fixture silently configures nothing.
     env["ir.default"].set("res.partner", "lang", default.code)
     if "website" in env:
         env["website"].search([]).write(
@@ -57,12 +53,9 @@ def MockRequest(
     mock_router=True,
     is_frontend=True,
 ):
-    """Mock of the ``http.request``.
+    """Mock of the ``http.request``, for tests that need frontend request state.
 
-    NOTE: If you only use ``request.env`` in your code, you can replace it by
-    ``self.env`` and don't need to use this class.
-    It is in this module, because website adds properties which are not defined
-    in base module.
+    Code touching only ``request.env`` can use ``self.env`` instead.
     """
     lang_code = context.get("lang", env.context.get("lang", "en_US"))
     env = env(context=dict(context, lang=lang_code))
@@ -108,42 +101,28 @@ def MockRequest(
         website=website,
         render=lambda *a, **kw: "<MockResponse>",
     )
-    # Real response builders, not ``Mock``'s attribute autovivification. A
-    # ``type="http"`` route that answers JSON -- ``/shop/address/submit``,
-    # ``/my/address/submit``, the portal chatter routes -- returns
-    # ``request.make_json_response(...)``, and ``route_wrapper`` validates that
-    # return value through ``Response.load``. An auto-created ``Mock`` is not a
-    # ``str``/``bytes``/``None``/``Response``, so every such route raised
-    # ``TypeError: ... returns an invalid value`` the moment it was called under
-    # this mock, no matter what the test was actually asserting.
-    #
-    # These two mixin methods are self-contained -- ``make_response`` only builds
-    # a ``Response``, and ``make_json_response`` only calls ``self.make_response``
-    # -- so binding the genuine implementations to the mock is both safe and more
-    # faithful than a stub: routes get a real ``Response`` and tests can assert on
-    # the JSON body. ``render`` above stays stubbed because it needs the serving
-    # stack, which is exactly the thing this mock exists to avoid.
+    # Real response builders, not ``Mock``'s attribute autovivification: a
+    # ``type="http"`` route answering JSON returns
+    # ``request.make_json_response(...)``, which ``route_wrapper`` validates
+    # through ``Response.load`` and rejects as an invalid return value. Both
+    # mixin methods are self-contained, so binding them is safe; ``render``
+    # above stays stubbed because it needs the serving stack.
     request.make_response = partial(odoo.http.Request.make_response, request)
     request.make_json_response = partial(odoo.http.Request.make_json_response, request)
     if url_root is not None:
         request.httprequest.url = url_join(url_root, path)
     # ``website_routing`` must ALWAYS be a real value, never left to ``Mock``'s
-    # attribute autovivification. ``website._generate_routing_rules`` reads it
-    # unguarded and drops it straight into a ``website.rewrite`` search domain,
-    # so an auto-created ``Mock`` reaches psycopg and every helper that builds a
-    # routing map blows up with "cannot adapt type 'Mock'" -- but only once
-    # ``website`` is installed, which is why running this suite on a website
-    # database used to fail wholesale while ``-i http_routing`` passed.
-    # ``False`` is the "no specific website" value the rewrite domain expects.
+    # attribute autovivification: ``website._url_for`` reads it unguarded and
+    # feeds it to ``_rewrite_len``, which drops it into a ``website.rewrite``
+    # search domain and blows up in psycopg with "cannot adapt type 'Mock'".
+    # ``False`` is the "no specific website" value that domain expects.
     request.website_routing = website.id if website else False
     # ``is_frontend``/``is_frontend_multilang`` are stamped on the request by
-    # ``ir.http._match``. Production code branches on their *absence*
-    # (``if hasattr(request, "is_frontend")`` short-circuits the whole lang
-    # ladder; ``ir.qweb`` warns when it is missing) -- but a bare ``Mock``
-    # autovivifies every attribute, so ``hasattr`` was unconditionally True and
-    # those branches were unreachable from any test. Pass ``is_frontend=None``
-    # to simulate a request that has not been routed yet and actually exercise
-    # them; the default keeps the historical "already routed" behaviour.
+    # ``ir.http._match``, and production code branches on their *absence*
+    # (``hasattr(request, "is_frontend")`` short-circuits the whole lang ladder;
+    # ``ir.qweb`` warns when it is missing). A bare ``Mock`` autovivifies them,
+    # so pass ``is_frontend=None`` to simulate a not-yet-routed request; the
+    # default keeps the "already routed" behaviour.
     if is_frontend is None:
         del request.is_frontend
         del request.is_frontend_multilang
@@ -157,19 +136,11 @@ def MockRequest(
             city=(city_name and {"names": {"en": city_name}}) or {},
         )
 
-    # The following code mocks match() to return a fake (endpoint, args)
-    # tuple whose endpoint carries a fake 'routing' attribute (routing=True)
-    # or to raise a NotFound exception (routing=False), mirroring werkzeug's
-    # real MapAdapter.match() contract so callers may index *or* unpack it.
-    #
-    #   router = odoo.http.root.get_db_router()
-    #   func, args = router.bind(...).match(path)
-    #   # arg routing is True => func.routing == {...}
-    #   # arg routing is False => NotFound exception
-    #
-    # Pass ``mock_router=False`` to skip this mock entirely and match against
-    # the real routing map (e.g. to exercise url_rewrite/_url_localized against
-    # actual endpoints).
+    # Mock match() to return a fake (endpoint, args) tuple whose endpoint
+    # carries a fake 'routing' attribute (routing=True) or to raise NotFound
+    # (routing=False), mirroring werkzeug's real MapAdapter.match() contract so
+    # callers may index *or* unpack it. Pass ``mock_router=False`` to skip the
+    # mock and match against the real routing map instead.
     router = MagicMock()
     match = router.return_value.bind.return_value.match
     if routing:

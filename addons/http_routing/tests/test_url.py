@@ -15,13 +15,10 @@ class TestUrlCommon(TransactionCase):
     """Shared multi-lang fixture for the URL-generation helpers.
 
     ``fr_FR`` (url_code ``fr``) is activated next to ``en_US`` (url_code
-    ``en``), and ``en_US`` is pinned as the frontend default, so every branch
-    of the lang insertion/stripping/replacement logic is reachable.
-
-    All requests are simulated with ``MockRequest(..., mock_router=False)``:
-    the helpers then match and build against the *real* routing map, using
-    ``/website/translations`` -- the sole ``website=True`` multilang endpoint
-    this module ships -- as the multilang route.
+    ``en``), which is pinned as the frontend default, so every branch of the
+    lang insertion/stripping/replacement logic is reachable. Requests use
+    ``MockRequest(..., mock_router=False)``, so the helpers match and build
+    against the *real* routing map.
     """
 
     @classmethod
@@ -31,8 +28,7 @@ class TestUrlCommon(TransactionCase):
         fr.url_code = "fr"
         en = cls.env.ref("base.lang_en")
         # Stack-aware: also configures website.language_ids/default_lang_id when
-        # ``website`` is installed, otherwise these assertions only hold under
-        # ``-i http_routing`` (see setup_frontend_langs).
+        # ``website`` is installed (see setup_frontend_langs).
         setup_frontend_langs(cls.env, en + fr, en)
         cls.IrHttp = cls.env["ir.http"]
         # /website/translations: the one frontend multilang route available
@@ -41,10 +37,8 @@ class TestUrlCommon(TransactionCase):
 
 
 class TestUrlLang(TestUrlCommon):
-    """Unit coverage for ``ir.http._url_for`` / ``_url_lang``.
-
-    These back every ``url_for()`` call in frontend QWeb, yet had no coverage
-    inside http_routing (only website's integration suite exercised them).
+    """Unit coverage for ``ir.http._url_for`` / ``_url_lang``, which back every
+    ``url_for()`` call in frontend QWeb.
     """
 
     def test_adds_context_lang_when_not_default(self):
@@ -106,11 +100,10 @@ class TestUrlLang(TestUrlCommon):
 
 class TestUrlLangContext(TestUrlCommon):
     """``_url_lang`` resolves the language from the context, which is not
-    guaranteed to hold a usable one.
-
-    An env built without a lang -- ``Environment(cr, uid, {})``, or an explicit
-    ``with_context(lang=None)`` as ``website`` itself uses -- made this raise
-    instead of producing a URL, taking the whole surrounding render with it.
+    guaranteed to hold a usable one: an env built without a lang --
+    ``Environment(cr, uid, {})``, or the ``with_context(lang=None)``
+    ``website`` itself uses -- must still produce a URL instead of raising and
+    taking the whole surrounding render with it.
     """
 
     def _with_ctx_lang(self, request, value, present=True):
@@ -126,8 +119,8 @@ class TestUrlLangContext(TestUrlCommon):
             with self.subTest(context_lang=label):
                 with MockRequest(self.env, mock_router=False) as req:
                     self._with_ctx_lang(req, value, present)
-                    # used to be KeyError('lang') / "sequence item 1: expected
-                    # str instance, NoneType found"
+                    # neither KeyError('lang') nor a non-str spliced into the
+                    # path ("sequence item 1: expected str, NoneType found")
                     url = self.IrHttp._url_for(self.EP)
                 self.assertTrue(url.startswith("/"))
                 self.assertNotIn("None", url)
@@ -151,7 +144,7 @@ class TestUrlLangContext(TestUrlCommon):
 
 class TestLangUrlPrefix(TestUrlCommon):
     """``_lang_url_prefix`` is the single place that knows how to glue a
-    language code onto a path; four call sites used to re-derive it."""
+    language code onto a path."""
 
     def test_prefixes_a_path(self):
         self.assertEqual(self.IrHttp._lang_url_prefix("/shop", "fr"), "/fr/shop")
@@ -178,9 +171,9 @@ class TestIsMultilangUrl(TestUrlCommon):
 
     def setUp(self):
         super().setUp()
-        # url_rewrite memoizes (path, query_args) -> endpoint lookups in the
-        # registry-level "routing.rewrites" ormcache; drop this class's probe
-        # entries instead of leaking them to the rest of the suite. Dotted
+        # url_rewrite memoizes (routing-map key, path) -> endpoint lookups in
+        # the registry-level "routing.rewrites" ormcache; drop this class's
+        # probe entries instead of leaking them to the rest of the suite. Dotted
         # names cannot be cleared directly -- clear their composite group.
         self.addCleanup(self.registry.clear_cache, "routing")
 
@@ -205,13 +198,12 @@ class TestIsMultilangUrl(TestUrlCommon):
 
 
 class TestUrlLocalized(TestUrlCommon):
-    """Unit coverage for ``ir.http._url_localized``: the happy rebuild path
-    and, critically, every "cannot rebuild -> degrade to the given URL"
-    fallback. The degradations used to be able to escape as HTTP exceptions
-    (werkzeug ``RequestRedirect`` from a 308 rewrite rule, ``MethodNotAllowed``
-    from probing with the current request's method) and abort the surrounding
-    render; pin the contract: ``_url_localized`` never raises for a URL it
-    cannot rebuild.
+    """Unit coverage for ``ir.http._url_localized``: the happy rebuild path and
+    every "cannot rebuild -> degrade to the given URL" fallback.
+
+    The contract pinned here is that ``_url_localized`` never raises for a URL
+    it cannot rebuild, so no HTTP exception can escape and abort the
+    surrounding render.
     """
 
     def test_happy_path_prefixes_lang(self):
@@ -285,8 +277,8 @@ class TestUrlLocalized(TestUrlCommon):
 
     def test_non_local_urls_untouched(self):
         # Only a root-relative path has something to localize. Anything else
-        # used to fall through to the match, fail, and get percent-quoted *as a
-        # path* then lang-prefixed -- "https://odoo.com/shop" came out as
+        # would fall through to the match, fail, and get percent-quoted *as a
+        # path* then lang-prefixed -- "https://odoo.com/shop" coming out as
         # "/frhttps%3A//odoo.com/shop". Mirror _url_lang's guard instead.
         with MockRequest(self.env, context={"lang": "en_US"}, mock_router=False):
             for url in (
@@ -328,15 +320,12 @@ class TestUrlLocalized(TestUrlCommon):
             )
 
     def test_does_not_steer_the_live_request(self):
-        # _url_localized used to re-enter ``ir.http._match`` -- the dispatch
+        # _url_localized must not re-enter ``ir.http._match`` -- the dispatch
         # entry point, which stamps is_frontend/lang and whose lang-ladder case
         # /9 calls ``request.reroute()``, rewriting the URL of the request being
-        # served. Generating a URL must never do that.
-        #
-        # ``is_frontend=None`` is what makes this test discriminate: ``_match``
-        # returns immediately when ``request`` already carries ``is_frontend``,
-        # so on a routed request the ladder never runs and the assertion below
-        # would hold even for the old implementation.
+        # served. ``is_frontend=None`` is what makes this discriminate:
+        # ``_match`` returns immediately on an already-routed request, so the
+        # ladder would never run.
         with MockRequest(
             self.env,
             path="/fr" + self.EP,
@@ -428,8 +417,8 @@ class TestDefaultLang(TestUrlCommon):
 
     def test_default_lang_is_not_queried_per_call(self):
         # ``ir.default._get`` runs a ``search`` on ir_default and is not
-        # memoized; _get_default_lang used to pay that query on *every* call,
-        # i.e. once per url_for() on a multilingual page.
+        # memoized; _get_default_lang sits on the URL-building hot path (once
+        # per url_for() on a multilingual page), so it must not pay that query.
         with MockRequest(self.env, context={"lang": "fr_FR"}, mock_router=False):
             self.IrHttp._get_default_lang()  # warm
             self.env.flush_all()
@@ -471,9 +460,9 @@ class TestUrlRewrite(TestUrlCommon):
     def test_method_not_allowed_reports_unrouted(self):
         # url_rewrite probes with POST then GET. A rule that accepts neither
         # (e.g. ``methods=['PUT']``) makes the second probe raise
-        # MethodNotAllowed too, which used to escape url_rewrite entirely --
-        # 500ing website._url_for and website_sale, neither of which guards
-        # this call. "No endpoint we can name" must degrade to (path, False).
+        # MethodNotAllowed too: "no endpoint we can name" must degrade to
+        # (path, False) rather than escape and 500 the callers in website /
+        # website_sale, neither of which guards this call.
         router = MagicMock()
         router.return_value.bind.return_value.match.side_effect = (
             werkzeug.exceptions.MethodNotAllowed()
@@ -488,9 +477,9 @@ class TestUrlRewrite(TestUrlCommon):
 
     def test_works_without_a_request(self):
         # url_rewrite is an @api.model method whose cache lives on the registry,
-        # so the database is the env's by construction. It used to read
-        # ``request.db``, coupling a pure routing lookup to there being a
-        # request -- unusable from cron, RPC or a plain model method.
+        # so the database is the env's by construction: reading ``request.db``
+        # instead would couple a pure routing lookup to there being a request,
+        # making it unusable from cron, RPC or a plain model method.
         self.assertEqual(
             self.env["ir.http"].url_rewrite(self.EP)[0],
             self.EP,
@@ -522,14 +511,11 @@ class TestUrlRewrite(TestUrlCommon):
         self.assertIn("Redirect loop", capture.output[0])
 
     def test_redirect_loop_does_not_poison_sibling_cache(self):
-        # Regression for the mid-cycle memoization bug: resolving one node of a
-        # cycle must not cache a value computed mid-recursion for another node.
-        # For /a <-> /b, a fresh top-level url_rewrite reports the *first*
-        # redirect target as the rewritten path: url_rewrite("/a") -> "/b" and
-        # url_rewrite("/b") -> "/a". When the recursion went through the cached
-        # url_rewrite, resolving "/a" first stored the mid-cycle value for "/b"
-        # (which returns early on the _visited check) under "/b"'s plain key,
-        # so a later url_rewrite("/b") wrongly reported "/b" instead of "/a".
+        # Resolving one node of a cycle must not cache a value computed
+        # mid-recursion for another node: a fresh top-level url_rewrite reports
+        # the *first* redirect target, so url_rewrite("/a") -> "/b" and
+        # url_rewrite("/b") -> "/a". Recursing through the cached url_rewrite
+        # stored "/b"'s early _visited return under its plain key instead.
         targets = {"/loop/a": "/loop/b", "/loop/b": "/loop/a"}
 
         def fake_match(path, method=None):

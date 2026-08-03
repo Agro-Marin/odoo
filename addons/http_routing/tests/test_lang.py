@@ -11,17 +11,11 @@ from .common import setup_frontend_langs
 class TestNearestLang(TransactionCase):
     """Unit coverage for ``ir.http.get_nearest_lang``.
 
-    In this module (no ``website``) the method is the plain base
-    implementation: a pure function of the active frontend languages and the
-    requested code, reading only ``self.env`` -- no ``request`` proxy. That
-    makes every branch reachable from a ``TransactionCase`` without a live
-    frontend request, so pin them down here. Once ``website`` is installed the
-    method is overridden to scope languages per-website and does read
-    ``request``; that layer is covered by ``website``'s ``test_lang_url``.
-
-    The default install has a single active language (``en_US``), which is
-    enough to exercise all four branches: exact hit, prefix hit onto a variant
-    (``en_GB`` -> ``en_US``), no match, and the empty-prefix guard.
+    Without ``website`` this is the plain base implementation: a pure function
+    of the active frontend languages and the requested code, so every branch is
+    reachable from a ``TransactionCase``. Website's override (which scopes
+    languages per-website and reads ``request``) is covered by its own
+    ``test_lang_url``.
     """
 
     @classmethod
@@ -37,14 +31,14 @@ class TestNearestLang(TransactionCase):
         self.assertEqual(self.IrHttp.get_nearest_lang("en_US"), "en_US")
 
     def test_prefix_match_falls_back_to_variant(self):
-        # No en_GB installed, but its short form "en" matches en_US.
+        # en_GB is not installed, but its base language "en" matches en_US.
         self.assertEqual(self.IrHttp.get_nearest_lang("en_GB"), "en_US")
 
     def test_bare_short_code_matches_variant(self):
         self.assertEqual(self.IrHttp.get_nearest_lang("en"), "en_US")
 
     def test_no_matching_language_returns_none(self):
-        # A language whose short form matches no active lang.
+        # A language whose base language matches no active lang.
         self.assertIsNone(self.IrHttp.get_nearest_lang("fr_FR"))
 
     def test_none_input_returns_none(self):
@@ -59,9 +53,9 @@ class TestNearestLang(TransactionCase):
         self.assertIsNone(self.IrHttp.get_nearest_lang("_US"))
 
     def test_base_lang_no_false_prefix_match(self):
-        # kab (Kabyle) is not a variant of ka (Georgian): matching must
-        # compare the base language exactly, not by string prefix, which used
-        # to route Georgian visitors onto Kabyle.
+        # kab (Kabyle) is not a variant of ka (Georgian): matching compares the
+        # base language exactly, not by string prefix, which would route
+        # Georgian visitors onto Kabyle.
         self.env["res.lang"]._activate_lang("kab_DZ")
         self.assertEqual(self.IrHttp.get_nearest_lang("kab"), "kab_DZ")
         self.assertEqual(self.IrHttp.get_nearest_lang("kab_XX"), "kab_DZ")
@@ -82,21 +76,10 @@ class TestLangLadder(HttpCase):
     ``ir.http._match`` (cases /2../9 + the ``//`` slash-merge) *without*
     ``website`` installed.
 
-    The ladder is the single most intricate and regression-prone piece of this
-    module, yet its only integration coverage lived in ``website``
-    (``test_lang_url``). That left http_routing un-exercisable in isolation: a
-    refactor here got no signal unless ``website`` was also installed and run.
-
-    http_routing ships exactly one ``website=True`` (frontend, multilang)
-    route -- ``/website/translations`` -- which is enough to drive the whole
-    ladder. Case /8 (bare ``/<lang>/``) redirects *before* re-matching, so it
-    needs no homepage route at all. Only case /4 (POST, no-redirect) is omitted
-    here: forcing a non-GET frontend hit cleanly would need a dedicated CSRF-
-    exempt route, and it stays covered by website's suite.
-
-    Requests are made with ``allow_redirects=False`` so each assertion sees the
-    ladder's *own* response (status + Location + Set-Cookie), not the followed
-    page.
+    ``/website/translations`` -- the sole ``website=True`` (frontend,
+    multilang) route this module ships -- drives the whole ladder. Requests use
+    ``allow_redirects=False`` so each assertion sees the ladder's *own*
+    response (status + Location + Set-Cookie), not the followed page.
     """
 
     #: the sole frontend, multilang endpoint available with only http_routing
@@ -105,8 +88,7 @@ class TestLangLadder(HttpCase):
     def setUp(self):
         super().setUp()
         # Simulate multi-lang without loading translations, mirroring website's
-        # TestLangUrlCommon but driven purely through res.lang / ir.default
-        # (there is no ``website`` record to hang languages off here).
+        # TestLangUrlCommon.
         self.lang_fr = self.env["res.lang"]._activate_lang("fr_FR")
         self.lang_fr.url_code = "fr"
         lang_en = self.env.ref("base.lang_en")
@@ -229,7 +211,7 @@ class TestLangLadder(HttpCase):
 
     def test_slash_runs_merge_in_one_redirect(self):
         # Any run of slashes collapses in a single hop; a pairwise
-        # replace("//", "/") used to turn "///" into "//" and chain a second
+        # replace("//", "/") would turn "///" into "//" and chain a second
         # redirect.
         r = self.url_open("/website///translations", allow_redirects=False)
         self.assertEqual(r.status_code, 301)
@@ -255,17 +237,17 @@ class TestLangLadder(HttpCase):
     def test_unsafe_methods_are_never_redirected(self):
         # RFC 9110: a client may replay a 301/302 on an unsafe method as GET,
         # and a 303 *must* be replayed as GET -- so a redirect here silently
-        # drops the body and the method. The guard used to exclude POST only,
-        # so PUT/PATCH/DELETE got a 303 to the lang-prefixed URL (case /5) and
-        # the write never happened.
+        # drops the body and the method.
         for method in ("POST", "PUT", "PATCH", "DELETE"):
             with self.subTest(method=method):
-                r = self._open(self.EP, method)  # case /5 without the cookie
+                r = self._open(self.EP, method)  # case /2: no cookie, default lang
                 self.assertEqual(r.status_code, 400, "must reach dispatch, not 3xx")
 
     def test_unsafe_methods_not_redirected_with_lang_cookie(self):
-        # Same, driven through case /5 proper: a non-default lang is requested
-        # by cookie while the URL carries none.
+        # Case /4: no lang in the URL, a non-default one requested by cookie,
+        # redirecting forbidden. A guard excluding POST only let
+        # PUT/PATCH/DELETE fall to case /5 and 303 to the lang-prefixed URL,
+        # dropping the body.
         for method in ("POST", "PUT", "PATCH", "DELETE"):
             with self.subTest(method=method):
                 r = self.url_open(
@@ -320,12 +302,11 @@ class TestLangLadder(HttpCase):
                 self.assertEqual(r.status_code, 404)
 
     def test_stale_default_lang_keeps_canonical_urls(self):
-        # An ``ir.default`` naming an inactive language makes _get_default_lang
-        # answer a dummy LangData that equals no real language. The ladder then
-        # inverts the site's canonical URLs: case /2 stops recognizing the
-        # default and bounces "/EP" to "/en/EP", and case /6 stops stripping the
-        # prefix, so the prefixed form becomes canonical. Verified end to end
-        # because it is a routing symptom, not a helper return value.
+        # An ``ir.default`` naming an inactive language must not invert the
+        # site's canonical URLs: _get_default_lang falls back to an active
+        # language, so case /2 keeps serving the prefix-free URL and case /6
+        # keeps stripping the prefix. Verified end to end because it is a
+        # routing symptom, not a helper return value.
         self.env["ir.default"].set("res.partner", "lang", "xx_XX")
         self.env.flush_all()
         self.env.registry.clear_cache()
