@@ -37,7 +37,8 @@ class IapAccount(models.Model):
     )
     company_ids = fields.Many2many('res.company')
 
-    # Dynamic fields, which are received from iap server and set when loading the view
+    # Set from the IAP server when the view loads, except warning_user_ids, which is
+    # local and pushed to IAP on write
     balance = fields.Char(readonly=True)
     warning_threshold = fields.Float("Email Alert Threshold")
     warning_user_ids = fields.Many2many('res.users', string="Email Alert Recipients")
@@ -112,7 +113,8 @@ class IapAccount(models.Model):
             accounts = self.filtered(lambda acc, token=token: secrets.compare_digest(acc.sudo().account_token, token))
 
             for account in accounts:
-                # Default rounding of 4 decimal places to avoid large decimals
+                # Round to a unit for integer services, to 4 decimals otherwise,
+                # to avoid long decimals
                 balance_amount = round(information['balance'], None if account.service_id.integer_balance else 4)
                 balance = f"{balance_amount} {account.service_id.unit_name or ''}"
 
@@ -124,7 +126,7 @@ class IapAccount(models.Model):
             'balance': balance,
             'warning_threshold': information['warning_threshold'],
             'state': information['registered'],
-            'service_locked': True,  # The account exist on IAP, prevent the edition of the service
+            'service_locked': True,  # The account exists on IAP, prevent editing its service
         }
 
     @api.model_create_multi
@@ -153,7 +155,7 @@ class IapAccount(models.Model):
         if accounts_without_token:
             with self.pool.cursor() as cr:
                 # In case of a further error that will rollback the database, we should
-                # use a different SQL cursor to avoid undo the accounts deletion.
+                # use a different SQL cursor so the accounts deletion is not undone.
 
                 # Flush the pending operations to avoid a deadlock.
                 self.env.flush_all()
@@ -170,9 +172,9 @@ class IapAccount(models.Model):
                 return self.sudo().create({'service_id': service.id})
 
             with self.pool.cursor() as cr:
-                # Since the account did not exist yet, we will encounter a NoCreditError,
-                # which is going to rollback the database and undo the account creation,
-                # preventing the process to continue any further.
+                # Since the account did not exist yet, we will encounter an
+                # InsufficientCreditError, which is going to rollback the database and
+                # undo the account creation, preventing the process to continue further.
 
                 # Flush the pending operations to avoid a deadlock.
                 self.env.flush_all()
@@ -199,7 +201,7 @@ class IapAccount(models.Model):
 
     @api.model
     def get_credits_url(self, service_name, account_token=None):
-        """ Called notably by: buy more widget, partner_autocomplete, snailmail, ... """
+        """ Called notably by: action_buy_credits, partner_autocomplete, snailmail, ... """
         dbuuid = self.env['ir.config_parameter'].sudo().get_param('database.uuid')
         endpoint = iap_tools.iap_get_endpoint(self.env)
         route = '/iap/1/credit'

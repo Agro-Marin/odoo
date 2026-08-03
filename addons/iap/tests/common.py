@@ -34,7 +34,7 @@ class MockIAPEnrich(common.TransactionCase):
             }
             if default_data:
                 sim_result.update(default_data)
-            # mock single sms sending
+            # mock the lead enrichment endpoint
             if local_endpoint == '/iap/clearbit/1/lead_enrichment_email':
                 result = {}
                 for lead_id, email in params['domains'].items():
