@@ -56,7 +56,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          # The repo's own target: tooling/ is py314 source. ruff.toml pins
+          # target-version = py314 and enforces PEP 758's bracketless
+          # `except A, B:`, which no earlier interpreter can parse -- so a gate
+          # run on 3.12 dies at import, not at a finding.
+          python-version: '3.14'
 
       - name: Self-test the gate
         run: |
@@ -83,7 +87,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          # The repo's own target: tooling/ is py314 source. ruff.toml pins
+          # target-version = py314 and enforces PEP 758's bracketless
+          # `except A, B:`, which no earlier interpreter can parse -- so a gate
+          # run on 3.12 dies at import, not at a finding.
+          python-version: '3.14'
 
       - name: Query OSV for the pinned versions
         id: osv

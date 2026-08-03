@@ -60,11 +60,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          # 3.12 is sufficient (the gate uses dataclasses, pathlib, re,
-          # json — all stdlib since 3.10).  Keeping below the 3.14
-          # production target avoids waiting on the 3.14 setup-python
-          # runner image once it lands.  No third-party dependencies.
-          python-version: '3.12'
+          # The repo's own target: tooling/ is py314 source. ruff.toml pins
+          # target-version = py314 and enforces PEP 758's bracketless
+          # `except A, B:`, which no earlier interpreter can parse -- so a gate
+          # run on 3.12 dies at import, not at a finding.
+          python-version: '3.14'
 
       - name: Run doc_link_gate.py
         id: gate

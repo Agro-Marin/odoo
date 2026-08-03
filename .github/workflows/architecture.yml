@@ -60,9 +60,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          # Stdlib-only script; any modern Python works. 3.12 chosen to share
-          # the image/cache with the doc-link and service-types gates.
-          python-version: '3.12'
+          # The repo's own target: tooling/ is py314 source. ruff.toml pins
+          # target-version = py314 and enforces PEP 758's bracketless
+          # `except A, B:`, which no earlier interpreter can parse -- so a gate
+          # run on 3.12 dies at import, not at a finding.
+          python-version: '3.14'
 
       - name: Test the checker
         # The checker is load-bearing CI infrastructure; verify its own logic

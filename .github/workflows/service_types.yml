@@ -53,10 +53,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          # 3.10+ is enough; the script uses only stdlib (re, pathlib,
-          # dataclasses, argparse).  3.12 chosen to match the doc-link
-          # gate so caches share the same Python image.
-          python-version: '3.12'
+          # The repo's own target: tooling/ is py314 source. ruff.toml pins
+          # target-version = py314 and enforces PEP 758's bracketless
+          # `except A, B:`, which no earlier interpreter can parse -- so a gate
+          # run on 3.12 dies at import, not at a finding.
+          python-version: '3.14'
 
       - name: Run --check
         id: gate
