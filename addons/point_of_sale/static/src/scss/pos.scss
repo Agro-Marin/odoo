@@ -96,7 +96,11 @@ select {
 }
 
 .pos .numpad {
-    /*rtl:ignore*/
+    // Loud comment on purpose: production compiles Sass with
+    // `output_style = compressed`, which drops a plain `/*rtl:ignore*/`
+    // before rtlcss runs -- and rtlcss then rewrites this to `direction: rtl`,
+    // reversing the keypad in every right-to-left locale.
+    /*!rtl:ignore*/
     direction: ltr;
 }
 .o_mobile_overscroll {

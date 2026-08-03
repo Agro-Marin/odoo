@@ -287,13 +287,17 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
     }
 }
 
-/* rtl:begin:ignore */
+// Loud comment on purpose: production compiles Sass with
+// `output_style = compressed`, which drops a plain `/* rtl:begin:ignore */`
+// before rtlcss runs -- and rtlcss then swaps nesw-resize for nwse-resize,
+// so the diagonal handles show the cursor of the opposite corner.
+/*! rtl:begin:ignore */
 @each $cursor in (nesw-resize, nwse-resize, ns-resize, ew-resize, move) {
     .#{$cursor}-important * {
         cursor: $cursor !important;
     }
 }
-/* rtl:end:ignore */
+/*! rtl:end:ignore */
 
 .o_resizing {
     pointer-events: none;
