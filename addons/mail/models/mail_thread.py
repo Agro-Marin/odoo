@@ -79,17 +79,13 @@ encodings.aliases.aliases["cp_850"] = "cp850"
 
 
 def _email_part_get_content_safe(part):
-    """Decode the text content of an email part, tolerating an unresolvable
-    declared charset.
-
-    ``EmailMessage.get_content()`` raises ``LookupError`` when the part
-    declares a charset Python's codec registry does not know — and MTAs
-    legitimately emit such values (notably ``unknown-8bit`` per RFC 1428, or
-    ``x-user-defined``), especially in bounce reports. An unguarded call would
-    propagate out of ``message_parse``; the fetchmail cron then rolls back and
-    still marks the message handled (POP3 ``dele()``), permanently losing the
-    mail. Fall back to a lenient utf-8 decode of the raw payload instead.
+    """Decode the text content of an email part, falling back to a lenient
+    utf-8 decode when the declared charset cannot be resolved.
     """
+    # MTAs legitimately declare charsets unknown to Python's codec registry
+    # (``unknown-8bit`` per RFC 1428, ``x-user-defined``), mostly in bounce
+    # reports; unguarded, the LookupError escapes message_parse and the mail is
+    # lost for good — fetchmail already marked it handled (POP3 dele()).
     try:
         return part.get_content()
     except LookupError, UnicodeDecodeError, ValueError:
@@ -103,22 +99,14 @@ def _email_part_get_content_safe(part):
 
 
 class MailThread(models.AbstractModel):
-    """mail_thread model is meant to be inherited by any model that needs to
-        act as a discussion topic on which messages can be attached. Public
-        methods are prefixed with ``message_`` in order to avoid name
-        collisions with methods of the models that will inherit from this class.
+    """Mixin turning a model into a discussion topic: messages, followers and
+    communication history.
 
-        ``mail.thread`` defines fields used to handle and display the
-        communication history. ``mail.thread`` also manages followers of
-        inheriting classes. All features and expected behavior are managed
-        by mail.thread. Widgets has been designed for the 7.0 and following
-        versions of Odoo.
-
-        Inheriting classes are not required to implement any method, as the
-        default implementation will work for any model. However it is common
-        to override at least the ``message_new`` and ``message_update``
-        methods (calling ``super``) to add model-specific behavior at
-        creation and update of a thread when processing incoming emails.
+    Public methods are prefixed with ``message_`` to avoid colliding with the
+    inheriting model's own methods. No method has to be implemented, but
+    ``message_new`` and ``message_update`` are commonly overridden (calling
+    ``super``) to add model-specific behavior when incoming emails create or
+    update a thread.
 
     MailThread class options:
 
@@ -523,9 +511,8 @@ class MailThread(models.AbstractModel):
             for thread in threads:
                 create_values = create_values_list[thread.id]
                 changes = [fname for fname in fnames if create_values.get(fname)]
-                # based on tracked field to stay consistent with write
-                # we don't consider that a falsy field is a change, to stay consistent with previous implementation,
-                # but we may want to change that behaviour later.
+                # based on tracked field to stay consistent with write: a falsy
+                # field is not considered a change (we may want to revisit that)
                 if changes:
                     self.env.cr.precommit.add(thread._track_post_template_finalize)
                     self.env.cr.precommit.data.setdefault(
@@ -742,7 +729,7 @@ class MailThread(models.AbstractModel):
 
     def _track_finalize(self):
         """Generate the tracking messages for the records that have been
-        prepared with ``_tracking_prepare``.
+        prepared with ``_track_prepare``.
         """
         initial_values = self.env.cr.precommit.data.pop(
             f"mail.tracking.{self._name}", {}
@@ -880,12 +867,10 @@ class MailThread(models.AbstractModel):
                 else record._track_get_default_log_message(changes)
             )
             if subtype and not subtype.exists():
-                # Reading ``subtype.name`` here raised MissingError -- on a
-                # record we had just proven absent -- so the guard meant to
-                # degrade gracefully instead propagated out of _track_finalize,
-                # through cr.flush(), and failed the whole write(). Log the id
-                # (always readable) and fall through to the tracking-only log
-                # below so the tracking values are not discarded either.
+                # Log the id, never ``subtype.name``: reading a field of a record
+                # just proven absent raises MissingError out of _track_finalize,
+                # through cr.flush(), failing the whole write(). Falling through
+                # to the tracking-only log below keeps the tracking values.
                 _logger.warning(
                     "mail.message.subtype %s no longer exists, logging %s "
                     "tracking without a subtype",
@@ -914,8 +899,8 @@ class MailThread(models.AbstractModel):
         parameters. It allows to implement automatic post of messages based
         on templates (e.g. stage change triggering automatic email).
 
-        :param dict changes: mapping {record_id: (changed_field_names, tracking_value_ids)}
-            containing existing records only
+        :param changes: iterable of changed tracked field names, as returned by
+            ``_mail_track``
         """
         if not self or not changes:
             return True
@@ -956,7 +941,8 @@ class MailThread(models.AbstractModel):
         return {}
 
     def _routing_warn(self, error_message, message_id, route, raise_exception=True):
-        """Tools method used in _routing_check_route: whether to log a warning or raise an error"""
+        """Tools method used in _routing_check_route: log the routing failure and
+        raise it to the sender unless asked not to."""
         short_message = _("Mailbox unavailable - %s", error_message)
         full_message = "Routing mail with Message-Id %s: route %s: %s" % (
             message_id,
@@ -1039,16 +1025,13 @@ class MailThread(models.AbstractModel):
             message_dict["bounced_message"],
         )
 
-        # NOTE (audit finding C-GW-1): a bounce increments message_bounce from
-        # the DSN's attacker-controllable Final-Recipient even without correlating
-        # to a message Odoo actually sent (bounced_message may be empty). This is
-        # an unauthenticated deliverability-poisoning vector, but it cannot be
-        # closed by a lightweight "require bounced_message" gate: Odoo
-        # legitimately supports incrementing the counter for reference-less
-        # bounces addressed to the bounce address (see
-        # test_message_process_bounce_multipart_alias). A proper fix requires
-        # authenticating the bounce via a signed/VERP bounce address encoding the
-        # original recipient — a dedicated change, not done here.
+        # A bounce increments message_bounce from the DSN's attacker-controllable
+        # Final-Recipient even when it correlates to no message Odoo sent
+        # (bounced_message may be empty): an unauthenticated deliverability-
+        # poisoning vector. Requiring bounced_message is not a fix, as
+        # reference-less bounces to the bounce address are legitimately
+        # supported; closing it needs a signed/VERP bounce address encoding the
+        # original recipient.
         if bounced_email:
             bounced_model, bounced_res_id = (
                 bounced_message.model,
@@ -1152,17 +1135,13 @@ class MailThread(models.AbstractModel):
                 fallback on a message_new by resetting thread_id
             2 - check that message_update exists if thread_id is set; or at least
                 that message_new exist
-            3 - if there is an alias, check alias_contact:
-                'followers' and thread_id:
-                    check on target document that the author is in the followers
-                'followers' and alias_parent_thread_id:
-                    check on alias parent document that the author is in the
-                    followers
-                'partners': check that author_id id set
+            3 - if there is an alias, check its alias_contact policy through
+                '_alias_get_error', called on the target document or, when
+                creating, on the alias parent document; on error the incoming
+                email is bounced
 
-        Note that this method also updates 'author_id' of message_dict as route
-        links an incoming message to a record and linking email to partner is
-        better done in a record's context.
+        When an alias is set, 'author_id' of message_dict is also filled in, as
+        linking an email to a partner is better done in a record's context.
 
         :param message: an email.message instance
         :param message_dict: dictionary of values that will be given to
@@ -1170,8 +1149,11 @@ class MailThread(models.AbstractModel):
         :param route: route to check which is a tuple (model, thread_id,
                       custom_values, uid, alias)
         :param raise_exception: if an error occurs, tell whether to raise an error
-                                or just log a warning and try other processing or
+                                or just log it and try other processing or
                                 invalidate route
+        :return: the validated 5-elements route, or a falsy value (empty tuple,
+                 or False when the alias bounced the email) if invalid
+        :rtype: tuple | Literal[False]
         """
 
         assert isinstance(route, (list, tuple)), "A route should be a list or a tuple"
@@ -1340,16 +1322,12 @@ class MailThread(models.AbstractModel):
         if email_from_localpart == "mailer-daemon":
             return True
 
-        # detection based on content type (RFC 3462). A bounce is a
-        # multipart/report; the report-type param on its own is NOT a bounce
-        # signal (read receipts carry report-type=disposition-notification, and
-        # an attacker can set an arbitrary report-type param on a text/plain body
-        # sent to a public alias to get it silently dropped as a bounce). Some
-        # MTAs emit a slightly malformed Content-Type (e.g. "multipart/report:"
-        # with a trailing colon) that defeats structured parsing and makes
-        # get_content_type() fall back to text/plain; guard that by also
-        # checking the raw header, but still require the multipart/report
-        # maintype so the broadening cannot match an arbitrary payload.
+        # detection based on content type (RFC 3462): a bounce is a
+        # multipart/report. The report-type param alone is NOT a bounce signal --
+        # read receipts carry disposition-notification, and an attacker could use
+        # it to have a mail silently dropped. The raw header is checked too, as
+        # some MTAs emit a malformed "multipart/report:" that defeats structured
+        # parsing, but the multipart/report maintype stays required.
         content_type = message.get_content_type()
         raw_content_type = (
             (message.get("Content-Type") or "")
@@ -1369,9 +1347,9 @@ class MailThread(models.AbstractModel):
         """
         if not email_from_normalized:
             # An unparseable FROM (``undisclosed-recipients:;``, ``<>``, a bare
-            # display name) normalizes to False. Without this guard the escaping
-            # below raised AttributeError out of message_process, and fetchmail
-            # still acked the message -- losing the mail for good.
+            # display name) normalizes to False; unguarded, the escaping below
+            # raises AttributeError out of message_process while fetchmail has
+            # already acked the mail -- losing it for good.
             return None
 
         primary_email = self._mail_get_primary_email_field()
@@ -1387,11 +1365,9 @@ class MailThread(models.AbstractModel):
             )
             # The column holds whatever the gateway wrote, and ``message_new``
             # stores the *raw* FROM -- ``"Eve" <eve@ex.com>`` just as often as a
-            # bare ``eve@ex.com``. Anchored equality against the normalized
-            # address alone therefore matched nothing on the standard create
-            # path, silently disabling loop detection for every model that does
-            # not override this (blacklist models compare email_normalized and
-            # were unaffected). Accept both stored forms, still anchored so no
+            # bare ``eve@ex.com``. Matching the normalized address alone would
+            # find nothing on the create path and silently disable loop
+            # detection, so accept both stored forms, still anchored so no
             # unrelated address sharing a substring can match.
             return [
                 "|",
@@ -1416,13 +1392,9 @@ class MailThread(models.AbstractModel):
         email_from_normalized = email_normalize(email_from)
 
         # Skip the allow-list lookup for an unparseable From (normalizes to
-        # False): the query would otherwise degenerate to `email_normalized IS
-        # NULL` and could match a malformed allow-list row (which stores NULL).
-        # This changes no outcome today -- _detect_loop_sender_domain(False)
-        # already returns None below, so a null sender is a no-op either way --
-        # but it avoids a pointless search and a misleading NULL match. The
-        # source-level fix is the constraint on mail.gateway.allowed rejecting
-        # non-normalizable rows.
+        # False): the query would degenerate to `email_normalized IS NULL` and
+        # match a malformed allow-list row. Rows like that are rejected at the
+        # source by mail.gateway.allowed._check_email_normalizes.
         if email_from_normalized and self.env[
             "mail.gateway.allowed"
         ].sudo().search_count([("email_normalized", "=", email_from_normalized)]):
@@ -1445,11 +1417,10 @@ class MailThread(models.AbstractModel):
                 continue
 
             loop_new, loop_update = False, False
-            # A record-creating route carries a falsy thread_id: 0 for alias routes
-            # (alias_force_thread_id unset), but None for the fallback-model route
-            # and for reply targets reset to None in _routing_check_route. Testing
-            # `0 in thread_ids` misses None (0 != None), which silently disabled
-            # loop detection on the standard fetchmail create-new-record path.
+            # A record-creating route carries a falsy thread_id: 0 for alias
+            # routes (alias_force_thread_id unset), None for the fallback-model
+            # route and for reply targets reset in _routing_check_route -- hence
+            # `not tid` and not `0 in thread_ids`, which would miss None.
             search_new = any(not tid for tid in thread_ids)
             doc_ids = list(filter(None, thread_ids))
 
@@ -1531,21 +1502,17 @@ class MailThread(models.AbstractModel):
         """Drop ``alias_incoming_local`` matches for recipients already claimed
         by an exact ``alias_full_name`` match.
 
-        The local-part leg of the alias search is deliberately not scoped by
-        ``alias_domain_id`` -- that is what ``alias_incoming_local`` means. But
-        nothing reconciled it against the exact matches, so two companies owning
-        the same local part (``support@a.com`` / ``support@b.com``, a pair
-        ``_name_domain_unique`` explicitly permits) *both* matched a mail
-        addressed to only one of them, and each produced its own route: one
-        inbound customer mail created a record in both companies, body and
-        attachments included.
-
         Resolution is per recipient: an exact address match wins, and the
         local-part fallback only applies to recipients no alias claimed exactly.
-        A mail sent to a local part that *no* alias owns exactly (e.g. via an
-        allowed catchall domain) is still ambiguous by nature and keeps the
-        legacy behaviour of matching every local alias.
         """
+        # The local-part leg of the alias search is deliberately not scoped by
+        # ``alias_domain_id`` -- that is what ``alias_incoming_local`` means.
+        # Unreconciled, two companies owning the same local part
+        # (``support@a.com`` / ``support@b.com``, which ``_name_domain_unique``
+        # permits) both match a mail addressed to only one of them and each
+        # yields a route, creating the record twice. A local part *no* alias owns
+        # exactly (e.g. via an allowed catchall domain) stays ambiguous by nature
+        # and still matches every local alias.
         claimed_localparts = {
             alias.alias_full_name.split("@", 1)[0]
             for alias in aliases
@@ -1562,14 +1529,11 @@ class MailThread(models.AbstractModel):
     def _routing_bounce_references(self, message_dict):
         """Build the ``References`` of an automatic bounce.
 
-        Every bounce this framework emits must carry the loop-detection tag:
-        ``_detect_loop_headers`` greps incoming references for it, and that is
-        the only thing stopping an autoresponder from replying to our bounce
-        forever. Callers used to inline the f-string, and the alias security /
-        configuration bounce silently omitted the tag -- an untagged bounce
-        loops indefinitely (its own Message-Id is not durably resolvable
-        either, as bounce mails are ``auto_delete``). Centralised so a new
-        bounce emitter cannot forget it.
+        Every bounce must carry the loop-detection tag that
+        ``_detect_loop_headers`` greps incoming references for: it is the only
+        thing stopping an autoresponder from replying to our bounce forever, the
+        bounce's own Message-Id not being durable (bounces are ``auto_delete``).
+        Centralised so no bounce emitter can forget it.
         """
         return (
             f"{message_dict['message_id']} "
@@ -1621,17 +1585,15 @@ class MailThread(models.AbstractModel):
     def _route_bounce_catchall(self, message, message_dict):
         """Render and send the catchall bounce for an unroutable message, then
         return an empty route list. Shared by the two ``message_route`` branches
-        that reject a direct (or mixed) write to the catchall address, which
-        previously carried verbatim-identical copies of this block.
+        rejecting a direct (or mixed) write to the catchall address.
         """
         body = self.env["ir.qweb"]._render(
             "mail.mail_bounce_catchall",
             {
                 # the template indexes its context with dict keys ('email_from',
-                # 'body'); an email.message.EmailMessage would resolve those
-                # through __getitem__ as *header* lookups and yield None, so
-                # every bounce rendered as "Hello ," with an empty quote. Pass
-                # the parsed dict, like the mail_bounce_alias_security sibling.
+                # 'to', 'body'); an EmailMessage resolves those through
+                # __getitem__ as *header* lookups and yields None, hence the
+                # parsed dict, like the mail_bounce_alias_security sibling.
                 "message": message_dict,
             },
         )
@@ -1656,6 +1618,7 @@ class MailThread(models.AbstractModel):
 
         The following heuristics are used, in this order:
 
+         * if the message is a bounce, collect bounce data and return no route;
          * if the message replies to an existing thread by having a Message-Id
            that matches an existing mail_message.message_id, we take the original
            message model/thread_id pair and ignore custom_value as no creation will
@@ -1664,9 +1627,10 @@ class MailThread(models.AbstractModel):
            corresponding model, thread_id, custom_values and user_id. This could
            lead to a thread update or creation depending on the alias;
          * fallback on provided ``model``, ``thread_id`` and ``custom_values``;
+         * if recipients contain the catchall, bounce and return no route;
          * raise an exception as no route has been found
 
-        :param str message: an email.message instance
+        :param message: an email.message.EmailMessage instance
         :param dict message_dict: dictionary holding parsed message variables
         :param str model: the fallback model to use if the message does not match
             any of the currently configured mail aliases (may be None if a matching
@@ -1679,9 +1643,11 @@ class MailThread(models.AbstractModel):
         :param int thread_id: optional ID of the record/thread from ``model`` to
             which this mail should be attached. Only used if the message does not
             reply to an existing thread and does not match any mail alias.
-        :return: list of routes [(model, thread_id, custom_values, user_id, alias)]
-
-        :raises: ValueError, TypeError
+        :return: list of routes [(model, thread_id, custom_values, user_id, alias)],
+            empty when the message was bounced or handled as a bounce
+        :rtype: list
+        :raises ValueError: no route found and no bounce occurred
+        :raises TypeError: ``message`` is not an EmailMessage
         """
         if not isinstance(message, EmailMessage):
             raise TypeError(
@@ -1817,15 +1783,12 @@ class MailThread(models.AbstractModel):
             )
 
             # A reply matched purely by Message-Id / References is often
-            # addressed to the catchall rather than to the record's alias, which
-            # leaves dest_aliases empty and makes _routing_check_route skip the
+            # addressed to the catchall rather than to the record's alias,
+            # leaving dest_aliases empty so _routing_check_route skips the
             # alias_contact (followers / partners) enforcement. Fall back to the
-            # target record's own alias so a restrictive contact policy is still
-            # honored: without this, anyone who learns a thread Message-Id (it
-            # leaks through CC/forwarding) could post into a followers-only
-            # thread. This only tightens records that own an alias with a
-            # non-"everyone" contact policy; the default "everyone" path is
-            # unaffected.
+            # target record's own alias, or anyone who learns a thread Message-Id
+            # (it leaks through CC/forwarding) could post into a followers-only
+            # thread. Only records owning a non-"everyone" alias are tightened.
             if not dest_aliases and reply_thread_id:
                 target_record = (
                     self.env[reply_model].sudo().browse(reply_thread_id).exists()
@@ -1984,11 +1947,11 @@ class MailThread(models.AbstractModel):
         self = self.with_context(attachments_mime_plainxml=True)
         # postpone setting message_dict.partner_ids after message_post, to avoid double notifications
         original_partner_ids = message_dict.pop("partner_ids", [])
-        # Pop the filtered To/Cc once, before the per-route loop: popping inside the
-        # loop mutated the shared message_dict, so a single email routed to several
-        # aliases recorded incoming_email_to/cc on the first record only and every
-        # later record got False — losing the duplicate-notification suppression in
-        # _notify_get_recipients (each extra record re-emailed the whole To/Cc).
+        # Pop the filtered To/Cc once, before the per-route loop: popping inside
+        # would mutate the shared message_dict, so a mail routed to several
+        # aliases would record incoming_email_to/cc on the first record only and
+        # every later record would lose the duplicate-notification suppression of
+        # _notify_get_recipients and re-email the whole To/Cc.
         incoming_email_cc = message_dict.pop("cc_filtered", False)
         incoming_email_to = message_dict.pop("to_filtered", False)
         thread_id = False
@@ -2034,8 +1997,9 @@ class MailThread(models.AbstractModel):
                 thread_id = thread.id
                 subtype_id = thread._creation_subtype().id
 
-            # switch to odoobot for all incoming message creation
-            # to have a high-privilege archived user so real_author_id is correctly computed
+            # switch to odoobot for all incoming message creation: being archived,
+            # it makes '_message_compute_real_author' fall back to the message
+            # author instead of claiming authorship itself
             thread_root = thread.with_user(self.env.ref("base.user_root"))
             # replies to internal message are considered as notes, otherwise they are comments
             parent_message = False
@@ -2140,6 +2104,10 @@ class MailThread(models.AbstractModel):
             to which this mail should be attached. When provided, this
             overrides the automatic detection based on the message
             headers.
+
+        :return: ID of the thread the message was attached to, falsy when the
+            message was dropped: False on a duplicate Message-Id, None on loop
+            detection, False when routing yielded no route.
         """
         # extract message bytes - we are forced to pass the message as binary because
         # we don't know its encoding until we parse its headers and hence can't
@@ -2161,13 +2129,11 @@ class MailThread(models.AbstractModel):
             )
         )
         if not is_duplicate and msg_id:
-            # Synchronize concurrent transactions for the same message_id to make the duplicate check reliable.
-            # Use pg_try_advisory_xact_lock: if another transaction is already processing the same message_id,
-            # treat it as a duplicate.
-            # hashtextextended returns a 64-bit key (vs hashtext's 32-bit),
-            # making a hash collision that would treat two distinct Message-Ids
-            # as duplicates — and silently drop the second inbound mail —
-            # vanishingly unlikely.
+            # Synchronize concurrent transactions for the same message_id to make
+            # the duplicate check reliable: if another transaction already holds
+            # the lock, treat it as a duplicate. hashtextextended gives a 64-bit
+            # key (vs hashtext's 32-bit), making a collision — which would
+            # silently drop the second inbound mail — vanishingly unlikely.
             self.env.cr.execute(
                 SQL("SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0))", msg_id)
             )
@@ -2500,25 +2466,23 @@ class MailThread(models.AbstractModel):
         bounced_message = self.env["mail.message"].sudo()
         if email_part:
             if email_part.get_content_type() == "text/rfc822-headers":
-                # Convert the message body into a message itself. Decode through the
-                # charset-safe helper: a bounce whose rfc822-headers part declares an
-                # unresolvable charset (unknown-8bit, x-user-defined) would otherwise
-                # raise LookupError out of message_process and lose the inbound mail
-                # (POP dele() / IMAP \Seen already ran) — the exact failure this
-                # helper guards for the main body/part paths.
+                # Convert the message body into a message itself, decoded through
+                # the charset-safe helper: a bounce whose rfc822-headers part
+                # declares an unresolvable charset (unknown-8bit, x-user-defined)
+                # would otherwise raise LookupError out of message_process and
+                # lose the inbound mail (POP dele() / IMAP \Seen already ran).
                 email_payload = message_from_string(
                     _email_part_get_content_safe(email_part), policy=email.policy.SMTP
                 )
             else:
                 # Guard the payload index: a malformed multipart/report (or
-                # message/rfc822) bounce propagating out of message_process
-                # loses the whole inbound message (deleted on POP). An empty
-                # payload used to raise IndexError; a NON-multipart part
-                # (MultipartInvariantViolationDefect) makes get_payload() return
-                # a str whose [0] is a single character that then crashes
-                # _get_bounced_message_data -> decode_message_header (.get_all
-                # on a str). Only a list payload holds sub-messages; anything
-                # else has nothing to extract.
+                # message/rfc822) bounce propagating out of message_process loses
+                # the whole inbound message (deleted on POP). An empty payload
+                # raises IndexError, and a NON-multipart part
+                # (MultipartInvariantViolationDefect) makes get_payload() return a
+                # str whose [0] is a single character crashing
+                # _get_bounced_message_data -> decode_message_header (.get_all on
+                # a str). Only a list payload holds sub-messages.
                 payload = email_part.get_payload()
                 email_payload = (
                     payload[0] if isinstance(payload, list) and payload else None
@@ -2580,7 +2544,7 @@ class MailThread(models.AbstractModel):
                   'is_internal': answer to an internal message (note),
                   'date': date,
                   'attachments': [('file1', 'bytes'),
-                                  ('file2', 'bytes')}
+                                  ('file2', 'bytes')],
                 }
         """
         if not isinstance(message, EmailMessage):
@@ -2938,8 +2902,8 @@ class MailThread(models.AbstractModel):
         )
         ban_emails = (ban_emails or []) + alias_emails
 
-        # inspired notably from odoo/odoo@80a0b45df806ffecfb068b5ef05ae1931d655810; final
-        # ordering is search order defined in '_find_or_create_from_emails', which is id ASC
+        # final ordering is the search order defined in
+        # '_find_or_create_from_emails', which is id ASC
         follower_ids = set(followers._ids)
         current_partner_id = self.env.user.partner_id.id
 
@@ -3117,14 +3081,14 @@ class MailThread(models.AbstractModel):
         :param list(int) partner_ids: partner_ids to notify in addition to partners
             computed based on subtype / followers matching;
         :param str outgoing_email_to: comma-separated list of emails to notify in
-            addition to partner_ids. Experimental support as of Odoo v19;
+            addition to partner_ids. Experimental support;
         :param str incoming_email_to: comma-separated list of emails, already notified
             by incoming email;
         :param str incoming_email_cc: comma-separated list of emails, already notified
             by incoming email;
-        :param list(tuple(str,str), tuple(str,str, dict)) attachments : list of attachment
-            tuples in the form ``(name,content)`` or ``(name,content, info)`` where content
-            is NOT base64 encoded;
+        :param list attachments: list of attachment tuples in the form
+            ``(name, content)`` or ``(name, content, info)`` where content is NOT
+            base64 encoded;
         :param list attachment_ids: list of existing attachments to link to this message
             Should not be a list of commands. Attachment records attached to mail
             composer will be attached to the related document.
@@ -3136,7 +3100,7 @@ class MailThread(models.AbstractModel):
             mail.message fields;
           * propagated to notification methods if not;
 
-        :return: newly create mail.message record
+        :return: newly created mail.message record
         """
         self.ensure_one()  # should always be posted on a record, use message_notify if no record
 
@@ -3263,7 +3227,7 @@ class MailThread(models.AbstractModel):
 
         msg_values.update(
             self._process_attachments_for_post(attachments, attachment_ids, msg_values)
-        )
+        )  # attachment_ids, body
         new_message = self._message_create([msg_values])
 
         # subscribe author(s) so that they receive answers; do it only when it is
@@ -3283,7 +3247,7 @@ class MailThread(models.AbstractModel):
             == self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_comment")
         )
         if author_subscribe:
-            # TDE note: somehow propagate "real author" ?
+            # TODO: somehow propagate "real author" ?
             real_author = self._message_compute_real_author(msg_values["author_id"])
             if real_author and not real_author.partner_share:
                 self._message_subscribe(partner_ids=[real_author.id])
@@ -3307,7 +3271,7 @@ class MailThread(models.AbstractModel):
     def _process_attachments_for_post(
         self, attachments, attachment_ids, message_values
     ):
-        """Preprocess attachments for MailTread.message_post() or MailMail.create().
+        """Preprocess attachments for MailThread.message_post() or MailMail.create().
         Purpose is to
 
           * transfer attachments given by ``attachment_ids`` from the composer
@@ -3318,16 +3282,14 @@ class MailThread(models.AbstractModel):
             content (body) through CIDs body is updated. CIDs are found and
             replaced by links to web/image as CIDs are not supported as it.
 
-        Note that attachments are created/written in sudo as we consider at this
-        point access is granted on related record and/or to post the linked
-        message. The caller must verify the access rights accordingly. Indeed
-        attachments rights are stricter than message rights which may lead to
-        ACLs issues e.g. when posting on a readonly document or replying to
-        a notification on a private document.
+        Attachments are created/written in sudo, assuming access is already
+        granted on the related record: the caller must check access rights
+        itself. Attachment rights being stricter than message rights, not doing
+        so raises ACL issues e.g. when posting on a readonly document.
 
-        :param list(tuple(str,str)) or list(tuple(str,str, dict)) attachments:
-          list of attachment tuples in the form ``(name,content)`` or
-          `(name,content, info)`` where content is NOT base64 encoded;
+        :param list attachments: list of attachment tuples in the form
+          ``(name, content)`` or ``(name, content, info)`` where content is NOT
+          base64 encoded;
         :param list attachment_ids: list of existing attachments to link to this
           message;
         :param message_values: dictionary of values that will be used to create the
@@ -3466,8 +3428,7 @@ class MailThread(models.AbstractModel):
 
     def _create_attachments_for_post(self, values_list, extra_list):
         """Ease tweaking attachment creation when processing them in posting
-        process. Mainly meant for stable version, to be cleaned when reaching
-        master."""
+        process."""
         return self.env["ir.attachment"].sudo().create(values_list)
 
     def _process_attachments_for_template_post(self, mail_template):
@@ -3727,11 +3688,12 @@ class MailThread(models.AbstractModel):
           fetch, will force value of subtype_id;
         :param int subtype_id: subtype_id of the message, used mainly for followers
           notification mechanism;
-        :param list(int) partner_ids: partner_ids to notify in addition to partners
-            computed based on subtype / followers matching;
-        :param list(tuple(str,str), tuple(str,str, dict)) attachments : list of attachment
-            tuples in the form ``(name,content)`` or ``(name,content, info)`` where content
-            is NOT base64 encoded;
+        :param list(int) partner_ids: partner IDs to notify. The message being a
+            'user_notification', followers are not computed: those partners are
+            the only recipients;
+        :param list attachments: list of attachment tuples in the form
+            ``(name, content)`` or ``(name, content, info)`` where content is NOT
+            base64 encoded;
         :param list attachment_ids: list of existing attachments to link to this message
             Should not be a list of commands. Attachment records attached to mail
             composer will be attached to the related document.
@@ -3741,7 +3703,8 @@ class MailThread(models.AbstractModel):
             mail.message fields;
           * propagated to notification methods if not;
 
-        :return: posted mail.message records
+        :return: posted mail.message record, empty when ``partner_ids`` is missing
+          (the call is then skipped with a warning)
         """
         if self:
             self.ensure_one()
@@ -3844,7 +3807,7 @@ class MailThread(models.AbstractModel):
 
         msg_values.update(
             self._process_attachments_for_post(attachments, attachment_ids, msg_values)
-        )
+        )  # attachment_ids, body
 
         new_message = self._message_create([msg_values])
         self._fallback_lang()._notify_thread(new_message, msg_values, **notif_kwargs)
@@ -4270,9 +4233,8 @@ class MailThread(models.AbstractModel):
           notification parameters: arbitrary datetime (as a date, datetime or
           a string), may be void. See 'MailMail._parse_scheduled_datetime()';
 
-        :return: True if a valid datetime has been found and is in the future;
-          False otherwise.
-        :rtype: bool
+        :return: the parsed datetime if valid and in the future, False otherwise
+        :rtype: datetime | Literal[False]
         """
         if notify_scheduled_date:
             parsed_datetime = self.env["mail.mail"]._parse_scheduled_datetime(
@@ -4713,17 +4675,12 @@ class MailThread(models.AbstractModel):
                 emails += new_email
             # create MailMail for email-only recipients
             #
-            # These share one mail deliberately. Splitting into one mail per
-            # address was tried to keep external recipients from seeing each
-            # other, but it bought nothing: base_mail_values carries the
-            # X-Msg-To-Add header built from *all* external recipients, and
-            # ir_mail_server._alter_message__ appends it into the visible To of
-            # every mail -- so each recipient still received the full list. That
-            # header is intentional (it is what makes reply-all work across
-            # external correspondents, and it is already capped by
-            # _CUSTOMER_HEADERS_LIMIT_COUNT). The split only multiplied
-            # mail.mail rows and SMTP sends, and inflated len(emails) so the
-            # force-send limit queued far earlier than intended.
+            # All email-only recipients deliberately share one mail: hiding them
+            # from each other by splitting per address gains nothing, since
+            # base_mail_values carries an X-Msg-To-Add header listing them all
+            # (capped by _CUSTOMER_HEADERS_LIMIT_COUNT) that
+            # ir_mail_server._alter_message__ folds into every mail's visible To,
+            # which is what makes reply-all work between external correspondents.
             if recipients_emails:
                 mail_values = self._notify_by_email_get_final_mail_values(
                     [],
@@ -4745,11 +4702,9 @@ class MailThread(models.AbstractModel):
         if notif_create_values:
             SafeNotification.create(notif_create_values)
 
-        # NOTE:
-        #   1. above the mail.mail.force.send.limit (default 100) recipients, use the queue system
-        #   2. do not send emails immediately if the registry is not loaded,
-        #      to prevent sending email during a simple update of the database
-        #      using the command-line.
+        # Above mail.mail.force.send.limit (default 100) *mails* -- not
+        # recipients, as partner mails are batched by mail.batch_size -- fall
+        # back to the queue instead of sending inline.
         if force_send := self.env.context.get("mail_notify_force_send", force_send):
             # 0 is meaningful here (always queue), so no 'or' fallback
             force_send_limit = self.env["ir.config_parameter"]._get_int_param(
@@ -4824,7 +4779,7 @@ class MailThread(models.AbstractModel):
                                 data computation);
               'recipients_emails': list of additional external emails, when not
                                    linked to existing partners. Support is still
-                                   limited and considered as experimental as of v19;
+                                   limited and experimental;
            }
           );
         """
@@ -5407,8 +5362,9 @@ class MailThread(models.AbstractModel):
         }
 
     def _notify_get_recipients(self, message, msg_vals=False, **kwargs):
-        """Compute recipients to notify based on subtype and followers. This
-        method returns data structured as expected for ``_notify_recipients``.
+        """Compute recipients to notify based on subtype and followers. The
+        returned data is structured as expected by the ``_notify_thread_by_*``
+        methods.
 
         :param record message: <mail.message> record being notified. May be
           void as 'msg_vals' superseeds it;
@@ -5431,22 +5387,20 @@ class MailThread(models.AbstractModel):
             to avoid having several notifications / partner as it would make
             constraints crash. This is disabled by default to optimize speed;
 
-        TDE/XDO TODO: flag rdata directly, for example r['notif'] = 'ocn_client'
-        and r['needaction']=False and correctly override _notify_get_recipients
-
         :return: list of recipients information (see
           ``MailFollowers._get_recipient_data()`` for more details) formatted
           like [
           {
             'active': partner.active;
             'email_normalized': partner.email_normalized;
-            'id': id of the res.partner being recipient to notify;
+            'id': id of the res.partner being recipient to notify, False for
+                email-only recipients coming from 'outgoing_email_to';
             'is_follower': follows the message related document;
             'name': partner name;
             'lang': partner lang;
-            'groups': res.group IDs if linked to a user;
+            'groups': res.groups IDs if linked to a user;
             'notif': notification type, one of 'inbox', 'email', 'sms' (SMS App),
-                'whatsapp (WhatsAapp);
+                'whatsapp' (WhatsApp);
             'share': is partner a customer (partner.partner_share);
             'type': partner usage ('customer', 'portal', 'user');
             'uid': user ID (in case of multiple users, internal then first found
@@ -5468,6 +5422,8 @@ class MailThread(models.AbstractModel):
         subtype_id = msg_vals.get("subtype_id", msg_sudo.subtype_id.id)
 
         # is it possible to have record but no subtype_id ?
+        # TODO: let overrides flag rdata directly (e.g. r['notif'] = 'ocn_client',
+        # r['needaction'] = False) instead of re-deriving it downstream.
         recipients_data = []
         res = self.env["mail.followers"]._get_recipient_data(
             self, message_type, subtype_id, pids
@@ -5536,12 +5492,9 @@ class MailThread(models.AbstractModel):
         # avoid double notification (on demand due to additional queries)
         if kwargs.pop("skip_existing", False):
             pids = [r["id"] for r in recipients_data if r["id"]]
-            # Email-only recipients have no partner id; dedup them by normalized
-            # address against mail.notification.mail_email_address. Otherwise a
-            # replay (e.g. mail.message.schedule, whose only replay guard IS
-            # skip_existing) re-emails them and accumulates duplicate email-only
-            # notification rows, which the partner-scoped unique index cannot
-            # catch.
+            # Email-only recipients fall outside the (mail_message_id,
+            # res_partner_id) unique index, so dedup them by normalized address
+            # against mail_email_address, or a replay re-emails them.
             emails = [
                 r["email_normalized"]
                 for r in recipients_data
@@ -5769,13 +5722,10 @@ class MailThread(models.AbstractModel):
     ):
         """Never send to author and to people outside Odoo (email) except comments.
 
-        A partner who was already a direct To/Cc recipient of the incoming email
-        is excluded from these extra (web push) notifications: their own mail
-        client has already alerted them, so a push would be a duplicate real-time
-        alert. ``_notify_get_recipients`` deliberately keeps such an inbox
-        follower's inbox needaction (the incoming email is not an inbox
-        needaction); only the redundant push is dropped here, keeping both
-        behaviours consistent.
+        A partner already a direct To/Cc of the incoming email is excluded from
+        these extra (web push) notifications: their own mail client has alerted
+        them, so a push would duplicate it. Their inbox needaction is
+        deliberately kept by ``_notify_get_recipients``.
         """
         msg_vals = msg_vals or {}
         msg_sudo = message.sudo()
@@ -5912,12 +5862,10 @@ class MailThread(models.AbstractModel):
             return ooo_messages
 
         # limit number of real author / recipient exchanges to 1 every 4 days.
-        # Match only on the identifier we actually have for this exchange:
-        # when the author resolved to a partner, email_to is False, and a bare
-        # ("outgoing_email_to", "=", False) leaf would match EVERY prior OOO
-        # with a null outgoing_email_to (i.e. any OOO ever sent to any partner),
-        # wrongly suppressing this recipient's reply. Build the OR from the
-        # applicable leaves only (mirrors _routing_handle_bounce).
+        # Match only on the identifier we actually have: when the author resolved
+        # to a partner, email_to is False, and a bare ("outgoing_email_to", "=",
+        # False) leaf would match every OOO ever sent to any partner and wrongly
+        # suppress this recipient's reply.
         exchange_domain = Domain.OR(
             ([Domain("partner_ids", "in", recipient.ids)] if recipient else [])
             + ([Domain("outgoing_email_to", "=", email_to)] if email_to else [])
@@ -5956,11 +5904,10 @@ class MailThread(models.AbstractModel):
                 raise_if_not_found=False,
             )
             # sudo: the OOO reply is system-generated (its author is the absent
-            # user, not the poster). Posting as self would validate parameters
-            # against the transaction user, and a share/portal/guest poster (who
-            # legitimately triggers this when notifying an out-of-office internal
-            # user) is forbidden the 'mail_headers' param by
-            # _get_notify_valid_parameters -> ValueError -> the whole comment 500s.
+            # user, not the poster). Posting as self validates parameters against
+            # the transaction user, and a share/portal/guest poster -- who
+            # legitimately triggers this -- is denied 'mail_headers' by
+            # _get_notify_valid_parameters, failing the whole comment.
             ooo_messages += self.sudo().message_post(
                 author_id=user.partner_id.id,
                 body=body,
@@ -6045,12 +5992,10 @@ class MailThread(models.AbstractModel):
             {
                 key: value
                 for key, value in kwargs.items()
-                # ``None`` means the optional parameter was not supplied (the
-                # signature default of _redirect_to_record / callers reading an
-                # absent request param). Callers pass them through positionally,
-                # so without this guard urlencode() serialises the *string*
-                # "None" — e.g. "/mail/view?access_token=None&model=..." — and
-                # the redirect target then carries a bogus token.
+                # ``None`` means the optional parameter was not supplied; without
+                # this guard urlencode() serialises the *string* "None" — e.g.
+                # "/mail/view?access_token=None&model=..." — and the redirect
+                # target then carries a bogus token.
                 if value is not None
                 and key
                 in (
@@ -6204,6 +6149,7 @@ class MailThread(models.AbstractModel):
         else:
             self.check_access("write")
 
+        # filter inactive addresses
         if partner_ids and not adding_current:
             partner_ids = (
                 self.env["res.partner"]
@@ -6218,8 +6164,8 @@ class MailThread(models.AbstractModel):
 
     def _message_subscribe(self, partner_ids=None, subtype_ids=None, customer_ids=None):
         """Main private API to add followers to a record set. This method adds
-        partners and channels, given their IDs, as followers of all records
-        contained in the record set.
+        partners, given their IDs, as followers of all records contained in the
+        record set.
 
         If subtypes are given existing followers are erased with new subtypes.
         If default one have to be computed only missing followers will be added
@@ -6287,10 +6233,9 @@ class MailThread(models.AbstractModel):
         using the auto subscription mechanism linked to updated values.
 
         Default value of this method is to return the new responsible of
-        documents. This is done using relational fields linking to res.users
-        with tracking set. It is considered as being
-        responsible for the document and therefore standard behavior is to
-        subscribe the user and send them a notification.
+        documents, taken from the ``user_id`` field when it links to res.users
+        and has tracking set. That user is considered responsible for the
+        document, hence subscribed and notified.
 
         Override this method to change that behavior and/or to add people to
         notify, using possible custom notification.
@@ -6371,9 +6316,10 @@ class MailThread(models.AbstractModel):
          * using subtypes parent relationship. For example following a parent record
            (i.e. project) with subtypes linked to child records (i.e. task). See
            mail.message.subtype ``_get_auto_subscription_subtypes``;
-         * calling _message_auto_subscribe_notify that returns a list of partner
-           to subscribe, as well as data about the subtypes and notification
-           to send. Base behavior is to subscribe responsible and notify them;
+         * calling _message_auto_subscribe_followers that returns a list of
+           partner to subscribe, as well as data about the subtypes and
+           notification to send. Base behavior is to subscribe responsible and
+           notify them through _message_auto_subscribe_notify;
 
         Adding application-specific auto subscription should be done by overriding
         ``_message_auto_subscribe_followers``. It should return structured data
@@ -6588,12 +6534,11 @@ class MailThread(models.AbstractModel):
                 if followers_existing_policy == "force":
                     self.env["mail.followers"].sudo().browse(data_fols.keys()).unlink()
 
-            # Index existing followers by (record, partner) once. data_fols
-            # spans the whole batch, so the per-pair next() scan this replaces
-            # was O(pairs x batch_followers) — quadratic on large batch creates
-            # (e.g. importing N records that each auto-subscribe the same user).
-            # (res_model, res_id, partner_id) is unique, so each key maps to one
-            # follower.
+            # Index existing followers by (record, partner) once: data_fols spans
+            # the whole batch, so a per-pair scan would be quadratic on large
+            # batch creates (e.g. importing N records that each auto-subscribe the
+            # same user). (res_model, res_id, partner_id) is unique, so each key
+            # maps to one follower.
             fols_by_key = {
                 (rid, pid): (fid, sids) for fid, (rid, pid, sids) in data_fols.items()
             }
@@ -6723,13 +6668,13 @@ class MailThread(models.AbstractModel):
         """
         self.ensure_one()
         # Moving the whole message history off the source record mutates it, so
-        # require write (not merely read) on the source: a read-only gate let
-        # anyone who could see two records relocate a chatter between them. The
-        # target is only read-checked — messages land on it but its own fields
-        # are untouched — matching the sudo'd-target conversion callers.
+        # require write (not merely read) on the source, or anyone who can see two
+        # records could relocate a chatter between them. The target is only
+        # read-checked — messages land on it but its own fields are untouched.
         self.check_access("write")
         new_thread.check_access("read")
-        # TDE check: sudo on mail.message, to be sure all messages are moved ?
+        # get the ids of the comment and not-comment of the thread
+        # TODO: sudo on mail.message, to be sure all messages are moved ?
         MailMessage = self.env["mail.message"]
         messages = MailMessage.search(
             [
@@ -6776,9 +6721,7 @@ class MailThread(models.AbstractModel):
         strict=True,
         **kwargs,
     ):
-        """Update message content. Currently does not support attachments
-        specific code (see ``_process_attachments_for_post``), to be added
-        when necessary.
+        """Update message content: body, attachments and mentioned partners.
 
         Private method to use for tooling, do not expose to interface as editing
         messages should be avoided at all costs (think of: notifications already
@@ -6789,7 +6732,7 @@ class MailThread(models.AbstractModel):
         :param str body: new body (None to skip its update);
         :param list attachment_ids: list of new attachments IDs, replacing old one (None
           to skip its update);
-        :param list attachment_ids: list of new partner IDs that are mentioned;
+        :param list partner_ids: list of new partner IDs that are mentioned;
         :param bool strict: whether to check for allowance before updating
           content. This should be skipped only when really necessary as it
           creates issues with already-sent notifications, lack of content
