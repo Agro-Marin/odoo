@@ -15,10 +15,8 @@ class TestLinkTracker(common.TransactionCase, MockLinkTracker):
         self.env['ir.config_parameter'].sudo().set_param('web.base.url', self._web_base_url)
 
     def test_absolute_url(self):
-        """
-        Test the absolute url of a link tracker having scheme in url and then removing the
-        scheme to give the absolute_url as a combination of the system parameter and tracker's url
-        """
+        """ Test absolute_url: the url itself when it has a scheme, else the
+        base url joined with it. """
         # Creating a link tracker with url having the scheme
         link_tracker = self.env['link.tracker'].create({
             'url': 'https://odoo.com',
@@ -209,7 +207,7 @@ class TestLinkTracker(common.TransactionCase, MockLinkTracker):
             'utm_medium': medium.name,
         }
 
-        # URL to an external website -> UTM parameters should no be added
+        # URL to an external website -> UTM parameters should not be added
         # because the system parameter "no_external_tracking" is set
         link = self.env['link.tracker'].create({
             'url': 'http://external.com/test?a=example.com',
@@ -247,7 +245,7 @@ class TestLinkTracker(common.TransactionCase, MockLinkTracker):
         self.env['ir.config_parameter'].set_param('link_tracker.no_external_tracking', False)
 
         # URL to an external website -> UTM parameters should be added since
-        # the system  parameter "link_tracker.no_external_tracking" is disabled
+        # the system parameter "link_tracker.no_external_tracking" is disabled
         link.url = 'http://external.com/test?a=example.com'
         self.assertLinkParams(
             'http://external.com/test',

@@ -22,11 +22,9 @@ class MailRenderMixin(models.AbstractModel):
 
     @api.model
     def _shorten_links(self, html, link_tracker_vals, blacklist=None, base_url=None):
-        """ Shorten links in an html content. It uses the '/r' short URL routing
-        introduced in this module. Using the standard Odoo regex local links are
-        found and replaced by global URLs (not including mailto, tel, sms).
-
-        TDE FIXME: could be great to have a record to enable website-based URLs
+        """ Shorten links in an html content. Every ``<a>`` href is made
+        absolute and replaced by a '/r/<code>' short URL, the route introduced
+        in this module (mailto, tel and sms hrefs are skipped).
 
         :param link_tracker_vals: values given to the created link.tracker, containing
           for example: campaign_id, medium_id, source_id, and any other relevant fields
@@ -39,6 +37,7 @@ class MailRenderMixin(models.AbstractModel):
         """
         if not html or is_html_empty(html):
             return html
+        # TODO: take a record instead, to enable website-based URLs
         base_url = base_url or self.env['ir.config_parameter'].sudo().get_param('web.base.url')
         short_schema = base_url + '/r/'
 
@@ -77,7 +76,7 @@ class MailRenderMixin(models.AbstractModel):
             # don't shorten already-shortened links or links towards unsubscribe page
             if original_url.startswith((shortened_schema, unsubscribe_schema)):
                 continue
-            # support blacklist items in path, like /u/
+            # support blacklist items in path, like /unsubscribe_from_list
             parsed = urlsplit(original_url, scheme='http')
             if blacklist and any(re.search(item + r'([#?/]|$)', parsed.path) for item in blacklist):
                 continue

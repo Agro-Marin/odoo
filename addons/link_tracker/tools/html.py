@@ -14,10 +14,10 @@ def find_links_with_urls_and_labels(root_node, base_url, skip_regex=None, skip_p
     :param lxml.etree._Element root_node: The root node to process
     :param str base_url: base url to prefix relative hrefs
     :param str skip_regex: URL pattern to skip
-    :param str skip_prefix: str prefix to skip
-    :param Iterable[str] skip_list: URLS to skip
+    :param str skip_prefix: URL prefix to skip
+    :param Iterable[str] skip_list: URL patterns to skip, matched up to a path boundary
 
-    :rtype: (list[lxml.etree._Element], list[dict])
+    :rtype: tuple[list[lxml.etree._Element], list[dict]]
     """
     link_nodes, urls_and_labels = [], []
 

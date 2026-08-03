@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- LINT.TRACKER -->
+        <!-- LINK.TRACKER -->
         <record id="link_tracker_view_search" model="ir.ui.view">
             <field name="name">link.tracker.view.search</field>
             <field name="model">link.tracker</field>

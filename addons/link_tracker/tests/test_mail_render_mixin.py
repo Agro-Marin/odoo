@@ -144,7 +144,7 @@ And here is the same: <a href="{self.base_url}/r/(\w+)+"><img src="https://www.o
                 f"Different labels {trackers_to_find[idx1][1][2]} and {trackers_to_find[idx2][1][2]} should have different short codes.",
             )
 
-        # Making sure that no replacement of the wrong line has been performed with the other
+        # Making sure no link got the short code of another one
         for idx in range(len(trackers_to_find) - 2):
             assert_different_shortcode(idx, idx + 1)
         self.assertNotEqual(matches[0], matches[8])
