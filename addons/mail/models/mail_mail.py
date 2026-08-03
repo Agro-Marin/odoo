@@ -277,8 +277,9 @@ class MailMail(models.Model):
            message is sent - this is not transactional and should
            not be called during another transaction!
 
-        A maximum of 1K MailMail (configurable using 'mail.mail.queue.batch.size'
-        optional ICP) are fetched in order to keep time under control.
+        Without explicit ``email_ids``, a maximum of 1K MailMail (configurable
+        using the 'mail.mail.queue.batch.size' optional ICP) are fetched in order
+        to keep time under control.
 
         :param list email_ids: optional list of emails ids to send. If given only
                          scheduled and outgoing emails within this ids list
@@ -367,10 +368,10 @@ class MailMail(models.Model):
     def _postprocess_sent_message(
         self, success_pids, success_emails, failure_reason=False, failure_type=None
     ):
-        """Perform any post-processing necessary after sending ``mail``
-        successfully, including deleting it completely along with its
-        attachment if the ``auto_delete`` flag of the mail was set.
-        Overridden by subclasses for extra post-processing behaviors.
+        """Post-process the mails after a send attempt: mark their pending email
+        notifications sent or exception, then unlink the ``auto_delete`` ones --
+        kept on any failure other than an invalid/missing recipient email, so the
+        error stays inspectable. Overridden by subclasses for extra behaviors.
 
         :return: True
         """
@@ -406,8 +407,8 @@ class MailMail(models.Model):
                     messages = notifications.mapped("mail_message_id").filtered(
                         lambda m: m._is_thread_message()
                     )
-                    # TDE TODO: could be great to notify message-based, not notifications-based, to lessen number of notifs
-                    messages._notify_message_notification_update()
+                    # TODO: notify message-based, not notifications-based, to lessen number of notifs
+                    messages._notify_message_notification_update()  # notify user that we have a failure
         if not failure_type or failure_type in [
             "mail_email_invalid",
             "mail_email_missing",
@@ -417,21 +418,13 @@ class MailMail(models.Model):
         return True
 
     def _parse_scheduled_datetime(self, scheduled_datetime):
-        """Taking an arbitrary datetime (either as a date, a datetime or a string)
-        try to parse it and return a datetime timezoned to UTC.
+        """Parse an arbitrary date, datetime or string into a UTC datetime.
 
-        If no specific timezone information is given, we consider it as being
-        given in UTC, as all datetime values given to the server. Trying to
-        guess its timezone based on user or flow would be strange as this is
-        not standard. When manually creating datetimes for mail.mail scheduled
-        date, business code should ensure either a timezone info is set, either
-        it is converted into UTC.
+        A value carrying no timezone info is considered UTC, like any datetime
+        given to the server; business code must set a tzinfo or convert to UTC
+        itself rather than rely on a guess based on the user or the flow.
 
-        Using yearfirst when parsing str datetimes eases parser's job when
-        dealing with the hard-to-parse trio (01/04/09 -> ?). In most use cases
-        year will be given first as this is the expected default formatting.
-
-        :returns: parsed datetime (or False if parser failed)
+        :return: parsed datetime (or False if parser failed)
         :rtype: datetime.datetime | bool
         """
         if isinstance(scheduled_datetime, datetime.datetime):
@@ -442,6 +435,8 @@ class MailMail(models.Model):
             )
         else:
             try:
+                # yearfirst eases the parser's job on the ambiguous trio
+                # (01/04/09 -> ?); year first is the expected default formatting.
                 parsed_datetime = parse(scheduled_datetime, yearfirst=True)
             except ValueError, TypeError:
                 parsed_datetime = False
@@ -512,7 +507,7 @@ class MailMail(models.Model):
 
         :param str body: body to personalize for the recipient
         :param partner: <res.partner> recipient
-        :param dict doc_to_followers: see ``Followers._get_mail_doc_to_followers()``
+        :param dict doc_to_followers: see ``MailFollowers._get_mail_doc_to_followers()``
         """
         self.ensure_one()
         # Nothing to personalize if the body carries no unfollow block: skip the
@@ -547,10 +542,8 @@ class MailMail(models.Model):
 
         :param mail_server: <ir.mail_server> mail server that will be used to send the mails,
           False if it is the default one
-        :param dict doc_to_followers: see ``Followers._get_mail_doc_to_followers()``
-        :param smtp_session: open session, whose advertised RFC 1870 size caps the
-          configured limit when deciding which attachments become links
-        :returns: list of dicts used in IrMailServer._build_email__()
+        :param dict doc_to_followers: see ``MailFollowers._get_mail_doc_to_followers()``
+        :return: list of dicts used in IrMailServer._build_email__()
         :rtype: list[dict]
         """
         self.ensure_one()
@@ -778,8 +771,7 @@ class MailMail(models.Model):
         The same "sending configuration" may repeat in order to limit batch size
         according to the `mail.session.batch.size` system parameter.
 
-        Return iterators over
-            mail_server_id, email_from, Records<mail.mail>.ids
+        :return: yields ``(mail_server_id, alias_domain_id, smtp_from, mail_ids)``
         """
         mail_values = self.with_context(prefetch_fields=False).read(
             ["id", "email_from", "mail_server_id", "record_alias_domain_id"]
@@ -995,9 +987,8 @@ class MailMail(models.Model):
                 env["mail.mail"].browse(email_ids).send()
 
     def send(self, auto_commit=False, raise_exception=False, post_send_callback=None):
-        """Sends the selected emails immediately, ignoring their current
-        state (mails that have already been sent should not be passed
-        unless they should actually be re-sent).
+        """Send the selected emails immediately, skipping any mail that is not in
+        'outgoing' state (so a delivered mail is never re-sent by mistake).
         Emails successfully delivered are marked as 'sent', and those
         that fail to be deliver are marked as 'exception', and the
         corresponding error mail is output in the server logs.
@@ -1007,10 +998,9 @@ class MailMail(models.Model):
             should never be True during normal transactions (default: False)
         :param bool raise_exception: whether to raise an exception if the
             email sending process has failed
-        :param post_send_callback: an optional function, called as ``post_send_callback(ids, force=False)``,
-            with the mail ids that have been sent; calls with redundant ids
-            are possible
-        :return: True
+        :param post_send_callback: an optional function, called as
+            ``post_send_callback(ids)`` with the mail ids that have been sent;
+            calls with redundant ids are possible
         """
         for (
             mail_server_id,
@@ -1189,7 +1179,6 @@ class MailMail(models.Model):
                         }
                     )
                     # `test_mail_bounce_during_send`, force immediate update to obtain the lock.
-                    # see rev. 56596e5240ef920df14d99087451ce6f06ac6d36
                     notifs.flush_recordset(
                         ["notification_status", "failure_type", "failure_reason"]
                     )
@@ -1205,8 +1194,8 @@ class MailMail(models.Model):
                 # recipient at all succeeds, a strict caller (raise_exception=True)
                 # still gets an exception (see the re-raise after the loop).
                 delivery_error = None
-                # TDE note: could be great to pre-detect missing to/cc and skip sending it
-                # to go directly to failed state update
+                # TODO: could be great to pre-detect missing to/cc and skip sending
+                # it to go directly to failed state update
                 email_list = mail._prepare_outgoing_list(
                     mail_server=mail_server or mail.mail_server_id,
                     doc_to_followers=doc_to_followers,
@@ -1368,8 +1357,6 @@ class MailMail(models.Model):
                             ),
                         )
                         _logger.info("Total emails tried by SMTP: %s", len(email_list))
-
-                    # /!\ can't use mail.state here, as mail.refresh() will cause an error
                 else:
                     mail_vals = {}
                     if failure_reason:
@@ -1456,16 +1443,13 @@ class MailMail(models.Model):
         """Map an exception raised while sending to a ``(failure_type,
         failure_reason)`` pair, using IrMailServer's stable error codes.
 
-        Extracted from ``_send``'s outer handler so the delivery-failure taxonomy
-        is a single, DB-free, unit-testable place instead of an inline block.
-
         :param failure_type: a classification already inferred earlier in the
           send (e.g. from a per-recipient failure); preserved unless a more
           specific one is found here.
         :param failure_reason: likewise a reason already recorded; kept unless an
           OutgoingEmailError (whose message carries the offending detail) or the
           generic fallback supersedes it.
-        :returns: ``(failure_type, failure_reason)``, both always set.
+        :return: ``(failure_type, failure_reason)``, both always set.
         """
         IrMailServer = self.env["ir.mail_server"]
         if isinstance(exception, OutgoingEmailError):
