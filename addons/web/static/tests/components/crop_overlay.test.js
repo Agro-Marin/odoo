@@ -20,9 +20,11 @@ function makeHost({ onResize = () => {} } = {}) {
         /** @type {{ isReady: boolean, tick: number }} */
         state;
         static template = xml`
-            <CropOverlay isReady="state.isReady" onResize.bind="onResize">
-                <div style="width: 300px; height: 200px;">video</div>
-            </CropOverlay>
+            <div style="width: 300px; height: 200px;">
+                <CropOverlay isReady="state.isReady" onResize.bind="onResize">
+                    <div style="width: 300px; height: 200px;">video</div>
+                </CropOverlay>
+            </div>
             <span class="tick" t-esc="state.tick"/>
         `;
         setup() {
@@ -108,4 +110,42 @@ test("a drag persists the position exactly once, on pointer up", async () => {
     // A stray pointerup with no drag in progress must not write again.
     container.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
     expect(storage.writes).toBe(1);
+});
+
+test("the handle comes back where it was left, not on the opposite corner", async () => {
+    const host = await mountWithCleanup(makeHost());
+    await animationFrame();
+
+    const icon = queryOne(".o_crop_icon");
+    const container = queryOne(".o_crop_container");
+    icon.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }),
+    );
+    container.dispatchEvent(
+        new PointerEvent("pointermove", { bubbles: true, clientX: 260, clientY: 170 }),
+    );
+    container.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+    await animationFrame();
+
+    const read = () => {
+        const style = queryOne(".o_crop_container").style;
+        return {
+            crop: `${style.getPropertyValue("--o-crop-x")},${style.getPropertyValue("--o-crop-y")}`,
+            icon: `${style.getPropertyValue("--o-crop-icon-x")},${style.getPropertyValue("--o-crop-icon-y")}`,
+        };
+    };
+    const dragged = read();
+    expect(dragged.crop).toBe("40px,30px");
+    expect(dragged.icon).toBe("260px,170px");
+
+    // Re-arming reads the position back out of local storage, which is the path
+    // a fresh page load takes. The crop area is mirrored about the centre and
+    // mirroring is idempotent, so it came back right either way -- the handle
+    // is what told the two coordinate spaces apart.
+    host.state.isReady = false;
+    await animationFrame();
+    host.state.isReady = true;
+    await animationFrame();
+
+    expect(read()).toEqual(dragged);
 });

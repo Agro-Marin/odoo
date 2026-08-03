@@ -2,7 +2,7 @@
 
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, click, press, waitFor } from "@odoo/hoot-dom";
-import { Deferred } from "@odoo/hoot-mock";
+import { advanceTime, Deferred } from "@odoo/hoot-mock";
 import {
     contains,
     makeMockEnv,
@@ -231,4 +231,103 @@ test("Closing barcode scanner while video is loading should not cause errors", a
 
     await animationFrame();
     expect(".o_error_dialog").toHaveCount(0);
+});
+
+/**
+ * A camera that produces a real (blank) stream, so the component's readiness
+ * poll settles the way it does against a device.
+ */
+function mockBlankCamera() {
+    patchWithCleanup(browser.navigator, {
+        mediaDevices: {
+            getUserMedia() {
+                const canvas = document.createElement("canvas");
+                canvas.width = 250;
+                canvas.height = 250;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "white";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                return canvas.captureStream();
+            },
+        },
+    });
+}
+
+/**
+ * @param {() => any} onDetect what `detect()` does on each call
+ */
+function mockDetector(onDetect) {
+    class ScriptedDetector {
+        static async getSupportedFormats() {
+            return ["qr_code"];
+        }
+        async detect() {
+            return onDetect();
+        }
+    }
+    patchWithCleanup(window, { BarcodeDetector: ScriptedDetector });
+}
+
+async function mountScanner(props) {
+    const ready = new Deferred();
+    await mountWithCleanup(BarcodeVideoScanner, {
+        props: {
+            facingMode: "environment",
+            onReady: () => ready.resolve(),
+            onResult: () => {},
+            onError: () => {},
+            ...props,
+        },
+    });
+    await ready;
+    return ready;
+}
+
+test("the scan loop gives up after five consecutive detector failures", async () => {
+    mockBlankCamera();
+    let attempts = 0;
+    mockDetector(() => {
+        attempts++;
+        throw new Error("detector unavailable");
+    });
+
+    /** @type {any[]} */
+    const errors = [];
+    await mountScanner({ onError: (/** @type {any} */ e) => errors.push(e) });
+
+    // Five failures in a row is the threshold: the fifth reports and stops.
+    for (let i = 0; i < 8; i++) {
+        await advanceTime(100);
+    }
+    expect(errors.length).toBe(1);
+    expect(attempts).toBe(5);
+
+    // The loop is over, so nothing keeps trying behind the reported error.
+    const settled = attempts;
+    await advanceTime(500);
+    expect(attempts).toBe(settled);
+});
+
+test("a successful read clears the failure count", async () => {
+    mockBlankCamera();
+    let attempts = 0;
+    mockDetector(() => {
+        attempts++;
+        // fail, fail, fail, fail, succeed, then fail four more
+        if (attempts === 5) {
+            return [];
+        }
+        throw new Error("transient");
+    });
+
+    /** @type {any[]} */
+    const errors = [];
+    await mountScanner({ onError: (/** @type {any} */ e) => errors.push(e) });
+
+    for (let i = 0; i < 9; i++) {
+        await advanceTime(100);
+    }
+    // Nine attempts, but never five bad ones in a row.
+    expect(attempts).toBe(9);
+    expect(errors).toEqual([]);
 });

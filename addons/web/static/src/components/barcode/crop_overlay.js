@@ -113,12 +113,19 @@ export class CropOverlay extends Component {
         this.props.onResize(area);
     }
 
+    /**
+     * What is stored is the handle's own position, because that is what
+     * `computeDefaultPoint` reads it back into. Storing the transparent rect
+     * instead put the two in different coordinate spaces: the rect is the
+     * handle mirrored about the centre, and mirroring is idempotent, so the
+     * crop area came back right while the handle came back on the opposite
+     * corner. A value written by the previous spelling is already a mirrored
+     * point, which restores to the same area it always did.
+     */
     persistPosition() {
         browser.localStorage.setItem(
             this.localStorageKey,
-            JSON.stringify(
-                this.getTransparentRec(this.relativePosition, this.boundaryOverlay),
-            ),
+            JSON.stringify(this.relativePosition),
         );
     }
 
