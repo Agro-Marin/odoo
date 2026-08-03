@@ -17,11 +17,10 @@ _logger = logging.getLogger(__name__)
 
 
 class MailActivity(models.Model):
-    """An actual activity to perform. Activities are linked to
-    documents using res_id and res_model_id fields. Activities have a deadline
-    that can be used in kanban view to display a status. Once done activities
-    are archived (to keep history) and a message is posted. This message has a
-    new activity_type_id field that indicates the activity linked to the message."""
+    """An actual activity to perform, linked to a document through res_model_id
+    and res_id, with a deadline driving the displayed state. Once done, the
+    activity is archived (to keep history) and a message is posted, carrying the
+    activity type in its ``mail_activity_type_id`` field."""
 
     _name = "mail.activity"
     _description = "Activity"
@@ -47,7 +46,7 @@ class MailActivity(models.Model):
 
     @api.model
     def _default_activity_type_for_model(self, model):
-        """Take first one found, ordered by sequence. Keep it simple."""
+        """Take the first activity type found, ordered by sequence."""
         if model:
             return self.env["mail.activity.type"].search(
                 ["|", ("res_model", "=", model), ("res_model", "=", False)], limit=1
@@ -154,7 +153,7 @@ class MailActivity(models.Model):
         )""",
         "Activities have to be linked to records with a not null res_id.",
     )
-    # if no model: user_id is required (no floating activities noone can see)
+    # if no model: user_id is required (no floating activities no one can see)
     _check_user_id_is_set_if_model = models.Constraint(
         """CHECK(
             (COALESCE(res_model, '') <> '' OR user_id IS NOT NULL)
@@ -278,9 +277,10 @@ class MailActivity(models.Model):
         Access on activities are the following :
 
           * read: access rule AND (assigned to user OR read rights on related documents);
-          * write: access rule OR (``mail_post_access`` or write) rights on related documents);
-          * create: access rule AND (``mail_post_access`` or write) right on related documents;
-          * unlink: access rule OR (``mail_post_access`` or write) rights on related documents);
+          * write: access rule OR write rights on related documents;
+          * create: access rule AND ``mail_post_access`` right ('write' by default)
+            on related documents;
+          * unlink: access rule OR write rights on related documents;
         """
         result = super()._check_access(operation)
         if not self:
@@ -499,10 +499,9 @@ class MailActivity(models.Model):
 
         # retrieve activities and their corresponding res_model, res_id
         # Don't use the ORM to avoid cache pollution.
-        # Search WITHOUT the caller's offset/limit: the accessibility filter
-        # below runs in Python, so applying LIMIT/OFFSET in SQL first would
-        # truncate the candidates before filtering and yield short/skipped/
-        # duplicated pages. Pagination is re-applied after filtering.
+        # Search WITHOUT the caller's offset/limit: the accessibility filter below
+        # runs in Python, so paginating in SQL first would truncate the candidates
+        # and yield short or skipped pages. Pagination is re-applied after.
         query = super()._search(domain, order=order, **kwargs)
         fnames_to_read = ["id", "res_model", "res_id", "user_id"]
         rows = self.env.execute_query(
@@ -603,8 +602,8 @@ class MailActivity(models.Model):
     def action_done_redirect_to_other(self):
         """Mark done, then return the 'without access' list action showing the
         remaining other activities (from context active_ids, recomputed if
-        missing). Needed because a done activity is deleted unless 'keep done'
-        is enabled.
+        missing). Needed because a done activity is archived and thus drops out
+        of the list the user was working from.
         """
         self.action_done()
         action = self.env["ir.actions.actions"]._for_xml_id(
@@ -639,7 +638,8 @@ class MailActivity(models.Model):
         return messages[0].id if messages else False
 
     def action_done_schedule_next(self):
-        """Web-button wrapper: run the feedback flow without asking for feedback."""
+        """Web-button wrapper: mark done without asking for feedback, then offer
+        to schedule the next activity."""
         return self.action_feedback_schedule_next()
 
     def action_feedback_schedule_next(self, feedback=False, attachment_ids=None):
@@ -652,7 +652,7 @@ class MailActivity(models.Model):
         )
         _messages, next_activities = self._action_done(
             feedback=feedback, attachment_ids=attachment_ids
-        )  # will unlink activity, dont access self after that
+        )  # archives (and may unlink) the activity: build ctx before calling
         if next_activities:
             return False
         return {
@@ -666,19 +666,20 @@ class MailActivity(models.Model):
         }
 
     def _action_done(self, feedback=False, attachment_ids=None):
-        """Private implementation of marking activity as done: posting a message, archiving activity
-        (since done), and eventually create the automatical next activity (depending on config).
+        """Mark the activities as done: post a message, archive them, and chain
+        the next activity when the type is configured to trigger one.
+
         :param feedback: optional feedback from user when marking activity as done
         :param attachment_ids: list of ir.attachment ids to attach to the posted mail.message
-        :returns (messages, activities) where
-            - messages is a recordset of posted mail.message
-            - activities is a recordset of mail.activity of forced automically created activities
+        :return: (messages, activities) where messages are the posted
+          ``mail.message`` and activities the chained ``mail.activity``
+        :rtype: tuple
         """
         messages = self.env["mail.message"]
         next_activities_values = []
 
         # Search for all attachments linked to the activities we are about to archive. This way, we
-        # can link them to the message posted and prevent their disparition. The move is done in
+        # can link them to the message posted and prevent their loss. The move is done in
         # sudo to avoid losing inaccessible attachments.
         activity_attachments = (
             self.env["ir.attachment"]
@@ -707,14 +708,12 @@ class MailActivity(models.Model):
             for record_sudo, activity in zip(
                 records_sudo, activity_data["activities"], strict=False
             ):
-                # post message on activity, before deleting it
+                # post message on activity, before archiving it
 
                 if record_sudo in existing:
-                    # extract value to generate next activities — only when the
-                    # record still exists: chaining a next activity onto a
-                    # cascade-deleted record would create it with a dangling
-                    # res_id, and its message_subscribe would then raise and
-                    # break the whole "mark as done" the existence guard protects.
+                    # Chain the next activity only when the record still exists:
+                    # a dangling res_id makes its message_subscribe raise and
+                    # breaks the whole "mark as done".
                     if activity.chaining_type == "trigger":
                         vals = activity.with_context(
                             activity_previous_deadline=activity.date_deadline
@@ -740,7 +739,7 @@ class MailActivity(models.Model):
                     activity.attachment_ids = attachment_ids
 
                 # TODO: Fix void res_id on attachment when you create an activity with an image
-                # directly, see route /web_editor/attachment/add
+                # directly, see route /html_editor/attachment/add_data
                 message_attachments = activity_attachments.get(activity.id)
                 if message_attachments and activity_message:
                     message_attachments.write(
@@ -857,15 +856,11 @@ class MailActivity(models.Model):
             "res_model",
             "state",
             "summary",
-            # sudo on user_id: same reasoning as create_uid above — multi-
-            # company-restricted readers must not crash on activities
-            # assigned to a user from another company. Restrict the sudo'd
-            # nested partner to display-only fields: an unrestricted
-            # Store.One("partner_id") pulls res.partner._to_store_defaults
-            # (email, im_status + its presence access token, avatar token, …)
-            # under sudo, leaking those across the company boundary to any user
-            # who can merely read the activity. The avatar card fetches the
-            # rest on demand under normal ACLs.
+            # sudo on user_id: same reasoning as create_uid above. The nested
+            # partner is restricted to display-only fields because an unrestricted
+            # Store.One("partner_id") would pull res.partner._to_store_defaults
+            # (email, im_status, avatar) under sudo, leaking them across the
+            # company boundary to anyone who can merely read the activity.
             Store.One(
                 "user_id", Store.One("partner_id", ["name", "avatar_128"]), sudo=True
             ),
@@ -878,13 +873,8 @@ class MailActivity(models.Model):
     def get_activity_data(
         self, res_model, domain, limit=None, offset=0, fetch_done=False
     ):
-        """Get aggregate data about records and their activities.
-
-        The goal is to fetch and compute aggregated data about records and their
-        activities to display them in the activity views and the chatter. For example,
-        the activity view displays it as a table with columns and rows being respectively
-        the activity_types and the activity_res_ids, and the grouped_activities being the
-        table entries with the aggregated data.
+        """Get aggregate data about records and their activities, to display them
+        in the activity views and the chatter.
 
         :param str res_model: model of the records to fetch
         :param list domain: record search domain
@@ -893,7 +883,7 @@ class MailActivity(models.Model):
         :param bool fetch_done: determines if "done" activities are integrated in the
             aggregated data or not.
         :returns: {'activity_types': dict of activity type info
-                            {id: int, name: str, mail_template: list of {id:int, name:str}}
+                            {id: int, name: str, template_ids: list of {id:int, name:str}}
                        'activity_res_ids': list<int> of record id ordered by closest date
                             (deadline for ongoing activities, and done date for done activities)
                        'grouped_activities': dict<dict>
@@ -904,6 +894,7 @@ class MailActivity(models.Model):
                                     oldest deadline of ongoing activities if there are any
                                     or most recent date done of completed activities
                                 state dict: aggregated state of the related activities
+                                summaries list: summary of each related activity
                                 user_assigned_ids list: activity responsible id ordered
                                     by closest deadline of the related activities
                                 attachments_info: dict with information about the attachments
@@ -1069,7 +1060,7 @@ class MailActivity(models.Model):
         :returns: for each model having at least one activity in self, have
           a sub-dict containing
             * activities: activities related to that model;
-            * record IDs: record linked to the activities of that model, in same
+            * record_ids: records linked to the activities of that model, in same
               order;
         :rtype: dict
         """
@@ -1085,8 +1076,11 @@ class MailActivity(models.Model):
         return data_by_model
 
     def _prepare_next_activity_values(self):
-        """Prepare the next activity values based on the current activity record and applies _onchange methods
-        :returns a dict of values for the new activity
+        """Prepare the next activity values based on the current activity record,
+        applying the _onchange methods.
+
+        :return: values for the new activity
+        :rtype: dict
         """
         self.ensure_one()
         vals = self.default_get(self.fields_get())
@@ -1108,11 +1102,9 @@ class MailActivity(models.Model):
 
     @api.autovacuum
     def _gc_delete_old_overdue_activities(self):
-        """
-        Delete old overdue activities
-        - If the config_parameter is deleted or 0, the user doesn't want to run this gc routine
-        - If the config_parameter is set to a negative number, it's an invalid value, we skip the gc routine
-        - If the config_parameter is set to a positive number, we delete only overdue activities which deadline is older than X years
+        """Delete overdue activities whose deadline is older than the number of
+        years set in 'mail.activity.gc.delete_overdue_years'. A missing, zero or
+        negative value skips the routine.
         """
         # A non-integer degrades to the 0 default, which is itself "opted out",
         # so an unusable value still skips the routine -- the helper warns about

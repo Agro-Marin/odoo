@@ -148,7 +148,7 @@ class Base(models.AbstractModel):
         necessary but gives more flexibility to notifications management.
 
         :param bool introspect_fields: if no field is found by default
-          heuristics, introspect model to find relational fields towards
+          heuristics, introspect model to find many2one fields towards
           res.partner model. This is used notably when partners are
           mandatory like in voip;
 
@@ -350,14 +350,11 @@ class Base(models.AbstractModel):
         return 100 if sequence is True else sequence
 
     def _message_add_default_recipients(self):
-        """Generic implementation for finding default recipient to mail on
-        a recordset. This method is a generic implementation available for
-        all models as we could send an email through mail templates on models
-        not inheriting from mail.thread. For that purpose we use mail methods
-        to find partners (customers) and primary emails.
-
-        Override this method on a specific model to implement model-specific
-        behavior."""
+        """Generic implementation for finding default recipients to mail on a
+        recordset, using the mail helpers to find partners (customers) and
+        primary emails. Available for all models, as mail templates may send
+        emails on models not inheriting from mail.thread. Override on a specific
+        model to implement model-specific behavior."""
         res = {}
         customers = self._mail_get_partners()
         primary_emails = self._mail_get_primary_email()
@@ -747,8 +744,8 @@ class Base(models.AbstractModel):
         message is found, no suggested message is given, as other messages
         should not trigger a 'reply-all' behavior.
 
-        Dedicated method to ease override and csutom behavior for filtering
-        and sorting messages in '_message_get_suggested_recipients'"""
+        Dedicated method to ease override and custom behavior for filtering
+        and sorting messages in '_message_get_suggested_recipients_batch'"""
         subtype_ids = (
             self._creation_subtype().ids if hasattr(self, "_creation_subtype") else []
         )
@@ -785,8 +782,8 @@ class Base(models.AbstractModel):
         all models as we could send an email through mail templates on models
         not inheriting from mail.thread.
 
-        Reply-to is formatted like '"Author Name" <reply.to@domain>".
-        Heuristic it the following:
+        Reply-to is formatted like '"Author Name" <reply.to@domain>'.
+        Heuristic is the following:
 
         * search for specific aliases as they always have priority; it is limited
           to aliases linked to documents (like project alias for task for example);
@@ -799,7 +796,7 @@ class Base(models.AbstractModel):
         :param author_id: author to use in name part of formatted email;
 
         :return: dictionary. Keys are record IDs and value is formatted
-          like an email "Company_name Document_name <reply_to@email>"
+          like an email '"Author Name" <reply_to@email>'
         """
         return self._notify_get_reply_to_batch(
             defaults=dict.fromkeys(self.ids or [False], default),
@@ -890,22 +887,13 @@ class Base(models.AbstractModel):
         return reply_to_formatted
 
     def _notify_get_reply_to_formatted_email(self, record_email, author_id=False):
-        """Compute formatted email for reply_to and try to avoid refold issue
-        with python that splits the reply-to over multiple lines. It is due to
-        a bad management of quotes (missing quotes after refold). This appears
-        therefore only when having quotes (aka not simple names, and not when
-        being unicode encoded).
-        Another edge-case produces a linebreak (CRLF) immediately after the
-        colon character separating the header name from the header value.
-        This creates an issue in certain DKIM tech stacks that will
-        incorrectly read the reply-to value as empty and fail the verification.
-
-        To avoid that issue when formataddr would return more than 68 chars we
-        return a simplified name/email to try to stay under 68 chars. If not
-        possible we return only the email and skip the formataddr which causes
-        the issue in python. We do not use hacks like crop the name part as
-        encoding and quoting would be error prone.
+        """Compute formatted email for reply_to, simplifying then dropping the
+        name part when formataddr would exceed the header length limit.
         """
+        # Python's refold splits the reply-to over several lines (quotes are lost)
+        # and may insert a CRLF right after the header colon; some DKIM stacks
+        # then read Reply-To as empty and fail verification. Cropping the name
+        # part instead would be error prone (encoding and quoting).
         length_limit = 68  # 78 - len('Reply-To: '), 78 per RFC
         # address itself is too long : return only email and log warning
         if len(record_email) >= length_limit:
@@ -966,7 +954,7 @@ class Base(models.AbstractModel):
     def _get_default_activity_view(self):
         """Generates an empty activity view.
 
-        :returns: a activity view as an lxml document
+        :returns: an activity view as an lxml document
         :rtype: etree._Element
         """
         field = E.field(name=self._rec_name_fallback())
