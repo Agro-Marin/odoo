@@ -16,9 +16,9 @@ MAIL_TIMEOUT = 60
 MAIL_SERVER_DOMAIN = Domain("state", "=", "done") & Domain("server_type", "!=", "local")
 MAIL_SERVER_DEACTIVATE_TIME = datetime.timedelta(
     days=5
-)  # deactivate cron when has general connection issues
+)  # failure age after which a failing server is set back to draft
 
-# Workaround for Python 2.7.8 bug https://bugs.python.org/issue23906
+# poplib caps a response line at 2048 chars, too small for real-world headers
 poplib._MAXLINE = 65536
 
 
@@ -85,7 +85,7 @@ class OdooPOP3_SSL(OdooPOP3, POP3_SSL):
 
 
 class FetchmailServer(models.Model):
-    """Incoming POP/IMAP mail server account"""
+    """Incoming mail server account (IMAP, POP or local script)"""
 
     _name = "fetchmail.server"
     _description = "Incoming Mail Server"
@@ -320,24 +320,23 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
             self.env.context.get("cron_id")
             == self.env.ref("mail.ir_cron_mail_gateway_action").id
         ), "Meant for cron usage only"
-        # We sort by priority first (lowest first).
-        # Then by date ASC (oldest first), date is updated after server is processed by cron
-        # This ensures that the fetchmail servers are rotated for each job run
+        # priority first (lowest first), then oldest 'date': it is updated once the
+        # server is processed, which rotates the servers across cron runs
         custom_order = "priority asc, date asc nulls first, id asc"
         records = self.search(MAIL_SERVER_DOMAIN, order=custom_order)
-        # To ensure that all N inbox can be looped over to be checked (when empty),
-        # we add a time buffer of 4*N sec, assuming an EXTREME edge-case of 2*2s latency
-        # to connect and check the empty inbox.
-        # Should be adapted if ir_cron is refactored in the future
+        # 4s of extra budget per server (worst case 2s to connect + 2s to check an
+        # empty inbox), so every inbox can be looped over within a single run
         time_buffer = self.env.context["cron_end_time"] + (4 * len(records))
         records.with_context(cron_end_time=time_buffer)._fetch_mail(**kw)
         if not self.search_count(MAIL_SERVER_DOMAIN):
             self.env["ir.cron"]._commit_progress(deactivate=True)
 
     def _fetch_mail(self, batch_limit=50) -> Exception | None:
-        """Fetch e-mails from multiple servers.
+        """Fetch e-mails from multiple servers, committing after each message.
 
-        Commit after each message.
+        :return: last general failure caught while fetching, None if every server
+          succeeded
+        :rtype: Exception | None
         """
         result_exception = None
         servers = self.with_context(fetchmail_cron_running=True)
@@ -414,7 +413,8 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                             *server_type_and_name,
                             exc_info=True,
                         )
-                        # mail failed, but still "seen", so one unit of work
+                        # mail failed, but is still acked below (IMAP \Seen, POP3
+                        # dele), so one unit of work
                         remaining_time = MailThread.env["ir.cron"]._commit_progress(1)
                     server_connection.handled_message(message_num)
                     if count >= batch_limit or not remaining_time:
@@ -451,8 +451,8 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                     # POP3 quit() raises poplib.error_proto and IMAP4
                     # close()/logout() raise IMAP4.error (of which IMAP4.abort
                     # is a subclass) — neither derives from OSError. Catch them
-                    # so a teardown hiccup on one server does not abort the
-                    # whole per-server fetch loop. Matches the handler at l.281.
+                    # so a teardown hiccup on one server does not abort the whole
+                    # fetch loop. Matches the handler in button_confirm_login.
                     _logger.warning(
                         "Failed to properly finish %s connection: %s.",
                         *server_type_and_name,
@@ -466,9 +466,8 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                 failed,
             )
             server.write({"date": fields.Datetime.now()})
-            # Commit before updating the progress because progress may be
-            # updated for messages using another transaction. Without a commit
-            # before updating the progress, we would have a serialization error.
+            # commit before updating the progress: messages update it from
+            # another transaction, so skipping it raises a serialization error
             self.env.cr.commit()
             # checked server, so one unit of work done (even if no messages fetched on server)
             remaining_time = self.env["ir.cron"]._commit_progress(
@@ -491,6 +490,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
         if self.env.context.get("fetchmail_cron_running"):
             return
         try:
+            # enable/disable cron based on the number of 'done' non-local servers
             cron = self.env.ref("mail.ir_cron_mail_gateway_action")
             cron.toggle(model=self._name, domain=MAIL_SERVER_DOMAIN)
         except ValueError:
