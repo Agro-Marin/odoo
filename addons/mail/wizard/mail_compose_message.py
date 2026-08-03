@@ -624,7 +624,7 @@ class MailComposeMessage(models.TransientModel):
         """If model does not inherit from MailThread, avoid replies to be
         considered as thread updates, they will instead follow the routing
         rules (alias, ...). Other models by default collect replies in the
-        same thread, unless a reply_to is forced, usually either throuh a
+        same thread, unless a reply_to is forced, usually either through a
         template, either because of mailing mode."""
         non_thread = self.filtered(
             lambda composer: not composer.model or not composer.model_is_thread
@@ -753,13 +753,12 @@ class MailComposeMessage(models.TransientModel):
 
     @api.depends("composition_mode", "model", "res_domain", "res_ids")
     def _compute_force_send(self):
-        """When being in single record mode, we force_send (post on a record
-        or send a single email right away). In batch mode: comment always uses
-        the email queue (lot of potentially different emails to craft). Mass
-        mailing mode depends on number of recipients and is configurable using
-        'mail.mail.force.send.limit' configuration parameter (default=100).
-        Using a domain forces the email queue usage as it depends on actual
-        evaluation and is generally used for big batches anyway."""
+        """Single record mode always force_sends (post on a record or send a
+        single email right away). In batch mode, comment always uses the email
+        queue (lot of potentially different emails to craft), and mass mailing
+        force_sends up to 'mail.mail.force.send.limit' records (default=100).
+        A domain always uses the queue: it depends on actual evaluation and is
+        generally used for big batches anyway."""
         for composer in self:
             if not composer.composition_batch:
                 composer.force_send = True
@@ -875,9 +874,8 @@ class MailComposeMessage(models.TransientModel):
 
     def _prepare_schedule_message_post_values(self, post_values):
         """Override this method to add additional values to the 'mail.scheduled.message' record creation.
-        This is useful for custom modules that need to add specific fields to the scheduled message.
+
         :param post_values: dict of post values to be used for the scheduled message
-        :param wizard: mail.compose.message record that is used to schedule the message
         :return: dict of additional values to be added to the scheduled message creation
         """
         self.ensure_one()
@@ -909,10 +907,8 @@ class MailComposeMessage(models.TransientModel):
         create_values = []
         for wizard in self:
             # some actions might be triggered on message post based on some
-            # context keys: strip them (clean_context was previously computed
-            # and discarded, a no-op). Use `wizard`, not `self`:
-            # _prepare_mail_values does ensure_one() and would raise on a
-            # multi-wizard recordset.
+            # context keys: strip them. Use `wizard`, not `self`, as
+            # _prepare_mail_values does ensure_one().
             wizard = wizard.with_context(clean_context(wizard.env.context))
             res_ids = wizard._evaluate_res_ids()
             if not res_ids:
@@ -950,7 +946,7 @@ class MailComposeMessage(models.TransientModel):
             email(s), rendering any template patterns on the fly if needed.
 
         :return: (
-            result_mails_su: in mass mode, sent emails (as sudo),
+            result_mails_su: in mass mode, created emails (as sudo),
             result_messages: in comment mode, posted messages
         )
         """
@@ -1023,8 +1019,8 @@ class MailComposeMessage(models.TransientModel):
         sudo as it is considered as a technical model."""
         mails_sudo = self.env["mail.mail"].sudo()
 
-        # shared helper: tolerates a malformed 'mail.batch_size' ICP that a bare
-        # int() here used to crash on (the template path already guarded it)
+        # shared helper: falls back to the default on a malformed, zero or
+        # negative 'mail.batch_size' ICP (also used by the template send path)
         batch_size = self._get_mail_batch_size(self._batch_size or 50)
         counter_mails_done = 0
         for res_ids_iter in itertools.batched(res_ids, batch_size, strict=False):
@@ -1071,7 +1067,7 @@ class MailComposeMessage(models.TransientModel):
                 batch_done = len(prepared_mail_values_filtered)
                 counter_mails_done += batch_done
                 # _commit_progress accumulates this batch onto the cron progress
-                # row and commits (a no-op write + plain commit outside a cron).
+                # row; outside a cron run it only commits.
                 self.env["ir.cron"]._commit_progress(
                     batch_done, remaining=len(res_ids) - counter_mails_done
                 )
@@ -1179,11 +1175,9 @@ class MailComposeMessage(models.TransientModel):
         )
 
     def _invalid_email_state(self):
-        """Gives state of an email when the address is invalid or missing.
-
-        We consider that if not keeping logs, users will not care to correct record-wise errors as it was "send and forget".
-        Whereas if they do keep logs, they will want to know that the message was not actually sent.
-        """
+        """Gives state of an email when the address is invalid or missing."""
+        # not keeping logs means "send and forget": nobody will correct
+        # record-wise errors, so cancel instead of flagging an exception
         return (
             "cancel"
             if self.auto_delete and not self.auto_delete_keep_log
@@ -1191,43 +1185,8 @@ class MailComposeMessage(models.TransientModel):
         )
 
     def _prepare_mail_values(self, res_ids):
-        """Generate the values that will be used by send_mail to create either
-         mail_messages or mail_mails depending on composition mode.
-
-        Some summarized information on generation: mail versus message fields
-        (or both), and static (never rendered) versus dynamic (raw or rendered).
-
-        MAIL
-            STA - 'auto_delete',
-            DYN - 'body_html',
-            STA - 'force_send',  (notify parameter)
-            STA - 'model',
-            DYN - 'recipient_ids',  (from partner_ids)
-            DYN - 'res_id',
-            STA - 'is_notification',
-
-        MESSAGE
-            DYN - 'body',
-            STA - 'email_add_signature',
-            STA - 'email_layout_xmlid',
-            DYN - 'force_email_lang',  # notify parameter
-            STA - 'record_alias_domain_id',  # monorecord only
-            STA - 'record_company_id',  # monorecord only
-
-        BOTH
-            DYN - 'attachment_ids',
-            STA - 'author_id',  (to improve with template)
-            DYN - 'email_from',
-            STA - 'mail_activity_type_id',
-            STA - 'mail_server_id',
-            STA - 'message_type',
-            STA - 'parent_id',
-            DYN - 'partner_ids',
-            DYN - 'reply_to',
-            STA - 'reply_to_force_new',
-            DYN - 'scheduled_date',
-            DYN - 'subject',
-            STA - 'subtype_id',
+        """Generate the values that will be used by '_action_send_mail' to create
+        either mail_messages or mail_mails depending on composition mode.
 
         :param list res_ids: list of record IDs on which composer runs;
 
@@ -1446,7 +1405,7 @@ class MailComposeMessage(models.TransientModel):
             )._message_get_default_recipients()
             for res_id in res_ids:
                 mail_values_all[res_id].update(default_recipients.get(res_id, {}))
-        # TDE FIXME: seems to be missing an "else" here to add partner_ids in rendering mode
+        # FIXME: seems to be missing an "else" here to add partner_ids in rendering mode
 
         # Handle reply-to. In update mode (force_new False), reply-to value is
         # computed from the records (to have their alias). In new mode, reply-to
@@ -1711,8 +1670,9 @@ class MailComposeMessage(models.TransientModel):
         :param boolean find_or_create_partners: transform emails into partners
           (see ``Template._generate_template_recipients``);
 
-        :returns: a dict containing all asked fields for each record ID given by
-          res_ids. Note that
+        :returns: for each record ID given by res_ids, the asked fields holding
+          a truthy value ('email_to' / 'email_cc' are dropped when
+          'find_or_create_partners' is set). Note that
 
           * 'body' comes from template 'body_html' generation;
           * 'attachments' is an additional key coming with 'attachment_ids' due
@@ -1767,11 +1727,9 @@ class MailComposeMessage(models.TransientModel):
                 targets = model.browse(mail_values_dict.keys())
                 targets.fetch(["email_normalized", primary_email])
                 # Compare against *every* address the record holds, not only
-                # `email_normalized`: that field is computed with strict=False,
-                # which keeps just the first address, so a record holding
-                # "old@x.com, new@y.com" was never matched on a blacklisted
-                # new@y.com -- while _message_add_default_recipients happily
-                # split both out and mailed them. An unsubscribe must be honoured
+                # `email_normalized`: that field is computed with strict=False and
+                # keeps just the first one, while _message_add_default_recipients
+                # splits and mails them all. An unsubscribe must be honoured
                 # whichever of the record's addresses it was made from.
                 blacklisted_rec_ids.update(
                     target.id
@@ -1783,9 +1741,7 @@ class MailComposeMessage(models.TransientModel):
                     )
                 )
             # additive, not exclusive: a blacklist-mixin model must *also* be
-            # checked against its resolved recipients (it was an `elif`, so for
-            # exactly the mass-mailing targets that inherit the mixin the
-            # recipient-level check never ran).
+            # checked against its resolved recipients
             if recipients_info:
                 # Note that we exclude the record if at least one recipient is blacklisted (-> even if not all)
                 # But as commented above: Mass mailing should always have a single recipient per record.
@@ -1803,8 +1759,9 @@ class MailComposeMessage(models.TransientModel):
         return []
 
     def _get_recipients_data(self, mail_values_dict):
-        # Preprocess res.partners to batch-fetch from db if recipient_ids is present
-        # it means they are partners (the only object to fill get_default_recipient this way)
+        # Preprocess res.partners to batch-fetch from db: 'recipient_ids' entries
+        # are always partners, being built from 'partner_ids' in
+        # '_prepare_mail_values_dynamic'
         recipient_pids = [
             recipient_command[1]
             for mail_values in mail_values_dict.values()
