@@ -31,14 +31,18 @@ import tempfile
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from functools import cache
 from pathlib import Path
 
-_SCRIPT_DIR = Path(__file__).resolve().parent
+# This module's own directory. Named once: a `_SCRIPT_DIR` here and an
+# identical `SCRIPT_DIR` sixty lines down were both in use, so a reader had to
+# check whether the two were meant to mean different things.
+SCRIPT_DIR = Path(__file__).resolve().parent
 
-sys.path.insert(0, str(_SCRIPT_DIR.parent))
+sys.path.insert(0, str(SCRIPT_DIR.parent))
 from _repo_root import find_odoo_root, find_workspace  # noqa: E402
 
-ODOO_ROOT = find_odoo_root(_SCRIPT_DIR, tool="hoot")
+ODOO_ROOT = find_odoo_root(SCRIPT_DIR, tool="hoot")
 WORKSPACE = find_workspace(ODOO_ROOT)
 VENV_PY = Path(os.environ.get("ODOO_VENV_PYTHON", sys.executable))
 ODOO_BIN = ODOO_ROOT / "odoo-bin"
@@ -85,7 +89,6 @@ PORT_RANGE = range(8085, 8100)
 DEFAULT_DB = "hoot_web"
 HOST = "127.0.0.1"
 
-SCRIPT_DIR = Path(__file__).resolve().parent
 STATE_FILE = SCRIPT_DIR / ".hoot_state.json"
 LOG_DIR = SCRIPT_DIR / ".hoot_logs"
 
@@ -105,16 +108,44 @@ RE_ASSET_URL = re.compile(r"/web/assets/[\w./-]+")
 
 _log = logging.getLogger("hoot")
 
+#: ANSI colours for the CLI front-ends. Defined once here rather than twice in
+#: `hoot` and `hoot-shard`, which carried identical copies of both the tuple
+#: and the `_color` helper — and `hoot-shard` parses `hoot`'s coloured output,
+#: so the two agreeing is a contract, not a coincidence.
+C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
+    "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
+)
+
+
+def color(txt: str, code: str) -> str:
+    """Wrap ``txt`` in ``code``, but only when stdout is a terminal.
+
+    `hoot-shard` runs `hoot` through `subprocess.run(capture_output=True)`, so
+    the child's stdout is a pipe and the escape codes are correctly absent from
+    the text its summary regexes then read.
+    """
+    return f"{code}{txt}{C_RST}" if sys.stdout.isatty() else txt
+
 
 def generate_hash(test_string: str) -> str:
     """Return the 8-hex-char HOOT id for a suite/test path.
 
-    Byte-for-byte identical to ``HOOTCommon._generate_hash`` so the ids this
-    runner sends match what ``odoo-bin --test-tags`` would send.
+    Must agree with ``hoot_utils.js::generateHash`` — the browser recomputes
+    the id and keeps only the jobs that match, so a disagreement is not a
+    wrong answer but an empty selection, reported as "matched no tests:
+    failing closed".
+
+    Iterates UTF-16 CODE UNITS, not code points, because ``charCodeAt`` does.
+    ``ord()`` returns one value above 0xFFFF where JS returns a surrogate
+    pair, so every astral character diverged — and two suites really carry
+    one: ``@web/services/hotkey_service/hotkeys evil 👹`` and
+    ``@web/services/commands/command_service/commands evilness 👹`` were
+    unselectable by id, from here and from ``--test-tags`` alike.
     """
     hash_val = 0
-    for char in test_string:
-        hash_val = (hash_val << 5) - hash_val + ord(char)
+    units = test_string.encode("utf-16-le")
+    for i in range(0, len(units), 2):
+        hash_val = (hash_val << 5) - hash_val + (units[i] | units[i + 1] << 8)
         hash_val &= 0xFFFFFFFF
     return f"{hash_val:08x}"
 
@@ -189,20 +220,41 @@ _PORT_LOCKS: dict[int, object] = {}
 LOG_RETENTION = 20
 
 
+def _live_log_paths() -> set[Path]:
+    """Log files a still-running warm server is writing to."""
+    live: set[Path] = set()
+    for state in read_all_states():
+        log, pid = state.get("log"), state.get("pid")
+        if log and pid and _pid_alive(pid):
+            live.add(Path(log))
+    return live
+
+
 def _prune_logs(keep: int = LOG_RETENTION) -> None:
-    """Drop all but the ``keep`` most recent run logs.
+    """Drop all but the ``keep`` most recent run logs, never a live server's.
 
     Nothing ever removed them: the directory stood at 41 MB across 53 files,
     one pair per database ever used, and ``--clean`` drops the database while
-    leaving its logs behind. Ordered by mtime, so a live server's log — which
-    is being written to — is always among the newest and never removed. The
-    ``.port_*.lock`` files are deliberately untouched: they are flocked by
-    running processes, not logs.
+    leaving its logs behind. The ``.port_*.lock`` files are deliberately
+    untouched: they are flocked by running processes, not logs.
+
+    mtime order alone is not enough to protect a live server. Its log is only
+    among the newest while it is being *written*; an idle warm server — the
+    normal state between runs — has an old mtime, so twenty newer logs (a
+    ``hoot-shard -j 8`` run writes sixteen) were enough to unlink it while the
+    server held the fd. The space was not reclaimed until the server died and
+    ``--status`` pointed at a path that no longer existed. Live logs are
+    therefore excluded outright rather than assumed recent.
     """
     with contextlib.suppress(OSError):
-        logs = sorted(
-            LOG_DIR.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True
-        )
+        live = {p.resolve() for p in _live_log_paths()}
+        logs = [
+            p
+            for p in sorted(
+                LOG_DIR.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
+            if p.resolve() not in live
+        ]
         for stale in logs[keep:]:
             with contextlib.suppress(OSError):
                 stale.unlink()
@@ -765,6 +817,18 @@ def run_suites(
         browser_logger.removeHandler(capture)
         browser_logger.propagate = prev_propagate
 
+    return summarise(capture.lines, result)
+
+
+def summarise(lines: list[str], result: RunResult) -> RunResult:
+    """Fold HOOT's console output into ``result``. Pure, and separately tested.
+
+    This decides what a run MEANS — the counts a caller prints and the
+    ``incomplete`` flag the CLI turns into an exit code — from another
+    program's log lines. It sat inline in ``run_suites``, which needs a booted
+    server and a Chrome, so the one part of the runner that can silently report
+    a green wrong number was the one part no test could reach.
+    """
     summary_seen = False
     # DISTINCT test names, not the number of "passed" lines. HOOT re-emits a
     # suite's tests when a coarse id selects overlapping suites, so the raw line
@@ -774,7 +838,7 @@ def run_suites(
     # passed", so it has to mean that.
     passed_names: set[str] = set()
     passed_lines = 0
-    for line in capture.lines:
+    for line in lines:
         if m := RE_FAILED_SUMMARY.search(line):
             result.failed, result.passed = int(m[1]), int(m[2])
             summary_seen = True
@@ -821,7 +885,7 @@ def _addons_roots() -> list[Path]:
 ADDONS_ROOTS = _addons_roots()
 WEB_ADDONS_ROOT = ODOO_ROOT / "addons"
 
-sys.path.insert(0, str(_SCRIPT_DIR.parent / "architecture"))
+sys.path.insert(0, str(SCRIPT_DIR.parent / "architecture"))
 from js_layer_check import collect_imports  # noqa: E402
 
 
@@ -870,13 +934,22 @@ def specifier_to_suite(spec: str) -> str | None:
     return f"{m[1]}/{m[2]}" if m else None
 
 
-def iter_addon_dirs() -> list[Path]:
-    """Every addon directory across the whole addons path."""
+@cache
+def iter_addon_dirs() -> tuple[Path, ...]:
+    """Every addon directory across the whole addons path.
+
+    Cached for the process lifetime, and a tuple so a caller cannot mutate the
+    shared result. The addons path holds ~1550 directories across four
+    checkouts, and `hoot-shard`'s planner walks them once per `suite_test_files`
+    / `child_suites` call: 68 identical walks costing 0.27 s of a 0.37 s plan.
+    A brand-new addon appearing mid-process would be missed, which is fine —
+    installing one already requires a server restart.
+    """
     dirs: list[Path] = []
     for root in ADDONS_ROOTS:
         with contextlib.suppress(OSError):
             dirs.extend(d for d in root.iterdir() if d.is_dir())
-    return dirs
+    return tuple(dirs)
 
 
 def _iter_static_files(kind: str, pattern: str) -> list[Path]:
@@ -1012,7 +1085,7 @@ def child_suites(suite: str) -> list[str]:
     return []
 
 
-def _imports_of(path: Path) -> set[str]:
+def _imports_of(path: Path, probe: re.Pattern[str] | None = None) -> set[str]:
     """The ``@addon/...`` specifiers ``path`` imports at runtime.
 
     Delegates to the layering gate's collector, which is checked against a real
@@ -1023,12 +1096,29 @@ def _imports_of(path: Path) -> set[str]:
     instead, swallowing both statements in one match. Ten such imports existed;
     each one is a suite ``--affected`` would fail to select while reporting
     that it had selected the affected suites.
+
+    ``probe`` is an optional alternation of the specifiers the caller is
+    looking for. A specifier ``collect_imports`` returns is always a literal
+    substring of the source — the collector reads string literals verbatim and
+    only ever blanks comments and regexes around them — so a file the probe
+    does not match cannot contain a wanted import, and parsing it is wasted
+    work. Skipping those is what turns ``--affected`` from a 10-minute scan of
+    every addon into a 17-second one.
     """
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return set()
+    if probe is not None and not probe.search(text):
+        return set()
     return {spec for spec, _lineno in collect_imports(text) if spec.startswith("@")}
+
+
+def _specifier_probe(specs: set[str]) -> re.Pattern[str] | None:
+    """A literal-alternation matcher for ``specs``, or ``None`` when empty."""
+    if not specs:
+        return None
+    return re.compile("|".join(re.escape(spec) for spec in sorted(specs)))
 
 
 def _git_toplevels() -> list[Path]:
@@ -1059,15 +1149,20 @@ def changed_web_js(paths: list[str] | None = None) -> list[Path]:
         return [Path(p).resolve() for p in paths]
     changed: list[Path] = []
     for top in _git_toplevels():
+        # ``-z``: git QUOTES any path outside plain ASCII by default
+        # (``core.quotePath``), so an edited ``src/café.js`` came back as
+        # ``"addons/web/static/src/caf\303\251.js"`` — a name matching nothing
+        # on disk, silently dropped, and its suite left unselected while
+        # ``--affected`` reported it had selected the affected suites.
         out = subprocess.run(
-            ["git", "-C", str(top), "diff", "--name-only", "HEAD"],
+            ["git", "-C", str(top), "diff", "--name-only", "-z", "HEAD"],
             capture_output=True,
             text=True,
             check=False,
         )
         changed.extend(
             (top / name).resolve()
-            for name in out.stdout.splitlines()
+            for name in out.stdout.split("\0")
             if name.endswith(".js") and "/static/" in name
         )
     return changed
@@ -1110,16 +1205,17 @@ def affected_suites(changed: list[Path], *, downstream: bool = False) -> list[st
         return keep(suites)
 
     hop_specs: set[str] = set()
+    changed_probe = _specifier_probe(changed_specs)
     for src in _iter_src_files():
-        imports = _imports_of(src)
-        if imports & changed_specs:
+        if _imports_of(src, changed_probe) & changed_specs:
             spec = file_to_specifier(src)
             if spec:
                 hop_specs.add(spec)
     target_specs = changed_specs | hop_specs
 
+    target_probe = _specifier_probe(target_specs)
     for test_file in _iter_test_files():
-        if _imports_of(test_file) & target_specs:
+        if _imports_of(test_file, target_probe) & target_specs:
             spec = file_to_specifier(test_file)
             suite = specifier_to_suite(spec) if spec else None
             if suite:

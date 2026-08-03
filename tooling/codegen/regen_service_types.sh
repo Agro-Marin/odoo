@@ -16,6 +16,9 @@ set -euo pipefail
 
 # shellcheck source=./_resolve_env.sh
 source "$(cd -- "$(dirname "$0")" && pwd)/_resolve_env.sh"
+# An interpreter and nothing else: no database, no config. Asking for a CONFIG
+# here made this wrapper unusable in exactly the checkout shape CI uses.
+require_python
 
 SCRIPT="$(cd -- "$(dirname "$0")" && pwd)/generate_service_types.py"
 

@@ -215,10 +215,14 @@ def _regex_literal_end(src: str, start: int) -> int | None:
     """Index just past the closing ``/`` of the regex literal at ``start``.
 
     ``None`` when it does not close on the same line — a regex literal cannot
-    span a newline, so that means ``/`` was division after all. Bounding the
-    lookahead this way caps the blast radius of a misread: the scanner can
-    never swallow more than the rest of one line, and an ESM import statement
-    always begins its own.
+    span a newline, so that means ``/`` was division after all.
+
+    That bound caps a misread at one line, which is NOT the same as harmless:
+    a module specifier contains slashes, so a misread that starts before a
+    same-line ``import("@web/x")`` or ``export {y} from "@web/x"`` closes on
+    the slash inside the specifier and blanks the import. What keeps that from
+    happening is :func:`_starts_regex` being fed real source, not the blanked
+    output — see ``strip_comments``.
     """
     i, n = start + 1, len(src)
     in_class = False
@@ -240,6 +244,16 @@ def _regex_literal_end(src: str, start: int) -> int | None:
     return None
 
 
+#: Characters that can start a construct the scanner must resolve. Everything
+#: between two of them is ordinary code and is copied in one slice, which is
+#: what makes this a ~7x faster scan than stepping character by character.
+_INTERESTING_RE = re.compile(r"""[/'"`]""")
+
+#: How much preceding source :func:`_starts_regex` needs. Only the last token
+#: matters, and no JS keyword is longer than ``instanceof``.
+_TAIL_KEEP = 16
+
+
 def strip_comments(src: str) -> str:
     """Blank ``//`` line comments, ``/* */`` block comments and regex literals,
     preserving every newline (so line numbers stay exact) and respecting string
@@ -257,66 +271,81 @@ def strip_comments(src: str) -> str:
     Their bodies are blanked rather than kept: no import, export or module
     specifier can live inside a regex, so blanking them costs nothing and
     removes the only remaining way a literal can be mistaken for one.
+
+    Regex-vs-division is decided from ``tail``, the last significant characters
+    of the SOURCE. It used to be decided from the last 32 entries of the OUTPUT
+    buffer, which is a different thing the moment a comment precedes the ``/``:
+    a comment blanks to spaces, so a block comment of 32 characters or more
+    emptied the window, ``_starts_regex`` read that as expression position, and
+    a plain division was consumed as a regex — closing on the next ``/`` in the
+    line, which for ``let r = a /* explain the units here */ / b;
+    import("@web/x")`` is the slash inside the specifier. The import vanished
+    and the gate passed. Comments do not contribute to ``tail``, so the
+    decision no longer depends on what happens to be nearby.
     """
-    out = []
+    out: list[str] = []
+    tail = ""  # last significant source chars; comments never enter it
+    after_value = False  # last construct was a string/regex literal (a value)
     i, n = 0, len(src)
-    state = "code"  # code | line | block | sq | dq | tpl
     while i < n:
-        c = src[i]
-        nxt = src[i + 1] if i + 1 < n else ""
-        if state == "code":
-            if c == "/" and nxt == "/":
-                state = "line"
-                out.append("  ")
-                i += 2
-                continue
-            if c == "/" and nxt == "*":
-                state = "block"
-                out.append("  ")
-                i += 2
-                continue
-            if c == "/" and _starts_regex("".join(out[-32:])):
-                end = _regex_literal_end(src, i)
+        match = _INTERESTING_RE.search(src, i)
+        if match is None:
+            out.append(src[i:])
+            break
+        j = match.start()
+        if j > i:
+            chunk = src[i:j]
+            out.append(chunk)
+            if stripped := chunk.strip():
+                tail = (tail + stripped)[-_TAIL_KEEP:]
+                after_value = False
+        char = src[j]
+        nxt = src[j + 1] if j + 1 < n else ""
+
+        if char == "/" and nxt == "/":
+            end = src.find("\n", j)
+            end = n if end == -1 else end
+            out.append(" " * (end - j))
+            i = end
+            continue
+
+        if char == "/" and nxt == "*":
+            end = src.find("*/", j + 2)
+            end = n if end == -1 else end + 2
+            out.append("".join("\n" if c == "\n" else " " for c in src[j:end]))
+            i = end
+            continue
+
+        if char == "/":
+            if not after_value and _starts_regex(tail):
+                end = _regex_literal_end(src, j)
                 if end is not None:
-                    out.append(" " * (end - i))
+                    out.append(" " * (end - j))
+                    # A regex literal is a value: the next `/` divides it. The
+                    # fail-safe reading anyway — division blanks nothing.
+                    after_value = True
                     i = end
                     continue
-            if c == "'":
-                state = "sq"
-            elif c == '"':
-                state = "dq"
-            elif c == "`":
-                state = "tpl"
-            out.append(c)
-            i += 1
-        elif state == "line":
-            if c == "\n":
-                state = "code"
-                out.append("\n")
-            else:
-                out.append(" ")
-            i += 1
-        elif state == "block":
-            if c == "*" and nxt == "/":
-                state = "code"
-                out.append("  ")
-                i += 2
+            out.append("/")
+            tail = (tail + "/")[-_TAIL_KEEP:]
+            after_value = False
+            i = j + 1
+            continue
+
+        # String or template literal: copied verbatim, escapes honoured.
+        end = j + 1
+        while end < n:
+            c = src[end]
+            if c == "\\":
+                end += 2
                 continue
-            out.append("\n" if c == "\n" else " ")
-            i += 1
-        else:  # inside a string / template literal
-            out.append(c)
-            if c == "\\" and nxt:
-                out.append(nxt)
-                i += 2
-                continue
-            if (
-                (state == "sq" and c == "'")
-                or (state == "dq" and c == '"')
-                or (state == "tpl" and c == "`")
-            ):
-                state = "code"
-            i += 1
+            end += 1
+            if c == char:
+                break
+        out.append(src[j:end])
+        tail = (tail + char)[-_TAIL_KEEP:]
+        after_value = True
+        i = end
     return "".join(out)
 
 
@@ -372,11 +401,19 @@ def iter_source_files() -> list[Path]:
     ]
 
 
-def check() -> tuple[list[Violation], list[Violation]]:
-    """Return ``(new_violations, known_violations)``."""
+def check(
+    files: list[Path] | None = None,
+) -> tuple[list[Violation], list[Violation]]:
+    """Return ``(new_violations, known_violations)``.
+
+    ``files`` lets a caller that already walked the tree pass the result in,
+    so the reported "Files scanned" count describes the walk that was actually
+    checked instead of a second one taken moments later. ``layer_check.py``
+    already threads it this way; the two JS gates did not.
+    """
     new: list[Violation] = []
     known: list[Violation] = []
-    for path in iter_source_files():
+    for path in files if files is not None else iter_source_files():
         rel = path.relative_to(WEB_SRC).as_posix()
         try:
             src = path.read_text(encoding="utf-8")
@@ -413,8 +450,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args(argv)
 
-    new, known = check()
-    scanned = len(iter_source_files())
+    files = iter_source_files()
+    new, known = check(files)
+    scanned = len(files)
 
     if args.json:
         print(

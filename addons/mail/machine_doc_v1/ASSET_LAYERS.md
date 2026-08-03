@@ -3,7 +3,8 @@
 > The `mail` JS is organized into **layers by deployment context**, not by feature. The
 > same feature (e.g. a thread, a composer) ships different code depending on *where* it
 > runs: the backend webclient, a portal page, or the anonymous public discuss page. This
-> doc is the reference for that layering — mail's analogue of web's `ESM_BUNDLING.md`.
+> doc is the reference for that layering — mail's analogue of web's
+> `addons/web/machine_doc_v1/ESM_BUNDLING.md`.
 
 > **See also**: `__manifest__.py` (`assets` dict + `esm` dict — the source of truth),
 > `DIRECTORY_MAP.md` (which directories belong to which layer), `ARCHITECTURE.md`.

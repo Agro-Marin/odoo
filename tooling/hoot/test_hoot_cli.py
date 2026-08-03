@@ -1,0 +1,231 @@
+"""Tests for the pure logic inside the extension-less ``hoot`` CLIs.
+
+``hoot`` and ``hoot-shard`` are 882 lines and had no tests at all, because
+pytest's collector — like ruff's walker — looks for ``*.py`` and these are
+sh/python polyglots with no extension. Nothing about them is untestable: a
+``SourceFileLoader`` imports either one fine. What was missing was a file that
+does it.
+
+What is covered here is the logic that decides what runs and what a run means,
+which is where a silent wrong answer costs the most:
+
+* ``ShardResult.parse`` scrapes ``hoot``'s own human-readable summary lines.
+  That is an INTER-PROCESS contract between two files nobody edits together —
+  a reworded ``_report()`` line turns every shard into an unparsed ``?``, and
+  ``hoot-shard`` would report 0 failed / 0 passed while exiting 0. The
+  round-trip tests below feed real ``_report()`` output straight into the
+  parser so the two cannot drift apart silently.
+* ``partition``/``refine``/``weight_of`` are the LPT bin-packing that decides
+  how long a full run takes and, via ``mobile_suites``, whether a shard ends up
+  with an empty ``&id=`` filter — which ``hoot`` reports as "matched no tests:
+  failing closed".
+"""
+
+import importlib.machinery
+import importlib.util
+import io
+import sys
+from contextlib import redirect_stdout
+from itertools import chain
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+
+
+def _load(name: str, filename: str):
+    """Import an extension-less CLI script as a module."""
+    path = HERE / filename
+    loader = importlib.machinery.SourceFileLoader(name, str(path))
+    spec = importlib.util.spec_from_loader(name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(scope="module")
+def shard():
+    return _load("hoot_shard_cli", "hoot-shard")
+
+
+@pytest.fixture(scope="module")
+def cli():
+    return _load("hoot_cli", "hoot")
+
+
+class TestScriptsAreImportable:
+    """The polyglot preamble must stay valid Python, or every CLI is dead."""
+
+    @pytest.mark.parametrize("filename", ["hoot", "hoot-shard", "hoot-affected"])
+    def test_each_cli_imports(self, filename):
+        module = _load(f"probe_{filename.replace('-', '_')}", filename)
+        assert callable(getattr(module, "main", None))
+
+    def test_the_shared_trampoline_is_present(self):
+        # The three preambles source it; without it they exit 1 before Python
+        # ever starts, and no test above would catch that.
+        assert (HERE.parent / "_trampoline.sh").is_file()
+
+
+class TestShardSummaryParsing:
+    """`hoot-shard` reads `hoot`'s stdout. Pin both ends of that contract."""
+
+    def _parse(self, shard, raw, rc=0):
+        result = shard.ShardResult(0, "hoot_web")
+        result.raw = raw
+        result.rc = rc
+        result.parse()
+        return result
+
+    def test_pass_line(self, shard):
+        r = self._parse(shard, "PASS  @web/core  (78 passed, 3.2s)\n")
+        assert (r.status, r.passed, r.failed, r.wall) == ("PASS", 78, 0, 3.2)
+
+    def test_fail_line_with_bullets(self, shard):
+        r = self._parse(
+            shard,
+            "FAIL  @web/core  (2 failed / 9 passed, 30.0s)\n"
+            "  - @web/core/domain/one\n"
+            "  - @web/core/domain/two\n",
+            rc=1,
+        )
+        assert (r.status, r.failed, r.passed) == ("FAIL", 2, 9)
+        assert r.failed_tests == ["@web/core/domain/one", "@web/core/domain/two"]
+
+    def test_a_broken_run_with_no_summary_is_a_failure_not_silence(self, shard):
+        # Boot failure or timeout: nothing parseable on stdout. Reporting 0/0
+        # and exiting 0 would present a shard that never ran as a clean one.
+        r = self._parse(shard, "Traceback (most recent call last):\n", rc=1)
+        assert r.status == "FAIL"
+        assert r.failed >= 1
+
+    def test_a_clean_run_with_no_summary_stays_unknown(self, shard):
+        r = self._parse(shard, "", rc=0)
+        assert r.status == "?"
+
+    @pytest.mark.parametrize(
+        "make",
+        [
+            lambda H: H.RunResult(ok=True, suites=["@web/core"], passed=78, wall=3.2),
+            lambda H: H.RunResult(
+                ok=False, suites=["@web/core"], passed=9, failed=2, wall=30.0,
+                failed_tests=["@web/core/a", "@web/core/b"],
+            ),
+            lambda H: H.RunResult(
+                ok=False, suites=["@web/core"], passed=5, wall=12.5, incomplete=True
+            ),
+            lambda H: H.RunResult(
+                ok=False, suites=["@web/core"], passed=9, failed=2, wall=30.0,
+                incomplete=True, failed_tests=["@web/core/a"],
+            ),
+        ],
+        ids=["pass", "fail", "warn-truncated-clean", "fail-truncated"],
+    )
+    def test_round_trip_report_then_parse(self, cli, shard, make):
+        # The real contract: whatever `hoot._report` prints, `ShardResult.parse`
+        # must read back. Anything else and a shard's counts silently vanish
+        # from the aggregate total.
+        import hoot_lib as H
+
+        result = make(H)
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            cli._report(result)
+        parsed = self._parse(shard, buffer.getvalue(), rc=1 if result.failed else 0)
+        assert parsed.status in ("PASS", "FAIL", "WARN"), buffer.getvalue()
+        assert parsed.passed == result.passed
+        assert parsed.failed == result.failed
+        assert parsed.wall == pytest.approx(result.wall)
+        assert parsed.failed_tests == result.failed_tests
+
+
+class TestShardPartitioning:
+    def test_heaviest_suite_lands_alone_against_the_rest(self, shard):
+        weights = {"heavy": 100.0, "a": 10.0, "b": 10.0, "c": 10.0}
+        shards = shard.partition(list(weights), 2, weights)
+        assert ["heavy"] in shards
+        assert sorted(chain.from_iterable(shards)) == sorted(weights)
+
+    def test_every_suite_is_scheduled_exactly_once(self, shard):
+        weights = {f"s{i}": float(i % 7 + 1) for i in range(40)}
+        shards = shard.partition(list(weights), 5, weights)
+        assert sorted(chain.from_iterable(shards)) == sorted(weights)
+
+    def test_empty_shards_are_dropped(self, shard):
+        # `main` derives the shard count from the partition, and a ThreadPool
+        # with max_workers=0 raises rather than reporting an empty plan.
+        weights = {"only": 1.0}
+        assert shard.partition(["only"], 8, weights) == [["only"]]
+
+    def test_lpt_beats_the_naive_split_it_replaced(self, shard):
+        weights = {"heavy": 494.0, **{f"s{i}": 20.0 for i in range(31)}}
+        shards = shard.partition(list(weights), 4, weights)
+        makespan = max(sum(weights[s] for s in group) for group in shards)
+        assert makespan == pytest.approx(494.0), "the 494s suite must set the makespan, alone"
+
+    def test_a_measured_weight_wins_over_the_file_count_estimate(self, shard):
+        assert shard.weight_of("@web/core", {"@web/core": 42.0}) == pytest.approx(42.0)
+
+    def test_an_unknown_suite_is_estimated_not_defaulted(self, shard):
+        # A flat DEFAULT_WEIGHT is what hid @html_editor: it looked like a 30s
+        # suite worth scheduling whole while it actually ran 494s.
+        estimate = shard.weight_of("@web/core", {})
+        assert estimate > 0
+
+
+class TestShardDeadline:
+    def test_scales_with_the_suite_count(self, shard):
+        args = type("A", (), {"timeout": 100})()
+        assert shard.shard_deadline(["a"], args) < shard.shard_deadline(["a", "b"], args)
+
+    def test_includes_the_cold_boot_allowance(self, shard):
+        # A cold shard DB pays a one-time `web` install before its first page
+        # load; without the grace the first run of a new shard is killed.
+        args = type("A", (), {"timeout": 100})()
+        assert shard.shard_deadline(["a"], args) >= 100 + shard.SHARD_BOOT_GRACE_S
+
+
+class TestWeightsAreReadOnly:
+    def test_load_weights_does_not_write(self, shard, tmp_path, monkeypatch):
+        # It used to persist SEED_WEIGHTS when the file was missing, so a plain
+        # `--plan` dirtied a tracked file.
+        monkeypatch.setattr(shard, "WEIGHTS_PATH", tmp_path / "absent.json")
+        assert shard.load_weights() == shard.SEED_WEIGHTS
+        assert not list(tmp_path.iterdir())
+
+    def test_a_corrupt_weights_file_falls_back_to_the_seed(self, shard, tmp_path, monkeypatch):
+        broken = tmp_path / "w.json"
+        broken.write_text("{not json")
+        monkeypatch.setattr(shard, "WEIGHTS_PATH", broken)
+        assert shard.load_weights() == shard.SEED_WEIGHTS
+
+
+class TestPresetEnvironment:
+    def test_mobile_sends_the_tag_ci_sends(self, cli):
+        # MobileWebSuite drives every run with tag="-headless"; omitting it
+        # locally made the runner a strict SUPERSET of CI, so tagging a suite
+        # `headless` showed no change here and a real one in CI.
+        assert cli.PRESET_ENV["mobile"]["tag"] == "-headless"
+        assert cli.PRESET_ENV["desktop"]["tag"] == ""
+
+    def test_each_preset_declares_its_viewport(self, cli):
+        # HOOT reads the real window size; responsive components branch on it,
+        # so Chrome must actually be sized to the preset.
+        for preset, env in cli.PRESET_ENV.items():
+            width, _, height = env["size"].partition("x")
+            assert width.isdigit() and height.isdigit(), preset
+        assert cli.PRESET_ENV["mobile"]["touch"] is True
+
+
+class TestColourContract:
+    def test_both_clis_share_one_colour_source(self, cli, shard):
+        import hoot_lib as H
+
+        assert cli.C_RED == shard.C_RED == H.C_RED
+
+    def test_colour_is_suppressed_off_a_terminal(self, shard, monkeypatch):
+        # hoot-shard captures hoot's stdout through a pipe and regex-parses it;
+        # escape codes in that text would break every summary match.
+        monkeypatch.setattr(sys, "stdout", io.StringIO())
+        assert shard._color("PASS", shard.C_GREEN) == "PASS"

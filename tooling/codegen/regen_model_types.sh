@@ -17,15 +17,11 @@ set -euo pipefail
 
 # shellcheck source=./_resolve_env.sh
 source "$(cd -- "$(dirname "$0")" && pwd)/_resolve_env.sh"
+# This one really does boot Odoo: model types come from the Python registry.
+require_config
 
 DB="${DB:-}"
 SCRIPT="$(cd -- "$(dirname "$0")" && pwd)/generate_model_types.py"
-
-if [[ ! -f "$CONFIG" ]]; then
-    echo "✗ Odoo config not found at $CONFIG" >&2
-    echo "  Set CONFIG=/path/to/odoo.conf" >&2
-    exit 2
-fi
 
 if [[ -z "$DB" ]]; then
     echo "✗ no database given. Set DB=<dbname>." >&2

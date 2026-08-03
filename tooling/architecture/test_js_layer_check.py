@@ -110,6 +110,44 @@ def test_unterminated_slash_does_not_swallow_the_rest_of_the_file():
     assert _specs(src) == ["@web/core/a"]
 
 
+def test_long_comment_before_a_division_does_not_eat_a_same_line_import():
+    # The regex-vs-division decision used to read the last 32 entries of the
+    # OUTPUT buffer. A comment blanks to spaces, so a block comment of >=32
+    # characters emptied that window, the `/` was read as a regex, and it
+    # closed on the next `/` in the line -- the one inside `@web/...`. The
+    # import disappeared and the drift-zero gate passed over it.
+    long_comment = "/* explain the units carefully here */"
+    short_comment = "/* units */"
+    for comment in (short_comment, long_comment):
+        src = f"let r = a {comment} / b; import('@web/webclient/x');\n"
+        assert _specs(src) == ["@web/webclient/x"], f"lost the import after {comment!r}"
+        src = f"let r = a {comment} / b; export {{ A }} from '@web/webclient/x';\n"
+        assert _specs(src) == ["@web/webclient/x"], f"lost the re-export after {comment!r}"
+
+
+def test_long_comment_before_a_real_regex_still_reads_a_regex():
+    # The inverse of the above: the fix must not turn a genuine regex into
+    # division, or `/*` inside a literal would reopen the comment bug.
+    src = (
+        "const m = s.replace(/* explain the pattern here ok */ /a\\/b/, '');\n"
+        'import { a } from "@web/core/a";\n'
+    )
+    assert _specs(src) == ["@web/core/a"]
+
+
+def test_regex_decision_is_independent_of_leading_whitespace_run():
+    # Same class of bug, without a comment: >=32 blank columns before the `/`.
+    src = "const b = a" + " " * 40 + "/ 2; import('@web/core/a');\n"
+    assert _specs(src) == ["@web/core/a"]
+
+
+def test_division_after_a_string_or_regex_value_is_division():
+    # A string and a regex are both values, so a following `/` divides them.
+    for value in ('"txt"', "/re/"):
+        src = f"const r = {value} / 2; import('@web/core/a');\n"
+        assert _specs(src) == ["@web/core/a"], f"after {value}"
+
+
 def test_strip_comments_preserves_length_and_newlines():
     # collect_imports maps match offsets to line numbers, so any rewrite must
     # be length- and newline-preserving.

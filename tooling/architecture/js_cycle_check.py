@@ -198,10 +198,17 @@ def _resolve(spec: str, importer_id: str) -> str | None:
     return f"{addon}/{rel}"
 
 
-def build_graph() -> dict[str, list[str]]:
-    """Module id -> ordered list of first-party module ids it imports."""
+def build_graph(
+    files: list[tuple[str, Path]] | None = None,
+) -> dict[str, list[str]]:
+    """Module id -> ordered list of first-party module ids it imports.
+
+    ``files`` lets a caller that already walked the tree pass the result in, so
+    the reported "Files scanned" count describes the walk that was actually
+    analysed rather than a second one taken moments later.
+    """
     graph: dict[str, list[str]] = {}
-    for module_id, path in iter_source_files():
+    for module_id, path in files if files is not None else iter_source_files():
         try:
             src = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError) as exc:  # pragma: no cover
@@ -283,12 +290,14 @@ def find_cycles(graph: dict[str, list[str]]) -> list[Cycle]:
     return cycles
 
 
-def check() -> tuple[list[Cycle], list[Cycle]]:
+def check(
+    files: list[tuple[str, Path]] | None = None,
+) -> tuple[list[Cycle], list[Cycle]]:
     """Return ``(new_cycles, known_cycles)``."""
     known_sets = {k.modules for k in KNOWN_CYCLES}
     new: list[Cycle] = []
     known: list[Cycle] = []
-    for cycle in sorted(find_cycles(build_graph()), key=lambda c: c.modules):
+    for cycle in sorted(find_cycles(build_graph(files)), key=lambda c: c.modules):
         (known if frozenset(cycle.modules) in known_sets else new).append(cycle)
     return new, known
 
@@ -306,8 +315,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args(argv)
 
-    new, known = check()
-    scanned = len(iter_source_files())
+    files = iter_source_files()
+    new, known = check(files)
+    scanned = len(files)
 
     if args.json:
         print(
