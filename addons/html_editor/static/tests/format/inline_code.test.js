@@ -129,7 +129,7 @@ test("should open toolbar for mixed selection and apply formatting outside inlin
         `<p>abc<code class="o_inline_code">t[est</code>de]f</p>`,
     );
 
-    // Toolbar should be visible as selection is not fully inside inline code.
+    // Toolbar should be present as selection is not fully inside inline code.
     await expectElementCount(".o-we-toolbar", 1);
     await expandToolbar();
 

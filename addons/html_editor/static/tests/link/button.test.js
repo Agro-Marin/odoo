@@ -29,7 +29,7 @@ describe("button style", () => {
     });
     test("non-editable .btn-link should have cursor pointer", async () => {
         const { el } = await setupEditor(
-            // A simpliflied version of an embedded component with toolbar
+            // A simplified version of an embedded component with toolbar
             // buttons, as it happens in certain flows in Knowledge.
             unformat(`
                 <div contenteditable="false" data-embedded="clipboard">

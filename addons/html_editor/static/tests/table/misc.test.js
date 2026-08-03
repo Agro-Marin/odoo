@@ -270,7 +270,7 @@ describe("selected cell color in toolbar", () => {
         manuallyDispatchProgrammaticEvent(document, "selectionchange");
         await animationFrame();
 
-        // set a timeout for the deplayed toolbar update
+        // set a timeout for the delayed toolbar update
         await waitFor(".o-we-toolbar", { timeout: 1500 });
         await expandToolbar();
         expect(".fa-paint-brush").toHaveCount(1);
@@ -311,7 +311,7 @@ describe("selected cell color in toolbar", () => {
         });
         await animationFrame();
 
-        // set a timeout for the deplayed toolbar update
+        // set a timeout for the delayed toolbar update
         await waitFor(".o-we-toolbar", { timeout: 1500 });
         await expandToolbar();
         expect(".fa-paint-brush").toHaveCount(1);
