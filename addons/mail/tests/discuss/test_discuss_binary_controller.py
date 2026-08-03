@@ -33,12 +33,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_01_guest_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: guest
-        - channel type: group
-        - target joins the channel: True
-        - other users join the channel: True
-        - target sends a message: False"""
+        """Avatar access: guest target in a group channel, joined alongside the
+        other users, no message posted."""
         self.private_channel._add_members(
             users=self.users, guests=self.guest | self.guest_2
         )
@@ -54,12 +50,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_01_partner_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: partner
-        - channel type: group
-        - target joins the channel: True
-        - other users join the channel: True
-        - target sends a message: False"""
+        """Avatar access: partner target in a group channel, joined alongside the
+        other users, no message posted."""
         self.private_channel._add_members(
             users=self.users | self.user_employee_nopartner, guests=self.guest
         )
@@ -75,12 +67,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_02_guest_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: guest
-        - channel type: group
-        - target joins the channel: True
-        - other users join the channel: True
-        - target sends a message: True"""
+        """Avatar access: guest target in a group channel, joined alongside the
+        other users, and posted a message."""
         self.private_channel._add_members(
             users=self.users, guests=self.guest | self.guest_2
         )
@@ -97,12 +85,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_02_partner_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: partner
-        - channel type: group
-        - target joins the channel: True
-        - other users join the channel: True
-        - target sends a message: True"""
+        """Avatar access: partner target in a group channel, joined alongside the
+        other users, and posted a message."""
         self.private_channel._add_members(
             users=self.users | self.user_employee_nopartner, guests=self.guest
         )
@@ -119,13 +103,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_03_guest_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: guest
-        - channel type: group
-        - target joins the channel: True
-        - other users join the channel: True
-        - target sends a message: False
-        - target leaves the channel: True"""
+        """Avatar access: guest target in a group channel, joined alongside the
+        other users, posted nothing, then left."""
         self.private_channel._add_members(
             users=self.users, guests=self.guest | self.guest_2
         )
@@ -147,13 +126,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_03_partner_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: partner
-        - channel type: group
-        - target joins the channel: True
-        - other users join the channel: True
-        - target sends a message: False
-        - target leaves the channel: True"""
+        """Avatar access: partner target in a group channel, joined alongside the
+        other users, posted nothing, then left."""
         self.private_channel._add_members(
             users=self.users | self.user_employee_nopartner, guests=self.guest
         )
@@ -175,13 +149,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_04_guest_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: guest
-        - channel type: group
-        - target joins the channel: True
-        - other users join the channel: True
-        - target sends a message: True
-        - target leaves the channel: True"""
+        """Avatar access: guest target in a group channel, joined alongside the
+        other users, posted a message, then left."""
         self.private_channel._add_members(
             users=self.users, guests=self.guest | self.guest_2
         )
@@ -204,13 +173,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_04_partner_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: partner
-        - channel type: group
-        - target joins the channel: True
-        - other users join the channel: True
-        - target sends a message: True
-        - target leaves the channel: True"""
+        """Avatar access: partner target in a group channel, joined alongside the
+        other users, posted a message, then left."""
         self.private_channel._add_members(
             users=self.users | self.user_employee_nopartner, guests=self.guest
         )
@@ -233,12 +197,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_05_guest_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: guest
-        - channel type: group
-        - target joins the channel: False
-        - other users join the channel: False
-        - target sends a message: True"""
+        """Avatar access: guest target in a group channel nobody joined, having
+        only posted a message."""
         self.private_channel.with_user(self.user_public).with_context(
             guest=self.guest_2
         ).sudo().message_post(
@@ -256,12 +216,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_05_partner_avatar_private_channel(self):
-        """Test access to open the avatar:
-        - target type: partner
-        - channel type: group
-        - target joins the channel: False
-        - other users join the channel: False
-        - target sends a message: True"""
+        """Avatar access: partner target in a group channel nobody joined, having
+        only been named author of a message."""
         self.private_channel.message_post(
             body="Test",
             subtype_xmlid="mail.mt_comment",
@@ -280,12 +236,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_01_guest_avatar_public_channel(self):
-        """Test access to open the avatar:
-        - target type: guest
-        - channel type: public
-        - target joins the channel: False
-        - other users join the channel: False
-        - target sends a message: True"""
+        """Avatar access: guest target in a public channel nobody joined, having
+        only posted a message."""
         self.public_channel.with_user(self.user_public).with_context(
             guest=self.guest_2
         ).sudo().message_post(
@@ -303,12 +255,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_01_partner_avatar_public_channel(self):
-        """Test access to open the avatar:
-        - target type: guest
-        - channel type: public
-        - target joins the channel: False
-        - other users join the channel: False
-        - target sends a message: True"""
+        """Avatar access: partner target in a public channel nobody joined, having
+        only posted a message."""
         self._post_message(self.public_channel, self.user_employee_nopartner)
         self._execute_subtests(
             self.user_employee_nopartner.partner_id,
@@ -322,13 +270,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_02_guest_avatar_public_channel(self):
-        """Test access to open the avatar:
-        - target type: guest
-        - channel type: public
-        - target joins the channel: True
-        - other users join the channel: False
-        - target sends a message: False
-        - target leaves the channel: True"""
+        """Avatar access: guest target who joined a public channel the others did
+        not, posted nothing, then left."""
         target_member = self.public_channel._add_members(guests=self.guest_2)
         target_member.unlink()
         self._execute_subtests(
@@ -343,13 +286,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_02_partner_avatar_public_channel(self):
-        """Test access to open the avatar:
-        - target type: partner
-        - channel type: public
-        - target joins the channel: True
-        - other users join the channel: False
-        - target sends a message: False
-        - target leaves the channel: True"""
+        """Avatar access: partner target who joined a public channel the others did
+        not, posted nothing, then left."""
         target_member = self.public_channel._add_members(
             users=self.user_employee_nopartner
         )
@@ -366,13 +304,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_03_guest_avatar_public_channel(self):
-        """Test access to open the avatar:
-        - target type: guest
-        - channel type: public
-        - target joins the channel: True
-        - other users join the channel: False
-        - target sends a message: True
-        - target leaves the channel: True"""
+        """Avatar access: guest target who joined a public channel the others did
+        not, posted a message, then left."""
         target_member = self.public_channel._add_members(guests=self.guest_2)
         self._post_message(self.public_channel, self.guest_2)
         target_member.unlink()
@@ -388,13 +321,8 @@ class TestDiscussBinaryController(MailControllerBinaryCommon):
         )
 
     def test_03_partner_avatar_public_channel(self):
-        """Test access to open the avatar:
-        - target type: partner
-        - channel type: public
-        - target joins the channel: True
-        - other users join the channel: False
-        - target sends a message: True
-        - target leaves the channel: True"""
+        """Avatar access: partner target who joined a public channel the others did
+        not, posted a message, then left."""
         target_member = self.public_channel._add_members(
             users=self.user_employee_nopartner
         )

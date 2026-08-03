@@ -1,12 +1,11 @@
 """Regression tests for the sixth mail hardening audit.
 
-Each test pins a specific, empirically-confirmed finding so a future refactor
-cannot silently reintroduce it. Backend-only for fast, deterministic runs.
-Coverage: mail.message write ACL (notified-recipient tampering), mail.notification
-forgery, the mail.mail SMTP-outage batch state guard, the mail.template
-unsafe-expression scan scope, the mail.link.preview create race, the
-notification-status store build under lost record access, and the
-message_attachment_count onchange (NewId) computation.
+Each test pins one finding so a refactor cannot silently reintroduce it:
+mail.message write ACL and search symmetry, mail.notification forgery, the
+mail.mail SMTP-outage state guard and error taxonomy, the mail.template
+unsafe-expression scan scope, the mail.link.preview create race and per-record
+bus notify, alias sanitization, push-device rotation and scheduled-message
+pagination.
 """
 
 from unittest.mock import patch
@@ -154,8 +153,7 @@ class TestTemplateUnsafeExpressionScope(MailCommon):
     """The dynamic-template editor gate (_has_unsafe_expression) must scan only
     the fields that are actually rendered. A non-rendered field (name,
     description) merely containing '{{ ... }}' text must not count as unsafe
-    (and thus not require the editor group). Tested at the method level so the
-    assertion is independent of the surrounding ACL/group plumbing.
+    (and thus not require the editor group).
     """
 
     def setUp(self):
@@ -227,17 +225,16 @@ class TestLinkPreviewRaceSafe(MailCommon):
 @tagged("post_install", "-at_install", "mail_hardening_v6")
 class TestNotificationStatusStoreLostAccess(MailCommon):
     """Building the notification-status store runs in the AUTHOR's env to render
-    a delivery-failure notice. If the author lost access to the record since
-    sending, reading the thread display_name unsudoed would raise AccessError
-    *after* SMTP send, flipping a delivered mail to exception -> duplicate send.
-    The display_name read must be sudo'd.
+    a delivery-failure notice, so the thread display_name read must be sudo'd:
+    an author who lost access since sending would get an AccessError *after*
+    SMTP send, flipping a delivered mail to exception -> duplicate send.
     """
 
     def test_store_build_does_not_raise_for_lost_access_author(self):
         from odoo.addons.mail.tools.discuss import Store
 
         author = self.user_employee
-        # a private group channel the author is not a member of -> cannot read
+        # a group channel the author is not a member of -> cannot read
         channel = self.env["discuss.channel"].create(
             {"name": "priv", "channel_type": "group"}
         )
@@ -309,7 +306,7 @@ class TestAliasNonAsciiSanitization(MailCommon):
 @tagged("post_install", "-at_install", "mail_hardening_v6")
 class TestChannelAvatarCacheKey(MailCommon):
     """avatar_cache_key is stored: populated, stable across reads, and recomputed
-    only when its roots change (so serialization no longer re-hashes per read).
+    only when its roots change, so serialization does not re-hash per read.
     """
 
     def test_cache_key_is_stored_and_stable(self):
@@ -334,8 +331,8 @@ class TestChannelAvatarCacheKey(MailCommon):
 @tagged("post_install", "-at_install", "mail_hardening_v6")
 class TestLinkPreviewNotifyMultiMessage(MailCommon):
     """_unlink_and_notify / _hide_and_notify must compute the bus channel
-    per-record: self._bus_channel() ensure_one()s, so a recordset spanning two
-    messages used to crash.
+    per-record: _bus_channel() delegates to message_id, which ensure_one()s, so
+    a recordset spanning two messages cannot share one channel.
     """
 
     def _message_link_preview(self, channel, url):
@@ -352,7 +349,7 @@ class TestLinkPreviewNotifyMultiMessage(MailCommon):
             ch1, "https://example.test/lp-a"
         ) + self._message_link_preview(ch2, "https://example.test/lp-b")
         self.assertEqual(len(mlp.message_id), 2)
-        # would raise "Expected singleton" before the per-record fix
+        # must not hit ensure_one() on the two-message recordset
         mlp._unlink_and_notify()
         self.assertFalse(mlp.exists())
 

@@ -139,7 +139,7 @@ class TestDiscussChannelMember(MailCommon):
         )
         self.assertEqual(len(channel_members), 1)
 
-        # User 2 is not in the group, they can not invite user 3
+        # User 2 is not in the group, they can not invite user_portal
         with self.assertRaises(AccessError):
             self.env["discuss.channel.member"].with_user(self.user_2).create(
                 {
@@ -163,7 +163,8 @@ class TestDiscussChannelMember(MailCommon):
             self.user_1.partner_id | self.user_portal.partner_id,
         )
 
-        # But User 3 can not write on the `discuss.channel.member` of other user
+        # the invited member may rename their own row, but User 2 (not a member)
+        # can not write on the `discuss.channel.member` of another user
         channel_member_1 = self.env["discuss.channel.member"].search(
             [
                 ("channel_id", "=", self.group.id),
@@ -222,7 +223,7 @@ class TestDiscussChannelMember(MailCommon):
         with self.assertRaises(AccessError):
             channel_members.with_user(self.user_2).unlink()
 
-        # User 3 is in the group, but not admin/owner, they can not kick user 1
+        # user_portal is in the group, but a member can not kick another member
         with self.assertRaises(AccessError):
             channel_members.with_user(self.user_portal).unlink()
 
@@ -243,7 +244,7 @@ class TestDiscussChannelMember(MailCommon):
         )
         self.assertFalse(channel_members)
 
-        # user 1 is in the channel, they can join the channel
+        # user 1 belongs to the channel's group_public_id, so they can join
         self.group_restricted_channel.with_user(self.user_1)._add_members(
             users=self.user_1
         )
@@ -252,7 +253,7 @@ class TestDiscussChannelMember(MailCommon):
         )
         self.assertEqual(channel_members.mapped("partner_id"), self.user_1.partner_id)
 
-        # user 3 is not in the channel, they can not join
+        # user_portal is not in that group, they can not join by themselves
         with self.assertRaises(AccessError):
             self.group_restricted_channel.with_user(self.user_portal)._add_members(
                 users=self.user_portal
@@ -282,7 +283,7 @@ class TestDiscussChannelMember(MailCommon):
             self.user_1.partner_id | self.user_portal.partner_id,
         )
 
-        # but user 2 is in the channel and can be invited by user 1
+        # user 2 belongs to that group and can likewise be invited by user 1
         self.group_restricted_channel.with_user(self.user_1)._add_members(
             users=self.user_2
         )
@@ -323,7 +324,7 @@ class TestDiscussChannelMember(MailCommon):
         )
         with self.assertRaises(
             ValidationError
-        ):  # public cannot join without having a guest
+        ):  # a public user can never be a member; visitors join as guests
             self.public_channel.with_user(self.user_public)._add_members(
                 users=self.user_public
             )
@@ -382,12 +383,10 @@ class TestDiscussChannelMember(MailCommon):
 
     def test_write_skips_unread_recompute_for_unrelated_fields(self):
         """A member write unrelated to the unread counter must not trigger its
-        (GROUP BY) recompute; writing new_message_separator still must.
-
-        The write() sync-diff snapshots each field before and after the write; the
-        unread counter is an unstored aggregate whose only writable dependency is
-        new_message_separator, so recomputing it for e.g. a mute write is waste.
-        """
+        (GROUP BY) recompute; writing new_message_separator still must."""
+        # write() snapshots each sync field before and after: the unread counter
+        # is an unstored aggregate whose only writable dependency here is
+        # new_message_separator, so a mute write must not re-aggregate it.
         channel = (
             self.env["discuss.channel"]
             .with_user(self.user_1)

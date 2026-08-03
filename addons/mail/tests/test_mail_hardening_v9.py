@@ -1,31 +1,11 @@
 """Regression tests for the ninth mail hardening audit.
 
-Each test pins a defect that was reproduced end to end (real ingestion path, real
-controller, real mail records) before being fixed, so a future refactor cannot
-silently reintroduce it. Coverage:
-
- - the catchall bounce template is indexed with dict keys ('email_from', 'body')
-   and was handed a raw ``email.message.EmailMessage``, whose ``__getitem__`` is
-   a *header* lookup: every bounce went out as "Hello ," with an empty quote;
- - the alias security/configuration bounce omitted the loop-detection tag every
-   other bounce emitter appends, so an autoresponder behind an unauthorized
-   sender ping-ponged with the gateway forever;
- - the ``alias_incoming_local`` leg of alias routing is not scoped by
-   ``alias_domain_id`` and was never reconciled against exact matches, so two
-   companies owning the same local part both matched one inbound mail and each
-   created its own record;
- - ``_get_blacklist_record_ids`` matched blacklist-mixin models on
-   ``email_normalized`` only, which keeps just the *first* address of a
-   multi-address record, so an unsubscribe on the second address was ignored;
- - ``_message_fetch`` accepted an unbounded ``limit`` and uncoerced
-   ``before``/``after``/``around`` from ``fetch_params`` on ``auth="public"``
-   routes, and an unknown key reached it as an unexpected keyword argument;
- - a mention token carries no thread binding, so tokens harvested in one channel
-   could add those partners as recipients of a message posted in another;
- - a push notification whose endpoint is unresolvable is kept for retry, and
-   being the oldest row it re-headed every ``id ASC`` batch, starving the queue;
- - the out-of-office auto-reply ran at compose time rather than delivery time,
-   so a message scheduled beyond the 4-day dedupe window produced two replies.
+Each test pins a defect through the real ingestion path, so a refactor cannot
+silently reintroduce it: catchall/alias bounce rendering and loop tagging,
+cross-domain ``alias_incoming_local`` routing, blacklist matching on a
+secondary address, ``_message_fetch`` param sanitization, push-queue retry
+back-off, the registry-wide ``mail.alias.domain`` cache, and input validation on
+the gateway allow/deny lists and the guest rename route.
 """
 
 import json
@@ -44,12 +24,9 @@ def _require_test_mail(env):
     """Skip when the fake models these gateway/blacklist tests route mail into
     are absent.
 
-    ``mail.test.lead`` ships with the ``test_mail`` module, which is installed on
-    any full CI database but not by a bare ``-i mail``. Without it the alias
-    tests died on an opaque "null value in column alias_model_id violates
-    not-null constraint" (``_get_id`` returns a falsy id for an unknown model)
-    and the blacklist test on a bare ``KeyError: 'mail.test.lead'``, neither of
-    which names the missing dependency.
+    ``mail.test.lead`` ships with ``test_mail``, installed on a full CI database
+    but not by a bare ``-i mail``. Without this guard the failures name a
+    not-null constraint or a ``KeyError``, never the missing dependency.
     """
     if not env["ir.model"]._get_id("mail.test.lead"):
         raise unittest.SkipTest(
@@ -89,9 +66,9 @@ class TestMailGatewayHardeningV9(MailCommon):
     def test_catchall_bounce_renders_sender_and_body(self):
         """The catchall bounce must name the sender and quote the original.
 
-        It was rendered with the raw EmailMessage, so ``message['email_from']``
-        and ``message['body']`` -- header lookups, not dict keys -- both resolved
-        to None and the recipient got "Hello ," with an empty blockquote.
+        The template indexes ``email_from`` / ``body`` as dict keys, so it must
+        get the parsed dict: on a raw ``EmailMessage`` those are *header* lookups
+        and both resolve to None ("Hello ," with an empty blockquote).
         """
         catchall = self.mail_alias_domain.catchall_email
         with self.mock_mail_gateway():
@@ -105,7 +82,7 @@ class TestMailGatewayHardeningV9(MailCommon):
         self.assertNotIn("Hello ,", body)
 
     def test_catchall_bounce_carries_loop_tag(self):
-        """Control for the test below: this emitter always tagged correctly."""
+        """Control for the test below: this emitter tags correctly."""
         catchall = self.mail_alias_domain.catchall_email
         with self.mock_mail_gateway():
             self.env["mail.thread"].message_process(
@@ -117,8 +94,8 @@ class TestMailGatewayHardeningV9(MailCommon):
         """The alias security bounce must carry the loop-detection tag.
 
         ``_detect_loop_headers`` greps incoming references for that tag; it is
-        the only guard on this path (``_detect_loop_sender`` never runs because
-        the route list comes back empty). Untagged, the bounce loops forever.
+        the only guard on this path (``_detect_loop_sender`` cannot fire, the
+        route list coming back empty). Untagged, the bounce loops forever.
         """
         alias = self.env["mail.alias"].create(
             {
@@ -173,9 +150,9 @@ class TestMailGatewayHardeningV9(MailCommon):
     def test_alias_incoming_local_does_not_cross_domains(self):
         """An exact alias match must win over another company's local-part match.
 
-        ``support@a.com`` and ``support@b.com`` are an explicitly permitted pair;
-        the unscoped local-part leg made a mail addressed to one of them create a
-        record in *both* companies.
+        ``support@a.com`` and ``support@b.com`` are a pair ``_name_domain_unique``
+        permits; unreconciled, the unscoped local-part leg yields a route for each
+        company and creates the record twice.
         """
         domain_b = self.env["mail.alias.domain"].create(
             {
@@ -289,7 +266,7 @@ class TestMessageFetchParamsHardeningV9(MailCommon):
     """``fetch_params`` is a raw client dict splatted into ``_message_fetch``."""
 
     def test_unknown_fetch_param_is_dropped(self):
-        """An unknown key used to surface a raw TypeError to an anonymous caller."""
+        """An unknown key must not reach ``_message_fetch`` as a raw TypeError."""
         sanitized = self.env["mail.message"]._sanitize_fetch_params(
             {"limit": 10, "bogus_kwarg": 1, "before": 5}
         )
@@ -307,11 +284,11 @@ class TestMessageFetchParamsHardeningV9(MailCommon):
         self.assertEqual(Message._clamp_fetch_limit(42), 42)
 
     def test_non_integer_cursor_does_not_reach_the_domain(self):
-        """A non-numeric cursor reached psycopg as-is (InvalidTextRepresentation)."""
+        """A non-numeric cursor must not reach psycopg as-is."""
         Message = self.env["mail.message"]
         self.assertIsNone(Message._to_message_cursor("xyz"))
         self.assertEqual(Message._to_message_cursor("12"), 12)
-        # would raise psycopg.errors.InvalidTextRepresentation before the fix
+        # uncoerced, these raise psycopg.errors.InvalidTextRepresentation
         Message._message_fetch(domain=None, before="xyz", after="xyz", around="xyz")
 
 
@@ -444,8 +421,9 @@ class TestGatewayRobustnessV9(MailCommon):
     def test_malformed_allowlist_row_is_rejected(self):
         """`mail.gateway.allowed` must refuse a value that does not normalize.
 
-        Such a value stored a NULL ``email_normalized`` -- a meaningless no-op
-        row. Reject it at the source, like ``mail.blacklist`` does.
+        Such a value stores a NULL ``email_normalized`` -- a no-op row that the
+        allow-list lookup can still match. Reject it at the source, like
+        ``mail.blacklist`` does.
         """
         with self.assertRaises(ValidationError):
             self.env["mail.gateway.allowed"].create({"email": "Support Team"})
