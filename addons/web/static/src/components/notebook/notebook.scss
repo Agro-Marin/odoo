@@ -1,7 +1,7 @@
 .o_notebook {
     --Notebook-margin-x: 0;
     --Notebook-padding-x: 0;
-    --Notebook__link-border-color--active: #{$border-color};
+    --Notebook__link-border-color--active: #{o-token(--border-color, $border-color)};
 
     .o_notebook_headers {
         margin: 0 var(--Notebook-margin-x, 0);
@@ -17,7 +17,7 @@
 
     .nav {
         padding: 2px;
-        background-color: $o-gray-100;
+        background-color: var(--o-gray-100);
         border-radius: $o-border-radius;
         border-bottom: none;
     }
@@ -44,7 +44,7 @@
             &:hover,
             &:focus,
             &:active {
-                background: $o-white;
+                background: var(--o-white);
                 box-shadow: $o-shadow-xs;
                 font-weight: $o-font-weight-medium;
                 border: none;
@@ -63,7 +63,7 @@
         }
 
         &:hover:not(.active) {
-            background: rgba($o-white, 0.6);
+            background: color-mix(in srgb, var(--o-white) 60%, transparent);
         }
 
         &.o_page_invalid {
@@ -102,7 +102,7 @@
                 &:hover,
                 &:focus,
                 &:active {
-                    background: $o-white;
+                    background: var(--o-white);
                     box-shadow: $o-shadow-xs;
                     font-weight: $o-font-weight-medium;
                     border: none;

@@ -5,7 +5,7 @@
 
 import { Component, useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
-import { cookie } from "@web/core/browser/cookie";
+import { colorScheme } from "@web/core/color_scheme";
 import { ModelEvent } from "@web/core/events";
 import { formatText } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
@@ -60,7 +60,7 @@ export class AceField extends Component {
         return this.props.mode === "xml" ? "qweb" : this.props.mode;
     }
     get theme() {
-        return cookie.get("color_scheme") === "dark" ? "monokai" : "";
+        return colorScheme.isDark ? "monokai" : "";
     }
 
     handleChange(editedValue) {

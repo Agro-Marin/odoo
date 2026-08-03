@@ -40,7 +40,7 @@ $owprofile-color-bg: mix($body-bg, #efeff4);
 }
 
 .o_wprofile_sidebar {
-    border: 1px solid $border-color;
+    border: 1px solid o-token(--border-color, $border-color);
 
     @include media-breakpoint-up(md) {
         border-top-width: 0;
@@ -126,7 +126,7 @@ $owprofile-color-bg: mix($body-bg, #efeff4);
 
         #gradient {
             --o-pc-color-stop-1: #{lighten(map-get($theme-colors, "primary"), 10%)};
-            --o-pc-color-stop-2: #{map-get($theme-colors, "primary")};
+            --o-pc-color-stop-2: #{o-token(--primary, map-get($theme-colors, "primary"))};
         }
     }
 
@@ -216,7 +216,7 @@ $owprofile-color-bg: mix($body-bg, #efeff4);
 }
 
 .o_wprofile_top3_card_footer div {
-    border-color: $border-color;
+    border-color: o-token(--border-color, $border-color);
     border-style: solid;
     border-width: 1px 0;
     margin-top: -1px;
@@ -232,22 +232,22 @@ $owprofile-color-bg: mix($body-bg, #efeff4);
         a.page-link {
             background-color: transparent;
             border: 0;
-            color: $gray-600;
+            color: o-palette-token(--o-gray-600, $gray-600);
             transition-duration: 0.3s;
 
             &:hover {
-                color: $primary;
+                color: o-token(--primary, $primary);
             }
         }
 
         &.active {
             a.page-link {
-                color: $white;
+                color: o-token(--o-white, $white);
             }
         }
 
         &.o_wprofile_pager_arrow a {
-            color: $primary;
+            color: o-token(--primary, $primary);
 
             &:hover {
                 transform: scaleX(1.5) scaleY(1.5);
@@ -255,7 +255,7 @@ $owprofile-color-bg: mix($body-bg, #efeff4);
         }
 
         &.o_wprofile_pager_arrow.disabled a {
-            color: $gray-600;
+            color: o-palette-token(--o-gray-600, $gray-600);
         }
 
         .page-link:focus {
@@ -283,7 +283,7 @@ $owprofile-color-bg: mix($body-bg, #efeff4);
 
 // Own profile border
 .o_wprofile_border_focus {
-    border-left: 4px solid map-get($theme-colors, "secondary");
+    border-left: 4px solid o-token(--secondary, map-get($theme-colors, "secondary"));
 }
 
 // Edition mode

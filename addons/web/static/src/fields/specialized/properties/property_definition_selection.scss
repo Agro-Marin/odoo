@@ -1,6 +1,6 @@
 .o_field_property_selection {
     .fa-star {
-        color: $o-main-favorite-color;
+        color: o-token(--o-favorite, $o-main-favorite-color);
     }
 }
 
@@ -8,6 +8,6 @@
     @include o-grab-cursor;
     color: #adb5bd;
     &:hover {
-        color: $o-component-active-color;
+        color: o-token(--o-black, $o-component-active-color);
     }
 }

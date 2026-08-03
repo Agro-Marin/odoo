@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from psycopg.errors import NotNullViolation
 
+from odoo import tools
 from odoo.exceptions import ValidationError
 from odoo.modules import Manifest
 from odoo.tests.common import TransactionCase, tagged
@@ -18,7 +19,7 @@ from odoo.addons.base.models.ir_asset_paths import _glob_static_file
 class TestGetPathsEscapeWarning(TransactionCase):
     def test_escape_outside_static_warns(self):
         IrAsset = self.env["ir.asset"]
-        installed = Resolution(installed=IrAsset._get_installed_addons_list())
+        installed = Resolution(active=IrAsset._get_installed_addons_list())
         escaping = "/base/static/../../../../etc/passwd"
         with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
             result = IrAsset._get_paths(escaping, installed)
@@ -28,7 +29,7 @@ class TestGetPathsEscapeWarning(TransactionCase):
 
     def test_missing_literal_inside_static_warns_typo(self):
         IrAsset = self.env["ir.asset"]
-        installed = Resolution(installed=IrAsset._get_installed_addons_list())
+        installed = Resolution(active=IrAsset._get_installed_addons_list())
         inside = "/base/static/src/scss/__does_not_exist__.scss"
         with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
             result = IrAsset._get_paths(inside, installed)
@@ -39,7 +40,7 @@ class TestGetPathsEscapeWarning(TransactionCase):
 
     def test_existing_literal_inside_static_does_not_warn(self):
         IrAsset = self.env["ir.asset"]
-        installed = Resolution(installed=IrAsset._get_installed_addons_list())
+        installed = Resolution(active=IrAsset._get_installed_addons_list())
         inside = "/base/static/src/scss/res_users.scss"
         with self.assertNoLogs("odoo.addons.base.models", level="WARNING"):
             result = IrAsset._get_paths(inside, installed)
@@ -54,7 +55,7 @@ class TestAttachmentBackedPath(TransactionCase):
 
     def _resolve(self, path_def):
         IrAsset = self.env["ir.asset"]
-        resolution = Resolution(installed=IrAsset._get_installed_addons_list())
+        resolution = Resolution(active=IrAsset._get_installed_addons_list())
         return IrAsset._get_paths(path_def, resolution)
 
     def _attach(self, url):
@@ -624,7 +625,7 @@ class TestBundleAssetsFetch(TransactionCase):
 
     def test_each_bundle_is_fetched_at_most_once(self):
         IrAsset = self.env["ir.asset"]
-        resolution = Resolution(installed=set())
+        resolution = Resolution(active=set())
         calls, spy = self._spy()
         with spy:
             IrAsset._fetch_bundle_assets(resolution, ["a.b", "c.d"])
@@ -644,7 +645,7 @@ class TestBundleAssetsFetch(TransactionCase):
                     "sequence": sequence,
                 }
             )
-        resolution = Resolution(installed=set())
+        resolution = Resolution(active=set())
         IrAsset._fetch_bundle_assets(resolution, ["order.probe"])
         self.assertEqual(
             [a.sequence for a in resolution.bundle_assets["order.probe"]], [10, 20, 30]
@@ -660,7 +661,7 @@ class TestBundleAssetsFetch(TransactionCase):
                 "active": False,
             }
         )
-        resolution = Resolution(installed=set())
+        resolution = Resolution(active=set())
         IrAsset._fetch_bundle_assets(resolution, ["active.probe"])
         self.assertNotIn("active.probe", resolution.bundle_assets)
 
@@ -726,7 +727,7 @@ class TestPerBundleFiltering(TransactionCase):
             seen.append(sorted(assets.mapped("bundle")))
             return original(inner_self, assets, **params)
 
-        resolution = Resolution(installed=set())
+        resolution = Resolution(active=set())
         with patch.object(type(IrAsset), "_filter_bundle_assets", spy):
             IrAsset._fetch_bundle_assets(resolution, ["split.a", "split.b"])
 
@@ -742,7 +743,7 @@ class TestPerBundleFiltering(TransactionCase):
         IrAsset.create(
             {"name": "dropped", "bundle": "drop.probe", "path": "/some/dropped.js"}
         )
-        resolution = Resolution(installed=set())
+        resolution = Resolution(active=set())
         with patch.object(
             type(IrAsset),
             "_filter_bundle_assets",
@@ -806,7 +807,7 @@ class TestInvalidationIsNarrow(TransactionCase):
 class TestExternalUrlShortCircuit(TransactionCase):
     def test_an_external_url_never_consults_a_manifest(self):
         IrAsset = self.env["ir.asset"]
-        resolution = Resolution(installed=IrAsset._get_installed_addons_list())
+        resolution = Resolution(active=IrAsset._get_installed_addons_list())
         for url in (
             "http://external.link/external.js",
             "https://cdn.example.com/a.css",
@@ -824,7 +825,7 @@ class TestExternalUrlShortCircuit(TransactionCase):
 
     def test_a_bundleable_path_still_resolves(self):
         IrAsset = self.env["ir.asset"]
-        resolution = Resolution(installed=IrAsset._get_installed_addons_list())
+        resolution = Resolution(active=IrAsset._get_installed_addons_list())
         resolved = IrAsset._get_paths(
             "/base/static/src/scss/res_users.scss", resolution
         )
@@ -958,3 +959,155 @@ class TestAssetsCacheStores(TransactionCase):
     def test_the_sibling_is_not_a_clear_group_of_its_own(self):
         with self.assertRaises(ValueError):
             self.env.registry.clear_cache("assets.links")
+
+
+@tagged("post_install", "-at_install")
+class TestInstalledAddonGate(TransactionCase):
+    """``Resolution.active`` is the whole of the addon gate.
+
+    Every directive -- manifest command or ``ir.asset`` row -- ends at
+    ``_resolve_path_def``, and the only thing there that consults addon state
+    is ``addon not in resolution.active``. That single point is what keeps an
+    uninstalled module's files out of a bundle, and it is fed from
+    ``_get_active_addons_list`` rather than ``_get_installed_addons_list``
+    precisely so that a *narrower* notion of active reaches it too: an override
+    that filters the addon list but left this set installed-wide would gate the
+    manifest source only, since an ``ir.asset`` row names a path and no addon
+    (see ``web/tests/test_ir_asset_scope.py``).
+    """
+
+    EXISTING_FILE = "/base/static/src/scss/res_users.scss"
+
+    def _uninstalled_addon_file(self):
+        """A real, bundleable file belonging to an addon absent from this DB."""
+        installed = self.env["ir.asset"]._get_installed_addons_list()
+        resolution = Resolution(active=installed)
+        for manifest in Manifest.all_addon_manifests():
+            if manifest.name in installed:
+                continue
+            paths = self.env["ir.asset"]._get_paths(
+                f"/{manifest.name}/static/src/**/*.js",
+                Resolution(active=installed | {manifest.name}),
+            )
+            if paths and paths[0].full_path:
+                return paths[0].path, resolution
+        return None, resolution
+
+    def test_the_file_exists_but_the_addon_does_not_resolve(self):
+        """The gate is about installation, not about the disk.
+
+        ``base`` is installed in every database, so resolving one of its own
+        files against an empty installed set isolates the check from every
+        other reason a path can fail: same path, same file on disk, only the
+        gate differs.
+        """
+        IrAsset = self.env["ir.asset"]
+        installed = Resolution(active=IrAsset._get_installed_addons_list())
+
+        resolved = IrAsset._get_paths(self.EXISTING_FILE, installed)
+        gated = IrAsset._get_paths(self.EXISTING_FILE, Resolution(active=frozenset()))
+
+        self.assertEqual(len(resolved), 1)
+        self.assertIsNotNone(resolved[0].full_path)
+        self.assertEqual(gated, ())
+
+    def test_a_gated_addon_yields_nothing_rather_than_an_attachment_url(self):
+        """It must not degrade to the attachment fallback.
+
+        A literal path that resolves to no file normally becomes
+        ``ResolvedPath(path, None, None)`` -- "assume an attachment serves this"
+        -- and the bundle then looks the URL up at build time. Were the
+        installed gate to fall through to that branch, an uninstalled addon's
+        path would still occupy a slot in the bundle and be reported as a
+        missing attachment instead of being absent.
+        """
+        gated = self.env["ir.asset"]._get_paths(
+            "/base/static/src/scss/__no_such_file__.scss",
+            Resolution(active=frozenset()),
+        )
+
+        self.assertEqual(gated, ())
+
+    def test_wildcards_do_not_expand_into_a_gated_addon(self):
+        """A glob is the shape that would leak a whole directory at once."""
+        IrAsset = self.env["ir.asset"]
+        installed = Resolution(active=IrAsset._get_installed_addons_list())
+
+        expanded = IrAsset._get_paths("/base/static/src/scss/*.scss", installed)
+        gated = IrAsset._get_paths(
+            "/base/static/src/scss/*.scss", Resolution(active=frozenset())
+        )
+
+        self.assertTrue(expanded)
+        self.assertEqual(gated, ())
+
+    def test_a_record_cannot_pull_in_an_uninstalled_addon(self):
+        """End-to-end: the gate holds for the source that carries no addon.
+
+        An ``ir.asset`` row names a path, never an addon, and
+        ``_fetch_bundle_assets`` selects rows by bundle with no addon
+        predicate -- so this row reaches the walk exactly as an installed
+        addon's would. Only ``Resolution.active`` stops it.
+        """
+        path, _resolution = self._uninstalled_addon_file()
+        if path is None:
+            self.skipTest("every addon on the addons path is installed")
+        bundle = "base.test_installed_gate"
+        self.env["ir.asset"].create(
+            {"name": "uninstalled addon probe", "bundle": bundle, "path": path}
+        )
+
+        entries = self.env["ir.asset"]._get_asset_paths(bundle, {})
+
+        self.assertEqual(entries, ())
+
+    def test_server_wide_modules_are_treated_as_installed(self):
+        """``--load`` modules resolve even before the DB knows about them.
+
+        ``_get_installed_addons_list`` unions ``_init_modules`` with
+        ``server_wide_modules`` precisely so a module loaded at the process
+        level is not gated out of the bundles it contributes to.
+        """
+        IrAsset = self.env["ir.asset"]
+        with patch.dict(
+            tools.config.options, {"server_wide_modules": ["__probe_addon__"]}
+        ):
+            installed = IrAsset._get_installed_addons_list()
+
+        self.assertIn("__probe_addon__", installed)
+
+    def test_narrowing_the_active_list_narrows_the_bundle(self):
+        """The wiring: an override's answer is what the gate reads.
+
+        ``_get_active_addons_list`` is the only hook an override has --
+        ``website`` drops the themes a site does not use, ``web`` scopes a HOOT
+        run -- and both were half-effective while ``Resolution`` was built from
+        the installed list instead: the manifest source narrowed, the record
+        source did not. Driven by narrowing the hook itself rather than by
+        installing a theme, since the property is about the wiring and holds
+        for whatever an override chooses to remove.
+
+        (No theme actually exercises the difference: all 29 in
+        ``design-themes`` declare manifest assets and ship no ``ir.asset``
+        rows, so the two sources agreed for them either way.)
+        """
+        IrAsset = self.env["ir.asset"]
+        bundle = "base.test_active_narrowing"
+        self.env["ir.asset"].create(
+            {
+                "name": "active narrowing probe",
+                "bundle": bundle,
+                "path": self.EXISTING_FILE,
+            }
+        )
+        self.assertTrue(IrAsset._get_asset_paths(bundle, {}))
+
+        active = set(IrAsset._get_active_addons_list()) - {"base"}
+        with patch.object(
+            type(IrAsset), "_get_active_addons_list", return_value=frozenset(active)
+        ):
+            self.env.registry.clear_cache("assets")
+            narrowed = IrAsset._get_asset_paths(bundle, {})
+        self.env.registry.clear_cache("assets")
+
+        self.assertEqual(narrowed, ())

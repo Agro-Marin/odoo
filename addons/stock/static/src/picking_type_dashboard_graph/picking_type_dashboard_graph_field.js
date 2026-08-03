@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { cookie } from "@web/core/browser/cookie";
 import { getColor, getCustomColor } from "@web/core/colors/colors";
 import { Chart } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
@@ -74,9 +73,9 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
         const labels = [];
         const backgroundColor = [];
 
-        const colorPast = getColor(8, cookie.get("color_scheme"));
-        const colorPresent = getColor(16, cookie.get("color_scheme"));
-        const colorFuture = getColor(12, cookie.get("color_scheme"));
+        const colorPast = getColor(8);
+        const colorPresent = getColor(16);
+        const colorFuture = getColor(12);
         this.data[0].values.forEach((pt) => {
             data.push(pt.value);
             labels.push(pt.label);
@@ -88,7 +87,7 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                 backgroundColor.push(colorFuture);
             } else {
                 backgroundColor.push(
-                    getCustomColor(cookie.get("color_scheme"), "#ebebeb", "#3C3E4B"),
+                    getCustomColor("#ebebeb", "#3C3E4B"),
                 );
             }
         });

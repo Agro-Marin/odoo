@@ -89,7 +89,7 @@
             &.active .badge {
                 // Invert badge display when the item is active
                 background-color: color-contrast(map-get($theme-colors, "primary"));
-                color: map-get($theme-colors, "primary");
+                color: o-token(--primary, map-get($theme-colors, "primary"));
             }
         }
     }

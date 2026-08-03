@@ -1,12 +1,12 @@
 
 .o_searchview {
     border-radius: $o-border-radius-full;
-    background: $o-gray-100;
+    background: var(--o-gray-100);
     transition: all $o-duration-fast $o-easing-standard;
 
     &:focus-within {
-        background: $o-white;
-        border-color: $o-brand-primary;
+        background: var(--o-white);
+        border-color: var(--o-brand);
         box-shadow: $o-shadow-sm;
     }
 }
@@ -21,7 +21,7 @@
 
     animation: animate 0.25s ease-out;
     border-radius: $o-border-radius-full;
-    background: rgba($o-brand-primary, 0.08);
+    background: color-mix(in srgb, var(--o-brand) 8%, transparent);
 
     .btn,
     .btn:focus {

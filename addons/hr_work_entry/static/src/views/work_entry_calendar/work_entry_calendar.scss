@@ -1,19 +1,40 @@
+// The hover fill is a 45% tint of the record colour, which no core token
+// carries — the ramp publishes the 55% one. `color-contrast()` picks at compile
+// time, so the label it chooses is published here, per scheme; the fill itself
+// derives in CSS against `--o-tint-target`, the target that scheme mixes
+// towards. Stated once here, from the same `tint-mix` the CSS reads.
+@include o-publish-per-scheme using ($-scheme, $-ramp, $-record-colors) {
+    @for $-i from 1 through length($-ramp) {
+        $-hover: mix(map-get($-scheme, "tint-mix"), nth($-ramp, $-i), 45%);
+
+        @include print-variable(
+            "o-work-entry-color-#{$-i}-hover-text",
+            o-scheme-contrast($-hover, $-scheme)
+        );
+    }
+}
+
+// Deliberately not the ramp's `-subtle-rgb` token for the 55%: that is
+// `to-rgb()`-rounded to whole channels, and mixing in CSS keeps the value Sass
+// had.
+@function o-work-entry-tint($-index, $-weight) {
+    @return unquote(
+        "color-mix(in srgb, var(--o-tint-target) #{$-weight}, var(--o-record-color-#{$-index}))"
+    );
+}
+
 .o_calendar_header {
     @for $index from 1 through length($o-colors-complete) {
-        $color: nth($o-colors-complete, $index);
-        $color-subtle: mix($o-white, $color, 55%);
-        $color-hover: mix($o-white, $color, 45%);
-
         .o_gantt_color_#{$index - 1} {
-            color: color-contrast($color-subtle);
-            background-color: $color-subtle;
-            border-color: $color-subtle;
+            color: var(--o-record-color-#{$index}-text);
+            background-color: o-work-entry-tint($index, 55%);
+            border-color: o-work-entry-tint($index, 55%);
         }
 
         .btn.o_gantt_color_#{$index - 1}:hover {
-            color: color-contrast($color-hover);
-            background-color: $color-hover;
-            border-color: $color-hover;
+            color: var(--o-work-entry-color-#{$index}-hover-text);
+            background-color: o-work-entry-tint($index, 45%);
+            border-color: o-work-entry-tint($index, 45%);
         }
     }
 }

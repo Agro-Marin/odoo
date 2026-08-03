@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from odoo import api, models, tools
+from odoo import api, fields, models, tools
 from odoo.api import DomainType
 from odoo.exceptions import UserError
 from odoo.fields import Domain
@@ -14,6 +14,18 @@ SKIP_CAPTCHA_LOGIN = object()
 
 class ResUsers(models.Model):
     _inherit = "res.users"
+
+    color_scheme = fields.Selection(
+        related="res_users_settings_id.color_scheme", readonly=False
+    )
+
+    @property
+    def SELF_READABLE_FIELDS(self) -> list[str]:
+        return super().SELF_READABLE_FIELDS + ["color_scheme"]
+
+    @property
+    def SELF_WRITEABLE_FIELDS(self) -> list[str]:
+        return super().SELF_WRITEABLE_FIELDS + ["color_scheme"]
 
     @api.model
     def name_search(

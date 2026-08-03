@@ -6,8 +6,8 @@
     width: $o-datetime-picker-width;
 
     .o_selected {
-        color: $o-component-active-color;
-        background: $o-component-active-bg;
+        color: o-token(--o-black, $o-component-active-color);
+        background: o-token(--o-bg-active, $o-component-active-bg);
     }
 
     .o_select_start,
@@ -18,7 +18,7 @@
                 15%
             )};
         --percent: calc(100% / sqrt(2));
-        background: #{$o-component-active-bg}
+        background: var(--o-bg-active)
             radial-gradient(
                 circle,
                 var(--selected-day-color) 0% var(--percent),
@@ -38,7 +38,7 @@
 
     .o_today > div {
         aspect-ratio: 1;
-        background-color: $o-calendar-today-background-color;
+        background-color: o-palette-token(--danger, $o-calendar-today-background-color);
         color: $o-calendar-today-color;
     }
 
@@ -54,8 +54,8 @@
 
     .o_date_item_picker .o_datetime_button {
         &.o_selected:not(.o_select_start, .o_select_end) {
-            background: $o-component-active-bg;
-            color: $o-component-active-color;
+            background: o-token(--o-bg-active, $o-component-active-bg);
+            color: o-token(--o-black, $o-component-active-color);
         }
     }
 

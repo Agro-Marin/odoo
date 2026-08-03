@@ -11,7 +11,7 @@
  * The mock record exposes only what the helper reads: fields, activeFields,
  * _createStaticListDatapoint(data, fieldName).
  *
- * Integration coverage: tests/views/fields/properties_field.test.js.
+ * Integration coverage: tests/fields/specialized/properties/properties_field.test.js.
  *
  * Module under test: model/relational_model/record_properties.js
  */

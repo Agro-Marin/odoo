@@ -17,7 +17,22 @@
 
     @for $size from 1 through length($o-colors) {
         .hr_mandatory_day_#{$size - 1}:not(.fc-disabled-day) {
-            color: nth($o-colors, $size) !important;
+            color: unquote("var(--o-record-color-#{$size})") !important;
+        }
+    }
+}
+
+
+// The dark half, folded in from `calendar_filter_section.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // = HR Holidays
+        // ============================================================================
+        // No CSS hacks, variables overrides only
+        .o_calendar_filter {
+            --calendarFilter-icon--plain: url("/hr/static/src/img/icons/plain_dark.svg");
+            --calendarFilter-icon--hatched: url("/hr/static/src/img/icons/hatched_dark.svg");
+            --calendarFilter-icon--line: url("/hr/static/src/img/icons/line_dark.svg");
         }
     }
 }

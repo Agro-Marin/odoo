@@ -44,7 +44,7 @@
     .o_rightpanel_section {
         .o_form_view {
             .oe_button_box {
-                box-shadow: inset 0 -1px 0 $border-color;
+                box-shadow: inset 0 -1px 0 o-token(--border-color, $border-color);
             }
         }
 
@@ -64,6 +64,22 @@
 
             &:last-child {
                 padding-right: map-get($spacers, 3);
+            }
+        }
+    }
+}
+
+
+// The dark half, folded in from `project_right_side_panel.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o_rightpanel {
+            .table {
+                --#{$prefix}table-bg: transparent;
+            }
+
+            .o_rightpanel_subtable {
+                --#{$prefix}border-color: #{$o-dark-gray-400};
             }
         }
     }

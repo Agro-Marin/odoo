@@ -90,7 +90,7 @@
     }
 
     .o_tour_pointer_content {
-        background-color: $light;
+        background-color: o-token(--light, $light);
         color: transparent;
         transition: color 0s ease var(--TourPointer__expand-duration);
 
@@ -137,21 +137,21 @@
     }
 
     &.o_open {
-        border-color: #{$o-gray-400};
-        background-color: #{$o-gray-300};
+        border-color: #{o-token(--o-gray-400, $o-gray-400)};
+        background-color: #{o-token(--o-gray-300, $o-gray-300)};
         animation: var(--TourPointer__reveal-animation);
 
         .o_tour_pointer_tip {
             width: var(--TourPointer__arrow-size);
             height: var(--TourPointer__arrow-size);
-            border-color: #{$o-gray-400};
+            border-color: #{o-token(--o-gray-400, $o-gray-400)};
             border-radius: 0;
-            background: $light;
+            background: o-token(--light, $light);
             box-shadow: none;
         }
 
         .o_tour_pointer_content {
-            color: $o-black;
+            color: o-token(--o-black, $o-black);
         }
 
         &.o_left {

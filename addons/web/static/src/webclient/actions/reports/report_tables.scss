@@ -21,7 +21,10 @@ div#total {
 .o_table_standard {
     table:not(.o_ignore_layout_styling) {
         thead {
-            border-bottom: var(--rp-rule, #{$border-width}) solid $o-gray-900;
+            // Sass, not `--o-gray-900`: this file ships only in the report
+            // bundles, which carry no `tokens.scss` and have one palette to
+            // follow anyway.
+            border-bottom: var(--rp-rule, #{$border-width}) solid o-token(--o-gray-900, $o-gray-900);
         }
 
         th:first-child,
@@ -37,7 +40,7 @@ div#total {
 
     .o_total_table:not(.o_ignore_layout_styling),
     .o_total_table:not(.o_ignore_layout_styling) .o_total {
-        border-top: $border-width solid $border-color;
+        border-top: $border-width solid o-token(--border-color, $border-color);
     }
 }
 
@@ -64,7 +67,7 @@ div#total {
     .o_total_table:not(.o_ignore_layout_styling) {
         & .o_total,
         & .o_price_total {
-            border-top: $border-width solid $gray-200;
+            border-top: $border-width solid o-palette-token(--o-gray-200, $gray-200);
         }
     }
 }
@@ -72,25 +75,25 @@ div#total {
 .o_table_striped {
     table:not(.o_ignore_layout_styling) {
         tr:not(:first-child) {
-            border-top: $border-width solid $gray-200;
+            border-top: $border-width solid o-palette-token(--o-gray-200, $gray-200);
         }
 
         tbody tr {
             &:first-child,
             &.o_line_section {
-                border-top: $border-width solid $gray-400;
+                border-top: $border-width solid o-palette-token(--o-gray-400, $gray-400);
             }
 
             &:last-child {
-                border-bottom: $border-width solid $gray-200;
+                border-bottom: $border-width solid o-palette-token(--o-gray-200, $gray-200);
             }
 
             &:nth-child(odd) td {
-                background-color: rgba($gray-200, 0.5);
+                background-color: o-token-alpha(--o-gray-200, $gray-200, 0.5);
             }
 
             &.is-subtotal {
-                border-bottom: $border-width solid $gray-400;
+                border-bottom: $border-width solid o-palette-token(--o-gray-400, $gray-400);
             }
         }
     }
@@ -101,7 +104,7 @@ div#total {
         }
 
         tr:nth-child(odd) td {
-            background-color: rgba($gray-200, 0.5);
+            background-color: o-token-alpha(--o-gray-200, $gray-200, 0.5);
         }
     }
 }
@@ -115,44 +118,44 @@ div#total {
             content: "";
             @include o-position-absolute(0, 0, 0, 0);
             pointer-events: none;
-            border: $border-width solid $gray-700;
+            border: $border-width solid o-palette-token(--o-gray-700, $gray-700);
         }
 
         thead {
             text-transform: uppercase;
 
             th:not(:last-child) {
-                border-right: $border-width solid $gray-700;
+                border-right: $border-width solid o-palette-token(--o-gray-700, $gray-700);
             }
 
             th {
-                border-bottom: $border-width solid $border-color;
+                border-bottom: $border-width solid o-token(--border-color, $border-color);
             }
         }
 
         tbody {
             tr:not(:last-child) td {
-                border-bottom: $border-width solid $gray-400;
+                border-bottom: $border-width solid o-palette-token(--o-gray-400, $gray-400);
             }
 
             td:not(:last-child) {
-                border-right: $border-width solid $gray-400;
+                border-right: $border-width solid o-palette-token(--o-gray-400, $gray-400);
             }
 
             &.o_line_section td,
             &.o_line_note td,
             &.is-subtotal td {
-                border-top: $border-width solid $gray-700;
-                border-bottom: $border-width solid $gray-700;
+                border-top: $border-width solid o-palette-token(--o-gray-700, $gray-700);
+                border-bottom: $border-width solid o-palette-token(--o-gray-700, $gray-700);
             }
 
             &.o_line_section td {
-                background-color: rgba($gray-200, 0.5);
+                background-color: o-token-alpha(--o-gray-200, $gray-200, 0.5);
             }
 
             td.o_price_total,
             .o_taxes td {
-                background-color: rgba($gray-200, 0.5);
+                background-color: o-token-alpha(--o-gray-200, $gray-200, 0.5);
             }
         }
     }
@@ -169,7 +172,7 @@ div#total {
 
     .mt-5 .o_total_table:not(.o_ignore_layout_styling) {
         &::before {
-            border-top: $border-width solid $border-color;
+            border-top: $border-width solid o-token(--border-color, $border-color);
         }
     }
 }
@@ -199,7 +202,7 @@ div#total {
         }
 
         th {
-            border-color: $gray-300 !important;
+            border-color: o-palette-token(--o-gray-300, $gray-300) !important;
         }
     }
 

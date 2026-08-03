@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { cookie } from "@web/core/browser/cookie";
 import { darkenColor, getColor, hexToRGBA } from "@web/core/colors/colors";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -8,9 +7,9 @@ import { JournalDashboardGraphField } from "@web/fields/specialized/journal_dash
 export class WorkcenterDashboardGraphField extends JournalDashboardGraphField {
     getBarChartConfig() {
         const labels = this.data[0].labels;
-        const color19 = getColor(1, cookie.get("color_scheme"), "odoo");
-        const color13 = getColor(2, cookie.get("color_scheme"), "odoo");
-        const color10 = getColor(3, cookie.get("color_scheme"), "odoo");
+        const color19 = getColor(1, "odoo");
+        const color13 = getColor(2, "odoo");
+        const color10 = getColor(3, "odoo");
         const loadBarColor = this.data[0].is_sample_data
             ? hexToRGBA(color19, 0.1)
             : color19;

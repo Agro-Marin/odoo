@@ -3,12 +3,22 @@
     aspect-ratio: 16/9;
 
     &.o-isTalking {
-        outline: 4px solid var(--discuss-talkingColor, $o-discuss-talkingColor);
+        outline: 4px solid
+            var(
+                --discuss-talkingColor,
+                light-dark(#{$o-discuss-talkingColor}, #{$o-dark-discuss-talkingColor})
+            );
         outline-offset: -4px;
 
         &.o-inset {
             box-shadow: inset 0 0 0 calc(map-get($spacers, 1) / 2)
-                var(--discuss-talkingColor, $o-discuss-talkingColor);
+                var(
+                    --discuss-talkingColor,
+                    light-dark(
+                        #{$o-discuss-talkingColor},
+                        #{$o-dark-discuss-talkingColor}
+                    )
+                );
         }
     }
 
@@ -40,7 +50,7 @@
 .o-discuss-CallParticipantCard-avatar:not(.o-minimized) {
     background-color: var(
         --o-discuss-CallParticipantCard-avatarBgColor,
-        #{$o-gray-800}
+        light-dark(#{$o-gray-800}, #{$o-dark-gray-200})
     );
     &.o-isRemoteVideo {
         background: linear-gradient(
@@ -74,7 +84,11 @@
     border: none;
 
     &.o-isTalking {
-        outline: 4px solid var(--discuss-talkingColor, $o-discuss-talkingColor);
+        outline: 4px solid
+            var(
+                --discuss-talkingColor,
+                light-dark(#{$o-discuss-talkingColor}, #{$o-dark-discuss-talkingColor})
+            );
         outline-offset: -4px;
     }
 
@@ -84,7 +98,7 @@
     }
 
     &.o-isInvitation:hover {
-        border: solid map-get($theme-colors, "danger");
+        border: solid o-token(--danger, map-get($theme-colors, "danger"));
     }
 }
 
@@ -93,19 +107,19 @@
         border: solid white;
     }
     20% {
-        border: solid $gray-600;
+        border: solid o-palette-token(--o-gray-600, $gray-600);
     }
     35% {
-        border: solid $gray-100;
+        border: solid o-palette-token(--o-gray-100, $gray-100);
     }
     50% {
-        border: solid $gray-600;
+        border: solid o-palette-token(--o-gray-600, $gray-600);
     }
     70% {
-        border: solid $gray-100;
+        border: solid o-palette-token(--o-gray-100, $gray-100);
     }
     85% {
-        border: solid $gray-700;
+        border: solid o-palette-token(--o-gray-700, $gray-700);
     }
 }
 
@@ -136,12 +150,12 @@
 }
 
 .o-discuss-CallParticipantCard-overlay-replayButton {
-    background-color: $o-gray-900;
+    background-color: o-palette-token(--o-gray-900, $o-gray-900);
     &:hover {
-        background-color: $o-gray-700;
+        background-color: o-palette-token(--o-gray-700, $o-gray-700);
     }
     &:active {
-        background-color: $o-gray-800;
+        background-color: o-palette-token(--o-gray-800, $o-gray-800);
     }
 }
 

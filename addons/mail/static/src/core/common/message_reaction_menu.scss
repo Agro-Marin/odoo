@@ -16,7 +16,7 @@
     &:hover button.fa-trash {
         opacity: 100;
         &:hover {
-            background-color: $gray-100;
+            background-color: o-palette-token(--o-gray-100, $gray-100);
         }
     }
 }

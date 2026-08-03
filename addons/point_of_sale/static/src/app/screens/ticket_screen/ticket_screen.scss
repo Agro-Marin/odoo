@@ -18,8 +18,8 @@
     background-color: unset;
 }
 .order-row.highlight {
-    background-color: $o-component-active-bg;
-    color: $o-action;
+    background-color: o-token(--o-bg-active, $o-component-active-bg);
+    color: o-token(--o-action, $o-action);
 }
 
 .ticket-screen .delete-column {

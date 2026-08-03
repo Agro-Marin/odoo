@@ -4,7 +4,7 @@
     justify-content: start;
     flex: 1;
     text-align: center;
-    border-right: 1px solid $border-color;
+    border-right: 1px solid o-token(--border-color, $border-color);
 
     & > * {
         width: fit-content;
@@ -17,7 +17,7 @@
     }
 
     .o_timeoff_name {
-        color: $body-color;
+        color: o-palette-token(--o-text, $body-color);
         font-size: 15px;
         margin-bottom: 3px;
     }
@@ -61,4 +61,18 @@
 
 .o_time_off_card_popover_warning {
     max-width: 300px;
+}
+
+
+// The dark half, folded in from `time_off_card.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // = HR Holidays
+        // ============================================================================
+        // No CSS hacks, variables overrides only
+        .o_timeoff_card,
+        .o_time_off_icon_types {
+            --timeOffCard-icon-filter: invert(1) brightness(2);
+        }
+    }
 }

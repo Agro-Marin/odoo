@@ -252,7 +252,7 @@
         &::after {
             @include o-position-absolute(50%, $list-group-item-padding-x);
             transform: translateY(-50%);
-            color: $o-action;
+            color: var(--o-action);
             text-rendering: auto;
             font: normal 900 14px/1 "Font Awesome 7 Pro";
             content: "";
@@ -262,7 +262,7 @@
     --treeEntry-padding-v: 1.4rem;
 
     .dropdown-divider {
-        --dropdown-divider-bg: #{$border-color};
+        --dropdown-divider-bg: #{o-token(--border-color, $border-color)};
         margin: map-get($spacers, 2) ($offcanvas-padding-x * 0.5);
     }
 

@@ -5,8 +5,14 @@
     font-family: $o-we-font-monospace;
 
     .popover & {
-        --o-hb-field-input-bg: var(--o-hb-field-input-bg-popover, #{$o-we-fg-lighter});
-        --o-hb-field-color: var(--o-hb-field-color-popover, #{$o-we-bg-lightest});
+        --o-hb-field-input-bg: light-dark(
+            #{$o-we-fg-lighter},
+            #{$o-we-sidebar-content-field-input-bg}
+        );
+        --o-hb-field-color: light-dark(
+            #{$o-we-bg-lightest},
+            #{$o-we-sidebar-content-field-color}
+        );
     }
 
     .o-hb-input-number {

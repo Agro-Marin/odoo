@@ -2,7 +2,7 @@ li.oe-nested {
     display: block;
 }
 .o_table tr {
-    border-color: $o-gray-300;
+    border-color: o-palette-token(--o-gray-300, $o-gray-300);
 
     td {
         padding: 0.5rem;

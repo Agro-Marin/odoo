@@ -44,15 +44,15 @@
     font-size: 11px;
     display: none;
     padding: calc(map-get($spacers, 1) / 2);
-    border: $border-width solid mix($o-gray-300, $o-gray-400);
+    border: $border-width solid unquote("color-mix(in srgb, #{o-palette-token(--o-gray-300, $o-gray-300)} 50%, #{o-palette-token(--o-gray-400, $o-gray-400)})");
 
     &:not(:hover) {
-        color: $text-muted;
+        color: o-palette-token(--o-text-muted, $text-muted);
     }
 
     &:hover {
-        background-color: $o-gray-300 !important;
-        border-color: $o-gray-500;
+        background-color: o-palette-token(--o-gray-300, $o-gray-300) !important;
+        border-color: o-palette-token(--o-gray-500, $o-gray-500);
     }
 }
 
@@ -66,24 +66,24 @@
     top: -3px;
     right: -4px;
     display: inline-flex;
-    outline: 1px solid $gray-300;
+    outline: 1px solid o-palette-token(--o-gray-300, $gray-300);
 }
 
 .o-mail-ChatBubble-preview {
     max-width: 225px;
     right: $o-mail-ChatHub-bubblesWidth;
     z-index: $o-mail-ChatBubble-zindex - 1;
-    border-color: $o-gray-300 !important;
+    border-color: o-palette-token(--o-gray-300, $o-gray-300) !important;
 
     & + .popover-arrow {
         // puts arrow above preview border
         z-index: 1 !important;
         &::before {
-            border-left-color: $o-gray-300 !important;
+            border-left-color: o-palette-token(--o-gray-300, $o-gray-300) !important;
             right: 1px !important;
         }
         &::after {
-            border-left-color: $gray-100 !important;
+            border-left-color: o-palette-token(--o-gray-100, $gray-100) !important;
             right: 2px !important;
         }
     }

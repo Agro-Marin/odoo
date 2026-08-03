@@ -34,7 +34,7 @@
         .s_rating_bar {
             display: flex;
             height: $progress-height;
-            background-color: $gray-300;
+            background-color: o-palette-token(--o-gray-300, $gray-300);
             &:before {
                 content: "";
                 display: flex;
@@ -43,7 +43,7 @@
                 @include transition($progress-bar-transition);
                 @include gradient-striped();
                 background-size: $progress-height $progress-height;
-                background-color: map-get($theme-colors, "primary");
+                background-color: o-token(--primary, map-get($theme-colors, "primary"));
                 animation: progress-bar-stripes $progress-bar-animation-timing;
             }
         }

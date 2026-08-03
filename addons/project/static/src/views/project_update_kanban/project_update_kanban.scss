@@ -23,23 +23,23 @@
 
     .o_kanban_record {
         &.o_kanban_color_8::after {
-            border-right-color: $o-success !important;
-            border-left-color: $o-success !important;
+            border-right-color: o-palette-token(--success, $o-success) !important;
+            border-left-color: o-palette-token(--success, $o-success) !important;
         }
 
         &.o_kanban_color_9::after {
-            border-right-color: $o-info !important;
-            border-left-color: $o-info !important;
+            border-right-color: o-palette-token(--info, $o-info) !important;
+            border-left-color: o-palette-token(--info, $o-info) !important;
         }
 
         &.o_kanban_color_10::after {
-            border-right-color: $o-warning !important;
-            border-left-color: $o-warning !important;
+            border-right-color: o-palette-token(--warning, $o-warning) !important;
+            border-left-color: o-palette-token(--warning, $o-warning) !important;
         }
 
         &.o_kanban_color_11::after {
-            border-right-color: $o-danger !important;
-            border-left-color: $o-danger !important;
+            border-right-color: o-palette-token(--danger, $o-danger) !important;
+            border-left-color: o-palette-token(--danger, $o-danger) !important;
         }
 
         &.o_kanban_color_0::after {
@@ -51,8 +51,8 @@
             bottom: 0;
             width: 3px;
 
-            border-right: 2px solid $primary !important;
-            border-left: 1px solid $primary !important;
+            border-right: 2px solid o-token(--primary, $primary) !important;
+            border-left: 1px solid o-token(--primary, $primary) !important;
         }
     }
 }

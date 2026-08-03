@@ -2,19 +2,19 @@
     padding: 0;
 
     tr {
-        border: $border-width solid $border-color;
+        border: $border-width solid o-token(--border-color, $border-color);
         &:hover {
             cursor: pointer;
         }
         &:active {
-            background-color: $o-component-active-bg;
+            background-color: o-token(--o-bg-active, $o-component-active-bg);
         }
     }
 }
 
 .partner-list table {
     td {
-        border: $border-width solid $border-color;
+        border: $border-width solid o-token(--border-color, $border-color);
         border-style: solid none;
         padding: map-get($spacers, 3);
     }

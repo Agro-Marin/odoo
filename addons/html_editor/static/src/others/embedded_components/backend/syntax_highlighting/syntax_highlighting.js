@@ -14,7 +14,7 @@ import {
     useState,
 } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
-import { cookie } from "@web/core/browser/cookie";
+import { colorScheme } from "@web/core/color_scheme";
 
 import {
     getPreValue,
@@ -65,7 +65,7 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
      */
     loadPrism() {
         return loadBundle(
-            `html_editor.assets_prism${cookie.get("color_scheme") === "dark" ? "_dark" : ""}`,
+            `html_editor.assets_prism${colorScheme.isDark ? "_dark" : ""}`,
             { targetDoc: this.props.host.ownerDocument },
         );
     }

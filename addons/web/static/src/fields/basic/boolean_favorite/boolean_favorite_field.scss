@@ -8,7 +8,7 @@
             @include o-hover-text-color($o-main-color-muted, $o-main-favorite-color);
         }
         i.fa-solid.fa-star {
-            color: $o-main-favorite-color;
+            color: o-token(--o-favorite, $o-main-favorite-color);
         }
     }
 }

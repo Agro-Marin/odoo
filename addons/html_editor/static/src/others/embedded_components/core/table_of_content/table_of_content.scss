@@ -5,12 +5,12 @@ $embedded-toc-bg--active: #1ba1e4;
     margin-right: 2px;
     margin-top: 16px;
     margin-bottom: 16px;
-    outline: 1px solid $o-gray-300;
+    outline: 1px solid o-palette-token(--o-gray-300, $o-gray-300);
     outline-offset: -1px;
     border-radius: 5px;
-    background-color: $o-gray-100;
+    background-color: o-palette-token(--o-gray-100, $o-gray-100);
     & .o_embedded_toc_content {
-        background-color: $o-view-background-color;
+        background-color: o-token(--o-bg-view, $o-view-background-color);
 
         a[class*="o_embedded_toc_link_depth_"] {
             font-family: $o-font-family-sans-serif !important;
@@ -37,7 +37,7 @@ $embedded-toc-bg--active: #1ba1e4;
     }
 
     & .o_embedded_toc_label {
-        color: $o-gray-600;
+        color: o-palette-token(--o-gray-600, $o-gray-600);
     }
 }
 

@@ -4,24 +4,24 @@
     @for $size from 2 through length($o-colors) {
         // Note: the first color is supposed to be invisible so it's ignored
         &.o_color_bubble_#{$size - 1} {
-            background-color: nth($o-colors, $size);
+            background-color: unquote("var(--o-record-color-#{$size})");
         }
     }
 
     &.o_color_bubble_20 {
-        background-color: $o-success;
+        background-color: o-palette-token(--success, $o-success);
     }
     &.o_color_bubble_21 {
-        background-color: $o-info;
+        background-color: o-palette-token(--info, $o-info);
     }
     &.o_color_bubble_22 {
-        background-color: $o-warning;
+        background-color: o-palette-token(--warning, $o-warning);
     }
     &.o_color_bubble_23 {
-        background-color: $o-danger;
+        background-color: o-palette-token(--danger, $o-danger);
     }
     &.o_color_bubble_24 {
-        background-color: $primary;
+        background-color: o-token(--primary, $primary);
     }
 }
 

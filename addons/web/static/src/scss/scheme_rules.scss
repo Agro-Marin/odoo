@@ -1,0 +1,566 @@
+///
+/// Rules restated for the scheme that is not compiling.
+///
+/// The third technique, after the token and `light-dark()`, and the one for
+/// what neither can carry. A rule belongs here when its values are decided by
+/// Sass at compile time and cannot be moved into CSS — a `color-contrast()`
+/// pick has no CSS form this palette can use, because `contrast-color()`
+/// returns only white or black while `o-scheme-contrast()` chooses among four
+/// foregrounds.
+///
+/// The dark half only. Whatever emits the light half already did so; this adds
+/// the same rules under `:root[data-color-scheme="dark"]`, which outscores them
+/// by an id-free (0,2,0) against (0,1,0), so a page carrying the attribute
+/// takes these and a page without it never sees them. It costs the bytes the
+/// dark bundle spends on the same rules today, in one file rather than two.
+///
+/// Not everything can come here: a rule reaching `@extend` cannot: an extend
+/// composes the *whole* current selector into the placeholder's rule, so the
+/// scope is carried into every other selector sharing it and hoisted to
+/// wherever the placeholder landed. `webclient.scss`'s `.bg-*-light` family is
+/// the standing example and says so at the loop.
+///
+/// Screen only, for the reason `o-publish-per-scheme` is: the print bundle is
+/// linked unconditionally and would answer the attribute too.
+///
+
+/// Bootstrap's `table-variant()` with its scheme handed in.
+///
+/// Mirrored rather than called, the way `o-button-variant-from` mirrors
+/// `button-variant`: the original reads `color-contrast()` and `$body-bg`
+/// directly, and both answer for whichever palette is compiling — so calling it
+/// from a light bundle would put the light scheme's labels and mixes under the
+/// dark scheme's name. Every input it decides by is a parameter here, and
+/// nothing below reads anything ambient.
+///
+/// The output is Bootstrap's, property for property.
+@mixin o-table-variant-from($-state, $-background, $-scheme, $-body-bg, $-factors) {
+    .table-#{$-state} {
+        $-color: o-scheme-contrast(opaque($-body-bg, $-background), $-scheme);
+        $-hover-bg: mix($-color, $-background, percentage(map-get($-factors, "hover")));
+        $-striped-bg: mix(
+            $-color,
+            $-background,
+            percentage(map-get($-factors, "striped"))
+        );
+        $-active-bg: mix(
+            $-color,
+            $-background,
+            percentage(map-get($-factors, "active"))
+        );
+        $-border-color: mix(
+            $-color,
+            $-background,
+            percentage(map-get($-factors, "border"))
+        );
+
+        --#{$prefix}table-color: #{$-color};
+        --#{$prefix}table-bg: #{$-background};
+        --#{$prefix}table-border-color: #{$-border-color};
+        --#{$prefix}table-striped-bg: #{$-striped-bg};
+        --#{$prefix}table-striped-color: #{o-scheme-contrast($-striped-bg, $-scheme)};
+        --#{$prefix}table-active-bg: #{$-active-bg};
+        --#{$prefix}table-active-color: #{o-scheme-contrast($-active-bg, $-scheme)};
+        --#{$prefix}table-hover-bg: #{$-hover-bg};
+        --#{$prefix}table-hover-color: #{o-scheme-contrast($-hover-bg, $-scheme)};
+
+        color: var(--#{$prefix}table-color);
+        border-color: var(--#{$prefix}table-border-color);
+    }
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        @each $-state, $-background in $o-dark-table-variants {
+            @include o-table-variant-from(
+                $-state,
+                $-background,
+                o-dark-scheme(),
+                $o-dark-webclient-background-color,
+                (
+                    "hover": o-or($o-dark-table-hover-bg-factor, $table-hover-bg-factor),
+                    "striped":
+                        o-or($o-dark-table-striped-bg-factor, $table-striped-bg-factor),
+                    "active":
+                        o-or($o-dark-table-active-bg-factor, $table-active-bg-factor),
+                    "border": o-or($o-dark-table-border-factor, $table-border-factor),
+                )
+            );
+        }
+    }
+}
+
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        $-o-dark-link-shade: o-or(
+            $o-dark-link-shade-percentage,
+            $link-shade-percentage
+        );
+
+        @each $-name, $-spec in $o-dark-btns-bs-override {
+            .btn-#{$-name},
+            .btn-fill-#{$-name} {
+                @include o-button-variant-from(
+                    o-dark-button-spec($-spec, o-dark-scheme())
+                );
+            }
+        }
+        @each $-name, $-spec in $o-dark-btns-bs-outline-override {
+            .btn-outline-#{$-name} {
+                @include o-button-variant-from(
+                    o-dark-button-spec($-spec, o-dark-scheme())
+                );
+            }
+        }
+
+        // The names no spec covers, which `bootstrap_review_backend.scss` hands
+        // to Bootstrap's own mixins.
+        @each $-name, $-color in $o-dark-theme-colors {
+            @if not map-get($o-dark-btns-bs-override, $-name) {
+                .btn-#{$-name} {
+                    @include o-scheme-button-variant(
+                        $-color,
+                        $-color,
+                        o-dark-scheme()
+                    );
+                }
+            }
+            @if not map-get($o-dark-btns-bs-outline-override, $-name) {
+                .btn-outline-#{$-name} {
+                    @include o-scheme-button-outline-variant(
+                        $-color,
+                        o-dark-scheme()
+                    );
+                }
+            }
+        }
+
+        @each $-name, $-color in $o-dark-btn-custom {
+            .btn-#{$-name} {
+                @include o-scheme-button-variant($-color, $-color, o-dark-scheme());
+            }
+        }
+
+        // The colour utilities. Every one is a plain declaration or an
+        // `o-print-color()` pair -- no `@extend` anywhere in the three mixins --
+        // which is what lets them be restated under an ancestor at all.
+        $-o-dark-text-colors: map-merge(
+            $o-dark-theme-colors,
+            $o-dark-theme-text-colors
+        );
+
+        @each $-name, $-color in $-o-dark-text-colors {
+            @include o-scheme-text-emphasis-variant(
+                ".text-#{$-name}",
+                $-color,
+                o-dark-scheme(),
+                $-o-dark-link-shade
+            );
+        }
+
+        .btn-link {
+            @each $-name, $-color
+                in map-merge($-o-dark-text-colors, $o-dark-text-colors-custom)
+            {
+                &.btn-#{$-name},
+                &.text-#{$-name} {
+                    @include o-btn-link-variant(
+                        $o-dark-gray-600 !important,
+                        map-get($-o-dark-text-colors, $-name) or $-color !important,
+                        $muted-color: $o-dark-main-color-muted
+                    );
+                }
+            }
+        }
+
+        @each $-name, $-color in $o-dark-theme-colors {
+            .bg-#{$-name} {
+                @include o-print-color($-color, background-color, bg-opacity);
+            }
+        }
+
+        @each $-name, $-color
+            in map-merge($o-dark-text-colors-custom, $o-dark-grays)
+        {
+            @include o-scheme-text-emphasis-variant(
+                ".text-#{$-name}",
+                $-color,
+                o-dark-scheme(),
+                $-o-dark-link-shade
+            );
+        }
+
+        @each $-name, $-color in $o-dark-theme-colors {
+            .text-bg-#{$-name} {
+                @include o-print-color(
+                    o-scheme-contrast(
+                        $-color,
+                        o-dark-scheme(),
+                        $-min-contrast-ratio: $o-text-bg-contrast
+                    ),
+                    color,
+                    text-opacity
+                );
+            }
+        }
+
+        @each $-name, $-color
+            in map-merge($o-dark-bg-colors-custom, $o-dark-grays)
+        {
+            .bg-#{$-name},
+            .text-bg-#{$-name} {
+                @include o-print-color($-color, background-color, bg-opacity);
+            }
+
+            .text-bg-#{$-name} {
+                @include o-print-color(
+                    o-scheme-contrast(
+                        $-color,
+                        o-dark-scheme(),
+                        $-min-contrast-ratio: $o-text-bg-contrast
+                    ),
+                    color,
+                    text-opacity
+                );
+            }
+        }
+
+        // `.link-*`'s resting colour already reads `var(--#{name}-rgb)`; only
+        // the hover is compiled, because Bootstrap picks between a tint and a
+        // shade by asking which label the colour would take.
+        @if $-o-dark-link-shade != 0 {
+            @each $-name, $-color in $o-dark-theme-colors {
+                $-shades: o-scheme-contrast($-color, o-dark-scheme()) ==
+                    o-scheme-contrast-light(o-dark-scheme());
+                $-hover: if(
+                    $-shades,
+                    o-scheme-shade($-color, $-o-dark-link-shade, o-dark-scheme()),
+                    o-scheme-tint($-color, $-o-dark-link-shade, o-dark-scheme())
+                );
+                .link-#{$-name} {
+                    &:hover,
+                    &:focus {
+                        color: RGBA(#{to-rgb($-hover)}, var(--#{$prefix}link-opacity, 1))
+                            if($enable-important-utilities, !important, null);
+                        text-decoration-color: RGBA(
+                                #{to-rgb($-hover)},
+                                var(--#{$prefix}link-underline-opacity, 1)
+                            )
+                            if($enable-important-utilities, !important, null);
+                    }
+                }
+            }
+        }
+
+        // The knob. Its colour is inside a data URI, where no token reaches.
+        .form-switch.o_switch_toggle {
+            .form-check-input,
+            .form-check-input:checked {
+                &,
+                &:focus,
+                &:checked {
+                    background-image: escape-svg(
+                        url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{$o-dark-action}'/></svg>")
+                    );
+                }
+            }
+        }
+    }
+}
+
+
+/// Bootstrap's own components, for the scheme that is not compiling.
+///
+/// Each of these is a component variable Bootstrap writes as a resolved colour,
+/// and each is ineligible for a token for one of the two reasons §5.4 names:
+/// `$card-bg` and `$list-group-bg` are read by `color-contrast()`,
+/// `$input-focus-border-color` and `$navbar-dark-active-color` by `rgba()`.
+///
+/// One rule per original rule, and the *whole* selector list each time. The
+/// gap is measured by matching the settled selector string, so grouping three
+/// of Bootstrap's rules into one here answers none of them — and
+/// `.navbar-dark` alone does not answer `.navbar-dark,.navbar[data-bs-theme=dark]`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        $-focus: rgba($o-dark-brand-primary, $input-btn-focus-color-opacity);
+        $-bg: $o-dark-view-background-color;
+
+        body {
+            -webkit-tap-highlight-color: rgba($o-dark-black, 0);
+        }
+
+        .form-control:focus {
+            border-color: $o-dark-brand-primary;
+            box-shadow: 0 0 0 $input-btn-focus-width $-focus;
+        }
+        .form-select:focus {
+            border-color: $o-dark-brand-primary;
+            box-shadow: 0 0 0 $input-btn-focus-width $-focus;
+        }
+        .form-check-input:focus {
+            border-color: $o-dark-brand-primary;
+            box-shadow: 0 0 0 $input-btn-focus-width $-focus;
+        }
+        .form-check-input:checked {
+            background-color: $o-dark-brand-primary;
+            border-color: $o-dark-brand-primary;
+        }
+        .form-check-input[type="checkbox"]:indeterminate {
+            background-color: $o-dark-component-active-bg;
+            border-color: $o-dark-component-active-bg;
+        }
+        .form-range::-webkit-slider-thumb {
+            background-color: $o-dark-brand-primary;
+        }
+        .form-range::-moz-range-thumb {
+            background-color: $o-dark-brand-primary;
+        }
+        .form-range:focus::-webkit-slider-thumb {
+            box-shadow: 0 0 0 1px $o-dark-brand-primary;
+        }
+        .form-range:focus::-moz-range-thumb {
+            box-shadow: 0 0 0 1px $o-dark-brand-primary;
+        }
+        .form-floating > :disabled ~ label,
+        .form-floating > .form-control:disabled ~ label {
+            color: $o-dark-gray-600;
+        }
+
+        .nav-link:focus-visible {
+            box-shadow: 0 0 0 $input-btn-focus-width $-focus;
+        }
+        .nav-pills {
+            --#{$prefix}nav-pills-link-active-color: #{$o-dark-white};
+        }
+
+        .navbar-dark,
+        .navbar[data-bs-theme="dark"] {
+            --#{$prefix}navbar-color: #{rgba($o-dark-white, 0.55)};
+            --#{$prefix}navbar-active-color: #{$o-dark-white};
+            --#{$prefix}navbar-brand-color: #{$o-dark-white};
+            --#{$prefix}navbar-brand-hover-color: #{$o-dark-white};
+        }
+
+        .card {
+            --#{$prefix}card-bg: #{$-bg};
+        }
+        .breadcrumb {
+            --#{$prefix}breadcrumb-bg: #{$-bg};
+        }
+        .modal {
+            --#{$prefix}modal-bg: #{$-bg};
+        }
+        .list-group {
+            --#{$prefix}list-group-bg: #{$-bg};
+            --#{$prefix}list-group-disabled-bg: #{$-bg};
+            --#{$prefix}list-group-active-color: #{$o-dark-black};
+        }
+        .popover {
+            --#{$prefix}popover-bg: #{$o-dark-white};
+        }
+        .toast {
+            --#{$prefix}toast-bg: #{rgba($o-dark-white, 0.7)};
+            --#{$prefix}toast-header-bg: #{rgba($o-dark-white, 0.7)};
+        }
+        // The focus ring, the three places Bootstrap composes it into a
+        // component variable. `$focus-ring-box-shadow` itself is not converted:
+        // it also feeds `$input-btn-focus-box-shadow`, which reaches a rule for
+        // every control, and the `var()` costs 34 KB a bundle.
+        $-ring: 0 0 $focus-ring-blur $focus-ring-width $-focus;
+
+        .accordion {
+            --#{$prefix}accordion-btn-focus-box-shadow: #{$-ring};
+        }
+        .pagination {
+            --#{$prefix}pagination-active-color: #{$o-dark-black};
+            --#{$prefix}pagination-focus-box-shadow: #{$-ring};
+        }
+        .btn-close {
+            --#{$prefix}btn-close-color: #{$o-dark-black};
+            --#{$prefix}btn-close-focus-shadow: #{$-ring};
+        }
+
+        .carousel-control-prev,
+        .carousel-control-next {
+            color: $o-dark-white;
+        }
+        .carousel-control-prev:hover,
+        .carousel-control-prev:focus,
+        .carousel-control-next:hover,
+        .carousel-control-next:focus {
+            color: $o-dark-white;
+        }
+    }
+}
+
+
+/// The icons that overlay a filled control, for the scheme that is not
+/// compiling.
+///
+/// Unlike the four `bootstrap_review.scss` paints as masks, these cannot be
+/// one: the tick sits on a brand-filled box and the knob on its track, so a
+/// mask would take the fill with it. The colour stays inside the SVG, which is
+/// why the shape lives in a function -- `pre_variables.scss` -- that both
+/// schemes call.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // The mark on a checked box is `$o-brand-lightsecondary`, not the
+        // palette's black -- `$component-active-color` names the *indeterminate*
+        // dash, which is.
+        $-mark: $o-dark-brand-lightsecondary;
+        $-dash: $o-dark-black;
+        $-switch: o-or($o-dark-form-switch-color, rgba($o-dark-black, 0.25));
+        $-switch-focus: o-or(
+            $o-dark-form-switch-focus-color,
+            mix($o-dark-bs-success, $input-bg)
+        );
+
+        .form-check-input:checked[type="checkbox"] {
+            --#{$prefix}form-check-bg-image: #{escape-svg(
+                    o-check-icon($-mark)
+                )};
+        }
+        .form-check-input:checked[type="radio"] {
+            --#{$prefix}form-check-bg-image: #{escape-svg(
+                    o-radio-icon($-mark)
+                )};
+        }
+        .form-check-input[type="checkbox"]:indeterminate {
+            --#{$prefix}form-check-bg-image: #{escape-svg(
+                    o-indeterminate-icon($-dash)
+                )};
+        }
+
+        .form-switch .form-check-input {
+            --#{$prefix}form-switch-bg: #{escape-svg(o-switch-icon($-switch))};
+        }
+        .form-switch .form-check-input:focus {
+            --#{$prefix}form-switch-bg: #{escape-svg(
+                    o-switch-focus-icon($-switch-focus)
+                )};
+        }
+        .form-switch .form-check-input:checked {
+            --#{$prefix}form-switch-bg: #{escape-svg(
+                    o-switch-checked-icon($o-dark-white)
+                )};
+        }
+
+        .form-select {
+            --#{$prefix}form-select-bg-img: #{escape-svg(
+                    o-select-caret-icon($o-dark-gray-800)
+                )};
+        }
+
+        .was-validated .form-control:valid,
+        .form-control.is-valid {
+            background-image: escape-svg(o-valid-icon($o-dark-bs-success));
+        }
+        .was-validated .form-control:invalid,
+        .form-control.is-invalid {
+            background-image: escape-svg(o-invalid-icon($o-dark-bs-danger));
+        }
+        .was-validated .form-select:valid:not([multiple]):not([size]),
+        .was-validated .form-select:valid:not([multiple])[size="1"],
+        .form-select.is-valid:not([multiple]):not([size]),
+        .form-select.is-valid:not([multiple])[size="1"] {
+            --#{$prefix}form-select-bg-icon: #{escape-svg(
+                    o-valid-icon($o-dark-bs-success)
+                )};
+        }
+        .was-validated .form-select:invalid:not([multiple]):not([size]),
+        .was-validated .form-select:invalid:not([multiple])[size="1"],
+        .form-select.is-invalid:not([multiple]):not([size]),
+        .form-select.is-invalid:not([multiple])[size="1"] {
+            --#{$prefix}form-select-bg-icon: #{escape-svg(
+                    o-invalid-icon($o-dark-bs-danger)
+                )};
+        }
+    }
+}
+
+// Bootstrap's own component rules, whose inputs no `var()` can carry: an SVG
+// data URI, an rgb triple, a tint computed at compile time, a gradient's stops.
+// Each restates the rule Bootstrap emits, with the dark palette handed in.
+//
+// `o-or(..., <derivation>)` throughout: the second argument is what community's
+// dark bundle resolves to, and the first is the name a theme states when it
+// moves the value.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        $-scheme: o-dark-scheme();
+        $-link: $o-dark-main-link-color;
+        $-active-bg: $o-dark-component-active-bg;
+
+        .table-group-divider {
+            border-top: calc(var(--#{$prefix}border-width) * 2) solid
+                #{o-or($o-dark-border-color, $o-dark-gray-200)};
+        }
+
+        .btn-link {
+            --#{$prefix}btn-focus-shadow-rgb: #{to-rgb(
+                    mix(o-scheme-contrast($-link, $-scheme), $-link, 15%)
+                )};
+        }
+
+        .pagination {
+            --#{$prefix}pagination-active-bg: #{$-active-bg};
+            --#{$prefix}pagination-active-border-color: #{$-active-bg};
+        }
+
+        .list-group {
+            --#{$prefix}list-group-active-bg: #{$o-dark-list-group-active-bg};
+            --#{$prefix}list-group-active-border-color: #{$o-dark-list-group-active-bg};
+        }
+
+        .form-range::-webkit-slider-thumb:active,
+        .form-range::-moz-range-thumb:active {
+            // `o-scheme-tint()`, not `tint-color()`: the dark bundle carries a
+            // `bs_functions_overridden.dark.scss` that redefines tint to mix
+            // with black, so calling Bootstrap's own function from a light
+            // bundle computes the light meaning of the word.
+            background-color: o-or(
+                $o-dark-form-range-thumb-active-bg,
+                o-scheme-tint($-active-bg, 70%, $-scheme)
+            );
+        }
+
+        .navbar {
+            --#{$prefix}navbar-toggler-icon-bg: #{escape-svg(
+                    o-navbar-toggler-icon(rgba($o-dark-main-text-color, 0.75))
+                )};
+        }
+
+        .navbar-dark,
+        .navbar[data-bs-theme="dark"] {
+            --#{$prefix}navbar-toggler-icon-bg: #{escape-svg(
+                    o-navbar-toggler-icon(rgba($o-dark-white, 0.55))
+                )};
+        }
+
+        // The stripe is `$white` at 15%, and the wave's two outer stops are
+        // `$black`; the middle stop is a literal in Bootstrap and stays one.
+        .progress-bar-striped {
+            $-stripe: rgba($o-dark-white, 0.15);
+            background-image: linear-gradient(
+                45deg,
+                $-stripe 25%,
+                transparent 25%,
+                transparent 50%,
+                $-stripe 50%,
+                $-stripe 75%,
+                transparent 75%,
+                transparent
+            );
+        }
+
+        .placeholder-wave {
+            mask-image: linear-gradient(
+                130deg,
+                $o-dark-black 55%,
+                rgba(0, 0, 0, 0.8) 75%,
+                $o-dark-black 95%
+            );
+        }
+    }
+}

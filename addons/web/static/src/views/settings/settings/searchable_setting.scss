@@ -1,6 +1,6 @@
 .o_searchable_setting {
-    --SearchableSetting__highlight-background: #{tint-color($o-action, 90%)};
-    --SearchableSetting__highlight-border: #{$o-action};
+    --SearchableSetting__highlight-background: color-mix(in srgb, var(--o-tint-target) 90%, var(--o-action));
+    --SearchableSetting__highlight-border: var(--o-action);
 
     &.o_setting_highlight {
         background-color: var(--SearchableSetting__highlight-background) !important;

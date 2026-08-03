@@ -5,9 +5,9 @@
     > .o_pager_indicator_inner {
         min-width: 13ch;
         padding: $o-touch-btn-padding;
-        border: var(--border-width) solid $o-gray-200;
+        border: var(--border-width) solid var(--o-gray-200);
         border-radius: $o-border-radius-full;
-        background-color: $o-gray-100;
+        background-color: var(--o-gray-100);
     }
 
     &.o-fade-leave,

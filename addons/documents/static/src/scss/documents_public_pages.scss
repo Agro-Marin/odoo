@@ -31,14 +31,14 @@ body.o_docs_share_page {
         margin-bottom: $o-docs-gap;
         padding: $o-docs-gap $o-docs-gap + 2 $o-docs-gap $o-docs-gap;
         background: transparentize(white, 0.1);
-        color: $o-main-text-color;
+        color: o-palette-token(--o-text, $o-main-text-color);
         flex-flow: row nowrap;
 
         &.o_request_card {
             background: transparentize(white, 0.9);
             border: 1px dashed transparentize(white, 0.8);
             box-shadow: none;
-            color: $gray-300;
+            color: o-palette-token(--o-gray-300, $gray-300);
 
             .o_card_right img.rounded-circle {
                 box-shadow: 0 0 0 1px transparentize(white, 0.8);
@@ -144,7 +144,7 @@ body.o_docs_share_page {
             }
 
             .o_card_title {
-                color: $o-main-text-color;
+                color: o-palette-token(--o-text, $o-main-text-color);
             }
 
             &.o_request_card {

@@ -18,6 +18,7 @@ test("DropdownGroup: when one Dropdown is open, others with same group name can 
 
     class Parent extends Component {
         static components = { Dropdown, DropdownGroup };
+        /** @type {string[]} */
         static props = [];
         static template = xml`
                     <div>
@@ -121,6 +122,7 @@ test("DropdownGroup: when non-sibling Dropdown is open, other must not be toggle
                     </div>
                 `;
         static components = { Dropdown, DropdownGroup };
+        /** @type {string[]} */
         static props = [];
     }
     await mountWithCleanup(Parent);
@@ -140,6 +142,7 @@ test.tags("desktop");
 test("DropdownGroup: when one is open, then non-sibling toggled, siblings must not be toggled on mouse-enter", async () => {
     class Parent extends Component {
         static components = { Dropdown, DropdownGroup };
+        /** @type {string[]} */
         static props = [];
         static template = xml`
                     <div>
@@ -181,6 +184,7 @@ test.tags("desktop");
 test("DropdownGroup: toggler focused on mouseenter", async () => {
     class Parent extends Component {
         static components = { Dropdown, DropdownGroup };
+        /** @type {string[]} */
         static props = [];
         static template = xml`
             <DropdownGroup>
@@ -216,6 +220,7 @@ test.tags("desktop");
 test("DropdownGroup: keyboard close returns focus to the toggler, not <body>", async () => {
     class Parent extends Component {
         static components = { Dropdown, DropdownGroup, DropdownItem };
+        /** @type {string[]} */
         static props = [];
         static template = xml`
             <DropdownGroup>
@@ -267,6 +272,7 @@ test("DropdownGroup: a changed group name moves its dropdowns to the new group",
                     <t t-set-slot="content"><DropdownItem>c2</DropdownItem></t>
                 </Dropdown>
             </DropdownGroup>`;
+        /** @type {string[]} */
         static props = [];
 
         /** @type {{ groupA: string, groupB: string }} */
@@ -312,6 +318,7 @@ test("DropdownGroup: a dropdown mounted after a group move joins the new group",
                     <t t-set-slot="content"><DropdownItem>c2</DropdownItem></t>
                 </Dropdown>
             </DropdownGroup>`;
+        /** @type {string[]} */
         static props = [];
 
         /** @type {{ g: string, show: boolean }} */
@@ -353,6 +360,7 @@ test("DropdownGroup: leaving a group while open stops the peers taking over", as
                     <t t-set-slot="content"><DropdownItem>c2</DropdownItem></t>
                 </Dropdown>
             </DropdownGroup>`;
+        /** @type {string[]} */
         static props = [];
 
         /** @type {{ g: string }} */
@@ -399,6 +407,7 @@ test("DropdownGroup: unmounting one group leaves the others sharing its id intac
                     <t t-set-slot="content"><DropdownItem>c3</DropdownItem></t>
                 </Dropdown>
             </DropdownGroup>`;
+        /** @type {string[]} */
         static props = [];
 
         /** @type {{ third: boolean }} */

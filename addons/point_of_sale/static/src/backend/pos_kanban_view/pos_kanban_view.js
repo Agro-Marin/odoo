@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { onWillRender, onWillStart, useState } from "@odoo/owl";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
-import { cookie } from "@web/core/browser/cookie";
+import { colorScheme } from "@web/core/color_scheme";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -80,7 +80,7 @@ export class PosKanbanRenderer extends KanbanRenderer {
     }
 
     get isDarkTheme() {
-        return cookie.get("color_scheme") === "dark";
+        return colorScheme.isDark;
     }
 
     async callWithViewUpdate(func) {

@@ -7,16 +7,16 @@
     }
     .s_media_list_body {
         padding: $grid-gutter-width;
-        background-color: map-get($grays, "white");
+        background-color: o-palette-token(--o-gray-white, map-get($grays, "white"));
     }
     .s_media_list_options {
         @include o-position-absolute(auto, 0, 0, 0);
         display: flex;
-        border-top: 1px solid map-get($grays, "400");
+        border-top: 1px solid o-palette-token(--o-gray-400, map-get($grays, "400"));
         .s_media_list_option {
             flex: 1 1 auto;
             padding: calc($grid-gutter-width / 3) 0;
-            border-right: 1px solid map-get($grays, "400");
+            border-right: 1px solid o-palette-token(--o-gray-400, map-get($grays, "400"));
             text-align: center;
             &:last-child {
                 border-right: 0;

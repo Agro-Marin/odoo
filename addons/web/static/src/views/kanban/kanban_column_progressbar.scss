@@ -1,8 +1,11 @@
-@mixin o-kanban-css-filter($class, $accent-color) {
+// `$-background` is a parameter because `kanban.print_variables.scss` sets
+// `$o-kanban-background` to white, so it cannot be read ambiently by a block
+// that states the dark scheme's answer.
+@mixin o-kanban-css-filter($class, $accent-color, $-background: $o-kanban-background) {
     &.o_kanban_group_show_#{$class} {
-        --KanbanGroup-background: #{mix($accent-color, $o-kanban-background, 5%)};
+        --KanbanGroup-background: #{mix($accent-color, $-background, 5%)};
 
-        outline: $border-width solid $o-view-background-color;
+        outline: $border-width solid var(--o-bg-view);
         box-shadow:
             inset 2px 0 0 $accent-color,
             inset -2px 0 0 $accent-color;
@@ -43,5 +46,20 @@
         @include o-kanban-css-filter(muted, map-get($theme-colors, "dark"));
         @include o-kanban-css-filter(info, map-get($theme-colors, "info"));
         @include o-kanban-css-filter(purple, purple);
+    }
+}
+
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_kanban_renderer .o_kanban_group {
+        @each $-class, $-name in (success: "success", warning: "warning", danger: "danger", muted: "dark", info: "info")
+        {
+            @include o-kanban-css-filter(
+                $-class,
+                map-get($o-dark-theme-colors, $-name),
+                $o-dark-gray-100
+            );
+        }
+        @include o-kanban-css-filter(purple, purple, $o-dark-gray-100);
     }
 }

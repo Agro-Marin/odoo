@@ -1,11 +1,11 @@
 .pos {
-    background: $gray-900;
+    background: o-palette-token(--o-gray-900, $gray-900);
     --btn-height-size: 54px;
     direction: ltr;
     padding: 0;
     margin: 0;
     background-color: #f0eeee;
-    color: $o-gray-900;
+    color: o-palette-token(--o-gray-900, $o-gray-900);
     -webkit-user-select: none;
     -moz-user-select: none;
     user-select: none;
@@ -23,7 +23,7 @@
 
 .pos a {
     text-decoration: none;
-    color: $gray-700;
+    color: o-palette-token(--o-gray-700, $gray-700);
 }
 
 .pos li {

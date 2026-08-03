@@ -95,7 +95,7 @@
     .dropdown-item {
         --dropdown-item-padding-y: 0;
 
-        color: var(--o-hb-select-color, $white);
+        color: var(--o-hb-select-color, o-token(--o-white, $white));
         line-height: 2rem;
         border-bottom: $o-we-border-width solid var(--border-color);
 
@@ -113,7 +113,7 @@
     }
 
     .text-muted {
-        color: var(--o-hb-select-color, $white) !important;
+        color: var(--o-hb-select-color, o-token(--o-white, $white)) !important;
     }
 
     .o-hb-select-dropdown-category {

@@ -39,6 +39,7 @@ This addon provides an extensible, maintainable editor.
             'html_editor/static/lib/vkbeautify/**/*',
             'html_editor/static/src/scss/base_style.scss',
             'html_editor/static/src/scss/html_editor.common.scss',
+            'html_editor/static/src/scss/html_editor.scheme_rules.scss',
             'html_editor/static/src/scss/html_editor.backend.scss',
         ],
         'html_editor._assets_editor': [
@@ -54,7 +55,6 @@ This addon provides an extensible, maintainable editor.
             'html_editor/static/src/others/qweb_picker*',
             'html_editor/static/src/others/qweb_plugin*',
             'html_editor/static/src/services/**/*',
-            ('remove', 'html_editor/static/src/**/*.dark.scss'),
         ],
         'html_editor.assets_history_diff': [
             'html_editor/static/lib/diff2html/diff2html.min.css',
@@ -81,7 +81,6 @@ This addon provides an extensible, maintainable editor.
             'html_editor/static/src/others/qweb_plugin.scss',
         ],
         "web.assets_web_dark": [
-            'html_editor/static/src/**/*.dark.scss',
         ],
         'web.assets_tests': [
             'html_editor/static/tests/tours/**/*',

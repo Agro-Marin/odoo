@@ -4,7 +4,7 @@
 
 .o-mail-Chatter-top {
     z-index: $o-mail-NavigableList-zIndex - 2;
-    background-color: $o-webclient-background-color;
+    background-color: o-palette-token(--body-bg, $o-webclient-background-color);
 
     &.shadow-sm {
         background-image: linear-gradient(
@@ -51,7 +51,7 @@
 }
 
 .o-mail-Followers-button:focus {
-    background-color: $gray-200;
+    background-color: o-palette-token(--o-gray-200, $gray-200);
 }
 
 .o-mail-Followers-dropdown {
@@ -74,5 +74,5 @@
 }
 
 .btn.o-mail-Chatter-follow:hover {
-    color: $black !important;
+    color: o-token(--o-black, $black) !important;
 }

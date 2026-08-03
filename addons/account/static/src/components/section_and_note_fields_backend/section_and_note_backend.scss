@@ -1,7 +1,7 @@
 // Styles for section and note lines on sale order and invoice.
 
 table.o_section_and_note_list_view {
-    --o-SectionAndNote-border-color: #{$gray-500};
+    --o-SectionAndNote-border-color: #{o-palette-token(--o-gray-500, $gray-500)};
     $_SectionAndNote-transition: 0.1s ease-in-out;
 
     tr {

@@ -11,7 +11,7 @@
 
     &:not([disabled]) {
         &:hover {
-            --o-input-border-color: #{$border-color};
+            --o-input-border-color: #{o-token(--border-color, $border-color)};
         }
         &:focus {
             --o-input-border-color: #{$o-component-active-border};
@@ -20,6 +20,6 @@
     }
 
     &:where([disabled]) {
-        color: $body-color;
+        color: o-palette-token(--o-text, $body-color);
     }
 }

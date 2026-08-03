@@ -82,13 +82,6 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "web._assets_primary_variables": [
             "documents/static/src/scss/documents.variables.scss",
         ],
-        "web._dark_mode_variables": [
-            (
-                "before",
-                "documents/static/src/scss/documents.variables.scss",
-                "documents/static/src/scss/documents.variables.dark.scss",
-            ),
-        ],
         "web.assets_tests": [
             "documents/static/tests/tours/*",
         ],

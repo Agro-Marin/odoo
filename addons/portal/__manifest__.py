@@ -89,7 +89,6 @@ capabilities so portal pages can be rendered without the ``website`` module.
             ("include", "mail.assets_core_common"),
             ("include", "mail.assets_core_web_portal"),
             ("include", "mail.assets_chatter_web_portal"),
-            ("remove", "mail/static/src/**/*.dark.scss"),
         ],
         "portal.assets_chatter": [
             ("include", "web._assets_helpers"),
@@ -97,6 +96,9 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/scss/pre_variables.scss",
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
+            # The chatter and the editor style themselves off the palette's
+            # `--o-*` tokens; nothing else in this bundle publishes them.
+            "web/static/src/scss/tokens.scss",
             ("include", "html_editor._assets_editor"),
             ("include", "portal.assets_chatter_helpers"),
             "portal/static/src/chatter/core/**/*",
@@ -112,6 +114,10 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/lib/bootstrap/scss/_maps.scss",
             "portal/static/src/chatter/scss/primary_variables.scss",  # to force interprise primary color
             ("include", "web._assets_bootstrap_backend"),
+            # Same reason as portal.assets_chatter: webclient.scss, avatar,
+            # dropdown, the emoji picker and mail's chatter styling all read
+            # `--o-*`.
+            "web/static/src/scss/tokens.scss",
             "web/static/src/scss/mimetypes.scss",
             "web/static/src/scss/ui.scss",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
@@ -123,11 +129,13 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/core/avatar/avatar.scss",
             "web/static/src/components/dropdown/dropdown.scss",
             "web/static/src/components/emoji_picker/**/*",
+            # A light bundle: web's dark siblings would compile against the
+            # light palette and override the files they answer.
+            ("remove", "web/static/src/**/*.dark.scss"),
             # Style-only projection of mail.assets_core_common /
             # mail.assets_chatter_web_portal (an include would drag JS/XML in).
             "mail/static/src/core/common/**/*.scss",
             "mail/static/src/chatter/web_portal/**/*.scss",
-            ("remove", "mail/static/src/**/*.dark.scss"),
             "portal/static/src/chatter/scss/shadow.scss",
         ],
         # Contributes to a website-owned bundle. The contribution is silently

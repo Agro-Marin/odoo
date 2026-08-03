@@ -103,6 +103,6 @@
 
     // Options
     .s_floating_blocks_wrapper.s_floating_blocks_wrapper_shadow {
-        box-shadow: 0px 1vh 2vh rgba($black, 0.175);
+        box-shadow: 0px 1vh 2vh o-token-alpha(--o-black, $black, 0.175);
     }
 }

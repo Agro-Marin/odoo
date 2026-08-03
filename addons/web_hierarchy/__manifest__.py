@@ -16,15 +16,6 @@ an organization such as an Organization Chart for employees for instance.
     'assets': {
         'web.assets_backend': [
             'web_hierarchy/static/src/**/*',
-            ('remove', 'web_hierarchy/static/src/hierarchy.variables.dark.scss'),
-        ],
-        "web.assets_backend_dark": [
-            # Light anchor must be present in the dark bundle for the swap
-            # below: web.assets_backend_dark no longer includes
-            # web.assets_backend (Studio low-overlap reshape), so
-            # the module self-provides its variables file as the anchor.
-            'web_hierarchy/static/src/hierarchy.variables.scss',
-            ('before', 'web_hierarchy/static/src/hierarchy.variables.scss', 'web_hierarchy/static/src/hierarchy.variables.dark.scss'),
         ],
         'web.assets_unit_tests': [
             'web_hierarchy/static/tests/**/*',

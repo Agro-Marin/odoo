@@ -2,7 +2,7 @@
     @for $size from 2 through length($o-colors) {
         // Note: the first color is not defined as it is the 'no color' for org chart node
         .o_hierarchy_node_color_#{$size - 1} {
-            background-color: nth($o-colors, $size);
+            background-color: unquote("var(--o-record-color-#{$size})");
         }
     }
 }
@@ -65,7 +65,7 @@
         }
 
         .o_hierarchy_node_color_0 {
-            background-color: $gray-200;
+            background-color: o-palette-token(--o-gray-200, $gray-200);
         }
 
         @include o-hierarchy-node-color;

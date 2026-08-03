@@ -103,7 +103,7 @@
     @include media-breakpoint-down(lg) {
         .product_container {
             .o_self_product_box {
-                background: $white;
+                background: o-token(--o-white, $white);
             }
         }
     }

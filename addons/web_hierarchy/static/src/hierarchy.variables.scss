@@ -1,3 +1,9 @@
+// One scheme on purpose. `hierarchy.variables.dark.scss` stated dark values for
+// these three, but it rode `web.assets_backend_dark` -- a 4.7 KB stub that
+// carries no rules at all since the Studio reshape -- so the dark bundle the
+// webclient serves has always painted these cards white. Reproduced rather than
+// corrected: making them follow the scheme is a visible change to dark mode and
+// a decision, not a migration.
 $hierarchy_element_dragged-background: white !default;
 $hierarchy_element_hover-background: #e6f2f3 !default;
 $hierarchy_element_hover-border: #017e84 !default;

@@ -1,7 +1,7 @@
 $o-discuss-talkingColor: lighten($success, 10%);
 
 .o-mail-discussSidebarBgColor {
-    background-color: $white !important;
+    background-color: o-token(--o-white, $white) !important;
 }
 
 .o-mail-brighter {
@@ -18,7 +18,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
 }
 
 .o-bg-body {
-    background-color: $body-bg !important;
+    background-color: o-palette-token(--body-bg, $body-bg) !important;
 }
 
 .o-border-opacity-25 {
@@ -40,7 +40,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
         padding: 3px 4px;
 
         &.o-muted {
-            --o-discuss-badge-bg: #{$gray-400};
+            --o-discuss-badge-bg: #{o-palette-token(--o-gray-400, $gray-400)};
         }
     }
 
@@ -57,8 +57,8 @@ $o-discuss-talkingColor: lighten($success, 10%);
     --Dropdown_menu-margin-y: 0;
 
     &.o-simulateDarkTheme {
-        background-color: $gray-800;
-        border-color: $gray-700 !important;
+        background-color: o-palette-token(--o-gray-800, $gray-800);
+        border-color: o-palette-token(--o-gray-700, $gray-700) !important;
 
         * {
             color: white;
@@ -66,7 +66,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
 
         select,
         .form-check-input {
-            border-color: $gray-600;
+            border-color: o-palette-token(--o-gray-600, $gray-600);
         }
 
         .form-select {
@@ -80,12 +80,12 @@ $o-discuss-talkingColor: lighten($success, 10%);
         }
 
         select option {
-            background-color: $gray-700;
+            background-color: o-palette-token(--o-gray-700, $gray-700);
         }
     }
 
     .o_bottom_sheet_sheet:has(&) {
-        background-color: $gray-100;
+        background-color: o-palette-token(--o-gray-100, $gray-100);
         box-shadow: unset !important;
     }
 }
@@ -99,7 +99,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
 }
 
 .o-discuss-text-body {
-    color: $gray-700 !important;
+    color: o-palette-token(--o-gray-700, $gray-700) !important;
 }
 
 .o-discuss-badge,
@@ -134,7 +134,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
 }
 
 .o-outline-secondary {
-    outline: 1px solid $o-gray-300;
+    outline: 1px solid o-palette-token(--o-gray-300, $o-gray-300);
 }
 
 .o-hover-text-underline:hover {
@@ -279,7 +279,7 @@ $o-mail-utilities: map-merge(
 
 .o-scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: $gray-400 transparent;
+    scrollbar-color: o-palette-token(--o-gray-400, $gray-400) transparent;
 }
 
 .o-text-white {
@@ -303,15 +303,18 @@ $o-mail-utilities: map-merge(
 }
 
 .o-info {
-    color: $o-info;
+    color: o-palette-token(--info, $o-info);
 }
 
 .o-secondary {
-    color: var(--o-secondary, mix($o-gray-200, $o-gray-300));
+    color: var(
+        --o-secondary,
+        #{unquote("color-mix(in srgb, #{o-token(--o-gray-200, $o-gray-200)} 50%, #{o-token(--o-gray-300, $o-gray-300)})")}
+    );
 }
 
 .o-warning {
-    color: $o-warning;
+    color: o-palette-token(--warning, $o-warning);
 }
 
 @mixin o-mail-call-bordered($opacity) {
@@ -320,41 +323,77 @@ $o-mail-utilities: map-merge(
 }
 
 // see `@mixin button-variant`, this is the implementation without requiring `.btn` classname
+/// A mention's colours, with the scheme it decides by handed in.
+///
+/// Every default below reads `color-contrast()`, `shade-color()` or
+/// `tint-color()`, and all three answer for whichever palette is compiling — so
+/// a caller stating the dark scheme's colours would still get the light
+/// scheme's labels and mixes on top of them. `$-scheme` is what closes that.
 @mixin o-mention-variant(
     $background,
     $outline,
-    $color: color-contrast($background),
-    $hover-background: if(
-            $color == $color-contrast-light,
-            shade-color($background, $btn-hover-bg-shade-amount),
-            tint-color($background, $btn-hover-bg-tint-amount)
-        ),
-    $hover-outline: if(
-            $color == $color-contrast-light,
-            shade-color($outline, $btn-hover-border-shade-amount),
-            tint-color($outline, $btn-hover-border-tint-amount)
-        ),
-    $hover-color: color-contrast($hover-background),
-    $active-background: if(
-            $color == $color-contrast-light,
-            shade-color($background, $btn-active-bg-shade-amount),
-            tint-color($background, $btn-active-bg-tint-amount)
-        ),
-    $active-outline: if(
-            $color == $color-contrast-light,
-            shade-color($outline, $btn-active-border-shade-amount),
-            tint-color($outline, $btn-active-border-tint-amount)
-        ),
-    $active-color: color-contrast($active-background),
-    $disabled-background: $background,
-    $disabled-outline: $outline,
-    $disabled-color: color-contrast($disabled-background)
+    $-scheme: o-light-scheme(),
+    $-surface: $body-bg,
+    $color: null,
+    $hover-background: null,
+    $hover-outline: null,
+    $hover-color: null,
+    $active-background: null,
+    $active-outline: null,
+    $active-color: null,
+    $disabled-background: null,
+    $disabled-outline: null,
+    $disabled-color: null
 ) {
-    color: #{$color} !important;
+    $-pick: o-scheme-contrast(opaque($-surface, $background), $-scheme);
+    $color: o-or($color, $-pick);
+    $-shades: $color == o-scheme-contrast-light($-scheme);
+    $hover-background: o-or(
+        $hover-background,
+        if(
+            $-shades,
+            o-scheme-shade($background, $btn-hover-bg-shade-amount, $-scheme),
+            o-scheme-tint($background, $btn-hover-bg-tint-amount, $-scheme)
+        )
+    );
+    $hover-outline: o-or(
+        $hover-outline,
+        if(
+            $-shades,
+            o-scheme-shade($outline, $btn-hover-border-shade-amount, $-scheme),
+            o-scheme-tint($outline, $btn-hover-border-tint-amount, $-scheme)
+        )
+    );
+    $active-background: o-or(
+        $active-background,
+        if(
+            $-shades,
+            o-scheme-shade($background, $btn-active-bg-shade-amount, $-scheme),
+            o-scheme-tint($background, $btn-active-bg-tint-amount, $-scheme)
+        )
+    );
+    $active-outline: o-or(
+        $active-outline,
+        if(
+            $-shades,
+            o-scheme-shade($outline, $btn-active-border-shade-amount, $-scheme),
+            o-scheme-tint($outline, $btn-active-border-tint-amount, $-scheme)
+        )
+    );
+    $disabled-background: o-or($disabled-background, $background);
+    $disabled-outline: o-or($disabled-outline, $outline);
+
+    color: #{o-or(
+            $color,
+            o-scheme-contrast(opaque($-surface, $background), $-scheme)
+        )} !important;
     background-color: #{$background};
     outline-color: #{$outline};
     &:hover {
-        color: #{$hover-color};
+        color: #{o-or(
+                $hover-color,
+                o-scheme-contrast(opaque($-surface, $hover-background), $-scheme)
+            )};
         background-color: #{$hover-background};
         outline-color: #{$hover-outline};
     }
@@ -362,12 +401,18 @@ $o-mail-utilities: map-merge(
         box-shadow: #{to-rgb(mix($color, $outline, 15%))};
     }
     &:active {
-        color: #{$active-color};
+        color: #{o-or(
+                $active-color,
+                o-scheme-contrast(opaque($-surface, $active-background), $-scheme)
+            )};
         background-color: #{$active-background};
         outline-color: #{$active-outline};
     }
     &:disabled {
-        color: #{$disabled-color};
+        color: #{o-or(
+                $disabled-color,
+                o-scheme-contrast(opaque($-surface, $disabled-background), $-scheme)
+            )};
         background-color: #{$disabled-background};
         outline-color: #{$disabled-outline};
     }
@@ -391,29 +436,29 @@ a.o_mail_redirect,
 a.o_channel_redirect,
 a.o_message_redirect_transformed {
     @include o-mention-variant(
-        rgba($primary, 0.15),
-        rgba($primary, 0.25),
-        darken($primary, 10%),
-        rgba($primary, 0.2),
-        rgba($primary, 0.5),
-        darken($primary, 15%)
+        $background: rgba($primary, 0.15),
+        $outline: rgba($primary, 0.25),
+        $color: darken($primary, 10%),
+        $hover-background: rgba($primary, 0.2),
+        $hover-outline: rgba($primary, 0.5),
+        $hover-color: darken($primary, 15%)
     );
 }
 
 a.o-discuss-mention {
     @include o-mention-variant(
-        rgba($primary, 0.15),
-        rgba($primary, 0.25),
-        darken($primary, 10%),
-        rgba($primary, 0.15),
-        rgba($primary, 0.25),
-        darken($primary, 10%)
+        $background: rgba($primary, 0.15),
+        $outline: rgba($primary, 0.25),
+        $color: darken($primary, 10%),
+        $hover-background: rgba($primary, 0.15),
+        $hover-outline: rgba($primary, 0.25),
+        $hover-color: darken($primary, 10%)
     );
     cursor: default !important;
 }
 
 .o-discuss-inCallIconColor {
-    color: $o-action;
+    color: o-token(--o-action, $o-action);
 }
 
 .o-mail-DiscussSystray {
@@ -457,6 +502,54 @@ a.o-discuss-mention {
 }
 
 .o-mail-starred {
-    color: $o-main-favorite-color;
+    color: o-token(--o-favorite, $o-main-favorite-color);
     filter: drop-shadow(1px 1px 0px #000000b0);
+}
+
+
+// The dark half, folded in from `core.dark.scss`. Same selectors, different
+// arguments -- which is what a `*.dark.scss` skin is, and why it can become a
+// scoped block rather than a second file the dark bundles carry alone.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-discussSidebarBgColor {
+            background-color: mix($o-dark-white, $o-dark-webclient-background-color, 15%) !important;
+        }
+
+        a.o_mail_redirect,
+        a.o_channel_redirect,
+        a.o_message_redirect_transformed {
+            @include o-mention-variant(
+                $background: rgba(lighten($o-dark-action, 5%), 0.075),
+                $outline: rgba(lighten($o-dark-action, 10%), 0.25),
+                $-scheme: o-dark-scheme(),
+                $-surface: $o-dark-webclient-background-color,
+                $color: lighten($o-dark-action, 10%),
+                $hover-background: rgba(lighten($o-dark-action, 5%), 0.2),
+                $hover-outline: rgba(lighten($o-dark-action, 5%), 0.3),
+                $hover-color: lighten($o-dark-action, 10%)
+            );
+        }
+
+        a.o-discuss-mention {
+            @include o-mention-variant(
+                $background: rgba(lighten($o-dark-action, 5%), 0.075),
+                $outline: rgba(lighten($o-dark-action, 10%), 0.25),
+                $-scheme: o-dark-scheme(),
+                $-surface: $o-dark-webclient-background-color,
+                $color: lighten($o-dark-action, 10%),
+                $hover-background: rgba(lighten($o-dark-action, 5%), 0.075),
+                $hover-outline: rgba(lighten($o-dark-action, 10%), 0.25),
+                $hover-color: lighten($o-dark-action, 10%)
+            );
+        }
+
+        .o-discuss-text-body {
+            color: $o-dark-main-text-color !important;
+        }
+
+        .o-secondary {
+            --o-secondary: #{$o-dark-gray-700};
+        }
+    }
 }

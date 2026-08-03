@@ -1,6 +1,6 @@
 .o-discuss-Typing-dot {
     animation: o_mail_Typing_animation 1.5s linear infinite;
-    background-color: $gray-500;
+    background-color: o-palette-token(--o-gray-500, $gray-500);
 
     .o-mail-ImStatus &,
     .o-mail-ThreadIcon & {

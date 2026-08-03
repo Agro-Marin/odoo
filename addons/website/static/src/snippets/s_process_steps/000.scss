@@ -22,7 +22,7 @@
                 span:after {
                     content: "";
                     z-index: -1;
-                    border-top: 1px solid map-get($grays, "500");
+                    border-top: 1px solid o-palette-token(--o-gray-500, map-get($grays, "500"));
                     @include o-position-absolute(50%, 0, 0, auto);
                 }
             }

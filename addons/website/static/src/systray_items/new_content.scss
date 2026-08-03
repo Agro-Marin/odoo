@@ -1,10 +1,29 @@
-.o-website-btn-custo-secondary {
-    @include button-variant(
-        darken($o-navbar-background, 5%),
-        darken($o-navbar-background, 5%),
-        $o-navbar-entry-color,
-        darken($o-navbar-background, 10%)
+@mixin o-website-btn-custo-secondary($-background, $-entry-color, $-scheme) {
+    @include o-scheme-button-variant(
+        darken($-background, 5%),
+        darken($-background, 5%),
+        $-scheme,
+        $-color: $-entry-color,
+        $-hover-background: darken($-background, 10%)
     );
+}
+
+.o-website-btn-custo-secondary {
+    @include o-website-btn-custo-secondary(
+        $o-navbar-background,
+        $o-navbar-entry-color,
+        o-light-scheme()
+    );
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o-website-btn-custo-secondary {
+        @include o-website-btn-custo-secondary(
+            $o-dark-navbar-background,
+            $o-dark-navbar-entry-color,
+            o-dark-scheme()
+        );
+    }
 }
 
 .o_new_content_menu_choices {

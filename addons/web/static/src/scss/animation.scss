@@ -46,7 +46,7 @@
 
 @keyframes o-pulse {
     from {
-        box-shadow: 0 0 0 0 var(--pulse-color-from, #{$primary});
+        box-shadow: 0 0 0 0 var(--pulse-color-from, #{o-token(--primary, $primary)});
     }
     to {
         box-shadow: 0 0 0 var(--pulse-spread-radius, 2em)

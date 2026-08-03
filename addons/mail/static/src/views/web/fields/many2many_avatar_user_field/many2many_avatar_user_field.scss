@@ -18,7 +18,7 @@
                 width: 20px;
                 height: 20px;
                 margin-left: 0px;
-                background-color: $o-gray-300;
+                background-color: o-palette-token(--o-gray-300, $o-gray-300);
                 vertical-align: bottom;
             }
         }

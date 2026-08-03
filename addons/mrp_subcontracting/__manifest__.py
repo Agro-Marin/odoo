@@ -63,6 +63,11 @@
 
             ('include', 'web._assets_bootstrap'),
 
+            # The web globs below read the `--o-*` palette, and an unresolvable
+            # var() voids the whole declaration rather than falling back to a
+            # colour. Same slot as in web.assets_backend.
+            'web/static/src/scss/tokens.scss',
+
             'base/static/src/css/modules.css',
 
             'web/static/src/core/utils/transitions.scss',
@@ -92,6 +97,10 @@
             ('remove', 'web/static/src/webclient/clickbot/clickbot.js'),  # lazy loaded
             ('remove', 'web/static/src/views/form/button_box/*.scss'),
             ('remove', 'web/static/src/webclient/share_target/*'),
+            # A light bundle: the globs above reach web's dark siblings, which
+            # would compile against the light palette and override the files
+            # they answer.
+            ('remove', 'web/static/src/**/*.dark.scss'),
 
             # remove the report code and whitelist only what's needed
             ('remove', 'web/static/src/webclient/actions/reports/**/*'),

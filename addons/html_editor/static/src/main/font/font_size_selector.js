@@ -6,7 +6,7 @@ import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { cookie } from "@web/core/browser/cookie";
+import { colorScheme } from "@web/core/color_scheme";
 import { useChildRef } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 
@@ -52,7 +52,7 @@ export class FontSizeSelector extends Component {
                 }
 
                 this.fontSizeInput = iframeDoc.createElement("input");
-                const isDarkMode = cookie.get("color_scheme") === "dark";
+                const isDarkMode = colorScheme.isDark;
                 const htmlStyle = getHtmlStyle(document);
                 const backgroundColor = getCSSVariableValue(
                     isDarkMode ? "gray-200" : "white",

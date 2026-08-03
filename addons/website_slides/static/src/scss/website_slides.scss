@@ -60,7 +60,7 @@ $line-height-truncate: 1.5em;
         }
         &:not(.disabled) {
             cursor: pointer;
-            color: $link-color;
+            color: o-token(--link-color, $link-color);
         }
     }
 
@@ -91,7 +91,7 @@ $line-height-truncate: 1.5em;
             @include font-size(1rem);
 
             input:checked + i.fa-circle {
-                color: $primary !important;
+                color: o-token(--primary, $primary) !important;
             }
         }
 
@@ -108,7 +108,7 @@ $line-height-truncate: 1.5em;
     a.o_wslides_js_quiz_is_correct {
         color: black;
         input:checked + i.fa-circle-check {
-            color: $success !important;
+            color: o-token(--success, $success) !important;
         }
     }
 
@@ -190,7 +190,7 @@ $line-height-truncate: 1.5em;
 // **************************************************
 
 .o_wslides_course_sidebar {
-    border: 1px solid $border-color;
+    border: 1px solid o-token(--border-color, $border-color);
 
     @include media-breakpoint-up(md) {
         border-top-width: 0;
@@ -397,7 +397,7 @@ $line-height-truncate: 1.5em;
 
             > * {
                 text-decoration: none !important;
-                color: map-get($grays, "600");
+                color: o-palette-token(--o-gray-600, map-get($grays, "600"));
             }
 
             &:hover > * {
@@ -418,7 +418,7 @@ $line-height-truncate: 1.5em;
 
         .o_wslides_slide_list_category_header,
         .o_wslides_slides_list_slide {
-            border: 1px solid $border-color;
+            border: 1px solid o-token(--border-color, $border-color);
         }
 
         .o_wslides_slides_list_slide {
@@ -507,7 +507,7 @@ $line-height-truncate: 1.5em;
                 @include o-hover-text-color($gray-600, $headings-color);
 
                 &.active {
-                    box-shadow: inset 2px 0 map-get($theme-colors, "primary");
+                    box-shadow: inset 2px 0 o-token(--primary, map-get($theme-colors, "primary"));
                 }
             }
             button {
@@ -521,10 +521,10 @@ $line-height-truncate: 1.5em;
                 margin-left: 3px;
             }
             button.o_wslides_button_complete i {
-                color: $gray-600;
+                color: o-palette-token(--o-gray-600, $gray-600);
             }
             div.o_wslides_button_complete i {
-                color: $gray-400;
+                color: o-palette-token(--o-gray-400, $gray-400);
             }
         }
     }
@@ -534,12 +534,12 @@ $line-height-truncate: 1.5em;
             .nav-link {
                 background-color: transparent;
                 border: 0;
-                border-bottom: 1px solid $border-color;
-                color: $gray-600;
+                border-bottom: 1px solid o-token(--border-color, $border-color);
+                color: o-palette-token(--o-gray-600, $gray-600);
 
                 &.active {
-                    border-bottom: 1px solid $success;
-                    color: $gray-800;
+                    border-bottom: 1px solid o-token(--success, $success);
+                    color: o-palette-token(--o-gray-800, $gray-800);
                 }
             }
         }
@@ -687,7 +687,7 @@ li.o_wslides_fs_sidebar_list_item.active {
 }
 
 .o_wslides_body .form-control::-webkit-input-placeholder {
-    color: $gray-500;
+    color: o-palette-token(--o-gray-500, $gray-500);
 }
 
 .o_wslides_body .form-control:focus::-webkit-input-placeholder {

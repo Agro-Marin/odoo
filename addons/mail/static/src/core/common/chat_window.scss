@@ -67,3 +67,13 @@
     font-size: $small-font-size * 0.9;
     z-index: $o-mail-NavigableList-zIndex - 2;
 }
+
+
+// The dark half, folded in from `chat_window.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-ChatWindow-moreActions {
+            --mail-ChatWindow-moreActionsHoverColor: white;
+        }
+    }
+}

@@ -52,7 +52,7 @@ export const popoverService = {
      */
     start(_, { overlay }) {
         /**
-         * @type {(target: HTMLElement, component: import("@odoo/owl").ComponentConstructor, props?: object, options?: PopoverServiceAddOptions) => () => void}
+         * @type {(target: HTMLElement, component: import("@odoo/owl").ComponentConstructor, props?: object, options?: PopoverServiceAddOptions) => (removeParams?: any) => Promise<void>}
          */
         const add = makeOverlayPresenter({
             overlay,

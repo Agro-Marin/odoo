@@ -4,7 +4,6 @@
 /** @module @web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field */
 
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
-import { cookie } from "@web/core/browser/cookie";
 import { getColor, getCustomColor, hexToRGBA } from "@web/core/colors/colors";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registerField } from "@web/fields/_registry";
@@ -72,7 +71,7 @@ export class JournalDashboardGraphField extends Component {
     /** @returns {Object} */
     getLineChartConfig() {
         const labels = this.data[0].values.map((pt) => pt.x);
-        const color10 = getColor(3, cookie.get("color_scheme"), "odoo");
+        const color10 = getColor(3, "odoo");
         const borderColor = this.data[0].is_sample_data
             ? hexToRGBA(color10, 0.1)
             : color10;
@@ -127,11 +126,10 @@ export class JournalDashboardGraphField extends Component {
         const labels = [];
         const backgroundColor = [];
 
-        const colorScheme = cookie.get("color_scheme");
-        const gridColor = getCustomColor(colorScheme, "#d8dadd", "#3C3E4B");
-        const labelColor = getCustomColor(colorScheme, "#111827", "#E4E4E4");
-        const color13 = getColor(2, colorScheme, "odoo");
-        const color19 = getColor(1, colorScheme, "odoo");
+        const gridColor = getCustomColor("#d8dadd", "#3C3E4B");
+        const labelColor = getCustomColor("#111827", "#E4E4E4");
+        const color13 = getColor(2, "odoo");
+        const color19 = getColor(1, "odoo");
         this.data[0].values.forEach((pt) => {
             data.push(pt.value);
             labels.push(pt.label);
@@ -140,7 +138,7 @@ export class JournalDashboardGraphField extends Component {
             } else if (pt.type === "future") {
                 backgroundColor.push(color19);
             } else {
-                backgroundColor.push(getCustomColor(colorScheme, "#ebebeb", "#3C3E4B"));
+                backgroundColor.push(getCustomColor("#ebebeb", "#3C3E4B"));
             }
         });
         return {

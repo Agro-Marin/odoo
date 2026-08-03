@@ -16,9 +16,9 @@ button.o_todo_done_button {
 
 a.o_todo_done_button_mobile {
     margin: 0px 5px;
-    color: $gray-400;
+    color: o-palette-token(--o-gray-400, $gray-400);
     &.done_button_enabled {
-        color: $o-success;
+        color: o-palette-token(--success, $o-success);
     }
 }
 

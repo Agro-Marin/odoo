@@ -100,7 +100,7 @@
         transition: background-color $o-duration-fast $o-easing-standard;
 
         &:hover {
-            background-color: rgba($o-brand-primary, 0.06);
+            background-color: color-mix(in srgb, var(--o-brand) 6%, transparent);
         }
     }
 

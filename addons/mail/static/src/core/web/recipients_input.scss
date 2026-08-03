@@ -7,7 +7,7 @@
         }
     }
     &:hover {
-        border-bottom-color: $border-color;
+        border-bottom-color: o-token(--border-color, $border-color);
         &:after {
             @include o-caret-down($caret-color: $border-color);
         }

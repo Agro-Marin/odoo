@@ -87,20 +87,24 @@
             }
         }
 
-        @each $status, $color in (danger: $danger, success: $success, primary: $primary)
+        // The token beside the colour: `rgba()` needs a colour and cannot take
+        // a `var()`, so the alpha reads below are `color-mix()` against the
+        // token and the colour is only their fallback.
+        @each $status, $token, $color
+            in ((danger, --danger, $danger), (success, --success, $success), (primary, --primary, $primary))
         {
             &.o-dropdown-item.btn-#{$status}:not(.o-tag-JOIN_LEAVE_CALL) {
                 &.focus {
-                    background-color: rgba($color, 0.75);
+                    background-color: o-token-alpha($token, $color, 0.75);
                     color: white;
                 }
                 &.o-tag-PRIMARY {
-                    background-color: rgba($color, 0.9);
+                    background-color: o-token-alpha($token, $color, 0.9);
                 }
                 &:not(.focus) {
-                    color: var(--o-mail-ActionList-#{$status}NoBgColor, #{$color});
+                    color: var(--o-mail-ActionList-#{$status}NoBgColor, #{o-token($token, $color)});
                     &.o-tag-PRIMARY {
-                        background-color: rgba($color, 0.35);
+                        background-color: o-token-alpha($token, $color, 0.35);
                     }
                 }
             }
@@ -109,7 +113,7 @@
                     --btn-active-bg: var(--btn-bg);
                 }
                 &:not(.o-hasBtnBg) {
-                    color: var(--o-mail-ActionList-#{$status}NoBgColor, #{$color});
+                    color: var(--o-mail-ActionList-#{$status}NoBgColor, #{o-token($token, $color)});
                     &:active {
                         background-color: inherit;
                     }
@@ -129,6 +133,33 @@
             padding: var(--dropdown-item-padding-y) var(--dropdown-item-padding-x) !important;
             font-size: $h5-font-size !important;
             font-weight: $o-font-weight-medium !important;
+        }
+    }
+}
+
+
+// The dark half, folded in from `action_list.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-ActionList {
+            --mail-ActionList-activeItemColor: #{white};
+            --mail-ActionList-activeItemBgColor: #{rgba(mix($o-dark-gray-300, $o-dark-gray-400), 0.75)};
+            --mail-ActionList-dangerBgColor: #{rgba(saturate($o-dark-bs-danger, 20%), 0.5)};
+            --mail-ActionList-successBgColor: #{rgba(saturate($o-dark-bs-success, 20%), 0.5)};
+            --mail-ActionList-buttonInlineIconOpacity: #{85%};
+            --mail-ActionList-dangerColor: #{lighten($o-dark-bs-danger, 5%)};
+            --o-mail-ActionList-successNoBgColor: #{lighten($o-dark-bs-success, 10%)};
+            --o-mail-ActionList-dangerNoBgColor: #{lighten($o-dark-bs-danger, 10%)};
+
+            .o-hasBtnBg.o-tag-SUCCESS {
+                @include button-variant(darken($o-dark-bs-success, 10%), darken($o-dark-bs-success, 10%));
+                --btn-color: white;
+                --btn-active-color: white;
+
+                i {
+                    text-shadow: 0px 0px 1px darken($o-dark-bs-success, 10%);
+                }
+            }
         }
     }
 }

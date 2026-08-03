@@ -71,7 +71,7 @@
     #o_wsale_products_header {
         padding-left: var(--o-wsale-topbar-padding-left);
         padding-right: var(--o-wsale-topbar-padding-right);
-        border: 0px solid $border-color;
+        border: 0px solid o-token(--border-color, $border-color);
         border-width: var(--o-wsale-topbar-border-width, 0px);
 
         .o_wsale_products_header_search_form_container {
@@ -177,7 +177,7 @@
         &.o_wsale_filmstrip_bordered {
             --o-wsale-filmstrip-item-border-width: #{$border-width};
             --o-wsale-filmstrip-item-bg: transparent;
-            --o-wsale-filmstrip-item-image-bg: #{$gray-100};
+            --o-wsale-filmstrip-item-image-bg: #{o-palette-token(--o-gray-100, $gray-100)};
             --o-wsale-filmstrip-item-span-height: 2.5rem;
 
             --o-wsale-filmstrip-item-border-color-hover: color-mix(
@@ -201,8 +201,8 @@
             --o-wsale-filmstrip-item-bg: transparent;
             --o-wsale-filmstrip-item-image-display: none;
 
-            --o-wsale-filmstrip-item-border-color-hover: #{$primary};
-            --o-wsale-filmstrip-item-color-hover: #{$primary};
+            --o-wsale-filmstrip-item-border-color-hover: #{o-token(--primary, $primary)};
+            --o-wsale-filmstrip-item-color-hover: #{o-token(--primary, $primary)};
             --o-wsale-filmstrip-item-box-shadow-hover: inset 0 #{$border-width * -1} 0
                 #{$primary};
 
@@ -225,10 +225,10 @@
             --o-wsale-filmstrip-item-image-display: none;
 
             --o-wsale-filmstrip-item-color-hover: #{color-contrast($primary)};
-            --o-wsale-filmstrip-item-bg-hover: #{$primary};
+            --o-wsale-filmstrip-item-bg-hover: #{o-token(--primary, $primary)};
 
             --o-wsale-filmstrip-item-color-active: #{color-contrast($primary)};
-            --o-wsale-filmstrip-item-bg-active: #{$primary};
+            --o-wsale-filmstrip-item-bg-active: #{o-token(--primary, $primary)};
 
             cursor: auto;
 
@@ -252,7 +252,7 @@
             --o-wsale-filmstrip-item-image-bg: transparent;
             --o-wsale-filmstrip-item-placeholder-display: block;
 
-            --o-wsale-filmstrip-item-bg-hover: #{$light};
+            --o-wsale-filmstrip-item-bg-hover: #{o-token(--light, $light)};
             --o-wsale-filmstrip-item-color-hover: #{color-contrast($light)};
 
             --o-wsale-filmstrip-item-color-active: #{color-contrast($light)};
@@ -289,8 +289,8 @@
             --o-wsale-filmstrip-item-image-bg: transparent;
             --o-wsale-filmstrip-item-placeholder-display: block;
 
-            --o-wsale-filmstrip-item-border-color-active: #{$border-color};
-            --o-wsale-filmstrip-item-color-active: #{$body-color};
+            --o-wsale-filmstrip-item-border-color-active: #{o-token(--border-color, $border-color)};
+            --o-wsale-filmstrip-item-color-active: #{o-palette-token(--o-text, $body-color)};
             --o-wsale-filmstrip-item-bg-active: transparent;
             --o-wsale-filmstrip-item-text-decoration-active: underline;
 
@@ -337,12 +337,12 @@
             --o-wsale-filmstrip-item-font-size: #{$h3-font-size};
             --o-wsale-filmstrip-item-font-weight: #{$headings-font-weight};
             --o-wsale-filmstrip-item-text-wrap: wrap;
-            --o-wsale-filmstrip-item-color: #{$white};
+            --o-wsale-filmstrip-item-color: #{o-token(--o-white, $white)};
             --o-wsale-filmstrip-item-bg: #{transparent};
             --o-wsale-filmstrip-item-image-bg: transparent;
             --o-wsale-filmstrip-item-placeholder-display: block;
 
-            --o-wsale-filmstrip-item-color-active: #{$white};
+            --o-wsale-filmstrip-item-color-active: #{o-token(--o-white, $white)};
             --o-wsale-filmstrip-item-bg-active: #{transparent};
             --o-wsale-filmstrip-item-text-decoration-active: underline;
 
@@ -370,8 +370,8 @@
                 overflow: hidden;
 
                 &:has(.o_wsale_filmstrip_no_image) {
-                    --o-wsale-filmstrip-item-bg: #{$primary};
-                    --o-wsale-filmstrip-item-bg-active: #{$primary};
+                    --o-wsale-filmstrip-item-bg: #{o-token(--primary, $primary)};
+                    --o-wsale-filmstrip-item-bg-active: #{o-token(--primary, $primary)};
                 }
             }
 
@@ -427,7 +427,7 @@
             margin-bottom: map-get($spacers, 1);
             border-width: var(--o-wsale-filmstrip-wrapper-border-width, 0);
             border-style: solid;
-            border-color: $border-color;
+            border-color: o-token(--border-color, $border-color);
             padding-bottom: var(
                 --o-wsale-filmstrip-wrapper-padding-bottom,
                 #{map-get($spacers, 1)}
@@ -480,8 +480,8 @@
                     font-weight: var(--o-wsale-filmstrip-item-font-weight);
                     text-align: var(--o-wsale-filmstrip-item-text-align);
                     text-wrap: var(--o-wsale-filmstrip-item-text-wrap);
-                    color: var(--o-wsale-filmstrip-item-color, #{$body-color});
-                    background-color: var(--o-wsale-filmstrip-item-bg, #{$light});
+                    color: var(--o-wsale-filmstrip-item-color, #{o-palette-token(--o-text, $body-color)});
+                    background-color: var(--o-wsale-filmstrip-item-bg, #{o-token(--light, $light)});
                     transition: all 0.15s ease-in-out;
 
                     .o_wsale_filmstrip_image {
@@ -581,11 +581,11 @@
 
                 &::-webkit-scrollbar-thumb {
                     border-radius: $btn-border-radius-sm;
-                    background: rgba($body-color, 0.25);
+                    background: o-token-alpha(--o-text, $body-color, 0.25);
                 }
 
                 &::-webkit-scrollbar-track {
-                    background: rgba($body-color, 0.05);
+                    background: o-token-alpha(--o-text, $body-color, 0.05);
                 }
             }
 
@@ -689,8 +689,8 @@
             &:where(:not(.o_wsale_has_sidebar)) {
                 @include media-breakpoint-up(sm) {
                     #o_wsale_pager {
-                        border-right: #{$border-width} solid #{$border-color};
-                        border-left: #{$border-width} solid #{$border-color};
+                        border-right: #{$border-width} solid #{o-token(--border-color, $border-color)};
+                        border-left: #{$border-width} solid #{o-token(--border-color, $border-color)};
                     }
                 }
                 @include media-breakpoint-up(lg) {
@@ -702,8 +702,8 @@
             &.o_wsale_has_sidebar {
                 @include media-breakpoint-up(sm) {
                     #o_wsale_pager {
-                        border-left: #{$border-width} solid #{$border-color};
-                        border-right: #{$border-width} solid #{$border-color};
+                        border-left: #{$border-width} solid #{o-token(--border-color, $border-color)};
+                        border-right: #{$border-width} solid #{o-token(--border-color, $border-color)};
                     }
                 }
                 @include media-breakpoint-up(lg) {
@@ -720,20 +720,20 @@
             }
 
             &:where(:not(.o_wsale_has_sidebar)) #o_wsale_products_grid {
-                border-left: #{$border-width} solid #{$border-color};
+                border-left: #{$border-width} solid #{o-token(--border-color, $border-color)};
             }
 
             &.o_wsale_has_sidebar.o_wsale_products_opt_layout_catalog
                 #o_wsale_products_grid {
                 @include media-breakpoint-down(lg) {
-                    border-left: #{$border-width} solid #{$border-color};
+                    border-left: #{$border-width} solid #{o-token(--border-color, $border-color)};
                 }
             }
         }
 
         &.o_wsale_has_sidebar {
             @include media-breakpoint-up(lg) {
-                --o-wsale-sidebar-border: #{$border-width} solid #{$border-color};
+                --o-wsale-sidebar-border: #{$border-width} solid #{o-token(--border-color, $border-color)};
             }
             @include media-breakpoint-up(lg) {
                 #products_grid {
@@ -986,7 +986,7 @@
                         &:before {
                             @include o-position-absolute(0, auto, 0);
                             transform: translateX(calc(var(--_line-gap) * -1));
-                            border-left: $border-width solid $border-color;
+                            border-left: $border-width solid o-token(--border-color, $border-color);
                             content: "";
                         }
                     }
@@ -1072,7 +1072,7 @@
 }
 
 #product_detail ~ .oe_structure.oe_empty > section:first-child {
-    border-top: $border-width solid $border-color;
+    border-top: $border-width solid o-token(--border-color, $border-color);
 }
 
 .o_alternative_product {
@@ -1717,7 +1717,7 @@ $-product-radius-map: (
                     height: auto;
                     text-indent: unset;
                     transition: none;
-                    border: $border-width solid $border-color;
+                    border: $border-width solid o-token(--border-color, $border-color);
 
                     &,
                     & > div,
@@ -1735,7 +1735,7 @@ $-product-radius-map: (
                     }
 
                     &.active {
-                        border-color: map-get($theme-colors, "primary");
+                        border-color: o-token(--primary, map-get($theme-colors, "primary"));
                     }
 
                     &:where(:not(:hover)) {
@@ -1765,11 +1765,11 @@ $-product-radius-map: (
                 height: 8px;
                 min-width: 8px;
                 border-radius: 50%;
-                border: 2px solid map-get($grays, "400");
+                border: 2px solid o-palette-token(--o-gray-400, map-get($grays, "400"));
 
                 &.active {
-                    border-color: map-get($theme-colors, "primary");
-                    background-color: map-get($theme-colors, "primary");
+                    border-color: o-token(--primary, map-get($theme-colors, "primary"));
+                    background-color: o-token(--primary, map-get($theme-colors, "primary"));
                 }
                 > div {
                     display: none;
@@ -1874,7 +1874,7 @@ $-product-radius-map: (
 }
 
 .o_red_highlight {
-    --badge-bg: #{map-get($theme-colors, "danger")} !important;
+    --badge-bg: #{o-token(--danger, map-get($theme-colors, "danger"))} !important;
     --badge-border-color: var(--badge-bg);
 
     box-shadow: 0 0 0 0 rgba(240, 8, 0, 0.4);
@@ -1964,7 +1964,7 @@ $-product-radius-map: (
             border: none;
 
             .o_checkout_cart_total {
-                border-top: $border-width solid $border-color;
+                border-top: $border-width solid o-token(--border-color, $border-color);
             }
         }
     }
@@ -2008,7 +2008,7 @@ $-product-radius-map: (
     .o_address_signin {
         @include media-breakpoint-down(md) {
             border-radius: $border-radius;
-            background-color: $gray-100;
+            background-color: o-palette-token(--o-gray-100, $gray-100);
         }
     }
 
@@ -2048,7 +2048,7 @@ $-product-radius-map: (
 
                     @include media-breakpoint-down(sm) {
                         padding-bottom: map-get($spacers, 3);
-                        border-bottom: $border-width solid $border-color;
+                        border-bottom: $border-width solid o-token(--border-color, $border-color);
                     }
                 }
             }
@@ -2095,8 +2095,8 @@ $-product-radius-map: (
         --accordion-body-padding-x: 0;
 
         .accordion-item {
-            border-top: $border-width solid $border-color;
-            border-bottom: $border-width solid $border-color;
+            border-top: $border-width solid o-token(--border-color, $border-color);
+            border-bottom: $border-width solid o-token(--border-color, $border-color);
 
             &:not(:last-child) {
                 border-bottom: 0;

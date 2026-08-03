@@ -8,7 +8,7 @@
     background-color: inherit;
 
     &.o-selfInCall {
-        background-color: var(--o-discuss-Call-bgColor, #{$dark});
+        background-color: var(--o-discuss-Call-bgColor, #{o-token(--dark, $dark)});
 
         .o-discuss-Call-main {
             background-color: rgba(0, 0, 0, 0.5);
@@ -85,11 +85,11 @@
 
 .o-discuss-Call-sidebar {
     &::-webkit-scrollbar {
-        background: map-get($grays, "900");
+        background: o-palette-token(--o-gray-900, map-get($grays, "900"));
     }
 
     &::-webkit-scrollbar-thumb {
-        background: map-get($grays, "700");
+        background: o-palette-token(--o-gray-700, map-get($grays, "700"));
     }
 }
 
@@ -98,4 +98,18 @@
     border-radius: 10px 0px 0px 10px;
     border-right: 0px;
     background-color: lighten(black, 10%);
+}
+
+
+// The dark half, folded in from `call.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // = Call
+        // ============================================================================
+        // No CSS hacks, variables overrides only
+
+        .o-discuss-Call {
+            --o-discuss-Call-bgColor: black;
+        }
+    }
 }

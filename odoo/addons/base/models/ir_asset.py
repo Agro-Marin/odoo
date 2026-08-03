@@ -43,7 +43,7 @@ _logger = getLogger(__name__)
 
 @dataclass(slots=True)
 class Resolution:
-    installed: Collection[str]
+    active: Collection[str]
     assets_params: dict[str, Any] = field(default_factory=dict)
     manifest_assets: Mapping[str, tuple[tuple[str, Any], ...]] = field(
         default_factory=dict
@@ -165,6 +165,25 @@ class IrAsset(models.Model):
     def _get_asset_params(self) -> dict[str, Any]:
         return {}
 
+    def _get_asset_url_segments(self, assets_params: dict[str, Any]) -> tuple[str, ...]:
+        """URL path segments naming the variant *assets_params* selects.
+
+        ``unique`` is a SHA256 over the *result*, so it tells two variants apart
+        but describes neither. That is enough while the attachment exists and is
+        found by URL, and not enough the moment it is missing: the route rebuilds
+        the bundle from the URL alone, and anything ``_get_asset_params`` added
+        is gone by then. It then computes a different version and redirects the
+        browser to the variant it did manage to build -- silently, and to the
+        wrong bytes.
+
+        So every override that adds a key to :meth:`_get_asset_params` must add
+        its segment here, and route it back (see ``website``'s
+        ``content_assets_website``); otherwise its bundles cannot be served at
+        their own URLs. Segments accumulate outward through ``super()``, so the
+        order follows the addon dependency order.
+        """
+        return ()
+
     def _get_asset_bundle_url(
         self,
         filename: str,
@@ -172,7 +191,19 @@ class IrAsset(models.Model):
         assets_params: dict[str, Any],
         ignore_params: bool = False,
     ) -> str:
-        return f"/web/assets/{unique}/{filename}"
+        """Assemble the attachment URL for one bundle artifact.
+
+        ``ignore_params`` is deliberately not honoured: it asks for a pattern
+        widened across params so ``get_attachments`` can copy an equal-version
+        bundle's bytes to this URL. Equal version implies equal content only
+        while every param is part of the hashed input, which
+        ``website``'s custom SCSS URLs break (see
+        :meth:`~odoo.addons.website.models.ir_asset.IrAsset._get_asset_url_segments`).
+        Keeping the pattern narrow leaves the fallback inert rather than
+        occasionally serving one variant's CSS under another's URL.
+        """
+        segments = self._get_asset_url_segments(assets_params)
+        return "/".join(("/web/assets", *segments, unique, filename))
 
     def _parse_bundle_name(
         self, bundle_name: str, debug_assets: bool
@@ -218,7 +249,7 @@ class IrAsset(models.Model):
     ) -> tuple[AssetEntry, ...]:
         addons = self._get_active_addons_list(**assets_params)
         resolution = Resolution(
-            installed=self._get_installed_addons_list(),
+            active=frozenset(addons),
             assets_params=assets_params,
             manifest_assets=self._get_manifest_assets(tuple(sorted(addons))),
         )
@@ -329,12 +360,14 @@ class IrAsset(models.Model):
         return closure
 
     def _get_related_bundle(self, target_path_def: str, root_bundle: str) -> str:
-        resolution = Resolution(installed=self._get_installed_addons_list())
+        assets_params = self._get_asset_params()
+        resolution = Resolution(
+            active=frozenset(self._get_active_addons_list(**assets_params))
+        )
         paths = self._get_paths(target_path_def, resolution)
         if not paths:
             return root_bundle
         target_path = paths[0][0]
-        assets_params = self._get_asset_params()
         asset_paths = self._get_asset_paths(root_bundle, assets_params)
 
         for entry in asset_paths:
@@ -402,9 +435,10 @@ class IrAsset(models.Model):
 
         safe_path = False
         if addon_manifest:
-            if addon not in resolution.installed:
+            if addon not in resolution.active:
                 _logger.debug(
-                    "Skipping asset %s: addon %s not loaded yet",
+                    "Skipping asset %s: addon %s is not active for this "
+                    "resolution (not installed, or narrowed out by an override)",
                     path_def,
                     addon,
                 )

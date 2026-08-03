@@ -3,7 +3,7 @@
         --ConfiguratorPreview-height: auto;
 
         img {
-            border: $border-width solid $border-color;
+            border: $border-width solid o-token(--border-color, $border-color);
         }
 
         &:hover,

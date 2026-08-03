@@ -2,8 +2,8 @@
     .o_progress {
         width: 100px;
         height: 15px;
-        border: 1px solid $o-gray-300;
-        background-color: $o-view-background-color;
+        border: 1px solid var(--o-gray-300);
+        background-color: var(--o-bg-view);
     }
 
     .o_progressbar_value input {

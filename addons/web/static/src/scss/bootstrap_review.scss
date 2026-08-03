@@ -101,3 +101,71 @@ $o-datetime-picker-width: calc(5px * 7 * 8 + (2 * #{map-get($spacers, 2)})) !def
         );
     }
 }
+
+
+// = Icons that are the whole element
+// ============================================================================
+// Bootstrap draws these as a `background-image` whose colour is interpolated
+// into the SVG. A custom property inside a `data:` URI is inert -- the URI is
+// not CSS -- so the colour is fixed when the bundle compiles, and each icon is
+// one more thing a second stylesheet has to carry.
+//
+// Painted as a mask instead, the SVG says only *where* and the colour is an
+// ordinary declaration, so it follows the scheme like everything else. This is
+// exact for these four and only these four: the icon is the entire visual. It
+// would not be for `.form-check-input:checked` or `.form-switch`, where the
+// mark sits on top of a filled control and a mask would take the fill with it.
+
+.btn-close {
+    // `currentColor`: the element already sets `color` from the same variable
+    // the SVG's `fill` was interpolated from.
+    background: currentColor;
+    mask: var(--#{$prefix}btn-close-bg) center / $btn-close-width auto no-repeat;
+}
+
+.navbar-toggler-icon {
+    background-color: var(--#{$prefix}navbar-color);
+    background-image: none;
+    mask-image: escape-svg($o-navbar-toggler-mask);
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: 100%;
+}
+
+.accordion-button {
+    &::after {
+        background-color: var(--#{$prefix}accordion-btn-icon-color, #{$body-color});
+        background-image: none;
+        mask-image: var(--#{$prefix}accordion-btn-icon);
+        mask-repeat: no-repeat;
+        mask-size: var(--#{$prefix}accordion-btn-icon-width);
+    }
+
+    &:not(.collapsed)::after {
+        // The active icon differed from the resting one only in its colour, so
+        // under a mask there is one image and this is the whole difference.
+        background-color: var(
+            --#{$prefix}accordion-btn-active-icon-color,
+            var(--#{$prefix}primary-text-emphasis)
+        );
+        mask-image: var(--#{$prefix}accordion-btn-icon);
+    }
+}
+
+.carousel-control-prev-icon,
+.carousel-control-next-icon {
+    background-color: currentColor;
+    mask-repeat: no-repeat;
+    mask-position: 50%;
+    mask-size: 100% 100%;
+}
+
+.carousel-control-prev-icon {
+    background-image: none;
+    mask-image: escape-svg($carousel-control-prev-icon-bg);
+}
+
+.carousel-control-next-icon {
+    background-image: none;
+    mask-image: escape-svg($carousel-control-next-icon-bg);
+}

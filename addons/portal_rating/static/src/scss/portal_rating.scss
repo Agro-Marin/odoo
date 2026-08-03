@@ -13,7 +13,7 @@ $o-w-rating-star-color: #facc2e;
 
 .o_website_rating_card_container {
     .o_message_counter {
-        color: map-get($grays, "700");
+        color: o-palette-token(--o-gray-700, map-get($grays, "700"));
     }
 
     /* progress bars */

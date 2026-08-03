@@ -3,6 +3,7 @@
 
 /** @module @web/core/colors/colors */
 
+import { colorScheme } from "@web/core/color_scheme";
 import { clamp } from "@web/core/utils/format/numbers";
 
 const COLORS_ENT_BRIGHT = ["#875A7B", "#A5D8D7", "#DCD0D9"];
@@ -84,14 +85,13 @@ const COLORS_XL = [
 ];
 
 /**
- * @param {string} colorScheme
  * @param {string} paletteName
  * @returns {string[]}
  */
-export function getColors(colorScheme, paletteName) {
+export function getColors(paletteName) {
     switch (paletteName) {
         case "odoo":
-            return colorScheme === "dark" ? COLORS_ENT_DARK : COLORS_ENT_BRIGHT;
+            return colorScheme.isDark ? COLORS_ENT_DARK : COLORS_ENT_BRIGHT;
         case "sm":
             return COLORS_SM;
         case "md":
@@ -105,11 +105,10 @@ export function getColors(colorScheme, paletteName) {
 
 /**
  * @param {number} index
- * @param {string} colorScheme
  * @param {number | "odoo" | "sm" | "md" | "lg" | "xl"} paletteSizeOrName
  * @returns {string}
  */
-export function getColor(index, colorScheme, paletteSizeOrName) {
+export function getColor(index, paletteSizeOrName) {
     let paletteName;
     const sizeAsNumber = /** @type {number} */ (paletteSizeOrName);
     if (paletteSizeOrName === "odoo") {
@@ -123,17 +122,14 @@ export function getColor(index, colorScheme, paletteSizeOrName) {
     } else {
         paletteName = "xl";
     }
-    const colors = getColors(colorScheme, paletteName);
+    const colors = getColors(paletteName);
     return colors[((index % colors.length) + colors.length) % colors.length];
 }
 
 export const DEFAULT_BG = "#d3d3d3";
 
-/**
- * @param {string} [colorScheme] omit (or pass anything but "dark") for light
- */
-export function getBorderWhite(colorScheme) {
-    return colorScheme === "dark" ? "rgba(38, 42, 54, .2)" : "rgba(249,250,251, .2)";
+export function getBorderWhite() {
+    return colorScheme.isDark ? "rgba(38, 42, 54, .2)" : "rgba(249,250,251, .2)";
 }
 
 const HEX6_REGEX = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i;
@@ -206,16 +202,15 @@ export function hexToRGBA(hex, opacity) {
 }
 
 /**
- * @param {string} colorScheme
  * @param {string} brightModeColor
  * @param {string} [darkModeColor]
  * @returns {string}
  */
-export function getCustomColor(colorScheme, brightModeColor, darkModeColor) {
+export function getCustomColor(brightModeColor, darkModeColor) {
     if (darkModeColor === undefined) {
         return brightModeColor;
     }
-    return colorScheme === "dark" ? darkModeColor : brightModeColor;
+    return colorScheme.isDark ? darkModeColor : brightModeColor;
 }
 
 /**

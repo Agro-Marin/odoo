@@ -613,12 +613,43 @@ class IrQweb(models.AbstractModel):
         return False
 
     @staticmethod
-    def _is_hoot_test_specifier(specifier: str) -> bool:
+    def _is_hoot_test_specifier(specifier: str, *, by_directory: bool = True) -> bool:
         if "/tours/" in specifier:
             return False
-        return (
-            "/../tests/" in specifier or ".test" in specifier or "/tests/" in specifier
+        if ".test" in specifier or ".hoot" in specifier:
+            return True
+        return by_directory and ("/../tests/" in specifier or "/tests/" in specifier)
+
+    @classmethod
+    def _hoot_specifiers(cls, bundle: str, specifiers: Iterable[str]) -> list[str]:
+        """The specifiers of *bundle* that Hoot loads itself.
+
+        Hoot-ness is a property of the BUNDLE, not of a path. The runner's
+        bundles and the tour bundle are disjoint — ``web.assets_unit_tests``
+        holds 1088 ``*.test.js`` suites, ``web.assets_tests`` holds none, only
+        tours and the odd integration helper — so reading ``"/tests/" in
+        specifier`` as "Hoot owns this" misclassified every file of the tour
+        bundle that does not sit under a ``tours/`` directory. Those were then
+        left out of the eager import, silently: ``test_css_error.js``,
+        ``auth_passkey``'s tours and a dozen more never registered, and the
+        runner could only report the ready code as "always falsy".
+
+        So the directory reading applies only where it is true — a bundle that
+        the Hoot runner loads through an import map. Elsewhere a suite is still
+        recognised by name, which keeps a self-contained runner bundle
+        (``im_livechat.embed_assets_unit_tests``) lazy without declaring the
+        relationship.
+        """
+        registry = esm_registry()
+        by_directory = (
+            bundle in registry.import_map_includes
+            or bundle in registry.import_map_included_bundles
         )
+        return [
+            spec
+            for spec in specifiers
+            if cls._is_hoot_test_specifier(spec, by_directory=by_directory)
+        ]
 
     @classmethod
     def _build_loader_shim_js(cls) -> str:
@@ -1338,10 +1369,11 @@ class IrQweb(models.AbstractModel):
             )
 
         if not debug_assets:
+            hoot_owned = set(self._hoot_specifiers(bundle, native_data["import_map"]))
             reachable_without_hoot = {
                 url
                 for spec, url in native_data["import_map"].items()
-                if not self._is_hoot_test_specifier(spec)
+                if spec not in hoot_owned
             }
             pre_nodes.extend(
                 ("link", {"rel": "modulepreload", "href": url})
@@ -1359,10 +1391,8 @@ class IrQweb(models.AbstractModel):
         if bridge_specifiers:
             bridge_code = ""
 
-            hoot_specs = [
-                s for s in bridge_specifiers if self._is_hoot_test_specifier(s)
-            ]
-            non_hoot_specs = [s for s in bridge_specifiers if s not in hoot_specs]
+            hoot_specs = self._hoot_specifiers(bundle, bridge_specifiers)
+            non_hoot_specs = [s for s in bridge_specifiers if s not in set(hoot_specs)]
 
             if not _already_has_esm:
                 import_lines = []
@@ -1384,12 +1414,28 @@ class IrQweb(models.AbstractModel):
                     )
                     bridge_code += f"await Promise.allSettled([{imports}]);\n"
             elif bundle in esm_registry().secondary_bundle_names:
-                tour_specs = [s for s in non_hoot_specs if "/tours/" in s]
-                if tour_specs:
-                    bridge_code += (
-                        "\n".join(f"import {json_mod.dumps(s)};" for s in tour_specs)
-                        + "\n"
+                # Every module, not the ones whose PATH looks like a tour. A
+                # secondary bundle is on the page to run: its modules register
+                # themselves by side effect, and nothing about a specifier says
+                # whether it does. Selecting on ``"/tours/" in s`` evaluated
+                # ``website/static/tests/tours/...`` and silently skipped
+                # ``test_assetsbundle/static/tests/test_css_error.js``, a tour
+                # sitting directly in ``static/tests`` -- so its tour was
+                # missing from the registry on frontend pages only, and the
+                # runner could only report the ready code as "always falsy".
+                #
+                # The page's OTHER parent already loads this same bundle whole
+                # (it links the artifact rather than importing by specifier),
+                # so this is also what makes the two agree.
+                #
+                # ``allSettled`` for the same reason as the branch above: one
+                # module that throws on this page must not stop the rest from
+                # registering.
+                if non_hoot_specs:
+                    imports = ", ".join(
+                        f"import({json_mod.dumps(s)})" for s in non_hoot_specs
                     )
+                    bridge_code += f"await Promise.allSettled([{imports}]);\n"
             else:
                 own_specs = [
                     s for s in non_hoot_specs if s in native_data["import_map"]

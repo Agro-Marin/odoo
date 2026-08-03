@@ -1,10 +1,10 @@
 .o_account_dashboard_kanban_view {
     .o_drop_area {
-        background-color: $o-view-background-color;
-        border: 1px dashed $border-color;
+        background-color: o-token(--o-bg-view, $o-view-background-color);
+        border: 1px dashed o-token(--border-color, $border-color);
         &.drag_to_card {
-            border-color: $o-brand-primary;
-            background-color: mix($o-brand-primary, $o-view-background-color, 15%);
+            border-color: o-token(--o-brand, $o-brand-primary);
+            background-color: unquote("color-mix(in srgb, #{o-token(--o-brand, $o-brand-primary)} 15%, #{o-token(--o-bg-view, $o-view-background-color)})");
         }
     }
 }

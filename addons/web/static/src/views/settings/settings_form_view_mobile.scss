@@ -16,7 +16,7 @@
                 overflow: hidden;
                 overflow-x: auto;
                 padding: 0;
-                border-bottom: 1px solid $border-color;
+                border-bottom: 1px solid o-token(--border-color, $border-color);
 
                 .tab {
                     display: block;
@@ -39,7 +39,7 @@
 
                     &:after {
                         content: "";
-                        background: $o-brand-primary;
+                        background: var(--o-brand);
                         opacity: 0;
                         @include o-position-absolute(auto, 0, 0, 0);
                         width: 100%;

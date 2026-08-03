@@ -158,6 +158,34 @@ class Binary(http.Controller):
         return stream.get_response(**send_file_kwargs)
 
     @http.route(
+        ["/web/assets/scope/<string:scope>/<string:unique>/<string:filename>"],
+        type="http",
+        auth="public",
+        readonly=True,
+    )
+    def content_assets_scoped(self, scope: str, **kwargs: Any) -> Response:
+        """Serve a bundle resolved for one HOOT suite's dependency closure.
+
+        The path is spelt out rather than interpolated from
+        ``UNIT_TEST_URL_SEGMENT``: a route is a contract read statically, by
+        ``machine_doc_v1/factcheck.sh``'s AST walk among others, and an
+        f-string is a ``JoinedStr`` that such a reader cannot see. The two
+        spellings are held together by ``TestUnitTestAssetScopeRoutes``.
+
+        The scope reaches ``_get_asset_paths`` only through ``assets_params``,
+        and ``content_assets`` reads those from its arguments -- never from
+        ``_get_asset_params()``, which would answer for *this* request rather
+        than the runner page that minted the URL.
+
+        Rejecting an unknown scope keeps the route from minting an asset cache
+        entry per arbitrary string, the same reason ``_get_unit_test_scope``
+        validates the parameter it reads off the page request.
+        """
+        if scope not in request.env["ir.asset"]._get_installed_addons_list():
+            raise request.not_found()
+        return self.content_assets(**kwargs, assets_params={"unit_test_scope": scope})
+
+    @http.route(
         ["/web/assets/<string:unique>/<string:filename>"],
         type="http",
         auth="public",

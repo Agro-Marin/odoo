@@ -5,7 +5,7 @@
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { CustomColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
-import { cookie } from "@web/core/browser/cookie";
+import { colorScheme } from "@web/core/color_scheme";
 import { POSITION_BUS } from "@web/core/position/position_hook";
 import { registry } from "@web/core/registry";
 import {
@@ -203,7 +203,7 @@ export class ColorPicker extends Component {
     }
 
     get isDarkTheme() {
-        return cookie.get("color_scheme") === "dark";
+        return colorScheme.isDark;
     }
 
     setTab(tab) {

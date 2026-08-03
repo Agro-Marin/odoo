@@ -16,7 +16,7 @@
 
 .o_field_invalid {
     .o_signature {
-        outline: 3px solid map-get($theme-colors, "danger");
+        outline: 3px solid o-token(--danger, map-get($theme-colors, "danger"));
         cursor: pointer;
     }
 }

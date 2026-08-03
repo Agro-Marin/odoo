@@ -1,6 +1,6 @@
 .s_tabs_common {
-    --tabs-bg-color: #{$gray-100};
-    --tabs-link-color: #{$body-color};
+    --tabs-bg-color: #{o-palette-token(--o-gray-100, $gray-100)};
+    --tabs-link-color: #{o-palette-token(--o-text, $body-color)};
 
     .nav-link:focus-visible {
         // Replace "focus-visible" shadow with an inner shadow so that it's visible with container
@@ -52,19 +52,19 @@
 
         .s_tabs_nav:has(.nav-tabs),
         .s_tabs_nav:has(.nav-buttons) {
-            background: var(--tabs-bg-color, $gray-100);
+            background: var(--tabs-bg-color, o-palette-token(--o-gray-100, $gray-100));
 
             .nav .nav-item a.nav-link {
-                color: var(--tabs-link-color, $body-color);
+                color: var(--tabs-link-color, o-palette-token(--o-text, $body-color));
             }
         }
 
         .nav-tabs a.active {
-            color: $body-color;
+            color: o-palette-token(--o-text, $body-color);
         }
 
         .nav-underline {
-            border-bottom: $border-width solid $border-color;
+            border-bottom: $border-width solid o-token(--border-color, $border-color);
 
             .nav-link {
                 margin-bottom: $border-width * -1;
@@ -78,14 +78,14 @@
         &.row .nav-underline {
             @include media-breakpoint-up(sm) {
                 border-bottom: 0;
-                border-left: $border-width solid $border-color;
+                border-left: $border-width solid o-token(--border-color, $border-color);
 
                 .nav-link {
                     margin-left: $border-width * -1;
                     padding: map-get($spacers, 1) map-get($spacers, 3);
 
                     &.active {
-                        border-left: $border-width * 2 solid $link-color;
+                        border-left: $border-width * 2 solid o-token(--link-color, $link-color);
                         border-bottom: 0;
                     }
                 }
@@ -103,7 +103,7 @@
         .nav-buttons {
             .active {
                 color: color-contrast($white);
-                background-color: $white;
+                background-color: o-token(--o-white, $white);
 
                 &:where(:not(:focus-visible)) {
                     box-shadow: $box-shadow-sm;

@@ -100,7 +100,7 @@
 
             .s_blog_post_big_picture_infos::before {
                 @include o-position-absolute(0, 0, 0, 0);
-                background-color: rgba($black, 0.3);
+                background-color: o-token-alpha(--o-black, $black, 0.3);
                 transition: $transition-fade;
                 opacity: 0;
                 content: "";
@@ -135,8 +135,8 @@
             .s_blog_posts_post::before {
                 content: "";
                 @include o-position-absolute(1rem, 1rem);
-                border-top: $border-width * 2 solid $white;
-                border-right: $border-width * 2 solid $white;
+                border-top: $border-width * 2 solid o-token(--o-white, $white);
+                border-right: $border-width * 2 solid o-token(--o-white, $white);
                 padding: 1rem;
                 transition: $transition-base;
                 transform: scale3d(0, 0, 0);
@@ -160,7 +160,7 @@
 
             .s_blog_posts_post::before {
                 @include o-position-absolute(1rem, 1rem, 1rem, 1rem);
-                border: $border-width solid $white;
+                border: $border-width solid o-token(--o-white, $white);
                 border-radius: $border-radius;
                 opacity: 0;
                 z-index: 1;

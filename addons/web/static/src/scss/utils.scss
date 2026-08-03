@@ -172,7 +172,7 @@
     }
 }
 
-@mixin o-btn-link-variant($color, $color-active) {
+@mixin o-btn-link-variant($color, $color-active, $muted-color: $text-muted) {
     text-transform: none;
     @include o-hover-text-color($default-color: $color, $hover-color: $color-active);
 
@@ -193,7 +193,7 @@
     &.text-muted,
     .text-muted {
         @include o-hover-text-color(
-            $default-color: $text-muted,
+            $default-color: $muted-color,
             $hover-color: $color-active
         );
     }
@@ -263,6 +263,12 @@ $o-generic-font-families:
     @return if($value != null, $value, $default);
 }
 
+/// `$value` unless it is null. Sass's `or` treats `0` and `()` as truthy, but
+/// not `false` -- and a scheme decision may legitimately be `false`.
+@function o-or($value, $default) {
+    @return if($value != null, $value, $default);
+}
+
 @function o-safe-get($map, $key, $default: null) {
     $value: map-get($map, $key);
     @return if($value != null, $value, $default);
@@ -295,7 +301,7 @@ $o-generic-font-families:
     padding: 15px;
     z-index: 1000;
     text-align: center;
-    color: $body-color;
+    color: o-palette-token(--o-text, $body-color);
     font-size: 115%;
 
     > p:first-of-type {
@@ -399,11 +405,22 @@ $o-webclient-medias: screen, print;
 
 // The ring colour a given background needs: white once the surface is dark
 // enough that the default purple stops separating from it.
-@function o-ring-color-for($-background) {
+/// The focus ring to use on *this* surface: the palette's own ring where it
+/// clears the contrast floor, and a plain contrast pick where it does not.
+///
+/// Both the ring and the pick are scheme-dependent, so a caller stating the dark
+/// answer from a light bundle has to hand in both -- `$o-ring-color` and
+/// `color-contrast()` would otherwise be read from whichever palette compiles,
+/// and the two bundles would disagree about a colour they both call dark.
+@function o-ring-color-for($-background, $-ring: $o-ring-color, $-scheme: null) {
     @return if(
-        contrast-ratio($-background, $o-ring-color) >= $o-ring-min-contrast,
-        $o-ring-color,
-        color-contrast($-background)
+        contrast-ratio($-background, $-ring) >= $o-ring-min-contrast,
+        $-ring,
+        if(
+            $-scheme,
+            o-scheme-contrast($-background, $-scheme),
+            color-contrast($-background)
+        )
     );
 }
 

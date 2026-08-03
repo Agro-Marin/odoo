@@ -76,3 +76,18 @@
         }
     }
 }
+
+
+// The dark half, folded in from `toolbar.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-we-toolbar {
+            background-color: $o-dark-gray-200;
+            border-bottom: 1px solid $o-dark-gray-300;
+
+            .o-we-toolbar-vertical-separator:not(:first-child) {
+                border-left: 1px solid $o-dark-gray-300;
+            }
+        }
+    }
+}

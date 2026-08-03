@@ -2,16 +2,16 @@
     --SearchBar-background-color: #{$input-focus-bg};
 
     background-color: var(--SearchBar-background-color);
-    border: $input-border-width solid $border-color;
+    border: $input-border-width solid o-token(--border-color, $border-color);
 
     &:focus-within {
-        border-color: $input-focus-border-color;
+        border-color: o-token(--o-brand, $input-focus-border-color);
         color: $input-focus-color;
 
         + .o_searchview_dropdown_toggler {
-            border-top-color: $input-focus-border-color;
-            border-right-color: $input-focus-border-color;
-            border-bottom-color: $input-focus-border-color;
+            border-top-color: o-token(--o-brand, $input-focus-border-color);
+            border-right-color: o-token(--o-brand, $input-focus-border-color);
+            border-bottom-color: o-token(--o-brand, $input-focus-border-color);
         }
     }
 
@@ -38,7 +38,7 @@
         }
 
         .o_generator_menu_value {
-            color: $o-main-text-color;
+            color: var(--o-text);
 
             .datepickerbutton {
                 cursor: pointer;
@@ -56,7 +56,7 @@
             );
 
             &:hover {
-                background-color: map-get($grays, "100");
+                background-color: o-palette-token(--o-gray-100, map-get($grays, "100"));
             }
         }
     }
@@ -71,7 +71,7 @@
 
 .o_web_client .o_mobile_search {
     align-items: normal;
-    background-color: var(--mobileSearch-bg, #{$o-white});
+    background-color: var(--mobileSearch-bg, var(--o-white));
     border: none;
     bottom: 0;
     display: flex;
@@ -85,7 +85,7 @@
     z-index: $zindex-modal;
 
     .o_mobile_search_header {
-        background-color: var(--mobileSearch__header-bg, #{$o-brand-odoo});
+        background-color: var(--mobileSearch__header-bg, var(--o-brand-odoo));
         display: flex;
         min-height: $o-navbar-height;
         justify-content: space-between;
@@ -147,7 +147,7 @@
                 line-height: 2;
 
                 &:not(.show) {
-                    box-shadow: 0 0 0 1px $border-color;
+                    box-shadow: 0 0 0 1px o-token(--border-color, $border-color);
                 }
             }
 

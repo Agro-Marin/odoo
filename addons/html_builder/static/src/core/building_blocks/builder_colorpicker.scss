@@ -26,7 +26,7 @@
     --bg: #{$o-we-item-clickable-bg};
 
     background-color: $o-we-item-clickable-bg;
-    color: $white;
+    color: o-token(--o-white, $white);
 
     &:has(.theme-tab) {
         width: 250px;
@@ -130,7 +130,7 @@
     }
 
     .gradient-angle-thumb {
-        background-color: $white;
+        background-color: o-token(--o-white, $white);
     }
 
     .o_color_picker_inputs,

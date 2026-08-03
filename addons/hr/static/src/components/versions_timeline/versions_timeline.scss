@@ -128,7 +128,7 @@
                     &,
                     &:hover,
                     &:focus {
-                        color: $text-muted;
+                        color: o-palette-token(--o-text-muted, $text-muted);
                     }
                 }
             }

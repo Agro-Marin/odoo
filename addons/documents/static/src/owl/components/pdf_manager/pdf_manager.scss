@@ -1,6 +1,6 @@
-$o-pdf-manager-background-color: $o-gray-100;
-$o-pdf-manager-separator-color: $warning;
-$o-pdf-manager-border-color: $o-gray-300;
+$o-pdf-manager-background-color: o-token(--o-gray-100, $o-gray-100);
+$o-pdf-manager-separator-color: o-token(--warning, $warning);
+$o-pdf-manager-border-color: o-token(--o-gray-300, $o-gray-300);
 $o-pdf-manager-selection-area-color: solid 1px #047078;
 
 .o_dialog_split_tools {
@@ -32,7 +32,7 @@ $o-pdf-manager-selection-area-color: solid 1px #047078;
 }
 
 .o_documents_pdf_manager_top_bar {
-    background-color: $o-view-background-color;
+    background-color: o-token(--o-bg-view, $o-view-background-color);
     width: 100%;
     border-bottom: solid 1px $o-pdf-manager-border-color;
     padding: 10px;
@@ -148,7 +148,7 @@ $o-pdf-manager-selection-area-color: solid 1px #047078;
             border: 1px solid $o-pdf-manager-separator-color;
         }
         .o_pdf_scissors {
-            color: $o-black;
+            color: o-token(--o-black, $o-black);
         }
     }
 

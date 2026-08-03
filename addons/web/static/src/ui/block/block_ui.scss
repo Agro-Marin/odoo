@@ -5,7 +5,7 @@
     &:not(.o_blockUI_invisible) {
         -webkit-backdrop-filter: blur(2px);
         backdrop-filter: blur(2px);
-        background: rgba($black, 0.5);
-        color: $white;
+        background: o-token-alpha(--o-black, $black, 0.5);
+        color: o-token(--o-white, $white);
     }
 }

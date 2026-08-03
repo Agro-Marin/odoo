@@ -5,7 +5,7 @@
 
     &.o_invalid {
         color: o-text-color("danger");
-        border-bottom-color: map-get($theme-colors, "danger");
+        border-bottom-color: o-token(--danger, map-get($theme-colors, "danger"));
         background-color: $o-input-invalid-bg;
     }
 }

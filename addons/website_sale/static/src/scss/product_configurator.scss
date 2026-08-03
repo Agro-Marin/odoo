@@ -34,7 +34,7 @@
 
     &.active,
     &.active:hover {
-        --o-wsale-attribute-color-border-color: #{$primary};
+        --o-wsale-attribute-color-border-color: #{o-token(--primary, $primary)};
     }
 
     &:has(input:focus-visible)::before {
@@ -69,12 +69,12 @@
     );
     aspect-ratio: 1;
     border: $border-width * 5 solid $body-bg;
-    outline: var(--o-wsale-css-attribute-image__outline-width) solid $border-color;
+    outline: var(--o-wsale-css-attribute-image__outline-width) solid o-token(--border-color, $border-color);
     transition: $input-transition;
 
     &:hover,
     &.active {
-        outline-color: map-get($theme-colors, "primary");
+        outline-color: o-token(--primary, map-get($theme-colors, "primary"));
     }
 
     &.custom_value {
@@ -195,7 +195,7 @@ select.form-select.css_attribute_select {
 
 .variant_attribute {
     .o_variant_pills {
-        border: $border-width solid $border-color;
+        border: $border-width solid o-token(--border-color, $border-color);
 
         &:has(input:focus-visible) {
             box-shadow: $btn-focus-box-shadow;

@@ -192,11 +192,11 @@
 .wishlist-section {
     &:where(:has(.o_wsale_products_opt_design_grid)) {
         .o_wsale_products_opt_design_grid {
-            border-left: $border-width solid $border-color;
+            border-left: $border-width solid o-token(--border-color, $border-color);
         }
         .o_wishlist_products_header {
             padding: 0 $container-padding-x * 0.5;
-            border: $border-width solid $border-color;
+            border: $border-width solid o-token(--border-color, $border-color);
             border-top: 0;
         }
     }
@@ -259,7 +259,7 @@
                     &:before {
                         @include o-position-absolute(0, auto, 0);
                         transform: translateX(calc(var(--_line-gap) * -1));
-                        border-left: $border-width solid $border-color;
+                        border-left: $border-width solid o-token(--border-color, $border-color);
                         content: "";
                     }
                 }

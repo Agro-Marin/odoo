@@ -1,5 +1,5 @@
 .paymentlines .electronic_payment {
-    background: $gray-200;
+    background: o-palette-token(--o-gray-200, $gray-200);
     border-collapse: unset;
     font-size: 16px;
     padding-right: 0;

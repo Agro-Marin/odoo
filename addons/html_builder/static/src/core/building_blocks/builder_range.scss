@@ -1,8 +1,8 @@
 .o-hb-range {
     .popover & {
-        --o-hb-range-thumb-color: var(
-            --o-hb-range-thumb-color-popover,
-            #{$o-we-bg-darkest}
+        --o-hb-range-thumb-color: light-dark(
+            #{$o-we-bg-darkest},
+            #{$o-we-fg-lighter}
         );
     }
     &:has(output) {

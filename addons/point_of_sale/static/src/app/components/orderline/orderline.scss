@@ -4,17 +4,17 @@
     transition: $transition-base;
 
     &:hover {
-        background-color: $o-gray-200;
+        background-color: o-palette-token(--o-gray-200, $o-gray-200);
     }
 
     @media (hover: none) {
         &:hover {
-            background-color: $white;
+            background-color: o-token(--o-white, $white);
         }
     }
 
     &.selected {
-        background-color: var(--orderline-selected, #{$o-component-active-bg});
+        background-color: var(--orderline-selected, #{o-token(--o-bg-active, $o-component-active-bg)});
     }
 
     &.has-change::before {
@@ -23,7 +23,7 @@
         top: -1px;
         bottom: -1px;
         width: 6px;
-        background-color: $o-brand-primary;
+        background-color: o-token(--o-brand, $o-brand-primary);
     }
 
     &.has-change:first-child::before,

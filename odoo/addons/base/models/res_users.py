@@ -759,6 +759,22 @@ class ResUsers(models.Model):
     def _search_res_users_settings_id(self, operator: str, operand: Any) -> Domain:
         return Domain("res_users_settings_ids", operator, operand)
 
+    @api.model
+    @tools.ormcache()
+    def _settings_backed_fields(self) -> frozenset[str]:
+        """Fields on this model whose writes land in ``res.users.settings``.
+
+        Asked of the registry rather than listed, so a preference added later
+        is covered by having been declared, not by someone remembering this.
+        """
+        return frozenset(
+            name
+            for name, field in self._fields.items()
+            if field.related
+            and field.related.startswith("res_users_settings_id.")
+            and not field.readonly
+        )
+
     @api.onchange("login")
     def on_change_login(self) -> None:
         if self.login and tools.single_email_re.match(self.login):
@@ -816,6 +832,22 @@ class ResUsers(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        """Create, holding back the values that live on ``res.users.settings``.
+
+        That row cannot exist before the user does, and ``_inverse_related``
+        runs inside ``super().create()`` -- against no row, and in silence, so
+        ``create({..., "color_scheme": "dark"})`` returned a user whose theme
+        was the default. Written afterwards instead, through :meth:`write`,
+        which is where making the row belongs.
+        """
+        backed = self._settings_backed_fields()
+        deferred = [
+            {k: v for k, v in vals.items() if k in backed} for vals in vals_list
+        ]
+        if any(deferred):
+            vals_list = [
+                {k: v for k, v in vals.items() if k not in backed} for vals in vals_list
+            ]
         users = super().create(vals_list)
         setting_vals = [
             {"user_id": user.id}
@@ -832,6 +864,9 @@ class ResUsers(models.Model):
                 user.image_1920 = user.partner_id._avatar_generate_svg()
         if setting_vals:
             self.env["res.users.settings"].sudo().create(setting_vals)
+        for user, settings in zip(users, deferred, strict=True):
+            if settings:
+                user.write(settings)
         return users
 
     def _escapes_own_record(self, vals: dict[str, Any]) -> bool:
@@ -863,6 +898,12 @@ class ResUsers(models.Model):
 
         if vals.get("active"):
             self.partner_id.action_unarchive()
+
+        if not self._settings_backed_fields().isdisjoint(vals):
+            settings = self.env["res.users.settings"]
+            for user in self:
+                settings._find_or_create_for_user(user)
+
         if self == self.env.user and vals:
             writeable = self._self_accessible_fields()[1]
             if all(key in writeable for key in vals) and not self._escapes_own_record(

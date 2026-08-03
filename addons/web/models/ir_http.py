@@ -65,17 +65,52 @@ class IrHttp(models.AbstractModel):
         super()._post_logout()
         request.future_response.set_cookie("cids", max_age=0)
         request.future_response.set_cookie("content_density", max_age=0)
+        request.future_response.set_cookie("color_scheme", max_age=0)
 
     def webclient_rendering_context(self) -> dict[str, Any]:
         return {
             "color_scheme": self.color_scheme(),
+            "color_scheme_preference": self.color_scheme_preference(),
             "content_density": self.content_density(),
             "session_info": self.session_info(),
         }
 
+    def color_scheme_preference(self) -> str:
+        """Return what the user asked for: 'system', 'light' or 'dark'.
+
+        Distinct from :meth:`color_scheme`, which answers a different question.
+        This one decides which bundles ``webclient_bootstrap`` emits, and
+        ``system`` is answerable there — the template ships both behind
+        ``prefers-color-scheme`` media queries and lets the browser choose, so
+        the first paint is correct without the server knowing the answer.
+        """
+        user = request.env.user
+        if not user or user._is_public():
+            return "light"
+        return user.res_users_settings_id.color_scheme or "system"
+
     def color_scheme(self) -> str:
-        """Return the color scheme for the web client. Override to support dark/system."""
-        return "light"
+        """Resolve the scheme actually in effect, as 'light' or 'dark'.
+
+        Never returns 'system': this feeds the ``color_scheme`` cookie, which
+        a good deal of JS reads as a settled answer — chart palettes, the ace
+        theme, the colour picker, the PDF viewer — one of them at module scope.
+        Handing them 'system' would read as 'not dark'.
+
+        Priority: explicit user setting > cookie > 'light'. The order is the
+        reverse of :meth:`content_density` on purpose. Density has no value the
+        client must resolve, so its cookie is only a faster copy of the
+        setting. Here the cookie is where the browser's answer to ``system`` is
+        cached, so it must not outrank a user who asked for light or dark.
+        """
+        user = request.env.user
+        if not user or user._is_public():
+            return "light"
+        scheme = user.res_users_settings_id.color_scheme
+        if scheme in ("light", "dark"):
+            return scheme
+        cookie_scheme = request.httprequest.cookies.get("color_scheme")
+        return cookie_scheme if cookie_scheme in ("light", "dark") else "light"
 
     def content_density(self) -> str:
         """Determine content density for the current request.

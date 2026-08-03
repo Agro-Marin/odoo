@@ -84,10 +84,8 @@
             "project/static/src/scss/project_form.scss",
             "project/static/src/scss/project_widgets.scss",
             "project/static/src/xml/**/*",
-            ("remove", "project/static/src/**/*.dark.scss"),
-        ],
+                    ],
         "web.assets_web_dark": [
-            "project/static/src/**/*.dark.scss",
         ],
         "web.assets_frontend": [
             "project/static/src/scss/portal_rating.scss",
@@ -114,6 +112,9 @@
             "web/static/src/libs/fontawesome7/css/regular.css",
             "web/static/src/libs/fontawesome7/css/brands.css",
             "web/static/lib/odoo_ui_icons/*",
+            # Project sharing serves web's component CSS, which reads the
+            # palette as `--o-*`; nothing else here publishes it.
+            "web/static/src/scss/tokens.scss",
             "web/static/src/webclient/navbar/navbar.scss",
             "web/static/src/scss/animation.scss",
             "web/static/src/components/color_picker/color_picker.scss",
@@ -187,6 +188,11 @@
             "project/static/src/views/project_task_relational_model.js",
             "project/static/src/views/project_model_mixin.js",
             "project/static/src/views/project_relational_model.js",
+            # Project sharing is a light bundle, and the globs above reach
+            # every dark sibling in web, the theme and web_gantt. Each would
+            # compile with the light palette and override the light file it
+            # answers -- the file viewer's toolbar was the visible one.
+            ("remove", "web/static/src/**/*.dark.scss"),
             ("include", "portal.assets_chatter_helpers"),
             "portal/static/src/chatter/core/**/*",
             "project/static/src/project_sharing/**/*",

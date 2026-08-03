@@ -143,9 +143,10 @@ Narrows asset bundles to a HOOT suite's dependency closure (`&module_scope=`, se
 
 **Key Methods:**
 - `_get_asset_params()` — Adds `unit_test_scope` to the asset params (and so to the ormcache key) when a scope is in effect.
-- `_get_unit_test_scope()` — Returns the scoped addon, or `""`. Reads `module_scope` from the **request**, not the bundle, since the scope varies per run; only honoured on `/web/tests` (`UNIT_TEST_ROUTE`) and only for an installed addon, so a stray param elsewhere cannot fragment the asset cache.
+- `_get_unit_test_scope()` — Returns the scoped addon, or `""`. Reads `module_scope` from the **request**, not the bundle, since the scope varies per run; only honoured on the runner routes (`UNIT_TEST_ROUTES` = `/web/tests` and `/web/bundle/`, the latter being where `loadBundle` lands) and only for an installed addon, so a stray param elsewhere cannot fragment the asset cache.
 - `_get_unit_test_scope_addons(scope)` — `scope` plus its transitive **manifest** dependency closure (`ormcache`d on `scope`). Addons outside the closure are exactly the ones a correct suite must not depend on.
-- `_get_active_addons_list(*, unit_test_scope=None, **params)` — Override that filters the active addons to that closure. Returns the unfiltered list when no scope is set.
+- `_get_active_addons_list(*, unit_test_scope=None, **params)` — Override that filters the active addons to that closure. Returns the unfiltered list when no scope is set. Feeds `Resolution.active` in base, which is what also gates `ir.asset` rows (they name a path, never an addon).
+- `_get_asset_url_segments(assets_params)` — Contributes `scope/<addon>` to the published URL, so `Binary.content_assets_scoped` can rebuild the bundle the page linked. `unique` alone distinguishes a scoped bundle but cannot describe it.
 
 ## User Preferences
 

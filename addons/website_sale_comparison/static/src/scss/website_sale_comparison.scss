@@ -64,7 +64,7 @@
     .o_wsale_comparison_mini_sticky {
         transform: translateY(-100%);
         transition: transform 0.4s ease-in-out;
-        box-shadow: 0px 3px 3px rgba($black, 0.1);
+        box-shadow: 0px 3px 3px o-token-alpha(--o-black, $black, 0.1);
         z-index: $zindex-fixed - 1;
 
         &.show {
@@ -97,7 +97,7 @@
 
 // Specifications
 #product_full_spec {
-    border-top: 1px solid map-get($grays, "400");
+    border-top: 1px solid o-palette-token(--o-gray-400, map-get($grays, "400"));
 
     .o_add_compare_dyn {
         @include font-size(1.1rem);
@@ -107,7 +107,7 @@
 .o_wsale_comparison_bottom_bar {
     z-index: $zindex-modal;
 
-    box-shadow: 0px -12px 32px rgba($black, 0.175);
+    box-shadow: 0px -12px 32px o-token-alpha(--o-black, $black, 0.175);
 
     .btn[data-bs-toggle="collapse"] {
         .oi-chevron-up {
@@ -130,7 +130,7 @@
     div[name="product_comparison_bottom_bar_row"]:where(
             :has(button[aria-label="Remove product from comparison"]:hover)
         ) {
-        background: $light;
+        background: o-token(--light, $light);
     }
 
     .o_wsale_comparison_bottom_bar_image {

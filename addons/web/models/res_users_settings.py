@@ -19,6 +19,16 @@ class ResUsersSettings(models.Model):
         required=True,
         string="Content Density",
     )
+    color_scheme = fields.Selection(
+        [
+            ("system", "System"),
+            ("light", "Light"),
+            ("dark", "Dark"),
+        ],
+        default="system",
+        required=True,
+        string="Color Scheme",
+    )
 
     @api.model
     def _format_settings(self, fields_to_format: list[str]) -> dict[str, Any]:

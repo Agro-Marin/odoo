@@ -6,7 +6,7 @@
         > header {
             background-color: $component-active-bg;
             font-weight: $font-weight-bold;
-            color: $black;
+            color: o-token(--o-black, $black);
 
             .o_search_panel_label_title {
                 padding-left: map-get($spacers, 2);
@@ -81,7 +81,7 @@
 .o_documents_drop_over_unauthorized_zone {
     @extend .o_documents_drop_over_zone;
     &:after {
-        border: 2px dashed map-get($o-theme-text-colors, "danger");
+        border: 2px dashed o-token(--o-danger-text, map-get($o-theme-text-colors, "danger"));
     }
 }
 
@@ -90,7 +90,7 @@
     overflow: auto;
     transition: background 0.3s;
     height: 100%;
-    background: $gray-700;
+    background: o-palette-token(--o-gray-700, $gray-700);
 
     table {
         opacity: 0.2;
@@ -198,13 +198,13 @@
             }
         }
         .o_drag_hover > div {
-            border-color: $o-success !important;
-            background-color: mix($o-success, $o-white, 10%) !important;
+            border-color: o-palette-token(--success, $o-success) !important;
+            background-color: unquote("color-mix(in srgb, #{o-palette-token(--success, $o-success)} 10%, #{o-token(--o-white, $o-white)})") !important;
             cursor: move !important;
         }
         .o_drag_invalid > div {
-            border-color: $o-danger !important;
-            background-color: mix($o-danger, $o-white, 10%) !important;
+            border-color: o-palette-token(--danger, $o-danger) !important;
+            background-color: unquote("color-mix(in srgb, #{o-palette-token(--danger, $o-danger)} 10%, #{o-token(--o-white, $o-white)})") !important;
             cursor: not-allowed !important;
         }
         .table-success > td {
@@ -254,7 +254,7 @@
 }
 
 .o_form_view .o_conf_mail {
-    color: $link-color;
+    color: o-token(--link-color, $link-color);
 }
 
 ////// =========== Sharing Dialog ==============
@@ -413,6 +413,6 @@
             --table-accent-bg: inherit !important;
             --table-striped-bg: inherit !important;
         }
-        color: $text-muted !important;
+        color: o-palette-token(--o-text-muted, $text-muted) !important;
     }
 }

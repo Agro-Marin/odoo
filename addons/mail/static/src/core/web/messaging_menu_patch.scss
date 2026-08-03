@@ -2,8 +2,8 @@
     border: 1px solid transparent;
 
     &.o-active {
-        background-color: rgba($o-action, 0.075);
-        border-color: rgba($o-action, 0.1);
+        background-color: o-token-alpha(--o-action, $o-action, 0.075);
+        border-color: o-token-alpha(--o-action, $o-action, 0.1);
     }
 }
 

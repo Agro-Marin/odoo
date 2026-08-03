@@ -45,20 +45,20 @@
     }
 
     button.active.o-inProgress {
-        --list-group-active-bg: #{rgba($success, 0.2)};
-        --list-group-active-color: #{$success};
-        --list-group-active-border-color: #{$success};
+        --list-group-active-bg: #{o-token-alpha(--success, $success, 0.2)};
+        --list-group-active-color: #{o-token(--success, $success)};
+        --list-group-active-border-color: #{o-token(--success, $success)};
 
         .o-livechat-LivechatStatusSelection-Label {
             color: var(--list-group-color);
         }
         &.o-livechat-LivechatStatusLabel-icon {
-            color: $success;
+            color: o-token(--success, $success);
         }
 
         .form-check-input {
-            background-color: $success;
-            border-color: $success;
+            background-color: o-token(--success, $success);
+            border-color: o-token(--success, $success);
         }
     }
 
@@ -79,11 +79,11 @@
 
     button.active.o-waiting {
         --list-group-active-color: var(--body-color);
-        --list-group-active-border-color: map-get($o-theme-text-colors, "warning");
+        --list-group-active-border-color: o-token(--o-warning-text, map-get($o-theme-text-colors, "warning"));
 
         .form-check-input {
-            background-color: map-get($o-theme-text-colors, "warning");
-            border-color: map-get($o-theme-text-colors, "warning");
+            background-color: o-token(--o-warning-text, map-get($o-theme-text-colors, "warning"));
+            border-color: o-token(--o-warning-text, map-get($o-theme-text-colors, "warning"));
         }
     }
 
@@ -99,11 +99,22 @@
 }
 
 .o-livechat-LivechatStatusLabel.position-absolute {
-    background-color: rgba($white, var(--bg-opacity, 1));
+    background-color: rgba(var(--o-white-rgb), var(--bg-opacity, 1));
     border-radius: 50%;
 }
 
 .o_country_flag {
     width: 24px;
     height: 16px;
+}
+
+
+// The dark half, folded in from `livechat_channel_info_list.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-livechat-LivechatStatusLabel.o-help {
+            --livechat-LivechatStatusLabel-helpColor: #{lighten($purple, 15%)};
+            text-shadow: 0px 0px 3px black;
+        }
+    }
 }

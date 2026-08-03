@@ -1,4 +1,9 @@
-$o-bus-ConnectionAlert-color: mix($white, $warning, 60%);
+// As a `color-mix()` rather than a Sass `mix()`, so both sides stay tokens and
+// the alert follows the scheme. The alpha reads below are `color-mix()` too,
+// because `rgba()` needs a colour and this is not one any more.
+$o-bus-ConnectionAlert-color: unquote(
+    "color-mix(in srgb, #{o-token(--o-white, $white)} 60%, #{o-token(--warning, $warning)})"
+);
 
 .o-bus-ConnectionAlert {
     z-index: 1056;
@@ -21,7 +26,7 @@ $o-bus-ConnectionAlert-color: mix($white, $warning, 60%);
 }
 
 .o-bus-ConnectionAlert-label {
-    color: $black;
+    color: o-token(--o-black, $black);
 }
 
 @keyframes o-bus-ConnectionAlert-iconAnimation {
@@ -36,7 +41,10 @@ $o-bus-ConnectionAlert-color: mix($white, $warning, 60%);
 
 @keyframes o-bus-ConnectionAlert-borderAnimation {
     from {
-        border-color: rgba($o-bus-ConnectionAlert-color, 0);
+        // `transparent`, not `rgba(<the colour>, 0)`: colour interpolation is
+        // premultiplied, so a keyframe fading from either reaches the opaque
+        // colour along the same path. The hue at alpha 0 was never visible.
+        border-color: transparent;
     }
 
     to {
@@ -47,7 +55,9 @@ $o-bus-ConnectionAlert-color: mix($white, $warning, 60%);
 @keyframes o-bus-ConnectionAlert-failureAnimation {
     from {
         opacity: 0%;
-        background-color: rgba($o-bus-ConnectionAlert-color, 0.5);
+        background-color: unquote(
+            "color-mix(in srgb, #{$o-bus-ConnectionAlert-color} 50%, transparent)"
+        );
     }
 
     to {

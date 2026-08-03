@@ -1,6 +1,4 @@
 :root {
-    --o-webclient-color-scheme: #{$o-webclient-color-scheme};
-
     font-size: $o-root-font-size;
 }
 
@@ -22,8 +20,10 @@ tfoot {
 .o_web_client {
     direction: ltr;
     position: relative;
-    background-color: $o-webclient-background-color;
-    color-scheme: $o-webclient-color-scheme;
+    background-color: o-palette-token(--body-bg, $o-webclient-background-color);
+    // `color-scheme` comes from `tokens.scss`, on the root and per scheme.
+    // Here it was read at compile time, so a light bundle could only say
+    // `light` — which is the whole of what `light-dark()` needs to work.
 }
 
 .o_icon_button {
@@ -34,17 +34,25 @@ tfoot {
 }
 
 kbd {
-    border: 1px solid $o-gray-200;
+    border: 1px solid var(--o-gray-200);
     box-shadow: $kbd-box-shadow;
 }
 
-@each $-name, $-bg-color in $theme-colors {
-    $-safe-text-color: color-contrast(mix($-bg-color, $o-view-background-color));
-    @include bg-variant(
-        ".bg-#{$-name}-light",
-        rgba(map-get($theme-colors, $-name), 0.5),
-        $-safe-text-color
-    );
+@include o-bg-light-variants(
+    $theme-colors,
+    $o-view-background-color,
+    o-light-scheme()
+);
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        @include o-bg-light-variants(
+            $o-dark-theme-colors,
+            $o-dark-view-background-color,
+            o-dark-scheme(),
+            $-extend-reset: false
+        );
+    }
 }
 
 .badge {
@@ -56,7 +64,7 @@ kbd {
     font-weight: 500;
     @include o-text-overflow;
     transition: none;
-    color: $o-black;
+    color: var(--o-black);
 }
 
 :not(.dropstart) > .dropdown-item {
@@ -75,7 +83,7 @@ kbd {
                 @include o-position-absolute(0);
                 transform: translate(-1.5em, 90%);
                 font: 900 0.7em/1em "Font Awesome 7 Pro";
-                color: $link-color;
+                color: o-token(--link-color, $link-color);
                 content: "\f00c";
             }
 
@@ -95,7 +103,7 @@ kbd {
             @include o-position-absolute(0, $left: 90%);
             transform: translate(0, 90%);
             font: 900 0.7em/1em "Font Awesome 7 Pro";
-            color: $link-color;
+            color: o-token(--link-color, $link-color);
             display: inline-block;
             content: "\f00c";
             border: 0;
@@ -171,19 +179,20 @@ select {
     min-width: 50px;
 
     appearance: none;
-    background: transparent $o-caret-down no-repeat right center;
+    background-color: var(--o-text, #{o-token(--o-text, $o-main-text-color)});
+    mask: $o-caret-down no-repeat right center;
 
-    color: $o-main-text-color;
+    color: var(--o-text);
 
     > option {
-        background: $light;
+        background: o-token(--light, $light);
     }
 
     &:-moz-focusring {
         color: transparent;
-        text-shadow: 0 0 0 $o-main-text-color;
+        text-shadow: 0 0 0 var(--o-text);
         > option {
-            color: $o-main-text-color;
+            color: var(--o-text);
         }
     }
 }
@@ -238,7 +247,7 @@ select {
     &.text-bg-light,
     &.bg-default,
     &.text-primary {
-        outline: 1px solid $o-brand-primary;
+        outline: 1px solid var(--o-brand);
         outline-offset: -1px;
     }
 }
@@ -267,7 +276,7 @@ select {
 .card {
     border-radius: $o-border-radius-lg;
     box-shadow: $o-shadow-sm;
-    border-color: $o-gray-200;
+    border-color: var(--o-gray-200);
 }
 
 .o_skeleton {
@@ -282,16 +291,16 @@ select {
     background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-    background: $o-gray-300;
+    background: var(--o-gray-300);
     border-radius: $o-border-radius-full;
 
     &:hover {
-        background: $o-gray-400;
+        background: var(--o-gray-400);
     }
 }
 
 html {
     scrollbar-width: thin;
-    scrollbar-color: $o-gray-300 transparent;
+    scrollbar-color: var(--o-gray-300) transparent;
 }
 

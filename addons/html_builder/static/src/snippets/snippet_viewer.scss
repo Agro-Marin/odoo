@@ -191,9 +191,9 @@
 
     &.o_add_snippets_preview--dark {
         .o_custom_snippet_edit {
-            --body-color: #{$white};
+            --body-color: #{o-token(--o-white, $white)};
 
-            color: $white;
+            color: o-token(--o-white, $white);
         }
     }
 }

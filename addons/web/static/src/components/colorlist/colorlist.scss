@@ -36,7 +36,7 @@
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                color: var(--color, #{$body-color});
+                color: var(--color, #{o-palette-token(--o-text, $body-color)});
                 font: normal 900 1em/1 "Font Awesome 7 Pro";
                 content: "\f00c";
             }
@@ -61,18 +61,18 @@
 
         &.o_colorlist_item_color_0 {
             background: transparent;
-            box-shadow: inset 0 0 0 1px $gray-500;
+            box-shadow: inset 0 0 0 1px o-palette-token(--o-gray-500, $gray-500);
         }
 
         @for $size from 2 through length($o-colors) {
             &.o_colorlist_item_color_#{$size - 1} {
-                @include o-print-color(
-                    nth($o-colors, $size),
+                @include o-print-color-rgb(
+                    var(--o-record-color-#{$size}-rgb),
                     background-color,
                     bg-opacity
                 );
-                @include o-print-color(
-                    color-contrast(nth($o-colors, $size)),
+                @include o-print-color-rgb(
+                    var(--o-record-color-#{$size}-on-rgb),
                     color,
                     text-opacity
                 );

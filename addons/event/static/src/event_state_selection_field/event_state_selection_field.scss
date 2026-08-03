@@ -14,7 +14,7 @@
     }
 
     .o_status_blocked {
-        color: $warning;
+        color: o-token(--warning, $warning);
     }
 }
 
@@ -34,6 +34,6 @@
     }
 
     .o_status_blocked {
-        color: $warning;
+        color: o-token(--warning, $warning);
     }
 }

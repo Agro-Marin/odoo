@@ -4,7 +4,7 @@
 
 .o-mail-ChatterContainer,
 .o-mail-Form-chatter {
-    background-color: $o-webclient-background-color;
+    background-color: o-palette-token(--body-bg, $o-webclient-background-color);
     --Chatter-asideExtraWidth: 0px; // to take into account more items, e.g. "close" chatter feature
     &.o-aside {
         @media (max-width: 1920px) {
@@ -71,7 +71,7 @@
 
 .o-mail-Chatter-collapsed-icon {
     font-size: 1.1rem;
-    color: $text-muted;
+    color: o-palette-token(--o-text-muted, $text-muted);
 
     .badge {
         position: absolute;

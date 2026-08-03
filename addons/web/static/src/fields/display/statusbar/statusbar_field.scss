@@ -10,7 +10,7 @@
         align-items: stretch;
 
         --o-statusbar-radius: 0.1rem;
-        --o-statusbar-border: #{$o-view-background-color};
+        --o-statusbar-border: var(--o-bg-view);
         --o-statusbar-background-active: #{map-get(
                 $-btn-secondary-design,
                 active-background
@@ -162,7 +162,7 @@
                     &,
                     &:hover,
                     &:focus {
-                        color: $text-muted;
+                        color: o-palette-token(--o-text-muted, $text-muted);
                     }
                 }
             }

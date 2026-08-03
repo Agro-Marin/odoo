@@ -18,11 +18,11 @@
                 padding: 0;
 
                 &.active {
-                    color: rgba($body-color, 0.7);
+                    color: o-token-alpha(--o-text, $body-color, 0.7);
                     cursor: default;
                 }
                 &.active:hover {
-                    color: rgba($body-color, 0.9);
+                    color: o-token-alpha(--o-text, $body-color, 0.9);
                     cursor: pointer;
                 }
             }
@@ -30,7 +30,7 @@
     }
 
     .o_wevent_bordered_block:not(:last-child) {
-        border-bottom: $border-width solid $border-color;
+        border-bottom: $border-width solid o-token(--border-color, $border-color);
     }
 
     // Custom utility classes to be applied on day numbers and to
@@ -125,6 +125,6 @@
 .o_event_add_to_calendar_btns a {
     border: 1px solid #dee2e6;
     &:hover {
-        background-color: $gray-200;
+        background-color: o-palette-token(--o-gray-200, $gray-200);
     }
 }

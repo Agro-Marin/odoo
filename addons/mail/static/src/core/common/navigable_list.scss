@@ -19,3 +19,14 @@
 .o-mail-NavigableList-floatingLoading {
     right: $border-width; // as to not overlap border
 }
+
+
+// The dark half, folded in from `navigable_list.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-NavigableList {
+            --mail-NavigableList-activeBgColor: #{mix($o-dark-white, $o-dark-action, 90%)};
+            --mail-NavigableList-hoverBgColor: #{mix($o-dark-white, $o-dark-action, 82.5%)};
+        }
+    }
+}

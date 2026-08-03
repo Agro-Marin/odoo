@@ -277,15 +277,33 @@ prefix its suite names already carry. `ir.asset._get_active_addons_list`
 **manifest dependency closure** — for `mail` that is `{mail, web_tour,
 html_editor, bus, web, base}`. What cannot load cannot register.
 
+A run is not one request but three kinds, and the scope has to reach all of
+them or the page loads foreign `src` anyway:
+
+| request | how the scope reaches it |
+|---|---|
+| the runner page | `&module_scope=` query param, honoured on `/web/tests` |
+| the bundles it links | the published URL — `/web/assets/scope/<addon>/<unique>/…` |
+| bundles `loadBundle` fetches later | `session_info['bundle_params']`, which `assets.js` copies into `/web/bundle/…` |
+
 - **Inert without the param.** No `module_scope` → `_get_asset_params()` is
   unchanged → the ormcache key and the bundle are identical. Only honoured on
-  `/web/tests*`, so a stray param cannot fragment the asset cache of ordinary
-  pages.
-- **No URL collision.** A bundle's `unique` is a SHA256 over its asset
-  descriptors (`assetsbundle/bundle.py::get_checksum`) and ESM artifacts are
-  content-addressed, so a scoped bundle mints its own URL and can never
-  overwrite the unscoped attachment. No `_get_asset_bundle_url` override is
-  needed (unlike `website`, whose custom-SCSS URLs *can* collide).
+  the runner routes, and only for an installed addon, so a stray param cannot
+  fragment the asset cache of ordinary pages and the number of variants it can
+  mint is bounded by the addons on disk.
+- **The URL names the scope.** `unique` is a SHA256 over the *result*, which
+  tells a scoped bundle apart from an unscoped one but describes neither —
+  and `content_assets` re-resolves from the URL alone. While the scope lived
+  only in `unique`, the scoped CSS 303'd to the unscoped bundle on every page
+  load: distinct URL, unservable. `_get_asset_url_segments` puts it in the path
+  and `content_assets_scoped` reads it back. Every asset param must contribute
+  a segment this way — `web/tests/test_ir_asset_scope.py` asserts the two
+  halves agree, so an override that adds one and forgets the other fails.
+- **Both directive sources are gated.** `_get_asset_paths` narrows the manifest
+  side, but an `ir.asset` row names a path and no addon, so the closure has to
+  reach `Resolution.active` — the single point deciding whether a path may
+  resolve. Fed from `_get_installed_addons_list` instead, `website`'s ~100 rows
+  aimed at `web.*` bundles walked straight through it.
 - **Suites are stricter.** A suite that would pass only because a foreign addon's
   `src` happened to be loaded fails instead. That is the point; treat such a
   failure as a real missing dependency, not as scoping breakage.

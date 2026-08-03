@@ -40,12 +40,12 @@ li {
 
 .o_customer_display_sidebar {
     background: center / cover no-repeat;
-    border-right: $border-width solid $border-color;
+    border-right: $border-width solid o-token(--border-color, $border-color);
     flex-basis: 50%;
 
     @include media-breakpoint-down(md) {
         border-right: 0;
-        border-bottom: $border-width solid $border-color;
+        border-bottom: $border-width solid o-token(--border-color, $border-color);
     }
 
     @media (orientation: portrait) {
@@ -65,7 +65,7 @@ li {
     padding: 0 !important;
 
     &:not(:last-child) {
-        border-bottom: $border-width solid $border-color;
+        border-bottom: $border-width solid o-token(--border-color, $border-color);
     }
 
     .price-per-unit {

@@ -26,6 +26,7 @@ This module provides the core of the Odoo Web Client.
         "views/neutralize_views.xml",
         "views/ir_ui_view_views.xml",
         "views/res_config_settings_views.xml",
+        "views/res_users_views.xml",
         "views/web_cwv_metric_views.xml",
         "views/web_js_error_views.xml",
         "data/ir_attachment.xml",
@@ -56,6 +57,8 @@ This module provides the core of the Odoo Web Client.
                 "include",
                 "web._assets_bootstrap_backend",
             ),
+            "web/static/src/scss/tokens.scss",
+            "web/static/src/scss/scheme_rules.scss",
             (
                 "include",
                 "web._assets_core",
@@ -142,6 +145,7 @@ This module provides the core of the Odoo Web Client.
                 "include",
                 "web._assets_bootstrap_frontend",
             ),
+            "web/static/src/scss/tokens.scss",
             "web/static/src/scss/fonts.scss",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
@@ -180,11 +184,14 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/core/**/*",
             (
                 "remove",
-                "web/static/src/components/file_viewer/file_viewer.dark.scss",
+                "web/static/src/components/emoji_picker/emoji_data.js",
             ),
+            # There is no dark frontend bundle, so a `*.dark.scss` reaching
+            # here is never the scheme answering: it compiles with the light
+            # palette and overrides the light file it was written against.
             (
                 "remove",
-                "web/static/src/components/emoji_picker/emoji_data.js",
+                "web/static/src/**/*.dark.scss",
             ),
             # frontend-only error handler: it swallows tracebacks for
             # non-internal users, and it says so itself by warning when
@@ -282,6 +289,9 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/webclient/actions/reports/report.scss",
             "web/static/src/webclient/actions/reports/report_tables.scss",
             "web/static/src/webclient/actions/reports/layout_assets/layout_*.scss",
+            # No file behind it: `web.asset_styles_company_report` is an
+            # ir.attachment that res.company regenerates, carrying each
+            # company's `.o_company_N_layout` brand and report.theme tokens.
             "web/static/asset_styles_company_report.scss",
         ],
         "web.report_assets_pdf": [
@@ -308,10 +318,39 @@ This module provides the core of the Odoo Web Client.
                 "web.assets_backend",
             ),
         ],
+        # Dark-mode variable layer. Every dark bundle includes it, and it is
+        # walked once: the anchors below place each `*.dark.scss` immediately
+        # ahead of the light file it answers, so `!default` resolves in favour
+        # of dark. Themes contribute their own anchors to this same bundle and
+        # land ahead of web's, which is why a theme must answer in dark every
+        # variable it overrides in light.
+        "web._dark_mode_variables": [
+            # Ahead of the primitives, therefore ahead of every palette: a
+            # theme reads the inverted ramp rather than answering it.
+            (
+                "before",
+                "web/static/src/scss/primitives.scss",
+                "web/static/src/scss/primitives.dark.scss",
+            ),
+            (
+                "before",
+                "web/static/src/scss/primary_variables.scss",
+                "web/static/src/scss/primary_variables.dark.scss",
+            ),
+        ],
         "web.assets_web_dark": [
             (
                 "include",
                 "web.assets_web",
+            ),
+            (
+                "include",
+                "web._dark_mode_variables",
+            ),
+            (
+                "after",
+                "web/static/lib/bootstrap/scss/_functions.scss",
+                "web/static/src/scss/bs_functions_overridden.dark.scss",
             ),
             "web/static/src/**/*.dark.scss",
         ],
@@ -323,6 +362,15 @@ This module provides the core of the Odoo Web Client.
             (
                 "include",
                 "web._assets_backend_helpers",
+            ),
+            (
+                "include",
+                "web._dark_mode_variables",
+            ),
+            (
+                "after",
+                "web/static/lib/bootstrap/scss/_functions.scss",
+                "web/static/src/scss/bs_functions_overridden.dark.scss",
             ),
             "web/static/src/**/*.dark.scss",
         ],
@@ -348,6 +396,14 @@ This module provides the core of the Odoo Web Client.
             ),
         ],
         "web._assets_primary_variables": [
+            # Before the primitives, and in every bundle rather than only the
+            # dark ones: `tokens.scss` publishes both schemes, so the dark
+            # values have to be resolvable at light-compile time.
+            "web/static/src/scss/palette_dark.scss",
+            # First, so every palette downstream — themes included, since they
+            # anchor before primary_variables.scss — reads one definition of
+            # the raw values instead of restating them to be able to use them.
+            "web/static/src/scss/primitives.scss",
             "web/static/src/scss/primary_variables.scss",
             "web/static/src/**/*.variables.scss",
         ],

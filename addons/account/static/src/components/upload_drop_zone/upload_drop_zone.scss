@@ -2,8 +2,8 @@
     width: calc(100% + 2px);
     height: calc(100% + 2px);
     position: absolute;
-    background-color: mix($o-brand-primary, $o-view-background-color, 15%);
-    border: 3px dashed $o-brand-primary;
+    background-color: unquote("color-mix(in srgb, #{o-token(--o-brand, $o-brand-primary)} 15%, #{o-token(--o-bg-view, $o-view-background-color)})");
+    border: 3px dashed o-token(--o-brand, $o-brand-primary);
     z-index: 3;
     left: -1px;
     top: -1px;

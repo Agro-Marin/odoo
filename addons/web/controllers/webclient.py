@@ -118,10 +118,20 @@ class WebClient(http.Controller):
 
     @http.route("/web/tests", type="http", auth="user", readonly=False)
     def unit_tests_suite(self, mod: str | None = None, **kwargs: Any) -> Response:
-        return request.render(
-            "web.unit_tests_suite",
-            {"session_info": {"view_info": request.env["ir.ui.view"].get_view_info()}},
-        )
+        """Render the HOOT runner page.
+
+        The page builds its own minimal ``session_info`` rather than calling
+        ``ir_http.session_info()``, so anything the runner's JS needs has to be
+        put here. ``bundle_params`` is one of those: ``assets.js`` copies every
+        entry into the ``/web/bundle`` query string, which is the only way a
+        scoped run's ``loadBundle`` calls stay inside the scope -- they are
+        separate requests, and the scope is not otherwise on them.
+        """
+        session_info = {"view_info": request.env["ir.ui.view"].get_view_info()}
+        scope = request.env["ir.asset"]._get_unit_test_scope()
+        if scope:
+            session_info["bundle_params"] = {"module_scope": scope}
+        return request.render("web.unit_tests_suite", {"session_info": session_info})
 
     @http.route(
         "/web/bundle/<string:bundle_name>",

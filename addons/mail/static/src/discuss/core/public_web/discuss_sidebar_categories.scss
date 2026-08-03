@@ -47,7 +47,7 @@ $o-mail-DiscussSidebarChannel-borderOpacity: 0.05;
     &:focus-visible,
     &.o-showingActions {
         --border-opacity: 1;
-        --border-color: #{$o-action};
+        --border-color: #{o-token(--o-action, $o-action)};
     }
 }
 
@@ -76,13 +76,13 @@ $o-mail-DiscussSidebarChannel-borderOpacity: 0.05;
     }
 
     &:hover {
-        background-color: mix($gray-100, $gray-200);
-        outline-color: mix($gray-100, $gray-200, 20%);
+        background-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-100, $gray-100)} 50%, #{o-palette-token(--o-gray-200, $gray-200)})");
+        outline-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-100, $gray-100)} 20%, #{o-palette-token(--o-gray-200, $gray-200)})");
     }
 
     &:active {
-        background-color: mix($o-view-background-color, $o-action, 90%);
-        outline-color: mix($o-view-background-color, $o-action, 50%);
+        background-color: unquote("color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 90%, #{o-token(--o-action, $o-action)})");
+        outline-color: unquote("color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 50%, #{o-token(--o-action, $o-action)})");
     }
 
     &:not(:hover) {
@@ -146,4 +146,27 @@ $o-mail-DiscussSidebarChannel-borderOpacity: 0.05;
     );
     left: 22px;
     transform: scaleX(1) #{"/* rtl:scaleX(-1) */"};
+}
+
+
+// The dark half, folded in from `discuss_sidebar_categories.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-DiscussSidebar-item {
+            --mail-DiscussSidebarChannel-commandsHover: #{rgba($o-dark-gray-400, 0.5)};
+        }
+
+        .o-mail-DiscussSidebarChannel-container {
+            --mail-DiscussSidebarChannel-borderOpacity: 0.125;
+            ---mail-DiscussSidebarChannel-borderedBgColor: #{mix($o-dark-gray-100, $o-dark-gray-200, 75%)};
+        }
+
+        .o-mail-DiscussSidebarChannel-floatingName {
+            ---mail-DiscussSidebarChannel-floatingNameBgColor: #{mix($o-dark-white, $o-dark-gray-100, 25%)};
+        }
+
+        .o-mail-DiscussSidebarSubchannel {
+            --mail-DiscussSidebarSubchannel-svgColor: #{mix($o-dark-gray-300, $o-dark-gray-400)};
+        }
+    }
 }

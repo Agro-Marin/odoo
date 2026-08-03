@@ -7,13 +7,13 @@
     height: $o_link_size;
     margin: 0 0 ($spacer * 0.5) ($spacer * 0.25);
     line-height: $o_link_size;
-    background-color: map-get($grays, "100");
-    border: $border-width solid $border-color;
+    background-color: o-palette-token(--o-gray-100, map-get($grays, "100"));
+    border: $border-width solid o-token(--border-color, $border-color);
     border-radius: 50%;
     text-align: center;
     &:hover,
     &:focus {
-        background-color: map-get($grays, "300");
+        background-color: o-palette-token(--o-gray-300, map-get($grays, "300"));
         text-decoration: none;
     }
 }
@@ -62,7 +62,7 @@
     }
     .o_wevent_sidebar_title {
         margin: 0 0 ($spacer * 1.5) 0;
-        border-bottom: $border-width solid $border-color;
+        border-bottom: $border-width solid o-token(--border-color, $border-color);
         padding: 0 0 ($spacer * 0.5) 0;
         font-weight: $font-weight-bold;
     }

@@ -36,7 +36,7 @@
                 }
             }
             path {
-                stroke: $border-color;
+                stroke: o-token(--border-color, $border-color);
                 fill: transparent;
             }
         }
@@ -47,7 +47,7 @@
     }
 
     .s_process_steps_arrow_head path {
-        fill: map-get($grays, "600");
+        fill: o-palette-token(--o-gray-600, map-get($grays, "600"));
         stroke: transparent;
     }
 

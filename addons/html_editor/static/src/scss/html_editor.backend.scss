@@ -5,8 +5,14 @@
     // backend, bootstrap is more standard and those are not added in the $grays
     // map (not needed and was actually a problem to make the enterprise dark
     // mode work properly).
-    --white: #{$white};
-    --black: #{$black};
+    // Through the token first: this file lands a thousand entries after
+    // `tokens.scss` in `web.assets_backend`, and a plain restatement wins on
+    // source order — re-pinning to the compiling bundle's white the two names
+    // the palette had just taught to follow the scheme. As a fallback it says
+    // what it means: defined either way, and the palette's answer when there
+    // is one.
+    --white: var(--o-white, #{o-token(--o-white, $white)});
+    --black: var(--o-black, #{o-token(--o-black, $black)});
 }
 
 .o_field_html {

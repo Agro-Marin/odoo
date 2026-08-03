@@ -9,8 +9,8 @@
 }
 
 .o-FileViewer-header {
-    color: $white;
-    background-color: var(--FileViewer-toolbarBgColor, #{$o-gray-800});
+    color: o-token(--o-white, $white);
+    background-color: var(--FileViewer-toolbarBgColor, var(--o-bg-chrome));
     height: $o-navbar-height;
 }
 
@@ -34,13 +34,13 @@
 }
 
 .o-FileViewer-headerButton:hover {
-    background-color: rgba($white, 0.1);
+    background-color: o-token-alpha(--o-white, $white, 0.1);
     color: lighten($gray-400, 15%);
 }
 
 .o-FileViewer-toolbarButton {
-    background-color: var(--FileViewer-toolbarBgColor, #{$o-gray-800});
-    color: $white;
+    background-color: var(--FileViewer-toolbarBgColor, var(--o-bg-chrome));
+    color: o-token(--o-white, $white);
 
     &:hover {
         filter: brightness(1.3);
@@ -48,15 +48,15 @@
 }
 
 .o-FileViewer-view {
-    background-color: $black;
-    box-shadow: 0 0 40px $black;
+    background-color: o-token(--o-black, $black);
+    box-shadow: 0 0 40px o-token(--o-black, $black);
     outline: none;
 
     &.o-isText {
-        background: $white;
+        background: o-token(--o-white, $white);
 
         &.o-FileViewer-loading {
-            background: $black;
+            background: o-token(--o-black, $black);
             opacity: 50%;
             pointer-events: none;
         }

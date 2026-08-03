@@ -24,5 +24,15 @@
 }
 
 .o_popover:has(.o_card_avatar) {
-    --popover-border-color: #{$secondary};
+    --popover-border-color: #{o-token(--secondary, $secondary)};
+}
+
+
+// The dark half, folded in from `avatar_card_popover.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o_avatar_card {
+            --card-bg: #{$o-dark-gray-100};
+        }
+    }
 }

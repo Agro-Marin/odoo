@@ -147,3 +147,119 @@ class TestResUsersSettingsWriteOnlyChanges(TransactionCase):
             {"id"},
             f"re-submitting the current value of {fname} must not be a change",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestResUsersSettingsRowLifecycle(TransactionCase):
+    """Who makes the settings row, and who does not.
+
+    It matters beyond tidiness: a related field into ``res_users_settings_id``
+    writes through ``_inverse_related``, which reaches its target by *reading*
+    that field, so with no row a preference save stores nothing and still
+    returns ``True``. ``create`` makes the row for a user that is *already*
+    internal; nothing re-makes it when a portal user is promoted.
+
+    What closes it is :meth:`~odoo.addons.base.models.res_users.ResUsers.write`
+    itself: a write naming any field that lives on the settings record asks
+    :meth:`_find_or_create_for_user` first. So the guarantee belongs to the
+    lazily-created row rather than to whoever happened to touch it earlier --
+    the web client's boot used to be that, and a save outside the web client
+    had nothing.
+    """
+
+    def test_created_internal_user_has_settings(self):
+        user = new_test_user(self.env, login="rusetlc_a", groups="base.group_user")
+        self.assertTrue(user.res_users_settings_id)
+
+    def test_created_portal_user_has_none(self):
+        # Not an oversight: the row carries preferences a share user never
+        # reaches, and `_find_or_create_for_user` makes one if that changes.
+        user = new_test_user(self.env, login="rusetlc_b", groups="base.group_portal")
+        self.assertFalse(user.res_users_settings_id)
+
+    def test_promotion_alone_makes_no_row(self):
+        """Promotion is not what makes the row, and deliberately not: making it
+        here means reading group membership from inside ``write``, and
+        ``_is_internal()`` answers from an ``@ormcache`` filled by direct SQL --
+        before the pending change has reached the database. Nothing needs it to:
+        the row is made by the write that has something to put in it."""
+        user = new_test_user(self.env, login="rusetlc_c", groups="base.group_portal")
+        user.write(
+            {
+                "group_ids": [
+                    Command.unlink(self.env.ref("base.group_portal").id),
+                    Command.link(self.env.ref("base.group_user").id),
+                ]
+            }
+        )
+        user.invalidate_recordset()
+        self.assertFalse(user.res_users_settings_id)
+        self.assertTrue(
+            self.env["res.users.settings"]._find_or_create_for_user(user),
+            "the accessor the web client boots through must close it",
+        )
+
+    def test_settings_backed_fields_come_from_the_registry(self):
+        """The set is derived, so a preference added later is covered by having
+        been declared. A ``readonly`` related field is not in it: it has no
+        inverse to fail."""
+        users = self.env["res.users"]
+        backed = users._settings_backed_fields()
+        for name in backed:
+            field = users._fields[name]
+            self.assertTrue(field.related.startswith("res_users_settings_id."))
+            self.assertFalse(field.readonly, f"{name} cannot be written anyway")
+        self.assertEqual(
+            backed,
+            frozenset(
+                name
+                for name, field in users._fields.items()
+                if field.related
+                and field.related.startswith("res_users_settings_id.")
+                and not field.readonly
+            ),
+        )
+
+    def test_a_settings_write_makes_its_own_row(self):
+        """The rule, over whatever the installed modules declare."""
+        for name, value in self._writable_settings_values():
+            user = new_test_user(
+                self.env, login=f"rusetlc_w_{name}", groups="base.group_portal"
+            )
+            self.assertFalse(user.res_users_settings_id)
+            user.write({name: value})
+            user.invalidate_recordset()
+            self.assertTrue(user.res_users_settings_id, f"{name} made no row")
+            self.assertEqual(user[name], value, f"{name} was written to nothing")
+
+    def test_a_settings_value_survives_create(self):
+        """The same rule on the create path, which has the same shape.
+
+        ``_inverse_related`` runs inside ``super().create()`` -- before this
+        model has made the settings row, and against nothing when it never
+        will. ``create`` held the value back until the row exists.
+        """
+        for name, value in self._writable_settings_values():
+            user = self.env["res.users"].create(
+                {
+                    "login": f"rusetlc_c_{name}",
+                    "name": "created with a preference",
+                    name: value,
+                    "group_ids": [Command.link(self.env.ref("base.group_user").id)],
+                }
+            )
+            user.invalidate_recordset()
+            self.assertEqual(user[name], value, f"{name} was created onto nothing")
+
+    def _writable_settings_values(self):
+        """``(field, value)`` for each settings-backed selection field.
+
+        Vacuous on a bare ``base`` database -- ``web`` contributes the first of
+        these -- and the point is that it stops being vacuous on its own,
+        without these tests naming a field they cannot see.
+        """
+        settings_fields = self.env["res.users.settings"]._fields
+        for name in sorted(self.env["res.users"]._settings_backed_fields()):
+            selection = getattr(settings_fields[name], "selection", None)
+            if isinstance(selection, list):  # nothing else is safe to write blind
+                yield name, selection[-1][0]

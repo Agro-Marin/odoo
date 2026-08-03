@@ -1,0 +1,117 @@
+///
+/// The colour combinations' dark half.
+///
+/// Separate from `html_editor.common.scss` because that file also rides
+/// `assets_frontend`, where nothing sets `data-color-scheme` so these rules
+/// could never match, and `report_assets_common`, where a dark block would
+/// print. This one is declared in `assets_backend` alone.
+///
+/// The combinations' own colours are website theme data and are the same in
+/// both schemes -- `--o-cc1-bg` is #ffffff in either bundle -- with one
+/// exception, handled below. So the backgrounds and headings are not restated
+/// here. Only what a combination leaves unset is: the link and both buttons
+/// fall back to `$theme-colors`, and every label on them is a
+/// `color-contrast()` pick.
+///
+/// `media-only(screen)` for the reason `o-publish-per-scheme` uses it:
+/// `assets_web_print` includes the backend bundle and is linked
+/// unconditionally, so it would answer the attribute too.
+///
+
+/// The exception: `base-1`'s colour 1 *is* `$o-brand-primary`, and combination
+/// 4's background is that colour, so both follow the brand into the dark, which
+/// is what the dark bundle serves. A site that chose its own colour 1 compares
+/// unequal and keeps it.
+///
+/// Built once and handed to everything below, because the fallbacks are not
+/// only published: `o-print-cc-tokens` picks each combination's link by walking
+/// it away from the combination's *background* until they contrast, so a dark
+/// half fed the light background answers for a colour it will never sit on.
+$-dark-colors: $colors;
+@each $-name, $-color in $colors {
+    @if $-color == $o-brand-primary {
+        $-dark-colors: map-merge($-dark-colors, ($-name: $o-dark-brand-primary));
+    }
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        @include o-print-cc-tokens(
+            $o-dark-theme-colors,
+            o-dark-scheme(),
+            $-dark-colors
+        );
+
+        @each $-name, $-color in $-dark-colors {
+            @if $-color != map-get($colors, $-name) {
+                --#{$prefix}#{$-name}: #{$-color};
+            }
+        }
+    }
+
+    @for $index from 1 through length($o-color-combinations) {
+        :root[data-color-scheme="dark"] .o_cc#{$index} {
+            #{$o-color-extras-nesting-selector} {
+                @include o-cc-extras(
+                    $index,
+                    o-color(map-get($-dark-colors, "o-cc#{$index}-bg")),
+                    $o-dark-theme-colors,
+                    o-dark-scheme()
+                );
+            }
+        }
+    }
+}
+
+
+// The `o-color-*` utilities and the combinations' own background rule. The
+// colours themselves do not invert -- they are website theme data -- but the
+// label picked against them does, because the foregrounds and the surface the
+// pick flattens against are the scheme's.
+//
+// `$-extend-reset: false`: what the placeholder emits is
+// `h1..h6 { color: inherit }`, which has no colour in it, so the light half
+// already answers under the attribute.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        $-scheme: o-dark-scheme();
+        $-surface: $o-dark-webclient-background-color;
+        $-shade: o-or($o-dark-link-shade-percentage, $link-shade-percentage);
+
+        @for $index from 1 through 5 {
+            $-color-name: "o-color-#{$index}";
+            $-color: map-get($colors, $-color-name);
+
+            @include bg-variant(
+                ".bg-#{$-color-name}",
+                $-color,
+                o-scheme-contrast(opaque($-surface, $-color), $-scheme),
+                $extend-heading-reset: false
+            );
+            @include o-scheme-text-emphasis-variant(
+                ".text-#{$-color-name}",
+                $-color,
+                $-scheme,
+                $-shade
+            );
+        }
+
+        @for $index from 1 through length($o-color-combinations) {
+            $-bg-color: o-color(map-get($colors, "o-cc#{$index}-bg"));
+            $-text: map-get($colors, "o-cc#{$index}-text");
+
+            .o_cc#{$index} {
+                @include o-bg-color(
+                    $-bg-color,
+                    o-or(
+                        o-color($-text),
+                        o-scheme-contrast(opaque($-surface, $-bg-color), $-scheme)
+                    ),
+                    $important: false,
+                    $yiq-min-opacity-threshold: 0,
+                    $extend-heading-reset: false
+                );
+            }
+        }
+    }
+}

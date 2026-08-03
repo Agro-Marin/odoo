@@ -49,11 +49,11 @@ $o-cw-popup-avatar-size: 16px;
         padding-bottom: 1px;
 
         &::-webkit-scrollbar {
-            background: map-get($grays, "200");
+            background: o-palette-token(--o-gray-200, map-get($grays, "200"));
             width: 6px;
         }
         &::-webkit-scrollbar-thumb {
-            background: map-get($grays, "500");
+            background: o-palette-token(--o-gray-500, map-get($grays, "500"));
         }
     }
 
@@ -74,17 +74,22 @@ $o-cw-popup-avatar-size: 16px;
     }
 }
 
+/// Token references rather than colours, so a consumer of this map — this file
+/// and `appointment` — emits one declaration for the whole ramp instead of one
+/// per scheme. Unquoted, so `map-get()` prints them as the CSS they are.
 @function o-build-web-calendar-colors() {
     $-calendar-colors: ();
     @for $i from 1 through length($o-colors-complete) {
-        $-color: nth($o-colors-complete, $i);
-        $-color-subtle: tint-color($-color, 55%);
         $-calendar-colors: append(
             $-calendar-colors,
             (
-                color-subtle: $-color-subtle,
-                popover-background-color: lighten($-color-subtle, 10%),
-                popover-color: color-contrast($-color-subtle),
+                color-subtle: unquote(
+                        "color-mix(in srgb, var(--o-tint-target) 55%, var(--o-record-color-#{$i}))"
+                    ),
+                popover-background-color: unquote(
+                        "var(--o-record-color-#{$i}-popover-bg)"
+                    ),
+                popover-color: unquote("var(--o-record-color-#{$i}-text)"),
             )
         );
     }
@@ -102,7 +107,7 @@ $o-web-calendar-colors: o-build-web-calendar-colors();
             background-color: map-get(nth($o-web-calendar-colors, $i), "color-subtle");
 
             .btn {
-                color: $body-color;
+                color: var(--o-text);
             }
         }
     }

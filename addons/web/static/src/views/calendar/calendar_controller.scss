@@ -2,10 +2,10 @@ $o-cw-filter-avatar-size: 20px;
 
 @keyframes backgroundfade {
     from {
-        background-color: rgba($info, 0.5);
+        background-color: o-token-alpha(--info, $info, 0.5);
     }
     to {
-        background-color: rgba($info, 0.1);
+        background-color: o-token-alpha(--info, $info, 0.1);
     }
 }
 

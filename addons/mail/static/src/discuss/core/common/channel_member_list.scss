@@ -19,3 +19,13 @@
     width: 32px;
     aspect-ratio: 1;
 }
+
+
+// The dark half, folded in from `channel_member_list.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-discuss-ChannelMember {
+            --discuss-ChannelMember-hoverBg: #{$o-dark-gray-300};
+        }
+    }
+}

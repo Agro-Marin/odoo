@@ -20,7 +20,7 @@
     }
 
     .o_search_found {
-        background-color: $gray-200;
+        background-color: o-palette-token(--o-gray-200, $gray-200);
     }
 
     .o_tree_entry {
@@ -70,7 +70,7 @@
             }
 
             &:last-child:before {
-                background: $o-webclient-background-color;
+                background: o-palette-token(--body-bg, $o-webclient-background-color);
                 bottom: 0;
                 height: auto;
                 top: 1em;

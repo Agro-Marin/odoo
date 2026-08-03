@@ -34,16 +34,16 @@
     }
 
     .js_follow_btn:hover .fa:before {
-        color: $body-color;
+        color: o-palette-token(--o-text, $body-color);
     }
 
     .js_unfollow_btn .fa:before {
-        color: $primary;
+        color: o-token(--primary, $primary);
     }
 
     .js_unfollow_btn:hover .fa:before {
         content: "\f1f6";
-        color: $danger;
+        color: o-token(--danger, $danger);
     }
 }
 

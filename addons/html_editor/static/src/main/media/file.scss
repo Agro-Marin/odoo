@@ -8,7 +8,7 @@
 
     .alert.alert-info {
         border-radius: 5px;
-        outline: 1px solid $o-gray-300;
+        outline: 1px solid o-palette-token(--o-gray-300, $o-gray-300);
         outline-offset: -1px;
         padding: 5px;
         margin: 0;

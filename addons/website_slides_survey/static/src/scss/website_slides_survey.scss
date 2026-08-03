@@ -25,7 +25,7 @@ $o_wss_color_2: #485761;
             }
 
             &.active {
-                border-color: $gray-100;
+                border-color: o-palette-token(--o-gray-100, $gray-100);
             }
         }
     }

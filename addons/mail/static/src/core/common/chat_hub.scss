@@ -30,7 +30,7 @@
 
 .o-mail-ChatHub-hiddenBtnIcon {
     color: #ffffff !important;
-    background-color: mix($gray-400, $gray-500) !important;
+    background-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-400, $gray-400)} 50%, #{o-palette-token(--o-gray-500, $gray-500)})") !important;
     width: $o-mail-ChatBubble-sizeBig !important;
     height: $o-mail-ChatBubble-sizeBig !important;
 }
@@ -50,7 +50,7 @@
     border: $border-width solid transparent;
 
     &:hover {
-        border-color: mix($o-gray-300, $o-gray-400);
+        border-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-300, $o-gray-300)} 50%, #{o-palette-token(--o-gray-400, $o-gray-400)})");
     }
 }
 
@@ -65,7 +65,7 @@
 
     &:hover:not(:has(.o-mail-ChatHub-hiddenClose:hover)),
     &.o-active {
-        background-color: $o-gray-300;
+        background-color: o-palette-token(--o-gray-300, $o-gray-300);
     }
 
     &:hover,
@@ -79,13 +79,13 @@
 }
 
 .o-mail-ChatHub-hiddenMenu {
-    border-color: mix($o-gray-300, $o-gray-400) !important;
+    border-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-300, $o-gray-300)} 50%, #{o-palette-token(--o-gray-400, $o-gray-400)})") !important;
 }
 
 .o-mail-ChatHub-option {
     &:hover,
     &.o-active {
-        background-color: $o-gray-300;
+        background-color: o-palette-token(--o-gray-300, $o-gray-300);
         cursor: pointer;
     }
 }
@@ -97,7 +97,7 @@
     border: $border-width solid transparent !important;
 
     &.o-bubblesHover {
-        border-color: mix($o-gray-200, $o-gray-300) !important;
+        border-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-200, $o-gray-200)} 50%, #{o-palette-token(--o-gray-300, $o-gray-300)})") !important;
 
         i {
             opacity: 50%;
@@ -105,10 +105,10 @@
     }
 
     &:hover {
-        border-color: $o-gray-300 !important;
+        border-color: o-palette-token(--o-gray-300, $o-gray-300) !important;
     }
     &.show {
-        border-color: mix($o-gray-300, $o-gray-400) !important;
+        border-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-300, $o-gray-300)} 50%, #{o-palette-token(--o-gray-400, $o-gray-400)})") !important;
     }
     &:hover,
     &.show {

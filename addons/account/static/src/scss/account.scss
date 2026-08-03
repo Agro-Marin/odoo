@@ -1,4 +1,4 @@
 .gray_ribbon {
-    color: $o-gray-600 !important;
-    background-color: $o-gray-200 !important;
+    color: o-palette-token(--o-gray-600, $o-gray-600) !important;
+    background-color: o-palette-token(--o-gray-200, $o-gray-200) !important;
 }

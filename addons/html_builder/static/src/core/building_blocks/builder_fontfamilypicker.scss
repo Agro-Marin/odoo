@@ -4,5 +4,5 @@
 }
 
 [data-action-param="font"] .o_we_delete_font_btn:hover {
-    color: mix($o-danger, $o-white, 80%);
+    color: unquote("color-mix(in srgb, #{o-palette-token(--danger, $o-danger)} 80%, #{o-token(--o-white, $o-white)})");
 }

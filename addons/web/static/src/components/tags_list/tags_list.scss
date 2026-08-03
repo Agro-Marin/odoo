@@ -4,21 +4,18 @@
 
     @for $size from 1 through length($o-colors) {
         &.o_tag_color_#{$size - 1} {
-            $-bg: adjust-color(
-                nth($o-colors, $size),
-                $lightness: 25%,
-                $saturation: 15%
-            );
-            $-color: adjust-color(
-                nth($o-colors, $size),
-                $lightness: -40%,
-                $saturation: -15%
-            );
-
             &,
             &::after {
-                @include o-print-color($-bg, background-color, bg-opacity);
-                @include o-print-color($-color, color, text-opacity);
+                @include o-print-color-rgb(
+                    var(--o-record-color-#{$size}-chip-bg-rgb),
+                    background-color,
+                    bg-opacity
+                );
+                @include o-print-color-rgb(
+                    var(--o-record-color-#{$size}-chip-text-rgb),
+                    color,
+                    text-opacity
+                );
             }
         }
     }

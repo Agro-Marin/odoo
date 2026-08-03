@@ -1,0 +1,181 @@
+name: Asset & Palette Lint (DB-backed)
+
+# The checks in test_lint that need a real registry: they compile or assemble
+# asset bundles, which needs modules installed, so they cannot live in the
+# DB-free tiers (unit_tests.yml) or the static lanes (lint.yml, ruff.yml).
+#
+# Until now nothing ran them. Between them they have caught, each time only
+# because somebody thought to run them by hand:
+#   * a manifest path whose file was deleted -- a `remove` directive whose
+#     target is gone raises AssetDirectiveError while *assembling* the bundle,
+#     so any database with that module installed aborts at startup, exit 255
+#   * six served bundles reading `--o-*` palette tokens that nothing in them
+#     publishes; an unresolvable var() is not a missing colour, it makes the
+#     whole declaration invalid at computed-value time
+#   * seven light bundles globbing in a `*.dark.scss`, which then compiles
+#     against the light palette and overrides the file it was written to answer
+#   * a relative JS import written without its `.js`, which esbuild resolves and
+#     the browser does not -- production links, `?debug=assets` fetches the
+#     extensionless URL, 404s, and aborts the one module script the whole bundle
+#     hangs off: a blank web client with no server-side trace
+#
+# `web`'s three classes join them because they answer the same question about
+# the same artefact and need the same database: TestDarkBundles that the dark
+# bundles assemble and compile at all, TestTokenLayer that the two ways the dark
+# palette reaches a stylesheet still agree, TestColorScheme that the page
+# serving them settles the scheme before any of them is read. The disagreement
+# TestTokenLayer exists for needs a *theme* installed to show, and no theme is
+# reachable from this repo -- so here it guards the community half and stays a
+# manual check for the rest, like the enterprise bundles below.
+#
+# Two steps, because TestColorScheme is an HttpCase and the rest run --no-http:
+# see HTTP_TEST_TAGS.
+#
+# Scope: named classes, not the whole module. `test_lint` as a whole is not
+# green here -- it also carries ruff, eslint and pofile lanes that this fork
+# runs as ratchets against a committed floor (see ruff.yml and CLAUDE.md), so
+# `--test-tags /test_lint` reports thousands of subtest failures by design.
+# Add a class below once it is green, rather than widening the tag.
+#
+# Coverage is a floor, not a proof. TestBundleTokenDefs and TestDarkSiblingScope
+# only see bundles belonging to *installed* modules, so INSTALL below is what
+# decides how much is checked -- it is the community set that owns the bundles
+# the three defect classes above were found in. Two of the six token defects
+# were hidden by an 80-module database that happened to lack `project` and
+# `im_livechat`. Widen INSTALL rather than assume. The enterprise bundles
+# (project.webclient's theme globs, web_enterprise's navbar) are not reachable
+# from this repo and stay a manual check.
+#
+# Why template0 + C collation: as integration_tests.yml -- Odoo only creates
+# with `LC_COLLATE 'C'` when db_template is template0.
+
+on:
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      # Any manifest can add a path or glob to a bundle.
+      - '**/__manifest__.py'
+      # Any stylesheet can read a token, and any *.dark.scss can be globbed in.
+      - '**/static/src/**/*.scss'
+      - '**/static/src/**/*.css'
+      # Any import can be the one that fails the bundle.
+      - '**/static/**/*.js'
+      - 'odoo/addons/test_lint/**'
+      - 'odoo/addons/base/models/assetsbundle/**'
+      - 'odoo/addons/base/models/ir_asset*'
+      - '.github/workflows/asset_lint.yml'
+
+permissions:
+  contents: read
+
+env:
+  # The community modules owning the bundles these checks exist for: mail's
+  # public discuss view, portal's chatter, project sharing, the livechat embed,
+  # website's frontend, and web's own backend/print/report bundles. Plus the
+  # four that assemble web's component stylesheets into a bundle of their own
+  # rather than through web.assets_backend — the PoS UI and its customer
+  # display, the attendance kiosk and the subcontracting portal — each of which
+  # was shipping unresolvable tokens because no CI database had it installed.
+  INSTALL: >-
+    web,mail,portal,project,im_livechat,website,
+    point_of_sale,hr_attendance,mrp_subcontracting,test_lint
+  TEST_TAGS: >-
+    /test_lint:TestAssetPathsExist,
+    /test_lint:TestBundleTokenDefs,
+    /test_lint:TestDarkSiblingScope,
+    /test_lint:TestEsmSpecifiers,
+    /test_lint:TestGreyRampToken,
+    /test_lint:TestColorSchemeReads,
+    /web:TestDarkBundles,
+    /web:TestTokenLayer
+  # An HttpCase, so it cannot share the run above: `--no-http` logs a missing
+  # server as a *skipped setUpClass*, at INFO, and the run still exits 0 --
+  # a suite of nothing but HttpCase reports success having tested nothing.
+  # What it pins is the one thing that has to be true about the served page
+  # and cannot be read off a bundle: the inline resolver settles the cookie
+  # ahead of the bundle scripts, because several modules read it at import
+  # time where nothing later can correct them. Left out of the run above, it
+  # ran nowhere -- the invariant its own docstring calls tested rather than
+  # assumed was, again, assumed.
+  HTTP_TEST_TAGS: /web:TestColorScheme
+
+jobs:
+  asset-lint:
+    name: asset & palette checks (PostgreSQL 18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build + install the odoo_rust extension
+        # The ORM hot paths (_field_access) hard-import odoo_rust — no fallback.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'maturin>=1.0,<2.0'
+          maturin build --release --manifest-path crates/odoo_rust/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_rust
+
+      - name: Install system + Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev
+          pip install --quiet -r requirements.txt
+
+      - name: Run the asset & palette checks
+        # odoo-bin exits non-zero on any test failure, so this step fails the
+        # job without log-grepping. --no-http is safe here: none of these are
+        # HttpCase, and a skipped setUpClass would otherwise pass silently.
+        run: |
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_asset_lint \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "$(echo "${INSTALL}" | tr -d ' ')" \
+            --test-enable --test-tags "$(echo "${TEST_TAGS}" | tr -d ' ')" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout
+
+      - name: Run the served-page checks
+        # Against the database the step above installed, so this only runs the
+        # tests -- no -i, and http left on because these need it.
+        run: |
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_asset_lint \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --test-enable --test-tags "$(echo "${HTTP_TEST_TAGS}" | tr -d ' ')" \
+            --stop-after-init \
+            --max-cron-threads=0 --http-port=8069 \
+            --log-level=test --logfile=/dev/stdout

@@ -25,7 +25,7 @@
     font-size: var(--SearchPanel-fontSize, #{$o-search-panel-font-size});
 
     @include media-breakpoint-up(md) {
-        border-right: $border-width solid $border-color;
+        border-right: $border-width solid o-token(--border-color, $border-color);
     }
 
     .o_toggle_fold {
@@ -53,7 +53,7 @@
     text-orientation: mixed;
     width: 3rem;
     @include media-breakpoint-up(md) {
-        border-right: $border-width solid $border-color;
+        border-right: $border-width solid o-token(--border-color, $border-color);
     }
 }
 

@@ -37,7 +37,7 @@ $o-we-switch-inactive-color: rgba($o-main-color-muted, 0.4) !default;
         }
 
         &:checked + span {
-            background: $o-brand-primary;
+            background: o-token(--o-brand, $o-brand-primary);
 
             &:after {
                 content: "\f058"; // fa-check-circle
