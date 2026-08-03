@@ -54,8 +54,9 @@ class MailRenderMixin(models.AbstractModel):
     _name = "mail.render.mixin"
     _description = "Mail Render Mixin"
 
-    # If True, we trust the value on the model for rendering
-    # If False, we need the group "Template Editor" to render the model fields
+    # If True, we trust the stored value for rendering. If False, only
+    # 'mail_allowed_qweb_expressions' render freely; anything else requires the
+    # group "Template Editor" (see '_is_restricted').
     _unrestricted_rendering = False
 
     lang = fields.Char(
@@ -77,20 +78,15 @@ class MailRenderMixin(models.AbstractModel):
     @api.model
     def _get_mail_batch_size(self, default=50):
         """Read the ``mail.batch_size`` ICP, falling back to ``default`` on a
-        malformed or zero value (which would otherwise crash or stall the
-        mass-send loops). Shared by the template and composer send paths.
+        malformed, zero or negative value (all unusable for the mass-send
+        loops). Shared by the template and composer send paths.
         """
-        # The non-integer case (and its warning) is handled by the shared
-        # helper; what is specific here is that 0 and negatives are *also*
-        # unusable for the mass-send loops, so they collapse to the default too.
         batch_size = self.env["ir.config_parameter"]._get_int_param(
             "mail.batch_size", 0
         )
         if batch_size < 0:
-            # A negative ICP is as malformed as a non-integer one: it is truthy,
-            # so ``batch_size or default`` would let it through and crash the
-            # mass-send loops (``itertools.batched(res_ids, -5)`` raises
-            # "n must be at least one"). Treat it as "unset".
+            # Truthy, so ``batch_size or default`` would let it through and crash
+            # ``itertools.batched``; treat it as "unset".
             _logger.warning(
                 "Negative ICP 'mail.batch_size' (%s), falling back to default %s",
                 batch_size,
@@ -163,10 +159,9 @@ class MailRenderMixin(models.AbstractModel):
          * href of links (mailto will not match the regex)
          * src of images/v:fill/v:image (base64 hardcoded data will not match the regex)
          * styling using url like background-image: url or background="url"
-
-        Uses regex rather than an HTML parser, which is shorter and avoids
-        reserializing (and potentially mangling) the markup.
         """
+        # Regex rather than an HTML parser: shorter, and it avoids reserializing
+        # (and potentially mangling) the markup.
         if not html:
             return html
 
@@ -312,7 +307,7 @@ class MailRenderMixin(models.AbstractModel):
 
         :param html: html content for which we want to prepend a preview
         :param preview: the preview to add before the html content
-        :return: html with preprended preview
+        :return: html with prepended preview
         """
         if preview:
             preview = preview.strip()
@@ -341,18 +336,17 @@ class MailRenderMixin(models.AbstractModel):
         """Field names whose stored value is rendered as a template, and are thus
         the only fields subject to the unsafe-expression editor-group gate.
 
-        Concrete template models (mail.template, sms.template, mailing, ...)
-        override this with their exact renderable set. The empty default means
-        "unknown -> scan every field", a safe (over-strict) fallback.
+        Concrete template models (e.g. ``mail.template``) override this with
+        their exact renderable set. The empty default means "unknown -> scan
+        every field", a safe (over-strict) fallback.
         """
         return set()
 
     def _has_unsafe_expression(self):
         for template in self.sudo():
-            # Restrict the scan to fields that are actually rendered. Scanning
-            # every field wrongly denied non-editors whose *non-rendered*
-            # metadata (name, description, ...) merely contained literal
-            # '{{ ... }}' text that is never evaluated.
+            # Restrict the scan to fields that are actually rendered: literal
+            # '{{ ... }}' in non-rendered metadata (name, description, ...) is
+            # never evaluated and must not deny non-editors.
             fnames = template._get_dynamic_field_names() or template._fields.keys()
             for fname in fnames:
                 field = template._fields[fname]
@@ -414,7 +408,7 @@ class MailRenderMixin(models.AbstractModel):
         """Evaluation context used in all rendering engines. Contains
 
         * ``user``: current user browse record;
-        * ``ctx```: current context;
+        * ``ctx``: current context;
         * various formatting tools;
         """
         render_context = {
@@ -481,19 +475,17 @@ class MailRenderMixin(models.AbstractModel):
         # same HTML for every record is pure overhead on batch/mass rendering.
         template_node = html.fragment_fromstring(template_src, create_parent="div")
 
-        # Copy rather than mutate: injecting the internal
-        # raise_on_forbidden_code_for_model flag into the caller's dict leaked a
-        # non-public option out of this method (and the same dict is reused
-        # across per-language render calls in _render_field).
+        # Copy rather than mutate: raise_on_forbidden_code_for_model is internal
+        # to this method, and the caller's dict is reused across the per-language
+        # render calls in _render_field.
         options = dict(options or {})
         if is_restricted:
             options["raise_on_forbidden_code_for_model"] = model
 
-        # Compile the (etree) template once, not once per record: etree
-        # templates are not ormcached, so a bare _render() in the loop re-runs
-        # codegen + compile() + eval for every record. A persistent
-        # __qweb_compiled_cache shared across the calls keys on the stable
-        # template_node, so the first record compiles and the rest reuse it.
+        # Compile the (etree) template once, not once per record: etree templates
+        # are not ormcached, so a bare _render() in the loop re-runs codegen +
+        # compile() for every record. The render-local __qweb_compiled_cache keys
+        # on the stable template_node, so only the first record compiles.
         qweb = self.env["ir.qweb"].with_context(__qweb_compiled_cache={})
         for record in self.env[model].browse(res_ids):
             variables["object"] = record
@@ -518,11 +510,10 @@ class MailRenderMixin(models.AbstractModel):
                             group_name=group.name,
                         )
                     ) from e
-                # A genuine access error raised while the render walked to a record
-                # the caller may not read is meaningful and security-relevant:
-                # re-raise it unchanged (whether raised directly or wrapped by
-                # qweb) rather than flattening it into a generic UserError that
-                # also confirms the record and embeds the template source.
+                # A genuine access error (raised directly or wrapped by qweb) is
+                # security-relevant: re-raise it unchanged rather than flattening
+                # it into a UserError that confirms the record and embeds the
+                # template source.
                 if isinstance(e, AccessError):
                     raise
                 if isinstance(e, QWebError) and isinstance(e.__cause__, AccessError):
@@ -561,10 +552,9 @@ class MailRenderMixin(models.AbstractModel):
                     template_label = _("Template name not identified")
                     is_identified = False
 
-                # Truncation of the source to prevent log bloat. The truncated
-                # form is the only one ever shown in the user-facing UserError:
-                # when the template cannot be named we still log its full source
-                # (to locate it), but never leak it to whoever triggered the render.
+                # Truncate for the user-facing UserError. When the template cannot
+                # be named we still log its full source (to locate it), but never
+                # leak it to whoever triggered the render.
                 truncated_src = template_src
                 if len(template_src) > 1000:
                     truncated_src = f"{template_src[:500]}\n[...] (content truncated) [...]\n{template_src[-500:]}"
@@ -612,19 +602,15 @@ class MailRenderMixin(models.AbstractModel):
     def _render_regex_resolve(self, expression, record):
         """Resolve an allow-listed dotted expression against its declared root.
 
-        Both regex engines used to evaluate ``expression.split(".")[1:]`` against
-        ``record`` -- dropping the root segment and assuming it was always
-        ``object``. That made the allow-list and the evaluator disagree: because
-        ``mail_allowed_qweb_expressions`` (``models/base.py``) is a documented
-        extension point, a module adding a differently-rooted entry such as
-        ``user.name`` got the *record's* ``name`` rendered instead. Silently wrong
-        data, no error -- and, since the allow-list is the security boundary for
-        non-``group_mail_template_editor`` users, a reviewed-and-approved entry
-        did not describe what was actually read.
-
-        Roots mirror ``_render_eval_context``. An unknown root is refused rather
-        than guessed, like a non-allow-listed expression is.
+        Supported roots are ``object`` (the rendered record) and ``user``. An
+        unknown root is refused rather than guessed, like a non-allow-listed
+        expression is.
         """
+        # Dropping the root and evaluating the path against the record made the
+        # allow-list disagree with the evaluator: an entry such as 'user.name'
+        # rendered the *record's* name. That allow-list
+        # (``mail_allowed_qweb_expressions``, ``models/base.py``) is the security
+        # boundary for non-editors, so it must describe what is actually read.
         root, *path = expression.split(".")
         if root == "object":
             value = record
@@ -652,9 +638,8 @@ class MailRenderMixin(models.AbstractModel):
         normalized_src = html_normalize(f"<div>{template_src}</div>")
         if normalized_src.startswith("<div>") and normalized_src.endswith("</div>"):
             normalized_src = normalized_src.removeprefix("<div>").removesuffix("</div>")
-        # The allow-list check depends only on (expr, model), not the record, yet
-        # ran per match per record and rebuilt mail_allowed_qweb_expressions() each
-        # time. Memoize it for the whole render (which may span thousands of ids).
+        # The allow-list check depends only on (expr, model), not the record:
+        # memoize it for the whole render (which may span thousands of ids).
         allowed_cache = {}
 
         def is_expression_allowed(expr):
@@ -827,9 +812,7 @@ class MailRenderMixin(models.AbstractModel):
         template = parse_inline_template(str(template_txt))
         records = self.env[model].browse(res_ids)
         result = {}
-        # Memoize the (expr, model)-only allow-list check for the whole render;
-        # it otherwise reran per expression per record, rebuilding
-        # mail_allowed_qweb_expressions() each time.
+        # Memoize the (expr, model)-only allow-list check for the whole render.
         allowed_cache = {}
 
         def is_expression_allowed(expr):
@@ -857,10 +840,9 @@ class MailRenderMixin(models.AbstractModel):
                         # repr. Render display_name, matching qweb.
                         value = value.display_name
                     if renders_as_no_value(value):
-                        # Same "no value" contract as the safe_eval engine, so
-                        # both modes of the inline_template engine render a
-                        # given template identically -- notably a numeric 0,
-                        # which a plain truthiness test would swallow.
+                        # Same "no value" contract as the safe_eval engine, so both
+                        # modes render a given template identically -- notably a
+                        # numeric 0, which truthiness would swallow.
                         value = default
                     renderer.append("" if value == "" else str(value))
             result[record.id] = "".join(renderer)
@@ -872,6 +854,7 @@ class MailRenderMixin(models.AbstractModel):
         links ('/shop/Basil-1') are replaced by global links ('https://www.
         mygarden.com/shop/Basil-1').
 
+        :param str model: model name of the records the result was rendered on;
         :param rendered: result of ``_render_template``;
 
         :returns: updated version of rendered per record ID;
@@ -915,8 +898,8 @@ class MailRenderMixin(models.AbstractModel):
         options=None,
     ):
         """Render the given string on records designed by model / res_ids using
-        the given rendering engine. Possible engine are small_web, qweb, or
-        qweb_view.
+        the given rendering engine. Possible engines are inline_template, qweb,
+        or qweb_view.
 
         :param str template_src: template text to render or xml id of a qweb view;
         :param str model: model name of records on which we want to perform
@@ -985,13 +968,13 @@ class MailRenderMixin(models.AbstractModel):
         return rendered
 
     def _render_lang(self, res_ids, engine="inline_template"):
-        """Given some record ids, return the lang for each record based on
-        lang field of template or through specific context-based key. Lang is
-        computed by performing a rendering on res_ids, based on self.render_model.
+        """Given some record ids, return the lang for each record. It is rendered
+        from the template ``lang`` field on res_ids (based on self.render_model),
+        falling back on the lang of the record's main partner.
 
         :param list res_ids: list of ids of records. All should belong to the
           Odoo model given by model;
-        :param string engine: inline_template or qweb_view;
+        :param string engine: inline_template, qweb, or qweb_view;
 
         :return: {res_id: lang code (i.e. en_US)}
         :rtype: dict
@@ -1016,14 +999,14 @@ class MailRenderMixin(models.AbstractModel):
         return dict(rendered_langs.items())
 
     def _classify_per_lang(self, res_ids, engine="inline_template"):
-        """Given some record ids, return for computed each lang a contextualized
+        """Given some record ids, return per computed lang a contextualized
         template and its subset of res_ids.
 
         :param list res_ids: list of ids of records (all belonging to same model
           defined by self.render_model)
         :param string engine: inline_template, qweb, or qweb_view;
-        :return: {lang: (template with lang=lang_code if specific lang computed
-          or template, res_ids targeted by that language}
+        :return: {lang: (template contextualized on lang, res_ids targeted by
+          that language)}
         :rtype: dict
         """
         self.ensure_one()
@@ -1094,19 +1077,15 @@ class MailRenderMixin(models.AbstractModel):
             )
         self.ensure_one()
         if res_ids_lang:
-            # A caller that already resolved the per-record lang (e.g. the mass
-            # mail composer renders it once for the whole batch) passes it here.
-            # Reuse it in preference to ``compute_lang``, which would re-run the
-            # (identical) lang render via ``_classify_per_lang`` — the docstring
-            # already describes res_ids_lang as "already rendered another way".
+            # Reuse the lang the caller already resolved (e.g. the mass mail
+            # composer renders it once for the whole batch) in preference to
+            # ``compute_lang``, which would re-run the identical lang render.
             templates_res_ids = {}
             for res_id, lang in res_ids_lang.items():
                 lang_values = templates_res_ids.setdefault(
                     # Mirror _classify_per_lang: keep the ambient lang when the
-                    # per-record lang is falsy. ``with_context(lang=False)``
-                    # makes env.lang None -> renders en_US, so a customer with
-                    # no lang set (the common case) silently got an English
-                    # subject/body instead of the sender's language.
+                    # per-record lang is falsy, as ``with_context(lang=False)``
+                    # makes env.lang None and renders en_US.
                     lang,
                     (self.with_context(lang=lang) if lang else self, []),
                 )
