@@ -66,7 +66,7 @@ test("placeholder must not be visible if there is content in the editor (2)", as
     const content =
         '<p><span class="o_file_box" contenteditable="false"><a href="#" title="document" data-mimetype="application/pdf"></a></span></p>';
     const { el } = await setupEditor(content, { config: { placeholder: "test" } });
-    // Unchanged, no placeholder hint.
+    // The media makes the paragraph non-empty: no placeholder hint, only ZWNBSPs.
     expect(getContent(el)).toBe(
         '<p>\ufeff<span class="o_file_box" contenteditable="false"><a href="#" title="document" data-mimetype="application/pdf"></a></span>\ufeff</p>',
     );
@@ -76,7 +76,7 @@ test("should not display hint in paragraph with media content", async () => {
     const content =
         '<p><span class="o_file_box" contenteditable="false"><a href="#" title="document" data-mimetype="application/pdf"></a></span>[]</p>';
     const { el } = await setupEditor(content);
-    // Unchanged, no empty paragraph hint.
+    // The media makes the paragraph non-empty: no hint, only ZWNBSPs.
     expect(getContent(el)).toBe(
         '<p>\ufeff<span class="o_file_box" contenteditable="false"><a href="#" title="document" data-mimetype="application/pdf"></a></span>\ufeff[]</p>',
     );
@@ -85,7 +85,7 @@ test("should not display hint in paragraph with media content", async () => {
 test("should not display hint in a non-editable paragraph", async () => {
     const content = '<div contenteditable="false"><p>[]</p></div>';
     const { el } = await setupEditor(content);
-    // Unchanged, no empty paragraph hint.
+    // No hint inside the non-editable div; only selection placeholders are added.
     expect(getContent(el)).toBe(
         '<p data-selection-placeholder=""><br></p>' +
             content +
@@ -105,7 +105,7 @@ test("should display hint in paragraph with strong (bold)", async () => {
     const { el } = await setupEditor(
         `<p><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`,
     );
-    // hint should be visible
+    // Hint goes on the paragraph, not on the inline format element.
     expect(getContent(el)).toBe(
         `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`,
     );
@@ -115,7 +115,7 @@ test("should display hint in paragraph with em (italic)", async () => {
     const { el } = await setupEditor(
         `<p><em data-oe-zws-empty-inline="">[]\u200B</em></p>`,
     );
-    // hint should be visible
+    // Hint goes on the paragraph, not on the inline format element.
     expect(getContent(el)).toBe(
         `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><em data-oe-zws-empty-inline="">[]\u200B</em></p>`,
     );
@@ -125,7 +125,7 @@ test("should display hint in paragraph with u (underline)", async () => {
     const { el } = await setupEditor(
         `<p><u data-oe-zws-empty-inline="">[]\u200B</u></p>`,
     );
-    // hint should be visible
+    // Hint goes on the paragraph, not on the inline format element.
     expect(getContent(el)).toBe(
         `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><u data-oe-zws-empty-inline="">[]\u200B</u></p>`,
     );
@@ -135,7 +135,7 @@ test("should display hint in paragraph with s (strikethrough)", async () => {
     const { el } = await setupEditor(
         `<p><s data-oe-zws-empty-inline="">[]\u200B</s></p>`,
     );
-    // hint should be visible
+    // Hint goes on the paragraph, not on the inline format element.
     expect(getContent(el)).toBe(
         `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><s data-oe-zws-empty-inline="">[]\u200B</s></p>`,
     );
@@ -193,7 +193,7 @@ test("hint should only Be display for focused empty block element", async () => 
     );
     editor.shared.dom.setBlock({ tagName: "H1" });
     await animationFrame();
-    // @todo @phoenix: getContent does not place the selection when anchor is BR
+    // @todo: getContent does not place the selection when anchor is BR
     expect(el.innerHTML).toBe(
         `<h1 o-we-hint-text="Heading 1" class="o-we-hint"><br></h1>`,
     );

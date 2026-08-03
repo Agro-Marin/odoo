@@ -233,7 +233,7 @@ describe("powerbox", () => {
             </form>`,
         });
 
-        // Put cursor at end of first paragraph an insert "/"
+        // Put cursor at end of first paragraph and insert "/"
         setSelection({
             anchorNode: queryOne(".odoo-editor-editable p"),
             anchorOffset: 1,
@@ -258,7 +258,7 @@ describe("powerbox", () => {
             </form>`,
         });
 
-        // Put cursor at end of third paragraph an insert "/"
+        // Put cursor at end of third paragraph and insert "/"
         const thirdP = queryOne(".odoo-editor-editable p:nth-child(3)");
         setSelection({ anchorNode: thirdP, anchorOffset: 1 });
         insertText(editor, "/");
@@ -332,7 +332,7 @@ test("Table menu should close on scroll", async () => {
     scrollableElement.scrollTop += 10;
     await waitForNone(".o-dropdown--menu");
 
-    // Column menu should not be visible.
+    // Column menu should be removed from the DOM.
     expect(".o-dropdown--menu").not.toHaveCount();
 });
 
@@ -354,11 +354,11 @@ test("Table menu should only show on contenteditable true tables", async () => {
     await waitFor(".o-we-table-menu[data-type='column']");
     expect(".o-we-table-menu[data-type='column']").toBeVisible();
 
-    // hover away set the table as not editable
+    // hover away, then set the table as not editable
     await hover(".o_control_panel");
     queryOne("table").setAttribute("contenteditable", "false");
 
-    // chack that table menu is now not visible
+    // check that the table menu is no longer in the DOM
     await hover(".odoo-editor-editable td");
     await waitForNone(".o-we-table-menu[data-type='column']");
     expect(".o-we-table-menu[data-type='column']").not.toHaveCount();

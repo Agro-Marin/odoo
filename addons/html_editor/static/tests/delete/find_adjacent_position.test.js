@@ -128,7 +128,7 @@ describe("findAdjacentPosition method", () => {
                     // This position is not reachable with the keyboard, but
                     // it's the desirable one to compose a range for deletion,
                     // allowing to remove the div with deleteForward without
-                    // afecting the paragraph after it.
+                    // affecting the paragraph after it.
                     '<p>a</p><div contenteditable="false">b</div>[]<p>c</p>',
                 );
             });
@@ -142,7 +142,7 @@ describe("findAdjacentPosition method", () => {
                     // This position is not reachable with the keyboard, but
                     // it's the desirable one to compose a range for deletion,
                     // allowing to remove the div with deleteBackward without
-                    // afecting the paragraph before it.
+                    // affecting the paragraph before it.
                     '<p>a</p>[]<div contenteditable="false">b</div><p>c</p>',
                 );
             });

@@ -326,7 +326,7 @@ describe("insert tabulation", () => {
         const tabAfterDinH1 = TAB_WIDTH - (await getCharWidth("h1", "d"));
         const tabInBlockquote = TAB_WIDTH - (await getIndentWidth("blockquote"));
         const tabAfterEinBlockquote =
-            TAB_WIDTH - (await getCharWidth("blockquote", "e")); // in bloquote, after a tab
+            TAB_WIDTH - (await getCharWidth("blockquote", "e")); // in blockquote, after a tab
 
         await testTabulation({
             contentBefore:
