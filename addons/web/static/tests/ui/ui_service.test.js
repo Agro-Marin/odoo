@@ -4,10 +4,10 @@ import { describe, expect, test } from "@odoo/hoot";
 import { press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { useActiveElement } from "@web/ui/ui_service";
 import { SIZES } from "@web/ui/viewport";
 
@@ -325,12 +325,27 @@ test("the service releases its breakpoint listeners on destroy", async () => {
     // as the rest of the codebase, and `browser.matchMedia` is bound to
     // `window.matchMedia` once at module load — so patching `window` after
     // that point no longer reaches it.
+    // Only the breakpoint queries: `browser.matchMedia` is shared, and the
+    // color-scheme service binds `(prefers-color-scheme:dark)` for the life of
+    // the env. Counting every query charged the ui service for a listener it
+    // does not own and cannot release.
     patchWithCleanup(browser, {
-        matchMedia: () => ({
-            matches: false,
-            addEventListener: () => attached++,
-            removeEventListener: () => attached--,
-        }),
+        matchMedia: (/** @type {string} */ query) => {
+            const isBreakpoint = query.startsWith("(min-width:");
+            return {
+                matches: false,
+                addEventListener() {
+                    if (isBreakpoint) {
+                        attached++;
+                    }
+                },
+                removeEventListener() {
+                    if (isBreakpoint) {
+                        attached--;
+                    }
+                },
+            };
+        },
     });
 
     const env = await makeMockEnv();
@@ -476,4 +491,56 @@ test("a resize that does not change the size does not broadcast", async () => {
     notifyAll();
     expect.verifySteps(["resize"]);
     expect(ui.size).toBe(SIZES.XL);
+});
+
+test("an element activated twice stays active after one deactivation", async () => {
+    // `activateElement` is public and driven from focus events, so an element
+    // can legitimately be pushed twice -- knowledge's embedded view re-activates
+    // its host whenever the active element is no longer inside it, which an
+    // overlay stacked on top makes true. Removing every occurrence discarded an
+    // activation that was still outstanding and dropped straight to `document`.
+    const env = await makeMockEnv();
+    const ui = env.services.ui;
+    const host = document.createElement("div");
+    const overlay = document.createElement("div");
+    document.body.append(host, overlay);
+
+    ui.activateElement(host);
+    ui.activateElement(overlay);
+    ui.activateElement(host);
+    ui.deactivateElement(overlay);
+    ui.deactivateElement(host);
+
+    expect(ui.activeElement).toBe(host);
+
+    ui.deactivateElement(host);
+    expect(ui.activeElement).toBe(document);
+    host.remove();
+    overlay.remove();
+});
+
+test("deactivating an element that was never activated is a no-op", async () => {
+    const env = await makeMockEnv();
+    const ui = env.services.ui;
+    const stranger = document.createElement("div");
+
+    ui.deactivateElement(stranger);
+    expect(ui.activeElement).toBe(document);
+});
+
+test("destroy() releases the active-element stack and the block counter", async () => {
+    const env = await makeMockEnv();
+    const ui = env.services.ui;
+    const el = document.createElement("div");
+    document.body.append(el);
+    ui.activateElement(el);
+    ui.block();
+    expect(ui.activeElement).toBe(el);
+    expect(ui.isBlocked).toBe(true);
+
+    ui.destroy();
+
+    expect(ui.activeElement).toBe(document);
+    expect(ui.isBlocked).toBe(false);
+    el.remove();
 });

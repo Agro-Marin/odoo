@@ -5,8 +5,8 @@
 
 import { markup } from "@odoo/owl";
 import { PATH_KEYS } from "@web/core/browser/router";
+import { user } from "@web/core/user";
 import { omit, pick, shallowEqual } from "@web/core/utils/collections/objects";
-import { user } from "@web/services/user";
 
 import { parseActiveIds } from "./action_constants.js";
 import { resolveClientAction } from "./action_loader.js";
@@ -79,6 +79,9 @@ export function getActionParams(state) {
      */
     const options = {};
     let actionRequest = null;
+    // Re-read per recursion level rather than hoisted: the block below mutates
+    // what it returns (`help`, `context`, `views`), and each level needs a
+    // pristine copy.
     const lastAction = actionStorage.getCurrentAction();
     delete lastAction.context?.allowed_company_ids;
     if (lastAction.help) {

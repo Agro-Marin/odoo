@@ -4,7 +4,7 @@
 /** @module @web/fields/media/image_url/image_url_field */
 
 import { Component, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { parseDimensionAttr } from "@web/fields/field_utils";

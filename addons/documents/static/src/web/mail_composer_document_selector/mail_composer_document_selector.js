@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 import { useService } from "@web/core/utils/hooks";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 

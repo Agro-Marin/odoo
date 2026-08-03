@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { View } from "@web/views/view";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
 import { ForecastedButtons } from "./forecasted_buttons.js";
 import { ForecastedDetails } from "./forecasted_details.js";

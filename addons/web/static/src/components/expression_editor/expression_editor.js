@@ -9,7 +9,7 @@ import { ModelFieldSelector } from "@web/components/model_field_selector/model_f
 import { TreeEditor } from "@web/components/tree_editor/tree_editor";
 import { getOperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor";
 import { getDefaultValue } from "@web/components/tree_editor/tree_editor_value_editors";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { condition } from "@web/core/tree/condition_tree";
 import { expressionFromTree } from "@web/core/tree/expression_from_tree";
 import { treeFromExpression } from "@web/core/tree/tree_from_expression";

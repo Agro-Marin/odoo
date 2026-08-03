@@ -1,14 +1,11 @@
 /** @odoo-module native */
 import { Notebook } from "@web/components/notebook/notebook";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { append, createElement } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
-import { deleteConfirmationMessage } from "@web/ui/dialog/confirmation_dialog";
-import { FormCompiler } from "@web/views/form/form_compiler";
-import { FormController } from "@web/views/form/form_controller";
-import { FormRenderer } from "@web/views/form/form_renderer";
-import { formView } from "@web/views/form/form_view";
+import { deleteConfirmationMessage } from "@web/ui/dialog";
+import { FormCompiler, FormController, FormRenderer, formView } from "@web/views/form";
 
 export class AccountMoveFormController extends FormController {
     setup() {

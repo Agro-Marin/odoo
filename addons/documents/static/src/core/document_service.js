@@ -5,14 +5,13 @@ import { DocumentsManageVersions } from "@documents/components/documents_manage_
 import { openDocumentUrl } from "@documents/views/utils";
 import { EventBus, markup, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { download } from "@web/core/network/download";
+import { download, rpc } from "@web/core/network";
 import { parseSearchQuery, router } from "@web/core/browser/router";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 import { serializeDate } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
-import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { debounce } from "@web/core/utils/timing";
 import { Deferred } from "@web/core/utils/concurrency";
 import { session } from "@web/session";

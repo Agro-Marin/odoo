@@ -16,29 +16,29 @@
 
 /** TODO: Introduce a position parameter to the plugin registry in order to load them in a specific order */
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { _t } from "@web/core/l10n/translation";
-
-import {
-    GlobalFiltersCorePlugin,
-    GlobalFiltersUIPlugin,
-    GlobalFiltersCoreViewPlugin,
-} from "@spreadsheet/global_filters/index";
-import {
-    PivotOdooCorePlugin,
-    PivotCoreViewGlobalFilterPlugin,
-    PivotUIGlobalFilterPlugin,
-} from "@spreadsheet/pivot/index"; // list depends on filter for its getters
-import { ListCorePlugin, ListCoreViewPlugin, ListUIPlugin } from "@spreadsheet/list/index"; // pivot depends on filter for its getters
 import {
     ChartOdooMenuPlugin,
     OdooChartCorePlugin,
     OdooChartCoreViewPlugin,
 } from "@spreadsheet/chart/index"; // Odoochart depends on filter for its getters
+import {
+    GlobalFiltersCorePlugin,
+    GlobalFiltersCoreViewPlugin,
+    GlobalFiltersUIPlugin,
+} from "@spreadsheet/global_filters/index";
+import { ListCorePlugin, ListCoreViewPlugin, ListUIPlugin } from "@spreadsheet/list/index"; // pivot depends on filter for its getters
+import {
+    PivotCoreViewGlobalFilterPlugin,
+    PivotOdooCorePlugin,
+    PivotUIGlobalFilterPlugin,
+} from "@spreadsheet/pivot/index"; // list depends on filter for its getters
+import { _t } from "@web/core/translation";
+
+import { OdooChartFeaturePlugin } from "./chart/plugins/odoo_chart_feature_plugin.js";
+import { globalFieldMatchingRegistry } from "./global_filters/helpers.js";
+import { ListCoreGlobalFilterPlugin } from "./list/plugins/list_core_global_filter_plugin.js";
 import { PivotCoreGlobalFilterPlugin } from "./pivot/plugins/pivot_core_global_filter_plugin.js";
 import { PivotOdooUIPlugin } from "./pivot/plugins/pivot_odoo_ui_plugin.js";
-import { ListCoreGlobalFilterPlugin } from "./list/plugins/list_core_global_filter_plugin.js";
-import { globalFieldMatchingRegistry } from "./global_filters/helpers.js";
-import { OdooChartFeaturePlugin } from "./chart/plugins/odoo_chart_feature_plugin.js";
 
 const { corePluginRegistry, coreViewsPluginRegistry, featurePluginRegistry } =
     spreadsheet.registries;

@@ -4,7 +4,6 @@
 /** @module @web/search/search_panel/search_panel_mixin */
 
 import { Domain } from "@web/core/domain";
-import { SearchModelEvent } from "@web/core/events";
 import { deepEqual } from "@web/core/utils/collections/objects";
 
 import { hasValues } from "../search_state.js";
@@ -127,15 +126,6 @@ export const SearchPanelMixin = (Base) =>
             }
         }
 
-        _notifySectionRefreshed() {
-            this._reset();
-            if (this.blockNotification) {
-                this._pendingNotification = true;
-                return;
-            }
-            this.trigger(SearchModelEvent.UPDATE);
-        }
-
         /**
          * @param {Category[]} categories
          * @returns {Promise}
@@ -171,7 +161,7 @@ export const SearchPanelMixin = (Base) =>
                                         return;
                                     }
                                     this._createCategoryTree(category.id, result);
-                                    this._notifySectionRefreshed();
+                                    this._notify({ reloadSections: false });
                                 },
                             })
                             .call(
@@ -238,7 +228,7 @@ export const SearchPanelMixin = (Base) =>
                                         return;
                                     }
                                     this._createFilterTree(filter.id, result);
-                                    this._notifySectionRefreshed();
+                                    this._notify({ reloadSections: false });
                                 },
                             })
                             .call(

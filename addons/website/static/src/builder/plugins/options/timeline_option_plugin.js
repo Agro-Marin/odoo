@@ -8,8 +8,8 @@ import {
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { localization } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";
 
 export const TIMELINE = before(WEBSITE_BACKGROUND_OPTIONS);

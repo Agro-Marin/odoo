@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { DropdownItem } from "@web/components/dropdown";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { uniqueId } from "@web/core/utils/functions";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 export class CourseTagAddDialog extends Component {
     static components = { Dialog, DropdownItem, SelectMenu };

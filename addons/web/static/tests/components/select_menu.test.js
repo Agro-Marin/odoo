@@ -11,8 +11,8 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 /**
  * Mounts the Component and MainComponentContainer in the same App (unlike

@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef, xml } from "@odoo/owl";
 import { useIsChildLarger } from "@point_of_sale/app/hooks/hooks";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 class ListContainerDialog extends Component {
     static components = { Dialog };
     static props = {

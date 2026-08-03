@@ -3,8 +3,9 @@ import { setCellContent } from "@spreadsheet/../tests/helpers/commands";
 import { getCellValue, getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
+import { RPCError } from "@web/core/network";
+
 import { defineSpreadsheetActions, defineSpreadsheetModels } from "../helpers/data.js";
-import { RPCError } from "@web/core/network/rpc";
 
 describe.current.tags("headless");
 

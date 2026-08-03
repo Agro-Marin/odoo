@@ -2,9 +2,9 @@
 import { Thread } from "@mail/core/common/thread";
 import { useEffect } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
-import { user } from "@web/services/user";
 
 const { DateTime } = luxon;
 

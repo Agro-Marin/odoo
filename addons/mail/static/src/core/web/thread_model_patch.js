@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { compareDatetime } from "@mail/utils/common/misc";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 
 import { fields } from "../common/record.js";

@@ -3,10 +3,11 @@
 
 /** @module @web/webclient/actions/action_dispatch */
 
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { SupersededError } from "@web/core/utils/concurrency";
-import { user } from "@web/services/user";
 
 import { actionStorage } from "./action_storage.js";
 import { getActionMode } from "./action_views.js";
@@ -110,7 +111,7 @@ export class ActionDispatch {
     fail(error, { componentStatus }) {
         const { am, controller, action } = this;
         if (controller.isMounted) {
-            Promise.reject(error);
+            reportUncaught(error);
             return;
         }
         if (componentStatus === "mounted") {
@@ -123,7 +124,7 @@ export class ActionDispatch {
                     withControlPanel: action.type === "ir.actions.act_window",
                 },
             });
-            Promise.reject(error);
+            reportUncaught(error);
             return;
         }
         this._reject(error);

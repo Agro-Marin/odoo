@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { Interaction } from "@web/public/interaction";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { deserializeDate } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";

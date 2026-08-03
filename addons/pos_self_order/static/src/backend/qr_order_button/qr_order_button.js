@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { WarningDialog } from "@web/components/errors/error_dialogs";
-import { _t } from "@web/core/l10n/translation";
+import { WarningDialog } from "@web/components/errors";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 async function posQrStands(env, action) {
     const user_data = action.params.data;
 

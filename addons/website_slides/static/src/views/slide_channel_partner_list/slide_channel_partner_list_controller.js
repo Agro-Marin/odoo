@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
-import { ListController } from "@web/views/list/list_controller";
+import { ListController } from "@web/views/list";
 
 export default class SlideChannelPartnerListController extends ListController {
     static template = "website_slides.SlideChannelPartnerListView";

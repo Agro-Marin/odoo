@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { Tooltip } from "@web/libs/bootstrap";
-import { Plugin } from "@html_editor/plugin";
-import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
+import { isEditable } from "@html_builder/utils/utils";
 import { unremovableNodePredicates as deletePluginPredicates } from "@html_editor/core/delete_plugin";
 import { isUnremovableQWebElement as qwebPluginPredicate } from "@html_editor/others/qweb_plugin";
-import { isEditable } from "@html_builder/utils/utils";
+import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
+import { withSequence } from "@html_editor/utils/resource";
+import { _t } from "@web/core/translation";
+import { Tooltip } from "@web/libs/bootstrap";
 
 /** @typedef {import("plugins").CSSSelector} CSSSelector */
 

@@ -20,12 +20,11 @@ import { useDropdownNesting } from "@web/components/dropdown/_behaviours/dropdow
 import { DropdownPopover } from "@web/components/dropdown/_behaviours/dropdown_popover";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { hasTouch } from "@web/core/browser/feature_detection";
-import { deepMerge } from "@web/core/utils/collections/objects";
+import { mergeNavigationOptions, useNavigation } from "@web/core/navigation/navigation";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { disposableEffect } from "@web/core/utils/reactive";
-import { useNavigation } from "@web/services/navigation/navigation";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { utils } from "@web/ui/viewport";
 
@@ -171,20 +170,31 @@ export class Dropdown extends Component {
         this.nesting = useDropdownNesting(this.state);
         this.group = useDropdownGroup();
 
-        this.navigation = useNavigation(this.menuRef, {
-            shouldRegisterHotkeys: false,
-            isNavigationAvailable: () => this.state.isOpen,
-            getItems: () => {
-                if (this.state.isOpen && this.menuRef.el) {
-                    return this.menuRef.el.querySelectorAll(
-                        ":scope .o-navigable, :scope .o-dropdown",
-                    );
-                } else {
-                    return [];
-                }
-            },
-            ...deepMerge(this.nesting.navigationOptions, this.props.navigationOptions),
-        });
+        // mergeNavigationOptions, not `{...deepMerge(…)}`: a spread reads every
+        // key and writes its value, so an option a caller declared as a getter
+        // -- SelectMenu's `virtualFocus`, which follows `props.searchable` --
+        // froze here at whatever it returned during setup. Precedence is
+        // unchanged: own defaults, then nesting, then props.
+        this.navigation = useNavigation(
+            this.menuRef,
+            mergeNavigationOptions(
+                {
+                    shouldRegisterHotkeys: false,
+                    isNavigationAvailable: () => this.state.isOpen,
+                    getItems: () => {
+                        if (this.state.isOpen && this.menuRef.el) {
+                            return this.menuRef.el.querySelectorAll(
+                                ":scope .o-navigable, :scope .o-dropdown",
+                            );
+                        } else {
+                            return [];
+                        }
+                    },
+                },
+                this.nesting.navigationOptions,
+                this.props.navigationOptions,
+            ),
+        );
 
         useChildSubEnv({ navigation: this.navigation });
 

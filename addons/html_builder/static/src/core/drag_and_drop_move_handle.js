@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onMounted } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class DragAndDropMoveHandle extends Component {
     static template = "html_builder.DragAndDropMoveHandle";

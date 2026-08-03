@@ -3,9 +3,7 @@ import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
 import { colorScheme } from "@web/core/color_scheme";
 import { useChildRef } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";

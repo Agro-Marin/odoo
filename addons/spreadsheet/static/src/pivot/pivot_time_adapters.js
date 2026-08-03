@@ -1,11 +1,11 @@
 /** @odoo-module native */
 // @ts-check
 
-import { luxon } from "@web/core/l10n/luxon";
-import { registries, helpers, constants, EvaluationError } from "@odoo/o-spreadsheet";
+import { constants, EvaluationError,helpers, registries } from "@odoo/o-spreadsheet";
 import { deserializeDate } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 
 const { pivotTimeAdapterRegistry } = registries;
 const { toNumber, toJsDate, toString } = helpers;

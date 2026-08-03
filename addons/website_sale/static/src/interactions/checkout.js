@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
 import { registry } from '@web/core/registry';
-import { _t } from '@web/core/l10n/translation';
-import { rpc } from '@web/core/network/rpc';
+import { _t } from '@web/core/translation';
+import { rpc } from "@web/core/network";
 import {
     LocationSelectorDialog
 } from '@delivery/js/location_selector/location_selector_dialog/location_selector_dialog';

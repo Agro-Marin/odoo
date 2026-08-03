@@ -188,9 +188,14 @@
         return parts.join("\n").slice(0, MAX_CAUSE);
     }
 
-    // Bounded like the ESM copy's `seen`: the key embeds the message, and this
-    // shim runs on every page load before anything else, so an unbounded set is
-    // a leak. Insertion order makes dropping the oldest the right eviction.
+    // The one deliberate duplicate of `@web/core/errors/error_beacon`: this
+    // shim is emitted inline before the ESM bundle, so it cannot import it.
+    // Kept in step with it -- same endpoint, same
+    // `(message,line,col,hash(stack+cause))` dedup key, and the same 512-key
+    // cap. The key embeds the message, and this shim runs on every page load
+    // before anything else, so an unbounded set is a leak; insertion order
+    // makes dropping the oldest the right eviction (the recent keys, the only
+    // ones a burst repeats, are what dedup must keep).
     const MAX_SEEN_KEYS = 512;
 
     const seenErrors = new Set();
@@ -225,8 +230,16 @@
     o.loader._beacon = { reportError, seenErrors, serializeCause, hashCode };
 
     globalThis.addEventListener?.("error", (ev) => {
+        // Pre-boot safety net only. Once `odoo.isReady`, the error service owns
+        // generic-error beaconing -- and beacons only genuine defects, not the
+        // handled business errors this listener would otherwise duplicate into
+        // the js_error stream. (The asset-load listener below and module_rebind
+        // are loader-specific and beacon in both phases.)
+        if (globalThis.odoo?.isReady) {
+            return;
+        }
         reportError({
-            phase: globalThis.odoo?.isReady ? "post_boot" : "pre_boot",
+            phase: "pre_boot",
             kind: "error",
             message: String(ev.message || ev.error?.message || "(no message)"),
             cause: serializeCause(ev.error?.cause),
@@ -273,6 +286,12 @@
         true,
     );
     globalThis.addEventListener?.("unhandledrejection", (ev) => {
+        // Pre-boot safety net only, as with the generic "error" listener above:
+        // post-boot the error service classifies and beacons, so an expected
+        // rejection (SupersededError, a handled RPCError) is not reported here.
+        if (globalThis.odoo?.isReady) {
+            return;
+        }
         const reason = ev.reason;
         const message =
             reason instanceof Error
@@ -281,7 +300,7 @@
                   ? reason
                   : "(non-error rejection)";
         reportError({
-            phase: globalThis.odoo?.isReady ? "post_boot" : "pre_boot",
+            phase: "pre_boot",
             kind: "unhandledrejection",
             message: String(message),
             // The case this exists for: OWL surfaces a lifecycle failure as a

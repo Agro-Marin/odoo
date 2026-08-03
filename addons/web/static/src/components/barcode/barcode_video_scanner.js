@@ -13,7 +13,7 @@ import {
     useState,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { delay } from "@web/core/utils/concurrency";
 

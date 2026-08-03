@@ -11,11 +11,11 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 const { DateTime } = luxon;
 

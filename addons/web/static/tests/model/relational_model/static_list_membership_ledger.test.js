@@ -91,7 +91,7 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
         offset: 0,
         limit,
         resIds,
-        orderBy: [],
+        orderBy: /** @type {any[]} */ ([]),
         context: {},
     };
     /** @type {any} */

@@ -9,9 +9,9 @@ import { useGetDefaultLeafDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
 import { Domain, InvalidDomainError } from "@web/core/domain";
 import { ModelEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-import { registry } from "@web/core/registry";
+import { getSelectCreateDialog } from "@web/core/record_dialog_port";
+import { _t } from "@web/core/translation";
 import { domainContainsExpressions } from "@web/core/tree/domain_contains_expressions";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
@@ -286,7 +286,7 @@ export class DomainField extends Component {
     }
 
     onButtonClick() {
-        const SelectCreateDialog = registry.category("dialogs").get("select_create");
+        const SelectCreateDialog = getSelectCreateDialog();
         this.addDialog(
             SelectCreateDialog,
             {

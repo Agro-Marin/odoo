@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { onWillStart, useState } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 

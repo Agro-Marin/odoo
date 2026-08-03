@@ -2,15 +2,15 @@
 import { luxon } from "@web/core/l10n/luxon";
 import { Component, useEffect, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { downloadFile } from "@web/core/network/download";
+import { _t } from "@web/core/translation";
+import { downloadFile } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { Logger } from "@bus/workers/bus_worker_utils";
 import { GloryService } from "@pos_glory_cash/glory_service";
 import { GLORY_STATUS_STRING } from "@pos_glory_cash/utils/constants";
 
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 export class GloryAdminButtons extends Component {
     static template = `pos_glory_cash.GloryAdminButtons`;
     static props = {

@@ -3,8 +3,8 @@ import { registerField } from "@web/fields/_registry";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
-import { KanbanMany2ManyTagsField } from "@web/fields/relational/many2many_tags/kanban_many2many_tags_field";
+    KanbanMany2ManyTagsField,
+} from "@web/fields/relational/many2many_tags";
 
 /**
  * Tags on a documents kanban card: the kanban look, but every tag.

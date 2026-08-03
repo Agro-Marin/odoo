@@ -4,7 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { Component, markup, xml } from "@odoo/owl";
 import { makeMockServer, onRpc } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import {
     loadAction,
     makeController,

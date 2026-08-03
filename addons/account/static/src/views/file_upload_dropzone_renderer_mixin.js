@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { UploadDropZone } from "@account/components/upload_drop_zone/upload_drop_zone";
 import { useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 import { uploadFileFromData } from "./upload_file_from_data_hook.js";

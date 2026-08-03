@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import PurchaseAdditionalTourSteps from "@purchase/js/tours/purchase_steps";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 patch(PurchaseAdditionalTourSteps.prototype, {

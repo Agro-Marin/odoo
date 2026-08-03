@@ -1937,7 +1937,7 @@ test("current_action doesn't contains _originalAction", async () => {
     await mountWithCleanup(WebClient);
 
     await animationFrame();
-    expect(JSON.parse(sessionStorage.getItem("current_action"))).toEqual(
+    expect(JSON.parse(browser.sessionStorage.getItem("current_action"))).toEqual(
         {
             context: {},
             domain: [],

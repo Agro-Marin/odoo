@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { MEDIA_SELECTOR, isProtected } from "@html_editor/utils/dom_info";
-import { closestElement } from "@html_editor/utils/dom_traversal";
 import { shouldEditableMediaBeEditable } from "@html_builder/utils/utils_css";
-import { _t } from "@web/core/l10n/translation";
-import { Tooltip } from "@web/ui/tooltip/tooltip";
+import { Plugin } from "@html_editor/plugin";
+import { isProtected,MEDIA_SELECTOR } from "@html_editor/utils/dom_info";
+import { closestElement } from "@html_editor/utils/dom_traversal";
+import { _t } from "@web/core/translation";
+import { Tooltip } from "@web/ui/tooltip";
 
 /**
  * @typedef { Object } MediaWebsiteShared

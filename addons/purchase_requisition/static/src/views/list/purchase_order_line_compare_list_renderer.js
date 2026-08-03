@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { ListRenderer } from "@web/views/list";
 import { onWillStart, useState, useSubEnv } from "@odoo/owl";
 
 export class PurchaseOrderLineCompareListRenderer extends ListRenderer {

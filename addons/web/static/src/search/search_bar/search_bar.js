@@ -13,12 +13,12 @@ import { Domain } from "@web/core/domain";
 import { SearchModelEvent } from "@web/core/events";
 import { getFieldCodec } from "@web/core/field_codec";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { useNavigation } from "@web/core/navigation/navigation";
+import { _t } from "@web/core/translation";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useAutofocus, useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { fuzzyTest } from "@web/core/utils/search";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
-import { useNavigation } from "@web/services/navigation/navigation";
 
 const parseValue = (value, fieldType) => {
     const parser = getFieldCodec(fieldType).parse;
@@ -673,7 +673,7 @@ export class SearchBar extends Component {
     }
 
     /**
-     * @returns {import("@web/services/navigation/navigation").NavigationOptions}
+     * @returns {import("@web/core/navigation/navigation").NavigationOptions}
      */
     getDropdownNavigation() {
         const isExpansible = (index) => {

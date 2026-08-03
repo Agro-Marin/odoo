@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { calendarView } from "@web/views/calendar/calendar_view";
+import { calendarView } from "@web/views/calendar";
 
 import { ProjectTaskControlPanel } from "../project_task_control_panel/project_task_control_panel.js";
 import { ProjectTaskCalendarController } from "./project_task_calendar_controller.js";

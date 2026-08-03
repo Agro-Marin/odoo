@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { CalendarController } from "@web/views/calendar/calendar_controller";
-import { user } from "@web/services/user";
-import { useService } from "@web/core/utils/hooks";
-import { onWillStart } from "@odoo/owl";
 import { CalendarQuickCreate } from "@calendar/views/calendar_form/calendar_quick_create";
+import { onWillStart } from "@odoo/owl";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
+import { useService } from "@web/core/utils/hooks";
+import { CalendarController } from "@web/views/calendar";
 export class AttendeeCalendarController extends CalendarController {
     static template = "calendar.AttendeeCalendarController";
     static components = {

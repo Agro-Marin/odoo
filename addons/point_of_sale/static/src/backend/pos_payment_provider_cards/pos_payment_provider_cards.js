@@ -2,7 +2,7 @@
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 export class PosPaymentProviderCards extends Component {
     static template = "point_of_sale.PosPaymentProviderCards";
     static components = {};

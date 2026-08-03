@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
-import { FormController } from "@web/views/form/form_controller";
-import { formView } from "@web/views/form/form_view";
+import { FormController, formView } from "@web/views/form";
 import { passkeyLib } from "../passkey_lib.js";
 
 export class PassKeyIdentityCheckFormController extends FormController {

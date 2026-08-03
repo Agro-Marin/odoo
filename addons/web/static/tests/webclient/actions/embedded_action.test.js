@@ -20,7 +20,7 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
 import { rpcBus } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { WebClient } from "@web/webclient/webclient";
 
 describe.current.tags("desktop");

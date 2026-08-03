@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Follower } from "@mail/core/web/follower";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 patch(Follower.prototype, {
     /**

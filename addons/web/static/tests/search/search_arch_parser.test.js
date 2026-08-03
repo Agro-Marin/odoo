@@ -144,3 +144,39 @@ describe("field group numbers", () => {
         ]);
     });
 });
+
+describe("unknown field diagnostics", () => {
+    test("a <field> naming an unknown field warns and is dropped, not silently vanished", () => {
+        patchWithCleanup(console, {
+            warn: (/** @type {string} */ msg) => expect.step(msg),
+        });
+
+        const parser = new SearchArchParser(
+            { arch: `<search><field name="nope"/></search>` },
+            FIELDS, // only "d" exists
+        );
+        const items = parser.parse().preSearchItems.flat();
+
+        expect(items).toEqual([]);
+        expect.verifySteps([
+            `[search] <field name="nope">: no such field on the model; the search field is ignored (check for a typo).`,
+        ]);
+    });
+
+    test("a <filter date> naming an unknown field warns and is dropped", () => {
+        patchWithCleanup(console, {
+            warn: (/** @type {string} */ msg) => expect.step(msg),
+        });
+
+        const parser = new SearchArchParser(
+            { arch: `<search><filter name="f" date="nope"/></search>` },
+            FIELDS, // only "d" exists
+        );
+        const items = parser.parse().preSearchItems.flat();
+
+        expect(items).toEqual([]);
+        expect.verifySteps([
+            `[search] <filter date="nope">: no such field on the model; the date filter is ignored (check for a typo).`,
+        ]);
+    });
+});

@@ -1,17 +1,15 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import {
-    computeM2OProps,
-    KanbanMany2One,
-} from "@web/fields/relational/many2one/many2one";
+import { _t } from "@web/core/translation";
 import {
     buildM2OFieldDescription,
+    computeM2OProps,
     extractM2OFieldProps,
+    KanbanMany2One,
     m2oSupportedOptions,
     Many2OneField,
-} from "@web/fields/relational/many2one/many2one_field";
+} from "@web/fields/relational/many2one";
 
 import { Avatar } from "../avatar/avatar.js";
 

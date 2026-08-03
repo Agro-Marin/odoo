@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 import { BarcodeScanner } from "@barcodes/components/barcode_scanner";
 
 export class BadgeScanner extends Component {

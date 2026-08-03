@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 
 export const LunchRendererMixin = (T) => class LunchRendererMixin extends T {

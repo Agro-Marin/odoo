@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { DocumentFileUploader } from "@account/components/document_file_uploader/document_file_uploader";
 import { markup } from "@odoo/owl";
-import { WarningDialog } from "@web/components/errors/error_dialogs";
-import { _t } from "@web/core/l10n/translation";
+import { WarningDialog } from "@web/components/errors";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 export class PurchaseFileUploader extends DocumentFileUploader {

@@ -1,14 +1,14 @@
 /** @odoo-module native */
 import { Component, markup, onRendered, onWillStart, useState } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
-import { _t } from "@web/core/l10n/translation";
-import { download } from "@web/core/network/download";
+import { download } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { SelectCreateDialog } from "@web/views/view_dialogs";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
 function sendCustomNotification(type, message) {
     return {

@@ -4,7 +4,7 @@ import { FORUMS_INDEX } from "@website_forum/website_builder/forum_page_option_p
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 
 export class SlidesForumOption extends BaseOptionComponent {

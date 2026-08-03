@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
-import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConnectionLostError, RPCError } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog";
 
 import { handleRPCError, showLimitedFunctionalityWarning } from "./error_handlers.js";
 import { ask } from "./make_awaitable_dialog.js";

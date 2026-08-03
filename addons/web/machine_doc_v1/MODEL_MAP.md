@@ -2,9 +2,9 @@
 
 Every Python model defined or extended by the `web` module, with fields, key methods, and purpose.
 
-> **See also**: `doc/COMPONENT_DIAGRAM.md` maps models to audit areas:
+> **See also**: `COMPONENT_DIAGRAM.md` maps models to audit areas:
 > Area 4 (Web Data Access), Area 5 (Onchange), Area 2 (Auth).
-> `doc/FLOW_DIAGRAM.md` traces model methods through Flow 3 (RPC), Flow 5
+> `FLOW_DIAGRAM.md` traces model methods through Flow 3 (RPC), Flow 5
 > (Onchange), Flow 6 (Save), Flow 7 (List Data Loading).
 
 ## Frontend Data Layer
@@ -92,7 +92,8 @@ Webclient context setup, session info, and request handling.
 
 **Key Methods:**
 - `session_info()` — Main bootstrap RPC. Returns dict built by `_base_session_info` + `session_info` additions. Full key list:
-  - From `_base_session_info`: `uid`, `is_system`, `is_admin`, `is_public`, `is_internal_user`, `registry_hash`, `show_effect`, `currencies`, `quick_login`, `bundle_params`, `test_mode`, `cwv_sample_rate`, `feature_flags`, optionally `server_version`, `server_version_info`
+  - From `_base_session_info`: `uid`, `is_system`, `is_admin`, `is_public`, `is_internal_user`, `registry_hash`, `show_effect`, `currencies`, `quick_login`, `bundle_params`, `test_mode`, `cwv_sample_rate`, `feature_flags`, `has_unaccent`, optionally `server_version`, `server_version_info`
+  - `has_unaccent` (`self.env.registry.has_unaccent`) reports whether `ilike` folds accents on this database. Load-bearing: the client evaluates the same domains in memory (`@web/core/domain`) and must make the same choice — `--unaccent` defaults to off, so on a database without the extension `café` and `cafe` are different text and the client must not fold either
   - Added by `session_info`: `user_context`, `max_file_upload_size`, `active_ids_limit`, `db`, `support_url`, `name`, `username`, `partner_write_date`, `partner_display_name`, `partner_id`, `home_action_id`, `view_info`, `user_settings`, `groups`, `web.base.url`, conditionally `user_companies` (company hierarchy, only for internal users)
   - `groups` is a single-flag dict `{"base.group_allow_export": bool}`, NOT a full list of the user's groups
   - `browser_cache_secret` is NOT part of `session_info()` — it is injected separately by `home.py` into the HTML template after `session_info()` returns
@@ -167,8 +168,10 @@ Webclient user preferences.
 **Fields:**
 - `embedded_actions_config_ids` (One2many → `res.users.settings.embedded.action`)
 - `density` (Selection, `default='default'`, `required=True`): UI density — `default` / `compact` / `condensed`
+- `color_scheme` (Selection, `default='system'`, `required=True`): `system` / `light` / `dark`. `system` defers to the OS preference; `ir_http.color_scheme()` is the server-side override point
 
 **Key Methods:**
+- `_format_settings(fields_to_format)` (`@api.model`) — `super()` + replaces `embedded_actions_config_ids` with its formatted payload when requested. This is what puts `user_settings` into `session_info`.
 - `get_embedded_actions_settings()` — Current user's embedded action config.
 - `set_embedded_actions_setting(action_id, res_id, ...)` — Create/update embedded action visibility and order.
 
@@ -244,8 +247,21 @@ Model is **defined upstream in `base`**; web only extends it. The `ir.model.acce
 
 ### models/res_config_settings.py — ResConfigSettings (`_inherit`, TransientModel)
 
-**Fields:**
-- `web_app_name` (Char, config_parameter='web.web_app_name'): Application name in browser title bar.
+The **General Settings** page. `web` owns the root settings form, so this holds
+the company/branding block and the `module_*` install toggles for the optional
+addons offered there — not just web's own preference.
+
+**Fields** (30):
+- `web_app_name` (Char, `config_parameter='web.web_app_name'`): Application name in browser title bar
+- `show_effect` (Boolean, `config_parameter='base.show_effect'`) · `profiling_enabled_until` (Datetime, `config_parameter='base.profiling_enabled_until'`)
+- `group_multi_currency` (Boolean, `implied_group='base.group_multi_currency'`) — the only group-implying field here
+- Company block: `company_id` (Many2one, required, defaults to `env.company`), `company_name` / `company_country_code` / `company_country_group_codes` / `report_footer` / `external_report_layout_id` (all `related='company_id.*'`; `report_footer` is `readonly=False` for edit-through), `is_root_company` / `company_informations` / `company_count` / `active_user_count` / `language_count` (all computed)
+- Module install toggles (Boolean, one per optional addon — setting one installs it): `module_base_import`, `module_google_calendar`, `module_microsoft_calendar`, `module_mail_plugin`, `module_auth_oauth`, `module_auth_ldap`, `module_account_inter_company_rules`, `module_voip`, `module_web_unsplash`, `module_sms`, `module_partner_autocomplete`, `module_base_geolocalize`, `module_google_recaptcha`, `module_website_cf_turnstile`, `module_google_address_autocomplete`
+
+**Key Methods:**
+- `open_company()` / `open_new_user_default_groups()` — Jump to the company form / the default-groups template user.
+- `edit_external_header()` / `_prepare_report_view_action()` — Open the report header layout in the editor.
+- `_compute_is_root_company`, `_compute_company_informations`, `_compute_company_count`, `_compute_active_user_count`, `_compute_language_count`.
 
 ### models/res_partner.py — ResPartner (`_inherit = 'res.partner'`)
 
@@ -253,18 +269,29 @@ vCard export for contact data.
 
 **Key Methods:**
 - `_build_vcard()` — Constructs vobject vCard from partner. Sets: `n` (structured name), `fn` (formatted name), `adr` (with optional `region`/`country`), `email` (`type_param="INTERNET"`), `tel` (`type_param="work"`), `url` (website), `org`, `title`, `photo` (base64 with `encoding_param="B"`).
-- `_get_vcard_file()` — Returns serialized vCard bytes. Unconditional — `vobject` is a hard top-level import, so there is no fallback path. NOTE: `vobject` is **not declared in `__manifest__.py['external_dependencies']`** — the server fails at import time if missing rather than at first vcard request.
+- `_get_vcard_file()` — Returns serialized vCard bytes.
+
+> **`vobject` is imported lazily, not at module top.** `_vobject()` (`res_partner.py`, `functools.cache`d) performs the `import vobject.vcard` and builds the `Proxy` classes on first use, because the proxy class bodies reference `vobject.base` at *definition* time. A top-level import would make the whole `web` addon fail to import when the library is absent. `controllers/vcard.py` guards the route with `importlib.util.find_spec("vobject")` and raises a clean `UserError` when it is missing — so the failure mode is a user-facing error on the vcard request, **not** an import-time crash.
+>
+> `vobject` is **not** declared in `__manifest__.py` — the manifest has no `external_dependencies` key at all. The docstring on `_vobject()` claims it is declared; that docstring is wrong, and the guard in `vcard.py` is what actually makes the dependency optional. Declaring it would be the tidier fix, but it changes installability, so it is called out here rather than assumed.
 
 ## Observability
 
 ### models/web_cwv_metric.py — WebCwvMetric (`_name = 'web.cwv.metric'`)
 
 Storage for Core Web Vitals beacons. Records are written by
-`controllers/observability.py:cwv()` and pruned on a daily cron (`_gc_old_metrics`).
+`controllers/observability.py:cwv()` through `_record_beacon()` and pruned on a
+daily cron (`_gc_old_metrics`).
+
+**One row per pageview, not per beacon.** A page emits several beacons — INP and
+CLS keep growing after the first tab-switch — so `_record_beacon()` upserts on
+`pageview_id` rather than inserting each time. Rows are therefore *updated* in
+place to the latest values; treat the table as pageview-keyed, not append-only.
 
 `_log_access = False`: the four standard audit columns
-(`create_uid`/`create_date`/`write_uid`/`write_date`) are skipped (append-only,
-high-volume; `recorded_at` captures beacon arrival).
+(`create_uid`/`create_date`/`write_uid`/`write_date`) are skipped (high-volume,
+and the upsert makes `write_date` misleading anyway; `recorded_at` captures
+first-beacon arrival).
 
 **Fields** (numeric vitals are server-clamped before persistence; see
 `controllers/observability.py:_clamp_latency`/`_clamp_cls`):
@@ -277,9 +304,12 @@ high-volume; `recorded_at` captures beacon arrival).
 - `ttfb` (Float, ms, readonly) — Time To First Byte
 - `inp` (Float, ms, readonly) — Interaction to Next Paint, reported by `web_vitals_service.js` as the **worst-observed interaction duration over the page lifetime** (a P100 running max — a strict upper bound on the canonical Chromium P98 INP, actionable as a regression signal; swap the reducer for a proper P98 if the `web-vitals` library is ever vendored). Server-clamped like the other latencies (`_clamp_latency`, `controllers/observability.py`)
 - `cls` (Float, unitless, readonly) — Cumulative Layout Shift (0 is best; not capped at 1)
+- `pageview_id` (Char, `size=64`, readonly) — client-generated id, stable for one page load; the upsert key. Empty/NULL is allowed and never conflicts, so a beacon without one still lands as its own row
 
 **Key Methods:**
-- `_gc_old_metrics()` (`@api.model`) — Daily cron retention sweep. Reads `web.cwv.retention_days` (default `"30"`). `0` disables (cron no-op). Issues a single raw `DELETE FROM web_cwv_metric WHERE recorded_at < now() - INTERVAL ...` (no ORM iteration; table is append-only by design). Registered via `data/web_cwv_metric_data.xml`.
+- `_record_beacon(values)` (`@api.model`) — Atomic `INSERT ... ON CONFLICT` upserting on `pageview_id`, replacing an earlier search-then-write: race-free (the partial unique index is the arbiter) and one round-trip instead of two.
+- `init()` — Creates the partial unique index `web_cwv_metric__pageview_id_uniq` on `(pageview_id) WHERE pageview_id IS NOT NULL`. Partial so rows without a pageview id do not collide with each other.
+- `_gc_old_metrics()` (`@api.model`) — Daily cron retention sweep. Reads `web.cwv.retention_days` (default `"30"`). `0` disables (cron no-op). Issues a single raw `DELETE FROM web_cwv_metric WHERE recorded_at < now() - INTERVAL ...` (no ORM iteration — nothing here needs recomputation or cascade). Registered via `data/web_cwv_metric_data.xml`.
 
 ### models/web_js_error.py — WebJsError (`_name = 'web.js.error'`)
 

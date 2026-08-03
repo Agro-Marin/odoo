@@ -1,6 +1,6 @@
 /** @odoo-module native */
 
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import VariantMixin from "@website_sale_stock/js/variant_mixin";
 
 const oldGetUnavailableQty = VariantMixin._getUnavailableQty;

@@ -1,15 +1,15 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useModel } from "@web/model/model";
-import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
+import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
-import { SearchBar } from "@web/search/search_bar/search_bar";
+import { SearchBar } from "@web/search/search_bar";
 import { standardViewProps } from "@web/views/standard_view_props";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
+import { SelectCreateDialog } from "@web/views/view_dialogs";
 export class ActivityController extends Component {
     static components = { Layout, SearchBar, CogMenu };
     static props = {

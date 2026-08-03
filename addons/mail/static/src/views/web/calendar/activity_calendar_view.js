@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { calendarView } from "@web/views/calendar/calendar_view";
+import { calendarView } from "@web/views/calendar";
 
 import { ActivityCalendarRender } from "./activity_calendar_renderer.js";
 

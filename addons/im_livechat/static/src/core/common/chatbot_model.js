@@ -2,7 +2,7 @@
 import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
 import { AND, fields, Record } from "@mail/core/common/record";
 import { browser } from "@web/core/browser/browser";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { debounce } from "@web/core/utils/timing";
 
 export class Chatbot extends Record {

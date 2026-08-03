@@ -4,6 +4,7 @@
 /** @module @web/core/network/rpc_cache */
 
 import { browser } from "@web/core/browser/browser";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { RpcEvent } from "@web/core/events";
 import {
     ConnectionAbortedError,
@@ -63,13 +64,6 @@ function payloadChanged(fromCacheValue, result) {
         return true;
     }
     return !deepEqual(fromCacheValue, result);
-}
-
-/**
- * @param {Error} error
- */
-function reportToGlobalRejectionHandler(error) {
-    Promise.reject(error);
 }
 
 function validateSettings(
@@ -531,11 +525,17 @@ export class RPCCache {
                             return;
                         }
                         if (error instanceof ConnectionLostError) {
+                            // Genuine connectivity loss -> the app is offline.
+                            // InvalidResponseError is no longer a ConnectionLostError
+                            // (e.g. a session-expired refresh returned a login page),
+                            // so it falls to the plain warning below rather than
+                            // signalling offline; session expiry surfaces on the next
+                            // real user action.
                             rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, {
                                 error,
                             });
                             if (!silent) {
-                                reportToGlobalRejectionHandler(error);
+                                reportUncaught(error);
                             }
                         } else {
                             console.warn("RPC cache: background refresh failed", error);
@@ -668,5 +668,19 @@ export class RPCCache {
                 delete this.pendingRequests[requestKey];
             }
         }
+    }
+
+    /**
+     * Delete the persisted (on-disk) cache entirely. Unlike `invalidate`, which
+     * marks entries stale but keeps the IndexedDB database, this removes the
+     * database itself -- used on logout so one user's cached model/table
+     * metadata does not outlive their session on a shared browser (the disk
+     * store survives a normal navigation; the RAM cache does not). Resolves even
+     * when the delete is blocked or unavailable, so logout never hangs on it.
+     *
+     * @returns {Promise<void>}
+     */
+    async purgeStorage() {
+        await this.indexedDB?.deleteDatabase();
     }
 }

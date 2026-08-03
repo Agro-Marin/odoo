@@ -1,13 +1,13 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import {
     SelectionField,
     selectionField,
 } from "@web/fields/selection/selection/selection_field";
-import { user } from "@web/services/user";
 export class MailServerConfiguratorSelection extends SelectionField {
     static template = "mail.MailServerConfiguratorSelection";
 

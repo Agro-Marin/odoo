@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanHeader } from "@web/views/kanban/kanban_header";
+import { KanbanHeader } from "@web/views/kanban";
 
 import { ProjectProjectGroupConfigMenu } from "./project_project_group_config_menu.js";
 

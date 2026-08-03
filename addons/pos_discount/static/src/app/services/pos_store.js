@@ -2,10 +2,10 @@
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { PosOrderAccounting } from "@point_of_sale/app/models/accounting/pos_order_accounting";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { debounce } from "@web/core/utils/timing";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 patch(PosStore.prototype, {
     async setup() {
         await super.setup(...arguments);

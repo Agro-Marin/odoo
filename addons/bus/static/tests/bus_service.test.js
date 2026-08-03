@@ -41,7 +41,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { session } from "@web/session";
 import { WebClient } from "@web/webclient/webclient";
 

@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { EventBus, reactive } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { jsToPyLocale } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { isVisible } from "@web/core/utils/dom/ui";
-import { user } from "@web/services/user";
 
 import { FullscreenIndication } from "../components/fullscreen_indication/fullscreen_indication.js";
 import { WebsiteLoader } from "../components/website_loader/website_loader.js";

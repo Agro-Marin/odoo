@@ -9,7 +9,7 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { isHtmlEmpty, isMarkup } from "@web/core/utils/dom/html";
 import { useDebounced } from "@web/core/utils/timing";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 /**
  * Draft persistence for composers.

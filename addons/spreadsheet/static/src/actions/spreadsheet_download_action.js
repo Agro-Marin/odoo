@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { download } from "@web/core/network/download";
-import { registry } from "@web/core/registry";
 import { createSpreadsheetModel, waitForDataLoaded } from "@spreadsheet/helpers/model";
+import { download } from "@web/core/network";
+import { registry } from "@web/core/registry";
 
 /**
  * @param {import("@web/env").OdooEnv} env

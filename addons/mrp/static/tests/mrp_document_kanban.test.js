@@ -15,7 +15,7 @@ import {
     patchWithCleanup,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
-import { fileUploadService } from "@web/services/file_upload_service";
+import { fileUploadService } from "@web/core/file_upload";
 
 describe.current.tags("desktop");
 defineMrpModels();

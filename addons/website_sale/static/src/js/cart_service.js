@@ -10,7 +10,7 @@ import {
 import { getSelectedCustomPtav, serializeComboItem } from '@sale/js/sale_utils';
 import { browser } from '@web/core/browser/browser';
 import { serializeDateTime } from '@web/core/l10n/dates';
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { registry } from '@web/core/registry';
 import { redirect } from '@web/core/utils/urls';
 import { session } from '@web/session';

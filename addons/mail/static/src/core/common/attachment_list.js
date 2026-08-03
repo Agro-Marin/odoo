@@ -2,16 +2,14 @@
 import { Gif } from "@mail/core/common/gif";
 import { attClassObjectToString } from "@mail/utils/common/format";
 import { Component } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { useFileViewer } from "@web/components/file_viewer/file_viewer_hook";
+import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
+import { useFileViewer } from "@web/components/file_viewer";
 import { isMobileOS } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
-import { download } from "@web/core/network/download";
+import { download } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { url } from "@web/core/utils/urls";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 class Actions extends Component {
     static components = { Dropdown, DropdownItem };
     static props = ["actions"];

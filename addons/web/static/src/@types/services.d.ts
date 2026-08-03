@@ -1,42 +1,44 @@
 declare module "services" {
     import { ServicesRegistryShape } from "registries";
 
+    // Core infrastructure services
+    import { allowedQwebExpressionsService } from "@web/core/allowed_qweb_expressions_service";
+    import { errorService } from "@web/core/errors/error_service";
+    import { fieldService } from "@web/core/field_service";
+    import { fileUploadService } from "@web/core/file_upload/file_upload_service";
+    import { hotkeyService } from "@web/core/hotkeys/hotkey_service";
+    import { httpService } from "@web/core/network/http_service";
+    import { localizationService } from "@web/core/l10n/localization_service";
+    import { multiCompanyRecoveryService } from "@web/core/multi_company_recovery_service";
+    import { nameService } from "@web/core/name_service";
+    import { ormService } from "@web/core/network/orm_service";
+    import { resultSetCacheInvalidatorService } from "@web/core/network/result_set_cache_invalidator_service";
+    import { slowRpcService } from "@web/core/network/slow_rpc_service";
+    import { sortableService } from "@web/core/utils/dnd/sortable_service";
+    import { titleService } from "@web/core/browser/title_service";
+    import { treeProcessorService } from "@web/core/tree/tree_processor_service";
+    import { webVitalsService } from "@web/core/network/web_vitals/web_vitals_service";
+
     // Public services
     import { publicInteractionService } from "@web/public/interaction_service";
 
     // Domain services
-    import { allowedQwebExpressionsService } from "@web/services/allowed_qweb_expressions_service";
-    import { commandService } from "@web/services/commands/command_service";
-    import { connectionRecoveryService } from "@web/services/error_handlers";
-    import { datetimePickerService } from "@web/services/datetime_picker_service";
-    import { errorService } from "@web/services/error_service";
-    import { fieldService } from "@web/services/field_service";
-    import { fileUploadService } from "@web/services/file_upload_service";
-    import { formDialogStackService } from "@web/services/form_dialog_stack_service";
-    import { frequentEmojiService } from "@web/services/frequent_emoji_service";
-    import { hotkeyService } from "@web/services/hotkeys/hotkey_service";
-    import { httpService } from "@web/services/http_service";
-    import { localizationService } from "@web/services/localization_service";
-    import { multiCompanyRecoveryService } from "@web/services/multi_company_recovery_service";
-    import { nameService } from "@web/services/name_service";
-    import { ormService } from "@web/services/orm_service";
-    import { pwaService } from "@web/services/pwa/pwa_service";
-    import { resultSetCacheInvalidatorService } from "@web/services/result_set_cache_invalidator_service";
-    import { scssErrorNotificationService } from "@web/services/scss_error_display";
-    import { slowRpcService } from "@web/services/slow_rpc_service";
-    import { sortableService } from "@web/services/sortable_service";
-    import { titleService } from "@web/services/title_service";
-    import { treeProcessorService } from "@web/services/tree_processor_service";
-    import { webVitalsService } from "@web/services/web_vitals/web_vitals_service";
+    import { connectionRecoveryService } from "@web/components/errors/error_handlers";
+    import { datetimePickerService } from "@web/components/datetime/datetime_picker_service";
+    import { frequentEmojiService } from "@web/components/emoji_picker/frequent_emoji_service";
 
     // UI overlay services
     import { bottomSheetService } from "@web/ui/bottom_sheet/bottom_sheet_service";
+    import { commandService } from "@web/ui/commands/command_service";
     import { dialogService } from "@web/ui/dialog/dialog_service";
     import { dismissAlertService } from "@web/ui/alert/dismiss_alert_service";
     import { effectService } from "@web/ui/effects/effect_service";
+    import { formDialogStackService } from "@web/ui/form_dialog_stack_service";
     import { notificationService } from "@web/ui/notification/notification_service";
     import { overlayService } from "@web/ui/overlay/overlay_service";
     import { popoverService } from "@web/ui/popover/popover_service";
+    import { pwaService } from "@web/ui/pwa/pwa_service";
+    import { scssErrorNotificationService } from "@web/ui/scss_error_display";
     import { tooltipService } from "@web/ui/tooltip/tooltip_service";
     import { uiService } from "@web/ui/ui_service";
 
@@ -47,6 +49,7 @@ declare module "services" {
 
     // Webclient services
     import { actionService } from "@web/webclient/actions/action_service";
+    import { colorSchemeService } from "@web/webclient/color_scheme/color_scheme_service";
     import { currencyService } from "@web/webclient/currency_service";
     import { densityService } from "@web/webclient/density/density_service";
     import { lazySession } from "@web/webclient/session_service";
@@ -65,6 +68,7 @@ declare module "services" {
         action: typeof actionService;
         allowed_qweb_expressions: typeof allowedQwebExpressionsService;
         bottom_sheet: typeof bottomSheetService;
+        color_scheme: typeof colorSchemeService;
         command: typeof commandService;
         connection_recovery: typeof connectionRecoveryService;
         currency: typeof currencyService;

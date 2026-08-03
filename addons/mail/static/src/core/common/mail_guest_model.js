@@ -2,7 +2,7 @@
 import { fields, Record } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { luxon } from "@web/core/l10n/luxon";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { debounce } from "@web/core/utils/timing";
 import { imageUrl } from "@web/core/utils/urls";
 const TRANSPARENT_AVATAR =

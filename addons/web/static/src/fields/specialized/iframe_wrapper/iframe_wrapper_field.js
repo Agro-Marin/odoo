@@ -4,7 +4,7 @@
 /** @module @web/fields/specialized/iframe_wrapper/iframe_wrapper_field */
 
 import { Component, useEffect, useRef } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 

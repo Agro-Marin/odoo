@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 
-import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { FormViewDialog } from "@web/views/view_dialogs";
+import { standardWidgetProps } from "@web/views/widgets";
 import { useService } from "@web/core/utils/hooks";
 
 import { Component } from "@odoo/owl";

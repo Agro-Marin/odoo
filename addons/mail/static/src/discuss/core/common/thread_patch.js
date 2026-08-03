@@ -2,7 +2,7 @@
 import { Thread } from "@mail/core/common/thread";
 import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
 import { toRaw } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 /** @type {Thread} */
 const threadPatch = {

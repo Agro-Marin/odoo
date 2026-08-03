@@ -592,6 +592,40 @@ describe("new", () => {
         expect.verifySteps(["wizard on_close"]);
     });
 
+    test("a `close` button with no dialog open does not close the one it opens", async () => {
+        // `close` is a plain button attribute (`processButton`), so it is
+        // expressible on a button in an ordinary list or form view. With no
+        // dialog to close, the close step has nothing to do — it must not
+        // reach for whatever dialog is standing, which is the wizard the
+        // button's own action had just opened.
+        class Wizard extends Component {
+            static template = xml`<div class="opened_wizard"/>`;
+            static props = ["*"];
+        }
+        registry.category("actions").add("close_button_no_dialog", Wizard);
+        onRpc("/web/dataset/call_button/partner/open_wizard", () => ({
+            type: "ir.actions.client",
+            tag: "close_button_no_dialog",
+            target: "new",
+        }));
+
+        await mountWithCleanup(WebClient);
+        await getService("action").doAction(1);
+        expect(".o_technical_modal").toHaveCount(0);
+
+        await getService("action").doActionButton({
+            type: "object",
+            name: "open_wizard",
+            resModel: "partner",
+            resId: 1,
+            close: true,
+        });
+        await animationFrame();
+
+        expect(".opened_wizard").toHaveCount(1);
+        expect(".o_technical_modal").toHaveCount(1);
+    });
+
     test("footer buttons are moved to the dialog footer", async () => {
         Partner._views["form"] = `
             <form>

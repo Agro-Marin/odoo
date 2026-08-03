@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { patch } from "@web/core/utils/patch";
 import { useDomState } from "@html_builder/core/utils";
+import { _t } from "@web/core/translation";
+import { patch } from "@web/core/utils/patch";
 import { CoverPropertiesOption } from "@website/builder/plugins/options/cover_properties_option";
-import { _t } from "@web/core/l10n/translation";
 
 patch(CoverPropertiesOption.prototype, {
     setup() {

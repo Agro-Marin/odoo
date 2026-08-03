@@ -4,8 +4,8 @@
 /** @module @web/views/kanban/kanban_column_quick_create */
 
 import { Component, onPatched, useExternalListener, useRef, useState } from "@odoo/owl";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 
 export class KanbanColumnQuickCreate extends Component {
     static template = "web.KanbanColumnQuickCreate";

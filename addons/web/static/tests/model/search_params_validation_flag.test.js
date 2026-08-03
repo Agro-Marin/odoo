@@ -16,9 +16,9 @@ import { after, describe, expect, test } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { SEARCH_KEYS } from "@web/core/constants";
+import { clearFeatureFlag, setFeatureFlag } from "@web/core/feature_flags";
 import { Model, useModel } from "@web/model/model";
 import { SEARCH_PARAMS_SCHEMA } from "@web/model/search_params_schema";
-import { clearFeatureFlag, setFeatureFlag } from "@web/services/feature_flags";
 
 describe.current.tags("headless");
 

@@ -145,97 +145,189 @@ class MenuTree {
     }
 }
 
-export const menuService = {
-    dependencies: ["action"],
-    async: ["selectMenu", "reload"],
-    async start(env) {
-        let fetchGeneration = 0;
-
+/**
+ * The `menu` service.
+ *
+ * A class rather than a closure returning an object literal; see
+ * `core/hotkeys/hotkey_service.js` for the reasoning and
+ * `tooling/architecture/js_service_shape.py` for the budget.
+ *
+ * **The async bootstrap moved into the class, not into `start()`.** `start` is
+ * `async` here, and the obvious split — fetch in `start`, then construct —
+ * would have separated the bootstrap from `reload()`, which shares
+ * `fetchGeneration` with it: both bump it and then check whether they are still
+ * the newest request before writing. Splitting them would have left the
+ * background revalidation racing a `reload()` with no shared counter to arbitrate.
+ * So `start()` constructs and awaits `load()`, and the counter stays one field.
+ */
+export class MenuService {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ action: any }} services
+     */
+    constructor(env, { action }) {
+        this.env = env;
+        // Injected, not reached through `env.services.action`. The service has
+        // always declared `dependencies: ["action"]`; taking it from the
+        // injection point is what that declaration is for, and it is the
+        // difference between a dependency and an ambient lookup.
+        this.action = action;
+        this.fetchGeneration = 0;
         const {
             menus: cachedMenus,
             raw: storedRaw,
             hash: storedHash,
         } = menuStorage.read();
-        const tree = new MenuTree(cachedMenus || EMPTY_MENUS);
+        this.cachedMenus = cachedMenus;
+        this.storedRaw = storedRaw;
+        this.storedHash = storedHash;
+        this.tree = new MenuTree(cachedMenus || EMPTY_MENUS);
+    }
 
-        if (cachedMenus) {
-            const generation = ++fetchGeneration;
-            fetchMenus(false, storedHash)
+    /**
+     * Fills the tree: from cache plus a background revalidation when there is a
+     * usable cached copy, otherwise by fetching before the client boots.
+     */
+    async load() {
+        if (this.cachedMenus) {
+            const generation = ++this.fetchGeneration;
+            fetchMenus(false, this.storedHash)
                 .then((res) => {
-                    if (generation !== fetchGeneration) {
+                    if (generation !== this.fetchGeneration) {
                         return;
                     }
                     if (!res?.menus) {
                         return;
                     }
-                    if (JSON.stringify(res.menus) !== storedRaw) {
+                    if (JSON.stringify(res.menus) !== this.storedRaw) {
                         menuStorage.write(res.menus, res.hash);
-                        tree.setData(res.menus);
-                        env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
-                    } else if (res.hash && res.hash !== storedHash) {
+                        this.tree.setData(res.menus);
+                        this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
+                    } else if (res.hash && res.hash !== this.storedHash) {
                         menuStorage.write(res.menus, res.hash);
                     }
                 })
                 .catch((error) => {
                     console.warn("Background menu revalidation failed", error);
                 });
-        } else {
-            let res = await fetchMenus().catch(() => null);
-            if (!res?.menus) {
-                res = await fetchMenus(true).catch(() => null);
-            }
-            if (res?.menus) {
-                tree.setData(res.menus);
-                menuStorage.write(res.menus, res.hash);
-            } else if (storedRaw) {
-                tree.setData(menuStorage.parse(storedRaw) || EMPTY_MENUS);
-            }
+            return;
         }
-
-        /** @param {Object|number} menu */
-        function setCurrentMenu(menu) {
-            menu = typeof menu === "number" ? tree.getMenu(menu) : menu;
-            if (menu && menu.appID !== tree.currentAppId) {
-                tree.currentAppId = menu.appID;
-                browser.sessionStorage.setItem("menu_id", String(tree.currentAppId));
-                env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
-            }
+        let res = await fetchMenus().catch(() => null);
+        // `undefined` is the parse-time opt-out: the PoS UI, the documents
+        // portal and project sharing all set `loadMenusPromise` to a
+        // promise of nothing to say this page has no menus to load. `null`
+        // is a 304 or an outright failure, and with no usable cached copy
+        // that has to be refetched or the client boots blank. Both are
+        // falsy, so asking `!res?.menus` sent the opted-out pages a
+        // request they had explicitly declined.
+        if (res === null) {
+            res = await fetchMenus(true).catch(() => null);
         }
+        if (res?.menus) {
+            this.tree.setData(res.menus);
+            menuStorage.write(res.menus, res.hash);
+        } else if (this.storedRaw) {
+            this.tree.setData(menuStorage.parse(this.storedRaw) || EMPTY_MENUS);
+        }
+    }
 
-        return {
-            getAll: () => tree.getAll(),
-            getApps: () => tree.getApps(),
-            getMenu: (menuId) => tree.getMenu(menuId),
-            getCurrentApp: () => tree.getCurrentApp(),
-            getMenuAsTree: (menuID) => tree.getMenuAsTree(menuID),
-            getAppIdByAction: (action, preferredAppId) =>
-                tree.getAppIdByAction(action, preferredAppId),
-            setCurrentMenu,
-            async selectMenu(menu) {
-                menu = typeof menu === "number" ? tree.getMenu(menu) : menu;
-                if (!menu || !menu.actionID) {
-                    return;
-                }
-                await env.services.action.doAction(menu.actionID, {
-                    clearBreadcrumbs: true,
-                    onActionReady: () => {
-                        setCurrentMenu(menu);
-                    },
-                });
+    getAll() {
+        return this.tree.getAll();
+    }
+
+    getApps() {
+        return this.tree.getApps();
+    }
+
+    /**
+     * Mirrors `MenuTree.getMenu`'s own `{number|string}`: the tree accepts the
+     * string ids the fixtures use ("root"), and narrowing this to `number`
+     * would be precision the implementation does not have.
+     *
+     * @param {number|string} menuId
+     */
+    getMenu(menuId) {
+        return this.tree.getMenu(menuId);
+    }
+
+    getCurrentApp() {
+        return this.tree.getCurrentApp();
+    }
+
+    /** @param {number|string} menuID */
+    getMenuAsTree(menuID) {
+        return this.tree.getMenuAsTree(menuID);
+    }
+
+    /**
+     * `action` is `any` for parity with the closure this replaced, whose params
+     * were untyped. Mirroring `MenuTree.getAppIdByAction`'s own
+     * `{number|string}` would be *better*, and surfaces exactly one real
+     * mismatch — `webclient.js:86` passes
+     * `router.current.actionStack?.[0]?.action`, which is wider than that. Left
+     * as a separate fix rather than widening this conversion's blast radius
+     * into a file it does not otherwise touch.
+     *
+     * @param {any} action
+     * @param {number|string} [preferredAppId]
+     * @returns {number|string|undefined}
+     */
+    getAppIdByAction(action, preferredAppId) {
+        return this.tree.getAppIdByAction(action, preferredAppId);
+    }
+
+    /** @param {Object|number} menu */
+    setCurrentMenu(menu) {
+        menu = typeof menu === "number" ? this.tree.getMenu(menu) : menu;
+        if (menu && menu.appID !== this.tree.currentAppId) {
+            this.tree.currentAppId = menu.appID;
+            menuStorage.writeCurrentApp(menu.appID);
+            this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
+        }
+    }
+
+    /** @param {Object|number} menu */
+    async selectMenu(menu) {
+        menu = typeof menu === "number" ? this.tree.getMenu(menu) : menu;
+        if (!menu || !menu.actionID) {
+            return;
+        }
+        await this.action.doAction(menu.actionID, {
+            clearBreadcrumbs: true,
+            onActionReady: () => {
+                // Routed through `this` so a downstream patch of
+                // `setCurrentMenu` applies to this caller too.
+                this.setCurrentMenu(menu);
             },
-            async reload() {
-                const generation = ++fetchGeneration;
-                const res = await fetchMenus(true);
-                if (generation !== fetchGeneration) {
-                    return;
-                }
-                if (res?.menus) {
-                    tree.setData(res.menus);
-                    menuStorage.write(res.menus, res.hash);
-                }
-                env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
-            },
-        };
+        });
+    }
+
+    async reload() {
+        const generation = ++this.fetchGeneration;
+        const res = await fetchMenus(true);
+        if (generation !== this.fetchGeneration) {
+            return;
+        }
+        if (res?.menus) {
+            this.tree.setData(res.menus);
+            menuStorage.write(res.menus, res.hash);
+        }
+        this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
+    }
+}
+
+export const menuService = {
+    dependencies: ["action"],
+    async: ["selectMenu", "reload"],
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ action: any }} services
+     * @returns {Promise<MenuService>}
+     */
+    async start(env, services) {
+        const service = new MenuService(env, services);
+        await service.load();
+        return service;
     },
 };
 

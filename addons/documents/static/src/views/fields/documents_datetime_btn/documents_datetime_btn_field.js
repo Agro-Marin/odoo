@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
+import { useDateTimePicker } from "@web/components/datetime";
 import { deserializeDateTime, today } from "@web/core/l10n/dates";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";

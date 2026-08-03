@@ -3030,3 +3030,71 @@ class IrUiView(models.Model):
                 values,
             )
         )
+
+    # ------------------------------------------------------------------
+    # data-api migration
+    # ------------------------------------------------------------------
+
+    #: Bootstrap spellings in stored arch, and what this fork calls them.
+    #: `data-bs-target` is deliberately absent: it also drives collapse and tab
+    #: controls, so it is only renamed on an element that opens a modal.
+    _SELF_HANDLED_RENAMES = {
+        ("data-bs-toggle", "dropdown"): ("data-self-handled", "dropdown"),
+        ("data-bs-toggle", "modal"): ("data-self-handled", "modal"),
+        ("data-bs-dismiss", "modal"): ("data-modal-dismiss", "1"),
+        ("data-bs-dismiss", "alert"): ("data-dismiss-alert", "1"),
+    }
+
+    @api.model
+    def _migrate_self_handled_arch(self) -> Self:
+        """Rewrite Bootstrap's data-api spelling to this fork's own, in place.
+
+        The view layer understands both (see `@web/views/self_handled`), so this
+        is what lets the Bootstrap one be withdrawn: run it once per database
+        and no stored arch depends on it any more.
+
+        Only the view types the client compiles are touched. `qweb` arch is
+        rendered server-side for the website and portal, where Bootstrap's JS is
+        still shipped and its data-api is the real thing, not a token.
+
+        :return: the views that were rewritten.
+        """
+        views = self.search(
+            [
+                ("type", "in", ("form", "list", "kanban", "search")),
+                ("arch_db", "like", "data-bs-"),
+            ]
+        )
+        migrated = self.browse()
+        for view in views:
+            try:
+                arch = etree.fromstring(view.arch.encode())
+            except etree.XMLSyntaxError:
+                _logger.warning("Skipping unparsable arch on view %s", view.id)
+                continue
+            if not self._rewrite_self_handled(arch):
+                continue
+            view.arch = etree.tostring(arch, encoding="unicode")
+            migrated |= view
+        _logger.info("Migrated data-api arch on %s view(s)", len(migrated))
+        return migrated
+
+    @api.model
+    def _rewrite_self_handled(self, arch) -> bool:
+        """Apply `_SELF_HANDLED_RENAMES` to *arch* in place.
+
+        :return: whether anything changed.
+        """
+        changed = False
+        for node in arch.iter(etree.Element):
+            for (attr, value), (new_attr, new_value) in self._SELF_HANDLED_RENAMES.items():
+                if node.get(attr) != value:
+                    continue
+                node.attrib.pop(attr)
+                node.set(new_attr, new_value)
+                changed = True
+                # A modal control names its modal with `data-bs-target`; that
+                # spelling only becomes ours once we know it is a modal.
+                if new_value == "modal" and node.get("data-bs-target"):
+                    node.set("data-modal-target", node.attrib.pop("data-bs-target"))
+        return changed

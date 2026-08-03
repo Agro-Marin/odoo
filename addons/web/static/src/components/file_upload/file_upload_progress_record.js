@@ -4,7 +4,7 @@
 /** @module @web/components/file_upload/file_upload_progress_record */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { FileUploadProgressBar } from "./file_upload_progress_bar.js";
 export class FileUploadProgressRecord extends Component {

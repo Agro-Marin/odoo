@@ -11,7 +11,7 @@ import {
 import { parseHTML } from "@html_editor/utils/html";
 import { withSequence } from "@html_editor/utils/resource";
 import { htmlEscape } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { isEmptyBlock, isParagraphRelatedElement } from "../utils/dom_info.js";
 

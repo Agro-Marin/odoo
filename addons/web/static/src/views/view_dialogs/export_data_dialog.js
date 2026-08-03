@@ -13,8 +13,8 @@ import {
 } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";

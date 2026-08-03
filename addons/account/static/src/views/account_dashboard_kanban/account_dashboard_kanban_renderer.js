@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { reactive, useSubEnv } from "@odoo/owl";
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
+import { KanbanRenderer } from "@web/views/kanban";
 
 import { DashboardKanbanRecord } from "./account_dashboard_kanban_record.js";
 

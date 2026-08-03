@@ -65,13 +65,12 @@ DEFAULT_BASELINE_PATH = (
 # Surfaces where a broken reference actively misleads a reader about how the
 # system works, as opposed to merely rotting. Kept in step with
 # ``doc_link_gate.DEFAULT_SCAN_GLOBS``: every machine_doc tree (not just web's),
-# the workflows, the CLAUDE.md surfaces and the ADRs.
+# the workflows and the CLAUDE.md surfaces.
 AUTHORITATIVE_PATHS = (
     "addons/web/machine_doc_v1/",
     ".github/workflows/",
     "CLAUDE.md",
     "addons/web/CLAUDE.md",
-    "doc/adr/",
     "tooling/",
 )
 

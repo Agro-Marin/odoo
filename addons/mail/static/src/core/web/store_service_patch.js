@@ -3,7 +3,7 @@ import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { snapshotCounter } from "@mail/utils/common/counters";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 const unread_store = (() => {
     if (!window.idbKeyval) {

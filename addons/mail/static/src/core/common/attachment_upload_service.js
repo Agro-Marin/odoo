@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { EventBus } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 export class AttachmentUploadService {
     constructor(env, services) {

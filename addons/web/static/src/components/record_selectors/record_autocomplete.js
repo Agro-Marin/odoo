@@ -6,9 +6,9 @@
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
 import { ConnectionAbortedError } from "@web/core/network/rpc";
-import { registry } from "@web/core/registry";
+import { getSelectCreateDialog } from "@web/core/record_dialog_port";
+import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 const SEARCH_LIMIT = 7;
 const SEARCH_MORE_LIMIT = 320;
@@ -130,7 +130,7 @@ export class RecordAutocomplete extends Component {
                   },
               ]
             : undefined;
-        const SelectCreateDialog = registry.category("dialogs").get("select_create");
+        const SelectCreateDialog = getSelectCreateDialog();
         let title = _t("Search");
         if (fieldString && fieldString.trim()) {
             title = _t("Search: %s", fieldString);

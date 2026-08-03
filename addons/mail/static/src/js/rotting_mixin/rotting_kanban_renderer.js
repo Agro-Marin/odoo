@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
+import { KanbanRenderer } from "@web/views/kanban";
 
 import { RottingKanbanHeader } from "./rotting_kanban_header.js";
 import { RottingKanbanRecord } from "./rotting_kanban_record.js";

@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { renderToElement } from "@web/core/utils/render";
-import { user } from "@web/services/user";
 import { session } from "@web/session";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 import { attachCourseJoin } from "@website_slides/interactions/course_join";
 import { CoursePage } from "@website_slides/interactions/course_page";
 import { QuestionFormBehavior } from "@website_slides/interactions/quiz_question_form";

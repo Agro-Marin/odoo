@@ -7,9 +7,9 @@ import {
 import { markup } from "@odoo/owl";
 import { useFocusTitle } from "@project/utils/project_utils";
 import { FormControllerWithHTMLExpander } from "@resource/views/form_with_html_expander/form_controller_with_html_expander";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 

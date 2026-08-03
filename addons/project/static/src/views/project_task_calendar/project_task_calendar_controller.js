@@ -2,8 +2,8 @@
 import { useRef } from "@odoo/owl";
 import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_form/project_task_form_controller";
 import { DateTime } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { CalendarController } from "@web/views/calendar/calendar_controller";
+import { _t } from "@web/core/translation";
+import { CalendarController } from "@web/views/calendar";
 
 import { useCalendarTaskToPlanDraggable } from "./hooks/project_task_calendar_task_to_plan_draggable.js";
 import { ProjectTaskCalendarSidePanel } from "./side_panel/project_task_calendar_side_panel.js";

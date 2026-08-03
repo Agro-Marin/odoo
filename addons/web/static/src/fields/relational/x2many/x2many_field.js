@@ -5,12 +5,13 @@
 
 import { Component } from "@odoo/owl";
 import { Pager } from "@web/components/pager/pager";
+import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
 import { ModelEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { sharedComponents as shared } from "@web/core/shared_components";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -61,7 +62,7 @@ export class X2ManyField extends Component {
     addInLine;
     /** @type {any} */
     activeActions;
-    /** @type {import("services").ServiceFactories["action"]} */
+    /** @type {import("@web/core/action_port").ActionPort} */
     action;
     /** @type {import("services").ServiceFactories["notification"]} */
     notificationService;
@@ -158,7 +159,7 @@ export class X2ManyField extends Component {
             p.domain = [...(p.domain || []), "!", ["id", "in", currentIds]];
             return selectCreate(p);
         };
-        this.action = useService("action");
+        this.action = useAction();
         this.notificationService = useService("notification");
     }
 

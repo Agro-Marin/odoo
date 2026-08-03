@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-import { KanbanController } from "@web/views/kanban/kanban_controller";
+import { KanbanController } from "@web/views/kanban";
 
 export class ProductCatalogKanbanController extends KanbanController {
     static template = "ProductCatalogKanbanController";

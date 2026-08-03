@@ -3,10 +3,10 @@ import { Plugin } from "@html_editor/plugin";
 import { ancestors } from "@html_editor/utils/dom_traversal";
 import { compareIds, generateId } from "@html_editor/utils/ids";
 import { childNodeIndex } from "@html_editor/utils/position";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
-import { user } from "@web/services/user";
 
 import { PeerToPeer, RequestError } from "./PeerToPeer.js";
 

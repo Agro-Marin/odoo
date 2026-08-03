@@ -243,6 +243,14 @@ export function makeIsVisibleExpr(invisible, recordExpr = "__comp__.props.record
     )},${recordExpr}.evalContextWithVirtualIds)`;
 }
 
+/**
+ * Selectors already reported by `_warnShadowedCompilers`, module-scoped so the
+ * warning fires once per shadowed selector across every compile rather than on
+ * every node.
+ * @type {Set<string>}
+ */
+const warnedShadowedSelectors = new Set();
+
 export class ViewCompiler {
     constructor(templates) {
         /** @type {number} */
@@ -283,6 +291,11 @@ export class ViewCompiler {
         this.owlDirectiveRegexesWhitelist = /** @type {any} */ (
             this.constructor
         ).OWL_DIRECTIVE_WHITELIST.map((/** @type {string} */ d) => new RegExp(d));
+        // Everything a subclass appends in `setup()` (notably the registry-
+        // contributed `form_compilers`) lands after this point; dispatch is
+        // first-match-wins over `this.compilers` in order, so those late entries
+        // can be silently shadowed by a built-in. Record the boundary to warn.
+        this.baseCompilerCount = this.compilers.length;
         this.setup();
     }
 
@@ -354,7 +367,11 @@ export class ViewCompiler {
             }
         }
 
-        const compiler = this.compilers.find((cp) => node.matches(cp.selector));
+        const winnerIndex = this.compilers.findIndex((cp) => node.matches(cp.selector));
+        const compiler = winnerIndex === -1 ? undefined : this.compilers[winnerIndex];
+        if (odoo.debug && winnerIndex !== -1) {
+            this._warnShadowedCompilers(node, winnerIndex);
+        }
         let compiledNode;
         if (compiler) {
             compiledNode = compiler.fn.call(this, node, params);
@@ -369,6 +386,43 @@ export class ViewCompiler {
             compiledNode = this.applyInvisible(invisible, compiledNode, params);
         }
         return compiledNode;
+    }
+
+    /**
+     * A registered (subclass-appended) compiler that also matches a node an
+     * earlier compiler already claimed never runs -- first-match-wins reaches
+     * the earlier one first, and registry entries are appended after the
+     * built-ins, so a selector that also matches a built-in target (field,
+     * widget, button, a[type], .modal, dropdown) cannot intercept it. The
+     * registration validates and is then silently never dispatched. In debug,
+     * say so once per shadowed selector so an addon author sees the dead
+     * compiler. Built-in-vs-built-in overlap is deliberate ordering, not a bug,
+     * so only entries past `baseCompilerCount` are reported.
+     *
+     * @param {Element} node
+     * @param {number} winnerIndex
+     */
+    _warnShadowedCompilers(node, winnerIndex) {
+        for (let i = winnerIndex + 1; i < this.compilers.length; i++) {
+            if (i < this.baseCompilerCount) {
+                continue;
+            }
+            const shadowed = this.compilers[i];
+            if (
+                !warnedShadowedSelectors.has(shadowed.selector) &&
+                node.matches(shadowed.selector)
+            ) {
+                warnedShadowedSelectors.add(shadowed.selector);
+                console.warn(
+                    `[view_compiler] The compiler for "${shadowed.selector}" never ` +
+                        `runs: an earlier compiler ("${this.compilers[winnerIndex].selector}") ` +
+                        `claims the same node first. Dispatch is first-match-wins and ` +
+                        `registered compilers are appended after the built-ins, so a ` +
+                        `selector that also matches a built-in target (field, widget, ` +
+                        `button, a[type], .modal, dropdown) cannot intercept it.`,
+                );
+            }
+        }
     }
 
     /**
@@ -735,6 +789,19 @@ const archKeyCache = new WeakMap();
  */
 const compilerClassKeys = new WeakMap();
 let nextCompilerClassId = 1;
+/**
+ * The key is the class **object**, so it survives `patch()`: patching a
+ * compiler's prototype mutates it in place and leaves the class identity — and
+ * therefore this key — unchanged. Anything already compiled under it stays
+ * cached and the patch does not reach it.
+ *
+ * That is latent rather than live today, because patches apply at module
+ * evaluation, before any view renders. It becomes reachable the moment a
+ * **lazily loaded bundle** patches a compiler after a view of that class has
+ * already rendered — worth knowing before the next lazy-bundle split, since the
+ * symptom would be a patch that silently does nothing for one arch and works
+ * for the next.
+ */
 function getCompilerClassKey(ViewCompiler) {
     let classKey = compilerClassKeys.get(ViewCompiler);
     if (!classKey) {
@@ -743,6 +810,20 @@ function getCompilerClassKey(ViewCompiler) {
     }
     return classKey;
 }
+/**
+ * @param {Element} template
+ * @returns {string}
+ */
+function getArchKey(template) {
+    let archKey = archKeyCache.get(template);
+    if (archKey === undefined) {
+        const arch = template.outerHTML.replace(/[\n\r]+/g, " ");
+        archKey = `${arch.length}-${cyrb53(arch)}`;
+        archKeyCache.set(template, archKey);
+    }
+    return archKey;
+}
+
 /**
  * @param {typeof ViewCompiler} ViewCompiler
  * @param {Record<string, Element>} templates
@@ -756,14 +837,22 @@ export function useViewCompiler(ViewCompiler, templates, params) {
     const paramsKey = params
         ? JSON.stringify(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)))
         : "";
-    for (const tname of Object.keys(templates)) {
-        let archKey = archKeyCache.get(templates[tname]);
-        if (archKey === undefined) {
-            const arch = templates[tname].outerHTML.replace(/[\n\r]+/g, " ");
-            archKey = `${arch.length}-${cyrb53(arch)}`;
-            archKeyCache.set(templates[tname], archKey);
-        }
-        const key = `${getCompilerClassKey(ViewCompiler)}/${paramsKey}/${archKey}`;
+    const names = Object.keys(templates);
+    // A compiler is handed the whole template map and may read siblings while
+    // compiling one of them — `KanbanCompiler.compileTCall` emits a different
+    // `t-call` depending on whether the called name is a sibling. The same arch
+    // therefore compiles two ways, so the set is part of the cache identity;
+    // keying on one member's arch alone lets the two share a slot and makes
+    // whichever view compiled first decide how the other renders.
+    const setKey = cyrb53(
+        names
+            .map((name) => `${name}:${getArchKey(templates[name])}`)
+            .sort()
+            .join("|"),
+    );
+    for (const tname of names) {
+        const archKey = getArchKey(templates[tname]);
+        const key = `${getCompilerClassKey(ViewCompiler)}/${paramsKey}/${setKey}/${archKey}`;
         if (!templateCache.has(key)) {
             compiler = compiler || new ViewCompiler(templates);
             const compiledOuterHTML = compiler.compile(tname, params).outerHTML;

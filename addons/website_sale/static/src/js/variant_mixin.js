@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { localization } from '@web/core/l10n/localization';
-import { _t } from '@web/core/l10n/translation';
-import { rpc } from '@web/core/network/rpc';
+import { _t } from '@web/core/translation';
+import { rpc } from "@web/core/network";
 import { KeepLast } from '@web/core/utils/concurrency';
 import { memoize } from '@web/core/utils/functions';
 import { insertThousandsSep } from '@web/core/utils/format/numbers';

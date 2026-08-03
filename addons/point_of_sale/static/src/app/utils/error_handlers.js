@@ -2,11 +2,11 @@
 import {
     ErrorDialog,
     odooExceptionTitleMap,
-} from "@web/components/errors/error_dialogs";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
+} from "@web/components/errors";
+import { ConnectionLostError, RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { _t } from "@web/core/translation";
+import { AlertDialog } from "@web/ui/dialog";
 export function handleRPCError(error, dialog) {
     const { data } = error;
     if (odooExceptionTitleMap.has(error.exceptionName)) {

@@ -2,7 +2,7 @@
 import { Plugin } from "@html_editor/plugin";
 import { makeContentsInline, unwrapContents } from "@html_editor/utils/dom";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { AttributeTranslateDialog } from "../translation_components/attributeTranslateDialog.js";
 import { SelectTranslateDialog } from "../translation_components/selectTranslateDialog.js";

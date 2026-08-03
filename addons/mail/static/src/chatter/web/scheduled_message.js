@@ -4,10 +4,10 @@ import { RelativeTime } from "@mail/core/common/relative_time";
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { Component, useState } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { usePopover } from "@web/ui/popover";
 export const SCHEDULED_MESSAGE_TRUNCATE_THRESHOLD = 50; // arbitrary, ~ 1 line on large screen
 
 export class ScheduledMessage extends Component {

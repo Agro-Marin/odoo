@@ -1,0 +1,158 @@
+// @ts-check
+
+import { expect, test } from "@odoo/hoot";
+import { click, queryOne, setInputFiles, waitFor } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
+import {
+    clickSave,
+    defineModels,
+    fields,
+    mockService,
+    models,
+    mountView,
+    onRpc,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
+
+const getIframeSrc = () =>
+    queryOne(".o_field_widget iframe.o_pdfview_iframe").dataset.src;
+
+const getIframeProtocol = () => getIframeSrc().match(/\?file=(\w+)%3A/)[1];
+
+const getIframeViewerParams = () =>
+    decodeURIComponent(getIframeSrc().match(/%2Fweb%2Fcontent%3F(.*)#page/)[1]);
+
+class Partner extends models.Model {
+    document = fields.Binary({ string: "Binary" });
+    document_page = fields.Integer({ string: "Page" });
+    _records = [
+        {
+            document: "coucou==\n",
+            document_page: 4,
+        },
+    ];
+}
+
+defineModels([Partner]);
+
+test("PdfViewerField without data", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: '<form><field name="document" widget="pdf_viewer"/></form>',
+    });
+    expect(".o_field_widget").toHaveClass("o_field_pdf_viewer");
+    expect(".o_select_file_button:not(.o_hidden)").toHaveCount(1);
+    expect(".o_pdfview_iframe").toHaveCount(0);
+    expect(`input[type="file"]`).toHaveCount(1);
+});
+
+test("PdfViewerField: basic rendering", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: '<form><field name="document" widget="pdf_viewer"/></form>',
+    });
+
+    expect(".o_field_widget").toHaveClass("o_field_pdf_viewer");
+    expect(".o_select_file_button").toHaveCount(1);
+    expect(".o_field_widget iframe.o_pdfview_iframe").toHaveCount(1);
+    expect(getIframeProtocol()).toBe("https");
+    expect(getIframeViewerParams()).toBe("model=partner&field=document&id=1");
+});
+
+test("PdfViewerField: upload rendering", async () => {
+    expect.assertions(4);
+
+    onRpc("web_save", ({ args }) => {
+        expect(args[1]).toEqual({ document: btoa("test") });
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        arch: '<form><field name="document" widget="pdf_viewer"/></form>',
+    });
+
+    expect("iframe.o_pdfview_iframe").toHaveCount(0);
+    const file = new File(["test"], "test.pdf", { type: "application/pdf" });
+    await click(".o_field_pdf_viewer input[type=file]");
+    await setInputFiles(file);
+    await waitFor("iframe.o_pdfview_iframe");
+    expect(getIframeProtocol()).toBe("blob");
+    await clickSave();
+    expect(getIframeProtocol()).toBe("blob");
+});
+
+test("PdfViewerField: upload file and download it", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: '<form><field name="document" widget="pdf_viewer"/></form>',
+    });
+    mockService("action", {
+        doAction({ type }) {
+            expect.step(type);
+            return super.doAction(...arguments);
+        },
+    });
+    patchWithCleanup(browser, {
+        open: (url, type) => {
+            // The url matters: prefixing a slash onto the object url opened
+            // `/blob:…`, a relative path that could only 404.
+            expect.step(`browser_open:${type}:${url.startsWith("blob:")}`);
+        },
+    });
+    expect("iframe.o_pdfview_iframe").toHaveCount(1);
+    const file = new File(["test"], "test.pdf", { type: "application/pdf" });
+    await click(".o_field_pdf_viewer input[type=file]");
+    await setInputFiles(file);
+    await waitFor("iframe.o_pdfview_iframe");
+    await clickSave();
+    await click(".fa-download");
+    expect.verifySteps(["ir.actions.act_url", "browser_open:_blank:true"]);
+});
+
+test("PdfViewerField: uploaded blob does not leak across pager navigation", async () => {
+    Partner._records = [
+        { id: 1, document: false },
+        { id: 2, document: "bbb==\n" },
+    ];
+    onRpc("web_save", () => {});
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        resIds: [1, 2],
+        arch: '<form><field name="document" widget="pdf_viewer"/></form>',
+    });
+    const file = new File(["test"], "test.pdf", { type: "application/pdf" });
+    await click(".o_field_pdf_viewer input[type=file]");
+    await setInputFiles(file);
+    await waitFor("iframe.o_pdfview_iframe");
+    expect(getIframeProtocol()).toBe("blob");
+    await clickSave();
+    await click(".o_pager_next");
+    await animationFrame();
+    expect(getIframeProtocol()).toBe("https");
+    expect(getIframeViewerParams()).toBe("model=partner&field=document&id=2");
+});
+
+test("PdfViewerField opens on the page its companion field names", async () => {
+    // `<name>_page` is read straight out of `record.data`, so it only works if
+    // the widget declares it -- otherwise it is never loaded and the viewer
+    // silently opens on page 1 whatever the record says.
+    onRpc("web_read", ({ kwargs }) => {
+        expect(Object.keys(kwargs.specification)).toInclude("document_page");
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="document" widget="pdf_viewer"/></form>`,
+    });
+    expect(getIframeSrc()).toInclude("#page=4");
+});

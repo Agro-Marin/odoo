@@ -355,7 +355,10 @@ test("non-JSON response with a non-5xx status is an InvalidResponseError", async
     await expect(rpc("/test/")).rejects.toThrow(InvalidResponseError);
 });
 
-test("InvalidResponseError is also a ConnectionLostError (backward compatibility)", async () => {
+test("a non-JSON non-5xx response is an InvalidResponseError, NOT a ConnectionLostError", async () => {
+    // The is-a was intentionally broken (F-U04-2): a well-formed non-JSON reply
+    // is not connectivity loss. Consumers that must still react to it name it
+    // explicitly; it is classified as non-retryable behaviour-as-data.
     mockFetch(
         () =>
             new Response("<html>not found</html>", {
@@ -364,7 +367,19 @@ test("InvalidResponseError is also a ConnectionLostError (backward compatibility
             }),
     );
 
-    await expect(rpc("/test/")).rejects.toThrow(ConnectionLostError);
+    const error = await rpc("/test/").catch((e) => e);
+    expect(error).toBeInstanceOf(InvalidResponseError);
+    expect(error).not.toBeInstanceOf(ConnectionLostError);
+    expect(error.retryable).toBe(false);
+});
+
+test("retryability is behaviour-as-data on the error, not its class", () => {
+    expect(new ConnectionLostError("/x").retryable).toBe(true);
+    expect(new ConnectionTimeoutError("/x", 100).retryable).toBe(true);
+    expect(new ServerOverloadError("/x", 503).retryable).toBe(true);
+    expect(new InvalidResponseError("/x", 404).retryable).toBe(false);
+    expect(new ConnectionAbortedError().retryable).toBe(false);
+    expect(new RPCError().retryable).toBe(false);
 });
 
 test("unparseable JSON body with a non-5xx status is an InvalidResponseError", async () => {
@@ -814,6 +829,24 @@ describe("CLEAR-CACHES bus handling", () => {
         after(() => rpc.setCache(undefined));
         return calls;
     }
+
+    test("purgeCacheStorage delegates to the cache, and no-ops without one", async () => {
+        let purged = 0;
+        rpc.setCache({
+            purgeStorage: () => {
+                purged++;
+                return Promise.resolve();
+            },
+        });
+        after(() => rpc.setCache(undefined));
+
+        await rpc.purgeCacheStorage();
+        expect(purged).toBe(1);
+
+        rpc.setCache(undefined);
+        await rpc.purgeCacheStorage(); // no cache configured -> resolves, no throw
+        expect(purged).toBe(1);
+    });
 
     test("object detail WITHOUT a model invalidates the named tables (not the object)", () => {
         const calls = withStubCache();

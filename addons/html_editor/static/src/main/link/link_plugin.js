@@ -22,8 +22,8 @@ import {
     findInSelection,
 } from "@html_editor/utils/selection";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { memoize } from "@web/core/utils/functions";
 

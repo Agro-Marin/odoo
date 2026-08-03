@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 
 import { Plugin } from "../plugin.js";
 import { VideoSelector } from "./media/media_dialog/video_selector.js";

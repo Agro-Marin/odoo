@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { scrollTo } from "@html_builder/utils/scrolling";
-import { _t } from "@web/core/l10n/translation";
-import { post } from "@web/services/http_service";
+import { _t } from "@web/core/translation";
+import { post } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
 import { Interaction } from "@web/public/interaction";

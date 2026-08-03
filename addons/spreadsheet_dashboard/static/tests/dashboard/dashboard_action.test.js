@@ -1,8 +1,8 @@
-import { luxon } from "@web/core/l10n/luxon";
 import { describe, expect, test } from "@odoo/hoot";
-import { queryAll, press, queryAllTexts } from "@odoo/hoot-dom";
+import { press, queryAll, queryAllTexts } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { getBasicData, Product } from "@spreadsheet/../tests/helpers/data";
+import { THIS_YEAR_GLOBAL_FILTER } from "@spreadsheet/../tests/helpers/global_filter";
 import { createSpreadsheetDashboard } from "@spreadsheet_dashboard/../tests/helpers/dashboard_action";
 import {
     defineSpreadsheetDashboardModels,
@@ -10,10 +10,10 @@ import {
 } from "@spreadsheet_dashboard/../tests/helpers/data";
 import { contains, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { RPCError } from "@web/core/network/rpc";
+import { luxon } from "@web/core/l10n/luxon";
+import { RPCError } from "@web/core/network";
 import { Deferred } from "@web/core/utils/concurrency";
 import { range } from "@web/core/utils/format/numbers";
-import { THIS_YEAR_GLOBAL_FILTER } from "@spreadsheet/../tests/helpers/global_filter";
 
 describe.current.tags("desktop");
 defineSpreadsheetDashboardModels();

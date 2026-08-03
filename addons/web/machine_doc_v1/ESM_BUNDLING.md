@@ -139,7 +139,8 @@ Example:
     'import_map_includes': {'web.assets_unit_tests_setup':
                             ['web.assets_unit_tests']},
     'secondary_import_map_includes': {'web.assets_web': ['web.assets_tests'],
-                                      'web.assets_frontend': ['web.assets_tests']},
+                                      'web.assets_frontend': ['web.assets_tests'],
+                                      'web.assets_frontend_lazy': ['web.assets_tests']},
 }
 # web_tour/__manifest__.py — the CHILD declares its lazy bundles under the parent:
 'esm': {
@@ -303,12 +304,6 @@ ESM bundle, concatenation for the legacy `.min.js`) and writes the new row.
 Stale content is impossible once the version differs; the old attachment is
 just GC'd later.
 
-Proven empirically (2026-07): with a warm DB (unit-test bundle already built
-at version `7752687`), adding one `test(...)` to
-`web/static/tests/components/emoji_picker.test.js` and re-running
-`--test-tags '/web:WebSuite.test_components[...]' --stop-after-init` — **with
-no attachment flush** — ran the new test and bumped the version to `d4cc434`.
-
 The one caveat is the `cache="assets"` **ormcache** on
 `ir_qweb._generate_asset_links_cache` / `ir_asset._get_asset_paths`: its key
 does NOT include mtime (it's `bundle`/`assets_params`/`rtl`/…), and it's only
@@ -412,7 +407,7 @@ evaluates and `sendBeacon`s to `/web/observability/js_error`
 per page — the stack and cause discriminate, since OWL reports every
 lifecycle failure with one generic message at 0:0).  This
 covers the window where the bundle itself fails to parse/evaluate and
-`@web/services/error_service` is unreachable; it is the pre-ESM
+`@web/core/errors/error_service` is unreachable; it is the pre-ESM
 mirror of `@web/core/errors/error_beacon` — keep payload fields and
 endpoint in sync with that module and
 `observability.py::js_error`.
@@ -428,6 +423,6 @@ mounted.
 
 ## See also
 
-- `doc/FLOW_DIAGRAM.md` — 14 end-to-end sequence diagrams
+- `FLOW_DIAGRAM.md` — 14 end-to-end sequence diagrams
 - `ARCHITECTURE.md` — module-wide architecture (boot flow, services, views)
 - `CONVENTIONS.md` — coding patterns and gotchas

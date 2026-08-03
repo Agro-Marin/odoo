@@ -29,7 +29,14 @@ file:line, so the developer syncs the paired repo (or ships the consumer fix)
 
 Refs are taken from ``PRE_COMMIT_FROM_REF`` / ``PRE_COMMIT_TO_REF`` (set by the
 pre-commit framework for the ``pre-push`` stage), overridable with ``--from`` /
-``--to``; they default to ``19.0-marin`` .. ``HEAD`` for a manual run.
+``--to``. Absent both, the range is ``@{upstream}..HEAD`` — what a push would
+actually send — falling back to ``19.0-marin`` where there is no upstream.
+
+That fallback used to be the default, and it made the gate a **no-op on the
+branch it names**: work lands directly on ``19.0-marin`` here, where
+``19.0-marin..HEAD`` is empty. 115 commits removing 42 JS modules were reported
+as "0 removed in range" and passed. An empty range now says so in as many
+words, because a gate that examined nothing must not read like a clean bill.
 
 Consumer repos are discovered beside this checkout and can be overridden with
 ``ODOO_CONSUMER_REPOS`` (a ``:``-separated list of absolute paths).
@@ -57,7 +64,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from js_layer_check import collect_imports
+from js_imports import collect_imports
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root, sibling_repos_root
@@ -252,13 +259,32 @@ def find_dangling(
     return dangling
 
 
+def _default_from_ref() -> str:
+    """The commit a push would actually start from.
+
+    ``DEFAULT_FROM_REF`` is the shared base branch, which is the right answer
+    from a feature branch and the WRONG one from the base branch itself: on
+    ``19.0-marin``, ``19.0-marin..HEAD`` is empty, so the gate inspects nothing
+    and passes. That is not a corner case — work lands directly on
+    ``19.0-marin`` here, and 115 such commits removing 42 JS modules went
+    unexamined before this was noticed.
+
+    The upstream tracking ref is what "about to be pushed" means, so prefer it
+    and keep the base branch as the fallback for a checkout with no upstream.
+    """
+    upstream = _git(
+        ROOT, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"
+    )
+    return upstream.strip() or DEFAULT_FROM_REF
+
+
 def _resolve_refs(args: argparse.Namespace) -> tuple[str, str]:
     from_ref = args.from_ref or os.environ.get("PRE_COMMIT_FROM_REF") or ""
     to_ref = args.to_ref or os.environ.get("PRE_COMMIT_TO_REF") or ""
     # A brand-new branch push gives an empty / all-zero FROM ref: fall back to
     # the shared base so the whole branch is inspected rather than nothing.
     if not from_ref or set(from_ref) <= {"0"}:
-        from_ref = DEFAULT_FROM_REF
+        from_ref = _default_from_ref()
     if not to_ref or set(to_ref) <= {"0"}:
         to_ref = DEFAULT_TO_REF
     return from_ref, to_ref
@@ -273,6 +299,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     from_ref, to_ref = _resolve_refs(args)
+    # An empty range and a clean one print the same "0 removed" and both pass.
+    # Say which it is: a gate that examined nothing must not read as a verdict.
+    span = len(_git(ROOT, "rev-list", f"{from_ref}..{to_ref}").split())
     all_removed = removed_specifiers(from_ref, to_ref)
     # Step 2 of the documented algorithm: a specifier another core file still
     # provides -- because a file sits at the derived path, or because one
@@ -291,6 +320,7 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(
                 {
                     "range": f"{from_ref}..{to_ref}",
+                    "commits_in_range": span,
                     "removed": removed,
                     "rehomed": rehomed,
                     "consumer_repos": [str(r) for r in consumer_repos],
@@ -302,10 +332,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("Cross-repo symbol-coherence check (core -> consumers)")
         print("=" * 64)
-        print(f"Range: {from_ref}..{to_ref}")
+        print(f"Range: {from_ref}..{to_ref}  ({span} commit(s))")
         print(
             f"Consumer repos: {', '.join(r.name for r in consumer_repos) or '(none)'}"
         )
+        if not span:
+            print("\nNothing to inspect — the range is empty. ✓")
+            return 0
         print(f"Core JS modules removed in range: {len(removed)}")
         for spec, old in removed.items():
             print(f"  - {spec}  ({old})")

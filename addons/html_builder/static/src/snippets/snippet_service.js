@@ -1,13 +1,14 @@
 /** @odoo-module native */
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { _t } from "@web/core/l10n/translation";
-import { uniqueId } from "@web/core/utils/functions";
-import { SignalStore } from "@web/core/utils/reactive";
-import { AddSnippetDialog } from "./add_snippet_dialog.js";
-import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
 import { markup, useState } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
+import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
+import { SignalStore } from "@web/core/utils/reactive";
+import { ConfirmationDialog } from "@web/ui/dialog";
+
+import { AddSnippetDialog } from "./add_snippet_dialog.js";
 
 export class SnippetModel extends SignalStore {
     constructor(services, { snippetsName, context }) {

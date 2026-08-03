@@ -2,8 +2,8 @@
 import { Component } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useTime } from "@point_of_sale/app/hooks/time_hook";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 export class LoginScreen extends Component {
     static template = "point_of_sale.LoginScreen";

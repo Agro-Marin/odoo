@@ -1,13 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
-import { CalendarModel } from "@web/views/calendar/calendar_model";
 import { askRecurrenceUpdatePolicy } from "@calendar/views/ask_recurrence_update_policy_hook";
-import {
-    deleteConfirmationMessage,
-    ConfirmationDialog,
-} from "@web/ui/dialog/confirmation_dialog";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
+import { ConfirmationDialog,deleteConfirmationMessage } from "@web/ui/dialog";
+import { CalendarModel } from "@web/views/calendar";
 
 export class AttendeeCalendarModel extends CalendarModel {
     static services = [...CalendarModel.services, "dialog", "orm"];

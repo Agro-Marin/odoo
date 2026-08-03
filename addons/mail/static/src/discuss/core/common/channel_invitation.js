@@ -3,7 +3,7 @@ import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 export class ChannelInvitation extends Component {

@@ -12,7 +12,7 @@ import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, test } from "@odoo/hoot";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
 import { serializeDate, today } from "@web/core/l10n/dates";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 import { livechatLastAgentLeaveFromChatWindow } from "./im_livechat_shared_tests.js";
 

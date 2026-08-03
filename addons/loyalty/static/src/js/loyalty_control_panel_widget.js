@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 
 export class LoyaltyX2ManyField extends X2ManyField {
     static template = "loyalty.LoyaltyX2ManyField";

@@ -19,7 +19,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { queryFirst } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
 import { getService, serverState, withUser } from "@web/../tests/web_test_helpers";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 describe.current.tags("desktop");
 defineLivechatModels();

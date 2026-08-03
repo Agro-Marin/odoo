@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { isSmallInteger } from "@html_builder/utils/utils";
 import { generateHTMLId } from "@html_builder/utils/utils_css";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { escape } from "@web/core/utils/format/strings";
 import { renderToElement } from "@web/core/utils/render";
 

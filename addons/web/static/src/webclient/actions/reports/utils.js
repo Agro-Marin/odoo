@@ -8,24 +8,36 @@ import { download } from "@web/core/network/download";
 /** @import { Context, ReportAction } from "../action_service.js" */
 
 /**
+ * The context a report renders under: the user's, with the action's on top.
+ * `preprocessAction` does not fold `user.context` into `action.context` — the
+ * former is only the evaluation context — so neither one alone is the answer.
+ *
+ * @param {ReportAction} action
+ * @param {Context} [userContext]
+ * @returns {Context}
+ */
+export function getReportContext(action, userContext) {
+    return { ...userContext, ...(action.context || {}) };
+}
+
+/**
  * @param {ReportAction} action
  * @param {string} type
- * @param {Context} [userContext] only read for the "html" type
+ * @param {Context} [userContext]
  * @returns {string}
  */
 export function getReportUrl(action, type, userContext) {
     let url = `/report/${type}/${action.report_name}`;
-    const actionContext = action.context || {};
+    const renderContext = getReportContext(action, userContext);
+    const context = encodeURIComponent(JSON.stringify(renderContext));
     if (action.data && JSON.stringify(action.data) !== "{}") {
         const options = encodeURIComponent(JSON.stringify(action.data));
-        const context = encodeURIComponent(JSON.stringify(actionContext));
         url += `?options=${options}&context=${context}`;
     } else {
-        if (actionContext.active_ids) {
-            url += `/${actionContext.active_ids.join(",")}`;
+        if (renderContext.active_ids) {
+            url += `/${renderContext.active_ids.join(",")}`;
         }
         if (type === "html") {
-            const context = encodeURIComponent(JSON.stringify(userContext));
             url += `?context=${context}`;
         }
     }
@@ -39,12 +51,13 @@ export function getReportUrl(action, type, userContext) {
  * @returns {Promise<void>}
  */
 export async function downloadReport(action, type, userContext) {
-    const url = getReportUrl(action, type);
+    const renderContext = getReportContext(action, userContext);
+    const url = getReportUrl(action, type, userContext);
     await download({
         url: "/report/download",
         data: {
             data: JSON.stringify([url, action.report_type]),
-            context: JSON.stringify(userContext),
+            context: JSON.stringify(renderContext),
         },
     });
 }

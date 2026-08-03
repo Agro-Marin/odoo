@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
-import { ErrorDialog } from "@web/components/errors/error_dialogs";
-import { _t } from "@web/core/l10n/translation";
+import { ErrorDialog } from "@web/components/errors";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { CopyButton } from "@web/components/copy_button/copy_button";
 

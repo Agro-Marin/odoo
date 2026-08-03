@@ -2,7 +2,7 @@
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 export class UnsplashBeacon extends Interaction {
     static selector = "#wrapwrap";

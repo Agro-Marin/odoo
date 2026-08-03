@@ -141,3 +141,44 @@ test("selection footer converts mixed-currency records to the company currency",
     expect(footerCell.textContent).toInclude("1,350.00");
     expect(`tfoot td.o_list_number sup`).toHaveCount(1);
 });
+
+test.tags("desktop");
+test("no total when one currency has no exchange rate", async () => {
+    // The session only carries rates for the currencies it knows; a record may
+    // reference one it does not. Converting the rest at an assumed rate of 1
+    // printed a plausible, wrong total (2,000.00 instead of 1,850.00).
+    onRpc("res.currency", "read", ({ parent }) =>
+        parent().filter((/** @type {any} */ r) => r.id !== 2),
+    );
+
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `
+            <list>
+                <field name="name"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id"/>
+            </list>`,
+    });
+
+    const footerCell = queryOne(`tfoot td.o_list_number span`);
+    expect(footerCell.textContent.trim()).toBe("?");
+    expect(footerCell.textContent).not.toInclude("2,000");
+});
+
+test.tags("desktop");
+test("a known rate still converts once every currency is covered", async () => {
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `
+            <list>
+                <field name="name"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id"/>
+            </list>`,
+    });
+
+    expect(queryOne(`tfoot td.o_list_number span`).textContent).toInclude("1,850.00");
+});

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registerMessageAction } from "@mail/core/common/message_actions";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 registerMessageAction("pin", {
     condition: ({ store, thread }) =>
         store.self_partner && thread?.model === "discuss.channel",

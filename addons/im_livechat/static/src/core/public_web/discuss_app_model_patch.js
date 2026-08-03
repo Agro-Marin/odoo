@@ -3,7 +3,7 @@ import { fields } from "@mail/core/common/record";
 import { DiscussApp } from "@mail/core/public_web/discuss_app_model";
 import { effectWithDebouncedCleanup } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 // Looking for help subscription is triggered when the sidebar category is

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 

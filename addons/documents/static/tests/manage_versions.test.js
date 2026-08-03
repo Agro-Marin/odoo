@@ -9,7 +9,7 @@ import {
     mountWithCleanup,
     onRpc,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 import { DocumentsModels } from "./helpers/data.js";
 import { makeDocumentsMockEnv } from "./helpers/model.js";

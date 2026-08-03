@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { browser } from "@web/core/browser/browser";
+import { useOwnDebugContext } from "@web/core/debug/debug_context";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { useOwnDebugContext } from "@web/services/debug/debug_context";
-import { ActionContainer } from "@web/webclient/actions/action_container";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
+import { ActionContainer } from "@web/webclient/actions";
 
 export class ProjectSharingWebClient extends Component {
     static props = {};

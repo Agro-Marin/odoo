@@ -3,10 +3,10 @@
 
 /** @module @web/webclient/errors/offline_fail_to_fetch_error_handler */
 
+import { lostConnectionHandler } from "@web/components/errors/error_handlers";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { lostConnectionHandler } from "@web/services/error_handlers";
 const errorHandlerRegistry = registry.category("error_handlers");
 
 const fetchErrorMessages = [

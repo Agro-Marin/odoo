@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { getOnNotified } from "@point_of_sale/utils";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { session } from "@web/session";
 
 export const CustomerDisplayDataService = {

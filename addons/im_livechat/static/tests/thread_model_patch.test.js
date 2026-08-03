@@ -10,7 +10,7 @@ import {
 import { describe, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { Command, serverState, withUser } from "@web/../tests/web_test_helpers";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 import { defineLivechatModels } from "./livechat_test_helpers.js";
 

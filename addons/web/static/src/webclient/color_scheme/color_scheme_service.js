@@ -1,8 +1,9 @@
+// @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { colorScheme } from "@web/core/color_scheme";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 const serviceRegistry = registry.category("services");
 
@@ -18,8 +19,23 @@ export function currentColorScheme() {
 // carries it, and is the one application code should read — it lives below
 // webclient/, so anything can reach it.
 
-export const colorSchemeService = {
-    async start() {
+/**
+ * The `color_scheme` service.
+ *
+ * A class rather than a closure returning an object literal; see
+ * `core/hotkeys/hotkey_service.js` for the reasoning and
+ * `tooling/architecture/js_service_shape.py` for the budget.
+ *
+ * **`reload()` stays on the service object below**, not on this class:
+ * `dark_mode_toggle.js` imports `colorSchemeService` directly and calls it, so
+ * it is a live facade method in the same sense as `fileUploadService.createXhr`.
+ *
+ * The system-scheme listener goes through a stored wrapper so
+ * `removeEventListener` keeps its reference while the handler resolves through
+ * the prototype (hazard 2).
+ */
+export class ColorSchemeService {
+    constructor() {
         const stored = user.settings.color_scheme;
         const newColorScheme =
             stored === "light" || stored === "dark" ? stored : systemColorScheme();
@@ -44,30 +60,41 @@ export const colorSchemeService = {
         // needs nothing from us; the readers do. Whatever renders after this
         // gets the scheme actually on screen instead of the stale one, and
         // whatever is already mounted re-renders through `useColorScheme`.
-        const systemScheme = browser.matchMedia("(prefers-color-scheme:dark)");
-        const onSystemSchemeChange = () => {
-            if (!["light", "dark"].includes(user.settings.color_scheme)) {
-                colorScheme.publish(systemColorScheme());
-            }
-        };
-        systemScheme.addEventListener("change", onSystemSchemeChange);
-        return {
-            get systemColorScheme() {
-                return systemColorScheme();
-            },
-            get currentColorScheme() {
-                return currentColorScheme();
-            },
-            get userColorScheme() {
-                return user.settings.color_scheme;
-            },
-            // `colorScheme` is one module-level carrier shared by every env, so
-            // a listener left behind does not merely leak: it goes on
-            // publishing into the live scheme on behalf of an env that is gone.
-            destroy() {
-                systemScheme.removeEventListener?.("change", onSystemSchemeChange);
-            },
-        };
+        this.systemScheme = browser.matchMedia("(prefers-color-scheme:dark)");
+        this._onSystemSchemeChange = () => this.onSystemSchemeChange();
+        this.systemScheme.addEventListener("change", this._onSystemSchemeChange);
+    }
+
+    onSystemSchemeChange() {
+        if (!["light", "dark"].includes(user.settings.color_scheme)) {
+            colorScheme.publish(systemColorScheme());
+        }
+    }
+
+    get systemColorScheme() {
+        return systemColorScheme();
+    }
+
+    get currentColorScheme() {
+        return currentColorScheme();
+    }
+
+    get userColorScheme() {
+        return user.settings.color_scheme;
+    }
+
+    // `colorScheme` is one module-level carrier shared by every env, so
+    // a listener left behind does not merely leak: it goes on
+    // publishing into the live scheme on behalf of an env that is gone.
+    destroy() {
+        this.systemScheme.removeEventListener?.("change", this._onSystemSchemeChange);
+    }
+}
+
+export const colorSchemeService = {
+    /** @returns {Promise<ColorSchemeService>} */
+    async start() {
+        return new ColorSchemeService();
     },
     reload() {
         browser.location.reload();

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 const REQUEST_TIMEOUT = 10000;
 
 export class RazorpayError extends Error {}

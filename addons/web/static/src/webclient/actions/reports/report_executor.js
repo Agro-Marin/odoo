@@ -4,7 +4,7 @@
 /** @module @web/webclient/actions/reports/report_executor */
 
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 import { ReportAction } from "./report_action.js";
 import { downloadReport, getReportUrl } from "./utils.js";
@@ -80,11 +80,7 @@ export async function executeReportAction(action, options, am) {
         const type = action.report_type === "qweb-pdf" ? "pdf" : "text";
         am.env.services.ui.block();
         try {
-            const downloadContext = { ...user.context };
-            if (action.context) {
-                Object.assign(downloadContext, action.context);
-            }
-            await downloadReport(action, type, downloadContext);
+            await downloadReport(action, type, user.context);
         } finally {
             am.env.services.ui.unblock();
         }

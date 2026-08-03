@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useAutofocus } from "@web/core/utils/hooks";
 
 export class SubtaskCreate extends Component {

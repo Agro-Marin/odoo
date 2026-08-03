@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { KeepLast } from "@web/core/utils/concurrency";

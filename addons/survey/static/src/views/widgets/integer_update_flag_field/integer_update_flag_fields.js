@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { useEffect, useRef } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { IntegerField, integerField } from "@web/fields/basic/integer/integer_field";
 
 /**

@@ -5,8 +5,8 @@
 
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
 import { formatFloat } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 

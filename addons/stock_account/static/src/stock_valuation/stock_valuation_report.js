@@ -3,11 +3,11 @@ import { Component, onWillStart, useChildSubEnv, useState } from "@odoo/owl";
 import { formatMonetary } from "@web/core/formatters";
 import { serializeDate } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
 import { StockValuationReportButtonsBar } from "../stock_valuation/buttons_bar/buttons_bar.js";
 import { StockValuationReportController } from "../stock_valuation/controller.js";

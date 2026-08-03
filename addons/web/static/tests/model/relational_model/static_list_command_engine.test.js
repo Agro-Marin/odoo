@@ -503,6 +503,39 @@ describe("applyCommands — CREATE", () => {
     });
 });
 
+describe("applyCommands — re-adding within one batch", () => {
+    // Found by mutation: deleting `readdedIds.delete(id)` from the removal
+    // handler broke nothing in 805 model tests. `readdedIds` is per-batch, so
+    // only a LINK/UNLINK/LINK sequence inside ONE call reaches the interaction:
+    // the second LINK is skipped unless the removal forgot the first one, and
+    // the batch then drops the single remaining entry as the pending removal.
+    test("LINK, UNLINK then LINK again on the same id keeps the record", () => {
+        const list = makeList();
+
+        applyCommands(list, [
+            [LINK, 5, false],
+            [UNLINK, 5, false],
+            [LINK, 5, false],
+        ]);
+
+        expect(list._currentIds).toEqual([5]);
+        expect(list.count).toBe(1);
+        expect(list.records.map((r) => r.resId)).toEqual([5]);
+    });
+
+    test("LINK then UNLINK in one batch leaves nothing behind", () => {
+        const list = makeList();
+
+        applyCommands(list, [
+            [LINK, 5, false],
+            [UNLINK, 5, false],
+        ]);
+
+        expect(list._currentIds).toEqual([]);
+        expect(list.count).toBe(0);
+    });
+});
+
 describe("applyCommands — command log integrity", () => {
     test("preserves existing _commands from prior operations", () => {
         const list = makeList();

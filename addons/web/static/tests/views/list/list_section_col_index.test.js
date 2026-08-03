@@ -162,7 +162,9 @@ test("a vertical move out of a section row stays on the same grid column", async
         "down",
     );
     // the "name" column, not whatever sits at the title cell's within-row slot
-    expect(renderer.gridState.getColumnAt(move.colIndex).name).toBe("name");
+    const targetRow = queryAll(".o_data_row")[1];
+    const targetCell = targetRow.querySelector(`[data-col-index='${move.colIndex}']`);
+    expect(targetCell.getAttribute("name")).toBe("name");
 });
 
 test.tags("desktop");

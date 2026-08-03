@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export function useKEProxy({onAllSent}) {
     onAllSent = onAllSent || (() => {});

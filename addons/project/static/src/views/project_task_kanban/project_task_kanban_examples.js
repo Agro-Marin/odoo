@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { renderToMarkup } from "@web/core/utils/render";
 
 const greenBullet = markup`<span class="o_status d-inline-block o_status_green"></span>`;

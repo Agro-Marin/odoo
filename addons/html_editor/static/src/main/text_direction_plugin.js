@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { isContentEditable, isTextNode } from "@html_editor/utils/dom_info";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { Plugin } from "../plugin.js";
 import { closestBlock } from "../utils/blocks.js";

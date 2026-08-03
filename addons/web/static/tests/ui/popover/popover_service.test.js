@@ -5,8 +5,8 @@ import { click, press } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, onWillStart, xml } from "@odoo/owl";
 import { getService, mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { Deferred } from "@web/core/utils/concurrency";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 let target;
 

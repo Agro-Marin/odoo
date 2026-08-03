@@ -1,7 +1,6 @@
 /** @odoo-module native */
-import { Dialog } from "@web/ui/dialog/dialog";
-
-import { CalendarYearPopover } from "@web/views/calendar/calendar_year/calendar_year_popover";
+import { Dialog } from "@web/ui/dialog";
+import { CalendarYearPopover } from "@web/views/calendar";
 
 export class TimeOffCalendarYearPopover extends CalendarYearPopover {
     static components = { Dialog };

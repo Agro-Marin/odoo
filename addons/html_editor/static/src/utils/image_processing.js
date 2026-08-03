@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { loadBundle } from "@web/core/assets";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { pick } from "@web/core/utils/collections/objects";
 
 import { getImageSrc } from "./image.js";

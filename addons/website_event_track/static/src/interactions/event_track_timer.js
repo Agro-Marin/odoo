@@ -3,7 +3,7 @@ import { luxon } from "@web/core/l10n/luxon";
 import { formatDuration } from "@web/core/l10n/dates";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 const { DateTime } = luxon;
 
 /*

@@ -4,8 +4,8 @@
 import { register_payment_method } from "@point_of_sale/app/services/pos_store";
 import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
-import { _t } from "@web/core/l10n/translation";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { _t } from "@web/core/translation";
+import { AlertDialog } from "@web/ui/dialog";
 export class PaymentStripe extends PaymentInterface {
     setup() {
         super.setup(...arguments);

@@ -8,48 +8,16 @@ import { getTabableElements } from "@web/core/utils/dom/ui";
 import { useBus } from "@web/core/utils/hooks";
 import { applyFieldDirtyPayload } from "@web/fields/field_dirty_signal";
 
+import {
+    findNextFocusableOnRow,
+    findPreviousFocusableOnRow,
+    focusAndSelect,
+    getElementToFocus,
+    togglesFocusInsideCell,
+} from "./list_focus.js";
 import { makeEditHandlers } from "./list_keyboard_edit.js";
 
 const MAX_VIRT_FOCUS_RETRIES = 20;
-
-/**
- * @param {HTMLTableCellElement} cell
- * @param {number} [index]
- */
-export function getElementToFocus(cell, index) {
-    return /** @type {HTMLElement} */ (getTabableElements(cell).at(index) || cell);
-}
-
-/**
- * @param {HTMLElement} parent
- */
-export function containsActiveElement(parent) {
-    const { activeElement } = document;
-    return parent !== activeElement && parent.contains(activeElement);
-}
-
-/**
- * @param {string} hotkey
- * @param {HTMLTableCellElement} cell
- * @returns {boolean}
- */
-export function togglesFocusInsideCell(hotkey, cell) {
-    if (!["tab", "shift+tab"].includes(hotkey) || !containsActiveElement(cell)) {
-        return false;
-    }
-    const focusableEls = getTabableElements(cell).filter(
-        (el) =>
-            el === document.activeElement ||
-            ["INPUT", "BUTTON", "TEXTAREA"].includes(el.tagName),
-    );
-    const index = focusableEls.indexOf(
-        /** @type {HTMLElement} */ (document.activeElement),
-    );
-    if (index === -1) {
-        return false;
-    }
-    return hotkey === "tab" ? index < focusableEls.length - 1 : index > 0;
-}
 
 /**
  * @param {Element} row
@@ -102,37 +70,20 @@ function focusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
 
 /**
  * @param {any} tableRef
- * @param {object} options
- * @param {() => import("./list_renderer").Column[]} options.getColumns
- * @param {() => import("./list_renderer").ListRendererProps} options.getProps
- * @param {() => object} options.getEnv
- * @param {() => import("./list_grid_state").ListGridState | undefined} [options.getGridState]
- * @param {() => object | null} [options.getEditedRecord]
- * @param {(cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: "up" | "down" | "left" | "right") => HTMLElement | null} [options.findFocusFutureCell]
- * @param {(group: object) => void} options.onToggleGroup
- * @param {(record: object) => void} options.onToggleRecordSelection
- * @param {(params?: object) => void} [options.onAdd]
- * @param {(record: object) => void} options.onOpenRecord
- * @param {(record: object) => void} options.onDeleteRecord
- * @param {(record: object, group?: object) => any} [options.onEditNextRecord]
- * @param {(record: object) => boolean} options.isInlineEditable
- * @param {(column: any, record: object) => boolean} [options.isCellReadonly]
- * @param {(record: object, direction: string) => boolean} options.expandCheckboxes
- * @param {() => object} [options.getSel]
- * @param {() => boolean} [options.getCanCreate]
- * @param {() => boolean} [options.getDisplayRowCreates]
- * @param {() => any[]} [options.getControls]
- * @param {() => import("./list_virtualization").ListVirtualization | undefined} [options.getVirtualization]
+ * @param {import("./list_renderer").ListGridContext} ctx the renderer's shared
+ *   surface; the edit handlers below read further members off it (getEditedRecord,
+ *   onAdd, onEditNextRecord, isCellReadonly, getCanCreate, getDisplayRowCreates,
+ *   getControls).
  * @returns {any}
  */
-export function useListKeyboardNavigation(tableRef, options) {
+export function useListKeyboardNavigation(tableRef, ctx) {
     const {
         getColumns,
         getProps,
         getEnv,
         getGridState,
         onToggleGroup,
-        onToggleRecordSelection,
+        toggleRecordSelection,
         onOpenRecord,
         onDeleteRecord,
         isInlineEditable,
@@ -140,10 +91,16 @@ export function useListKeyboardNavigation(tableRef, options) {
         getSel,
         getVirtualization,
         findFocusFutureCell,
-    } = options;
+    } = ctx;
 
     /**
-     * @type {{ cell: HTMLTableCellElement, direction: string, move: { el: HTMLElement } | { pending: true } | null } | null}
+     * Carries an already-computed move across the call out to the renderer's
+     * overridable `findFocusFutureCell` and back into `self.findFocusFutureCell`,
+     * so an override still gets its say without the move being computed twice.
+     * Every field is part of the identity: a re-entrant call for a different
+     * cell/row-kind/direction must recompute rather than reuse this one.
+     *
+     * @type {{ cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: string, move: { el: HTMLElement } | { pending: true } | null } | null}
      */
     let latchedMove = null;
 
@@ -155,13 +112,12 @@ export function useListKeyboardNavigation(tableRef, options) {
      * @returns {HTMLElement | null}
      */
     const dispatchFutureCell = (cell, cellIsInGroupRow, direction, move) => {
-        latchedMove = move === undefined ? null : { cell, direction, move };
+        latchedMove =
+            move === undefined ? null : { cell, cellIsInGroupRow, direction, move };
         try {
-            return (findFocusFutureCell || self.findFocusFutureCell)(
-                cell,
-                cellIsInGroupRow,
-                direction,
-            );
+            const findFutureCell =
+                findFocusFutureCell || ((...args) => self.findFocusFutureCell(...args));
+            return findFutureCell(cell, cellIsInGroupRow, direction);
         } finally {
             latchedMove = null;
         }
@@ -256,22 +212,7 @@ export function useListKeyboardNavigation(tableRef, options) {
         /**
          * @param {HTMLElement} el
          */
-        focus(el) {
-            if (!el) {
-                return;
-            }
-            el.focus();
-            const inputEl = /** @type {HTMLInputElement} */ (el);
-            if (
-                ["text", "search", "url", "tel", "password", "textarea"].includes(
-                    inputEl.type,
-                ) &&
-                inputEl.selectionStart === inputEl.selectionEnd
-            ) {
-                inputEl.selectionStart = 0;
-                inputEl.selectionEnd = inputEl.value.length;
-            }
-        },
+        focus: focusAndSelect,
 
         /**
          * @param {HTMLTableCellElement} cell
@@ -424,6 +365,7 @@ export function useListKeyboardNavigation(tableRef, options) {
             const move =
                 latchedMove &&
                 latchedMove.cell === cell &&
+                latchedMove.cellIsInGroupRow === cellIsInGroupRow &&
                 latchedMove.direction === direction
                     ? latchedMove.move
                     : self.findFocusMove(cell, cellIsInGroupRow, direction);
@@ -435,60 +377,14 @@ export function useListKeyboardNavigation(tableRef, options) {
          * @param {HTMLTableCellElement} [cell]
          * @returns {HTMLElement | null}
          */
-        findNextFocusableOnRow(row, cell) {
-            const children = /** @type {HTMLElement[]} */ ([...row.children]);
-            const index = children.indexOf(/** @type {HTMLElement} */ (cell));
-            const nextCells = children.slice(index + 1);
-            for (const c of nextCells) {
-                if (!c.classList.contains("o_data_cell")) {
-                    continue;
-                }
-                if (
-                    c.firstElementChild &&
-                    c.firstElementChild.classList.contains("o_readonly_modifier")
-                ) {
-                    continue;
-                }
-                const toFocus = getElementToFocus(
-                    /** @type {HTMLTableCellElement} */ (c),
-                    0,
-                );
-                if (toFocus !== c) {
-                    return toFocus;
-                }
-            }
-            return null;
-        },
+        findNextFocusableOnRow,
 
         /**
          * @param {HTMLElement} row
          * @param {HTMLTableCellElement} [cell]
          * @returns {HTMLElement | null}
          */
-        findPreviousFocusableOnRow(row, cell) {
-            const children = /** @type {HTMLElement[]} */ ([...row.children]);
-            const index = cell ? children.indexOf(cell) : children.length;
-            const previousCells = children.slice(0, index);
-            for (const c of previousCells.reverse()) {
-                if (!c.classList.contains("o_data_cell")) {
-                    continue;
-                }
-                if (
-                    c.firstElementChild &&
-                    c.firstElementChild.classList.contains("o_readonly_modifier")
-                ) {
-                    continue;
-                }
-                const toFocus = getElementToFocus(
-                    /** @type {HTMLTableCellElement} */ (c),
-                    -1,
-                );
-                if (toFocus !== c) {
-                    return toFocus;
-                }
-            }
-            return null;
-        },
+        findPreviousFocusableOnRow,
 
         /**
          * @param {string} hotkey
@@ -497,6 +393,33 @@ export function useListKeyboardNavigation(tableRef, options) {
          */
         toggleFocusInsideCell(hotkey, cell) {
             return togglesFocusInsideCell(hotkey, cell);
+        },
+
+        /**
+         * Resolves an arrow-key move in one place for all four directions.
+         *
+         * A virtualized target may not be in the DOM yet; `findFocusMove` then
+         * registers a pending virtual focus as a SIDE EFFECT, which must be
+         * committed with an origin and reported as handled. Calling
+         * dispatchFutureCell directly would leave that pending focus orphaned
+         * and later steal focus.
+         *
+         * @param {HTMLTableCellElement} cell
+         * @param {boolean} cellIsInGroupRow
+         * @param {"up"|"down"|"left"|"right"} direction
+         * @returns {HTMLElement | true | null} `true` when the move became a
+         *   pending virtual focus
+         */
+        resolveArrowMove(cell, cellIsInGroupRow, direction) {
+            const move = self.findFocusMove(cell, cellIsInGroupRow, direction);
+            if (move && "pending" in move) {
+                self.setPendingVirtFocusOrigin(cell, cellIsInGroupRow, direction);
+                return true;
+            }
+            if (findFocusFutureCell) {
+                return dispatchFutureCell(cell, cellIsInGroupRow, direction, move);
+            }
+            return move && "el" in move ? move.el : null;
         },
 
         /**
@@ -514,16 +437,11 @@ export function useListKeyboardNavigation(tableRef, options) {
             let toFocus;
             switch (hotkey) {
                 case "arrowup": {
-                    const move = self.findFocusMove(cell, cellIsInGroupRow, "up");
-                    if (move && "pending" in move) {
-                        self.setPendingVirtFocusOrigin(cell, cellIsInGroupRow, "up");
+                    const moved = self.resolveArrowMove(cell, cellIsInGroupRow, "up");
+                    if (moved === true) {
                         return true;
                     }
-                    toFocus = findFocusFutureCell
-                        ? dispatchFutureCell(cell, cellIsInGroupRow, "up", move)
-                        : move && "el" in move
-                          ? move.el
-                          : null;
+                    toFocus = moved;
                     if (!toFocus && getEnv().searchModel) {
                         getEnv().searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
                         return true;
@@ -531,16 +449,11 @@ export function useListKeyboardNavigation(tableRef, options) {
                     break;
                 }
                 case "arrowdown": {
-                    const move = self.findFocusMove(cell, cellIsInGroupRow, "down");
-                    if (move && "pending" in move) {
-                        self.setPendingVirtFocusOrigin(cell, cellIsInGroupRow, "down");
+                    const moved = self.resolveArrowMove(cell, cellIsInGroupRow, "down");
+                    if (moved === true) {
                         return true;
                     }
-                    toFocus = findFocusFutureCell
-                        ? dispatchFutureCell(cell, cellIsInGroupRow, "down", move)
-                        : move && "el" in move
-                          ? move.el
-                          : null;
+                    toFocus = moved;
                     break;
                 }
                 case "arrowleft":
@@ -552,7 +465,15 @@ export function useListKeyboardNavigation(tableRef, options) {
                         const a = document.activeElement;
                         toFocus = a.previousElementSibling;
                     } else {
-                        toFocus = dispatchFutureCell(cell, cellIsInGroupRow, "left");
+                        const moved = self.resolveArrowMove(
+                            cell,
+                            cellIsInGroupRow,
+                            "left",
+                        );
+                        if (moved === true) {
+                            return true;
+                        }
+                        toFocus = moved;
                     }
                     break;
                 case "arrowright":
@@ -564,7 +485,15 @@ export function useListKeyboardNavigation(tableRef, options) {
                         const a = document.activeElement;
                         toFocus = a.nextElementSibling;
                     } else {
-                        toFocus = dispatchFutureCell(cell, cellIsInGroupRow, "right");
+                        const moved = self.resolveArrowMove(
+                            cell,
+                            cellIsInGroupRow,
+                            "right",
+                        );
+                        if (moved === true) {
+                            return true;
+                        }
+                        toFocus = moved;
                     }
                     break;
                 case "tab":
@@ -589,21 +518,29 @@ export function useListKeyboardNavigation(tableRef, options) {
                     break;
                 case "shift+arrowdown": {
                     if (expandCheckboxes(record, "down")) {
-                        const move = self.findFocusMove(cell, cellIsInGroupRow, "down");
-                        if (move && "pending" in move) {
+                        const moved = self.resolveArrowMove(
+                            cell,
+                            cellIsInGroupRow,
+                            "down",
+                        );
+                        if (moved === true) {
                             return true;
                         }
-                        toFocus = move && "el" in move ? move.el : null;
+                        toFocus = moved;
                     }
                     break;
                 }
                 case "shift+arrowup": {
                     if (expandCheckboxes(record, "up")) {
-                        const move = self.findFocusMove(cell, cellIsInGroupRow, "up");
-                        if (move && "pending" in move) {
+                        const moved = self.resolveArrowMove(
+                            cell,
+                            cellIsInGroupRow,
+                            "up",
+                        );
+                        if (moved === true) {
                             return true;
                         }
-                        toFocus = move && "el" in move ? move.el : null;
+                        toFocus = moved;
                     }
                     break;
                 }
@@ -611,7 +548,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                     if (!record) {
                         return false;
                     }
-                    onToggleRecordSelection(record);
+                    toggleRecordSelection(record);
                     toFocus = getElementToFocus(cell);
                     break;
                 case "shift":
@@ -660,7 +597,7 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
     };
 
-    Object.assign(self, makeEditHandlers(self, tableRef, options));
+    Object.assign(self, makeEditHandlers(self, tableRef, ctx));
 
     const dirtyOwners = new Set();
     useBus(

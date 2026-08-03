@@ -3,14 +3,14 @@
 
 /** @module @web/views/list/list_keyboard_edit */
 
-import { getElementToFocus } from "./list_keyboard_nav.js";
+import { getElementToFocus } from "./list_focus.js";
 
 /**
  * @param {object} nav
  * @param {any} tableRef
- * @param {object} options
+ * @param {import("./list_renderer").ListGridContext} ctx
  */
-export function makeEditHandlers(nav, tableRef, options) {
+export function makeEditHandlers(nav, tableRef, ctx) {
     const {
         getProps,
         getColumns,
@@ -21,7 +21,7 @@ export function makeEditHandlers(nav, tableRef, options) {
         isCellReadonly,
         onAdd,
         onEditNextRecord,
-    } = options;
+    } = ctx;
 
     return {
         /**

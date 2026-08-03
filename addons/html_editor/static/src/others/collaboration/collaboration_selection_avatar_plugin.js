@@ -4,8 +4,8 @@ import { closestBlock, isBlock } from "@html_editor/utils/blocks";
 import { isProtecting } from "@html_editor/utils/dom_info";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 
 /**
  * @typedef {Object} SelectionInfo

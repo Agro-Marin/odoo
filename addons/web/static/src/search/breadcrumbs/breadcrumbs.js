@@ -6,7 +6,7 @@
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 export class Breadcrumbs extends Component {
     static template = "web.Breadcrumbs";
     static components = { Dropdown, DropdownItem };

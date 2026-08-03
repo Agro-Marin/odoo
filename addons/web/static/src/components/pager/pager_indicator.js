@@ -4,9 +4,9 @@
 /** @module @web/components/pager/pager_indicator */
 
 import { Component, onWillUnmount, useState } from "@odoo/owl";
-import { Transition } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+import { Transition } from "@web/core/transition";
 import { useBus } from "@web/core/utils/hooks";
 
 import { PAGER_UPDATED_EVENT, pagerBus } from "./pager.js";

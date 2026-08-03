@@ -6,10 +6,11 @@
 import { Component, toRaw, useRef, useState } from "@odoo/owl";
 import { BarcodeScanner } from "@web/components/barcode/barcode_dialog";
 import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video_scanner";
+import { useAction } from "@web/core/action_port";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeContext } from "@web/core/context";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -88,7 +89,7 @@ export class Many2One extends Component {
     static components = { Many2XAutocomplete };
 
     /**
-     * @type {ReturnType<typeof import("@web/services/name_service").nameService.start>}
+     * @type {ReturnType<typeof import("@web/core/name_service").nameService.start>}
      */
     nameService;
     static props = {
@@ -139,7 +140,7 @@ export class Many2One extends Component {
 
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
-    /** @type {import("services").ServiceFactories["action"]} */
+    /** @type {import("@web/core/action_port").ActionPort} */
     action;
     /** @type {import("services").ServiceFactories["notification"]} */
     notification;
@@ -153,7 +154,7 @@ export class Many2One extends Component {
     setup() {
         this.rootRef = useRef("root");
 
-        this.action = useService("action");
+        this.action = useAction();
         this.notification = useService("notification");
         this.orm = useService("orm");
         this.nameService = useService("name");

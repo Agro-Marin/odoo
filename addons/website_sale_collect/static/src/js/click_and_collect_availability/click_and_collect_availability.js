@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillDestroy, useState } from '@odoo/owl';
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { registry } from '@web/core/registry';
 import { useService } from '@web/core/utils/hooks';
 

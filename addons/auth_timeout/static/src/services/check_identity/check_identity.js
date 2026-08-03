@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, EventBus, onWillDestroy, onWillStart, useState } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
-import { rpc, RPCError } from "@web/core/network/rpc";
+import { Dialog } from "@web/ui/dialog";
+import { rpc, RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { redirect } from "@web/core/utils/urls";

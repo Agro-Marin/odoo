@@ -1,9 +1,9 @@
-import { PivotArchParser } from "@web/views/pivot/pivot_arch_parser";
-import { OdooPivot } from "@spreadsheet/pivot/odoo_pivot";
+import { helpers } from "@odoo/o-spreadsheet";
 import { getBasicPivotArch, getPyEnv } from "@spreadsheet/../tests/helpers/data";
 import { createModelWithDataSource } from "@spreadsheet/../tests/helpers/model";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
-import { helpers } from "@odoo/o-spreadsheet";
+import { OdooPivot } from "@spreadsheet/pivot/odoo_pivot";
+import { PivotArchParser } from "@web/views/pivot";
 const { parseDimension, isDateOrDatetimeField } = helpers;
 
 /**

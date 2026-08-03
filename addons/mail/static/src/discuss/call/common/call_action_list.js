@@ -5,10 +5,10 @@ import { useCallActions } from "@mail/discuss/call/common/call_actions";
 import { CALL_PROMOTE_FULLSCREEN } from "@mail/discuss/call/common/thread_model_patch";
 import { Component, onWillRender, toRaw, useRef } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { usePopover } from "@web/ui/popover/popover_hook";
-import { Tooltip } from "@web/ui/tooltip/tooltip";
+import { usePopover } from "@web/ui/popover";
+import { Tooltip } from "@web/ui/tooltip";
 export class CallActionList extends Component {
     static components = { ActionList };
     static props = ["thread", "compact?"];

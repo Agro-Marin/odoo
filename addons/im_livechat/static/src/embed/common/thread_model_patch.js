@@ -4,7 +4,7 @@ import "@mail/discuss/core/common/thread_model_patch";
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
 import { generateEmojisOnHtml } from "@mail/utils/common/format";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
 

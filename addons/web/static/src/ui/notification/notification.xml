@@ -15,8 +15,10 @@
 
     <t t-name="web.NotificationWowl">
         <div t-ref="root"
-            t-on-mouseenter="freeze" t-on-mouseleave="refresh"
-            t-on-focusin="freeze" t-on-focusout="refresh"
+            t-on-mouseenter="(ev) => this.setHold('hover', true, ev)"
+            t-on-mouseleave="(ev) => this.setHold('hover', false, ev)"
+            t-on-focusin="(ev) => this.setHold('focus', true, ev)"
+            t-on-focusout="(ev) => this.setHold('focus', false, ev)"
             t-attf-class="o_notification {{props.className}} d-flex mb-2 position-relative rounded shadow-lg"
             t-att-role="isAssertive ? 'alert' : 'status'"
             t-att-aria-live="isAssertive ? 'assertive' : 'polite'"

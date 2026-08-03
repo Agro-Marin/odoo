@@ -2,9 +2,9 @@
 """Architectural layering checker for the Odoo framework core (``odoo/``).
 
 This is a dependency-free (stdlib-only) enforcement tool for the layering
-contracts documented in ``odoo/ARCHITECTURE.md`` and the ADRs under
-``doc/adr/``. It is the mechanical counterpart to those docs: the docs explain
-*why* the boundaries exist, this script guarantees they are not crossed.
+contracts documented in ``odoo/ARCHITECTURE.md``. It is the mechanical
+counterpart to that doc: the doc explains *why* the boundaries exist, this
+script guarantees they are not crossed.
 
 Why a custom checker instead of ``import-linter``
 -------------------------------------------------
@@ -96,13 +96,13 @@ class Known:
 # The EIGHT ORIGINAL contracts are clean at zero and stay that way
 # (test_the_eight_original_contracts_are_clean_at_zero):
 #   * RESOLVED 2026-06: the ESM/esbuild asset pipeline was relocated from libs/
-#     to odoo/tools/assets/ (ADR-0004).
+#     to odoo/tools/assets/.
 #   * RESOLVED 2026-06: libs/filesystem/osutil.py no longer imports odoo.release
-#     (the service name is passed in by the caller) (ADR-0004).
+#     (the service name is passed in by the caller).
 #   * RESOLVED 2026-06: the Layer-1 -> Layer-2 deferred BaseModel imports in
 #     orm/domain/ast.py, orm/fields/relational.py and orm/fields/base.py (the
 #     bottom-of-file ``from .. import models`` used by determine()/__set_name__)
-#     were replaced by the injection seam orm/_recordset.py (ADR-0001). The last
+#     were replaced by the injection seam orm/_recordset.py. The last
 #     of these was invisible to an earlier version of this checker, which
 #     resolved ``from .. import models`` to the package ``odoo.orm`` and dropped
 #     the submodule name; visit_ImportFrom now emits ``<base>.<name>`` so the
@@ -162,7 +162,7 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
 
 
 # The verified, load-bearing architectural invariants of the framework core.
-# Each one corresponds to an ADR; keep this list and doc/adr/ in sync.
+# Each carries its own rationale below; this list is the record of them.
 CONTRACTS: tuple[Contract, ...] = (
     Contract(
         name="libs-is-dependency-free",
@@ -188,7 +188,7 @@ CONTRACTS: tuple[Contract, ...] = (
         rationale=(
             "The db/ package (the decomposed sql_db.py) connects to the ORM only "
             "through injected hooks (e.g. BaseCursor._flushing_savepoint_cls), "
-            "never by importing it. See ADR-0003."
+            "never by importing it."
         ),
     ),
     Contract(
@@ -247,7 +247,7 @@ CONTRACTS: tuple[Contract, ...] = (
         rationale=(
             "FieldCache / ComputeEngine / UnitOfWork / ModelGraph must be "
             "testable without an Environment, Registry, or database. They take "
-            "their collaborators by injection. See ADR-0002."
+            "their collaborators by injection."
         ),
     ),
     Contract(
@@ -261,7 +261,7 @@ CONTRACTS: tuple[Contract, ...] = (
         rationale=(
             "Fields (Layer 1) and domains (Layer 1) sit below models (Layer 2) "
             "and runtime (Layer 3). Crossing this at runtime would reintroduce "
-            "the import cycles the layering exists to prevent. See ADR-0001."
+            "the import cycles the layering exists to prevent."
         ),
     ),
     Contract(
@@ -289,7 +289,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "Layer 0 (primitives, parsing, validation, constants, _typing) is the "
             "zero-dependency foundation: it may not import any higher ORM layer "
             "(nor its public shims odoo.fields / odoo.models / odoo.api). "
-            "See ADR-0001."
+            ""
         ),
     ),
     Contract(
@@ -300,7 +300,7 @@ CONTRACTS: tuple[Contract, ...] = (
         rationale=(
             "Models (Layer 2) sit below the runtime (Layer 3: Environment, "
             "Registry, Transaction). Layer 3 builds on Layer 2, not the reverse. "
-            "See ADR-0001."
+            ""
         ),
     ),
     Contract(
@@ -393,14 +393,14 @@ CONTRACTS: tuple[Contract, ...] = (
             "façades (odoo.api, odoo.fields, odoo.models), never from odoo.orm.* "
             "internals. This is the boundary the whole façade strategy rests on: "
             "it keeps the ORM free to evolve behind a stable public surface. "
-            "See ADR-0008."
+            ""
         ),
     ),
     Contract(
         name="orm-seams-stay-below-models-and-runtime",
         # The cross-cutting seam modules that sit directly under odoo.orm and
         # were previously outside every contract's source set. _recordset.py is
-        # the Layer-1 inversion point (ADR-0001) whose entire purpose is to let
+        # the Layer-1 inversion point whose entire purpose is to let
         # Layer 1 recognise recordsets WITHOUT importing the model layer; a
         # runtime ``from .models import BaseModel`` here re-creates the very
         # cycle it exists to break. decorators.py (@api.depends, ...) is
@@ -412,7 +412,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "The Layer-1 recordset injection seam (orm/_recordset.py) and the "
             "@api decorators must not import the model (Layer 2) or runtime "
             "(Layer 3) layers at runtime. The seam exists precisely to break "
-            "that cycle (ADR-0001); enforcing it keeps the seam honest."
+            "that cycle; enforcing it keeps the seam honest."
         ),
     ),
     Contract(
@@ -786,6 +786,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     files = iter_source_files()
+    scanned = len(files)
+    # A gate that finds no inputs must say so rather than scan nothing and
+    # report success. `cross_repo_coherence` shipped exactly that fault three
+    # times over: "0 violations" and "0 files examined" printed identically,
+    # and only one of them is a verdict.
+    if not scanned:
+        parser.error("no Python sources found — the scan reached nothing")
+
     new, known = check(files)
 
     if args.json:

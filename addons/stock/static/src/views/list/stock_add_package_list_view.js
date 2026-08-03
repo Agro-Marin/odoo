@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { useMovePackageDialog } from "@stock/views/select_packages_dialog";
 import { registry } from "@web/core/registry";
-import { ListRenderer } from "@web/views/list/list_renderer";
-import { listView } from "@web/views/list/list_view";
+import { ListRenderer, listView } from "@web/views/list";
 
 export class AddPackageListRenderer extends ListRenderer {
     setup() {

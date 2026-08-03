@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { WebsiteDialog } from "@website/components/dialog/dialog";
 
 export const localStorageNoDialogKey = "website_translator_nodialog";

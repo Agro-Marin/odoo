@@ -9,8 +9,8 @@ import {
     makeMockEnv,
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { registry } from "@web/core/registry";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { NotificationContainer } from "@web/ui/notification/notification_container";
 import { notificationService } from "@web/ui/notification/notification_service";
 
@@ -194,25 +194,20 @@ test("can close sticky notification", async () => {
     expect(".o_notification").toHaveCount(0);
 });
 
-test.skip("can close sticky notification with wait", async () => {
+test("the notification service exposes no close entry point", async () => {
     await makeMockEnv();
-    const { Component: NotificationContainer, props } = registry
-        .category("main_components")
-        .get("NotificationContainer");
-    await mountWithCleanup(NotificationContainer, { props, noMainContainer: true });
-    const closeNotif = getService("notification").add("I'm a sticky notification", {
-        sticky: true,
-    });
-    await animationFrame();
-    expect(".o_notification").toHaveCount(1);
 
-    getService("notification").close(closeNotif, 3000);
-    await animationFrame();
-    expect(".o_notification").toHaveCount(1);
-
-    await advanceTime(3000);
-    await animationFrame();
-    expect(".o_notification").toHaveCount(0);
+    const service = getService("notification");
+    // The service is a class now, so its methods live on the prototype and
+    // `Object.keys` returns instance fields instead of the published names —
+    // the exact-keys form this used to assert cannot express the intent any
+    // more. The intent itself is unchanged and is what is asserted here: there
+    // is no `close` entry point, and callers close a notification with the
+    // function `add()` returns.
+    expect(service.close).toBe(undefined);
+    for (const name of ["add", "notifications", "destroy"]) {
+        expect(service[name]).not.toBe(undefined);
+    }
 });
 
 test("can close a non-sticky notification", async () => {
@@ -548,4 +543,91 @@ test("a container must declare the component it renders notifications with", asy
         message = error.message;
     }
     expect(message).toInclude("notificationComponent");
+});
+
+test("a mouseleave with no matching mouseenter does not extend the countdown", async () => {
+    // Chrome does not actually emit this pair unbalanced (verified with a real
+    // browser: an element spawned under a stationary pointer gets neither the
+    // mouseenter nor, later, the mouseleave). This pins the invariant against
+    // synthetic streams -- tours and clickbot dispatch their own pointer events
+    // -- and against engines that do deliver the release alone.
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    getService("notification").add("hello", { autocloseDelay: 4000 });
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+
+    await advanceTime(2000);
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+
+    queryOne(".o_notification").dispatchEvent(
+        new MouseEvent("mouseleave", { relatedTarget: document.body }),
+    );
+    await animationFrame();
+
+    await advanceTime(2100);
+    await animationFrame();
+    expect(".o_notification").toHaveCount(0);
+});
+
+test("a lone mouseleave does not release a hold taken by focus", async () => {
+    // Same synthetic release as above, but with a focus hold outstanding. The
+    // counted version decremented that hold and resumed the countdown, because
+    // a count cannot tell WHICH source is being released.
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    getService("notification").add("hello", { autocloseDelay: 4000 });
+    await animationFrame();
+
+    queryOne(".o_notification .o_notification_close").focus();
+    queryOne(".o_notification").dispatchEvent(
+        new MouseEvent("mouseleave", { relatedTarget: document.body }),
+    );
+    await animationFrame();
+
+    await advanceTime(6000);
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+});
+
+test.tags("desktop");
+test("a real hover still pauses and resumes the countdown", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    getService("notification").add("hello", { autocloseDelay: 4000 });
+    await animationFrame();
+
+    await hover(".o_notification");
+    await advanceTime(6000);
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+
+    await leave();
+    await advanceTime(4100);
+    await animationFrame();
+    expect(".o_notification").toHaveCount(0);
+});
+
+// `close` and `message` are declared props, so the loop that forwards every
+// option the component declares used to accept them from a caller -- and it
+// runs after the service has set them, so the caller won. An `add(msg, {close})`
+// left the ✕ button calling the caller's function: the notification could not be
+// dismissed and stayed for the session.
+test("a caller cannot take over the service-owned props", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    getService("notification").add("real message", {
+        // @ts-ignore hostile on purpose
+        close: () => expect.step("hijacked close"),
+        // @ts-ignore hostile on purpose
+        message: "hijacked message",
+    });
+    await animationFrame();
+    expect(".o_notification_content").toHaveText("real message");
+
+    await click(".o_notification_close");
+    await animationFrame();
+    expect(".o_notification").toHaveCount(0);
+    expect.verifySteps([]);
 });

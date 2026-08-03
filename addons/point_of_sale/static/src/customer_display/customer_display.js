@@ -2,7 +2,7 @@
 import { Component, useEffect, useRef, whenReady } from "@odoo/owl";
 import { OdooLogo } from "@point_of_sale/app/components/odoo_logo/odoo_logo";
 import { useSingleDialog } from "@point_of_sale/customer_display/utils";
-import { MainComponentsContainer } from "@web/components/main_components_container";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { useService } from "@web/core/utils/hooks";
 import { mountComponent } from "@web/env";

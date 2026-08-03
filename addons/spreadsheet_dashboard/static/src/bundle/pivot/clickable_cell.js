@@ -1,13 +1,12 @@
 /** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { _t } from "@web/core/l10n/translation";
-
 import {
     SEE_RECORDS_PIVOT,
     SEE_RECORDS_PIVOT_VISIBLE,
     SET_FILTER_MATCHING,
     SET_FILTER_MATCHING_CONDITION,
 } from "@spreadsheet/pivot/pivot_actions";
+import { _t } from "@web/core/translation";
 
 const { clickableCellRegistry } = spreadsheet.registries;
 

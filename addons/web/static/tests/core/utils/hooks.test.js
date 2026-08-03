@@ -22,7 +22,7 @@ import {
     useServiceProtectMethodHandling,
     useSpellCheck,
 } from "@web/core/utils/hooks";
-import { CommandPalette } from "@web/services/commands/command_palette";
+import { CommandPalette } from "@web/ui/commands/command_palette";
 
 describe("useAutofocus", () => {
     test.tags("desktop");
@@ -335,6 +335,52 @@ describe("useService", () => {
         expect(toyService).toBe(null);
     });
 
+    test("an async: method of a class-shaped service writes to the service, not the view", async () => {
+        // `useService` hands each component `Object.create(service)`, so a
+        // `this.x = …` inside an `async:`-listed method used to land on that
+        // per-component view and leave the service untouched -- silently,
+        // because reads still resolve down the prototype chain. TWO components
+        // are needed to see it: with one view in play the shadowed counter
+        // looks perfectly consistent, which is why the suite could not catch
+        // it while `file_upload` was minting duplicate upload ids.
+        class Counter {
+            constructor() {
+                this.nextId = 1;
+            }
+            async mint() {
+                return this.nextId++;
+            }
+        }
+        registry.category("services").add("toy_counter", {
+            async: ["mint"],
+            start: () => new Counter(),
+        });
+
+        const minted = [];
+        class Child extends Component {
+            static props = ["*"];
+            static template = xml`<div/>`;
+            setup() {
+                // Cast: a test-only service is not in `keyof Services`.
+                const counter = useService(/** @type {any} */ ("toy_counter"));
+                onMounted(async () => {
+                    minted.push(await counter.mint());
+                });
+            }
+        }
+        class Parent extends Component {
+            static props = ["*"];
+            static components = { Child };
+            static template = xml`<Child/><Child/>`;
+        }
+        await mountWithCleanup(Parent);
+        await animationFrame();
+
+        // Distinct ids across components, and the service itself advanced.
+        expect(minted).toEqual([1, 2]);
+        expect(getService(/** @type {any} */ ("toy_counter")).nextId).toBe(3);
+    });
+
     test("async service with protected methods", async () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
         const state = reactive({ child: true });
@@ -512,6 +558,74 @@ describe("useService", () => {
         await animationFrame();
         await animationFrame();
         expect.verifySteps(["rejected:still mounted"]);
+        useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked;
+    });
+
+    // A getter modifier (the shape of `orm.silent` / `orm.dedup`) returns an
+    // object created off the service via `Object.create(this)`. Accessed through
+    // the guarded view the getter runs with the RAW service as `this`, so the
+    // derived object's async methods used to resolve on the unguarded prototype
+    // and escape the destroy protection -- e.g. `orm.silent.read(...)` in
+    // kanban_header resolving into a component the user had already left.
+    test("a getter modifier's async methods stay destroy-guarded", async () => {
+        useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
+        const state = reactive({ child: true });
+        let def = new Deferred();
+        let svc;
+
+        class Child extends Component {
+            static props = ["*"];
+            static template = xml`<div/>`;
+            setup() {
+                svc = useService("modifier_service");
+            }
+        }
+        class Parent extends Component {
+            static components = { Child };
+            static props = ["*"];
+            static template = xml`<Child t-if="state.child"/>`;
+            setup() {
+                this.state = useState(state);
+            }
+        }
+
+        registry.category("services").add("modifier_service", {
+            name: "modifier_service",
+            async: ["asyncMethod"],
+            start: () => ({
+                _silent: false,
+                get silent() {
+                    return Object.assign(Object.create(this), { _silent: true });
+                },
+                async asyncMethod() {
+                    await def;
+                    return this._silent;
+                },
+            }),
+        });
+
+        await mountWithCleanup(Parent);
+
+        // Alive: the direct call and the modifier call both resolve, and the
+        // modifier's `_silent` flag is honoured.
+        def.resolve();
+        await expect(svc.asyncMethod()).resolves.toBe(false);
+        await expect(svc.silent.asyncMethod()).resolves.toBe(true);
+
+        // In flight when the owner is destroyed: the modifier call must be
+        // withheld exactly like a direct one, not resolved into a dead view.
+        def = new Deferred();
+        svc.asyncMethod().then(() => expect.step("resolved"));
+        svc.silent.asyncMethod().then(() => expect.step("resolved"));
+        state.child = false;
+        await animationFrame();
+        def.resolve();
+        await animationFrame();
+        expect.verifySteps([]);
+
+        await expect(svc.silent.asyncMethod()).rejects.toThrow(
+            "Component is destroyed",
+        );
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked;
     });
 });

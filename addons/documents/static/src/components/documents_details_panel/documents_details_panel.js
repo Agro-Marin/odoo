@@ -1,13 +1,13 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { ModelSelector } from "@web/components/model_selector/model_selector";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { CharField } from "@web/fields/basic/char/char_field";
 import { Many2OneAvatarField } from "@web/fields/relational/many2one_avatar/many2one_avatar_field";
-import { Many2OneField } from "@web/fields/relational/many2one/many2one_field";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
+import { Many2OneField } from "@web/fields/relational/many2one";
+import { SelectCreateDialog } from "@web/views/view_dialogs";
 
 import { DocumentsDetailsMany2ManyTagsField } from "@documents/views/fields/documents_details_many2many_tags/documents_details_many2many_tags_field";
 import { DocumentsDetailsMany2OneField } from "@documents/views/fields/documents_details_many2one/documents_details_many2one_field";

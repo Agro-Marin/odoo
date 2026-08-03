@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { kanbanView } from '@web/views/kanban/kanban_view';
+import { kanbanView } from "@web/views/kanban";
 import { registry } from '@web/core/registry';
 import { TimeOffKanbanRenderer } from './kanban_renderer.js';
 import { TimeOffKanbanController } from './kanban_controller.js';

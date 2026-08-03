@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { MailAttachmentDropzone } from "@mail/core/common/mail_attachment_dropzone";
 import { EventBus, toRaw, useEffect, useRef, useSubEnv } from "@odoo/owl";
-import { useCustomDropzone } from "@web/components/dropzone/dropzone_hook";
+import { useCustomDropzone } from "@web/components/dropzone";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
-import { formView } from "@web/views/form/form_view";
+import { formView } from "@web/views/form";
 export class MailComposerFormController extends formView.Controller {
     static props = {
         ...formView.Controller.props,

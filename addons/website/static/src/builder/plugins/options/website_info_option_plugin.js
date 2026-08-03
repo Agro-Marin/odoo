@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
 export class InfoPageOption extends BaseOptionComponent {
     static template = "website.InfoPageOption";

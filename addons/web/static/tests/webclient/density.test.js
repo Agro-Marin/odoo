@@ -11,7 +11,7 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { cookie } from "@web/core/browser/cookie";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { DENSITIES, nextDensity } from "@web/webclient/density/density_service";
 import { DensityToggle } from "@web/webclient/density/density_toggle";
 

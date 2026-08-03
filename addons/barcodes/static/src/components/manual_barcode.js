@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { BarcodeDialog } from "@web/components/barcode/barcode_dialog";
+import { BarcodeDialog } from "@web/components/barcode";
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class BarcodeInput extends Component {
     static template = "barcodes.BarcodeInput";

@@ -10,10 +10,12 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
+import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { SearchModelEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { Breadcrumbs } from "@web/search/breadcrumbs/breadcrumbs";
 import {
@@ -21,8 +23,7 @@ import {
     useEmbeddedActions,
 } from "@web/search/embedded_actions_bar/embedded_actions_bar";
 import { SearchBar } from "@web/search/search_bar/search_bar";
-import { useCommand } from "@web/services/commands/command_hook";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { useCommand } from "@web/ui/commands/command_hook";
 
 const STICKY_CLASS = "o_mobile_sticky";
 
@@ -97,7 +98,7 @@ export class ControlPanel extends Component {
     isScrolling;
 
     setup() {
-        this.actionService = useService("action");
+        this.actionService = useAction();
         this.pagerProps = this.env.config.pagerProps
             ? useState(this.env.config.pagerProps)
             : undefined;

@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, onMounted, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { _t } from "@web/core/translation";
+import { Dialog } from "@web/ui/dialog";
 import { SlideXPProgressBar } from "@website_slides/js/public/components/slide_quiz_finish_dialog/slide_xp_progress_bar";
 
 export class SlideQuizFinishDialog extends Component {

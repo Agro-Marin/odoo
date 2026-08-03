@@ -5,12 +5,12 @@
 
 import { Component, onMounted, onWillDestroy, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { usePosition } from "@web/core/position/position_hook";
 import { reverseForRTL } from "@web/core/position/utils";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
 import { useActiveElement } from "@web/ui/ui_service";
@@ -35,6 +35,11 @@ export class Popover extends Component {
         componentProps: {},
         fixedPosition: false,
         position: "bottom",
+        // Here rather than in `popover_service`, as `web.BottomSheet` already
+        // does: a default that lives in the service only applies to popovers
+        // reached through it, so a `<Popover>` written in a template trapped no
+        // focus while the sheet it is interchangeable with did.
+        setActiveElement: true,
     };
     static props = {
         component: { type: Function },
@@ -72,7 +77,6 @@ export class Popover extends Component {
         setActiveElement: { optional: true, type: Boolean },
 
         ref: { optional: true, type: Function },
-        slots: { optional: true, type: Object },
     };
     static animationTime = 200;
 
@@ -195,22 +199,35 @@ export class Popover extends Component {
         );
     }
 
-    syncPositionLock() {
-        const frozen = this.isPositionFrozen;
-        if (frozen === this.positionLocked) {
-            return;
-        }
-        this.positionLocked = frozen;
-        if (frozen) {
+    /**
+     * The only writer of `positionLocked`, so the cached flag cannot drift from
+     * the real lock. `isPositionFrozen` reads props as well as internal state,
+     * and a prop changing between two syncs used to leave the two disagreeing
+     * forever: `syncPositionLock` then short-circuits on the stale flag and
+     * never locks again, silently retiring `holdOnHover`.
+     *
+     * @param {boolean} locked
+     */
+    setPositionLocked(locked) {
+        this.positionLocked = locked;
+        if (locked) {
             this.position.lock();
         } else {
             this.position.unlock();
         }
     }
 
+    syncPositionLock() {
+        if (this.isPositionFrozen !== this.positionLocked) {
+            this.setPositionLocked(this.isPositionFrozen);
+        }
+    }
+
     onResized() {
+        // Unconditionally, not only when the flag says so: `unlock` is what
+        // requests the reposition the new size needs.
         if (!this.isPositionFrozen) {
-            this.position.unlock();
+            this.setPositionLocked(false);
         }
     }
 

@@ -5,7 +5,7 @@ import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { unwrapContents } from "@html_editor/utils/dom";
 import { closestElement, firstLeaf } from "@html_editor/utils/dom_traversal";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 const REGEX_BOOTSTRAP_COLUMN = /(^| )col(-[a-zA-Z]+)?(-\d+)?(?= |$)/;
 

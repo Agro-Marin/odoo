@@ -3,10 +3,10 @@ import { OrderSummary } from "@point_of_sale/app/screens/product_screen/order_su
 import { ask } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { ManageGiftCardPopup } from "@pos_loyalty/app/components/popups/manage_giftcard_popup/manage_giftcard_popup";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
-import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog";
 patch(OrderSummary.prototype, {
     setup() {
         super.setup(...arguments);

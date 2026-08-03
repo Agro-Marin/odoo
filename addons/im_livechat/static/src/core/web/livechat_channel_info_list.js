@@ -7,10 +7,10 @@ import { prettifyMessageContent } from "@mail/utils/common/format";
 import { Component, useEffect, useRef, useSubEnv } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { startUrl } from "@web/core/browser/router";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
 import { url } from "@web/core/utils/urls";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 export class LivechatChannelInfoList extends Component {
     static components = {
@@ -30,7 +30,7 @@ export class LivechatChannelInfoList extends Component {
         this.tagEditPopover = usePopover(ConversationTagEdit, {
             closeOnClickAway: true,
             position: "left",
-            useBottomSheet: this.ui.isSmall,
+            useBottomSheet: () => this.ui.isSmall,
         });
         this.tagsContainer = useRef("tagsContainer");
         useSubEnv({ inLivechatInfoPanel: true });

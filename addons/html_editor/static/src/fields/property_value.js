@@ -7,9 +7,9 @@ import { normalizeHTML } from "@html_editor/utils/html";
 import { Wysiwyg } from "@html_editor/wysiwyg";
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
+import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
-import { PropertyValue } from "@web/fields/specialized/properties/property_value";
-import { user } from "@web/services/user";
+import { PropertyValue } from "@web/fields/specialized/properties";
 
 patch(PropertyValue.prototype, {
     setup() {

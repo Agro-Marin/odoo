@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { Component, onMounted, useRef } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { _t } from "@web/core/l10n/translation";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { ControlPanel } from "@web/search/control_panel/control_panel";

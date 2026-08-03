@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { formatList } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
-import { ListX2ManyField } from "@web/fields/relational/x2many/list_x2many_field";
+import { ListX2ManyField } from "@web/fields/relational/x2many";
 
 export class One2manyNamesField extends ListX2ManyField {
     get formattedValue() {

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 
 import { Quiz } from "@website_event_track_quiz/interactions/quiz";

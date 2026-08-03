@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 
 export class ProductHeaderCategoryOption extends BaseOptionComponent {

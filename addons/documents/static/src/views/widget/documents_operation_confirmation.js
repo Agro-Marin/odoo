@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-import { _t } from "@web/core/l10n/translation";
+import { standardWidgetProps } from "@web/views/widgets";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { DESTINATION_MAX_LENGTH, truncate } from "@documents/views/widget/utils";
 import { AccessRightsUpdateConfirmationDialog } from "@documents/owl/components/access_update_confirmation_dialog/access_update_confirmation_dialog";

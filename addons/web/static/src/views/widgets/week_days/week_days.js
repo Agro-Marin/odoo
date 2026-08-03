@@ -6,8 +6,8 @@
 import { Component } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { localization } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 export class WeekDays extends Component {

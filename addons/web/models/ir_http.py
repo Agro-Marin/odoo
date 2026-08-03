@@ -211,7 +211,7 @@ class IrHttp(models.AbstractModel):
         Reads every ``ir.config_parameter`` row whose key starts with
         ``web.feature.``, strips the prefix, and parses the raw value
         with the same literal-set the JS resolver uses
-        (``services/feature_flags.js:_parseValue``): ``true`` / ``false``
+        (``core/feature_flags.js:_parseValue``): ``true`` / ``false``
         / ``null`` literals, signed integers, floats, otherwise the
         original string.  An empty dict is a valid return value — the
         JS side falls through to call-site defaults when no key matches.
@@ -254,7 +254,7 @@ class IrHttp(models.AbstractModel):
     def _parse_feature_flag_value(cls, raw: str) -> Any:
         """Parse an ``ir.config_parameter`` value into a JS-compatible type.
 
-        Mirrors ``services/feature_flags.js:_parseValue`` so a flag read
+        Mirrors ``core/feature_flags.js:_parseValue`` so a flag read
         from URL / localStorage / server resolves to the same JS type
         regardless of source.  Unparseable input is returned as the
         original string, matching the JS fall-through.

@@ -13,15 +13,19 @@ import {
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { DateTime } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { useDebounced } from "@web/core/utils/timing";
 import { Model } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
-import { user } from "@web/services/user";
-import { computeAggregatedValue } from "@web/views/view_measurements";
+import {
+    CLIENT_AGGREGATORS,
+    computeAggregatedValue,
+} from "@web/views/view_measurements";
 
 import {
     computeCalendarRange,
@@ -39,8 +43,12 @@ export class CalendarModel extends Model {
      * @param {{ notification: Object }} services
      */
     setup(params, { notification }) {
+        // Load supersession: a newer load (or an out-of-load `cancel()`) drops
+        // the in-flight one so its stale result never overwrites current state.
+        // `rejectSuperseded` lets `load()` catch `SupersededError` and resolve
+        // early, matching the callers that `await this.load()`.
         /** @protected */
-        this.currentLoadId = 0;
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.notification = notification;
 
         const formViewFromConfig = (this.env.config.views || []).find(
@@ -59,9 +67,15 @@ export class CalendarModel extends Model {
             firstDayOfWeek: (localization.weekStart || 0) % 7,
             formViewId: params.formViewId || formViewIdFromConfig,
         };
-        if (this.meta.aggregate?.split(":").length === 1) {
-            const aggregator = this.fields[this.meta.aggregate].aggregator || "sum";
-            this.meta.aggregate = `${this.meta.aggregate}:${aggregator}`;
+        if (this.meta.aggregate) {
+            const [field, explicitAggregator] = this.meta.aggregate.split(":");
+            const aggregator =
+                explicitAggregator || this.fields[field].aggregator || "sum";
+            // server-only aggregators (array_agg, bool_and, ...) have no
+            // client-side equivalent and would throw on every render
+            this.meta.aggregate = CLIENT_AGGREGATORS.has(aggregator)
+                ? `${field}:${aggregator}`
+                : `${field}:sum`;
         }
         this.meta.scale = this.getLocalStorageScale();
         this.data = {
@@ -100,18 +114,17 @@ export class CalendarModel extends Model {
             this.meta.scale = this.meta.scales[0];
         }
         const data = { ...this.data };
-        const loadId = ++this.currentLoadId;
-        let succeeded = false;
         try {
-            await this.updateData(data);
-            succeeded = true;
-        } finally {
-            if (!succeeded && loadId === this.currentLoadId) {
-                Object.assign(this.meta, previousMeta);
+            await this.keepLast.add(this.updateData(data));
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                // A newer load (or a filter mutation's `cancel()`) took over:
+                // drop this one without touching state, and resolve early.
+                return;
             }
-        }
-        if (loadId !== this.currentLoadId) {
-            return;
+            // This is the latest load and it failed: undo the meta mutation.
+            Object.assign(this.meta, previousMeta);
+            throw error;
         }
         browser.localStorage.setItem(this.storageKey, this.meta.scale);
         this.data = data;
@@ -337,7 +350,9 @@ export class CalendarModel extends Model {
         const info = this.meta.filtersInfo[fieldName];
         const section = this.data.filterSections[fieldName];
         if (section) {
-            this.currentLoadId++;
+            // Drop any in-flight load so it can't clobber this optimistic
+            // local mutation of `section.filters`.
+            this.keepLast.cancel();
             section.filters = section.filters.filter((f) => f.recordId !== recordId);
         }
         if (info?.writeResModel) {
@@ -363,7 +378,9 @@ export class CalendarModel extends Model {
     }
 
     async updateFilters(fieldName, filters, active) {
-        this.currentLoadId++;
+        // Drop any in-flight load so it can't clobber this optimistic local
+        // mutation of `filter.active`.
+        this.keepLast.cancel();
         for (const filter of filters) {
             filter.active = active;
         }
@@ -585,9 +602,16 @@ export class CalendarModel extends Model {
         const aggregates = {};
         const [aggregateField, aggregator] = this.aggregate.split(":");
         for (const group of Object.keys(groups)) {
-            const values = groups[group].map(
-                ({ rawRecord }) => rawRecord[aggregateField],
-            );
+            const values = groups[group]
+                .map(({ rawRecord }) => rawRecord[aggregateField])
+                .filter((value) => typeof value === "number");
+            if (!values.length) {
+                // computeAggregatedValue answers with the aggregator's identity
+                // (NaN for avg, ±Infinity for min/max), none of which belongs
+                // on screen
+                aggregates[group] = formatFloat(0, { trailingZeros: false });
+                continue;
+            }
             aggregates[group] = formatFloat(
                 computeAggregatedValue(values, aggregator),
                 {

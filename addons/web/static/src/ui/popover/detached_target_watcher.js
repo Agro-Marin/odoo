@@ -45,7 +45,12 @@ function checkRoot(root) {
  * @returns {() => void}
  */
 export function watchForDetachedTarget(target, onDetached) {
-    const root = target.getRootNode();
+    // A DETACHED target's root is the orphan subtree it sits in, not the
+    // document. Observing that watches a tree nothing will ever mutate again:
+    // once the target is grafted into the page and later removed, every
+    // mutation lands on the document instead and the watcher never fires. The
+    // document is the right fallback because "detached" is defined against it.
+    const root = target.isConnected ? target.getRootNode() : document;
     let entry = watchersByRoot.get(root);
     if (!entry) {
         const observer = new MutationObserver(() => checkRoot(root));

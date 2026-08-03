@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { ListRenderer } from "@web/views/list";
 
 export class TaskListRenderer extends ListRenderer {
     setup() {

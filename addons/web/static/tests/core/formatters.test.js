@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { markup } from "@odoo/owl";
 import { allowTranslations, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { currencies } from "@web/core/currency";
 import {
     formatBinary,
     formatDate,
@@ -23,7 +24,7 @@ import {
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
 import { humanSize } from "@web/core/utils/format/binary";
-import { currencies } from "@web/services/currency";
+import { currencies } from "@web/core/currency";
 
 const { DateTime } = luxon;
 

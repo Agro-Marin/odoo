@@ -1,8 +1,8 @@
 /** @odoo-module native */
+import { ORM } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { unique } from "@web/core/utils/collections/arrays";
 import { Deferred } from "@web/core/utils/concurrency";
-import { ORM } from "@web/services/orm_service";
 
 class RequestBatcherORM extends ORM {
     constructor() {

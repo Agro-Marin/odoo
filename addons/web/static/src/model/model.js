@@ -16,11 +16,11 @@ import {
 import { useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
 import { ModelEvent } from "@web/core/events";
+import { featureFlag } from "@web/core/feature_flags";
 import { RPCError } from "@web/core/network/rpc";
 import { Deferred, Race } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { SignalStore } from "@web/core/utils/reactive";
-import { featureFlag } from "@web/services/feature_flags";
 
 import { SampleDataCoordinator } from "./sample_data_coordinator.js";
 import { buildSampleORM } from "./sample_server.js";
@@ -110,6 +110,20 @@ export class Model extends SignalStore {
      */
     hasData() {
         return true;
+    }
+
+    /**
+     * A counter bumped on every `notify()`. Renderers that cache work derived
+     * from the model compare it against the value they last built from, so they
+     * rebuild when the model changed and not merely when they re-rendered.
+     *
+     * Reading it through the reactive proxy also subscribes to it, which is what
+     * `useReactiveModel` relies on.
+     *
+     * @returns {number}
+     */
+    get updateEpoch() {
+        return this._updateEpoch;
     }
 
     notify() {

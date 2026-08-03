@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registerComposerAction } from "@mail/core/common/composer_actions";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { SelectAddDocumentCreateDialog } from "@documents/views/view_dialogs/select_add_document_create_dialog";
 

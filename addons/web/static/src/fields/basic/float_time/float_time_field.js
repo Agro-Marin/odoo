@@ -4,8 +4,8 @@
 /** @module @web/fields/basic/float_time/float_time_field */
 
 import { formatFloatTime } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
 import { parseFloatTime } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";

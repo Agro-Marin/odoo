@@ -28,16 +28,15 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
 import { renderToElement } from "@web/core/utils/render";
 import { getOrigin, url } from "@web/core/utils/urls";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 import { discussComponentRegistry } from "./discuss_component_registry.js";
 import { useMessageActions } from "./message_actions.js";

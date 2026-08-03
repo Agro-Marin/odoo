@@ -7,8 +7,8 @@ import { EventBus, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { SearchModelEvent } from "@web/core/events";
 import { DateTime } from "@web/core/l10n/luxon";
+import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
-import { user } from "@web/services/user";
 
 import { SearchArchParser } from "./search_arch_parser.js";
 import { computeSearchContext, computeSearchItemContext } from "./search_context.js";
@@ -491,6 +491,13 @@ export class SearchModel extends SearchQueryMixin(
             : [...this._enrichedSearchItems];
     }
 
+    /**
+     * The public, synchronous "the query is ready, run it" entry point (a view
+     * controller reacting to the search bar). Unlike {@link _notify} it does not
+     * reload the search-panel sections -- those refresh themselves off the new
+     * domain -- and it always fires, never coalesced by `blockNotification`,
+     * because it is a top-level action rather than a step inside a batch.
+     */
     search() {
         this._reset();
         this.trigger(SearchModelEvent.UPDATE);
@@ -740,7 +747,17 @@ export class SearchModel extends SearchQueryMixin(
         execute(arrayToMap, state, this);
     }
 
-    async _notify() {
+    /**
+     * The single internal "state changed -> tell the consumers" path. Callers
+     * that changed the query pass `reloadSections: true` (the default) so the
+     * search-panel counters are re-fetched against the new domain; a caller that
+     * is itself reacting to a section refresh passes `reloadSections: false` to
+     * announce the change without re-triggering the fetch it just handled. Both
+     * honour `blockNotification` so a batch coalesces into one UPDATE.
+     *
+     * @param {{ reloadSections?: boolean }} [options]
+     */
+    async _notify({ reloadSections = true } = {}) {
         this._reset();
 
         if (this.blockNotification) {
@@ -748,10 +765,12 @@ export class SearchModel extends SearchQueryMixin(
             return;
         }
 
-        do {
-            this._pendingNotification = false;
-            await this._reloadSections();
-        } while (this._pendingNotification);
+        if (reloadSections) {
+            do {
+                this._pendingNotification = false;
+                await this._reloadSections();
+            } while (this._pendingNotification);
+        }
 
         this.trigger(SearchModelEvent.UPDATE);
     }

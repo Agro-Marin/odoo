@@ -1,11 +1,12 @@
 /** @odoo-module native */
+import { getElementsWithOption } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
 import { markup } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
+import { _t } from "@web/core/translation";
+
 import { AnchorDialog } from "./anchor_dialog.js";
-import { getElementsWithOption } from "@html_builder/utils/utils";
 
 const anchorSelector = ":not(p).oe_structure > *, :not(p)[data-oe-type=html] > *, .accordion-item";
 const anchorExclude =

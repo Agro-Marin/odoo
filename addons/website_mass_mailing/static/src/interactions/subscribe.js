@@ -2,7 +2,7 @@
 import { Interaction } from '@web/public/interaction';
 import { Modal } from "@web/libs/bootstrap";
 import { registry } from '@web/core/registry';
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { session } from '@web/session';
 import { ReCaptcha } from '@google_recaptcha/js/recaptcha';
 import { isVisible } from "@html_editor/utils/dom_info";

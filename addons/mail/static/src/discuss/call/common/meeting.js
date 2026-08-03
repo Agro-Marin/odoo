@@ -18,7 +18,7 @@ import {
     useChildSubEnv,
     useSubEnv,
 } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
+import { Dropdown } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
 
 import { MeetingSideActions } from "./meeting_side_actions.js";

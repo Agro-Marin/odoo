@@ -5,8 +5,8 @@ import { closestElement } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { omit, pick } from "@web/core/utils/collections/objects";
 import { memoize } from "@web/core/utils/functions";
 import { debounce } from "@web/core/utils/timing";
@@ -17,7 +17,7 @@ import { composeToolbarButton, Toolbar } from "./toolbar.js";
 /** @typedef { import("@html_editor/core/selection_plugin").EditorSelection } EditorSelection */
 /** @typedef {import("@html_editor/core/selection_plugin").SelectionData} SelectionData */
 /** @typedef { import("@html_editor/core/user_command_plugin").UserCommand } UserCommand */
-/** @typedef { import("@web/core/l10n/translation.js")._t} _t */
+/** @typedef { import("@web/core/translation.js")._t} _t */
 /** @typedef { ReturnType<_t> } TranslatedString */
 /** @typedef { (selection: EditorSelection, nodes: Node[]) => TranslatedString } TranslatedStringGetter */
 

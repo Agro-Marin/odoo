@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { renderToElement } from "@web/core/utils/render";
 import { Popover } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";

@@ -4,7 +4,7 @@
 /** @module @web/components/record_selectors/tag_navigation_hook */
 
 import { useRef } from "@odoo/owl";
-import { useNavigation } from "@web/services/navigation/navigation";
+import { useNavigation } from "@web/core/navigation/navigation";
 /**
  * @param {string} refName
  * @param {object} [options]

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { Component } from "@odoo/owl";
 

@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { KeepLast } from "@web/core/utils/concurrency";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
 import { ImageSelector } from "@html_editor/main/media/media_dialog/image_selector";
 

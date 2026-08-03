@@ -1,14 +1,15 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     buildM2OFieldDescription,
+    computeM2OProps,
     extractM2OFieldProps,
+    Many2One,
     Many2OneField,
-} from "@web/fields/relational/many2one/many2one_field";
+} from "@web/fields/relational/many2one";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
-import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
+import { FormViewDialog } from "@web/views/view_dialogs";
 
 class PackageFormDialog extends FormViewDialog {}
 

@@ -90,7 +90,7 @@ test("an absolute http url is passed through untouched", async () => {
     expect(browserCalls.open.map((c) => c.url)).toEqual(["https://example.com/x?y=1"]);
 });
 
-test("a bare javascript: url is defused by the slash-prefix, not by the guard", async () => {
+test("a bare javascript: url is blocked by the guard, not defused by the prefix", async () => {
     const browserCalls = patchBrowser();
     const am = makeFakeAm();
     await executeActURLAction(
@@ -98,9 +98,13 @@ test("a bare javascript: url is defused by the slash-prefix, not by the guard", 
         {},
         am,
     );
-    expect(browserCalls.open.map((c) => c.url)).toEqual(["/javascript:alert(1)"]);
+    expect(browserCalls.open).toEqual([]);
     expect(browserCalls.assign).toEqual([]);
-    expect(am.__calls.notifications).toEqual([]);
+    expect(am.__calls.notifications).toHaveLength(1);
+    expect(am.__calls.notifications[0].options).toEqual({
+        sticky: true,
+        type: "danger",
+    });
 });
 
 test("a protocol-relative //host url is blocked with a danger notification", async () => {

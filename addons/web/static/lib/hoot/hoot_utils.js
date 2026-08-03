@@ -1310,9 +1310,16 @@ export function makeLabelIcon(className) {
 }
 
 /**
+ * The returned wrapper accepts one argument the underlying `Runner` method does
+ * not: a trailing options object whose `global` flag detaches the hook from the
+ * enclosing suite (see the `isGlobal` branch below). Declaring the return as
+ * `Runner[T]` hid that — every call site passing `{ global: true }` was a
+ * typecheck error for an option the runtime has always honoured, ten of them
+ * across `web`'s test framework with five in `module_set.hoot.js` alone.
+ *
  * @template {keyof Runner} T
  * @param {T} name
- * @returns {Runner[T]}
+ * @returns {(...args: [...Parameters<Runner[T]>, ({ global?: boolean })?]) => ReturnType<Runner[T]>}
  */
 export function makeRuntimeHook(name) {
     return {

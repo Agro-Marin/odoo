@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { loadJS, loadCSS } from '@web/core/assets';
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 import { pyToJsLocale } from '@web/core/l10n/utils';
-import { rpc, RPCError } from '@web/core/network/rpc';
+import { rpc, RPCError } from "@web/core/network";
 import { patch } from '@web/core/utils/patch';
 
 import { PaymentForm } from '@payment/interactions/payment_form';

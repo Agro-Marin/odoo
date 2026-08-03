@@ -15,7 +15,7 @@ import { describe, test } from "@odoo/hoot";
 import { press, waitFor } from "@odoo/hoot-dom";
 import { advanceTime, mockDate } from "@odoo/hoot-mock";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 import { defineLivechatModels } from "./livechat_test_helpers.js";
 

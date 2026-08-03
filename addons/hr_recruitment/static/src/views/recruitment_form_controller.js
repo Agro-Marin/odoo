@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { FormController } from "@web/views/form/form_controller";
+import { _t } from "@web/core/translation";
+import { FormController } from "@web/views/form";
 
 export class RecruitmentFormController extends FormController {
     /**

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { ColumnProgress } from "@web/views/kanban/column_progress";
+import { ColumnProgress } from "@web/views/kanban";
 export class MailColumnProgress extends ColumnProgress {
     static props = {
         ...ColumnProgress.props,

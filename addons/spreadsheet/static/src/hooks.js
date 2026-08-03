@@ -1,13 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { useService } from "@web/core/utils/hooks";
-
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-
 import { stores } from "@odoo/o-spreadsheet";
 import { useEffect, useEnv, useExternalListener, useState } from "@odoo/owl";
-
 import { loadBundle } from "@web/core/assets";
+import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 const { useStore, useStoreProvider, NotificationStore, GridRenderer } = stores;
 /**

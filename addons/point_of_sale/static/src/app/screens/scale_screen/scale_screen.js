@@ -1,9 +1,8 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { AlertDialog, Dialog } from "@web/ui/dialog";
 export class ScaleScreen extends Component {
     static template = "point_of_sale.ScaleScreen";
     static components = { Dialog };

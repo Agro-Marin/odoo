@@ -1,9 +1,7 @@
 /** @odoo-module native */
 import { registry } from '@web/core/registry';
 
-import { listView } from '@web/views/list/list_view';
-import { ListRenderer } from '@web/views/list/list_renderer';
-import { ListController } from '@web/views/list/list_controller';
+import { listView, ListRenderer, ListController } from "@web/views/list";
 
 import { LunchDashboard } from '../components/lunch_dashboard.js';
 import { LunchRendererMixin } from '../mixins/lunch_renderer_mixin.js';

@@ -1,19 +1,18 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import * as spreadsheet from "@odoo/o-spreadsheet";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
+import { navigateTo } from "../actions/helpers.js";
 import { IrMenuPlugin } from "./ir_ui_menu_plugin.js";
-
 import {
-    isMarkdownIrMenuIdUrl,
     isIrMenuXmlUrl,
+    isMarkdownIrMenuIdUrl,
     isMarkdownViewUrl,
+    parseIrMenuIdLink,
     parseIrMenuXmlUrl,
     parseViewLink,
-    parseIrMenuIdLink,
 } from "./odoo_menu_link_cell.js";
-import { _t } from "@web/core/l10n/translation";
-import { navigateTo } from "../actions/helpers.js";
 
 const { urlRegistry, corePluginRegistry, errorTypes } = spreadsheet.registries;
 const { EvaluationError } = spreadsheet;

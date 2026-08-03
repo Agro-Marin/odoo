@@ -8,8 +8,8 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { registry } from "@web/core/registry";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 const mainComponentsRegistry = registry.category("main_components");
 

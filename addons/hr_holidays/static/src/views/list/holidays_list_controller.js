@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { useService } from "@web/core/utils/hooks";
-import { registry } from '@web/core/registry';
-import { listView } from '@web/views/list/list_view';
-import { ListController } from "@web/views/list/list_controller";
 import { useSubEnv } from "@odoo/owl";
+import { registry } from '@web/core/registry';
+import { useService } from "@web/core/utils/hooks";
+import { ListController,listView } from "@web/views/list";
 
 export class HolidaysListController extends ListController {
     static template = "hr_holidays.HolidaysListView";

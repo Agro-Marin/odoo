@@ -43,17 +43,16 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { useCustomDropzone } from "@web/components/dropzone/dropzone_hook";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { useCustomDropzone } from "@web/components/dropzone";
 import { browser } from "@web/core/browser/browser";
 import {
     isDisplayStandalone,
     isIOS,
     isMobileOS,
 } from "@web/core/browser/feature_detection";
-import { FileUploader } from "@web/core/file_upload/file_handler";
-import { _t } from "@web/core/l10n/translation";
+import { FileUploader } from "@web/core/file_upload";
+import { _t } from "@web/core/translation";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { htmlJoin, isHtmlEmpty, setElementContent } from "@web/core/utils/dom/html";
 import { isEmail } from "@web/core/utils/format/strings";

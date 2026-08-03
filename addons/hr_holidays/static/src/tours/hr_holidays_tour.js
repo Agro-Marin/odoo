@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { markup } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { stepUtils } from "@web_tour/tour_utils";
 
 registry.category("web_tour.tours").add("hr_holidays_tour", {

@@ -4,7 +4,7 @@ import { monitorAudio } from "@mail/utils/common/media_monitoring";
 import { closeStream } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
 

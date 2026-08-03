@@ -5,11 +5,9 @@ import { ExpenseDocumentUpload, ExpenseDocumentDropZone } from '../mixins/docume
 
 import { registry } from '@web/core/registry';
 import { useService } from '@web/core/utils/hooks';
-import { user } from "@web/services/user";
-import { listView } from "@web/views/list/list_view";
+import { user } from "@web/core/user";
+import { listView, ListController, ListRenderer } from "@web/views/list";
 
-import { ListController } from "@web/views/list/list_controller";
-import { ListRenderer } from "@web/views/list/list_renderer";
 import { onWillStart } from "@odoo/owl";
 
 export class ExpenseListController extends ExpenseDocumentUpload(ListController) {

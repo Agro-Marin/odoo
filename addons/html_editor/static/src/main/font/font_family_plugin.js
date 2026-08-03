@@ -4,7 +4,7 @@ import { FontFamilySelector } from "@html_editor/main/font/font_family_selector"
 import { Plugin } from "@html_editor/plugin";
 import { READ, withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { closestElement } from "../../utils/dom_traversal.js";
 

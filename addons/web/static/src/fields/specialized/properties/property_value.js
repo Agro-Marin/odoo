@@ -9,6 +9,8 @@ import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { TagsList } from "@web/components/tags_list/tags_list";
+import { useAction } from "@web/core/action_port";
+import { getCurrency } from "@web/core/currency";
 import { Domain } from "@web/core/domain";
 import { ModelEvent } from "@web/core/events";
 import { formatInteger, formatMany2one, formatMonetary } from "@web/core/formatters";
@@ -20,8 +22,8 @@ import {
     serializeDate,
     serializeDateTime,
 } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
 import { parseFloat, parseInteger, parseMonetary } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { nbsp } from "@web/core/utils/format/strings";
@@ -32,7 +34,6 @@ import {
     Many2XAutocomplete,
     useOpenMany2XRecord,
 } from "@web/fields/relational/many2x_autocomplete";
-import { getCurrency } from "@web/services/currency";
 
 import { PropertyTags } from "./property_tags.js";
 import { PropertyText } from "./property_text.js";
@@ -72,7 +73,7 @@ export class PropertyValue extends Component {
         this.nbsp = nbsp;
 
         this.orm = useService("orm");
-        this.action = useService("action");
+        this.action = useAction();
 
         if (this.props.record) {
             /** @type {any} */

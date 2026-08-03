@@ -7,9 +7,9 @@ import { Component, onPatched, onWillDestroy, useRef, useState } from "@odoo/owl
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { SearchModelEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { MOVABLE_RECORD_TYPES } from "@web/model/relational_model/dynamic_group_list";

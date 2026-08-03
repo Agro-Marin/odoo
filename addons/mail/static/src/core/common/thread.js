@@ -17,7 +17,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { Transition } from "@web/components/transition";
+import { Transition } from "@web/core/transition";
 import { browser } from "@web/core/browser/browser";
 import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";

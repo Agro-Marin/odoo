@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useChildRef } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 const NO_OP = () => {};
 

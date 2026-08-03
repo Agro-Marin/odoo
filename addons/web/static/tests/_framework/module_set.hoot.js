@@ -129,12 +129,12 @@ export function setupTestEnvironment() {
      * themselves, which is also what an addon does in production.
      */
 
-    const translationModule = loader.modules.get("@web/core/l10n/translation");
+    const translationModule = loader.modules.get("@web/core/translation");
     if (translationModule?.translatedTerms && translationModule.translationLoaded) {
         translationModule.translatedTerms[translationModule.translationLoaded] = true;
     }
 
-    const userModule = loader.modules.get("@web/services/user");
+    const userModule = loader.modules.get("@web/core/user");
     if (userModule?.user && userModule._makeUser) {
         onServerStateChange(userModule.user, () =>
             userModule._makeUser(makeSession(serverState)),
@@ -195,7 +195,7 @@ export function setupTestEnvironment() {
     if (rpcModule?.rpcBus) {
         trackTestListeners(rpcModule.rpcBus);
     }
-    const userBusModule = loader.modules.get("@web/services/user");
+    const userBusModule = loader.modules.get("@web/core/user");
     if (userBusModule?.userBus) {
         trackTestListeners(userBusModule.userBus);
     }
@@ -223,7 +223,7 @@ export function setupTestEnvironment() {
     // A `beforeinstallprompt` fired while no pwa service is running is parked
     // at module scope until one claims it, so an event a test never consumed
     // makes the NEXT test's service report an install prompt it never saw.
-    const pwaModule = loader.modules.get("@web/services/pwa/pwa_service");
+    const pwaModule = loader.modules.get("@web/ui/pwa/pwa_service");
     if (pwaModule?._resetPwaInstallPrompt) {
         beforeEach(pwaModule._resetPwaInstallPrompt, { global: true });
     }
@@ -233,7 +233,7 @@ export function setupTestEnvironment() {
     // `patchWithCleanup(browser.location, ...)` — the correct way to install a
     // URL — cannot reach it: any earlier read pins the answer and the patching
     // test is silently told there are no overrides.
-    const featureFlagsModule = loader.modules.get("@web/services/feature_flags");
+    const featureFlagsModule = loader.modules.get("@web/core/feature_flags");
     if (featureFlagsModule?._resetFeatureFlagsCache) {
         beforeEach(featureFlagsModule._resetFeatureFlagsCache, { global: true });
     }

@@ -12,12 +12,12 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { RPCError } from "@web/core/network/rpc";
+import { _t } from "@web/core/translation";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { formView } from "@web/views/form/form_view";
 import { getDefaultConfig } from "@web/views/view";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";

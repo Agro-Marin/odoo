@@ -11,32 +11,38 @@ import { profilingSystrayItem } from "./profiling_systray_item.js";
 
 const systrayRegistry = registry.category("systray");
 
-export const profilingService = {
-    dependencies: ["action", "orm", "lazy_session"],
-    start(env, { action, orm, lazy_session }) {
-        if (!env.debug) {
-            return;
-        }
-
-        const bus = new EventBus();
-
-        function notify() {
-            if (
-                systrayRegistry.contains("web.profiling") &&
-                state.isEnabled === false
-            ) {
-                systrayRegistry.remove("web.profiling");
-            }
-            if (
-                !systrayRegistry.contains("web.profiling") &&
-                state.isEnabled === true
-            ) {
-                systrayRegistry.add("web.profiling", profilingSystrayItem, {
-                    sequence: 99,
-                });
-            }
-            bus.trigger("UPDATE");
-        }
+/**
+ * The `profiling` service.
+ *
+ * A class rather than a closure returning an object literal; see
+ * `core/hotkeys/hotkey_service.js` for the reasoning and
+ * `tooling/architecture/js_service_shape.py` for the budget.
+ *
+ * **The debug guard stays in `start()`**, as in `web_vitals`: `start()` returns
+ * `undefined` when `env.debug` is off, and a constructor cannot decline to
+ * construct.
+ *
+ * Two things the conversion had to preserve exactly:
+ *  - `state`'s `isEnabled` getter reads the **reactive proxy**, not the raw
+ *    object, so it is still built against a local `const state` and only then
+ *    assigned to `this.state`. Writing `this.state.session` inside the getter
+ *    would resolve `this` to the literal rather than the service.
+ *  - `profilingItem` is stored in the `debug` registry and called later, so it
+ *    is registered as a wrapper that re-enters through `this`, not as a bare
+ *    method reference which would arrive with no receiver.
+ */
+export class ProfilingService {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ action: any, orm: any, lazy_session: any }} services
+     */
+    constructor(env, { action, orm, lazy_session }) {
+        this.env = env;
+        this.action = action;
+        this.orm = orm;
+        this.lazy_session = lazy_session;
+        this.bus = new EventBus();
+        this.stateGeneration = 0;
 
         const state = reactive(
             {
@@ -47,92 +53,139 @@ export const profilingService = {
                     return Boolean(state.session);
                 },
             },
-            notify,
+            () => this.notify(),
         );
+        this.state = state;
 
-        let stateGeneration = 0;
+        this.loadLazyState("profile_session", "session");
+        this.loadLazyState("profile_collectors", "collectors");
+        this.loadLazyState("profile_params", "params");
 
-        /**
-         * @param {string} sessionKey
-         * @param {string} stateKey
-         */
-        async function loadLazyState(sessionKey, stateKey) {
-            const bootGeneration = stateGeneration;
-            for (let attempt = 0; attempt < 2; attempt++) {
-                try {
-                    const value = await lazy_session.getValue(sessionKey);
-                    if (value && stateGeneration === bootGeneration) {
-                        state[stateKey] = value;
-                    }
-                    return;
-                } catch {}
-            }
-        }
-        loadLazyState("profile_session", "session");
-        loadLazyState("profile_collectors", "collectors");
-        loadLazyState("profile_params", "params");
-
-        notify();
-
-        async function setProfiling(params) {
-            stateGeneration++;
-            const kwargs = Object.assign(
-                {
-                    collectors: state.collectors,
-                    params: state.params,
-                    profile: state.isEnabled,
-                },
-                params,
-            );
-            const resp = await orm.call("ir.profile", "set_profiling", [], kwargs);
-            if (resp.type) {
-                Promise.resolve(action.doAction(resp)).catch(console.warn);
-            } else {
-                state.session = resp.session;
-                state.collectors = resp.collectors;
-                state.params = resp.params;
-            }
-        }
-
-        function profilingItem() {
-            return {
-                type: "component",
-                Component: ProfilingItem,
-                props: { bus },
-                sequence: 570,
-                section: "tools",
-            };
-        }
+        this.notify();
 
         registry
             .category("debug")
             .category("default")
-            .add("profilingItem", /** @type {any} */ (profilingItem));
+            .add("profilingItem", /** @type {any} */ (() => this.profilingItem()));
+    }
 
-        return {
-            state,
-            async toggleProfiling() {
-                await setProfiling({ profile: !state.isEnabled });
-            },
-            async toggleCollector(collector) {
-                const nextCollectors = state.collectors.slice();
-                const index = nextCollectors.indexOf(collector);
-                if (index >= 0) {
-                    nextCollectors.splice(index, 1);
-                } else {
-                    nextCollectors.push(collector);
+    notify() {
+        if (
+            systrayRegistry.contains("web.profiling") &&
+            this.state.isEnabled === false
+        ) {
+            systrayRegistry.remove("web.profiling");
+        }
+        if (
+            !systrayRegistry.contains("web.profiling") &&
+            this.state.isEnabled === true
+        ) {
+            systrayRegistry.add("web.profiling", profilingSystrayItem, {
+                sequence: 99,
+            });
+        }
+        this.bus.trigger("UPDATE");
+    }
+
+    /**
+     * @param {string} sessionKey
+     * @param {string} stateKey
+     */
+    async loadLazyState(sessionKey, stateKey) {
+        const bootGeneration = this.stateGeneration;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const value = await this.lazy_session.getValue(sessionKey);
+                if (value && this.stateGeneration === bootGeneration) {
+                    this.state[stateKey] = value;
                 }
-                await setProfiling({ collectors: nextCollectors });
+                return;
+            } catch {}
+        }
+    }
+
+    /**
+     * @param {Record<string, any>} params
+     */
+    async setProfiling(params) {
+        this.stateGeneration++;
+        const kwargs = Object.assign(
+            {
+                collectors: this.state.collectors,
+                params: this.state.params,
+                profile: this.state.isEnabled,
             },
-            async setParam(key, value) {
-                const nextParams = { ...state.params };
-                nextParams[key] = value;
-                await setProfiling({ params: nextParams });
-            },
-            isCollectorEnabled(collector) {
-                return state.collectors.includes(collector);
-            },
+            params,
+        );
+        const resp = await this.orm.call("ir.profile", "set_profiling", [], kwargs);
+        if (resp.type) {
+            Promise.resolve(this.action.doAction(resp)).catch(console.warn);
+        } else {
+            this.state.session = resp.session;
+            this.state.collectors = resp.collectors;
+            this.state.params = resp.params;
+        }
+    }
+
+    profilingItem() {
+        return {
+            type: "component",
+            Component: ProfilingItem,
+            props: { bus: this.bus },
+            sequence: 570,
+            section: "tools",
         };
+    }
+
+    async toggleProfiling() {
+        await this.setProfiling({ profile: !this.state.isEnabled });
+    }
+
+    /**
+     * @param {string} collector
+     */
+    async toggleCollector(collector) {
+        const nextCollectors = this.state.collectors.slice();
+        const index = nextCollectors.indexOf(collector);
+        if (index >= 0) {
+            nextCollectors.splice(index, 1);
+        } else {
+            nextCollectors.push(collector);
+        }
+        await this.setProfiling({ collectors: nextCollectors });
+    }
+
+    /**
+     * @param {string} key
+     * @param {any} value
+     */
+    async setParam(key, value) {
+        const nextParams = { ...this.state.params };
+        nextParams[key] = value;
+        await this.setProfiling({ params: nextParams });
+    }
+
+    /**
+     * @param {string} collector
+     * @returns {boolean}
+     */
+    isCollectorEnabled(collector) {
+        return this.state.collectors.includes(collector);
+    }
+}
+
+export const profilingService = {
+    dependencies: ["action", "orm", "lazy_session"],
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ action: any, orm: any, lazy_session: any }} services
+     * @returns {ProfilingService | undefined}
+     */
+    start(env, services) {
+        if (!env.debug) {
+            return;
+        }
+        return new ProfilingService(env, services);
     },
 };
 

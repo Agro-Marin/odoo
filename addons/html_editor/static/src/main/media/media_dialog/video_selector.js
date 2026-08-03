@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Switch } from "@html_editor/components/switch/switch";
 import { Component, onMounted, status, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 

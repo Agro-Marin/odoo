@@ -1,5 +1,5 @@
 import { WebClient } from "@web/webclient/webclient";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, waitFor } from "@odoo/hoot-dom";

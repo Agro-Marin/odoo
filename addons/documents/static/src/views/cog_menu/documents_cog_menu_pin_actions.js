@@ -3,8 +3,8 @@ import { Component, status, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 import { STATIC_COG_GROUP_ACTION_PIN } from "./documents_cog_menu_group.js";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { _t } from "@web/core/l10n/translation";
+import { Dropdown } from "@web/components/dropdown";
+import { _t } from "@web/core/translation";
 import { isDocumentsCogMenuItemVisible } from "./documents_cog_menu_item.js";
 
 export class DocumentCogMenuPinAction extends Component {

@@ -12,8 +12,8 @@ import {
     patchWithCleanup,
     useTestClientAction,
 } from "@web/../tests/web_test_helpers";
-import { config as transitionConfig } from "@web/components/transition";
 import { registry } from "@web/core/registry";
+import { config as transitionConfig } from "@web/core/transition";
 import { WebClient } from "@web/webclient/webclient";
 
 describe.current.tags("mobile");

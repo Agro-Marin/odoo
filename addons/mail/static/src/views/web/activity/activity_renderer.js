@@ -4,10 +4,9 @@ import { ActivityCell } from "@mail/views/web/activity/activity_cell";
 import { ActivityRecord } from "@mail/views/web/activity/activity_record";
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 export class ActivityRenderer extends Component {
     static components = {
         ActivityCell,

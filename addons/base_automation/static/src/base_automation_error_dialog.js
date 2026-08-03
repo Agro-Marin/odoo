@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { RPCErrorDialog } from "@web/components/errors/error_dialogs";
+import { RPCErrorDialog } from "@web/components/errors";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 export class BaseAutomationErrorDialog extends RPCErrorDialog {
     static template = "base_automation.ErrorDialog";

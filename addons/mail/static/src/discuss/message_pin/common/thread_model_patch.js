@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 patch(Thread.prototype, {
     setup() {

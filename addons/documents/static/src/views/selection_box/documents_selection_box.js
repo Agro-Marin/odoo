@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { SelectionBox } from "@web/views/view_components/selection_box";
+import { SelectionBox } from "@web/views/view_components";
 import { useService } from "@web/core/utils/hooks";
 
 export class DocumentsSelectionBox extends SelectionBox {

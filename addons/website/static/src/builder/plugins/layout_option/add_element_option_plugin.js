@@ -5,8 +5,8 @@ import {
     setElementToMaxZindex,
 } from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { onceAllImagesLoaded } from "@website/utils/images";
 
 /**

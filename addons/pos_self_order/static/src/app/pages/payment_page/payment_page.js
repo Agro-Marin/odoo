@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
 export class PaymentPage extends Component {
     static template = "pos_self_order.PaymentPage";

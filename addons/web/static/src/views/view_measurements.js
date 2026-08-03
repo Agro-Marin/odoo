@@ -3,15 +3,16 @@
 
 /** @module @web/views/view_measurements */
 
+import { _t } from "@web/core/translation";
+import { unique } from "@web/core/utils/collections/arrays";
+
 /**
  * @param {Object} fields
  * @param {Object} fieldAttrs
  * @param {string[]} activeMeasures
+ * @param {{ sumAggregatorOnly?: boolean }} [options]
  * @returns {Object}
  */
-
-import { _t } from "@web/core/l10n/translation";
-import { unique } from "@web/core/utils/collections/arrays";
 export const computeReportMeasures = (
     fields,
     fieldAttrs,
@@ -87,27 +88,44 @@ export function dropUnknownMeasures(activeMeasures, measures) {
     return kept.length ? kept : ["__count"];
 }
 
+/** Aggregators {@link computeAggregatedValue} can evaluate client-side. */
+export const CLIENT_AGGREGATORS = new Set([
+    "sum",
+    "avg",
+    "min",
+    "max",
+    "count",
+    "count_distinct",
+]);
+
 /**
+ * Returns each aggregator's mathematical identity for an empty input — 0 (sum,
+ * count), NaN (avg), ±Infinity (min, max). Callers that display the result are
+ * responsible for not asking about an empty set.
+ *
  * @param {number[]} values
  * @param {'sum'|'avg'|'min'|'max'|'count'|'count_distinct'} aggregator
  * @returns number
- * @throws {Error}
+ * @throws {Error} on an aggregator that has no client-side equivalent
  */
 export function computeAggregatedValue(values, aggregator) {
-    if (aggregator === "sum") {
-        return values.reduce((acc, v) => v + acc, 0);
-    } else if (aggregator === "avg") {
-        return values.reduce((acc, v) => v + acc, 0) / values.length;
-    } else if (aggregator === "min") {
-        return values.reduce((acc, v) => (v < acc ? v : acc), Infinity);
-    } else if (aggregator === "max") {
-        return values.reduce((acc, v) => (v > acc ? v : acc), -Infinity);
-    } else if (aggregator === "count") {
-        return values.length;
-    } else if (aggregator === "count_distinct") {
-        return unique(values).length;
+    if (!CLIENT_AGGREGATORS.has(aggregator)) {
+        throw new Error(`Invalid aggregator '${aggregator}'`);
     }
-    throw new Error(`Invalid aggregator '${aggregator}'`);
+    switch (aggregator) {
+        case "count":
+            return values.length;
+        case "count_distinct":
+            return unique(values).length;
+        case "sum":
+            return values.reduce((acc, v) => v + acc, 0);
+        case "avg":
+            return values.reduce((acc, v) => v + acc, 0) / values.length;
+        case "min":
+            return values.reduce((acc, v) => (v < acc ? v : acc), Infinity);
+        default:
+            return values.reduce((acc, v) => (v > acc ? v : acc), -Infinity);
+    }
 }
 
 /**

@@ -13,9 +13,7 @@ import {
     useExternalListener,
     useRef,
 } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
 
 import { ReadonlyEmbeddedVideoComponent } from "../../core/video/readonly_video.js";
 

@@ -2,13 +2,11 @@
 import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
 import {
-  computeM2OProps,
-  Many2One,
-} from "@web/fields/relational/many2one/many2one";
-import {
-  buildM2OFieldDescription,
-  Many2OneField,
-} from "@web/fields/relational/many2one/many2one_field";
+    computeM2OProps,
+    Many2One,
+    buildM2OFieldDescription,
+    Many2OneField,
+} from "@web/fields/relational/many2one";
 import { Component } from "@odoo/owl";
 import {
   Many2XAutocomplete,

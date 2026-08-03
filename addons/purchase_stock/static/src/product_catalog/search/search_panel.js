@@ -2,7 +2,7 @@
 import { AccountProductCatalogSearchPanel } from "@account/components/product_catalog/search/search_panel";
 import { useEnv } from "@odoo/owl";
 import { formatMonetary } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { clamp } from "@web/core/utils/format/numbers";
 
 import { TimePeriodSelectionField } from "./time_period_selection_fields.js";

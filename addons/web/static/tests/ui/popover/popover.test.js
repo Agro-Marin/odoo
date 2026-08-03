@@ -697,3 +697,40 @@ test("an unanimated, unheld popover is never locked", async () => {
     expect(popover.isPositionFrozen).toBe(false);
     expect(popover.positionLocked).toBe(false);
 });
+
+test("the cached position lock tracks isPositionFrozen through a prop change", async () => {
+    // `positionLocked` caches a value derived partly from props, and only
+    // `setPositionLocked` writes it, so the cache cannot drift from the real
+    // lock. Nothing here relies on the reposition that `unlock` triggers
+    // happening to call `onPositioned` -> `syncPositionLock`, which is what
+    // used to repair the flag by accident.
+    const popover = await mountWithCleanup(Popover, {
+        props: {
+            close: () => {},
+            target: getFixture(),
+            component: Content,
+            holdOnHover: true,
+            fixedPosition: true,
+        },
+    });
+    await animationFrame();
+    expect(popover.positionLocked).toBe(true);
+
+    popover.props.fixedPosition = false;
+    popover.onResized();
+    expect(popover.isPositionFrozen).toBe(false);
+    expect(popover.positionLocked).toBe(false);
+
+    const locks = [];
+    patchWithCleanup(popover.position, {
+        lock: () => locks.push("lock"),
+        unlock: () => locks.push("unlock"),
+    });
+    popover.onPointerEnter();
+    expect(locks).toEqual(["lock"]);
+    expect(popover.positionLocked).toBe(true);
+
+    popover.onPointerLeave();
+    expect(locks).toEqual(["lock", "unlock"]);
+    expect(popover.positionLocked).toBe(false);
+});

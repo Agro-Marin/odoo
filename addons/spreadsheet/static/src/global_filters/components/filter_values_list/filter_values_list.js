@@ -1,16 +1,17 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { FilterValue } from "@spreadsheet/global_filters/components/filter_value/filter_value";
-import { _t } from "@web/core/l10n/translation";
-import { getOperatorLabel } from "@web/core/tree/operator_labels";
 import {
     getDefaultValue,
     getEmptyFilterValue,
     getFilterTypeOperators,
 } from "@spreadsheet/global_filters/helpers";
-import { useService } from "@web/core/utils/hooks";
-import { isEmptyFilterValue } from "../../helpers.js";
+import { _t } from "@web/core/translation";
+import { getOperatorLabel } from "@web/core/tree";
 import { deepEqual } from "@web/core/utils/collections/objects";
+import { useService } from "@web/core/utils/hooks";
+
+import { isEmptyFilterValue } from "../../helpers.js";
 
 /**
  * This component is used to display a list of all the global filters of a

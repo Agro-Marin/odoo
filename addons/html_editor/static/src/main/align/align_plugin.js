@@ -6,7 +6,7 @@ import { isVisibleTextNode } from "@html_editor/utils/dom_info";
 import { weakMemoize } from "@html_editor/utils/functions";
 import { READ, withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { AlignSelector } from "./align_selector.js";
 

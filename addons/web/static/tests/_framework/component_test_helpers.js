@@ -2,9 +2,8 @@
 
 import { after, destroy, getFixture, queryFirst, queryOne } from "@odoo/hoot";
 import { App, Component, xml } from "@odoo/owl";
-import { MainComponentsContainer } from "@web/components/main_components_container";
-import { appTranslateFn } from "@web/core/l10n/translation";
 import { getTemplate as defaultGetTemplate } from "@web/core/templates";
+import { appTranslateFn } from "@web/core/translation";
 import { isIterable } from "@web/core/utils/collections/arrays";
 import { patch } from "@web/core/utils/patch";
 // @ts-ignore — customDirectives & globalValues exist at runtime but aren't in .d.ts
@@ -12,6 +11,7 @@ import {
     customDirectives as defaultCustomDirectives,
     globalValues as defaultGlobalValues,
 } from "@web/env";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { getPopoverForTarget } from "@web/ui/popover/popover";
 
 import { getMockEnv, makeMockEnv } from "./env_test_helpers.js";

@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { EditMenuDialog } from "@website/components/dialog/edit_menu";
 import { PagePropertiesDialog } from "@website/components/dialog/page_properties";
 import { OptimizeSEODialog } from "@website/components/dialog/seo";

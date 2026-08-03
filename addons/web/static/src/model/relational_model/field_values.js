@@ -12,9 +12,9 @@ import {
     serializeDate,
     serializeDateTime,
 } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
-import { evaluateExpr } from "@web/core/py_js/py";
+import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 
 import { x2ManyCommands } from "./commands.js";
@@ -341,11 +341,26 @@ export function fromUnityToServerValues(
             if (field.readonly) {
                 continue;
             }
-            try {
-                if (evaluateExpr(activeField?.readonly, context)) {
+            // Decide readonly with the SAME rule the UI uses to gate the input
+            // (record._isReadonly -> isFieldReadonly -> evaluateBooleanExpr):
+            // Python-boolean semantics, so a modifier evaluating to an empty
+            // list/dict is falsy = writable, exactly as the server sees it. The
+            // former `evaluateExpr(...)` + JS `if (...)` disagreed on containers
+            // (`[]`/`{}` are JS-truthy) and would strip a writable field. An
+            // absent activeField (a field the arch never mentioned, e.g. from an
+            // onchange payload) or an unevaluable modifier (a nested x2many
+            // serialized without a context) stays writable, as before.
+            if (activeField?.readonly) {
+                let readonly = false;
+                try {
+                    readonly = evaluateBooleanExpr(activeField.readonly, context);
+                } catch {
+                    readonly = false;
+                }
+                if (readonly) {
                     continue;
                 }
-            } catch {}
+            }
         }
         switch (field.type) {
             case "one2many":

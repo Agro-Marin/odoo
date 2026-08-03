@@ -6,8 +6,8 @@
 import { Component, onWillRender } from "@odoo/owl";
 import { formatDate } from "@web/core/formatters";
 import { DateTime } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
 import { capitalize } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";

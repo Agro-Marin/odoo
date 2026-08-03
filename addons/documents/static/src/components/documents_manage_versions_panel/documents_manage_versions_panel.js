@@ -1,12 +1,11 @@
 /** @odoo-module native */
 
-import { Dialog } from "@web/ui/dialog/dialog";
-import { _t } from "@web/core/l10n/translation";
+import { Dialog, ConfirmationDialog } from "@web/ui/dialog";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { Component, onWillStart, useState, useRef } from "@odoo/owl";
 import { formatDate, deserializeDate } from "@web/core/l10n/dates";
-import { download } from "@web/core/network/download";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { download } from "@web/core/network";
 
 export class DocumentsManageVersions extends Component {
     static components = {

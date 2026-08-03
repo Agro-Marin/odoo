@@ -8,7 +8,7 @@ import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { useTagNavigation } from "@web/components/record_selectors/tag_navigation_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";

@@ -2,8 +2,8 @@
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 import { PortalComposer } from "@portal/interactions/portal_composer";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 
 /**
  * RatingPopupComposer

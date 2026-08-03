@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { dataUrlToBlob } from "@mail/core/common/attachment_uploader_hook";
 import { Component } from "@odoo/owl";
-import { FileUploader } from "@web/core/file_upload/file_handler";
+import { FileUploader } from "@web/core/file_upload";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";

@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { CalendarFilterSection } from "@web/views/calendar/calendar_filter_section/calendar_filter_section";
-import { TimeOffCardMobile } from "../../../dashboard/time_off_card.js";
-
+import { onWillStart,useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { useState, onWillStart } from "@odoo/owl";
+import { CalendarFilterSection } from "@web/views/calendar";
+
+import { TimeOffCardMobile } from "../../../dashboard/time_off_card.js";
 
 export class TimeOffCalendarFilterSection extends CalendarFilterSection {
     static components = {

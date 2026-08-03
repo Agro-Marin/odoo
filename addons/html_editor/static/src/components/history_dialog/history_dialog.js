@@ -15,12 +15,12 @@ import { browser } from "@web/core/browser/browser";
 import { colorScheme } from "@web/core/color_scheme";
 import { formatDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { htmlReplaceAll } from "@web/core/utils/dom/html";
 import { memoize } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 const { DateTime } = luxon;
 

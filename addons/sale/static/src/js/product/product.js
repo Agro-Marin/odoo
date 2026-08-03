@@ -1,8 +1,8 @@
 /** @odoo-module native */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { formatCurrency } from "@web/services/currency";
+import { formatCurrency } from "@web/core/currency";
+import { _t } from "@web/core/translation";
 
 import { ProductTemplateAttributeLine as PTAL } from "../product_template_attribute_line/product_template_attribute_line.js";
 import { QuantityButtons } from "../quantity_buttons/quantity_buttons.js";

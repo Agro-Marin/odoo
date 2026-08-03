@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { Tooltip } from "@web/libs/bootstrap";
 import { browser } from "@web/core/browser/browser";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 

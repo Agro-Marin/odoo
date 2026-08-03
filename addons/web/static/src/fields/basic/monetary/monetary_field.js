@@ -4,15 +4,15 @@
 /** @module @web/fields/basic/monetary/monetary_field */
 
 import { useEffect, useRef } from "@odoo/owl";
+import { getCurrency } from "@web/core/currency";
 import { formatMonetary } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
 import { parseMonetary } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { getCurrency } from "@web/services/currency";
 
 import { NumericInputFieldBase } from "../numeric_input_field_base.js";
 

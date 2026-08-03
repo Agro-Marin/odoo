@@ -88,12 +88,12 @@ class ListRequestBatch {
 
 export class ServerData {
     /**
-     * @param {import("@web/services/orm_service").ORM} orm
+     * @param {import("@web/core/network/orm_service").ORM} orm
      * @param {object} params
      * @param {(promise: Promise<any>) => void} [params.whenDataStartLoading]
      */
     constructor(orm, { whenDataStartLoading }) {
-        /** @type {import("@web/services/orm_service").ORM} */
+        /** @type {import("@web/core/network/orm_service").ORM} */
         this.orm = orm;
         /** @type {(promise: Promise<any>) => void} */
         this.startLoadingCallback = whenDataStartLoading ?? (() => {});

@@ -5,8 +5,8 @@
 
 import { isX2Many } from "./field_context.js";
 
-/** @import { RelationalRecord } from "./record.js" */
-/** @import { StaticList } from "./static_list.js" */
+/** @import { RecordContract } from "./record_contract.js" */
+/** @import { StaticListContract } from "./static_list_contract.js" */
 
 /**
  * The record -> list -> record shape, in one place.
@@ -24,8 +24,8 @@ import { isX2Many } from "./field_context.js";
  * field. Command replay is staged on those too, so anything that has to be
  * quiesced before a save must see them.
  *
- * @param {RelationalRecord} record
- * @returns {Generator<[string, StaticList]>}
+ * @param {RecordContract} record
+ * @returns {Generator<[string, StaticListContract]>}
  */
 export function* allX2manyLists(record) {
     for (const fieldName of Object.keys(record.activeFields)) {
@@ -45,8 +45,8 @@ export function* allX2manyLists(record) {
  * which carries its own value, so it is neither written nor committed
  * separately.
  *
- * @param {RelationalRecord} record
- * @returns {Generator<[string, StaticList]>}
+ * @param {RecordContract} record
+ * @returns {Generator<[string, StaticListContract]>}
  */
 export function* x2manyLists(record) {
     for (const [fieldName, list] of allX2manyLists(record)) {
@@ -59,14 +59,14 @@ export function* x2manyLists(record) {
 /**
  * Pending command-replay promises anywhere under *record*.
  *
- * @param {RelationalRecord} record
+ * @param {RecordContract} record
  * @returns {Promise<unknown>[]}
  */
 export function collectPendingCommands(record) {
     /** @type {Promise<unknown>[]} */
     const proms = [];
     const seen = new Set();
-    /** @param {RelationalRecord} current */
+    /** @param {RecordContract} current */
     const visit = (current) => {
         for (const [, list] of allX2manyLists(current)) {
             if (seen.has(list)) {
@@ -93,7 +93,7 @@ export function collectPendingCommands(record) {
  * x2many fields whose result actually has to come back, so the round trip does
  * not re-read the whole form.
  *
- * @param {RelationalRecord} record
+ * @param {RecordContract} record
  * @param {Set<unknown>} [seen]
  * @returns {Record<string, any>}
  */
@@ -123,7 +123,7 @@ export function buildCommitSpec(record, seen = new Set()) {
  * server did not report was still written, so its staged commands are dropped
  * rather than carried into the next save.
  *
- * @param {RelationalRecord} record
+ * @param {RecordContract} record
  * @param {Record<string, any>} [values]
  * @param {Set<unknown>} [seen]
  */

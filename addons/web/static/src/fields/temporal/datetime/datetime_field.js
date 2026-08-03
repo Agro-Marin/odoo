@@ -14,8 +14,8 @@ import {
     today,
 } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { pick } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";

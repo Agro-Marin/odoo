@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { ModelSelector } from "@web/components/model_selector/model_selector";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { memoize } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
+import { SelectCreateDialog } from "@web/views/view_dialogs";
 /** Selects a model among the accessible ones (getAvailableResModels), then one of
  * its records through a SelectCreateDialog list, like documents'
  * DocumentsDetailsPanel.

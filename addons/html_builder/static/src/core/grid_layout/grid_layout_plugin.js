@@ -1,8 +1,4 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
-import { clamp } from "@web/core/utils/format/numbers";
 import {
     addBackgroundGrid,
     additionalRowLimit,
@@ -16,8 +12,12 @@ import {
     setElementToMaxZindex,
     toggleGridMode,
 } from "@html_builder/utils/grid_layout_utils";
+import { Plugin } from "@html_editor/plugin";
 import { hasMediaOnly, isElement, isMediaElement } from "@html_editor/utils/dom_info";
 import { selectElements } from "@html_editor/utils/dom_traversal";
+import { withSequence } from "@html_editor/utils/resource";
+import { _t } from "@web/core/translation";
+import { clamp } from "@web/core/utils/format/numbers";
 
 const gridItemSelector = ".row.o_grid_mode > div.o_grid_item";
 

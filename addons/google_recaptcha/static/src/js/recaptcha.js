@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { session } from "@web/session";
 import { loadJS } from "@web/core/assets";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class ReCaptcha {
     /**

@@ -3,7 +3,7 @@ import { Component, useEffect, useRef } from "@odoo/owl";
 import { CenteredIcon } from "@point_of_sale/app/components/centered_icon/centered_icon";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { formatCurrency } from "@web/services/currency";
+import { formatCurrency } from "@web/core/currency";
 export class OrderDisplay extends Component {
     static template = "point_of_sale.OrderDisplay";
     static components = { CenteredIcon, Orderline, TagsList };

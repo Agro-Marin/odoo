@@ -3,7 +3,7 @@ import { Component, useEffect, useExternalListener, useRef, useState } from "@od
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { useColorPicker } from "@web/components/color_picker/color_picker";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";
 

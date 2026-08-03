@@ -7,7 +7,7 @@ import {
     setAttributes,
 } from "@web/core/utils/dom/xml";
 import { patch } from "@web/core/utils/patch";
-import { FormCompiler } from "@web/views/form/form_compiler";
+import { FormCompiler } from "@web/views/form";
 /** @this {FormCompiler} */
 function compileChatter(node, params) {
     const chatterContainerXml = createElement("t");

@@ -8,7 +8,7 @@ import { Plugin } from "@html_editor/plugin";
 import { closestElement, firstLeaf, lastLeaf } from "@html_editor/utils/dom_traversal";
 import { nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { DISABLED_NAMESPACE } from "../toolbar/toolbar_plugin.js";
 

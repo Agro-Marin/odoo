@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 
-import { listView } from "@web/views/list/list_view";
+import { listView } from "@web/views/list";
 import { DocumentsControlPanel } from "../search/documents_control_panel.js";
 import { DocumentsListController } from "./documents_list_controller.js";
 import { DocumentsListModel } from "./documents_list_model.js";

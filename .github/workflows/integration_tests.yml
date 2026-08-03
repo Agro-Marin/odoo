@@ -58,6 +58,9 @@ env:
   #     confirmed headless-browser setup in CI (web auto-installs with base, so it
   #     should run once the runner has Chrome). Re-include after the first green run.
   TEST_TAGS: /base,-:TestReportsRendering,-:TestIrModelFieldsTranslation
+  # Floor for the count gate below: a run reporting fewer than this skipped
+  # rather than failed. Raise it deliberately when the scope grows.
+  TEST_COUNT_FLOOR: 2500
 
   # test_http runs as a SECOND suite against its OWN database, not alongside
   # base in one. That is not tidiness -- the suites interfere. test_http depends
@@ -141,8 +144,17 @@ jobs:
       - name: Run base test suite
         # odoo-bin exits non-zero when any test fails (cli/server.py propagates
         # the assertion report's result as the process exit code), so this step
-        # fails the job on a single test failure — no log-grepping needed.
+        # fails the job on a single test failure.
+        #
+        # The exit code does NOT cover tests that never ran. A skipped
+        # setUpClass logs at INFO and counts as success: `--no-http` below
+        # turns every HttpCase into one ("requires a running HTTP server"),
+        # which is 22 tests across 12 classes in `base` today — small, but the
+        # same blindness hides a mass-skip from a narrowed tag, a module that
+        # failed to install, or a broadened `--no-http`. So the log is kept and
+        # the next step gates on the test COUNT as well as the exit code.
         run: |
+          set -o pipefail
           python odoo-bin \
             --addons-path=odoo/addons,addons \
             -d ci_smoke \
@@ -152,7 +164,26 @@ jobs:
             --test-enable --test-tags "${TEST_TAGS}" \
             --stop-after-init \
             --max-cron-threads=0 --no-http \
-            --log-level=test --logfile=/dev/stdout
+            --log-level=test --logfile=/dev/stdout 2>&1 | tee /tmp/base-suite.log
+
+      - name: Assert the suite actually ran
+        # `N failed, M error(s) of X tests` (odoo/tests/result.py:215). A run
+        # that reports success having executed nothing looks identical to a
+        # clean run in the exit code alone.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/base-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — the suite did not report a count"
+            exit 1
+          fi
+          echo "tests run: $RAN (floor: ${TEST_COUNT_FLOOR})"
+          if [ "$RAN" -lt "${TEST_COUNT_FLOOR}" ]; then
+            echo "::error::only $RAN tests ran, below the floor of ${TEST_COUNT_FLOOR} —"
+            echo "::error::something was skipped rather than failed. Raise the floor"
+            echo "::error::deliberately if the scope legitimately shrank."
+            exit 1
+          fi
 
       - name: Run test_http suite
         # Its own database (ci_http), for the view-inheritance reason recorded

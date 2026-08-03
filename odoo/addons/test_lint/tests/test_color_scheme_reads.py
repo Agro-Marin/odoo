@@ -1,7 +1,7 @@
 import logging
 import re
 
-from odoo.libs.lint.scan import scan_regex_patterns
+from odoo.libs.lint import scan_regex_patterns
 from odoo.modules import get_resource_from_path
 
 from . import lint_case

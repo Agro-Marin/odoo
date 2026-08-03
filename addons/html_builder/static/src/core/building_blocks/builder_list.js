@@ -7,10 +7,9 @@ import {
 } from "@html_builder/core/utils";
 import { isSmallInteger } from "@html_builder/utils/utils";
 import { Component, onWillUpdateProps, useRef } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
-import { _t } from "@web/core/l10n/translation";
-import { useSortable } from "@web/core/utils/dnd/sortable_owl";
+import { Dropdown, useDropdownState } from "@web/components/dropdown";
+import { _t } from "@web/core/translation";
+import { useSortable } from "@web/core/utils/dnd";
 
 export class BuilderList extends Component {
     static template = "html_builder.BuilderList";

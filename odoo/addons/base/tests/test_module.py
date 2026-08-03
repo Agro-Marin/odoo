@@ -77,6 +77,7 @@ class TestModuleManifest(BaseCase):
                 "demo_xml": [],
                 "depends": ["base"],
                 "description": "",
+                "esm": {},
                 "external_dependencies": {},
                 "icon": "/base/static/description/icon.png",
                 "init_xml": [],

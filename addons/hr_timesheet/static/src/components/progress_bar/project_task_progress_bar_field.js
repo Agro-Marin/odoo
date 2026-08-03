@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { formatPercentage } from "@web/core/formatters";
-import { progressBarField, ProgressBarField } from "@web/fields/display/progress_bar/progress_bar_field";
+import { progressBarField, ProgressBarField } from "@web/fields/display/progress_bar";
 
 export class ProjectTaskProgressBarField extends ProgressBarField {
     get currentValue() {

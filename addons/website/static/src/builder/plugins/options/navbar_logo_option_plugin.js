@@ -3,8 +3,8 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
 import { SNIPPET_SPECIFIC_NEXT } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
 export class NavbarLogoOption extends BaseOptionComponent {
     static template = "website.NavbarLogoOption";

@@ -4,8 +4,8 @@
 /** @module @web/views/form/setting/setting */
 
 import { Component } from "@odoo/owl";
+import { user } from "@web/core/user";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { user } from "@web/services/user";
 import { FormLabel } from "@web/views/form/form_label";
 import { DocumentationLink } from "@web/views/widgets/documentation_link/documentation_link";
 

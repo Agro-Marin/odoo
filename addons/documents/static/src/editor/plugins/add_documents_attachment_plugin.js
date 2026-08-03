@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { renderStaticFileBox } from "@html_editor/main/media/media_dialog/document_selector";
 import { Plugin } from "@html_editor/plugin";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 
 import { SelectAddDocumentCreateDialog } from "@documents/views/view_dialogs/select_add_document_create_dialog";

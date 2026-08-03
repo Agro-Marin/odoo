@@ -2,7 +2,7 @@
 import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { Component, useState } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
+import { Dropdown } from "@web/components/dropdown";
 import { useChildRef } from "@web/core/utils/hooks";
 
 export class TableAlignSelector extends Component {

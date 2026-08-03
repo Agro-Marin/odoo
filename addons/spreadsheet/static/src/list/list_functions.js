@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { helpers, registries, EvaluationError } from "@odoo/o-spreadsheet";
+import { EvaluationError, helpers, registries } from "@odoo/o-spreadsheet";
+import { _t } from "@web/core/translation";
 
 const { arg, toString, toNumber } = helpers;
 const { functionRegistry } = registries;

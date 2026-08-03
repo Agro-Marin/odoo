@@ -6,7 +6,7 @@
 import { Component } from "@odoo/owl";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
 import { formatChar } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";

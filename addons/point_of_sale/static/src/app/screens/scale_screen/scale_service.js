@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { formatFloat, roundDecimals } from "@web/core/utils/format/numbers";
 import { SignalStore } from "@web/core/utils/reactive";
 const MEASURING_DELAY_MS = 500;

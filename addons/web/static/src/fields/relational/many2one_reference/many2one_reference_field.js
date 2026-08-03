@@ -3,7 +3,7 @@
 
 /** @module @web/fields/relational/many2one_reference/many2one_reference_field */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import {
     extractM2OFieldProps,

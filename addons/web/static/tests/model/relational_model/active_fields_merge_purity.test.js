@@ -93,6 +93,7 @@ describe("extendRecord activeFields purity", () => {
             id: 1,
             config: { activeFields: {}, fields: {} },
             _addSavePoint() {},
+            extendActiveFields() {},
         };
         list._extendedRecords.add(record.id);
 

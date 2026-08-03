@@ -17,7 +17,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { cookie } from "@web/core/browser/cookie";
 import { router } from "@web/core/browser/router";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { SwitchCompanyMenu } from "@web/webclient/switch_company_menu/switch_company_menu";
 
 const ORIGINAL_TOGGLE_DELAY = SwitchCompanyMenu.toggleDelay;
@@ -641,8 +641,11 @@ test("de-select only changes visible companies", async () => {
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(2);
 
-    await contains("input").edit("m");
+    // "herm" holds Hermit and Herman's; "Heroes TM" and its branches are out
+    // of scope, so nothing the controls do below may reach them.
+    await contains("input").edit("herm");
     await animationFrame();
+    expect(".o_switch_company_item").toHaveCount(2);
 
     await contains("[role=menuitemcheckbox][title='Deselect all']").click();
     expect(
@@ -655,24 +658,29 @@ test("de-select only changes visible companies", async () => {
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(1);
 
-    await contains("input").edit("m");
+    await contains("input").edit("herm");
     await animationFrame();
     await contains("[role=menuitemcheckbox][title='Select all']").click();
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
-    ).toHaveCount(3);
+    ).toHaveCount(2);
 
     await contains("input").clear();
     await animationFrame();
+    // Hermit and Herman's from the select-all, Hulk from the toggle above --
+    // and nothing else: the filtered controls never reached Heroes TM.
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
-    ).toHaveCount(5);
+    ).toHaveCount(3);
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=false])",
-    ).toHaveCount(0);
+    ).toHaveCount(2);
 });
 
-test("select all cascades to filtered-out children", async () => {
+test("select all takes exactly the branches the filter shows", async () => {
+    // Selecting a company selects its branches, so a filter that matched it
+    // has to show them: otherwise one click on one visible row silently
+    // selects companies that were never on screen.
     await createSwitchCompanyMenu();
     await openCompanyMenu();
 
@@ -680,7 +688,7 @@ test("select all cascades to filtered-out children", async () => {
     await animationFrame();
     await contains("input").edit("Heroes");
     await animationFrame();
-    expect(".o_switch_company_item").toHaveCount(1);
+    expect(queryAllTexts(".company_label")).toEqual(["Heroes TM", "Hercules", "Hulk"]);
 
     await contains("[role=menuitemcheckbox][title='Select all']").click();
 
@@ -930,6 +938,33 @@ test("switching company with no record open performs no access probe", async () 
 
     expect(probed).toBe(false);
     expect(cookie.get("cids")).toBe("2");
+});
+
+test("a matching branch is shown under its parent, never on its own", async () => {
+    // Rendering a level-1 row without the level-0 row above it reads as an
+    // indented orphan, and hides that acting on the parent would reach it.
+    await createSwitchCompanyMenu();
+    await openCompanyMenu();
+
+    await edit(" ");
+    await animationFrame();
+    await contains("input").edit("Hercules");
+    await animationFrame();
+
+    // Hulk comes along because selecting Heroes TM would select it too.
+    expect(queryAllTexts(".company_label")).toEqual(["Heroes TM", "Hercules", "Hulk"]);
+});
+
+test("a search matching nothing shows nothing", async () => {
+    await createSwitchCompanyMenu();
+    await openCompanyMenu();
+
+    await edit(" ");
+    await animationFrame();
+    await contains("input").edit("Vandelay");
+    await animationFrame();
+
+    expect(queryAllTexts(".company_label")).toEqual([]);
 });
 
 describe("disallowed ancestors", () => {

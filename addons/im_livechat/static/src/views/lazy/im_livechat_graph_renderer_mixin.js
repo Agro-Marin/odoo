@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { GraphRenderer } from "@web/views/graph/graph_renderer";
+import { GraphRenderer } from "@web/views/graph";
 
 export const LivechatGraphRendererMixin = (model) =>
     class extends GraphRenderer {

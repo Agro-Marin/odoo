@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 
 import { Component, onWillStart, useState } from "@odoo/owl";

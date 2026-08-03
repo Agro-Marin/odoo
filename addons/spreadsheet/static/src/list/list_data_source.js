@@ -1,17 +1,16 @@
 /** @odoo-module native */
-import { OdooViewsDataSource } from "@spreadsheet/data_sources/odoo_views_data_source";
 import { EvaluationError } from "@odoo/o-spreadsheet";
-import { _t } from "@web/core/l10n/translation";
-import {
-    formatDateTime,
-    deserializeDateTime,
-    formatDate,
-    deserializeDate,
-} from "@web/core/l10n/dates";
-import { orderByToString } from "@web/core/utils/order_by";
-
 import * as spreadsheet from "@odoo/o-spreadsheet";
 import { LOADING_ERROR } from "@spreadsheet/data_sources/data_source";
+import { OdooViewsDataSource } from "@spreadsheet/data_sources/odoo_views_data_source";
+import {
+    deserializeDate,
+    deserializeDateTime,
+    formatDate,
+    formatDateTime,
+} from "@web/core/l10n/dates";
+import { _t } from "@web/core/translation";
+import { orderByToString } from "@web/core/utils/order_by";
 
 const { toNumber } = spreadsheet.helpers;
 const { DEFAULT_LOCALE } = spreadsheet.constants;

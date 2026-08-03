@@ -16,7 +16,7 @@ import { closestElement } from "@html_editor/utils/dom_traversal";
 import { FORMATTABLE_TAGS } from "@html_editor/utils/formatting";
 import { boundariesOut, rightPos } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { fuzzyLookup } from "@web/core/utils/search";
 
 import { MediaDialog, TABS } from "./media_dialog/media_dialog.js";

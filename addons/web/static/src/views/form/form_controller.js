@@ -16,9 +16,10 @@ import {
 } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { useDebugCategory } from "@web/core/debug/debug_context";
 import { AppEvent, ModelEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { createElement } from "@web/core/utils/dom/xml";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
@@ -31,7 +32,6 @@ import {
 } from "@web/model/relational_model/utils";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
-import { useDebugCategory } from "@web/services/debug/debug_context";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { SIZES } from "@web/ui/viewport";
 import { standardViewProps } from "@web/views/standard_view_props";
@@ -453,16 +453,42 @@ export class FormController extends Component {
         }
     }
 
-    beforeVisibilityChange() {
+    async beforeVisibilityChange() {
         if (
-            document.visibilityState === "hidden" &&
-            this.formDialogStack.isEmpty &&
-            !this.model.root.isNew
+            document.visibilityState !== "hidden" ||
+            !this.formDialogStack.isEmpty ||
+            this.model.root.isNew
         ) {
-            return this.saveCoordinator
-                .requestSave({ errorMode: "silent", checkDirty: true })
-                .catch((e) => console.warn("Auto-save on tab switch failed:", e));
+            return;
         }
+        // requestSave() in "silent" mode reports failure by RESOLVING to false —
+        // it does not reject — so the outcome has to be read from the return
+        // value. Chaining .catch() here would never run and the record would be
+        // left dirty with no signal at all.
+        let saved;
+        try {
+            saved = await this.saveCoordinator.requestSave({
+                errorMode: "silent",
+                checkDirty: true,
+            });
+        } catch (error) {
+            this.onAutoSaveFailed(error);
+            return;
+        }
+        if (saved === false) {
+            this.onAutoSaveFailed(this.saveCoordinator.lastError);
+        }
+    }
+
+    /**
+     * The tab is hidden, so a dialog would be pointless and a notification is
+     * queued behind the user's return. Keep the record dirty (the normal
+     * unsaved-changes guards still apply) and leave a diagnostic trail.
+     *
+     * @param {any} [error]
+     */
+    onAutoSaveFailed(error) {
+        console.warn("Auto-save on tab switch failed:", error);
     }
 
     /** @param {{ forceLeave?: boolean }} [options] */

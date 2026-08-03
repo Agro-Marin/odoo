@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
-import { RelationalRecord } from "@web/model/relational_model/record";
-import { RelationalModel } from "@web/model/relational_model/relational_model";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { RelationalModel, RelationalRecord } from "@web/model/relational_model";
 
 class ProductCatalogRecord extends RelationalRecord {
     setup(config, data, options = {}) {

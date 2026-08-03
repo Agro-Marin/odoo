@@ -1,11 +1,8 @@
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
-import {
-    ConfirmationDialog,
-    deleteConfirmationMessage,
-} from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog, deleteConfirmationMessage } from "@web/ui/dialog";
 
 export class ProjectTemplateButtons extends Component {
     static template = "project.ProjectTemplateButtons";

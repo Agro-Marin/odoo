@@ -1,10 +1,7 @@
 /** @odoo-module native */
-import { registry } from '@web/core/registry';
-
-import { listView } from '@web/views/list/list_view';
-import { ListController } from '@web/views/list/list_controller';
-
 import { useArchiveEmployee } from '@hr/views/archive_employee_hook';
+import { registry } from '@web/core/registry';
+import { ListController,listView } from "@web/views/list";
 
 export class EmployeeListController extends ListController {
     setup() {

@@ -3,8 +3,8 @@ import { DEFAULT_PALETTE } from "@html_editor/utils/color";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { isSrcCorsProtected } from "@html_editor/utils/image";
 import { useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 
 import {

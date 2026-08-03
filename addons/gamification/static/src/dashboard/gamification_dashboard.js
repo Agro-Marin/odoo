@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
-import { user } from "@web/services/user";
 
 import {
     getBadgeLevelClass,

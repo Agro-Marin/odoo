@@ -775,6 +775,27 @@ class ResUsers(models.Model):
             and not field.readonly
         )
 
+    def _settings_value_is_a_choice(self, name: str, value: Any) -> bool:
+        """Whether *value* for settings-backed *name* is a choice, not an absence.
+
+        A related field is not required just because its target is: reading
+        ``color_scheme`` off a user whose settings row does not exist yet gives
+        ``False``, and nothing on ``res.users`` objects, because the constraint
+        lives on ``res.users.settings``. A form built on such a user carries
+        that ``False`` back into ``create``, where replaying it would overwrite
+        the default the settings row is about to be created with -- and, for a
+        Selection, with a value outside its own selection list.
+
+        Falsy is only an absence where the *target* is required; elsewhere it
+        is someone clearing a setting, which is theirs to do. Resolved through
+        the registry so a preference added later is covered by having been
+        declared, as with :meth:`_settings_backed_fields`.
+        """
+        if value:
+            return True
+        _, target_name = self._fields[name].related.split(".", 1)
+        return not self.env["res.users.settings"]._fields[target_name].required
+
     @api.onchange("login")
     def on_change_login(self) -> None:
         if self.login and tools.single_email_re.match(self.login):
@@ -839,12 +860,25 @@ class ResUsers(models.Model):
         ``create({..., "color_scheme": "dark"})`` returned a user whose theme
         was the default. Written afterwards instead, through :meth:`write`,
         which is where making the row belongs.
+
+        Only actual choices are held back. The same missing row that makes the
+        deferral necessary also makes a form read ``False`` for every setting
+        it shows, and writing that back afterwards would undo the defaults the
+        row is created with -- see :meth:`_settings_value_is_a_choice`.
         """
         backed = self._settings_backed_fields()
         deferred = [
-            {k: v for k, v in vals.items() if k in backed} for vals in vals_list
+            {
+                k: v
+                for k, v in vals.items()
+                if k in backed and self._settings_value_is_a_choice(k, v)
+            }
+            for vals in vals_list
         ]
-        if any(deferred):
+        # Keyed on the values, not on `deferred`: a settings key that was
+        # dropped as an absence must still not reach `super().create()`, where
+        # it would meet the same missing row the deferral exists to avoid.
+        if any(k in backed for vals in vals_list for k in vals):
             vals_list = [
                 {k: v for k, v in vals.items() if k not in backed} for vals in vals_list
             ]

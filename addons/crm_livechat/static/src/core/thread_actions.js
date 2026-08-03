@@ -4,8 +4,8 @@ import { LivechatCommandDialog } from "@im_livechat/core/common/livechat_command
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import "@mail/discuss/call/common/thread_actions";
 
-import { _t } from "@web/core/l10n/translation";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { _t } from "@web/core/translation";
+import { usePopover } from "@web/ui/popover";
 
 registerThreadAction("create-lead", {
     actionPanelComponent: LivechatCommandDialog,

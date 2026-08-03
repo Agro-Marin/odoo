@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { WorkEntryCalendarMultiSelectionButtons } from "@hr_work_entry/views/work_entry_calendar/work_entry_multi_selection_buttons";
 import { useWorkEntry } from "@hr_work_entry/views/work_entry_hook";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { CalendarController } from "@web/views/calendar/calendar_controller";
-import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
+import { CalendarController } from "@web/views/calendar";
+import { FormViewDialog } from "@web/views/view_dialogs";
 
 
 export class WorkEntryCalendarController extends CalendarController {

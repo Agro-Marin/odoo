@@ -4,11 +4,11 @@
 /** @module @web/views/list/list_aggregates */
 
 import { onWillStart, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { getCurrencyRates } from "@web/core/currency";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model/utils";
-import { getCurrencyRates } from "@web/services/currency";
-import { user } from "@web/services/user";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
 import { computeAggregatedValue } from "@web/views/view_measurements";
@@ -29,11 +29,9 @@ function resolveCurrencyField(fields, column) {
 }
 
 /**
- * @param {object} options
- * @param {() => import("./list_renderer").Column[]} options.getColumns
- * @param {() => Record<string, object>} options.getFields
- * @param {() => import("./list_renderer").ListRendererProps} options.getProps
- * @param {() => Record<string, boolean>} options.getOptionalActiveFields
+ * @param {Pick<import("./list_renderer").ListGridContext, "getColumns" | "getFields" | "getProps" | "getOptionalActiveFields">} ctx
+ *   the subset of the grid context this hook reads; the ListRenderer passes its
+ *   full `gridContext`, `ListAggregatesRow` a compatible partial.
  * @returns {{
  *   computeAggregates: () => Record<string, object>,
  *   formatGroupAggregate: (group: object, column: object) => object,
@@ -43,12 +41,8 @@ function resolveCurrencyField(fields, column) {
  *   state: { currencyRates: object | null },
  * }}
  */
-export function useListAggregates({
-    getColumns,
-    getFields,
-    getProps,
-    getOptionalActiveFields,
-}) {
+export function useListAggregates(ctx) {
+    const { getColumns, getFields, getProps, getOptionalActiveFields } = ctx;
     const multiCurrencyPopover = usePopover(MultiCurrencyPopover, {
         position: "right",
     });
@@ -66,10 +60,6 @@ export function useListAggregates({
                 if (field.type !== "monetary" && column.widget !== "monetary") {
                     return false;
                 }
-                const currencyField = resolveCurrencyField(fields, column);
-                if (!(currencyField in props.list.activeFields)) {
-                    return false;
-                }
                 return ["sum", "avg", "max", "min"].some((agg) => agg in column.attrs);
             },
         );
@@ -77,6 +67,18 @@ export function useListAggregates({
             state.currencyRates = await getCurrencyRates();
         }
     });
+
+    let ratesRequested = false;
+    /** Self-heals the aggregate once the rates land. */
+    function requestCurrencyRates() {
+        if (ratesRequested) {
+            return;
+        }
+        ratesRequested = true;
+        getCurrencyRates()
+            .then((rates) => (state.currencyRates = rates))
+            .catch((error) => console.error(error));
+    }
 
     function getAggregationValues() {
         const { list } = getProps();
@@ -173,6 +175,8 @@ export function useListAggregates({
                 let currencyId;
                 let multiCurrency = false;
                 let hasMixedCurrencyGroup = false;
+                let missingRates = false;
+                let unknownRate = false;
                 if (type === "monetary" || widget === "monetary") {
                     const currencyField = self.getCurrencyField(column);
                     if (currencyField in list.activeFields) {
@@ -198,22 +202,62 @@ export function useListAggregates({
                                         (entry) =>
                                             entry.record[currencyField]?.length > 1,
                                     );
-                                if (!hasMixedCurrencyGroup) {
+                                if (!hasMixedCurrencyGroup && !state.currencyRates) {
+                                    // converting at an assumed rate of 1 would
+                                    // print a plausible, wrong total
+                                    requestCurrencyRates();
+                                    missingRates = true;
+                                } else if (!hasMixedCurrencyGroup) {
+                                    // A currency the rate table does not cover
+                                    // is the same hazard as no table at all —
+                                    // the session only carries rates for the
+                                    // currencies it knows, and a record may
+                                    // reference one it does not. Convert into a
+                                    // scratch list so a rate missing halfway
+                                    // through cannot leave the entries half
+                                    // converted.
+                                    const converted = [];
                                     for (const entry of fieldEntries) {
                                         const currency = isGroupedAggregation
                                             ? entry.record[currencyField]?.[0]
                                             : entry.record[currencyField]?.id;
-                                        if (currency !== currencyId) {
-                                            entry.value *= currency
-                                                ? (state.currencyRates?.[currency]
-                                                      ?.rate ?? 1)
-                                                : 1;
+                                        // An amount with no currency at all has
+                                        // no unit to convert from; it counts as
+                                        // it stands, and the popover discloses
+                                        // it as "without currency".
+                                        if (!currency || currency === currencyId) {
+                                            converted.push(entry.value);
+                                            continue;
                                         }
+                                        const rate =
+                                            state.currencyRates[currency]
+                                                ?.toCompanyRate;
+                                        if (rate === undefined) {
+                                            unknownRate = true;
+                                            break;
+                                        }
+                                        converted.push(entry.value * rate);
+                                    }
+                                    if (!unknownRate) {
+                                        fieldEntries.forEach((entry, index) => {
+                                            entry.value = converted[index];
+                                        });
                                     }
                                 }
                             }
                         }
                     }
+                }
+                if (missingRates || unknownRate) {
+                    aggregates[fieldName] = {
+                        help: unknownRate
+                            ? _t("No total: one currency has no exchange rate")
+                            : _t("No total: currency rates are still loading"),
+                        value: "",
+                        multiCurrency: true,
+                        rawValue: undefined,
+                    };
+                    continue;
                 }
                 if (hasMixedCurrencyGroup) {
                     aggregates[fieldName] = {

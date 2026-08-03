@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { ListController } from "@web/views/list/list_controller";
+import { _t } from "@web/core/translation";
+import { ListController } from "@web/views/list";
 
 export class AnalyticAccountListController extends ListController {
     get archiveDialogProps() {

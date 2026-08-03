@@ -5,8 +5,8 @@
 
 import { Component, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { isCompanyAllowed } from "@web/webclient/switch_company_menu/company_selector";
 
 export class SwitchCompanyItem extends Component {

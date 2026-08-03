@@ -24,8 +24,8 @@ import { Wysiwyg } from "@html_editor/wysiwyg";
 import { Component, markup, status, useRef, useState } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
@@ -390,6 +390,127 @@ export const htmlField = {
     component: HtmlField,
     displayName: _t("Html"),
     supportedTypes: ["html"],
+    // `codeview` is declared but never appears in the registry-contract test's
+    // drift report: `extractProps` reads it as `odoo.debug && options.codeview`,
+    // and with debug off the `&&` short-circuits before the option is touched.
+    // It is a real option either way, so it belongs here.
+    supportedOptions: [
+        {
+            label: _t("Height"),
+            name: "height",
+            type: "number",
+            help: _t("Fixed editor height in pixels; the content scrolls past it."),
+        },
+        {
+            label: _t("Allow images"),
+            name: "allowImage",
+            type: "boolean",
+        },
+        {
+            label: _t("Allow documents"),
+            name: "allowMediaDocuments",
+            type: "boolean",
+        },
+        {
+            label: _t("Allow videos"),
+            name: "allowVideo",
+            type: "boolean",
+        },
+        {
+            label: _t("Allow files"),
+            name: "allowFile",
+            type: "boolean",
+        },
+        {
+            label: _t("Allow checklists"),
+            name: "allowChecklist",
+            type: "boolean",
+        },
+        {
+            label: _t("Allow attachment creation"),
+            name: "allowAttachmentCreation",
+            type: "boolean",
+            help: _t("Sets both image and file permissions at once."),
+        },
+        {
+            label: _t("Base containers"),
+            name: "baseContainers",
+            type: "string",
+            help: _t("Tag names the editor may use to wrap a block of content."),
+        },
+        {
+            label: _t("Clean empty structural containers"),
+            name: "cleanEmptyStructuralContainers",
+            type: "boolean",
+        },
+        {
+            label: _t("Debounce hints"),
+            name: "debounceHints",
+            type: "boolean",
+        },
+        {
+            label: _t("Debounce power buttons"),
+            name: "debouncePowerbuttons",
+            type: "boolean",
+        },
+        {
+            label: _t("Collaborative"),
+            name: "collaborative",
+            type: "boolean",
+            help: _t("Share one editing session between everyone on the record."),
+        },
+        {
+            label: _t("Collaborative trigger"),
+            name: "collaborative_trigger",
+            type: "string",
+            help: _t("What opens the shared session: 'start' or 'focus'."),
+        },
+        {
+            label: _t("Migrate HTML"),
+            name: "migrateHTML",
+            type: "boolean",
+            help: _t("Run stored content through the upgrade pass. On by default."),
+        },
+        {
+            label: _t("Dynamic Placeholder"),
+            name: "dynamic_placeholder",
+            type: "boolean",
+            help: _t(
+                "Offer a picker that inserts a {{object.field}} expression into the text.",
+            ),
+        },
+        {
+            label: _t("Dynamic Placeholder model reference"),
+            name: "dynamic_placeholder_model_reference_field",
+            type: "field",
+            availableTypes: ["char"],
+            help: _t("Field holding the model name whose fields the picker offers."),
+        },
+        {
+            label: _t("Embedded components"),
+            name: "embedded_components",
+            type: "boolean",
+            help: _t("Allow embedded components in the content. On by default."),
+        },
+        {
+            label: _t("Sandboxed preview"),
+            name: "sandboxedPreview",
+            type: "boolean",
+            help: _t("Render the content in a sandboxed iframe instead of editing it."),
+        },
+        {
+            label: _t("Readonly stylesheet"),
+            name: "cssReadonly",
+            type: "string",
+            help: _t("Asset bundle id to style the readonly rendering with."),
+        },
+        {
+            label: _t("Code view"),
+            name: "codeview",
+            type: "boolean",
+            help: _t("Offer a raw-HTML editing toggle. Debug mode only."),
+        },
+    ],
     extractProps({ attrs, options }, dynamicInfo) {
         const editorConfig = {
             mediaModalParams: {

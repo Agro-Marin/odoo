@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { Component, useState, onWillStart } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { Component, onWillStart,useState } from "@odoo/owl";
+import { _t } from "@web/core/translation";
 
 export class ImportDataOptions extends Component {
     static template = "ImportDataOptions";

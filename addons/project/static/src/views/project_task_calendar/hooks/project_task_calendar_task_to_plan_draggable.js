@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
 import { pick } from "@web/core/utils/collections/objects";
-import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder";
+import { makeNativeDraggableHook } from "@web/core/utils/dnd";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 const hookParams = {
@@ -142,5 +142,5 @@ export function useCalendarTaskToPlanDraggable(params) {
         throttle: useThrottleForAnimation,
         wrapState: reactive,
     };
-    return makeDraggableHook({ ...hookParams, setupHooks })(params);
+    return makeNativeDraggableHook({ ...hookParams, setupHooks })(params);
 }

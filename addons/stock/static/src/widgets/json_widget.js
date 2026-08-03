@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
 import { getColor } from "@web/core/colors/colors";
-import { _t } from "@web/core/l10n/translation";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class JsonPopOver extends Component {

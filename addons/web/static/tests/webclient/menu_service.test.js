@@ -1,5 +1,7 @@
 // @ts-check
 
+import "@web/webclient/menus/menu_providers";
+
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
 import { Deferred } from "@odoo/hoot-mock";
@@ -17,8 +19,11 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
+import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { redirect } from "@web/core/utils/urls";
 import { computeAppsAndMenuItems } from "@web/webclient/menus/menu_helpers";
+import { menuStorage } from "@web/webclient/menus/menu_storage";
 
 defineActions([
     {
@@ -84,8 +89,7 @@ test(`use stored menus, and don't update on load_menus return (if identical)`, a
     redirect("/odoo/action-666");
     onRpc("/web/webclient/load_menus", () => def);
 
-    browser.localStorage.webclient_menus_version =
-        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [2, 3], name: "App1", id: 1, actionID: 666 },
         2: { appID: 1, children: [], name: "Test1", id: 2, actionID: 666 },
@@ -116,8 +120,7 @@ test(`send stored hash and keep stored menus on 304 not modified`, async () => {
         return new Response(null, { status: 304 });
     });
 
-    browser.localStorage.webclient_menus_version =
-        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus_hash = "abcdef123456";
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [2, 3], name: "App1", id: 1, actionID: 666 },
@@ -157,8 +160,7 @@ test(`update menus and persist new hash on changed payload`, async () => {
         );
     });
 
-    browser.localStorage.webclient_menus_version =
-        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus_hash = "oldhash123";
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [2, 3], name: "App1", id: 1, actionID: 666 },
@@ -186,8 +188,7 @@ test(`use stored menus, and update on load_menus return`, async () => {
     redirect("/odoo/action-666");
     onRpc("/web/webclient/load_menus", () => def);
 
-    browser.localStorage.webclient_menus_version =
-        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { id: 1, children: [2], name: "App1", appID: 1, actionID: 666 },
         2: { id: 2, children: [], name: "Test1", appID: 1, actionID: 666 },
@@ -267,8 +268,7 @@ test(`stale background revalidation cannot overwrite a fresher reload()`, async 
         );
     });
 
-    browser.localStorage.webclient_menus_version =
-        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus_hash = "boothash";
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [], name: "StoredApp", id: 1, actionID: 666 },
@@ -302,8 +302,7 @@ test(`total menu fetch failure falls back to an empty root`, async () => {
 
 test.tags("desktop");
 test(`corrupt stored menus are discarded and refetched (no boot brick)`, async () => {
-    browser.localStorage.webclient_menus_version =
-        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus = '{"1": {"appID": 1, TRUNCATED';
     browser.localStorage.webclient_menus_hash = "abcdef123456";
 
@@ -328,6 +327,22 @@ test(`cold boot: a null parse-time preload refetches menus (no blank client)`, a
             .getApps()
             .map((app) => app.name),
     ).toEqual(["App1"]);
+});
+
+test.tags("desktop");
+test(`a preload of nothing is an opt-out, not a cache miss`, async () => {
+    // The PoS UI, the documents portal and project sharing set
+    // `odoo.loadMenusPromise = Promise.resolve()` to say the page has no menus.
+    // Treating that like the 304 above sent them the very request they declined.
+    patchWithCleanup(odoo, { loadMenusPromise: Promise.resolve() });
+    onRpc("/web/webclient/load_menus", () => {
+        expect.step("load_menus");
+        return { root: { id: "root", name: "root", appID: "root", children: [] } };
+    });
+    await makeMockEnv();
+    expect.verifySteps([]);
+    expect(getService("menu").getApps()).toEqual([]);
+    expect(getService("menu").getMenu("root").children).toEqual([]);
 });
 
 test.tags("desktop");
@@ -414,8 +429,44 @@ test("the action index is rebuilt when the menu tree is reloaded", async () => {
     expect(menuService.getAppIdByAction(9001)).toBe(500);
 });
 
+test("the command palette's flattened menu list follows a reload", async () => {
+    // `menu_providers` memoizes `computeAppsAndMenuItems` on the tree object
+    // `getMenuAsTree` returns, so a stale entry would survive a reload and the
+    // palette would keep offering menus that no longer exist.
+    defineMenus([
+        { id: 0 },
+        { id: 100, name: "Sale", appID: 100, actionID: 9001, children: [] },
+    ]);
+    const env = await makeMockEnv();
+    const provider = registry.category("command_provider").get("menu");
+
+    let names = (await provider.provide(env, { searchValue: "" })).map((c) => c.name);
+    expect(names).toInclude("Sale");
+    expect(names).not.toInclude("Inventory");
+
+    onRpc("/web/webclient/load_menus", () => ({
+        root: { id: "root", children: [500], name: "root", appID: "root" },
+        500: {
+            id: 500,
+            name: "Inventory",
+            appID: 500,
+            actionID: 9002,
+            children: [],
+        },
+    }));
+    await env.services.menu.reload();
+
+    names = (await provider.provide(env, { searchValue: "" })).map((c) => c.name);
+    expect(names).toInclude("Inventory");
+    expect(names).not.toInclude("Sale");
+});
+
 const CURRENT_REGISTRY_HASH =
     "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+// The webclient now scopes the cache token to the current user (menu_storage
+// cacheVersion): `${registry_hash}:${user.userId}`. serverState's default
+// userId is 7, so a served-cache fixture must carry that suffix.
+const STORED_MENU_VERSION = `${CURRENT_REGISTRY_HASH}:7`;
 
 test.tags("desktop");
 test(`a version-mismatched cache is not served, even though it parses`, async () => {
@@ -438,13 +489,13 @@ test(`a version-mismatched cache is not served, even though it parses`, async ()
 
     expect.verifySteps(["hash=null"]);
     expect(`.o_menu_brand`).toHaveText("FreshApp");
-    expect(browser.localStorage.webclient_menus_version).toBe(CURRENT_REGISTRY_HASH);
+    expect(browser.localStorage.webclient_menus_version).toBe(STORED_MENU_VERSION);
 });
 
 test.tags("desktop");
 test(`a failed payload write closes the version gate`, async () => {
     redirect("/odoo/action-666");
-    browser.localStorage.webclient_menus_version = CURRENT_REGISTRY_HASH;
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [], name: "StaleApp", id: 1, actionID: 666 },
         root: { id: "root", name: "root", appID: "root", children: [1] },
@@ -465,9 +516,7 @@ test(`a failed payload write closes the version gate`, async () => {
     await mountWebClient();
     await animationFrame();
 
-    expect(browser.localStorage.webclient_menus_version).not.toBe(
-        CURRENT_REGISTRY_HASH,
-    );
+    expect(browser.localStorage.webclient_menus_version).not.toBe(STORED_MENU_VERSION);
 });
 
 test.tags("desktop");
@@ -482,8 +531,7 @@ test("a cached menu tree with dangling child ids does not crash the consumers", 
     redirect("/odoo/action-666");
     onRpc("/web/webclient/load_menus", () => def);
 
-    browser.localStorage.webclient_menus_version =
-        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [2, 999], name: "App1", id: 1, actionID: 666 },
         2: { appID: 1, children: [], name: "Test1", id: 2, actionID: 666 },
@@ -515,8 +563,7 @@ test("a cached menu payload with no root entry degrades instead of crashing", as
     const def = new Deferred();
     onRpc("/web/webclient/load_menus", () => def);
 
-    browser.localStorage.webclient_menus_version =
-        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [], name: "App1", id: 1, actionID: 666 },
     });
@@ -531,4 +578,21 @@ test("a cached menu payload with no root entry degrades instead of crashing", as
     ).not.toThrow();
 
     def.resolve();
+});
+
+test.tags("desktop");
+test(`menu cache is scoped per user on a shared browser`, async () => {
+    // A tree cached under the default user (serverState userId = 7).
+    browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [], name: "UserSevenApp", id: 1, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1] },
+    });
+    // The same user is served the cache.
+    expect(menuStorage.read().menus).not.toBe(null);
+    // A different user on the same browser must NOT be: the menu tree is
+    // access-filtered server-side, so serving it would leak apps/menus this
+    // user's groups cannot see.
+    patchWithCleanup(user, { userId: 99 });
+    expect(menuStorage.read().menus).toBe(null);
 });

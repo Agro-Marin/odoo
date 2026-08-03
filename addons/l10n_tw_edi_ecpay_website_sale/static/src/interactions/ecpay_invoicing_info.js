@@ -2,10 +2,10 @@
 
 /** @module @l10n_tw_edi_ecpay_website_sale/interactions/invoicing_info - ECPay invoicing info form (carrier / love code validation) */
 
-import { WarningDialog } from "@web/components/errors/error_dialogs";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { WarningDialog } from "@web/components/errors";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
 
 const LOVE_CODE_RE = /^([xX]{1}[0-9]{2,6}|[0-9]{3,7})$/;

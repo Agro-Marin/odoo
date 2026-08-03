@@ -4,18 +4,20 @@
 /** @module @web/webclient/webclient */
 
 import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
+import { useOwnDebugContext } from "@web/core/debug/debug_context";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent, RouterEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { registry } from "@web/core/registry";
 import { SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { useOwnDebugContext } from "@web/services/debug/debug_context";
-import { DebugMenu } from "@web/services/debug/debug_menu";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
+import { DebugMenu } from "@web/webclient/debug/debug_menu";
 
 import { ActionContainer } from "./actions/action_container.js";
+import { menuStorage } from "./menus/menu_storage.js";
 import { NavBar } from "./navbar/navbar.js";
 
 export class WebClient extends Component {
@@ -96,7 +98,7 @@ export class WebClient extends Component {
     }
 
     async loadRouterState() {
-        const storedMenuId = Number(browser.sessionStorage.getItem("menu_id"));
+        const storedMenuId = menuStorage.readCurrentApp();
         let menuId = this._resolveMenuFromUrl(storedMenuId);
         if (menuId) {
             this.menuService.setCurrentMenu(menuId);
@@ -108,7 +110,7 @@ export class WebClient extends Component {
             if (error instanceof SupersededError) {
                 throw error;
             }
-            Promise.reject(error);
+            reportUncaught(error);
             if (!this.actionService.currentController) {
                 await this._loadDefaultApp();
             }

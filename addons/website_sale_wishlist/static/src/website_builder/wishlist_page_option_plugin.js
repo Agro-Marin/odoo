@@ -2,7 +2,7 @@
 
 import { Plugin } from "@html_editor/plugin";
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 

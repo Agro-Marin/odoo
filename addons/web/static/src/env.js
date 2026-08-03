@@ -7,9 +7,9 @@ import { App, EventBus } from "@odoo/owl";
 import { isMacOS } from "@web/core/browser/feature_detection";
 import { reportJsError } from "@web/core/errors/error_beacon";
 import { AppEvent } from "@web/core/events";
-import { appTranslateFn } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
+import { appTranslateFn } from "@web/core/translation";
 import { makeAssetLog } from "@web/core/utils/asset_log";
 import {
     createWaveResolver,

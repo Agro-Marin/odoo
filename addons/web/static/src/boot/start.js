@@ -5,80 +5,20 @@
 
 import { Component, whenReady } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { paintBootFailureOverlay } from "@web/core/errors/boot_failure_overlay";
 import { localization } from "@web/core/l10n/localization";
 import { Settings } from "@web/core/l10n/luxon";
 import { rpc } from "@web/core/network/rpc";
 import { RPCCache } from "@web/core/network/rpc_cache";
+import { user } from "@web/core/user";
 import { assetLog } from "@web/core/utils/asset_log";
 import { mountComponent } from "@web/env";
-import { user } from "@web/services/user";
 import { session } from "@web/session";
 
 const chromeMetaTag = document.createElement("meta");
 chromeMetaTag.setAttribute("name", "chrome");
 chromeMetaTag.setAttribute("content", "nointentdetection");
 document.head.appendChild(chromeMetaTag);
-
-/**
- * @param {unknown} error
- */
-export function paintBootFailureOverlay(error) {
-    try {
-        try {
-            const err = /** @type {any} */ (error);
-            const blob = new Blob(
-                [
-                    JSON.stringify({
-                        phase: "boot_mount_failed",
-                        kind: "error",
-                        message: String(err?.message || err || "(no message)"),
-                        filename: "",
-                        line: 0,
-                        col: 0,
-                        stack: err?.stack ? String(err.stack).slice(0, 4096) : "",
-                        url: globalThis.location?.href || "",
-                        user_agent: globalThis.navigator?.userAgent || "",
-                    }),
-                ],
-                { type: "application/json" },
-            );
-            globalThis.navigator?.sendBeacon?.("/web/observability/js_error", blob);
-        } catch {}
-        if (document.querySelector(".o_boot_failure")) {
-            return;
-        }
-        const overlay = document.createElement("div");
-        overlay.className = "o_boot_failure";
-        overlay.setAttribute("role", "alert");
-        overlay.style.cssText =
-            "position:fixed;inset:0;z-index:2147483647;display:flex;" +
-            "align-items:center;justify-content:center;padding:24px;" +
-            "background:#f7f7f7;color:#111;font:14px/1.5 system-ui,sans-serif;";
-        const card = document.createElement("div");
-        card.style.cssText =
-            "max-width:520px;text-align:center;background:#fff;padding:32px;" +
-            "border:1px solid #ddd;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);";
-        const title = document.createElement("h1");
-        title.textContent = "Something went wrong";
-        title.style.cssText = "font-size:20px;margin:0 0 12px;";
-        const body = document.createElement("p");
-        body.textContent =
-            "The application could not start. Please reload the page; if the " +
-            "problem persists, contact your administrator.";
-        body.style.cssText = "margin:0 0 20px;";
-        const button = document.createElement("button");
-        button.textContent = "Reload";
-        button.style.cssText =
-            "cursor:pointer;padding:8px 20px;border:0;border-radius:4px;" +
-            "background:#714B67;color:#fff;font-size:14px;";
-        button.addEventListener("click", () => globalThis.location?.reload?.());
-        card.appendChild(title);
-        card.appendChild(body);
-        card.appendChild(button);
-        overlay.appendChild(card);
-        (document.body || document.documentElement).appendChild(overlay);
-    } catch {}
-}
 
 /**
  * @param {Component} Webclient

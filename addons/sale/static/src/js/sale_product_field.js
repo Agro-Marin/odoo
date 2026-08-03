@@ -4,16 +4,15 @@ import {
     productLabelSectionAndNoteField,
 } from "@account/components/product_label_section_and_note_field/product_label_section_and_note_field";
 import { serializeDateTime } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { uuid } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { sort as sortListRecords, x2ManyCommands } from "@web/model/relational_model";
+
 // `StaticList._sort()` was extracted into this free function; call it directly (as the
 // framework's own internal callers do) to re-sort line_ids after a combo mutation.
-import { sort as sortListRecords } from "@web/model/relational_model/static_list_sort";
-
 import { ComboConfiguratorDialog } from "./combo_configurator_dialog/combo_configurator_dialog.js";
 import { ProductCombo } from "./models/product_combo.js";
 import { ProductConfiguratorDialog } from "./product_configurator_dialog/product_configurator_dialog.js";

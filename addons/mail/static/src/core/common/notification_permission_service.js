@@ -7,8 +7,8 @@ import {
     isIOS,
     isIosApp,
 } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 async function getIosPwaPermission() {
     if (browser.location.protocol !== "https:") {
         return "denied";

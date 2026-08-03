@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { Modal } from "@web/libs/bootstrap";
-import { registry } from "@web/core/registry";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { renderToMarkup } from "@web/core/utils/render";
 import { InputConfirmationDialog } from "@portal/js/components/input_confirmation_dialog/input_confirmation_dialog";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
+import { renderToMarkup } from "@web/core/utils/render";
+import { Modal } from "@web/libs/bootstrap";
+import { Interaction } from "@web/public/interaction";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 export class PortalSecurity extends Interaction {
     static selector = ".o_portal_security_body";

@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 
 class ButtonWithNotification extends Component {
     static template = "purchase.ButtonWithNotification";

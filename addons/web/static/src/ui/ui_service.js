@@ -4,13 +4,14 @@
 /** @module @web/ui/ui_service */
 
 import { EventBus, reactive, useEffect, useRef } from "@odoo/owl";
-import { mainComponentEntry } from "@web/components/main_components_container";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { getTabableElements, isFocusable } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
+import { makeActiveElementStack } from "@web/ui/active_element_stack";
 import { BlockUI } from "@web/ui/block/block_ui";
+import { mainComponentEntry } from "@web/ui/main_components_container";
 import { getMediaQueryLists, sizeOf, SIZES } from "@web/ui/viewport";
 
 /**
@@ -105,107 +106,145 @@ export function useActiveElement(refName) {
     );
 }
 
-export const uiService = {
+/**
+ * The `ui` service.
+ *
+ * A class **wrapped in `reactive`**, for the same reason as `pwa_service`: 79
+ * templates read `ui.isSmall` / `ui.activeElement` and 145 modules take the
+ * service, so the returned object has to stay reactive or a resize would update
+ * nothing. `reactive(new UiService(env))` keeps that and puts the behaviour on a
+ * prototype.
+ *
+ * Reactive data are **own** properties; everything that writes them runs on the
+ * proxy, never on the raw instance — see `setup()`.
+ */
+export class UiService {
     /** @param {import("@web/env").OdooEnv} env */
-    start(env) {
-        const bus = new EventBus();
-        const medias = getMediaQueryLists();
+    constructor(env) {
+        this.env = env;
+        this.bus = new EventBus();
+        this.medias = getMediaQueryLists();
+        this.blockCount = 0;
+        this.activeElements = makeActiveElementStack();
 
+        const initialSize = sizeOf(this.medias);
+        this.size = initialSize;
+        /** @type {Document | HTMLElement} */
+        this.activeElement = document;
+        this.isBlocked = false;
+        this.isSmall = initialSize <= SIZES.SM;
+    }
+
+    /**
+     * Runs on the REACTIVE proxy, so the media listener and the `env.isSmall`
+     * getter both close over it rather than over the raw instance. Registering
+     * them in the constructor would capture the instance, and a resize would
+     * then write through it — bypassing the proxy every consumer is reading.
+     */
+    setup() {
         registry
             .category("main_components")
             .add("BlockUI", mainComponentEntry(BlockUI));
 
-        let blockCount = 0;
-        /** @param {{ message?: string, delay?: number }} [data] */
-        function block(data) {
-            blockCount++;
-            ui.isBlocked = true;
-            if (blockCount === 1) {
-                bus.trigger(AppEvent.BLOCK, {
-                    message: data?.message,
-                    delay: data?.delay,
-                });
-            }
-        }
-        function unblock() {
-            blockCount--;
-            if (blockCount < 0) {
-                console.warn(
-                    "Unblock ui was called more times than block, you should only unblock the UI if you have previously blocked it.",
-                );
-                blockCount = 0;
-                return;
-            }
-            if (blockCount === 0) {
-                ui.isBlocked = false;
-                bus.trigger(AppEvent.UNBLOCK);
-            }
+        this._onMediaChange = () => this.updateSize();
+        for (const media of this.medias) {
+            media.addEventListener?.("change", this._onMediaChange);
         }
 
-        /** @type {(Document | HTMLElement)[]} */
-        let activeElems = [document];
-
-        function activateElement(/** @type {HTMLElement} */ el) {
-            activeElems.push(el);
-            ui.activeElement = el;
-            bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, el);
-        }
-        function deactivateElement(/** @type {HTMLElement} */ el) {
-            activeElems = activeElems.filter((x) => x !== el);
-            ui.activeElement = activeElems.at(-1);
-            bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, ui.activeElement);
-        }
-        function getActiveElementOf(/** @type {Node} */ el) {
-            for (let i = activeElems.length - 1; i >= 0; i--) {
-                if (activeElems[i].contains(el)) {
-                    return activeElems[i];
-                }
-            }
-        }
-
-        const getSize = () => sizeOf(medias);
-
-        const updateSize = () => {
-            const size = getSize();
-            if (size === ui.size) {
-                return;
-            }
-            ui.size = size;
-            ui.isSmall = size <= SIZES.SM;
-            bus.trigger(AppEvent.RESIZE);
-        };
-
-        const initialSize = getSize();
-        const ui = reactive({
-            bus,
-            size: initialSize,
-            activeElement: /** @type {Document | HTMLElement} */ (document),
-            isBlocked: false,
-            isSmall: initialSize <= SIZES.SM,
-            block,
-            unblock,
-            activateElement,
-            deactivateElement,
-            getActiveElementOf,
-            destroy() {
-                for (const media of medias) {
-                    media.removeEventListener?.("change", updateSize);
-                }
-            },
-        });
-
-        for (const media of medias) {
-            media.addEventListener?.("change", updateSize);
-        }
-
-        Object.defineProperty(env, "isSmall", {
+        Object.defineProperty(this.env, "isSmall", {
             configurable: true,
-            get() {
-                return ui.isSmall;
-            },
+            get: () => this.isSmall,
         });
+    }
 
-        return ui;
+    getSize() {
+        return sizeOf(this.medias);
+    }
+
+    updateSize() {
+        const size = this.getSize();
+        if (size === this.size) {
+            return;
+        }
+        this.size = size;
+        this.isSmall = size <= SIZES.SM;
+        this.bus.trigger(AppEvent.RESIZE);
+    }
+
+    /** @param {{ message?: string, delay?: number }} [data] */
+    block(data) {
+        this.blockCount++;
+        this.isBlocked = true;
+        if (this.blockCount === 1) {
+            this.bus.trigger(AppEvent.BLOCK, {
+                message: data?.message,
+                delay: data?.delay,
+            });
+        }
+    }
+
+    unblock() {
+        this.blockCount--;
+        if (this.blockCount < 0) {
+            console.warn(
+                "Unblock ui was called more times than block, you should only unblock the UI if you have previously blocked it.",
+            );
+            this.blockCount = 0;
+            return;
+        }
+        if (this.blockCount === 0) {
+            this.isBlocked = false;
+            this.bus.trigger(AppEvent.UNBLOCK);
+        }
+    }
+
+    publishActiveElement() {
+        this.activeElement = this.activeElements.current;
+        this.bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, this.activeElement);
+    }
+
+    /** @param {HTMLElement} el */
+    activateElement(el) {
+        this.activeElements.activate(el);
+        this.publishActiveElement();
+    }
+
+    /** @param {HTMLElement} el */
+    deactivateElement(el) {
+        if (this.activeElements.deactivate(el)) {
+            this.publishActiveElement();
+        }
+    }
+
+    /** @param {Node} el */
+    getActiveElementOf(el) {
+        return this.activeElements.activeElementOf(el);
+    }
+
+    destroy() {
+        for (const media of this.medias) {
+            media.removeEventListener?.("change", this._onMediaChange);
+        }
+        // The stack and the block counter outlive the components that
+        // pushed onto them otherwise, so anything still holding this
+        // service reads ancestors that claim to be active and a UI that
+        // claims to be blocked.
+        this.activeElements.reset();
+        this.activeElement = this.activeElements.current;
+        this.blockCount = 0;
+        this.isBlocked = false;
+    }
+}
+
+export const uiService = {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @returns {UiService}
+     */
+    start(env) {
+        const service = reactive(new UiService(env));
+        service.setup();
+        return service;
     },
 };
 

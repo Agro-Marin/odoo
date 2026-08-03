@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { formatDate } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { formatDate } from "@web/core/l10n/dates";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class InternalResumeLineComponent extends Component {
     static template = "hr_skills.InternalResumeLineComponent";

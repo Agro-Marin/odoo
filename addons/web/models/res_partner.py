@@ -29,10 +29,11 @@ def _guess_image_vcard_type(data: bytes) -> str:
 def _vobject() -> tuple[Any, type]:
     """Import ``vobject`` and build the vCard proxy classes lazily.
 
-    ``vobject`` is an *optional* dependency (declared in the manifest's
-    ``external_dependencies``). Importing it at module top would make the whole
-    ``web`` addon fail to import when it is absent — and, worse, render the
-    ``download_vcard`` controller's ``find_spec`` guard dead code. The proxy
+    ``vobject`` is an *optional* dependency, kept optional by the
+    ``download_vcard`` controller's ``find_spec`` guard rather than by a
+    manifest declaration — ``web``'s manifest has no ``external_dependencies``
+    key. Importing it at module top would make the whole ``web`` addon fail to
+    import when it is absent — and, worse, render that guard dead code. The proxy
     class bodies reference ``vobject.base`` at definition time, so they too must
     be deferred. Building them once here (``functools.cache``) keeps ``web``
     importable without ``vobject`` while letting the controller raise a clean

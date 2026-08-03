@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { _t } from "@web/core/l10n/translation";
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import OrderPaymentValidation from "@point_of_sale/app/utils/order_payment_validation";
 import { markup } from "@odoo/owl";

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { markup } from '@odoo/owl';
 import { browser } from '@web/core/browser/browser';
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 import { setElementContent } from '@web/core/utils/dom/html';
 
 /**

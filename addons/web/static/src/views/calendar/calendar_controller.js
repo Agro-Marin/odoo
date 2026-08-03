@@ -5,11 +5,12 @@
 
 import { Component, reactive, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
+import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { ModelEvent } from "@web/core/events";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { useModelWithSampleData } from "@web/model/model";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
@@ -85,7 +86,7 @@ export class CalendarController extends Component {
     callbackRecorder;
 
     setup() {
-        this.action = useService("action");
+        this.action = useAction();
         this.orm = useService("orm");
         this.displayDialog = useUniqueDialog();
 

@@ -1,6 +1,6 @@
 // @ts-check
 
-import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
 import { mockFetch } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
@@ -37,6 +37,35 @@ const bundles = {
 beforeEach(() => {
     globalBundleCache.clear();
     assetCacheByDocument.delete(document);
+});
+
+/**
+ * Loads started fire-and-forget: the tests assert on the nodes that get
+ * appended, not on the promise.
+ * @type {Promise<any>[]}
+ */
+let pendingLoads = [];
+
+/**
+ * @param {Promise<any>} prom
+ * @returns {Promise<any>}
+ */
+const startLoad = (prom) => {
+    pendingLoads.push(prom.catch(() => {}));
+    return prom;
+};
+
+afterEach(async () => {
+    // `head.appendChild` is stubbed here, so these elements are never inserted
+    // and never fire load/error: every unfinished load keeps a `pagehide`
+    // listener on window and a promise that never settles. `pagehide` is what
+    // interrupts a pending load, so settling them here removes both. Left
+    // behind, they detonate in the NEXT suite to dispatch `pagehide` -- which
+    // web_vitals' `flush()` does -- as unhandled rejections attributed to
+    // whatever test happens to be running then.
+    window.dispatchEvent(new Event("pagehide"));
+    await Promise.all(pendingLoads);
+    pendingLoads = [];
 });
 
 test("loadJS: load invalid JS lib", async () => {
@@ -190,7 +219,7 @@ test("loadBundle: load js and css files", async () => {
         );
     });
 
-    loadBundle("test.bundle");
+    startLoad(loadBundle("test.bundle"));
     await animationFrame();
     expect.verifySteps([
         "fetch bundle: /web/bundle/test.bundle",
@@ -214,7 +243,7 @@ test("loadBundle: load only js files", async () => {
         );
     });
 
-    loadBundle("test.bundle", { css: false });
+    startLoad(loadBundle("test.bundle", { css: false }));
     await animationFrame();
     expect.verifySteps([
         "fetch bundle: /web/bundle/test.bundle",
@@ -236,7 +265,7 @@ test("loadBundle: load only css files", async () => {
         );
     });
 
-    loadBundle("test.bundle", { js: false });
+    startLoad(loadBundle("test.bundle", { js: false }));
     await animationFrame();
     expect.verifySteps([
         "fetch bundle: /web/bundle/test.bundle",
@@ -272,7 +301,7 @@ test("loadBundle: load same bundle in main document and an iframe", async () => 
         },
     });
 
-    loadBundle("test.bundle");
+    startLoad(loadBundle("test.bundle"));
     await animationFrame();
     expect.verifySteps([
         "fetch bundle: /web/bundle/test.bundle",

@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { useService } from "@web/core/utils/hooks";
 import { useComponent } from "@odoo/owl";
+import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 
 export function useArchiveEmployee() {
     const component = useComponent();

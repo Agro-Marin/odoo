@@ -7,9 +7,9 @@ import { onWillDestroy } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { registry } from "@web/core/registry";
 import { sharedComponents } from "@web/core/shared_components";
+import { user } from "@web/core/user";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
 import { isX2Many } from "@web/views/view_utils";
 
 const viewRegistry = registry.category("views");

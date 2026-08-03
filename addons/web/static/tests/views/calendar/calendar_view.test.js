@@ -40,6 +40,7 @@ import {
     serverState,
     validateSearch,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { zip } from "@web/core/utils/collections/arrays";
 import { CalendarCommonRenderer } from "@web/views/calendar/calendar_common/calendar_common_renderer";
@@ -5585,7 +5586,7 @@ test(`calendar show past events with background blur`, async () => {
 
 test.tags("desktop");
 test(`calendar sidebar state is saved on session storage`, async () => {
-    patchWithCleanup(sessionStorage, {
+    patchWithCleanup(browser.sessionStorage, {
         setItem(key, value) {
             if (key === "calendar.showSideBar") {
                 expect.step(`${key}-${value}`);
@@ -5752,7 +5753,7 @@ test("sample data are not removed when switching back from calendar view", async
 });
 
 test(`Scale: scale default is fetched from localStorage`, async () => {
-    patchWithCleanup(localStorage, {
+    patchWithCleanup(browser.localStorage, {
         getItem(key) {
             if (key.startsWith("scaleOf-viewId")) {
                 return "week";

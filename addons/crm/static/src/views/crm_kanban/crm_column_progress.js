@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { RottingColumnProgress } from "@mail/js/rotting_mixin/rotting_column_progress";
 
 export class CrmColumnProgress extends RottingColumnProgress {

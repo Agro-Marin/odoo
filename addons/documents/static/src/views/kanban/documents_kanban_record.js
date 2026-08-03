@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { KanbanRecord } from "@web/views/kanban/kanban_record";
-import { FileUploadProgressBar } from "@web/components/file_upload/file_upload_progress_bar";
+import { _t } from "@web/core/translation";
+import { KanbanRecord } from "@web/views/kanban";
+import { FileUploadProgressBar } from "@web/components/file_upload";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useEffect, useState } from "@odoo/owl";
 

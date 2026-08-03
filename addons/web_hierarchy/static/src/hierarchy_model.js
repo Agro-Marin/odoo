@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { toRaw } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { KeepLast, Mutex } from "@web/core/utils/concurrency";
 import { Model } from "@web/model/model";
-import { getFieldsSpec } from "@web/model/relational_model/utils";
+import { getFieldsSpec } from "@web/model/relational_model";
 import { orderByToString } from "@web/core/utils/order_by";
 
 let nodeId = 0;

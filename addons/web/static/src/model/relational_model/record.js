@@ -26,6 +26,7 @@ import {
 } from "./record_preprocessors.js";
 import { processProperties } from "./record_properties.js";
 import { save } from "./record_save.js";
+import { RecordSaveCoordinator } from "./record_save_coordinator.js";
 import { addSavePoint, discard } from "./record_savepoint.js";
 import {
     computeChangeset,
@@ -92,8 +93,8 @@ export class RelationalRecord extends DataPoint {
         this._editState = new RecordEditState();
 
         this.selected = false;
-        this._saveInFlight = false;
-        this._urgentBeaconFired = false;
+        /** @type {RecordSaveCoordinator} */
+        this.saveState = markRaw(new RecordSaveCoordinator());
 
         const parentRecord = this._parentRecord;
         if (parentRecord) {
@@ -207,6 +208,17 @@ export class RelationalRecord extends DataPoint {
         return this.config.resIds;
     }
 
+    /**
+     * True while this record must not propagate its updates to the parent
+     * record, which is the case for as long as a list holds it with temporarily
+     * extended active fields.
+     *
+     * @returns {boolean}
+     */
+    get skipsParentUpdate() {
+        return this._noUpdateParent;
+    }
+
     archive(reload) {
         return this.model.mutex.exec(() => archive(this, reload));
     }
@@ -222,14 +234,58 @@ export class RelationalRecord extends DataPoint {
         );
     }
 
+    /**
+     * Keeps the disposer for the invalid-fields notification currently on
+     * screen. The record owns it because the notification is tied to the
+     * record's edit state, not to the validation pass that raised it: a
+     * savepoint restore takes it down without ever running a validation.
+     *
+     * @param {() => void} close
+     * @returns {void}
+     */
+    setInvalidFieldsNotification(close) {
+        this._editState.closeInvalidFieldsNotification = close;
+    }
+
+    /**
+     * @returns {void}
+     */
+    closeInvalidFieldsNotification() {
+        this._editState.closeInvalidFieldsNotification();
+        this._editState.closeInvalidFieldsNotification = () => {};
+    }
+
+    /**
+     * Records the active fields to put back when the temporary extension this
+     * list asked for is rolled back, and suspends parent updates for as long as
+     * it lasts. The two always move together — a record left extended but still
+     * notifying its parent propagates fields the parent never asked for.
+     *
+     * @param {Record<string, any>} activeFieldsToRestore
+     * @returns {void}
+     */
+    extendActiveFields(activeFieldsToRestore) {
+        this._noUpdateParent = true;
+        this._activeFieldsToRestore = { ...activeFieldsToRestore };
+    }
+
+    /**
+     * Adopts the id the server assigned to what was until now a virtual record.
+     *
+     * @param {number} resId
+     * @returns {void}
+     */
+    assignResId(resId) {
+        this.model._patchConfig(this.config, { resId, resIds: [resId] });
+        this._virtualId = false;
+    }
+
     delete() {
         return this.model.mutex.exec(() => deleteRecord(this));
     }
 
     async discard() {
-        if (this.model._closeUrgentSaveNotification) {
-            this.model._closeUrgentSaveNotification();
-        }
+        this.model.closeUrgentSaveNotification();
         await this.model._askChanges();
         return this.model.mutex.exec(() => this._discard());
     }
@@ -327,7 +383,7 @@ export class RelationalRecord extends DataPoint {
     }
 
     urgentSave() {
-        if (toRaw(this)._saveInFlight) {
+        if (toRaw(this).saveState.isInFlight) {
             return true;
         }
         return this.model.urgentSave.run(() => this._save({ reload: false }));
@@ -370,15 +426,6 @@ export class RelationalRecord extends DataPoint {
     /** @returns {Set<string>} */
     get _unsetRequiredFields() {
         return this._editState.unsetRequiredFields;
-    }
-
-    /** @returns {() => void} */
-    get _closeInvalidFieldsNotification() {
-        return this._editState.closeInvalidFieldsNotification;
-    }
-
-    set _closeInvalidFieldsNotification(value) {
-        this._editState.closeInvalidFieldsNotification = value;
     }
 
     /** @returns {Record<string, any>} */

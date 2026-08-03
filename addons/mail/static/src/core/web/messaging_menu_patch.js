@@ -3,7 +3,7 @@ import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { MessagingMenuQuickSearch } from "@mail/core/web/messaging_menu_quick_search";
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { useEffect } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 Object.assign(MessagingMenu.components, { MessagingMenuQuickSearch });

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 const REQUEST_TIMEOUT = 5000;
 const INACTIVITY_TIMEOUT = 110000;
 

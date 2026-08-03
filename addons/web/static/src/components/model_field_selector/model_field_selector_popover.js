@@ -4,7 +4,7 @@
 /** @module @web/components/model_field_selector/model_field_selector_popover */
 
 import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";

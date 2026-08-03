@@ -4,8 +4,8 @@
 /** @module @web/core/utils/render */
 
 import { App, blockDom, Component, markup } from "@odoo/owl";
-import { appTranslateFn } from "@web/core/l10n/translation";
 import { getTemplate } from "@web/core/templates";
+import { appTranslateFn } from "@web/core/translation";
 
 /**
  * @param {string} template

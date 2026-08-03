@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
+import { KanbanRenderer } from "@web/views/kanban";
 
 import { ProductCatalogKanbanRecord } from "./kanban_record.js";
 

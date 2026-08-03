@@ -5,8 +5,8 @@ import { SubChannelPreview } from "@mail/discuss/core/public_web/sub_channel_pre
 import { useVisible } from "@mail/utils/common/hooks";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 /**

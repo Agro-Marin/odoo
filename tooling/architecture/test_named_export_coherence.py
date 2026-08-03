@@ -208,3 +208,15 @@ def test_resolver_prefers_a_file_over_a_directory(addons: Path) -> None:
     resolver = Resolver([addons])
     resolved = resolver.resolve("@web/core/utils")
     assert resolved is not None and resolved.name == "utils.js"
+
+
+def test_the_gate_refuses_a_root_that_holds_no_sources(tmp_path):
+    # A root that EXISTS but is empty scans clean, which reads exactly like
+    # clean. See test_layer_check for the incident this generalises.
+    import named_export_coherence as nec
+    import pytest
+
+    (tmp_path / "empty").mkdir()
+    with pytest.raises(SystemExit) as exc:
+        nec.main(["--check", str(tmp_path / "empty")])
+    assert exc.value.code == 2

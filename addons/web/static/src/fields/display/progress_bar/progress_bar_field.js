@@ -5,8 +5,8 @@
 
 import { Component, useRef, useState } from "@odoo/owl";
 import { getFieldCodec } from "@web/core/field_codec";
-import { _t } from "@web/core/l10n/translation";
 import { parseFloat, parseInteger } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";

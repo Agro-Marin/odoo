@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { registry } from '@web/core/registry';
 
-import { formView } from '@web/views/form/form_view';
-import { FormController } from '@web/views/form/form_controller';
+import { formView, FormController } from "@web/views/form";
 
 export class InterviewerFormController extends FormController {
 

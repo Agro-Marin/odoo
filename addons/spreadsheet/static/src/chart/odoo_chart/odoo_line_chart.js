@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { registries, chartHelpers } from "@odoo/o-spreadsheet";
-import { _t } from "@web/core/l10n/translation";
+import { chartHelpers,registries } from "@odoo/o-spreadsheet";
+import { _t } from "@web/core/translation";
+
 import { OdooChart } from "./odoo_chart.js";
 import { onOdooChartItemClick, onOdooChartItemHover } from "./odoo_chart_helpers.js";
 

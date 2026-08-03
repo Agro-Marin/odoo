@@ -1,6 +1,6 @@
 import { localization } from "@web/core/l10n/localization";
-import { translatedTermsGlobal } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { translatedTermsGlobal } from "@web/core/translation";
 import { clickOnEditAndWaitEditMode } from "@website/js/tours/tour_utils";
 
 function runConfiguratorFlow(industrySearchText, featureOrPageName) {

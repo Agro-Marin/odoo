@@ -4,7 +4,7 @@ import { router } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
 import { HierarchyNavbar } from "./hierarchy_navbar.js";
 

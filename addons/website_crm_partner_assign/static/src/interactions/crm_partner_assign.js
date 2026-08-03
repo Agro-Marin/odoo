@@ -4,7 +4,7 @@ import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
 import { parseDate, formatDate, serializeDate } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 const { DateTime } = luxon;
 

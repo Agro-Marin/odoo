@@ -2,8 +2,12 @@
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
-import { buildM2OFieldDescription, Many2OneField } from "@web/fields/relational/many2one/many2one_field";
+import {
+    computeM2OProps,
+    Many2One,
+    buildM2OFieldDescription,
+    Many2OneField,
+} from "@web/fields/relational/many2one";
 
 export class DocumentsFolderMany2One extends Component {
     static template = "documents.DocumentsFolderMany2One";

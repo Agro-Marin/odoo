@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { ListRenderer } from "@web/views/list";
 patch(ListRenderer.prototype, {
     getPropertyFieldColumns(_, list) {
         const columns = super.getPropertyFieldColumns(...arguments);

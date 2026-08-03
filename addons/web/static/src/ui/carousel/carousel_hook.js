@@ -30,18 +30,46 @@ import { browser } from "@web/core/browser/browser";
  * @param {CarouselParams} params
  */
 export function useCarousel({ count, startIndex = 0, interval = 0, wrap = true }) {
-    const state = useState({ index: startIndex });
+    const stored = useState({ index: startIndex });
+
+    /**
+     * The stored index is only valid against the count it was written for, and
+     * `count` is a callback precisely because slides come and go. Clamping on
+     * read keeps an index that outlived its slide from matching nothing: the
+     * template marks a slide active by comparing against this, so a stale index
+     * left the carousel showing no slide at all until the user navigated.
+     *
+     * @returns {number}
+     */
+    const activeIndex = () => {
+        const total = count();
+        if (total <= 0) {
+            return 0;
+        }
+        return Math.min(Math.max(stored.index, 0), total - 1);
+    };
 
     /** @param {number} target */
     const goTo = (target) => {
         const total = count();
         if (total <= 0) {
-            state.index = 0;
+            stored.index = 0;
             return;
         }
-        state.index = wrap
+        stored.index = wrap
             ? ((target % total) + total) % total
             : Math.min(Math.max(target, 0), total - 1);
+    };
+
+    // Reads stay reactive: the getter touches `stored` and whatever `count`
+    // reads, both during the consumer's render.
+    const state = {
+        get index() {
+            return activeIndex();
+        },
+        set index(value) {
+            goTo(value);
+        },
     };
 
     if (interval > 0) {
@@ -49,7 +77,7 @@ export function useCarousel({ count, startIndex = 0, interval = 0, wrap = true }
             // A backgrounded tab throttles the timer without stopping it, so
             // the slides would otherwise all advance at once on return.
             if (!document.hidden) {
-                goTo(state.index + 1);
+                goTo(activeIndex() + 1);
             }
         }, interval);
         onWillDestroy(() => browser.clearInterval(timer));
@@ -58,15 +86,19 @@ export function useCarousel({ count, startIndex = 0, interval = 0, wrap = true }
     return {
         state,
         goTo,
-        next: () => goTo(state.index + 1),
-        previous: () => goTo(state.index - 1),
+        next: () => goTo(activeIndex() + 1),
+        previous: () => goTo(activeIndex() - 1),
+        /** @returns {number} */
+        get index() {
+            return activeIndex();
+        },
         /** @returns {boolean} */
         get atStart() {
-            return state.index <= 0;
+            return activeIndex() <= 0;
         },
         /** @returns {boolean} */
         get atEnd() {
-            return state.index >= count() - 1;
+            return activeIndex() >= count() - 1;
         },
     };
 }

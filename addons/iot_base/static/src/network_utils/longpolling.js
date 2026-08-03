@@ -2,7 +2,7 @@
 import { registry } from '@web/core/registry';
 import { post } from '@iot_base/network_utils/http';
 import { uuid } from "@web/core/utils/format/strings";
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 
 export class IoTLongpolling {
     static serviceDependencies = ["notification", "orm"];

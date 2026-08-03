@@ -10,8 +10,8 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { ModelSelector } from "@web/components/model_selector/model_selector";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+import { getSelectCreateDialog } from "@web/core/record_dialog_port";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { uuid } from "@web/core/utils/format/strings";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
@@ -283,7 +283,7 @@ export class PropertyDefinition extends Component {
     }
 
     onButtonDomainClick() {
-        const SelectCreateDialog = registry.category("dialogs").get("select_create");
+        const SelectCreateDialog = getSelectCreateDialog();
         this.addDialog(SelectCreateDialog, {
             title: _t("Selected records"),
             noCreate: true,

@@ -19,14 +19,14 @@ import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import {
     createDocumentFragmentFromContent,
     createElementWithContent,
 } from "@web/core/utils/dom/html";
 import { url } from "@web/core/utils/urls";
-import { user } from "@web/services/user";
 const { DateTime } = luxon;
 
 /**

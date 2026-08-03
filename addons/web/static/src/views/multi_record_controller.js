@@ -11,9 +11,9 @@ import {
     useRef,
     useSubEnv,
 } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
-import { user } from "@web/services/user";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
 import { useDeleteRecords, useExportRecords } from "@web/views/view_hook";
 import {

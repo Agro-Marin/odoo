@@ -25,3 +25,7 @@ from . import test_routes
 from . import test_i18n
 from . import test_noqa_rationale
 from . import test_test_holes
+from . import test_esm_specifiers
+from . import test_esm_bundles
+from . import test_asset_paths_exist
+from . import test_bundles_assemble

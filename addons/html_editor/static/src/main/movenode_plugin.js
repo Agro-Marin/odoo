@@ -9,7 +9,7 @@ import {
     rightPos,
 } from "@html_editor/utils/position";
 import { xml } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { escape } from "@web/core/utils/format/strings";
 
 import { Plugin } from "../plugin.js";

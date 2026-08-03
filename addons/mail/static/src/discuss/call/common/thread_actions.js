@@ -3,7 +3,7 @@ import { ACTION_TAGS } from "@mail/core/common/action";
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { CallSettings } from "@mail/discuss/call/common/call_settings";
 import { MeetingChat } from "@mail/discuss/call/common/meeting_chat";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 registerThreadAction("meeting-chat", {
     actionPanelComponent: MeetingChat,
     badge: ({ thread }) => thread.isUnread,

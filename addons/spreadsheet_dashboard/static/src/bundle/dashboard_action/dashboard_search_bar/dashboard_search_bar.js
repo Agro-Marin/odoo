@@ -1,16 +1,15 @@
 /** @odoo-module native */
-import { Component, onWillUpdateProps, onWillStart, useState, status } from "@odoo/owl";
-import { DashboardFacet } from "../dashboard_facet/dashboard_facet.js";
-import { useService, useChildRef, useAutofocus } from "@web/core/utils/hooks";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
-import { DashboardDateFilter } from "../dashboard_date_filter/dashboard_date_filter.js";
+import { Component, onWillStart, onWillUpdateProps, status,useState } from "@odoo/owl";
 import { FilterValuesList } from "@spreadsheet/global_filters/components/filter_values_list/filter_values_list";
 import { getFacetInfo } from "@spreadsheet/global_filters/helpers";
-import { _t } from "@web/core/l10n/translation";
-import { fuzzyTest, fuzzyLookup } from "@web/core/utils/search";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { Dropdown, DropdownItem,useDropdownState } from "@web/components/dropdown";
+import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
+import { useAutofocus,useChildRef, useService } from "@web/core/utils/hooks";
+import { fuzzyLookup,fuzzyTest } from "@web/core/utils/search";
+
+import { DashboardDateFilter } from "../dashboard_date_filter/dashboard_date_filter.js";
+import { DashboardFacet } from "../dashboard_facet/dashboard_facet.js";
 
 let nextItemId = 1;
 const SUB_ITEMS_DEFAULT_LIMIT = 8;
@@ -351,7 +350,7 @@ export class DashboardSearchBar extends Component {
     }
 
     /**
-     * @returns {import("@web/services/navigation/navigation").NavigationOptions}
+     * @returns {import("@web/core/navigation/navigation").NavigationOptions}
      */
     getDropdownNavigation() {
         const isExpansible = (index) => {

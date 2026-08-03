@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
 import { Component, useEnv, useRef } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { _t } from "@web/core/translation";
+import { usePopover } from "@web/ui/popover";
 export class ActivityButton extends Component {
     static props = {
         record: { type: Object },

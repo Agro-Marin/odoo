@@ -2,7 +2,7 @@
 import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { Component } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
+import { Dropdown } from "@web/components/dropdown";
 import { useChildRef } from "@web/core/utils/hooks";
 
 import { toolbarButtonProps } from "../toolbar/toolbar.js";

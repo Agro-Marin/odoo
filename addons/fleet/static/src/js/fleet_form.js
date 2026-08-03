@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { _t } from "@web/core/translation";
+import { ConfirmationDialog } from "@web/ui/dialog";
 import { registry } from "@web/core/registry";
-import { FormController } from "@web/views/form/form_controller";
-import { formView } from "@web/views/form/form_view";
+import { FormController, formView } from "@web/views/form";
 
 export class FleetFormController extends FormController {
     /**

@@ -22,9 +22,9 @@ import {
 } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { router } from "@web/core/browser/router";
-import { _t } from "@web/core/l10n/translation";
-import { RPCError } from "@web/core/network/rpc";
+import { RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 import { uniqueId } from "@web/core/utils/functions";
@@ -33,7 +33,7 @@ import { effect } from "@web/core/utils/reactive";
 import { renderToElement } from "@web/core/utils/render";
 import { redirect } from "@web/core/utils/urls";
 import { session } from "@web/session";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 import { AddPageDialog } from "@website/components/dialog/add_page_dialog";
 import { ResourceEditor } from "@website/components/resource_editor/resource_editor";
 

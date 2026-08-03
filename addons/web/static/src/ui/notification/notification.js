@@ -57,11 +57,26 @@ export class Notification extends Component {
     timerStart = 0;
     remainingDelay = 0;
     /**
-     * Number of reasons the countdown is currently held: the pointer being
-     * over the notification and the focus being inside it are independent, so
-     * releasing one must not resume the countdown while the other still holds.
+     * Why the countdown is currently held. The pointer being over the
+     * notification and the focus being inside it are independent, so releasing
+     * one must not resume while the other still holds.
+     *
+     * Named reasons rather than a count, so that a release is idempotent: a
+     * reason that was never added deletes to a no-op, and one added twice does
+     * not need two releases. Counting instead made every release cancel
+     * whichever hold happened to be outstanding, which needed a "was anything
+     * held at all" guard that still could not tell WHICH source was being
+     * released.
+     *
+     * Chrome does pair these events, including the awkward case -- a
+     * notification appearing under a stationary pointer gets no mouseenter, but
+     * then gets no mouseleave either, and if focus arrives first Chrome
+     * re-hit-tests and delivers the missing mouseenter before it. So this is
+     * robustness against synthetic and non-Chrome event streams, not a fix for
+     * an observed Chrome defect.
+     * @type {Set<"hover" | "focus">}
      */
-    holds = 0;
+    holds = new Set();
 
     setup() {
         this.rootRef = useRef("root");
@@ -89,13 +104,34 @@ export class Notification extends Component {
         );
     }
 
-    /** @param {FocusEvent | MouseEvent} [ev] */
-    freeze(ev) {
+    /**
+     * @param {"hover" | "focus"} reason
+     * @param {boolean} held
+     * @param {FocusEvent | MouseEvent} [ev]
+     */
+    setHold(reason, held, ev) {
         if (this.isInternalTransition(/** @type {Node | null} */ (ev?.relatedTarget))) {
             return;
         }
-        this.holds++;
-        if (this.props.sticky || !this.closeTimeout || this.holds > 1) {
+        const wasHeld = this.holds.size > 0;
+        if (held) {
+            this.holds.add(reason);
+        } else {
+            this.holds.delete(reason);
+        }
+        const isHeld = this.holds.size > 0;
+        if (isHeld === wasHeld) {
+            return;
+        }
+        if (held) {
+            this.pauseNotificationTimer();
+        } else if (this.remainingDelay > 0) {
+            this.startNotificationTimer();
+        }
+    }
+
+    pauseNotificationTimer() {
+        if (this.props.sticky || !this.closeTimeout) {
             return;
         }
         const elapsed = browser.performance.now() - this.timerStart;
@@ -104,20 +140,6 @@ export class Notification extends Component {
         this.closeTimeout = null;
         if (this.autocloseProgress.el) {
             this.autocloseProgress.el.style.animationPlayState = "paused";
-        }
-    }
-
-    /** @param {FocusEvent | MouseEvent} [ev] */
-    refresh(ev) {
-        if (this.isInternalTransition(/** @type {Node | null} */ (ev?.relatedTarget))) {
-            return;
-        }
-        this.holds = Math.max(0, this.holds - 1);
-        if (this.holds > 0) {
-            return;
-        }
-        if (this.remainingDelay > 0) {
-            this.startNotificationTimer();
         }
     }
 

@@ -1,14 +1,14 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillStart, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { parseInteger } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
-import { user } from "@web/services/user";
-import { Dialog } from "@web/ui/dialog/dialog";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { x2ManyCommands } from "@web/model/relational_model";
+import { Dialog } from "@web/ui/dialog";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class GenerateDialog extends Component {
     static template = "stock.generate_serial_dialog";

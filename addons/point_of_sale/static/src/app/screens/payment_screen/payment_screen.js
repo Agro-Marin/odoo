@@ -11,11 +11,11 @@ import { PaymentScreenPaymentLines } from "@point_of_sale/app/screens/payment_sc
 import { PaymentScreenStatus } from "@point_of_sale/app/screens/payment_screen/payment_status/payment_status";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import OrderPaymentValidation from "@point_of_sale/app/utils/order_payment_validation";
-import { _t } from "@web/core/l10n/translation";
 import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 export class PaymentScreen extends Component {
     static template = "point_of_sale.PaymentScreen";
     static components = {

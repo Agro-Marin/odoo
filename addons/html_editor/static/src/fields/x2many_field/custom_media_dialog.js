@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { MediaDialog } from "@html_editor/main/media/media_dialog/media_dialog";
 import { VideoSelector } from "@html_editor/main/media/media_dialog/video_selector";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class CustomMediaDialog extends MediaDialog {
     static defaultProps = {

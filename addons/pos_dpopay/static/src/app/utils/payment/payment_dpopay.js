@@ -7,10 +7,10 @@ import {
 } from "@point_of_sale/app/utils/error_handlers";
 import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
 import { isNull } from "@web/views/view_utils";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 import { serializeDateTime } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
+import { _t } from "@web/core/translation";
+import { ConnectionLostError, RPCError } from "@web/core/network";
 const POLLING_REQUEST_MS = 3 * 1000; // 3 seconds
 const CANCEL_REQUEST_TIME_LIMIT_MS = 3 * 60 * 1000; // 3 minutes
 const WAIT_BEFORE_RESULT_FETCH = 3 * 1000; // 3 seconds

@@ -2,7 +2,7 @@
 import { MessageConfirmDialog } from "@mail/core/common/message_confirm_dialog";
 import { Message } from "@mail/core/common/message_model";
 import { fields } from "@mail/core/common/record";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
 patch(Message.prototype, {

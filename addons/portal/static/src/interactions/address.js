@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { Interaction } from '@web/public/interaction';
+import { rpc } from "@web/core/network";
 import { registry } from '@web/core/registry';
-import { rpc } from '@web/core/network/rpc';
 import { redirect } from '@web/core/utils/urls';
+import { Interaction } from '@web/public/interaction';
 
 export class CustomerAddress extends Interaction {
     // /my/address & /my/account

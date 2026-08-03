@@ -6,8 +6,8 @@
 import { Component } from "@odoo/owl";
 import { badgeColorClass } from "@web/core/badge/badge_colors";
 import { getFieldCodec } from "@web/core/field_codec";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 

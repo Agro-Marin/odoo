@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { ActionContainer } from "@web/webclient/actions/action_container";
+import { ActionContainer } from "@web/webclient/actions";
 export class ActionScreen extends Component {
     static components = { ActionContainer };
     static props = {

@@ -127,13 +127,12 @@
             "base/static/src/css/modules.css",
             "web/static/src/core/utils/transitions.scss",
             "web/static/src/core/**/*",
-            # The fork split web/static/src/core into components/, ui/ and
-            # services/: without them the bundle misses their modules and
-            # templates (e.g. web.Dialog, web.DropdownItem, web.TagsList) and
-            # the sharing client dies at template setup.
+            # The fork split web/static/src/core into components/ and ui/:
+            # without them the bundle misses their modules and templates
+            # (e.g. web.Dialog, web.DropdownItem, web.TagsList) and the sharing
+            # client dies at template setup.
             "web/static/src/components/**/*",
             "web/static/src/ui/**/*",
-            "web/static/src/services/**/*",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
             "web/static/src/webclient/icons.scss",  # variables required in list_controller.scss

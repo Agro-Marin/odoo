@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class TextInputPopup extends Component {
     static template = "point_of_sale.TextInputPopup";
     static components = { Dialog };

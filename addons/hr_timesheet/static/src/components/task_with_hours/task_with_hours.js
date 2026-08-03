@@ -1,7 +1,11 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
-import { buildM2OFieldDescription, Many2OneField } from "@web/fields/relational/many2one/many2one_field";
+import {
+    computeM2OProps,
+    Many2One,
+    buildM2OFieldDescription,
+    Many2OneField,
+} from "@web/fields/relational/many2one";
 import { Component, onWillStart } from "@odoo/owl";
 
 export class TaskWithHours extends Component {

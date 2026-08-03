@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from odoo import SUPERUSER_ID, api
+from odoo import SUPERUSER_ID, api, tools
 from odoo.db import db_connect
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, TransactionCase, get_db_name
@@ -1800,3 +1800,59 @@ class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
                 with reg.cursor() as cr:
                     cr.execute("DELETE FROM ir_attachment WHERE id = ANY(%s)", (ids,))
                     cr.commit()
+
+
+class TestEsbuildFailClosed(TransactionCase):
+    """An esbuild failure degrades for users and raises for developers.
+
+    Serving an empty bundle keeps a production page alive, and hides the cause
+    everywhere else: the response is still 200, the only trace is a WARNING,
+    and the symptom surfaces as unrelated failures (a missing service, absent
+    translations) far from the broken import that caused them.
+    """
+
+    def _run(self, **config):
+        """Drive the failure branch with `config` patched over tools.config."""
+        from odoo.addons.base.models.ir_qweb_assets import EsbuildBundleError
+
+        qweb = self.env["ir.qweb"]
+        patched = dict(tools.config._runtime_options)
+        patched.update(config)
+        with patch.dict(tools.config._runtime_options, patched, clear=False):
+            return qweb._esbuild_fail_closed(), EsbuildBundleError
+
+    def test_test_enable_fails_closed(self):
+        """`--test-enable`: somebody is watching, so do not degrade."""
+        fail_closed, _ = self._run(test_enable=True, dev_mode=[])
+        self.assertTrue(fail_closed)
+
+    def test_dev_assets_fails_closed(self):
+        """`--dev=assets`: likewise."""
+        fail_closed, _ = self._run(test_enable=False, dev_mode=["assets"])
+        self.assertTrue(fail_closed)
+
+    def test_production_still_degrades(self):
+        """Plain server: a degraded page beats a 500 for a user."""
+        fail_closed, _ = self._run(test_enable=False, dev_mode=[])
+        self.assertFalse(fail_closed)
+
+    def test_unrelated_dev_mode_still_degrades(self):
+        """`--dev=xml` says nothing about assets."""
+        fail_closed, _ = self._run(test_enable=False, dev_mode=["xml", "reload"])
+        self.assertFalse(fail_closed)
+
+    def test_config_parameter_overrides_both_ways(self):
+        """`web.esbuild.fail_closed` wins over the inferred default.
+
+        The escape hatch matters in both directions: a test run that has to
+        survive a known-broken bundle can opt out, and a staging server can opt
+        in without pretending to be a test.
+        """
+        param = self.env["ir.config_parameter"].sudo()
+        param.set_param("web.esbuild.fail_closed", "0")
+        fail_closed, _ = self._run(test_enable=True, dev_mode=["assets"])
+        self.assertFalse(fail_closed, "explicit 0 must disable it under --test-enable")
+
+        param.set_param("web.esbuild.fail_closed", "1")
+        fail_closed, _ = self._run(test_enable=False, dev_mode=[])
+        self.assertTrue(fail_closed, "explicit 1 must enable it on a plain server")

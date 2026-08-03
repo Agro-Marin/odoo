@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { ProductCatalogKanbanController } from "@product/product_catalog/kanban_controller";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 patch(ProductCatalogKanbanController.prototype, {

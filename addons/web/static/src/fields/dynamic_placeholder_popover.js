@@ -5,8 +5,8 @@
 
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { ModelFieldSelectorPopover } from "@web/components/model_field_selector/model_field_selector_popover";
+import { user } from "@web/core/user";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
 
 export class DynamicPlaceholderPopover extends Component {
     static template = "web.DynamicPlaceholderPopover";

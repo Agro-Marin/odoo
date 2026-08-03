@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
 import { loadJS } from "@web/core/assets";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 
 export const websiteMapService = {
     dependencies: ["public.interactions", "notification"],

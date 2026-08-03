@@ -11,7 +11,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { cookie } from "@web/core/browser/cookie";
 import { colorScheme } from "@web/core/color_scheme";
-import { _makeUser, user } from "@web/services/user";
+import { _makeUser, user } from "@web/core/user";
 import { colorSchemeService } from "@web/webclient/color_scheme/color_scheme_service";
 import { DarkModeToggle } from "@web/webclient/dark_mode_toggle/dark_mode_toggle";
 

@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 import { Component } from "@odoo/owl";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 
 import { DateTimePicker } from "./datetime_picker.js";
 /** @import { DateTimePickerProps } from "./datetime_picker.js" */

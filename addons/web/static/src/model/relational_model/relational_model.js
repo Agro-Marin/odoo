@@ -178,6 +178,8 @@ export class RelationalModel extends Model {
             lifecycle: { ...DEFAULT_LIFECYCLE_HOOKS, ...params.hooks?.lifecycle },
             ui: { ...DEFAULT_UI_HOOKS, ...params.hooks?.ui },
         };
+        /** @type {Map<string, Set<Function>>} */
+        this._lifecycleListeners = new Map();
         this.hasOnRecordChangedHook =
             this.hooks.lifecycle.onRecordChanged !==
             DEFAULT_LIFECYCLE_HOOKS.onRecordChanged;
@@ -233,6 +235,28 @@ export class RelationalModel extends Model {
     }
 
     /**
+     * Shows the "changes too large to save automatically" notification, keeping
+     * its disposer. The model owns that disposer because the notification
+     * outlives the save that raised it: a later save, a discard, or leaving edit
+     * mode all have to take it down, and none of them can be handed the closure.
+     *
+     * @param {ReturnType<typeof import("@web/core/translation")._t>} message
+     * @returns {void}
+     */
+    displayUrgentSaveNotification(message) {
+        this._closeUrgentSaveNotification = this.hooks.ui.onDisplayUrgentSave(message);
+    }
+
+    /**
+     * @returns {void}
+     */
+    closeUrgentSaveNotification() {
+        if (this._closeUrgentSaveNotification) {
+            this._closeUrgentSaveNotification();
+        }
+    }
+
+    /**
      * @param {import("./record").RelationalRecord} record
      * @param {Object} changes
      * @returns {Promise<any>}
@@ -256,6 +280,7 @@ export class RelationalModel extends Model {
             this.config = config;
         }
         this.hooks.lifecycle.onWillLoadRoot(config);
+        this._notifyLifecycle("onWillLoadRoot", config);
         const rootLoadDef = new Deferred();
         this._retireRootLoadDef();
         this._rootLoadDef = rootLoadDef;
@@ -284,6 +309,60 @@ export class RelationalModel extends Model {
             this.isReady = true;
         }
         await this.hooks.lifecycle.onRootLoaded(this.root);
+        const notified = this._notifyLifecycle("onRootLoaded", this.root);
+        if (notified) {
+            await notified;
+        }
+    }
+
+    /**
+     * Subscribes an ADDITIONAL listener to a lifecycle hook, run after the hook
+     * itself. Unlike assigning `hooks.lifecycle.<name>`, which is a single slot
+     * and silently replaces whatever was there, subscriptions compose: several
+     * independent features can observe the same hook, and unsubscribing one
+     * cannot resurrect a stale version of another.
+     *
+     * @param {string} name a key of `hooks.lifecycle`
+     * @param {Function} listener
+     * @returns {() => void} unsubscribe
+     */
+    subscribeLifecycle(name, listener) {
+        let listeners = this._lifecycleListeners.get(name);
+        if (!listeners) {
+            listeners = new Set();
+            this._lifecycleListeners.set(name, listeners);
+        }
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+    }
+
+    /**
+     * Returns a promise ONLY when there is something to run. An `async` method
+     * would resolve to a promise even with no listeners, and awaiting it would
+     * insert a microtask tick into the load path on every call — enough to
+     * reorder the render/response interleaving callers observe.
+     *
+     * @param {string} name
+     * @param {...any} args
+     * @returns {Promise<void> | undefined}
+     */
+    _notifyLifecycle(name, ...args) {
+        const listeners = this._lifecycleListeners.get(name);
+        if (!listeners?.size) {
+            return;
+        }
+        return this._runLifecycleListeners([...listeners], args);
+    }
+
+    /**
+     * @param {Function[]} listeners
+     * @param {any[]} args
+     * @returns {Promise<void>}
+     */
+    async _runLifecycleListeners(listeners, args) {
+        for (const listener of listeners) {
+            await listener(...args);
+        }
     }
 
     /**
@@ -389,65 +468,76 @@ export class RelationalModel extends Model {
             return {
                 type: "disk",
                 update: "always",
-                callback: async (result, hasChanged) => {
-                    if (!hasChanged) {
-                        return;
-                    }
-                    const loaded = await rootLoadDef;
-                    if (!loaded) {
-                        return;
-                    }
-                    const { root, loadId } = loaded;
-                    if (
-                        root.config.isMonoRecord &&
-                        currentResId !== root.config.resId
-                    ) {
-                        return;
-                    }
-                    if (root.id !== this.root.id) {
-                        if (this.useSampleModel) {
-                            this.useSampleModel = false;
-                            if (this.root.config.groupBy.length) {
-                                delete this.root.config.currentGroups;
-                                result = await this._postprocessReadGroup(
-                                    this.root.config,
-                                    result,
-                                );
-                            }
-                            this.root._setData(result);
-                        }
-                        return;
-                    }
-                    if (loadId !== this.root.config.loadId) {
-                        return;
-                    }
-                    if (root.config.isMonoRecord) {
-                        if (!root.config.resId) {
-                            return root._setData(result.value, {
-                                keepChanges: true,
-                            });
-                        }
-                        if (!result.length) {
-                            throw new FetchRecordError([root.config.resId]);
-                        }
-                        return root._setData(result[0], { keepChanges: true });
-                    }
-
-                    if (
-                        root.records.some(
-                            (r) => r.isInEdition || r.hasPendingChanges || r.selected,
-                        )
-                    ) {
-                        return;
-                    }
-                    if (root.config.groupBy.length) {
-                        delete this.root.config.currentGroups;
-                        result = await this._postprocessReadGroup(root.config, result);
-                    }
-                    root._setData(result);
-                },
+                callback: (result, hasChanged) =>
+                    this._applyBackgroundRefresh(result, hasChanged, {
+                        rootLoadDef,
+                        currentResId,
+                    }),
             };
         }
+    }
+
+    /**
+     * Stale-while-revalidate: apply a disk-cache background refresh to the live
+     * root, but only when doing so cannot corrupt what the user is looking at
+     * or editing. This is the subtlest guard in the load path — every early
+     * return below is a distinct "do not touch the root" condition.
+     *
+     * @param {any} result   the freshly revalidated payload
+     * @param {boolean} hasChanged   whether it differs from what was served
+     * @param {{ rootLoadDef: Promise<any>, currentResId: any }} ctx
+     */
+    async _applyBackgroundRefresh(result, hasChanged, { rootLoadDef, currentResId }) {
+        // The served copy was already current — nothing to reconcile.
+        if (!hasChanged) {
+            return;
+        }
+        // The root's own load never resolved, so there is no root to refresh.
+        const loaded = await rootLoadDef;
+        if (!loaded) {
+            return;
+        }
+        const { root, loadId } = loaded;
+        // The record navigated away between serve and revalidate.
+        if (root.config.isMonoRecord && currentResId !== root.config.resId) {
+            return;
+        }
+        // A different root is mounted now; only feed it if it is sample data
+        // still waiting for its first real payload.
+        if (root.id !== this.root.id) {
+            if (this.useSampleModel) {
+                this.useSampleModel = false;
+                if (this.root.config.groupBy.length) {
+                    delete this.root.config.currentGroups;
+                    result = await this._postprocessReadGroup(this.root.config, result);
+                }
+                this.root._setData(result);
+            }
+            return;
+        }
+        // A newer load of this same root has already superseded us.
+        if (loadId !== this.root.config.loadId) {
+            return;
+        }
+        if (root.config.isMonoRecord) {
+            if (!root.config.resId) {
+                return root._setData(result.value, { keepChanges: true });
+            }
+            if (!result.length) {
+                throw new FetchRecordError([root.config.resId]);
+            }
+            return root._setData(result[0], { keepChanges: true });
+        }
+        // A visible record is being edited or is selected — refreshing would
+        // discard the user's in-flight work.
+        if (root.records.some((r) => r.isInEdition || r.hasPendingChanges || r.selected)) {
+            return;
+        }
+        if (root.config.groupBy.length) {
+            delete this.root.config.currentGroups;
+            result = await this._postprocessReadGroup(root.config, result);
+        }
+        root._setData(result);
     }
 
     /**
@@ -696,6 +786,7 @@ export class RelationalModel extends Model {
         markRaw(tmpConfig.fields);
         if (tmpConfig.isRoot) {
             this.hooks.lifecycle.onWillLoadRoot(tmpConfig);
+            this._notifyLifecycle("onWillLoadRoot", tmpConfig);
         }
         const data = await this._loadData(tmpConfig);
         this._patchConfig(config, tmpConfig);
@@ -704,6 +795,10 @@ export class RelationalModel extends Model {
         }
         if (config.isRoot) {
             await this.hooks.lifecycle.onRootLoaded(this.root);
+            const notified = this._notifyLifecycle("onRootLoaded", this.root);
+            if (notified) {
+                await notified;
+            }
         }
     }
 

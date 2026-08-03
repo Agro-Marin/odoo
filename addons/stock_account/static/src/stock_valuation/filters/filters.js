@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
-import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
-import { Dropdown } from "@web/components/dropdown/dropdown";
+import { useDateTimePicker } from "@web/components/datetime";
+import { Dropdown } from "@web/components/dropdown";
 import { formatDate } from "@web/core/l10n/dates";
 
 export class StockValuationReportFilters extends Component {

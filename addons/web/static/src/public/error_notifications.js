@@ -5,11 +5,11 @@
 
 import { odooExceptionTitleMap } from "@web/components/errors/error_dialogs";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
 /**
- * @type {{ title: string, message: string, type: string, sticky: boolean, buttons: Array<{ text: string, click: () => void, close: boolean }> }}
+ * @type {import("registries").ErrorNotificationsRegistryItemShape}
  */
 const sessionExpired = {
     title: _t("Odoo Session Expired"),
@@ -20,15 +20,14 @@ const sessionExpired = {
     sticky: true,
     buttons: [
         {
-            text: _t("Ok"),
-            click: () => browser.location.reload(),
-            close: true,
+            name: _t("Ok"),
+            onClick: () => browser.location.reload(),
         },
     ],
 };
 
 /**
- * @type {{ title: string, message: string, type: string, sticky: boolean }}
+ * @type {import("registries").ErrorNotificationsRegistryItemShape}
  */
 const forbidden = {
     title: _t("Access Denied"),

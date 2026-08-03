@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 /**
  * Extend this to add functionality to Popover (custom methods etc.)

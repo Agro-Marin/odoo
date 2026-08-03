@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { markup } from "@odoo/owl";
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
 import { initLNA } from "@point_of_sale/app/utils/init_lna";
@@ -15,14 +14,16 @@ import { NetworkConnectionLostPopup } from "@pos_self_order/app/components/netwo
 import { TimeoutPopup } from "@pos_self_order/app/components/timeout_popup/timeout_popup";
 import { UnavailableProductsDialog } from "@pos_self_order/app/components/unavailable_product_dialog/unavailable_product_dialog";
 import { cookie } from "@web/core/browser/cookie";
+import { formatCurrency as webFormatCurrency } from "@web/core/currency";
 import { formatDateTime, serializeDateTime } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError, RPCError, rpc } from "@web/core/network/rpc";
+import { luxon } from "@web/core/l10n/luxon";
+import { ConnectionLostError, rpc, RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { SignalStore } from "@web/core/utils/reactive";
 import { renderToElement } from "@web/core/utils/render";
-import { formatCurrency as webFormatCurrency } from "@web/services/currency";
+
 import { getOrderLineValues } from "./card_utils.js";
 export class SelfOrder extends SignalStore {
     constructor(...args) {

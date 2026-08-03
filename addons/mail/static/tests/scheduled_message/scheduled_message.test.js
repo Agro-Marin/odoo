@@ -20,7 +20,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
-import { ConnectionLostError } from "@web/core/network/rpc";
+import { ConnectionLostError } from "@web/core/network";
 import { getOrigin } from "@web/core/utils/urls";
 
 beforeEach(() => mockDate("2024-10-20 10:00:00"));

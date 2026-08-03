@@ -1,6 +1,6 @@
 /* global posmodel */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { renderToElement } from "@web/core/utils/render";
 
 export async function generateReceiptsToPrint(order, orderChange) {

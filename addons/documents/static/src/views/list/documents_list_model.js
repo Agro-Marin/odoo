@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { listView } from "@web/views/list/list_view";
+import { listView } from "@web/views/list";
 import { DocumentsModelMixin } from "../documents_model_mixin.js";
 import { DocumentsRecordMixin } from "../documents_record_mixin.js";
 

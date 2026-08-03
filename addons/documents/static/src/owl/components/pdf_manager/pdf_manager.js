@@ -7,16 +7,15 @@ import {
 } from "@documents/owl/components/pdf_manager/pdf_page_store";
 import { PdfPage } from "@documents/owl/components/pdf_page/pdf_page";
 import { Component, onWillStart, toRaw, useEffect, useRef, useState } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { _t } from "@web/core/l10n/translation";
+import { Dropdown } from "@web/components/dropdown";
+import { _t } from "@web/core/translation";
 import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { loadPDFJS, pdfjsLib } from "@web/core/utils/pdfjs";
-import { useCommand } from "@web/services/commands/command_hook";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { useCommand } from "@web/ui/commands";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useActiveElement } from "@web/ui/ui_service";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { ConfirmationDialog, Dialog } from "@web/ui/dialog";
 
 const BLANK_PAGE_THRESHOLD = 2500;
 const BLANK_PIXEL_FILTER_VALUE = 220;

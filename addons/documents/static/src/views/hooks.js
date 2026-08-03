@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { htmlJoin } from "@web/core/utils/dom/html";
 import { useSetupAction } from "@web/core/action_hook";

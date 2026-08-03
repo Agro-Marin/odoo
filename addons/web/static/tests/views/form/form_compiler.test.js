@@ -540,3 +540,43 @@ test("a statusbar button modifier is evaluated once, on the slot", () => {
     expect(compiled).toInclude("isVisible=");
     expect(compiled).not.toInclude("t-if=");
 });
+
+describe("button box, label pairing", () => {
+    const BOX = `<div name="button_box">
+            <button class="oe_stat_button"><field name="bar" field_id="bar"/></button>
+        </div>`;
+
+    /** @param {string} body */
+    const countLabels = (body) => {
+        const html = compileTemplate(`<form>${body}</form>`).outerHTML;
+        return {
+            formLabels: (html.match(/<FormLabel/g) || []).length,
+            rawLabels: (html.match(/<label/g) || []).length,
+            buttonBoxes: (html.match(/<ButtonBox/g) || []).length,
+        };
+    };
+
+    test("with a sheet, a label for a button-box-only field is paired", () => {
+        expect(countLabels(`<sheet><label for="bar"/>${BOX}</sheet>`)).toEqual({
+            formLabels: 1,
+            rawLabels: 0,
+            buttonBoxes: 0,
+        });
+    });
+
+    test("without a sheet, a label for a button-box-only field is paired too", () => {
+        // The nosheet branch used to skip the button box by name instead of
+        // compiling and dropping it, so the field never claimed the label and
+        // it survived as a bare <label> with no FormLabel behind it.
+        expect(countLabels(`<label for="bar"/>${BOX}`)).toEqual({
+            formLabels: 1,
+            rawLabels: 0,
+            buttonBoxes: 0,
+        });
+    });
+
+    test("the button box itself is still kept out of both outputs", () => {
+        expect(countLabels(`<sheet>${BOX}</sheet>`).buttonBoxes).toBe(0);
+        expect(countLabels(BOX).buttonBoxes).toBe(0);
+    });
+});

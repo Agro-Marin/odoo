@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
-import { GraphModel } from "@web/views/graph/graph_model";
+import { GraphModel } from "@web/views/graph";
 
 export class BurndownChartModel extends GraphModel {
     /**

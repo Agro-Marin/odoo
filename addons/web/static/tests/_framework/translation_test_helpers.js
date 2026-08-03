@@ -6,7 +6,7 @@ import {
     translatedTerms,
     translatedTermsGlobal,
     translationLoaded,
-} from "@web/core/l10n/translation";
+} from "@web/core/translation";
 
 import { serverState } from "./mock_server_state.hoot.js";
 import { patchWithCleanup } from "./patch_test_helpers.js";

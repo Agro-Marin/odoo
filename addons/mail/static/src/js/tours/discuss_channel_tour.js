@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { delay } from "@web/core/utils/concurrency";
 registry.category("web_tour.tours").add("discuss_channel_tour", {
     url: "/odoo",

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { LivechatChannel } from "@im_livechat/core/common/livechat_channel_model";
 import { makeSequential } from "@mail/utils/common/misc";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 const sequential = makeSequential();

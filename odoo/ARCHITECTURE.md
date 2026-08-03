@@ -326,7 +326,7 @@ python tooling/architecture/mixin_coupling_check.py --explain search read
   `BaseCursor._flushing_savepoint_cls` (`orm/runtime/savepoint.py` assigns
   `_OrmFlushingSavepoint` at import), so `db/` never imports the ORM (ADR-0003).
 - **`components/` ↔ runtime:** `FieldCache`/`ComputeEngine` take callbacks for
-  SQL and recompute, so the engine never imports `Environment` (ADR-0002).
+  SQL and recompute, so the engine never imports `Environment`.
 - **Layer 1 ↔ `BaseModel`:** `fields/` and `domain/` recognise recordsets and
   `_search` overrides through `orm/_recordset.py`, into which the model layer
   injects `BaseModel` at import time via `set_base_model()` — so Layer 1 never
@@ -335,7 +335,7 @@ python tooling/architecture/mixin_coupling_check.py --explain search read
   `search`/`unlink`) dispatch row I/O through `env.backend` — `None` takes the
   PostgreSQL fast path (SQL inline), a non-`None`
   `runtime/backend.py::InMemoryBackend` owns the DB-free variant. Production CRUD
-  no longer sniffs the test backend via `transaction.storage` (ADR-0011).
+  no longer sniffs the test backend via `transaction.storage`.
 
 ## Request lifecycle (HTTP)
 
@@ -407,10 +407,10 @@ The eight original contracts remain clean at zero; the exceptions surfaced by
 the checker's first run (2026-06) have all been paid down:
 
 - **Asset pipeline** (`esbuild`, `esm_bridges`, `esm_graph`, `esm_registry`)
-  relocated from `libs/` to `odoo/tools/assets/` (ADR-0004). The dependency-free
+  relocated from `libs/` to `odoo/tools/assets/`. The dependency-free
   helpers it builds on (`asset_log`, `constants`) remain in `libs/`.
 - **`libs/filesystem/osutil.py`** no longer imports `odoo.release`; the Windows
-  service name is passed in by the caller (ADR-0004).
+  service name is passed in by the caller.
 - **Layer-1 → Layer-2 deferred `BaseModel` imports** in `orm/domain/ast.py` and
   `orm/fields/relational/` (since split into a package: `_base`, `many2one`,
   `one2many`, `many2many`) replaced by the `orm/_recordset.py` injection seam.
@@ -441,7 +441,7 @@ python tooling/architecture/subsystem_map_check.py --check   # the map above vs 
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **thirteen** blocking checkers — it first
+`Architecture Boundaries` workflow runs **twenty-two** blocking checkers — it first
 runs `pytest tooling/architecture/` to self-test them, then:
 
 | Gate | What it locks |
@@ -459,6 +459,15 @@ runs `pytest tooling/architecture/` to self-test them, then:
 | `js_layer_check.py` | the web addon's Feature-Sliced JS layers |
 | `js_cycle_check.py` | ESM import cycles across **every** addon's client source |
 | `named_export_coherence.py` | `import { x }` with no matching `export` |
+| `js_suite_parity.py` | the web addon's test tree against its source tree — a moved test must move with what it tests |
+| `js_layer_cohesion.py` | each file filed with what it serves, not with what it resembles |
+| `js_import_resolution.py` | every first-party specifier naming a real file |
+| `js_self_bridge.py` | no source module resolving itself through the loader |
+| `js_patch_blind_facade.py` | a service's own callers going through its facade |
+| `js_function_length.py` | the web addon's JS function-length budget |
+| `js_private_access.py` | the cross-module private-access budget (`_member` reached past a module) |
+| `js_service_shape.py` | a service handing back an instance, not a literal |
+| `js_public_surface.py` | the web addon's published JS surface, as a ratchet |
 
 Four of those are the same argument as `mixin_coupling_check.py`, applied to
 surfaces the import graph cannot see:
@@ -624,9 +633,9 @@ regressing:
   verified to *behave*, not just to import cleanly.
 
   **This is the only lane that runs addon tests, and that is the sharpest limit
-  on the word "enforced" at the top of this page.** Every one of the thirteen
+  on the word "enforced" at the top of this page.** Every one of the twenty-two
   boundary checkers is structural and DB-free: they read import graphs, call
-  graphs, reached-member sets and documents. A change can satisfy all thirteen,
+  graphs, reached-member sets and documents. A change can satisfy all twenty-two,
   and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
   (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
   2026-08 while every gate and both DB-free tiers stayed green, because nothing

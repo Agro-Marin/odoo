@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 
-import { listView } from "@web/views/list/list_view";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { listView, ListRenderer } from "@web/views/list";
 import { AttendanceActionHelper } from "@hr_attendance/views/attendance_helper_view";
 
 export class AttendanceListRenderer extends ListRenderer {

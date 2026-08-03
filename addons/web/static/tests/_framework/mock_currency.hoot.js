@@ -3,7 +3,7 @@
 import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
 
 /**
- * Build the `{ id → currency }` map shape that `@web/services/currency`'s
+ * Build the `{ id → currency }` map shape that `@web/core/currency`'s
  * module-level `currencies` export holds at runtime. Default `digits` is
  * `[69, 2]` to match the historical mock fixture — the leading 69 isn't
  * load-bearing, only `digits[1]` (fraction count) is read.
@@ -17,7 +17,7 @@ function makeCurrencies({ currencies }) {
 }
 
 /**
- * Seed `@web/services/currency`'s module-level `currencies` map from
+ * Seed `@web/core/currency`'s module-level `currencies` map from
  * `serverState.currencies` so monetary widgets format with the expected
  * symbol. Without this, `formatCurrency` finds no entry for `id` and
  * falls back to `"1,200.00"` instead of `"$ 1,200.00"`.
@@ -33,7 +33,7 @@ function makeCurrencies({ currencies }) {
  * @param {{ modules: Map<string, any> }} loader
  */
 export function setupMockCurrencies(loader) {
-    const currencyModule = loader.modules.get("@web/services/currency");
+    const currencyModule = loader.modules.get("@web/core/currency");
     if (!currencyModule?.currencies) {
         return;
     }

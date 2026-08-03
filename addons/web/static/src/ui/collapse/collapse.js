@@ -77,6 +77,14 @@ export class Collapse extends Component {
         if (!el) {
             return;
         }
+        const dimension = this.props.horizontal ? "width" : "height";
+
+        // Read before cancelling: `cancel` drops the element straight back to
+        // its un-animated size, and the animation has to start from whatever is
+        // on screen. Anchoring the keyframe to the full size instead made a
+        // reversal jump there first -- toggling twice inside the 350ms window
+        // snapped a half-open region to its full height before collapsing it.
+        const from = `${el.getBoundingClientRect()[dimension]}px`;
         this.animation?.cancel();
 
         // `.collapse:not(.show)` is `display: none`, which zeroes scrollHeight.
@@ -84,7 +92,6 @@ export class Collapse extends Component {
         el.classList.remove("collapse", "show");
         el.classList.add("collapsing");
 
-        const dimension = this.props.horizontal ? "width" : "height";
         const full = `${this.props.horizontal ? el.scrollWidth : el.scrollHeight}px`;
         const reduced = browser.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const duration =
@@ -93,7 +100,7 @@ export class Collapse extends Component {
                 : 0;
 
         this.animation = el.animate(
-            { [dimension]: open ? ["0px", full] : [full, "0px"] },
+            { [dimension]: [from, open ? full : "0px"] },
             duration,
         );
         this.animation.finished.then(

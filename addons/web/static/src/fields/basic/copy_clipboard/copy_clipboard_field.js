@@ -5,8 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { CopyButton } from "@web/components/copy_button/copy_button";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { _t } from "@web/core/translation";
 import { omit } from "@web/core/utils/collections/objects";
 import { registerField } from "@web/fields/_registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";

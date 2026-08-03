@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";
 import { mount, whenReady } from "@odoo/owl";
-import { MainComponentsContainer } from "@web/components/main_components_container";
-import { appTranslateFn } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
+import { appTranslateFn } from "@web/core/translation";
 import { makeEnv, startServices } from "@web/env";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 (async function boot() {
     await whenReady();

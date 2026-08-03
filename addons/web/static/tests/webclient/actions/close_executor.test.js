@@ -92,3 +92,19 @@ test("propagates an onClose rejection to the caller", async () => {
         ),
     ).rejects.toThrow(/onClose blew up/);
 });
+
+test("an explicit `dialog: null` means THERE WAS NONE, not `close whatever is open`", async () => {
+    // `doActionButton` captures `am.dialog` before running the action. For a
+    // `close` button outside any dialog the capture is null, and the action may
+    // itself have opened one meanwhile — that one is not the button's to close.
+    const am = makeFakeAm({ dialog: { remove() {} } });
+    await executeCloseAction(am, { infos: "x" }, { dialog: null });
+    expect(am.__calls.removeDialog).toEqual([]);
+});
+
+test("an explicit `dialog` still closes that dialog", async () => {
+    const remove = () => {};
+    const am = makeFakeAm({ dialog: { remove } });
+    await executeCloseAction(am, { infos: "x" }, { dialog: { remove } });
+    expect(am.__calls.removeDialog).toEqual(["x"]);
+});

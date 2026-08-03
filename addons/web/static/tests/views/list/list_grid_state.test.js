@@ -51,7 +51,6 @@ function makeGridState(options = {}) {
         hasActionsColumn: options.hasActionsColumn ?? false,
         isRTL: options.isRTL ?? false,
         showGroupAddLine: options.showGroupAddLine ?? false,
-        isCellReadonly: options.isCellReadonly ?? (() => false),
     });
     gridState.rebuild();
     return gridState;
@@ -195,82 +194,6 @@ describe("moveFocus", () => {
     });
 });
 
-describe("findNextEditableCell", () => {
-    test("skips readonly columns", () => {
-        const columns = [mockColumn("name"), mockColumn("email"), mockColumn("phone")];
-        const gs = makeGridState({
-            columns,
-            isCellReadonly: (col) => col.name === "email",
-        });
-        const next = gs.findNextEditableCell(0, 0, true);
-        expect(next).toEqual({ rowIndex: 0, colIndex: 2 });
-    });
-
-    test("returns null when no editable cell found", () => {
-        const gs = makeGridState({ isCellReadonly: () => true });
-        expect(gs.findNextEditableCell(0, 0, true)).toBe(null);
-    });
-
-    test("backward search works", () => {
-        const columns = [mockColumn("name"), mockColumn("email"), mockColumn("phone")];
-        const gs = makeGridState({
-            columns,
-            isCellReadonly: (col) => col.name === "email",
-        });
-        const prev = gs.findNextEditableCell(0, 2, false);
-        expect(prev).toEqual({ rowIndex: 0, colIndex: 0 });
-    });
-
-    test("skips non-field columns", () => {
-        const columns = [
-            mockColumn("name"),
-            mockColumn("buttons", "button_group"),
-            mockColumn("phone"),
-        ];
-        const gs = makeGridState({ columns });
-        const next = gs.findNextEditableCell(0, 0, true);
-        expect(next).toEqual({ rowIndex: 0, colIndex: 2 });
-    });
-
-    test("returns null for group rows", () => {
-        const groups = [mockGroup(10, [1].map(mockRecord))];
-        const list = mockList([], groups);
-        const gs = makeGridState({ list });
-        expect(gs.findNextEditableCell(0, 0, true)).toBe(null);
-    });
-
-    test("with selectors: column indices are offset by 1", () => {
-        const gs = makeGridState({ hasSelectors: true });
-        const next = gs.findNextEditableCell(0, 1, true);
-        expect(next).toEqual({ rowIndex: 0, colIndex: 2 });
-    });
-});
-
-describe("isCellEditable", () => {
-    test("returns true for editable field cells", () => {
-        const gs = makeGridState();
-        expect(gs.isCellEditable(0, 0)).toBe(true);
-    });
-
-    test("returns false for readonly cells", () => {
-        const gs = makeGridState({ isCellReadonly: () => true });
-        expect(gs.isCellEditable(0, 0)).toBe(false);
-    });
-
-    test("returns false for group rows", () => {
-        const groups = [mockGroup(10, [1].map(mockRecord))];
-        const list = mockList([], groups);
-        const gs = makeGridState({ list });
-        expect(gs.isCellEditable(0, 0)).toBe(false);
-    });
-
-    test("returns false for out-of-range indices", () => {
-        const gs = makeGridState();
-        expect(gs.isCellEditable(99, 0)).toBe(false);
-        expect(gs.isCellEditable(0, 99)).toBe(false);
-    });
-});
-
 describe("reverse lookup", () => {
     test("findRowByRecordId returns correct flat row", () => {
         const gs = makeGridState();
@@ -295,20 +218,6 @@ describe("reverse lookup", () => {
         expect(row).not.toBe(undefined);
         expect(row.type).toBe("group");
         expect(row.group.id).toBe("10");
-    });
-
-    test("getColIndexByName returns correct index", () => {
-        const gs = makeGridState();
-        expect(gs.getColIndexByName("name")).toBe(0);
-        expect(gs.getColIndexByName("email")).toBe(1);
-        expect(gs.getColIndexByName("phone")).toBe(2);
-        expect(gs.getColIndexByName("nonexistent")).toBe(-1);
-    });
-
-    test("getColIndexByName with selectors adds offset", () => {
-        const gs = makeGridState({ hasSelectors: true });
-        expect(gs.getColIndexByName("name")).toBe(1);
-        expect(gs.getColIndexByName("email")).toBe(2);
     });
 });
 
@@ -436,26 +345,58 @@ describe("canonical column index", () => {
 });
 
 describe("generation counter", () => {
-    test("advances on every rebuild", () => {
+    test("holds steady when a rebuild finds the same rows", () => {
+        // rebuild() runs on EVERY render of the renderer, over every loaded
+        // record. Advancing the generation regardless would invalidate
+        // ListRecordRow's memo on every render for no reason.
         const gs = makeGridState();
         const first = gs.generation;
         gs.rebuild();
-        expect(gs.generation).toBe(first + 1);
         gs.rebuild();
-        expect(gs.generation).toBe(first + 2);
+        expect(gs.generation).toBe(first);
     });
 
-    test("is the only signal a rebuild happened — object identity is not", () => {
+    test("advances whenever the row set changes", () => {
+        const records = [1, 2, 3].map(mockRecord);
+        const list = mockList(records);
+        const gs = makeGridState({ list });
+        const first = gs.generation;
+
+        records.push(mockRecord(4));
+        gs.rebuild();
+        expect(gs.generation).toBe(first + 1);
+        expect(gs.rowCount).toBe(4);
+
+        records.pop();
+        records.pop();
+        gs.rebuild();
+        expect(gs.generation).toBe(first + 2);
+        expect(gs.rowCount).toBe(2);
+    });
+
+    test("is the only signal — instance and array identity are not", () => {
         // `ListRecordRow`'s record/group memoize a lookup into the flat rows.
         // The renderer holds ONE ListGridState for its whole life and
-        // `rebuild()` mutates it in place, so a cache keyed on the instance
-        // would never invalidate and rows would resolve to stale flat entries.
-        const gs = makeGridState();
-        const before = { self: gs, rows: gs.flatRows, generation: gs.generation };
+        // `rebuild()` mutates it in place, so a cache keyed on the instance —
+        // or on the array — would never invalidate and rows would resolve to
+        // stale flat entries.
+        const records = [1, 2, 3].map(mockRecord);
+        const gs = makeGridState({ list: mockList(records) });
+        const before = {
+            self: gs,
+            rows: gs.flatRows,
+            generation: gs.generation,
+            row2: gs.findRowByRecordId("2"),
+        };
+
+        records.shift();
         gs.rebuild();
-        expect(gs).toBe(before.self); // identity unchanged...
-        expect(gs.flatRows).not.toBe(before.rows); // ...but the rows are new
-        expect(gs.generation).not.toBe(before.generation);
+
+        expect(gs).toBe(before.self); // instance unchanged...
+        expect(gs.flatRows).toBe(before.rows); // ...array reused in place...
+        expect(gs.generation).not.toBe(before.generation); // ...generation is the signal
+        expect(gs.findRowByRecordId("2")).not.toBe(before.row2);
+        expect(gs.findRowByRecordId("2").globalIndex).toBe(0);
     });
 });
 

@@ -3,14 +3,16 @@ import { Component, useRef } from "@odoo/owl";
 
 import { useBus } from "@web/core/utils/hooks";
 import { useModel } from "@web/model/model";
-import { addFieldDependencies, extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
+import {
+    addFieldDependencies,
+    extractFieldsFromArchInfo,
+} from "@web/model/relational_model";
 import { useSetupAction } from "@web/core/action_hook";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
-import { SearchBar } from "@web/search/search_bar/search_bar";
-import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
+import { SearchBar, useSearchBarToggler } from "@web/search/search_bar";
 import { standardViewProps } from "@web/views/standard_view_props";
-import { useViewButtons } from "@web/views/view_button/view_button_hook";
+import { useViewButtons } from "@web/views/view_button";
 import { ActionHelper } from "@web/views/action_helper";
 
 export class HierarchyController extends Component {

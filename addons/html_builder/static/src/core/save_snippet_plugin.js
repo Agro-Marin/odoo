@@ -3,7 +3,7 @@ import { escapeTextNodes } from "@html_builder/utils/escaping";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { markup } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 const savableSelector = "[data-snippet], a.btn";
 // TODO `so_submit_button_selector` ?

@@ -2,8 +2,8 @@
 import { Action, UseActions } from "@mail/core/common/action";
 import { SearchMessagesPanel } from "@mail/core/common/search_messages_panel";
 import { useComponent, useState, useSubEnv } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
 export const threadActionsRegistry = registry.category("mail.thread/actions");

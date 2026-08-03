@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
-import { _t } from "@web/core/l10n/translation";
-import { DocumentationLink } from "@web/views/widgets/documentation_link/documentation_link";
+import { _t } from "@web/core/translation";
+import { DocumentationLink } from "@web/views/widgets";
 
 export class ImportDataSidepanel extends Component {
     static template = "ImportDataSidepanel";

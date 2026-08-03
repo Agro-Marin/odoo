@@ -2,9 +2,9 @@
 import { Component } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 
 import { PartnerList } from "../../partner_list/partner_list.js";
 

@@ -7,7 +7,7 @@ import { Component, xml } from "@odoo/owl";
 import { getService, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { MainComponentsContainer } from "@web/components/main_components_container";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 class DropdownParent extends Component {
     static components = { Dropdown, DropdownItem };

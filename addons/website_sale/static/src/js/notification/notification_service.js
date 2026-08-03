@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { xml } from "@odoo/owl";
-import { NotificationContainer } from "@web/ui/notification/notification_container";
-import { notificationService } from "@web/ui/notification/notification_service";
+import { NotificationContainer, notificationService } from "@web/ui/notification";
 import { registry } from "@web/core/registry";
 import { CartNotification } from "@website_sale/js/notification/cart_notification/cart_notification";
 

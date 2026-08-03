@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
 import { registry } from '@web/core/registry';
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import wishlistUtils from '@website_sale_wishlist/js/website_sale_wishlist_utils';
 
 export class WishlistNavbar extends Interaction {

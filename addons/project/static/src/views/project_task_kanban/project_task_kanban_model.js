@@ -1,6 +1,5 @@
 /** @odoo-module native */
-import { RelationalRecord } from "@web/model/relational_model/record";
-import { makeActiveField } from "@web/model/relational_model/utils";
+import { makeActiveField, RelationalRecord } from "@web/model/relational_model";
 
 import { ProjectTaskRelationalModel } from "../project_task_relational_model.js";
 

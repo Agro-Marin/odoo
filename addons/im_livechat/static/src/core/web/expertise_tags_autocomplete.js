@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { useTagNavigation } from "@web/components/record_selectors/tag_navigation_hook";
+import { useTagNavigation } from "@web/components/record_selectors";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { x2ManyCommands } from "@web/model/relational_model";
 
 /**
  * @typedef {Object} Props

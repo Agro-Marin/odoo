@@ -20,7 +20,10 @@
     top: 0;
     left: 0;
     right: 0;
-    height: 100dvh;
+    // The visual viewport, not the layout one: they diverge while a virtual
+    // keyboard is up, and every measurement this component takes is of the
+    // visual one. Falls back to 100dvh until the first measurement lands.
+    height: var(--sheet-viewport-height, 100dvh);
     z-index: $zindex-offcanvas;
     opacity: 0;
     transform-style: preserve-3d;
@@ -83,7 +86,9 @@
     }
 
     .o_bottom_sheet_spacer {
-        height: calc(100dvh - var(--sheet-height, 50dvh));
+        height: calc(
+            var(--sheet-viewport-height, 100dvh) - var(--sheet-height, 50dvh)
+        );
         pointer-events: none;
     }
 

@@ -3,8 +3,7 @@
 
 /** @module @web/search/search_favorites_mixin */
 
-import { RpcEvent } from "@web/core/events";
-import { rpcBus } from "@web/core/network/rpc";
+import { actionContextCallbacks } from "@web/core/action_context_port";
 
 import {
     buildIrFilterDescription,
@@ -51,10 +50,12 @@ export const SearchFavoritesMixin = (Base) =>
         }
 
         async _createIrFilters(irFilter) {
+            // The get_views cache invalidation for this `create_filter` is owned
+            // declaratively by ViewService (which watches ir.filters + this
+            // method), so no manual CLEAR_CACHES is fired here.
             const serverSideIds = await this.orm.call("ir.filters", "create_filter", [
                 irFilter,
             ]);
-            rpcBus.trigger(RpcEvent.CLEAR_CACHES, "get_views");
             return serverSideIds[0];
         }
 
@@ -73,9 +74,12 @@ export const SearchFavoritesMixin = (Base) =>
          */
         _getIrFilterDescription(params = {}) {
             const { description, isDefault, isShared, embeddedActionId } = params;
-            const fns = this.env.__getContext__.callbacks;
+            // Read through the port: these slots are absent outside an action
+            // context and `null` where a producer opted out (web_studio nulls
+            // all five), and this dereferenced both unguarded.
+            const fns = actionContextCallbacks(this.env, "__getContext__");
             const localContext = Object.assign({}, ...fns.map((fn) => fn()));
-            const gs = this.env.__getOrderBy__.callbacks;
+            const gs = actionContextCallbacks(this.env, "__getOrderBy__");
             let localOrderBy;
             if (gs.length) {
                 localOrderBy = gs.flatMap((g) => g());

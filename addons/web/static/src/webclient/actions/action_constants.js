@@ -48,15 +48,35 @@ export function nextActionDepth(options = {}) {
 }
 
 /**
+ * The ids come off the url's query string, so they are whatever the caller
+ * typed. `Number` accepts far more than a record id: `"1,x,3"` became
+ * `[1, NaN, 3]`, and NaN serialises to `null` on its way to the ORM, while an
+ * empty segment (`"1,,3"`) became a phantom id 0.
+ *
+ * A malformed list is corrupt, not partial — acting on the ids that happen to
+ * parse would silently narrow the selection — so one bad segment rejects the
+ * whole thing. Urls the webclient produces are always plain digits.
+ *
  * @param {string|number} ids
  * @returns {number[]}
  */
 export function parseActiveIds(ids) {
+    if (typeof ids === "number") {
+        return Number.isInteger(ids) && ids > 0 ? [ids] : [];
+    }
+    if (typeof ids !== "string") {
+        return [];
+    }
     const activeIds = [];
-    if (typeof ids === "string") {
-        activeIds.push(...ids.split(",").map(Number));
-    } else if (typeof ids === "number") {
-        activeIds.push(ids);
+    for (const part of ids.split(",")) {
+        if (!/^\d+$/.test(part)) {
+            return [];
+        }
+        const id = Number(part);
+        if (id === 0) {
+            return [];
+        }
+        activeIds.push(id);
     }
     return activeIds;
 }

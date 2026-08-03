@@ -15,7 +15,7 @@ import {
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
 import { isMobileOS } from "@web/core/browser/feature_detection";
-import { download } from "@web/core/network/download";
+import { download } from "@web/core/network";
 import { getOrigin } from "@web/core/utils/urls";
 
 describe.current.tags("desktop");

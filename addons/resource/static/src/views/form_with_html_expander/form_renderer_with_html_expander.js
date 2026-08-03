@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
-import { FormRenderer } from "@web/views/form/form_renderer";
+import { FormRenderer } from "@web/views/form";
 import { useRef, useEffect } from "@odoo/owl";
 
 export class FormRendererWithHtmlExpander extends FormRenderer {

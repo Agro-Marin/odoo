@@ -1,10 +1,9 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
-import { kanbanView } from "@web/views/kanban/kanban_view";
-import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
+import { kanbanView, KanbanRenderer } from "@web/views/kanban";
 import { RecruitmentActionHelper } from "@hr_recruitment/views/recruitment_helper_view";
 
 export class RecruitmentKanbanRenderer extends KanbanRenderer {

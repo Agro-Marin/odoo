@@ -3,8 +3,8 @@
 
 /** @module @web/views/graph/graph_view */
 
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
 import { GraphArchParser } from "./graph_arch_parser.js";
 import { GraphController } from "./graph_controller.js";

@@ -3,11 +3,11 @@ import { Component, useState } from "@odoo/owl";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { MoneyDetailsPopup } from "@point_of_sale/app/components/popups/money_details_popup/money_details_popup";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { _t } from "@web/core/l10n/translation";
-import { RPCError } from "@web/core/network/rpc";
+import { RPCError } from "@web/core/network";
 import { parseFloat } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 class CustomDialog extends Dialog {
     onEscape() {}
 }

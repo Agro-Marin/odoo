@@ -3,7 +3,7 @@ import { AttachmentUploadService } from "@mail/core/common/attachment_upload_ser
 
 import { patch } from "@web/core/utils/patch";
 import { session } from "@web/session";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 patch(AttachmentUploadService.prototype, {
     setup(env, services) {

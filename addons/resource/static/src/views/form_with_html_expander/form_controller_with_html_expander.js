@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
-import { FormController } from "@web/views/form/form_controller";
+import { FormController } from "@web/views/form";
 
 export class FormControllerWithHTMLExpander extends FormController {
     static template = "resource.FormViewWithHtmlExpander";

@@ -17,6 +17,7 @@ import { markRaw } from "@odoo/owl";
 import { RECORD_STATE_TRANSITIONS } from "@web/../tests/model/relational_model/record_doubles";
 import { ListMembership } from "@web/model/relational_model/list_membership";
 import { save } from "@web/model/relational_model/record_save";
+import { RecordSaveCoordinator } from "@web/model/relational_model/record_save_coordinator";
 import { StaticList } from "@web/model/relational_model/static_list";
 
 const LINK = 4;
@@ -163,6 +164,7 @@ describe("save barrier on pending commands", () => {
             resId: 1,
             resIds: [1],
             resModel: "res.partner",
+            saveState: new RecordSaveCoordinator(),
             context: {},
             dirty: true,
             activeFields: { lines: {} },
@@ -183,7 +185,7 @@ describe("save barrier on pending commands", () => {
             _load: async () => {},
             _setData: () => {},
             model: {
-                _closeUrgentSaveNotification: null,
+                closeUrgentSaveNotification() {},
                 urgentSave: { isActive: false },
                 useSendBeaconToSaveUrgently: false,
                 env: { inDialog: false },

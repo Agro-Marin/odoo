@@ -1,13 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
-import {
-    ConfirmationDialog,
-    deleteConfirmationMessage,
-} from "@web/ui/dialog/confirmation_dialog";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
+import { ConfirmationDialog, deleteConfirmationMessage } from "@web/ui/dialog";
+import { ListRenderer } from "@web/views/list";
 
 export class PAVListRenderer extends ListRenderer {
     setup() {

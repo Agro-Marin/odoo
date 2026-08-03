@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class SyncPopup extends Component {
     static components = { Dialog };
     static template = "point_of_sale.SyncPopup";

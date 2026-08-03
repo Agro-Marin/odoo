@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
-import { RadioField, radioField } from "@web/fields/selection/radio/radio_field";
 import { onMounted } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { RadioField, radioField } from "@web/fields/selection/radio/radio_field";
 
 export class BooleanRadio extends RadioField {
     static props = {

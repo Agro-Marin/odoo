@@ -30,6 +30,10 @@ import {
 } from "@web/../tests/model/relational_model/record_doubles";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
+// From production, not through the doubles' re-export: the doubles forward
+// `RECORD_CONTRACT_SURFACE` only, and importing a name they do not forward made
+// this whole suite register ZERO tests rather than fail.
+import { RECORD_OWNER_SURFACE } from "@web/model/relational_model/record_contract";
 
 describe.current.tags("headless");
 
@@ -97,5 +101,31 @@ describe("the record contract, the class and the double agree", () => {
         expect(double._loadedFieldNames).toBeInstanceOf(Set);
         expect(record._loadedFieldNames.has("name")).toBe(true);
         expect(double._loadedFieldNames.has("name")).toBe(true);
+    });
+
+    test("a real RelationalRecord carries every member the OWNER surface names", () => {
+        // The second audience: what an owning list or model invokes on a record
+        // it holds. The double is NOT checked against it — a double stands in
+        // for a record when testing the record's own helpers, and no test drives
+        // it as a list would, so requiring it here would be requiring a shape
+        // nothing uses.
+        const record = makeRealRecord();
+        const missing = RECORD_OWNER_SURFACE.filter((key) => !has(record, key));
+        expect(missing).toEqual([], {
+            message:
+                "RECORD_OWNER_SURFACE names something RelationalRecord no " +
+                "longer has -- update the list, and every list that calls it",
+        });
+    });
+
+    test("the two record surfaces stay disjoint", () => {
+        // They answer different questions: widen the first and a helper
+        // extracted from Record sees more of it; widen the second and every
+        // list in the tree does. A member in both means the distinction has
+        // collapsed.
+        const both = RECORD_CONTRACT_SURFACE.filter((key) =>
+            RECORD_OWNER_SURFACE.includes(key),
+        );
+        expect(both).toEqual([], { message: "named by both record surfaces" });
     });
 });

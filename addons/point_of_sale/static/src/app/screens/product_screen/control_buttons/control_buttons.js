@@ -8,9 +8,9 @@ import {
 } from "@point_of_sale/app/screens/product_screen/control_buttons/orderline_note_button/orderline_note_button";
 import { SelectPartnerButton } from "@point_of_sale/app/screens/product_screen/control_buttons/select_partner_button/select_partner_button";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class ControlButtons extends Component {
     static template = "point_of_sale.ControlButtons";
     static components = {

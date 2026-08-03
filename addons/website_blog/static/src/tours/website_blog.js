@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { clickOnSave, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
-
 import { markup } from "@odoo/owl";
+import { _t } from "@web/core/translation";
+import { clickOnSave, registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
 
 registerWebsitePreviewTour(
     "blog",

@@ -1,11 +1,12 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     buildM2OFieldDescription,
+    computeM2OProps,
+    Many2One,
     Many2OneField,
-} from "@web/fields/relational/many2one/many2one_field";
+} from "@web/fields/relational/many2one";
 
 export class ForcedPlaceholder extends Many2One {
     static template = "stock.ForcedPlaceholder";

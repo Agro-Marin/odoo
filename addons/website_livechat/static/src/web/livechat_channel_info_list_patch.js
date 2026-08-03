@@ -1,10 +1,8 @@
 /** @odoo-module native */
 import { LivechatChannelInfoList } from "@im_livechat/core/web/livechat_channel_info_list";
-
 import { compareDatetime } from "@mail/utils/common/misc";
-
 import { formatDateTime } from "@web/core/l10n/dates";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 /** @type {LivechatChannelInfoList} */

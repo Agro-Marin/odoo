@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 // CONSOLE_COLOR lives on pos_store; importing it here mirrors the existing
 // call-time circular imports (pos_config, data_service, indexed_db, …) — the

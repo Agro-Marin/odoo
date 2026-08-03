@@ -2,7 +2,7 @@
 import { toggleClass } from "@html_editor/utils/dom";
 import { withSequence } from "@html_editor/utils/resource";
 import { hasTouch } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { omit, pick } from "@web/core/utils/collections/objects";
 import { Deferred } from "@web/core/utils/concurrency";
 

@@ -1,13 +1,14 @@
 /** @odoo-module native */
-import { Component, onMounted, onWillUnmount, onWillRender, useRef, useState } from "@odoo/owl";
-import { colorScheme } from "@web/core/color_scheme";
+import { Component, onMounted, onWillRender, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { loadBundle, loadCSS } from "@web/core/assets";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
-import { Dialog } from "@web/ui/dialog/dialog";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { colorScheme } from "@web/core/color_scheme";
 import { localization } from "@web/core/l10n/localization";
-import { getFirstAndLastTabableElements } from "@web/ui/ui_service";
 import { useChildRef } from "@web/core/utils/hooks";
+import { Dialog } from "@web/ui/dialog";
+import { getFirstAndLastTabableElements } from "@web/ui/ui_service";
+
 import { SnippetViewer } from "./snippet_viewer.js";
 
 /**

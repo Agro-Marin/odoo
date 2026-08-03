@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
-import { user } from "@web/services/user";
-import { ListController } from "@web/views/list/list_controller";
+import { user } from "@web/core/user";
+import { ListController } from "@web/views/list";
 
 import { ProjectTemplateDropdown } from "../components/project_template_dropdown.js";
 

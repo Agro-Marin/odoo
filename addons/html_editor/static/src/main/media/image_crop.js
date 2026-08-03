@@ -14,7 +14,7 @@ import {
     useExternalListener,
     useRef,
 } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { closestScrollableY, scrollTo } from "@web/core/utils/dom/scrolling";
 import { useService } from "@web/core/utils/hooks";
 

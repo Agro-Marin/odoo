@@ -126,7 +126,7 @@ test(`Day: click on event`, async () => {
         add(target, component, { record }) {
             expect.step("popover");
             expect(record.id).toBe(1);
-            return () => {};
+            return async () => {};
         },
     }));
     await start({ model: { ...FAKE_MODEL, scale: "day" } });
@@ -140,7 +140,7 @@ test(`two fast single-clicks on DIFFERENT events open both popovers, no edit`, a
     mockService("popover", () => ({
         add(target, component, { record }) {
             expect.step(`popover-${record.id}`);
-            return () => {};
+            return async () => {};
         },
     }));
     await start({
@@ -159,7 +159,7 @@ test(`two fast clicks on the SAME event still open the edit form`, async () => {
     mockService("popover", () => ({
         add() {
             expect.step("popover");
-            return () => {};
+            return async () => {};
         },
     }));
     await start({

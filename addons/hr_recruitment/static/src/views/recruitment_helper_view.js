@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { Component, onWillStart, useState } from "@odoo/owl";
 
 export class RecruitmentActionHelper extends Component {

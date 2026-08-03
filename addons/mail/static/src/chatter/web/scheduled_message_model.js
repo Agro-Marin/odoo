@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionAbortedError, ConnectionLostError } from "@web/core/network/rpc";
+import { ConnectionAbortedError, ConnectionLostError } from "@web/core/network";
+import { _t } from "@web/core/translation";
 export class ScheduledMessage extends Record {
     static _name = "mail.scheduled.message";
     static id = "id";

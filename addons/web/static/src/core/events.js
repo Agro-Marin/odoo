@@ -9,6 +9,11 @@ export const AppEvent = Object.freeze({
 
     ACTION_MANAGER_UPDATE: "ACTION_MANAGER:UPDATE",
     ACTION_MANAGER_UI_UPDATED: "ACTION_MANAGER:UI-UPDATED",
+    // Fires once per `doAction`, when the dispatch is over -- including the
+    // outcomes that change nothing on screen, which `UI-UPDATED` cannot report
+    // because there is no UI update to report. Anything waiting on an action
+    // rather than on its visible effect wants this one.
+    ACTION_MANAGER_SETTLED: "ACTION_MANAGER:SETTLED",
     WEBCLIENT_LOAD_DEFAULT_APP: "WEBCLIENT:LOAD_DEFAULT_APP",
     CLEAR_UNCOMMITTED_CHANGES: "CLEAR-UNCOMMITTED-CHANGES",
 

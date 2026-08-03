@@ -3,7 +3,7 @@ import { isVisible } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { isElement } from "@html_editor/utils/dom_info";
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 /** @typedef {import("plugins").CSSSelector} CSSSelector */
 /**

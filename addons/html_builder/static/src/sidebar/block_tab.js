@@ -1,16 +1,17 @@
 /** @odoo-module native */
-import { Component, onMounted, onWillDestroy, useRef, useState } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
-import { Tooltip } from "@web/ui/tooltip/tooltip";
-import { closestScrollableY, getScrollingElement, isScrollableY } from "@web/core/utils/dom/scrolling";
-import { _t } from "@web/core/l10n/translation";
-import { closest } from "@web/core/utils/dom/ui";
-import { useDragAndDrop } from "@html_editor/utils/drag_and_drop";
-import { getCSSVariableValue } from "@html_editor/utils/formatting";
 import { useSnippets } from "@html_builder/snippets/snippet_service";
 import { scrollTo } from "@html_builder/utils/scrolling";
-import { Snippet } from "./snippet.js";
+import { useDragAndDrop } from "@html_editor/utils/drag_and_drop";
+import { getCSSVariableValue } from "@html_editor/utils/formatting";
+import { Component, onMounted, onWillDestroy, useRef, useState } from "@odoo/owl";
+import { _t } from "@web/core/translation";
+import { closestScrollableY, getScrollingElement, isScrollableY } from "@web/core/utils/dom/scrolling";
+import { closest } from "@web/core/utils/dom/ui";
+import { useService } from "@web/core/utils/hooks";
+import { Tooltip } from "@web/ui/tooltip";
+
 import { CustomInnerSnippet } from "./custom_inner_snippet.js";
+import { Snippet } from "./snippet.js";
 
 /**
  * @typedef {import("@html_builder/core/drag_and_drop_plugin").DragState} DragState

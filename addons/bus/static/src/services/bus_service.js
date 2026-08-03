@@ -5,7 +5,7 @@ import { browser } from "@web/core/browser/browser";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { session } from "@web/session";
 
 // Worker events consumed internally by this service and NOT re-triggered on

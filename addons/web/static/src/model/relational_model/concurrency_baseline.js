@@ -18,7 +18,12 @@ const NON_COMPARABLE_TYPES = new Set([
 ]);
 
 /**
- * @param {import("./record").RelationalRecord} record
+ * Declared against the record CONTRACT rather than `RelationalRecord`: this
+ * reads two members (`fields`, `_values`), and saying so makes reaching for a
+ * third a typecheck failure instead of a silent entry in the private-access
+ * budget. See `record_contract.js`.
+ *
+ * @param {import("./record_contract").RecordContract} record
  * @param {Iterable<string>} fieldNames
  * @returns {Record<string, any>}
  */

@@ -3,7 +3,7 @@
 
 import { markup } from "@odoo/owl";
 import { loadJS } from "@web/core/assets";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
 import { session } from "@web/session";

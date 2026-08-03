@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { checkRainbowmanMessage } from "@crm/views/check_rainbowman_message";
-import { RelationalModel } from "@web/model/relational_model/relational_model";
+import { RelationalModel } from "@web/model/relational_model";
 
 export class CrmKanbanModel extends RelationalModel {
     setup(params, { effect }) {

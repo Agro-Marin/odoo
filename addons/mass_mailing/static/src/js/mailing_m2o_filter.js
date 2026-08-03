@@ -1,17 +1,18 @@
 /** @odoo-module native */
 import { Component, useEffect, useState } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
+import { Dropdown } from "@web/components/dropdown";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     buildM2OFieldDescription,
+    computeM2OProps,
     extractM2OFieldProps,
     m2oSupportedOptions,
+    Many2One,
     Many2OneField,
-} from "@web/fields/relational/many2one/many2one_field";
+} from "@web/fields/relational/many2one";
 
 export class MailingFilterDropdown extends Dropdown {
     setup() {

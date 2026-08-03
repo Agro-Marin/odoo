@@ -2,7 +2,7 @@
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 /**
  * A dialog that let the user edit the code that will be injected in the <head>

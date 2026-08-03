@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { usePopover } from "@web/ui/popover/popover_hook";
-import { _t } from "@web/core/l10n/translation";
+import { usePopover } from "@web/ui/popover";
+import { _t } from "@web/core/translation";
 import {
     KanbanMany2ManyTagsAvatarUserField,
     ListMany2ManyTagsAvatarUserField,

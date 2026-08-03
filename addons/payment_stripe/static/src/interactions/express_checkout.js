@@ -2,8 +2,8 @@
 /* global Stripe */
 
 import { patch } from '@web/core/utils/patch';
-import { _t } from '@web/core/l10n/translation';
-import { rpc } from '@web/core/network/rpc';
+import { _t } from '@web/core/translation';
+import { rpc } from "@web/core/network";
 import { redirect } from '@web/core/utils/urls';
 import { ExpressCheckout } from '@payment/interactions/express_checkout';
 import { StripeOptions } from '@payment_stripe/interactions/stripe_options';

@@ -14,14 +14,14 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { ModelEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
 import { reposition } from "@web/core/position/utils";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { exprToBoolean, uuid } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { user } from "@web/services/user";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 

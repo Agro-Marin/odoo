@@ -1,22 +1,22 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
-import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { Status } from "./dashboard_loader_service.js";
+import { Registry } from "@odoo/o-spreadsheet";
+import { Component, onWillStart, useEffect,useState } from "@odoo/owl";
 import { SpreadsheetComponent } from "@spreadsheet/actions/spreadsheet_component";
-import { useSetupAction } from "@web/core/action_hook";
-import { DashboardMobileSearchPanel } from "./mobile_search_panel/mobile_search_panel.js";
-import { MobileFigureContainer } from "./mobile_figure_container/mobile_figure_container.js";
-import { useService } from "@web/core/utils/hooks";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { SpreadsheetShareButton } from "@spreadsheet/components/share_button/share_button";
 import { useSpreadsheetPrint } from "@spreadsheet/hooks";
-import { Registry } from "@odoo/o-spreadsheet";
+import { useSetupAction } from "@web/core/action_hook";
 import { router } from "@web/core/browser/router";
-import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { useSearchBarToggler } from "@web/search/search_bar";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
-import { Component, onWillStart, useState, useEffect } from "@odoo/owl";
+import { Status } from "./dashboard_loader_service.js";
 import { DashboardSearchBar } from "./dashboard_search_bar/dashboard_search_bar.js";
+import { MobileFigureContainer } from "./mobile_figure_container/mobile_figure_container.js";
+import { DashboardMobileSearchPanel } from "./mobile_search_panel/mobile_search_panel.js";
 
 export const dashboardActionRegistry = new Registry();
 

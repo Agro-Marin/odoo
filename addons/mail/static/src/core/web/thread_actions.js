@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registerThreadAction } from "@mail/core/common/thread_actions";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 registerThreadAction("mark-all-read", {
     condition: ({ owner, thread }) =>
         thread?.id === "inbox" && !owner.isDiscussSidebarChannelActions,

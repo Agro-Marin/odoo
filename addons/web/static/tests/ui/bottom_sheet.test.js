@@ -391,3 +391,179 @@ test("snapping is really suppressed while the sheet is re-measured", async () =>
         queryOne(".o_bottom_sheet_rail").style.getPropertyValue("scroll-snap-type"),
     ).toBe("");
 });
+
+test.tags("mobile");
+test("a shrinking visual viewport never sizes the sheet past it", async () => {
+    // `applyDimensions` measures the VISUAL viewport, which is what a virtual
+    // keyboard shrinks. Emitting that measurement as a ratio in `dvh` -- a
+    // LAYOUT viewport unit -- silently mixed the two: the backend's viewport
+    // meta leaves `interactive-widget` at its default, so the layout viewport
+    // does not follow the keyboard. The sheet ended up with a `min-height`
+    // larger than the `max-height` meant to cap it, and min-height wins.
+    class Tall extends Component {
+        static template = xml`<div class="sheet-child" style="height: 900px">tall</div>`;
+        static props = ["*"];
+    }
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: Tall, close: () => {} },
+    });
+    await animationFrame();
+    await runAllTimers();
+
+    patchWithCleanup(browser, {
+        visualViewport: {
+            width: 375,
+            height: 300,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+        },
+    });
+    sheet.updateDimensions();
+    await animationFrame();
+
+    const sheetEl = queryOne(".o_bottom_sheet_sheet");
+    const { minHeight, maxHeight } = getComputedStyle(sheetEl);
+    expect(parseFloat(minHeight)).toBeLessThan(parseFloat(maxHeight) + 1);
+    expect(parseFloat(maxHeight)).toBe(300);
+    expect(sheetEl.getBoundingClientRect().height).toBeLessThan(301);
+});
+
+/** @param {number} height */
+function resizeVisualViewport(height) {
+    patchWithCleanup(browser, {
+        visualViewport: {
+            width: 375,
+            height,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+        },
+    });
+}
+
+test.tags("mobile");
+test("the sheet grows back once the viewport does", async () => {
+    // Sibling of "re-measures smaller when its content shrinks": that one lifts
+    // the stylesheet's `min-height: var(--sheet-height)` so the sheet can shrink.
+    // Its mirror, `max-height: var(--sheet-max-height)`, was still in force
+    // during the measurement, so once a virtual keyboard shrank the viewport the
+    // natural height was capped at the shrunken value and never recovered.
+    class Tall extends Component {
+        static template = xml`<div class="sheet-child" style="height: 900px">tall</div>`;
+        static props = ["*"];
+    }
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: Tall, close: () => {} },
+    });
+    await animationFrame();
+    await runAllTimers();
+    const full = sheet.measurements.initialHeight;
+    expect(full).toBeGreaterThan(500);
+
+    resizeVisualViewport(300);
+    sheet.updateDimensions();
+    await animationFrame();
+    expect(sheet.measurements.initialHeight).toBeLessThan(full);
+
+    resizeVisualViewport(667);
+    sheet.updateDimensions();
+    await animationFrame();
+    expect(sheet.measurements.initialHeight).toBe(full);
+});
+
+test.tags("mobile");
+test("a viewport change keeps the rail anchored to the sheet", async () => {
+    // The rail's scrollable extent IS the dismiss area, so re-measuring without
+    // re-anchoring left the sheet part-dragged against the new extent. Below
+    // `dismissThreshold` that reads as the drag-to-dismiss gesture, so putting
+    // the keyboard away closed the sheet.
+    class Tall extends Component {
+        static template = xml`<div class="sheet-child" style="height: 900px">tall</div>`;
+        static props = ["*"];
+    }
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: Tall, close: () => expect.step("closed") },
+    });
+    await animationFrame();
+    await runAllTimers();
+    const rail = sheet.scrollRailRef.el;
+    expect(Math.round(rail.scrollTop)).toBe(
+        Math.round(sheet.measurements.initialHeight),
+    );
+
+    for (const height of [300, 667]) {
+        resizeVisualViewport(height);
+        sheet.updateDimensions();
+        await animationFrame();
+        expect(Math.round(rail.scrollTop)).toBe(
+            Math.round(sheet.measurements.initialHeight),
+            { message: `rail left unanchored at visual viewport ${height}` },
+        );
+    }
+
+    rail.dispatchEvent(new Event("scroll"));
+    await runAllTimers();
+    await animationFrame();
+    expect(sheet.state.isDismissing).toBe(false);
+    expect.verifySteps([]);
+});
+
+const animEvent = (sel, type, name) =>
+    queryOne(sel).dispatchEvent(
+        new AnimationEvent(type, { bubbles: true, animationName: name }),
+    );
+
+// `.o_bottom_sheet_dismissing` overrides `.o_bottom_sheet_ready` at equal
+// specificity, so raising it swaps `animation-name` on the element still
+// running the slide-in and the browser cancels that animation right there.
+// Chrome emits `start:in, cancel:in, start:out, end:out`. A listener that only
+// checked `ev.target` accepted the cancellation as "the slide-out finished", so
+// a sheet dismissed inside its 400ms opening animation vanished with no
+// slide-out and closed ~200ms early.
+test("the slide-in's cancellation is not the slide-out's end", async () => {
+    let closed = 0;
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: AnimatedChild, close: () => closed++ },
+    });
+    await animationFrame();
+    sheet.prefersReducedMotion = false;
+    sheet.slideOut();
+    await animationFrame();
+
+    animEvent(".o_bottom_sheet_sheet", "animationcancel", "bottom-sheet-in");
+    expect(closed).toBe(0, { message: "the cancelled slide-in closed the sheet" });
+
+    animEvent(".o_bottom_sheet_sheet", "animationend", "bottom-sheet-out");
+    expect(closed).toBe(1);
+});
+
+test("an animation the sheet does not play never closes it", async () => {
+    let closed = 0;
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: AnimatedChild, close: () => closed++ },
+    });
+    await animationFrame();
+    sheet.prefersReducedMotion = false;
+    sheet.slideOut();
+    await animationFrame();
+
+    animEvent(".o_bottom_sheet_sheet", "animationend", "some-other-animation");
+    expect(closed).toBe(0);
+});
+
+// The mirror of the above: snapping is what `slideOut` has just turned off, so
+// the slide-in being cancelled must not turn it back on mid-dismissal.
+test("a cancelled slide-in does not enable snapping", async () => {
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: AnimatedChild, close: () => {} },
+    });
+    sheet.prefersReducedMotion = false;
+    sheet.state.isSnappingEnabled = false;
+    sheet.initializeSheet();
+    await animationFrame();
+
+    animEvent(".o_bottom_sheet_sheet", "animationcancel", "bottom-sheet-in");
+    expect(sheet.state.isSnappingEnabled).toBe(false);
+
+    animEvent(".o_bottom_sheet_sheet", "animationend", "bottom-sheet-in");
+    expect(sheet.state.isSnappingEnabled).toBe(true);
+});

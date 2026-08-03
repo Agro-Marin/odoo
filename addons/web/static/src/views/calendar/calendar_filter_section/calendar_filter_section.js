@@ -5,8 +5,8 @@
 
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
-import { Transition } from "@web/components/transition";
-import { _t } from "@web/core/l10n/translation";
+import { Transition } from "@web/core/transition";
+import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { getColor, sortCalendarFilters } from "@web/views/calendar/calendar_utils";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";

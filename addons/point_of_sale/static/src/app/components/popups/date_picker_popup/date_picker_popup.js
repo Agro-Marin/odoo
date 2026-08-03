@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { _t } from "@web/core/translation";
+import { Dialog } from "@web/ui/dialog";
 export class DatePickerPopup extends Component {
     static template = "point_of_sale.DatePickerPopup";
     static components = { Dialog };

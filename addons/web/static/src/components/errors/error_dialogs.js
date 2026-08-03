@@ -5,12 +5,12 @@
 
 import { Component, markup, useState } from "@odoo/owl";
 import { CopyButton } from "@web/components/copy_button/copy_button";
+import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { DateTime } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { capitalize } from "@web/core/utils/format/strings";
-import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 /**
@@ -191,7 +191,7 @@ export class RedirectWarningDialog extends Component {
     static props = { ...standardErrorDialogProps };
 
     setup() {
-        this.actionService = useService("action");
+        this.actionService = useAction();
         const { data, subType } = this.props;
         const [message, actionId, buttonText, additionalContext] =
             data?.arguments || [];

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanRecord } from "@web/views/kanban/kanban_record";
+import { KanbanRecord } from "@web/views/kanban";
 export class RottingKanbanRecord extends KanbanRecord {
     /**
      * @override

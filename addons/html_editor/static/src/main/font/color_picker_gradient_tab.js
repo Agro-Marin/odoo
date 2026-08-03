@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { applyOpacityToGradient, isColorGradient } from "@web/core/utils/format/colors";
 
 import { GradientPicker } from "./gradient_picker/gradient_picker.js";

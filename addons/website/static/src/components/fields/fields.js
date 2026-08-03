@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { debounce } from "@web/core/utils/timing";
 import { UrlField, urlField } from "@web/fields/basic/url/url_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";

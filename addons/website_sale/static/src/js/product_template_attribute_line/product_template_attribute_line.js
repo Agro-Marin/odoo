@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 import {
     ProductTemplateAttributeLine
 } from '@sale/js/product_template_attribute_line/product_template_attribute_line';

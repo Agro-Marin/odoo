@@ -4,8 +4,8 @@
 /** @module @web/fields/basic/integer/integer_field */
 
 import { formatInteger } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
 import { parseInteger } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";

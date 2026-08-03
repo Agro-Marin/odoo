@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { ProductNameAndDescriptionField } from "@product/product_name_and_description/product_name_and_description";
 import { registry } from "@web/core/registry";
-import { many2OneField } from "@web/fields/relational/many2one/many2one_field";
+import { many2OneField } from "@web/fields/relational/many2one";
 
 export class MoveProductLabelField extends ProductNameAndDescriptionField {
     static template = "stock.MoveProductLabelField";

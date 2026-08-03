@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { onWillStart, useRef, useState } from "@odoo/owl";
-import { useSortable } from "@web/core/utils/dnd/sortable_owl";
+import { useSortable } from "@web/core/utils/dnd";
 
 export class SocialMediaLinks extends BaseOptionComponent {
     static template = "website.SocialMediaLinks";

@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { Dialog } from "@web/ui/dialog";
 
 export class SlideUnsubscribeDialog extends Component {
     static template = "website_slides.SlideUnsubscribeDialog";

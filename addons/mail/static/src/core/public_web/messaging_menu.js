@@ -4,16 +4,15 @@ import { ImStatus } from "@mail/core/common/im_status";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { useDiscussSystray } from "@mail/utils/common/hooks";
 import { Component, useExternalListener, useRef, useState, useSubEnv } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import {
     hasTouch,
     isDisplayStandalone,
     isIOS,
 } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 import { DiscussContent } from "./discuss_content.js";

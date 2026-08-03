@@ -4,6 +4,7 @@
 /** @module @web/views/settings/widgets/res_config_dev_tool */
 
 import { Component, onWillStart } from "@odoo/owl";
+import { useAction } from "@web/core/action_port";
 import { router } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -21,7 +22,7 @@ export class ResConfigDevTool extends Component {
         ...standardWidgetProps,
     };
 
-    /** @type {import("services").ServiceFactories["action"]} */
+    /** @type {import("@web/core/action_port").ActionPort} */
     action;
     /** @type {import("services").ServiceFactories["demo_data"]} */
     demo;
@@ -32,7 +33,7 @@ export class ResConfigDevTool extends Component {
         this.isAssets = odoo.debug.includes("assets");
         this.isTests = odoo.debug.includes("tests");
 
-        this.action = useService("action");
+        this.action = useAction();
         this.demo = useService("demo_data");
 
         onWillStart(async () => {

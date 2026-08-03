@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
-import { rpc } from "@web/core/network/rpc";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
+import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
 
 /**

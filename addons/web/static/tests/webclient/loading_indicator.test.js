@@ -8,9 +8,9 @@ import {
     patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
-import { config as transitionConfig } from "@web/components/transition";
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
+import { config as transitionConfig } from "@web/core/transition";
 import { LoadingIndicator } from "@web/webclient/loading_indicator/loading_indicator";
 
 const payload = (/** @type {number} */ id) => ({

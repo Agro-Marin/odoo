@@ -3,7 +3,8 @@
 
 /** @module @web/boot/main */
 
-import { paintBootFailureOverlay, startWebClient } from "@web/boot/start";
+import { startWebClient } from "@web/boot/start";
+import { paintBootFailureOverlay } from "@web/core/errors/boot_failure_overlay";
 import { assetLog } from "@web/core/utils/asset_log";
 import { WebClient } from "@web/webclient/webclient";
 

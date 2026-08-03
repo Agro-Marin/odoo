@@ -3,7 +3,7 @@ import { NavigableList } from "@mail/core/common/navigable_list";
 import { mapSuggestionsToOptions } from "@mail/core/common/suggestion_hook";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, useEffect, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 export class MentionList extends Component {
     static template = "mail.MentionList";

@@ -4,7 +4,7 @@ import { formatMonetary } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 
 import { MoOverviewComponentsBlock } from "../mo_overview_components_block/mrp_mo_overview_components_block.js";
 import { MoOverviewDisplayFilter } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";

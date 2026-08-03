@@ -2,8 +2,8 @@
 import { Message } from "@mail/core/common/message";
 import { convertBrToLineBreak } from "@mail/utils/common/format";
 
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { rpc } from "@web/core/network/rpc";
+import { DropdownItem } from "@web/components/dropdown";
+import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 
 Message.components = { ...Message.components, DropdownItem };

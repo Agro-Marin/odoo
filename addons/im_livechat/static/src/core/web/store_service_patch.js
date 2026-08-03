@@ -1,7 +1,9 @@
 /** @odoo-module native */
+import "@mail/core/public_web/store_service_patch";
+
 import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 /** @type {import("models").Store} */

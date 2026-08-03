@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { ConnectionLostError, rpc } from "@web/core/network/rpc";
+import { ConnectionLostError, rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 export class NetworkConnectionLostPopup extends Component {
     static template = "pos_self_order.NetworkConnectionLostPopup";
     static props = ["close", "access_token"];

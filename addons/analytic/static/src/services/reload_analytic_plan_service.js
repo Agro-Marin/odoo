@@ -4,7 +4,7 @@
 /** @module @analytic/services/reload_analytic_plan_service - Service that triggers a page reload when account.analytic.plan records are modified */
 
 import { browser } from "@web/core/browser/browser";
-import { onModelMutation } from "@web/core/network/model_mutation";
+import { onModelMutation } from "@web/core/network";
 import { registry } from "@web/core/registry";
 
 // The views need to include the newly created field on `account.analytic.line`

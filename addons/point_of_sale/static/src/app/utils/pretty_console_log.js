@@ -2,7 +2,7 @@
 /* eslint-disable no-console -- dedicated styled console logger; console is its output */
 import { Logger } from "@bus/workers/bus_worker_utils";
 import { luxon } from "@web/core/l10n/luxon";
-import { downloadFile } from "@web/core/network/download";
+import { downloadFile } from "@web/core/network";
 const posLogger = new Logger(`point_of_sale_config_${odoo.pos_config_id}_logger`);
 
 export function logPosMessage(

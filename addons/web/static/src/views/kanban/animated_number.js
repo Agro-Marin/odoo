@@ -6,7 +6,7 @@
 import { Component, onWillUnmount, onWillUpdateProps, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { formatInteger, formatMonetary } from "@web/core/formatters";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
 

@@ -7,7 +7,7 @@ import {
     isZwnbsp,
 } from "@html_editor/utils/dom_info";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { Plugin } from "../../plugin.js";
 import { MediaDialog } from "./media_dialog/media_dialog.js";

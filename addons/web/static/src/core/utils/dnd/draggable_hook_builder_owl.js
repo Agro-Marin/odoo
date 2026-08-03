@@ -6,13 +6,13 @@
 import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
-import { makeDraggableHook as nativeMakeDraggableHook } from "./draggable_hook_builder.js";
+import { makeNativeDraggableHook } from "./draggable_hook_builder.js";
 
 /**
- * @type {typeof nativeMakeDraggableHook}
+ * @type {typeof makeNativeDraggableHook}
  */
 export function makeDraggableHook(params) {
-    return nativeMakeDraggableHook(
+    return makeNativeDraggableHook(
         /** @type {any} */ ({
             ...params,
             setupHooks: {

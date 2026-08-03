@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanCompiler } from "@web/views/kanban/kanban_compiler";
+import { KanbanCompiler } from "@web/views/kanban";
 import { isTextNode } from "@web/views/view_compiler";
 import { createElement } from "@web/core/utils/dom/xml";
 

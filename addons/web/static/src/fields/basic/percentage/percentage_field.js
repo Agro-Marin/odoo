@@ -4,8 +4,8 @@
 /** @module @web/fields/basic/percentage/percentage_field */
 
 import { formatPercentage } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
 import { parsePercentage } from "@web/core/parsers";
+import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { Operation } from "@web/core/utils/operation";
 import { registerField } from "@web/fields/_registry";

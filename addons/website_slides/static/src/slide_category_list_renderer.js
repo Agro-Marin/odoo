@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { ListRenderer } from "@web/views/list";
 
 export class SlideCategoryListRenderer extends ListRenderer {
     setup() {

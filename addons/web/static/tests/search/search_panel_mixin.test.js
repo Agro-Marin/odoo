@@ -739,31 +739,6 @@ describe("a failing section fetch leaves a usable section", () => {
     });
 });
 
-describe("_notifySectionRefreshed", () => {
-    test("renders immediately when notifications are not blocked", () => {
-        const model = makeSearchModel(new Map());
-        model._reset = () => expect.step("reset");
-        model.trigger = (ev) => expect.step(`trigger:${ev}`);
-        model.blockNotification = false;
-
-        model._notifySectionRefreshed();
-
-        expect.verifySteps(["reset", "trigger:update"]);
-        expect(model._pendingNotification).toBe(undefined);
-    });
-
-    test("defers to the pending flag inside a blocked window", () => {
-        // A late disk-cache hit landing mid-`load`/`_reloadSections` used to
-        // trigger UPDATE regardless — the one write path that ignored the
-        // batching every query mutation funnels through.
-        const model = makeSearchModel(new Map());
-        model._reset = () => expect.step("reset");
-        model.trigger = (ev) => expect.step(`trigger:${ev}`);
-        model.blockNotification = true;
-
-        model._notifySectionRefreshed();
-
-        expect.verifySteps(["reset"]);
-        expect(model._pendingNotification).toBe(true);
-    });
-});
+// The section-refresh notification path (formerly `_notifySectionRefreshed`) is
+// now `SearchModel._notify({ reloadSections: false })`; its behaviour is
+// unit-tested in search_model.test.js, where the base method lives.

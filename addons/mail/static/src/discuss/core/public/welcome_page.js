@@ -2,7 +2,7 @@
 import { CallPreview } from "@mail/discuss/call/common/call_preview";
 import { Component, useState, useSubEnv } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 export class WelcomePage extends Component {
     static props = ["proceed?"];

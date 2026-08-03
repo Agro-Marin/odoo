@@ -5,7 +5,7 @@
 
 import { onWillDestroy, reactive } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { debounce } from "@web/core/utils/timing";
 import {
     extractAggregatesFromGroupData,
@@ -29,13 +29,18 @@ const EMPTY_GROUP_INFO = Object.freeze({
 });
 
 /**
- * @param {Object[]} groups
- * @param {Object} groupByField
- * @param {*} value
- * @returns {Object}
+ * Identity key for a group's server value.
+ *
+ * `getGroupServerValue` wraps many2many values in a freshly allocated array, so
+ * two server values denoting the same group are never `===`. Every internal map
+ * in this module is therefore keyed by this canonical string rather than by the
+ * server value itself.
+ *
+ * @param {*} serverValue
+ * @returns {string}
  */
-function _findGroup(groups, groupByField, value) {
-    return groups.find((g) => g[groupByField.name] === value) || {};
+function groupKey(serverValue) {
+    return JSON.stringify(serverValue ?? false);
 }
 
 /**
@@ -59,18 +64,19 @@ function _createFilterDomain(fieldName, bars, value) {
  * @param {Object[]} groups
  * @param {string[]} groupBy
  * @param {Object} fields
- * @returns {Object[]}
+ * @returns {Map<string, Object>} aggregates by {@link groupKey}
  */
-function _groupsToAggregateValues(groups, groupBy, fields) {
-    const groupByFieldName = groupBy[0].split(":")[0];
-    return groups.map((g) => {
-        const { aggregates, serverValue } = extractAggregatesFromGroupData(
-            g,
-            groupBy,
-            fields,
-        );
-        return Object.assign(aggregates, { [groupByFieldName]: serverValue });
-    });
+function _groupsToAggregatesByKey(groups, groupBy, fields) {
+    return new Map(
+        groups.map((g) => {
+            const { aggregates, serverValue } = extractAggregatesFromGroupData(
+                g,
+                groupBy,
+                fields,
+            );
+            return [groupKey(serverValue), aggregates];
+        }),
+    );
 }
 
 class ProgressBarState {
@@ -85,8 +91,10 @@ class ProgressBarState {
         this.model = model;
         this._groupsInfo = {};
         this._aggregateFields = aggregateFields;
+        /** @type {Record<string, Object>} keyed by {@link groupKey} */
         this.activeBars = activeBars;
-        this._aggregateValues = [];
+        /** @type {Map<string, Object>} aggregates by {@link groupKey} */
+        this._aggregatesByKey = new Map();
         this._pbCounts = null;
         this._pbEpoch = 0;
         this._aggEpoch = 0;
@@ -111,76 +119,87 @@ class ProgressBarState {
     }
 
     /**
+     * Seeds every current group up front. `getGroupInfo` is read from render
+     * (kanban header / renderer), and this state is `reactive`: seeding lazily
+     * from there is a write to a subscribed object mid-render, which costs an
+     * extra render pass per group. Called once per load instead.
+     */
+    _seedAllGroups() {
+        if (this._pbCounts === null) {
+            return;
+        }
+        for (const group of this.model.root.groups || []) {
+            if (!this._groupsInfo[group.id]) {
+                this._seedGroupInfo(group);
+            }
+        }
+    }
+
+    /**
      * @param {Group} group
      */
     _seedGroupInfo(group) {
-        const aggValues = _findGroup(
-            this._aggregateValues,
-            group.groupByField,
-            group.serverValue,
-        );
-        const index = this._aggregateValues.indexOf(aggValues);
-        if (index > -1) {
-            this._aggregateValues.splice(index, 1);
-        }
-        this._aggregateValues.push({
-            ...group.aggregates,
-            [group.groupByField.name]: group.serverValue,
-        });
-        const groupValue = this._getGroupValue(group);
-        const pbCount = this._pbCounts[groupValue];
+        const key = groupKey(group.serverValue);
+        this._aggregatesByKey.set(key, { ...group.aggregates });
+        const pbCount = this._pbCounts[this._pbCountKey(group)];
         const { fieldName, colors } = this.progressAttributes;
         const { selection: fieldSelection } = this.model.root.fields[fieldName];
         const selection = fieldSelection && Object.fromEntries(fieldSelection);
-        const bars = Object.entries(colors).map(([value, color]) => {
-            let string;
-            if (selection) {
-                string = selection[value];
-            } else {
-                string = String(value);
-            }
-            return {
-                count: (pbCount && pbCount[value]) || 0,
-                value,
-                string,
-                color,
-            };
-        });
+        const bars = Object.entries(colors).map(([value, color]) => ({
+            count: (pbCount && pbCount[value]) || 0,
+            value,
+            string: selection ? selection[value] : String(value),
+            color,
+        }));
         bars.push({
-            count: Math.max(
-                0,
-                group.count - bars.map((r) => r.count).reduce((a, b) => a + b, 0),
-            ),
+            count: 0,
             value: /** @type {any} */ (FALSE),
             string: _t("Other"),
             color: "200",
         });
 
-        if (this.activeBars[group.serverValue]) {
-            this.activeBars[group.serverValue].count =
-                bars.find((x) => x.value === this.activeBars[group.serverValue].value)
-                    ?.count ?? 0;
-
-            if (this._aggregateFields.length) {
-                this.activeBars[group.serverValue].aggregates = _findGroup(
-                    this._aggregateValues,
-                    group.groupByField,
-                    group.serverValue,
-                );
-            }
+        const activeBar = this.activeBars[key];
+        if (activeBar && this._aggregateFields.length) {
+            activeBar.aggregates = this._aggregatesByKey.get(key);
         }
 
         const self = this;
-        const progressBar = {
+        this._groupsInfo[group.id] = {
             get activeBar() {
-                return self.activeBars[group.serverValue]?.value || null;
+                return self.activeBars[key]?.value || null;
             },
             bars,
-            total: bars.reduce((sum, bar) => sum + bar.count, 0),
+            total: 0,
             isReady: true,
         };
+        this._recomputeTotals(group);
+    }
 
-        this._groupsInfo[group.id] = progressBar;
+    /**
+     * Single source of truth for the derived counts: the "Other" bucket, the
+     * group total and the active bar's count. Every path that mutates a bar
+     * count funnels through here so the bars can never disagree.
+     *
+     * @param {Group} group
+     */
+    _recomputeTotals(group) {
+        const groupInfo = this._groupsInfo[group.id];
+        if (!groupInfo) {
+            return;
+        }
+        const coloredCount = groupInfo.bars
+            .filter((bar) => bar.value !== FALSE)
+            .reduce((sum, bar) => sum + bar.count, 0);
+        const otherBar = groupInfo.bars.find((bar) => bar.value === FALSE);
+        if (otherBar) {
+            otherBar.count = Math.max(0, group.count - coloredCount);
+        }
+        groupInfo.total = groupInfo.bars.reduce((sum, bar) => sum + bar.count, 0);
+        const activeBar = this.activeBars[groupKey(group.serverValue)];
+        if (activeBar) {
+            activeBar.count =
+                groupInfo.bars.find((bar) => bar.value === activeBar.value)?.count ?? 0;
+        }
     }
 
     /**
@@ -189,22 +208,19 @@ class ProgressBarState {
      * @returns {{ title: string, value: number, currencies?: Array }}
      */
     getAggregateValue(group, aggregateField) {
-        const { groupByField, serverValue } = group;
+        const key = groupKey(group.serverValue);
+        const activeBar = this.activeBars[key];
         const title = aggregateField ? aggregateField.string : _t("Count");
         let value;
-        if (!this.activeBars[serverValue]) {
+        if (!activeBar) {
             value = group.count;
             if (value && aggregateField) {
-                value = _findGroup(this._aggregateValues, groupByField, serverValue)[
-                    aggregateField.name
-                ];
+                value = this._aggregatesByKey.get(key)?.[aggregateField.name];
             }
         } else {
-            value = this.activeBars[serverValue].count;
+            value = activeBar.count;
             if (value && aggregateField) {
-                value =
-                    this.activeBars[serverValue]?.aggregates &&
-                    this.activeBars[serverValue]?.aggregates[aggregateField.name];
+                value = activeBar.aggregates?.[aggregateField.name];
             }
         }
         value ||= 0;
@@ -213,12 +229,8 @@ class ProgressBarState {
             aggregateField.type === "monetary" &&
             aggregateField.currency_field
         ) {
-            const aggValues = _findGroup(
-                this._aggregateValues,
-                groupByField,
-                serverValue,
-            );
-            const currencies = aggValues?.[aggregateField.currency_field];
+            const currencies =
+                this._aggregatesByKey.get(key)?.[aggregateField.currency_field];
             if (currencies?.length > 1) {
                 return {
                     title,
@@ -245,11 +257,12 @@ class ProgressBarState {
         const group = this.model.root.groups.find((group) => group.id === groupId);
         const progressBar = this.getGroupInfo(group);
         const nextActiveBar = {};
-        if (bar.value && this.activeBars[group.serverValue]?.value !== bar.value) {
+        const key = groupKey(group.serverValue);
+        if (bar.value && this.activeBars[key]?.value !== bar.value) {
             nextActiveBar.value = bar.value;
         } else {
             await group.applyFilter(undefined);
-            delete this.activeBars[group.serverValue];
+            delete this.activeBars[key];
             group.model.notify();
             return;
         }
@@ -272,7 +285,7 @@ class ProgressBarState {
             proms.push(this._updateAggregateGroup(group, bars, nextActiveBar));
         }
         await Promise.all(proms);
-        this.activeBars[group.serverValue] = nextActiveBar;
+        this.activeBars[key] = nextActiveBar;
         this.updateCounts(group);
     }
 
@@ -283,8 +296,9 @@ class ProgressBarState {
      * @returns {Promise<void>}
      */
     async _updateAggregateGroup(group, bars, activeBar) {
-        const epoch = (this._groupAggEpochs.get(group.serverValue) || 0) + 1;
-        this._groupAggEpochs.set(group.serverValue, epoch);
+        const key = groupKey(group.serverValue);
+        const epoch = (this._groupAggEpochs.get(key) || 0) + 1;
+        this._groupAggEpochs.set(key, epoch);
         const filterDomain = _createFilterDomain(
             this.progressAttributes.fieldName,
             bars,
@@ -303,17 +317,12 @@ class ProgressBarState {
             aggregateSpecs,
             kwargs,
         );
-        if (epoch !== this._groupAggEpochs.get(group.serverValue)) {
+        if (epoch !== this._groupAggEpochs.get(key)) {
             return;
         }
         if (groups.length) {
-            const groupByField = group.groupByField;
-            const aggrValues = _groupsToAggregateValues(groups, groupBy, fields);
-            activeBar.aggregates = _findGroup(
-                aggrValues,
-                groupByField,
-                group.serverValue,
-            );
+            activeBar.aggregates =
+                _groupsToAggregatesByKey(groups, groupBy, fields).get(key) || {};
         }
     }
 
@@ -342,18 +351,19 @@ class ProgressBarState {
      */
     _deselectActiveBars(shouldDeselect) {
         for (const group of this.model.root.groups) {
-            const activeBar = this.activeBars[group.serverValue];
+            const key = groupKey(group.serverValue);
+            const activeBar = this.activeBars[key];
             if (
                 !activeBar ||
-                this._pendingBarDeselections.has(group.serverValue) ||
+                this._pendingBarDeselections.has(key) ||
                 !shouldDeselect(group, activeBar)
             ) {
                 continue;
             }
-            this._pendingBarDeselections.add(group.serverValue);
+            this._pendingBarDeselections.add(key);
             this.selectBar(group.id, { value: null })
                 .catch((error) => console.error(error))
-                .finally(() => this._pendingBarDeselections.delete(group.serverValue));
+                .finally(() => this._pendingBarDeselections.delete(key));
         }
     }
 
@@ -427,7 +437,7 @@ class ProgressBarState {
             (key) => key === value || key === String(value),
         );
         if (bucket) {
-            const counts = (this._pbCounts[this._getGroupValue(group)] ||= {});
+            const counts = (this._pbCounts[this._pbCountKey(group)] ||= {});
             counts[bucket] = Math.max(0, (counts[bucket] || 0) + delta);
         }
         const groupInfo = this._groupsInfo[group.id];
@@ -440,20 +450,7 @@ class ProgressBarState {
                 bar.count = Math.max(0, bar.count + delta);
             }
         }
-        const coloredCount = groupInfo.bars
-            .filter((b) => b.value !== FALSE)
-            .reduce((sum, b) => sum + b.count, 0);
-        groupInfo.bars.find((b) => b.value === FALSE).count = Math.max(
-            0,
-            group.count - coloredCount,
-        );
-        groupInfo.total = groupInfo.bars.reduce((sum, bar) => sum + bar.count, 0);
-        if (this.activeBars[group.serverValue]) {
-            this.activeBars[group.serverValue].count =
-                groupInfo.bars.find(
-                    (x) => x.value === this.activeBars[group.serverValue].value,
-                )?.count ?? 0;
-        }
+        this._recomputeTotals(group);
     }
 
     /**
@@ -474,21 +471,10 @@ class ProgressBarState {
         if (epoch !== this._aggEpoch) {
             return;
         }
-        const aggrValues = _groupsToAggregateValues(groups, groupBy, fields);
+        const aggregatesByKey = _groupsToAggregatesByKey(groups, groupBy, fields);
         for (const group of groupsToUpdate) {
-            const { groupByField, serverValue } = group;
-            const entry = {
-                ..._findGroup(aggrValues, groupByField, serverValue),
-                [groupByField.name]: serverValue,
-            };
-            const index = this._aggregateValues.findIndex(
-                (values) => values[groupByField.name] === serverValue,
-            );
-            if (index > -1) {
-                this._aggregateValues[index] = entry;
-            } else {
-                this._aggregateValues.push(entry);
-            }
+            const key = groupKey(group.serverValue);
+            this._aggregatesByKey.set(key, aggregatesByKey.get(key) || {});
         }
     }
 
@@ -520,13 +506,12 @@ class ProgressBarState {
      * @param {Group} group
      */
     updateAggregateGroup(group) {
-        if (group && this.activeBars[group.serverValue]) {
+        const activeBar = group && this.activeBars[groupKey(group.serverValue)];
+        if (activeBar) {
             const { bars } = this.getGroupInfo(group);
-            this._updateAggregateGroup(
-                group,
-                bars,
-                this.activeBars[group.serverValue],
-            ).catch((error) => console.error(error));
+            this._updateAggregateGroup(group, bars, activeBar).catch((error) =>
+                console.error(error),
+            );
         }
     }
 
@@ -544,7 +529,7 @@ class ProgressBarState {
         if (epoch !== this._aggEpoch) {
             return;
         }
-        this._aggregateValues = _groupsToAggregateValues(groups, groupBy, fields);
+        this._aggregatesByKey = _groupsToAggregatesByKey(groups, groupBy, fields);
     }
 
     /**
@@ -597,23 +582,13 @@ class ProgressBarState {
                 continue;
             }
             const groupInfo = this.getGroupInfo(group);
-            const counts = this._pbCounts[this._getGroupValue(group)];
+            const counts = this._pbCounts[this._pbCountKey(group)];
             for (const bar of groupInfo.bars) {
-                bar.count = (counts && counts[bar.value]) || 0;
+                if (bar.value !== FALSE) {
+                    bar.count = (counts && counts[bar.value]) || 0;
+                }
             }
-            groupInfo.bars.find((b) => b.value === FALSE).count = counts
-                ? Math.max(
-                      0,
-                      group.count - Object.values(counts).reduce((a, b) => a + b, 0),
-                  )
-                : group.count;
-            groupInfo.total = groupInfo.bars.reduce((sum, bar) => sum + bar.count, 0);
-            if (this.activeBars[group.serverValue]) {
-                this.activeBars[group.serverValue].count =
-                    groupInfo.bars.find(
-                        (x) => x.value === this.activeBars[group.serverValue].value,
-                    )?.count ?? 0;
-            }
+            this._recomputeTotals(group);
         }
         this._deselectEmptyActiveBars();
     }
@@ -674,10 +649,13 @@ class ProgressBarState {
     }
 
     /**
+     * Key into `_pbCounts`, which is the raw `read_progress_bar` response and
+     * therefore uses the SERVER's group-value spelling — not {@link groupKey}.
+     *
      * @param {Group} group
      * @return string
      */
-    _getGroupValue(group) {
+    _pbCountKey(group) {
         if (group.value === true) {
             return "True";
         } else if (group.value === false) {
@@ -699,33 +677,34 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
         new ProgressBarState(progressAttributes, model, aggregateFields, activeBars),
     );
 
-    const onWillLoadRoot = model.hooks.lifecycle.onWillLoadRoot;
     let prom;
-    model.hooks.lifecycle.onWillLoadRoot = (config) => {
-        onWillLoadRoot(config);
-        prom = progressBarState.loadProgressBar({
-            context: config.context,
-            domain: config.domain,
-            groupBy: config.groupBy,
-            resModel: config.resModel,
-        });
-    };
-    const onRootLoaded = model.hooks.lifecycle.onRootLoaded;
-    model.hooks.lifecycle.onRootLoaded = async (root) => {
-        await onRootLoaded(root);
-        progressBarState._pruneGroupsInfo();
-        if (model.isReady) {
-            return prom
-                ?.then(() => progressBarState._refreshBars())
-                .catch((error) => console.error(error));
-        }
-        prom?.then(() => progressBarState._deselectEmptyActiveBars()).catch((error) =>
-            console.error(error),
-        );
-    };
+    const unsubscribe = [
+        model.subscribeLifecycle("onWillLoadRoot", (config) => {
+            prom = progressBarState.loadProgressBar({
+                context: config.context,
+                domain: config.domain,
+                groupBy: config.groupBy,
+                resModel: config.resModel,
+            });
+        }),
+        model.subscribeLifecycle("onRootLoaded", async () => {
+            progressBarState._pruneGroupsInfo();
+            try {
+                await prom;
+            } catch (error) {
+                console.error(error);
+                return;
+            }
+            progressBarState._seedAllGroups();
+            if (model.isReady) {
+                progressBarState._refreshBars();
+            } else {
+                progressBarState._deselectEmptyActiveBars();
+            }
+        }),
+    ];
     onWillDestroy(() => {
-        model.hooks.lifecycle.onWillLoadRoot = onWillLoadRoot;
-        model.hooks.lifecycle.onRootLoaded = onRootLoaded;
+        unsubscribe.forEach((stop) => stop());
         progressBarState._moveReconcileDebounced?.cancel();
         progressBarState._membershipRetryDebounced?.cancel();
     });

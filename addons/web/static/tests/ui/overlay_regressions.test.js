@@ -1,6 +1,6 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
+import { expect, onError, test } from "@odoo/hoot";
 import { queryAll, queryOne, resize } from "@odoo/hoot-dom";
 import { animationFrame, mockTouch, runAllTimers } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
@@ -18,10 +18,10 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { Dropdown } from "@web/components/dropdown/dropdown";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { RainbowMan } from "@web/ui/effects/rainbow_man";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
 import {
     getDetachedTargetObserverCount,
@@ -382,7 +382,10 @@ test("the overlay presenter reads each option getter exactly once", async () => 
     // the overlay a plain snapshot -- so a caller writing `get class()` to
     // follow live state gets the value it had when the overlay was added, and
     // nothing after that.
-    let reads = 0;
+    // Both mapping paths are covered: `class` is a shared option the presenter
+    // maps itself, `position` reaches the props through the caller's toProps.
+    let classReads = 0;
+    let positionReads = 0;
     /** @type {any[]} */
     const added = [];
     const add = makeOverlayPresenter({
@@ -393,7 +396,7 @@ test("the overlay presenter reads each option getter exactly once", async () => 
             },
         },
         component: /** @type {any} */ (class {}),
-        toProps: (options) => ({ class: options.class }),
+        toProps: (options) => ({ position: options.position }),
     });
     add(
         /** @type {any} */ (document.body),
@@ -401,14 +404,260 @@ test("the overlay presenter reads each option getter exactly once", async () => 
         {},
         {
             get class() {
-                reads++;
-                return `cls-${reads}`;
+                classReads++;
+                return `cls-${classReads}`;
+            },
+            get position() {
+                positionReads++;
+                return `pos-${positionReads}`;
             },
         },
     );
 
-    expect(reads).toBe(1);
+    expect(classReads).toBe(1);
+    expect(positionReads).toBe(1);
     expect(added[0].class).toBe("cls-1");
+    expect(added[0].position).toBe("pos-1");
     expect(added[0].class).toBe("cls-1");
-    expect(reads).toBe(1);
+    expect(classReads).toBe(1);
+    expect(positionReads).toBe(1);
+});
+
+// `usePopover({ useBottomSheet })` routes one call to either presenter, so a
+// component hosted by them must get the same `close` either way. `web.Popover`
+// hands over the presenter's own `close` untouched; `web.BottomSheet` has to
+// intercept it to play the slide-out first, and used to drop the arguments on
+// the floor — so the very callers that pass a result back through `close(...)`
+// got `undefined` on exactly the breakpoints that produce a sheet.
+class ClosingContent extends Component {
+    static template = xml`<button class="closer" t-on-click="() => this.props.close({ answer: 42 })">x</button>`;
+    static props = ["*"];
+}
+
+test.tags("mobile");
+test("a bottom sheet forwards its hosted component's close parameters", async () => {
+    mockTouch(true);
+    await resize({ width: 375, height: 667 });
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+
+    /** @type {any[]} */
+    const seen = [];
+    class Host extends Component {
+        static template = xml`<div class="host"/>`;
+        static props = ["*"];
+        setup() {
+            this.popover = usePopover(ClosingContent, {
+                useBottomSheet: () => true,
+                onClose: (params) => seen.push(params),
+            });
+        }
+    }
+    const host = await mountWithCleanup(Host);
+    host.popover.open(queryOne(".host"), {});
+    await animationFrame();
+    await animationFrame();
+    expect(".o_bottom_sheet").toHaveCount(1);
+
+    queryOne(".closer").click();
+    await runAllTimers();
+    await animationFrame();
+    expect(seen).toEqual([{ answer: 42 }]);
+});
+
+test("a popover forwards its hosted component's close parameters", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+
+    /** @type {any[]} */
+    const seen = [];
+    class Host extends Component {
+        static template = xml`<div class="host"/>`;
+        static props = ["*"];
+        setup() {
+            this.popover = usePopover(ClosingContent, {
+                onClose: (params) => seen.push(params),
+            });
+        }
+    }
+    const host = await mountWithCleanup(Host);
+    host.popover.open(queryOne(".host"), {});
+    await animationFrame();
+
+    queryOne(".closer").click();
+    await runAllTimers();
+    await animationFrame();
+    expect(seen).toEqual([{ answer: 42 }]);
+});
+
+// `Popover` declared a `slots` prop its template never rendered, so slotted
+// content vanished with no error. The prop is gone rather than implemented: the
+// overlay presenter is the only thing that ever builds a Popover and it always
+// passes `component`, so rendering a slot would only have traded a loud
+// validation error for a silently empty popover.
+test("a slotted popover is rejected rather than silently empty", async () => {
+    await makeMockEnv();
+    class SlotHost extends Component {
+        static template = xml`<Popover target="target" close="() => {}" component="comp"><div class="slotted"/></Popover>`;
+        static components = { Popover };
+        static props = ["*"];
+        setup() {
+            this.target = document.body;
+            this.comp = Content;
+        }
+    }
+    let message = "none";
+    onError((ev) => {
+        message = String(ev.reason?.message ?? ev.reason);
+        ev.preventDefault();
+    });
+    try {
+        await mountWithCleanup(SlotHost);
+        await animationFrame();
+    } catch (e) {
+        message = String(e?.message ?? e);
+    }
+    expect(message).toInclude("slots");
+    expect(".slotted").toHaveCount(0);
+});
+
+// The presenters share one options object (`usePopover({ useBottomSheet })`
+// picks between them at open time), so every option they both accept is mapped
+// once, in the presenter. These pin the mappings that used to be duplicated per
+// service and could drift apart.
+test("both presenters honour the popoverClass alias and the class option", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    class Host extends Component {
+        static template = xml`<div class="anchor">a</div>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Host);
+    const anchor = queryOne(".anchor");
+
+    const closePopover = getService("popover").add(
+        anchor,
+        Content,
+        {},
+        {
+            popoverClass: "via-alias",
+        },
+    );
+    await animationFrame();
+    expect(".o_popover.via-alias").toHaveCount(1);
+    closePopover();
+    await animationFrame();
+
+    getService("popover").add(anchor, Content, {}, { class: "via-class" });
+    await animationFrame();
+    expect(".o_popover.via-class").toHaveCount(1);
+});
+
+// A default that lived in `popover_service` reached only popovers opened
+// through the service, so a <Popover> written in a template trapped no focus
+// while the <BottomSheet> it is interchangeable with did.
+// `useActiveElement` deliberately declines to claim a region nothing inside can
+// be focused, so both of these need focusable content to mean anything.
+class FocusableContent extends Component {
+    static template = xml`<div class="popover-content"><button class="in">i</button></div>`;
+    static props = ["*"];
+}
+
+test("a <Popover> written in a template claims the UI like a sheet does", async () => {
+    await makeMockEnv();
+    class DirectHost extends Component {
+        static template = xml`<Popover target="t" close="() => {}" component="c"/>`;
+        static components = { Popover };
+        static props = ["*"];
+        setup() {
+            this.t = document.body;
+            this.c = FocusableContent;
+        }
+    }
+    await mountWithCleanup(DirectHost);
+    await animationFrame();
+    await animationFrame();
+    expect(getService("ui").activeElement).not.toBe(document);
+});
+
+test("Dropdown can still opt out of claiming the UI", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    class Host extends Component {
+        static template = xml`<div class="anchor">a</div>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Host);
+    const anchor = queryOne(".anchor");
+
+    // Same content, so the only difference is the option under test.
+    const close = getService("popover").add(anchor, FocusableContent, {}, {});
+    await animationFrame();
+    await animationFrame();
+    expect(getService("ui").activeElement).not.toBe(document);
+    close();
+    await animationFrame();
+
+    getService("popover").add(
+        anchor,
+        FocusableContent,
+        {},
+        {
+            setActiveElement: false,
+        },
+    );
+    await animationFrame();
+    await animationFrame();
+    expect(getService("ui").activeElement).toBe(document);
+});
+
+// Removal awaits the caller's onClose, so the hook's close() is the only handle
+// on "the popover is actually gone". It discarded the promise.
+test("the popover hook hands back an awaitable close", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    /** @type {string[]} */
+    const order = [];
+    let release = () => {};
+    const slow = new Promise((resolve) => {
+        release = () => resolve(undefined);
+    });
+    class Host extends Component {
+        static template = xml`<div class="anchor">a</div>`;
+        static props = ["*"];
+        setup() {
+            this.popover = usePopover(Content, {
+                onClose: async () => {
+                    await slow;
+                    order.push("onClose");
+                },
+            });
+        }
+    }
+    const host = await mountWithCleanup(Host);
+    host.popover.open(queryOne(".anchor"), {});
+    await animationFrame();
+
+    const closed = host.popover.close().then(() => order.push("awaited"));
+    release();
+    await closed;
+    expect(order).toEqual(["onClose", "awaited"]);
+});
+
+// A target watched while still detached had its observer bound to the orphan
+// subtree, which nothing mutates again -- so the removal that mattered, once it
+// was in the page, never reached the watcher.
+test("a target watched before it is attached still reports its removal", async () => {
+    const orphan = document.createElement("div");
+    let detached = 0;
+    const unwatch = watchForDetachedTarget(orphan, () => detached++);
+
+    document.body.appendChild(orphan);
+    await animationFrame();
+    expect(detached).toBe(0);
+
+    orphan.remove();
+    await animationFrame();
+    expect(detached).toBe(1);
+    unwatch();
 });

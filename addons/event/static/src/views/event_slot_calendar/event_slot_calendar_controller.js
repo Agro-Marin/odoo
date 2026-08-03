@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { CalendarController } from "@web/views/calendar/calendar_controller";
-import { _t } from "@web/core/l10n/translation";
+import { CalendarController } from "@web/views/calendar";
+import { _t } from "@web/core/translation";
 
 export class EventSlotCalendarController extends CalendarController {
     /**

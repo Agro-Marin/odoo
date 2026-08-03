@@ -8,7 +8,7 @@ import { registry } from "@web/core/registry";
 
 import { parseServerValue } from "./field_values.js";
 
-/** @import { RelationalRecord } from "@web/model/relational_model/record" */
+/** @import { RecordContract } from "@web/model/relational_model/record_contract" */
 
 /**
  * @param {string} fieldType
@@ -158,7 +158,7 @@ export function computeDataContext(data, fields, textValues, resId) {
 }
 
 /**
- * @param {RelationalRecord} record
+ * @param {RecordContract} record
  * @param {Object} serverValues
  * @param {Object} [options]
  * @param {Object} [options.currentValues]

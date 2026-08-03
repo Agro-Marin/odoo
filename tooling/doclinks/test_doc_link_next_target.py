@@ -112,7 +112,6 @@ class TestAuthoritativeScope:
             "odoo/addons/base/machine_doc_v1/A.md",
             ".github/workflows/x.yml",
             "CLAUDE.md",
-            "doc/adr/0001-x.md",
             "tooling/hoot/README.md",
         ],
     )

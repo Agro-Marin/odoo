@@ -2,8 +2,8 @@
 import { EventBus } from '@odoo/owl';
 import { Interaction } from '@web/public/interaction';
 import { registry } from '@web/core/registry';
-import { _t } from '@web/core/l10n/translation';
-import { rpc } from '@web/core/network/rpc';
+import { _t } from '@web/core/translation';
+import { rpc } from "@web/core/network";
 import { redirect } from '@web/core/utils/urls';
 import wSaleUtils from '@website_sale/js/website_sale_utils';
 import comparisonUtils from '@website_sale_comparison/js/website_sale_comparison_utils';

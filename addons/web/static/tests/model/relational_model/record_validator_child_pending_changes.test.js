@@ -43,6 +43,11 @@ function makeParent(/** @type {any} */ child) {
         count: 1,
         _currentIds: [child.resId],
         _cache: { [child.resId]: child },
+        // Declared in `STATIC_LIST_OWNER_SURFACE`; the validator reads the list
+        // through it rather than reaching for `_cache` directly.
+        get cachedRecords() {
+            return Object.values(this._cache);
+        },
     };
     const editState = new RecordEditState();
     return {
@@ -56,7 +61,7 @@ function makeParent(/** @type {any} */ child) {
         get _unsetRequiredFields() {
             return editState.unsetRequiredFields;
         },
-        set _closeInvalidFieldsNotification(/** @type {any} */ _value) {},
+        setInvalidFieldsNotification(/** @type {any} */ _close) {},
         _isInvisible: () => false,
         _isRequired: () => false,
     };

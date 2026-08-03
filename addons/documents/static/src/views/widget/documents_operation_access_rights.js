@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 
-import { X2ManyField } from "@web/fields/relational/x2many/x2many_field";
+import { X2ManyField } from "@web/fields/relational/x2many";
 
 export const DocumentsWithAccessX2ManyField = {
     component: X2ManyField,

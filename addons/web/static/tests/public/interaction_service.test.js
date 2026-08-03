@@ -1021,3 +1021,41 @@ test("stopDisconnectedInteractions also reaps detached component roots", async (
     expect.verifySteps(["component stopped"]);
     expect(core.roots).toHaveLength(0);
 });
+
+test("a page-wide stop reaps an interaction living in another document", async () => {
+    // `isConnected` is true for a node in a document of its own, and
+    // `document.body.contains()` is false across documents, so such an
+    // interaction matched neither half of the old stop predicate and ran
+    // forever. `_window` resolves to `defaultView || window`, so it had a live
+    // listener on the REAL window -- which is how one test's resize handler
+    // went on firing inside every later suite.
+    let destroys = 0;
+    class Test extends Interaction {
+        static selector = ".test";
+        dynamicContent = {
+            _window: { "t-on-resize": () => expect.step("resized") },
+        };
+        destroy() {
+            destroys++;
+        }
+    }
+    const { core } = await startInteraction(Test, `<div class="test"></div>`);
+
+    const foreign = document.implementation.createHTMLDocument();
+    foreign.body.innerHTML = `<div class="test"></div>`;
+    expect(foreign.defaultView).toBe(null);
+    await core.startInteractions(/** @type {any} */ (foreign.body));
+    expect(core.interactions).toHaveLength(2);
+
+    window.dispatchEvent(new Event("resize"));
+    await animationFrame();
+    expect.verifySteps(["resized", "resized"]);
+
+    core.stopInteractions();
+
+    expect(destroys).toBe(2);
+    expect(core.interactions).toHaveLength(0);
+    window.dispatchEvent(new Event("resize"));
+    await animationFrame();
+    expect.verifySteps([]);
+});

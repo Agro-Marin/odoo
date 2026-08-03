@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
-import { useTransition } from "@web/components/transition";
+import { useTransition } from "@web/core/transition";
 import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import {

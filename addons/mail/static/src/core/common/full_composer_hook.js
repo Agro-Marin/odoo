@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { saveComposerDraft } from "@mail/core/common/composer_draft";
 import { EventBus, toRaw, useComponent, useState } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
 
 /**

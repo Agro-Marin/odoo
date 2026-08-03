@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Many2ManyTagsField } from "@web/fields/relational/many2many_tags/many2many_tags_field";
+import { Many2ManyTagsField } from "@web/fields/relational/many2many_tags";
 
 /**
  * @override update, quickCreate (also called with create&Edit), and deleteTag

@@ -4,7 +4,12 @@ import { beforeEach, disableAnimations, expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
-import { makeMockEnv, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    defineStyle,
+    makeMockEnv,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { Collapse } from "@web/ui/collapse/collapse";
 
 beforeEach(async () => {
@@ -24,6 +29,19 @@ class Parent extends Component {
 
     setup() {
         this.state = useState({ open: this.props.open ?? false });
+    }
+}
+
+class TallParent extends Component {
+    static components = { Collapse };
+    static props = ["*"];
+    static template = xml`
+        <Collapse open="state.open" class="'region'">
+            <div class="content" style="height: 200px">body</div>
+        </Collapse>
+    `;
+    setup() {
+        this.state = useState({ open: false });
     }
 }
 
@@ -70,4 +88,39 @@ test("keeps the slot content mounted while closed", async () => {
     await mountWithCleanup(Parent);
 
     expect(".content").toHaveCount(1);
+});
+
+test("an animation always starts from the size the region currently has", async () => {
+    // The keyframe used to be anchored to the FULL size on every close, so a
+    // region that was not currently full-height jumped there before collapsing.
+    // In a real browser that shows up as a half-open region snapping to full on
+    // a double toggle; hoot settles WAAPI instantly, so the observable here is
+    // the keyframe itself, taken on mount while the region is still collapsed.
+    defineStyle(/* css */ `.collapse:not(.show) { display: none !important; }`);
+
+    /** @type {{ keyframes: any, measured: string }[]} */
+    const frames = [];
+    patchWithCleanup(Element.prototype, {
+        animate(keyframes, options) {
+            const el = /** @type {Element} */ (/** @type {any} */ (this));
+            frames.push({
+                keyframes,
+                measured: `${el.getBoundingClientRect().height}px`,
+            });
+            return super.animate(keyframes, options);
+        },
+    });
+
+    await mountWithCleanup(TallParent);
+    await animationFrame();
+
+    // Mount pass: the region is collapsed and 0 tall, and its content is far
+    // taller, so anchoring to the full size would be visible as a jump.
+    expect(frames.length).toBeGreaterThan(0);
+    expect(frames[0].measured).toBe("0px");
+    expect(frames[0].keyframes.height[0]).toBe("0px");
+
+    for (const { keyframes, measured } of frames) {
+        expect(keyframes.height[0]).toBe(measured);
+    }
 });

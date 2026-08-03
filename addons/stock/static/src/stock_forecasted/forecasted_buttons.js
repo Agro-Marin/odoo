@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, markup } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 export class ForecastedButtons extends Component {

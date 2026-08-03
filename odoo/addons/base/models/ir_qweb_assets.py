@@ -46,6 +46,21 @@ class _EsmFallbackError(Exception):
     pass
 
 
+class EsbuildBundleError(RuntimeError):
+    """An esbuild build failed where the failure must not be degraded away.
+
+    Serving an empty bundle is the right answer for a user — a degraded page
+    beats a 500 — and the wrong one for whoever caused it: the page comes back
+    ``200`` with no JavaScript, and the only trace is a WARNING. That has cost
+    this fork two silent outages, each found by a person clicking rather than
+    by anything failing.
+
+    So the pipeline fails closed exactly where somebody is positioned to act on
+    it (``--test-enable``, ``--dev=assets``) and keeps degrading in production.
+    See ``IrQweb._esbuild_fail_closed``.
+    """
+
+
 class IrQweb(models.AbstractModel):
     _inherit = "ir.qweb"
 
@@ -446,6 +461,7 @@ class IrQweb(models.AbstractModel):
             "timeout_s",
             "target",
             "source_maps",
+            "fail_closed",
         }
     )
 
@@ -478,6 +494,26 @@ class IrQweb(models.AbstractModel):
                 err=type(exc).__name__,
             )
             return default
+
+    def _esbuild_fail_closed(self) -> bool:
+        """Whether a failed esbuild build must raise instead of degrading.
+
+        Degrading is correct for a user and wrong for a developer, so the two
+        cases are split by who is watching rather than by how bad the failure
+        is: under ``--test-enable`` or ``--dev=assets`` somebody is positioned
+        to fix it now, and an empty bundle there reads as unrelated test
+        failures somewhere else entirely (a missing service, absent
+        translations) which is how the cause stays hidden. Production keeps
+        serving the degraded page.
+
+        ``web.esbuild.fail_closed`` overrides in either direction — set it to
+        ``0`` to get the old behaviour back in a test run that has to survive a
+        broken bundle, or to ``1`` to make a staging server strict.
+        """
+        override = self._get_esbuild_setting("fail_closed", default=None)
+        if override is not None:
+            return str(override).strip().lower() not in ("0", "false", "")
+        return bool(tools.config["test_enable"] or "assets" in tools.config["dev_mode"])
 
     def _esbuild_forced_fallback_bundles(self) -> set[str]:
         forced_raw = (
@@ -898,6 +934,15 @@ class IrQweb(models.AbstractModel):
                             err=type(e).__name__,
                             msg=str(e)[:200],
                         )
+                        if self._esbuild_fail_closed():
+                            # Deliberately without recording a circuit failure:
+                            # the breaker would open and every later render
+                            # would take the `circuit_blocked` branch above and
+                            # degrade silently again, so only the first build
+                            # of the run would be honest.
+                            raise EsbuildBundleError(
+                                f"esbuild failed for bundle {bundle!r}: {e}"
+                            ) from e
                         self._esbuild_circuit_record_failure(
                             bundle,
                             reason=type(e).__name__,

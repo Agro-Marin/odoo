@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { rpc } from '@web/core/network/rpc';
+import { rpc } from "@web/core/network";
 import { registry } from '@web/core/registry';
 import { redirect } from '@web/core/utils/urls';
 import { Interaction } from '@web/public/interaction';

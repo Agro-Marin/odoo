@@ -3,9 +3,9 @@ import { preloadBackground } from "@survey/js/survey_preload_image_mixin";
 import { fadeIn, fadeOut } from "@survey/utils";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Popover, Tooltip } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 

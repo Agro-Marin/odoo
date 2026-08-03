@@ -30,7 +30,7 @@ import {
     backgroundImagePartsToCss,
 } from "@html_editor/utils/image";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import {
     isColorGradient,
     normalizeCSSColor,

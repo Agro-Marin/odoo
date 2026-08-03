@@ -9,10 +9,10 @@ import { formatsSpecs } from "@html_editor/utils/formatting";
 import { nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
 import { Component, reactive, useRef, useState, xml } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { isCSSColor, rgbaToHex } from "@web/core/utils/format/colors";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 import { getCurrentTextHighlight } from "@website/js/highlight_utils";
 
 import { HighlightConfigurator } from "./highlight_configurator.js";

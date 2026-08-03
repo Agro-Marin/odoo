@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { formView } from "@web/views/form/form_view";
-import { FormRenderer } from "@web/views/form/form_renderer";
+import { formView, FormRenderer } from "@web/views/form";
 import { EmployeeFormController } from "@hr/views/form_view";
 import { onMounted } from "@odoo/owl";
 

@@ -5,7 +5,6 @@
 
 import { registry } from "@web/core/registry";
 import {
-    asPredicate,
     declarePresenterOptions,
     makeOverlayPresenter,
 } from "@web/ui/overlay/presenter";
@@ -22,6 +21,13 @@ declarePresenterOptions([
 ]);
 
 /**
+ * `closeOnClickAway` is handed the clicked node by a popover, but a bottom
+ * sheet always reports its own backdrop: the backdrop covers everything outside
+ * the sheet, so no other node is ever the target. A predicate that inspects
+ * what was clicked therefore only discriminates on the popover side. Decide
+ * with the argument by all means -- just do not rely on it to keep a sheet
+ * open, because on that side it cannot.
+ *
  * @typedef {{
  *   animation?: Boolean;
  *   arrow?: Boolean;
@@ -60,18 +66,11 @@ export const popoverService = {
             toProps: (options) => ({
                 animation: options.animation,
                 arrow: options.arrow,
-                class: options.class ?? options.popoverClass,
-                closeOnClickAway: asPredicate(options.closeOnClickAway),
-                closeOnEscape: options.closeOnEscape,
                 extendedFlipping: options.extendedFlipping,
                 fixedPosition: options.fixedPosition,
                 holdOnHover: options.holdOnHover,
-                id: options.id,
                 onPositioned: options.onPositioned,
                 position: options.position,
-                ref: options.ref,
-                role: options.role,
-                setActiveElement: options.setActiveElement ?? true,
             }),
         });
 

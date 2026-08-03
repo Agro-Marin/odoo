@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { isCSSColor } from "@web/core/utils/format/colors";
 import { Interaction } from "@web/public/interaction";
 import { verifyHttpsUrl } from "@website/utils/misc";

@@ -1,12 +1,11 @@
 /** @odoo-module native */
 import { scrollTo } from "@html_builder/utils/scrolling";
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { verifyHttpsUrl } from "@website/utils/misc";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { Interaction } from "@web/public/interaction";
+import { verifyHttpsUrl } from "@website/utils/misc";
 
 export class WebsiteBlog extends Interaction {
     static selector = ".website_blog";

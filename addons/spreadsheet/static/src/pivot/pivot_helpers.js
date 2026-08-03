@@ -1,8 +1,8 @@
 /** @odoo-module native */
 // @ts-check
 
-import { _t } from "@web/core/l10n/translation";
 import { EvaluationError, helpers } from "@odoo/o-spreadsheet";
+import { _t } from "@web/core/translation";
 
 const { isDateOrDatetimeField } = helpers;
 

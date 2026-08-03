@@ -105,7 +105,7 @@ export class TimePicker extends Component {
     }
 
     /**
-     * @returns {import("@web/services/navigation/navigation").NavigationOptions}
+     * @returns {import("@web/core/navigation/navigation").NavigationOptions}
      */
     getNavigationOptions() {
         const handleArrow = (navigator) => {

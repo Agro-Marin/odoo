@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
 import { registry } from '@web/core/registry';
-import { _t } from '@web/core/l10n/translation';
-import { rpc } from '@web/core/network/rpc';
+import { _t } from '@web/core/translation';
+import { rpc } from "@web/core/network";
 
 export class AddToCartSnippet extends Interaction {
     static selector = '.s_add_to_cart_btn';

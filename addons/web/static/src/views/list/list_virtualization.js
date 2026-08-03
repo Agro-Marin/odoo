@@ -10,6 +10,7 @@ const DEFAULT_GROUP_ROW_HEIGHT = 37;
 export const DEFAULT_THRESHOLD = 100;
 const DEFAULT_BUFFER_COEF = 0.5;
 const HEIGHT_QUANTUM = 0.25;
+const MAX_REMEASURE_RENDERS = 3;
 
 /**
  * @param {number} height
@@ -29,28 +30,30 @@ function getScrollContainer(el) {
     if (!el) {
         return null;
     }
+    /** @type {HTMLElement | null} */
+    let scrollable = null;
     for (
         let node = /** @type {HTMLElement | null} */ (el);
         node;
         node = node.parentElement
     ) {
-        if (
-            node.scrollHeight > node.clientHeight &&
-            SCROLLABLE_OVERFLOWS.has(getComputedStyle(node).overflowY)
-        ) {
+        if (!SCROLLABLE_OVERFLOWS.has(getComputedStyle(node).overflowY)) {
+            continue;
+        }
+        // remember the nearest declared-scrollable ancestor even when it does
+        // not overflow *yet* — it will once the rows are rendered
+        scrollable ??= node;
+        if (node.scrollHeight > node.clientHeight) {
             return node;
         }
     }
-    return el;
+    return scrollable;
 }
 
 /**
  * @typedef {import("./list_grid_state").FlatRow} FlatRow
- * @typedef ListVirtualizationOptions
+ * @typedef ListVirtualizationConfig
  * @property {any} rootRef
- * @property {() => import("./list_grid_state").ListGridState} getGridState
- * @property {() => boolean} canResequence
- * @property {() => { id: string | number } | null} getEditedRecord
  * @property {number} [threshold]
  * @property {number} [bufferCoef]
  */
@@ -66,20 +69,19 @@ function getScrollContainer(el) {
  */
 
 /**
- * @param {ListVirtualizationOptions} options
+ * @param {import("./list_renderer").ListGridContext} ctx
+ * @param {ListVirtualizationConfig} config
  * @returns {ListVirtualization}
  */
-export function useListVirtualization({
-    rootRef,
-    getGridState,
-    canResequence,
-    getEditedRecord,
-    threshold = DEFAULT_THRESHOLD,
-    bufferCoef = DEFAULT_BUFFER_COEF,
-}) {
+export function useListVirtualization(
+    ctx,
+    { rootRef, threshold = DEFAULT_THRESHOLD, bufferCoef = DEFAULT_BUFFER_COEF },
+) {
+    const { getGridState, canResequence, getEditedRecord } = ctx;
     const component = useComponent();
     let measuredRowHeight = 0;
     let measuredGroupRowHeight = 0;
+    let selfRenders = 0;
 
     let active = false;
     /** @type {FlatRow[]} */
@@ -93,8 +95,28 @@ export function useListVirtualization({
 
     /** @type {HTMLElement | null} */
     let scroller = null;
+    /** the root `scroller` was resolved from @type {HTMLElement | null} */
+    let resolvedFrom = null;
+    /** whether a scroller is of any use — set by `refresh` @type {boolean} */
+    let needsScroller = false;
+
+    /**
+     * `getScrollContainer` reads `getComputedStyle` on every ancestor up to
+     * `<html>`, which is a style flush. Every list would otherwise pay it on
+     * every patch, including the large majority that stay under the
+     * virtualization threshold and never consult the scroller at all. Resolve
+     * only while virtualizing, and only once per root element.
+     */
     function resolveScroller() {
-        scroller = getScrollContainer(rootRef.el);
+        if (!needsScroller) {
+            return;
+        }
+        const root = rootRef.el;
+        if (root === resolvedFrom && (scroller === null || scroller.isConnected)) {
+            return;
+        }
+        resolvedFrom = root;
+        scroller = getScrollContainer(root);
     }
     onMounted(resolveScroller);
     onPatched(resolveScroller);
@@ -134,6 +156,7 @@ export function useListVirtualization({
             return;
         }
         if (!active) {
+            selfRenders = 0;
             return;
         }
         let changed = false;
@@ -156,7 +179,21 @@ export function useListVirtualization({
                 changed = true;
             }
         }
-        if (changed && status(component) !== "destroyed") {
+        if (!changed) {
+            selfRenders = 0;
+            return;
+        }
+        // This runs from onPatched and renders, so it can re-enter itself. Row
+        // heights normally settle in one pass; if they keep changing, a
+        // scrollbar (or similar) is toggling with the row count and the two
+        // states chase each other forever. Stop re-rendering and keep the last
+        // measurement — spacers are then a fraction of a pixel off, which is
+        // invisible, whereas the loop is not.
+        if (selfRenders >= MAX_REMEASURE_RENDERS) {
+            return;
+        }
+        if (status(component) !== "destroyed") {
+            selfRenders++;
             component.render();
         }
     }
@@ -202,6 +239,7 @@ export function useListVirtualization({
             const rowCount = flatRows.length;
 
             if (rowCount <= threshold || canResequence()) {
+                needsScroller = false;
                 active = false;
                 visible = [];
                 topHeight = 0;
@@ -209,6 +247,7 @@ export function useListVirtualization({
                 return;
             }
 
+            needsScroller = true;
             active = true;
 
             const rowH = measuredRowHeight || DEFAULT_ROW_HEIGHT;

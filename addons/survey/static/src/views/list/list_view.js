@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { SurveyListRenderer } from "@survey/views/list/list_renderer";
 import { registry } from "@web/core/registry";
-import { listView } from "@web/views/list/list_view";
+import { listView } from "@web/views/list";
 
 export const SurveyListView = {
     ...listView,

@@ -6,7 +6,7 @@
 import { pick } from "@web/core/utils/collections/objects";
 import {
     DRAGGED_CLASS,
-    makeDraggableHook as nativeMakeDraggableHook,
+    makeNativeDraggableHook,
 } from "@web/core/utils/dnd/draggable_hook_builder";
 
 /** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
@@ -385,7 +385,7 @@ const hookParams = {
 /** @type {(params: SortableParams) => SortableState} */
 export const useSortable = (/** @type {any} */ sortableParams) => {
     const { setupHooks, ...params } = sortableParams;
-    return nativeMakeDraggableHook(/** @type {any} */ ({ ...hookParams, setupHooks }))(
+    return makeNativeDraggableHook(/** @type {any} */ ({ ...hookParams, setupHooks }))(
         params,
     );
 };

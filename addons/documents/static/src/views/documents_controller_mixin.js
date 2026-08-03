@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { getCommonEmbeddedActions } from "@documents/views/utils";
 import { DETAIL_PANEL_REQUIRED_FIELDS } from "@documents/views/hooks";
-import { makeActiveField } from "@web/model/relational_model/utils";
-import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
-import { _t } from "@web/core/l10n/translation";
+import { makeActiveField } from "@web/model/relational_model";
+import { useSearchBarToggler } from "@web/search/search_bar";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { omit } from "@web/core/utils/collections/objects";
 import { useSubEnv } from "@odoo/owl";

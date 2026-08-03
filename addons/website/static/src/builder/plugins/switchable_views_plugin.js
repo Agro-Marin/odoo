@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 
 import { SwitchableViews } from "./switchable_views.js";

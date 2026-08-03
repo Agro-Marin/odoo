@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { ListRenderer } from "@web/views/list/list_renderer";
+import { ListRenderer } from "@web/views/list";
 
 import { FileUploadDropzoneRendererMixin } from "../file_upload_dropzone_renderer_mixin.js";
 

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { RadioField, radioField } from "@web/fields/selection/radio/radio_field";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class WorkEntrySourceField extends RadioField {
     static template = "hr_work_entry.WorkEntrySourceField";

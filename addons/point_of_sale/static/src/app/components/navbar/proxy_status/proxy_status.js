@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 export class ProxyStatus extends Component {
     static template = "point_of_sale.ProxyStatus";

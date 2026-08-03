@@ -4,10 +4,10 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useRouterParamsChecker } from "@point_of_sale/app/hooks/pos_router_hook";
 import { ask } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { TipReceipt } from "@pos_restaurant/app/components/tip_receipt/tip_receipt";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 export class TipScreen extends Component {
     static template = "pos_restaurant.TipScreen";
     static props = {

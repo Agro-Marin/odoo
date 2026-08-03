@@ -4,8 +4,8 @@
 /** @module @web/webclient/debug/field_widgets_dialog */
 
 import { Component, useState, xml } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 export class FieldWidgetsDialog extends Component {

@@ -27,7 +27,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 import { usePositionHook } from "@html_editor/position_hook";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 
 const rad = Math.PI / 180;
 const MIN_IMAGE_SIZE = 20;

@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { ColumnProgress } from "@web/views/kanban/column_progress";
+import { ColumnProgress } from "@web/views/kanban";
 export class RottingColumnProgress extends ColumnProgress {
     static template = "mail.RottingColumnProgress";
     static props = {

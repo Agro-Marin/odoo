@@ -1,4 +1,4 @@
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("website_form_editor_tour_submit", {

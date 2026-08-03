@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
 
 /**

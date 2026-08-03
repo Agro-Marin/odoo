@@ -3,8 +3,8 @@ import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { getCommonAncestor, selectElements } from "@html_editor/utils/dom_traversal";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 
 export class FacebookOption extends BaseOptionComponent {
     static template = "website.FacebookOption";

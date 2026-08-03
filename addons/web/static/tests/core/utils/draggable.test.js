@@ -1,8 +1,15 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { pointerDown, pointerUp, press, queryRect } from "@odoo/hoot-dom";
-import { advanceTime, animationFrame, mockTouch } from "@odoo/hoot-mock";
+import {
+    hover,
+    pointerDown,
+    pointerUp,
+    press,
+    queryOne,
+    queryRect,
+} from "@odoo/hoot-dom";
+import { advanceTime, animationFrame, mockTouch, mockUserAgent } from "@odoo/hoot-mock";
 import { Component, reactive, useRef, useState, xml } from "@odoo/owl";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useDraggable } from "@web/core/utils/dnd/draggable";
@@ -617,4 +624,314 @@ test("unmounting mid-drag releases the document", async () => {
     state.visible = false;
     await animationFrame();
     expectNoDragResidue();
+});
+
+test("tolerance 0 starts the drag on the first move", async () => {
+    await mountWithCleanup(
+        makeDraggableList({
+            tolerance: 0,
+            onDragStart: () => expect.step("start"),
+        }),
+    );
+
+    const { drop } = await contains(".item:first-child").drag({
+        initialPointerMoveDistance: 1,
+    });
+    expect.verifySteps(["start"]);
+
+    await drop();
+    expectNoDragResidue();
+});
+
+/**
+ * Presses the element and nudges the pointer `offset` px diagonally from the
+ * press point. `contains(...).drag({initialPointerMoveDistance})` cannot express
+ * this: it hovers a point relative to the element's top-left corner, so a small
+ * number there is still a large move away from the centre the press landed on.
+ *
+ * @param {string} selector
+ * @param {number} offset
+ */
+async function pressAndNudge(selector, offset) {
+    const helpers = await contains(selector).drag({ initialPointerMoveDistance: 0 });
+    const rect = queryRect(selector);
+    await hover(selector, {
+        position: { x: rect.width / 2 + offset, y: rect.height / 2 + offset },
+        relative: true,
+    });
+    await animationFrame();
+    return helpers;
+}
+
+test("a pointer move shorter than the tolerance does not start a drag", async () => {
+    // The default tolerance is 10px and every other test in this file moves the
+    // pointer across a whole element, so nothing here distinguished "waits for
+    // the tolerance" from "starts on the first move": bypassing the check
+    // entirely left all 16 tests green.
+    await mountWithCleanup(
+        makeDraggableList({ onDragStart: () => expect.step("start") }),
+    );
+
+    const { drop, moveTo } = await pressAndNudge(".item:first-child", 3);
+    expect.verifySteps([], { message: "hypot(3, 3) is under the 10px tolerance" });
+    expect(".o_dragged").toHaveCount(0);
+
+    await moveTo(".item:nth-child(2)");
+    expect.verifySteps(["start"], { message: "crossing the tolerance starts it" });
+    expect(".o_dragged").toHaveCount(1);
+
+    await drop();
+    expectNoDragResidue();
+});
+
+test("a drag released under the tolerance never starts and leaves no residue", async () => {
+    await mountWithCleanup(
+        makeDraggableList({
+            onDragStart: () => expect.step("start"),
+            onDrop: () => expect.step("drop"),
+            onDragEnd: () => expect.step("end"),
+        }),
+    );
+
+    const { drop } = await pressAndNudge(".item:first-child", 2);
+    await drop();
+
+    expect.verifySteps([], { message: "a click-sized move is not a drag" });
+    expectNoDragResidue();
+});
+
+/**
+ * A draggable list inside a short scrollable ancestor, so the hook finds a
+ * vertical scroll parent and arms its edge-scrolling animation frame.
+ *
+ * @param {Record<string, any>} [hookParams]
+ */
+function makeScrollableDraggableList(hookParams = {}) {
+    class List extends Component {
+        static template = xml`
+            <div class="scroll" style="height: 100px; overflow-y: auto;">
+                <div t-ref="root" class="root">
+                    <ul class="list">
+                        <li t-foreach="items" t-as="i" t-key="i" t-esc="i"
+                            class="item" style="height: 30px;"/>
+                    </ul>
+                </div>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            this.items = [...Array(20).keys()];
+            useDraggable({ ref: useRef("root"), elements: ".item", ...hookParams });
+        }
+    }
+    return List;
+}
+
+/**
+ * Presses the first item and drags the pointer to a point `y` px down the
+ * scroller. The default helper move is 100px, which overshoots a 100px-tall
+ * scroller and scrolls before the test can position anything.
+ *
+ * @param {number} y
+ */
+async function dragIntoScrollerAt(y) {
+    const helpers = await contains(".item:first-child").drag({
+        initialPointerMoveDistance: 0,
+    });
+    await hover(".scroll", { position: { x: 40, y }, relative: true });
+    await advanceTime(200);
+    return helpers;
+}
+
+test("dragging against the bottom edge scrolls the scroll parent", async () => {
+    // Neutering handleEdgeScrolling entirely left all 16 original tests green:
+    // none of them dragged inside anything scrollable.
+    await mountWithCleanup(makeScrollableDraggableList());
+    const scroller = queryOne(".scroll");
+    expect(scroller.scrollTop).toBe(0);
+
+    const { drop } = await dragIntoScrollerAt(95);
+    expect(scroller.scrollTop).toBeGreaterThan(0);
+
+    await drop();
+    expectNoDragResidue();
+});
+
+test("dragging away from the edges does not scroll", async () => {
+    await mountWithCleanup(makeScrollableDraggableList());
+    const scroller = queryOne(".scroll");
+
+    const { drop } = await dragIntoScrollerAt(50);
+    expect(scroller.scrollTop).toBe(0, {
+        message: "50px down a 100px-tall box is outside the 30px threshold",
+    });
+
+    await drop();
+    expectNoDragResidue();
+});
+
+test("edgeScrolling disabled never scrolls", async () => {
+    await mountWithCleanup(
+        makeScrollableDraggableList({ edgeScrolling: { enabled: false } }),
+    );
+    const scroller = queryOne(".scroll");
+
+    const { drop } = await dragIntoScrollerAt(95);
+    expect(scroller.scrollTop).toBe(0);
+
+    await drop();
+    expectNoDragResidue();
+});
+
+test("a right-click never starts a drag", async () => {
+    // Dropping the LEFT_CLICK check left all 22 tests green, so nothing said a
+    // context-menu press on a list row must not pick it up.
+    await mountWithCleanup(
+        makeDraggableList({ onDragStart: () => expect.step("start") }),
+    );
+
+    await pointerDown(".item:first-child", { button: 2 });
+    await hover(".item:nth-child(3)");
+    await animationFrame();
+
+    expect.verifySteps([]);
+    expect(".o_dragged").toHaveCount(0);
+
+    await pointerUp(".item:nth-child(3)");
+    expectNoDragResidue();
+});
+
+test("starting a drag blurs what was focused outside the dragged element", async () => {
+    // An input left focused while a drag runs keeps receiving the keystrokes
+    // the drag is supposed to own.
+    class Parent extends Component {
+        static components = { List: makeDraggableList() };
+        static template = xml`<div><input class="outside"/><List/></div>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+
+    const outside = queryOne(".outside");
+    outside.focus();
+    expect(document.activeElement).toBe(outside);
+
+    const { drop } = await contains(".item:first-child").drag();
+    expect(document.activeElement).not.toBe(outside);
+
+    await drop();
+    expectNoDragResidue();
+});
+
+test("a delayed drag is cancelled when the pointer left the element before it fires", async () => {
+    // The `delay` path arms a timeout, and when it fires it checks whether the
+    // pointer is still inside the element it pressed. Dropping that check left
+    // every test green: none of them used a delay AND moved during it.
+    await mountWithCleanup(
+        makeDraggableList({ delay: 100, onDragStart: () => expect.step("start") }),
+    );
+
+    const { drop, moveTo } = await contains(".item:first-child").drag({
+        initialPointerMoveDistance: 0,
+    });
+    await hover(".item:last-child");
+    await advanceTime(200);
+
+    expect.verifySteps([], { message: "the press was abandoned before it armed" });
+    expect(".o_dragged").toHaveCount(0);
+
+    await moveTo(".item:nth-child(2)");
+    expect.verifySteps([], { message: "and it stays abandoned" });
+
+    await drop();
+    expectNoDragResidue();
+});
+
+test("a delayed drag starts when the pointer stayed on the element", async () => {
+    await mountWithCleanup(
+        makeDraggableList({ delay: 100, onDragStart: () => expect.step("start") }),
+    );
+
+    const { drop, moveTo } = await contains(".item:first-child").drag({
+        initialPointerMoveDistance: 0,
+    });
+    await advanceTime(200);
+    expect.verifySteps([], {
+        message: "the delay arms the drag, it does not start it",
+    });
+
+    await moveTo(".item:nth-child(2)");
+    expect.verifySteps(["start"]);
+    expect(".o_dragged").toHaveCount(1);
+
+    await drop();
+    expectNoDragResidue();
+});
+
+/**
+ * A touch press arms the drag after `touchDelay`, and while that timer runs the
+ * hook neutralises the things a mobile browser would otherwise do with the
+ * press: it marks the element, strips hrefs on Firefox so a link does not
+ * navigate, and un-draggables images on iOS so the OS drag does not take over.
+ *
+ * @param {string} itemInner
+ */
+function makeTouchDraggableList(itemInner = "") {
+    class List extends Component {
+        static template = xml`
+            <div t-ref="root" class="root">
+                <ul class="list">
+                    <li t-foreach="[1, 2, 3]" t-as="i" t-key="i" class="item"
+                        t-att-href="'#item-' + i">${itemInner}</li>
+                </ul>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            useDraggable({ ref: useRef("root"), elements: ".item" });
+        }
+    }
+    return List;
+}
+
+test("a touch press marks the element while the delay runs", async () => {
+    // The existing touch test only asserts o_touch_bounce is gone AFTERWARDS,
+    // so renaming the class it adds changed nothing it could see.
+    mockTouch(true);
+    await mountWithCleanup(makeTouchDraggableList());
+
+    const { drop } = await contains(".item:first-child").drag({
+        initialPointerMoveDistance: 0,
+    });
+    expect(".item:first-child").toHaveClass("o_touch_bounce");
+
+    await drop();
+    expect(".o_touch_bounce").toHaveCount(0);
+});
+
+test("a touch press strips hrefs on firefox so the link cannot navigate", async () => {
+    mockTouch(true);
+    // `Platform` lists OS keys; makeUserAgent's default branch takes any string
+    // verbatim, which is the only way to reach isBrowserFirefox() from here.
+    mockUserAgent(/** @type {any} */ ("Firefox/130.0"));
+    await mountWithCleanup(makeTouchDraggableList());
+    expect(".item:first-child").toHaveAttribute("href");
+
+    const { drop } = await contains(".item:first-child").drag({
+        initialPointerMoveDistance: 0,
+    });
+    expect(".item:first-child").not.toHaveAttribute("href");
+
+    await drop();
+    expect(".item:first-child").toHaveAttribute("href");
+});
+
+test("a touch press un-draggables images on iOS", async () => {
+    mockTouch(true);
+    mockUserAgent("ios");
+    await mountWithCleanup(makeTouchDraggableList(`<img src="#"/>`));
+
+    const { drop } = await contains(".item:first-child").drag({
+        initialPointerMoveDistance: 0,
+    });
+    expect(".item:first-child img").toHaveAttribute("draggable", "false");
+
+    await drop();
 });

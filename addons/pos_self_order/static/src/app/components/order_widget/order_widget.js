@@ -2,7 +2,7 @@
 import { Component } from "@odoo/owl";
 import { CancelPopup } from "@pos_self_order/app/components/cancel_popup/cancel_popup";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 export class OrderWidget extends Component {
     static template = "pos_self_order.OrderWidget";

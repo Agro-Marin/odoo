@@ -16,13 +16,14 @@ import { AccordionItem } from "@web/components/dropdown/accordion_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { Transition } from "@web/components/transition";
+import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
-import { _t } from "@web/core/l10n/translation";
+import { Transition } from "@web/core/transition";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 /**
@@ -612,7 +613,7 @@ export function useEmbeddedActions() {
         orm: useService("orm"),
         notification: useService("notification"),
         dialog: useService("dialog"),
-        action: useService("action"),
+        action: useAction(),
     });
 }
 

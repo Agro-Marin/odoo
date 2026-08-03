@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
-import { formatCurrency } from "@web/services/currency";
+import { formatCurrency } from "@web/core/currency";
+import { _t } from "@web/core/translation";
 
 import { BadgeExtraPrice } from "../badge_extra_price/badge_extra_price.js";
 import { getSelectedCustomPtav } from "../sale_utils.js";

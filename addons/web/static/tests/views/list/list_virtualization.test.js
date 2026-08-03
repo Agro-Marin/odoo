@@ -302,3 +302,77 @@ test("every row stays reachable by scrolling on small screens (V9)", async () =>
     );
     expect(names.at(-1)).toBe("record 150");
 });
+
+/**
+ * V7 — the scroll-container lookup is not paid by non-virtualized lists.
+ *
+ * `getScrollContainer` calls `getComputedStyle` on every ancestor up to
+ * `<html>`, which is a style flush. It used to run from `onPatched`
+ * unconditionally, so every list paid it on every patch even though a list
+ * under the activation threshold never consults the scroller.
+ */
+test.tags("desktop");
+test("a short list does no ancestor style walk on patch", async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list limit="5"><field name="name"/></list>`,
+    });
+    await animationFrame();
+
+    // Only a walk of the whole ancestor chain reaches the document root, so
+    // that is what distinguishes `getScrollContainer` from the other, narrower
+    // style reads a list patch legitimately makes.
+    const real = window.getComputedStyle;
+    /** @type {string[]} */
+    const walked = [];
+    window.getComputedStyle = function (el, ...rest) {
+        if (el === document.documentElement) {
+            walked.push(el.tagName);
+        }
+        return real.call(this, el, ...rest);
+    };
+    try {
+        await contains(`th[data-name=name]`).click();
+        await animationFrame();
+    } finally {
+        window.getComputedStyle = real;
+    }
+    expect(walked).toEqual([]);
+});
+
+test.tags("desktop");
+test("crossing the threshold still resolves the scroll container", async () => {
+    // Counterpart of the test above: the lookup is conditional, not removed.
+    // The flag is set by `refresh`, which runs in onWillRender — i.e. before
+    // the onPatched that consults it — so a list that only crosses the
+    // threshold later must still end up with a working scroller rather than
+    // staying permanently unresolved. Asserted through behaviour: scrolling the
+    // container moves the rendered window, which only happens once the scroll
+    // listener is bound to the element the lookup returned.
+    // folded groups keep the flat row count under the threshold at mount time
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list limit="200"><field name="name"/></list>`,
+        groupBy: ["category"],
+    });
+    await animationFrame();
+    expect(".o_virtual_spacer").toHaveCount(0);
+
+    // unfolding the big group takes it over
+    await contains(".o_group_header:last-child").click();
+    await animationFrame();
+
+    expect(".o_virtual_spacer").toHaveCount(1);
+    const firstIndex = Number(queryFirst(".o_data_row").dataset.rowIndex);
+
+    await contains(".o_list_renderer").scroll({ top: 3000 });
+    await animationFrame();
+    await animationFrame();
+
+    expect(Number(queryFirst(".o_data_row").dataset.rowIndex)).toBeGreaterThan(
+        firstIndex,
+    );
+    expect(queryAll(".o_data_row").length).toBeLessThan(150);
+});

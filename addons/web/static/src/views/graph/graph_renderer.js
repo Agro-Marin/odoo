@@ -6,10 +6,10 @@
 import { Component, onWillStart, onWillUnmount, useEffect, useRef } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { _t } from "@web/core/l10n/translation";
+import { useAction } from "@web/core/action_port";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
+import { _t } from "@web/core/translation";
 import { createElementWithContent } from "@web/core/utils/dom/html";
-import { useService } from "@web/core/utils/hooks";
 import { renderToMarkup } from "@web/core/utils/render";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useReactiveModel } from "@web/model/model";
@@ -43,7 +43,7 @@ export class GraphRenderer extends Component {
         this.rootRef = useRef("root");
         this.canvasRef = useRef("canvas");
         this.containerRef = useRef("container");
-        this.actionService = useService("action");
+        this.actionService = useAction();
 
         this.chart = null;
         this.tooltip = null;

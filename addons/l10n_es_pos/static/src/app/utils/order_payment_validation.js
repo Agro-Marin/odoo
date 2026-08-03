@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import OrderPaymentValidation from "@point_of_sale/app/utils/order_payment_validation";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 patch(OrderPaymentValidation.prototype, {
     shouldDownloadInvoice() {
         return this.pos.config.is_spanish

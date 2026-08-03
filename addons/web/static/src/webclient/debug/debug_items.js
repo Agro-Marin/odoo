@@ -4,8 +4,8 @@
 /** @module @web/webclient/debug/debug_items */
 
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 
 import { FieldWidgetsDialog } from "./field_widgets_dialog.js";

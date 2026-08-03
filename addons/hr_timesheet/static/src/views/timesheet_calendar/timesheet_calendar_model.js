@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { TimesheetCalendarMyTimesheetsModel } from "../timesheet_calendar_my_timesheets/timesheet_calendar_my_timesheets_model.js";
 

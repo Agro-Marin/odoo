@@ -4,9 +4,10 @@
 /** @module @web/public/interaction_service */
 
 import { App, Component } from "@odoo/owl";
-import { appTranslateFn } from "@web/core/l10n/translation";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
+import { appTranslateFn } from "@web/core/translation";
 
 import { Colibri } from "./colibri.js";
 import { Interaction } from "./interaction.js";
@@ -113,7 +114,7 @@ export class InteractionService {
      * @returns {void}
      */
     reportError(error) {
-        Promise.reject(error);
+        reportUncaught(error);
     }
 
     /**
@@ -332,7 +333,13 @@ export class InteractionService {
         const { selectorNotHas, selectorHas } = /** @type {any} */ (
             interaction.interaction.constructor
         );
-        if (!interaction.el.isConnected && this.coversWholeRoot(el)) {
+        // A blanket stop stops everything this service owns, including whatever
+        // `el` cannot reach: an element already detached, and an element living
+        // in another document altogether. The latter is `isConnected` -- it is
+        // connected to ITS document -- so an `isConnected` test alone left it
+        // running forever, and with it any listener it bound to the real window
+        // through `_window`'s `defaultView || window` fallback.
+        if (this.coversWholeRoot(el) && !el.contains(interaction.el)) {
             return true;
         }
         return (
@@ -403,6 +410,7 @@ export class InteractionService {
         this.stopMatching(
             (interaction) => this.shouldStop(el, interaction),
             (root) =>
+                coversWholeRoot ||
                 el.contains(root.el) ||
                 // A detached <owl-root> cannot be placed by containment, so
                 // the host answers for it: anything that rewrites the host's
@@ -410,8 +418,7 @@ export class InteractionService {
                 // -- and the live component under it -- behind for good. Only
                 // when it is detached, though: a root still in the page sits
                 // where it was mounted, and that may be outside `el`.
-                (!root.el.isConnected && el.contains(root.hostEl)) ||
-                (coversWholeRoot && !root.el.isConnected),
+                (!root.el.isConnected && el.contains(root.hostEl)),
         );
     }
 

@@ -1,15 +1,13 @@
 /** @odoo-module native */
 import { Component, useState, xml } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { sprintf } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 import { redirect } from "@web/core/utils/urls";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { user } from "@web/services/user";
 
 import { InstallModuleDialog } from "./install_module_dialog.js";
 

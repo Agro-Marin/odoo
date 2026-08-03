@@ -1,15 +1,13 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
 import { deserializeDateTime } from "@web/core/l10n/dates";
-import { rpc, ConnectionLostError } from "@web/core/network/rpc";
+import { rpc, ConnectionLostError } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { isIosApp } from "@web/core/browser/feature_detection";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 const { DateTime } = luxon;
 
 export class ActivityMenu extends Component {

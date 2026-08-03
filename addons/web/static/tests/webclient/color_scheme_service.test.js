@@ -8,10 +8,10 @@ import {
     patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
-import { _makeUser, user } from "@web/services/user";
+import { _makeUser, user } from "@web/core/user";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 class ResUsersSettings extends webModels.ResUsersSettings {
     color_scheme = fields.Selection({
@@ -38,6 +38,7 @@ defineModels([ResUsersSettings]);
  * resolves the cookie inline before any bundle runs, and both stylesheets ship
  * behind prefers-color-scheme, so there is nothing left for a reload to fix.
  */
+/** @param {{ prefers: string, setting: string }} config */
 async function startWith({ prefers, setting }) {
     mockMatchMedia({ ["prefers-color-scheme"]: prefers });
     patchWithCleanup(browser.location, {
@@ -100,7 +101,9 @@ test("both carriers say the same thing after start", async () => {
     cookie.set("color_scheme", "dark");
     await startWith({ prefers: "light", setting: "dark" });
     expect(cookie.get("color_scheme")).toBe("dark");
-    expect(document.documentElement.dataset.colorScheme).toBe("dark");
+    expect(/** @type {any} */ (document.documentElement.dataset.colorScheme)).toBe(
+        "dark",
+    );
     expect.verifySteps([]);
 });
 
@@ -128,7 +131,7 @@ test("a destroyed env stops following the OS", async () => {
     await startWith({ prefers: "light", setting: "system" });
     expect(cookie.get("color_scheme")).toBe("light");
 
-    getMockEnv().destroy();
+    /** @type {any} */ (getMockEnv()).destroy();
 
     mockMatchMedia({ ["prefers-color-scheme"]: "dark" });
     expect(cookie.get("color_scheme")).toBe("light");

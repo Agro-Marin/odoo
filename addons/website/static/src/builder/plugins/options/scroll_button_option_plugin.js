@@ -3,8 +3,8 @@ import { BuilderAction } from "@html_builder/core/builder_action";
 import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { SCROLL_BUTTON } from "@website/builder/option_sequence";
 
 import { ScrollButtonOption } from "./scroll_button_option.js";

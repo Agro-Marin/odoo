@@ -6,10 +6,10 @@
 import { Component, useRef, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { user } from "@web/services/user";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 export class DomainSelectorDialog extends Component {

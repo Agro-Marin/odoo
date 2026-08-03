@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 import { Domain } from "@web/core/domain";
-import { _t } from "@web/core/l10n/translation";
-import { user } from "@web/services/user";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { getCommonEmbeddedActions } from "@documents/views/utils";
-import { getSpecEvalContext } from "@web/model/relational_model/field_context";
+import { getSpecEvalContext } from "@web/model/relational_model";
 
 export const DocumentsModelMixin = (component) =>
     class extends component {

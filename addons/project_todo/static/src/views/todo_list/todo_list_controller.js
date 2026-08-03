@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { ListController } from "@web/views/list/list_controller";
+import { ListController } from "@web/views/list";
 
 export class TodoListController extends ListController {
     get actionMenuItems() {

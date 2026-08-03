@@ -3,7 +3,7 @@
 
 /** @module @web/fields/specialized/google_slide_viewer/google_slide_viewer */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";

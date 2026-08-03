@@ -7,8 +7,9 @@ import { OrderWidget } from "@pos_self_order/app/components/order_widget/order_w
 import { PopupTable } from "@pos_self_order/app/components/popup_table/popup_table";
 import { PresetInfoPopup } from "@pos_self_order/app/components/preset_info_popup/preset_info_popup";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
 import { formatProductName } from "../../utils.js";
 import { useScrollShadow } from "../../utils/scroll_shadow_hook.js";
 export class CartPage extends Component {

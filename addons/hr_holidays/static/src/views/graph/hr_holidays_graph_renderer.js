@@ -1,9 +1,9 @@
 /** @odoo-module native */
 
-import { _t } from "@web/core/l10n/translation";
 import { getColor } from "@web/core/colors/colors";
-import { GraphRenderer } from "@web/views/graph/graph_renderer";
+import { _t } from "@web/core/translation";
 import { groupBy } from "@web/core/utils/collections/arrays";
+import { GraphRenderer } from "@web/views/graph";
 
 
 

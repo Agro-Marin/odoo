@@ -1,7 +1,7 @@
 /** @odoo-module native */
 /* global StripeTerminal */
 
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 export class StripeError extends Error {}
 
 export class Stripe {

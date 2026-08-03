@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Notification } from "@mail/core/common/notification_model";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 /** @type {import("models").Notification} */

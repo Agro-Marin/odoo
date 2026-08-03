@@ -2,9 +2,9 @@
 import { lastNotificationIdKey } from "@bus/services/bus_service";
 import { CONNECTION_STATE } from "@bus/workers/websocket_worker_constants";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { session } from "@web/session";
 
 /**

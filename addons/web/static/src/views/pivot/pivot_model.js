@@ -8,7 +8,7 @@ import {
     sections,
     symmetricalDifference,
 } from "@web/core/utils/collections/arrays";
-import { InFlight, KeepLast, Mutex } from "@web/core/utils/concurrency";
+import { InFlight, KeepLast, Mutex, SupersededError } from "@web/core/utils/concurrency";
 import { addPropertyFieldDefs, Model } from "@web/model/model";
 import { DEFAULT_INTERVAL } from "@web/search/utils/dates";
 import {
@@ -97,10 +97,8 @@ export class PivotModel extends Model {
      * @param {Object} [params.data]
      */
     setup(params) {
-        this.keepLast = new KeepLast();
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.expandMutex = new Mutex();
-        /** @type {((value: typeof SUPERSEDED) => void)[]} */
-        this._supersessionWatchers = [];
         this.loads = new InFlight();
         /** @type {(...args: any[]) => any} */
         const _loadData = this._loadData.bind(this);
@@ -584,19 +582,23 @@ export class PivotModel extends Model {
     }
 
     /**
+     * Await a load through `keepLast`, resolving to the `SUPERSEDED` sentinel
+     * when a newer load takes over. Delegates supersession to `KeepLast`'s
+     * `rejectSuperseded` instead of re-deriving it with a race + watcher list.
+     *
      * @protected
      * @param {Promise<any>} promise
      * @returns {Promise<any>}
      */
-    _keepLastAdd(promise) {
-        for (const notifySuperseded of this._supersessionWatchers) {
-            notifySuperseded(SUPERSEDED);
+    async _keepLastAdd(promise) {
+        try {
+            return await this.keepLast.add(promise);
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return SUPERSEDED;
+            }
+            throw error;
         }
-        this._supersessionWatchers.length = 0;
-        const supersededProm = new Promise((resolve) => {
-            this._supersessionWatchers.push(resolve);
-        });
-        return Promise.race([this.keepLast.add(promise), supersededProm]);
     }
 
     async _getGroupsSubdivision(params, groupInfo) {

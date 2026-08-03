@@ -3,7 +3,7 @@
 
 /** @module @web/fields/basic/url/url_field */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { isSafeUrlScheme } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
 import { TrimmingInputFieldBase } from "@web/fields/basic/trimming_input_field_base";

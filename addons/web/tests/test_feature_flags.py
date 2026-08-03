@@ -3,7 +3,7 @@
 ``IrHttp._resolve_feature_flags`` reads ``ir.config_parameter`` rows
 whose key starts with ``web.feature.`` and exposes them under
 ``session_info["feature_flags"]``.  The JS resolver in
-``services/feature_flags.js`` then consumes the dict as the
+``core/feature_flags.js`` then consumes the dict as the
 "server" layer of its four-step cascade
 (URL > localStorage > server > default).
 

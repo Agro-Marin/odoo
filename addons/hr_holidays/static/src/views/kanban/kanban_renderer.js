@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { KanbanRenderer } from '@web/views/kanban/kanban_renderer';
+import { KanbanRenderer } from "@web/views/kanban";
 import { TimeOffDashboard } from '../../dashboard/time_off_dashboard.js';
 
 export class TimeOffKanbanRenderer extends KanbanRenderer {

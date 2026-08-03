@@ -83,14 +83,8 @@ export class KanbanController extends MultiRecordController {
             removeSampleDataInGroups() {
                 if (this.useSampleModel) {
                     for (const group of this.root.groups) {
-                        const list = group.list;
                         group.count = 0;
-                        list.count = 0;
-                        if (list._records !== undefined) {
-                            list._records = [];
-                        } else {
-                            list.groups = [];
-                        }
+                        group.list.clearSampleData();
                     }
                 }
             }

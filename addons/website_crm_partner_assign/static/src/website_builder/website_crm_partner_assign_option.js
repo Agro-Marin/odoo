@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { useState, onWillStart } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 export class WebsiteCRMPartnersPage extends BaseOptionComponent {

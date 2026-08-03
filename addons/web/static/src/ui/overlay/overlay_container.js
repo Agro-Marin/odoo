@@ -18,6 +18,14 @@ import { ErrorHandler } from "@web/core/utils/components";
 
 export const OVERLAY_SYMBOL = Symbol("Overlay");
 
+/**
+ * Where an overlay lands in the stack when its caller names no sequence. Owned
+ * here and imported by `overlay_service`, which is the only writer: two copies
+ * of the number meant the stacking order the container compares by could
+ * silently stop matching the one the service assigns.
+ */
+export const DEFAULT_OVERLAY_SEQUENCE = 50;
+
 const OVERLAY_ITEMS = Symbol("OverlayItems");
 
 /**
@@ -72,7 +80,7 @@ class OverlayItem extends Component {
 
     /** @returns {number} */
     get stackSequence() {
-        return this.props.sequence ?? 50;
+        return this.props.sequence ?? DEFAULT_OVERLAY_SEQUENCE;
     }
 
     /** @returns {number} */

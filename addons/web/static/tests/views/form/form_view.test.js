@@ -60,10 +60,10 @@ import {
     toggleMenuItem,
     toggleSearchBarMenu,
 } from "@web/../tests/web_test_helpers";
-import { config as transitionConfig } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
 import { makeErrorFromResponse } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { config as transitionConfig } from "@web/core/transition";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { redirect } from "@web/core/utils/urls";
 import { CharField } from "@web/fields/basic/char/char_field";
@@ -10364,9 +10364,11 @@ test(`form view with inline list view with optional fields and local storage moc
     });
 
     const localStorageKey = "partner,form,1,child_ids,list,bar,foo";
+    // `debug_open_view` is still snapshotted at setup, `optional_fields` is
+    // read on each render, so the debug key is now seen first.
     expect.verifySteps([
-        `getItem optional_fields,${localStorageKey}`,
         `getItem debug_open_view,${localStorageKey}`,
+        `getItem optional_fields,${localStorageKey}`,
     ]);
     expect(`.o_list_table th`).toHaveCount(2);
     expect(`th[data-name="foo"]`).toBeVisible();
@@ -10376,7 +10378,10 @@ test(`form view with inline list view with optional fields and local storage moc
     expect(`.o-dropdown--menu .dropdown-item`).toHaveCount(1);
 
     await contains(`.o-dropdown--menu input[name="bar"]`).click();
-    expect.verifySteps([`setItem optional_fields,${localStorageKey} to bar`]);
+    expect.verifySteps([
+        `setItem optional_fields,${localStorageKey} to bar`,
+        `getItem optional_fields,${localStorageKey}`,
+    ]);
 
     expect(`.o_list_table th`).toHaveCount(3);
     expect(`th[data-name="foo"]`).toBeVisible();
@@ -10431,9 +10436,11 @@ test(`form view with list_view_ref with optional fields and local storage mock`,
     });
 
     const localStorageKey = "partner,form,1,child_ids,list,bar,foo";
+    // `debug_open_view` is still snapshotted at setup, `optional_fields` is
+    // read on each render, so the debug key is now seen first.
     expect.verifySteps([
-        `getItem optional_fields,${localStorageKey}`,
         `getItem debug_open_view,${localStorageKey}`,
+        `getItem optional_fields,${localStorageKey}`,
     ]);
     expect(`.o_list_table th`).toHaveCount(2);
     expect(`th[data-name="foo"]`).not.toHaveCount();
@@ -10443,7 +10450,10 @@ test(`form view with list_view_ref with optional fields and local storage mock`,
     expect(`.o-dropdown--menu .dropdown-item`).toHaveCount(1);
 
     await contains(`.o-dropdown--menu input[name="foo"]`).click();
-    expect.verifySteps([`setItem optional_fields,${localStorageKey} to foo`]);
+    expect.verifySteps([
+        `setItem optional_fields,${localStorageKey} to foo`,
+        `getItem optional_fields,${localStorageKey}`,
+    ]);
 
     expect(`.o_list_table th`).toHaveCount(3);
     expect(`th[data-name="foo"]`).toBeVisible();

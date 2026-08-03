@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { CalendarCommonPopover } from "@web/views/calendar/calendar_common/calendar_common_popover";
 import { useService } from "@web/core/utils/hooks";
+import { CalendarCommonPopover } from "@web/views/calendar";
 
 export class TimeOffCalendarCommonPopover extends CalendarCommonPopover {
     static subTemplates = {

@@ -4,9 +4,9 @@
 /** @module @web/fields/specialized/user_groups/res_user_group_ids_popover */
 
 import { Component, useState } from "@odoo/owl";
+import { useAction } from "@web/core/action_port";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { omit } from "@web/core/utils/collections/objects";
-import { useService } from "@web/core/utils/hooks";
 export class ResUserGroupIdsPopover extends Component {
     static template = "web.ResUserGroupIdsPopover";
     static props = {
@@ -16,11 +16,11 @@ export class ResUserGroupIdsPopover extends Component {
         privileges: Object,
     };
 
-    /** @type {import("services").ServiceFactories["action"]} */
+    /** @type {import("@web/core/action_port").ActionPort} */
     actionService;
 
     setup() {
-        this.actionService = useService("action");
+        this.actionService = useAction();
 
         this.state = useState({
             showExtraGroups: false,

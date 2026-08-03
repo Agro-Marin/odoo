@@ -10,8 +10,8 @@
  */
 import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 export async function startClickEverywhere(xmlId, light, currentState) {
     await loadBundle("web.assets_clickbot");
     /** @type {any} */ (window).clickEverywhere(xmlId, light, currentState);

@@ -13,9 +13,9 @@ import { CALL_PROMOTE_FULLSCREEN } from "@mail/discuss/call/common/thread_model_
 import { assignDefined, closeStream, onChange } from "@mail/utils/common/misc";
 import { reactive, toRaw } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { debounce } from "@web/core/utils/timing";
 

@@ -68,6 +68,7 @@ _DEFAULT_MANIFEST = {
     "demo_xml": [],
     "depends": [],
     "description": "",
+    "esm": {},
     "external_dependencies": {},
     "init_xml": [],
     "installable": True,

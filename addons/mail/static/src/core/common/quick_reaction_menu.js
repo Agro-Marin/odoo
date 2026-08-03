@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { loadEmoji, useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
 import { useService } from "@web/core/utils/hooks";
 /**

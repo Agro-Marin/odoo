@@ -2,12 +2,13 @@
 import { useAssignUserCommand } from "@mail/views/web/fields/assign_user_command_hook";
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     buildM2OFieldDescription,
+    computeM2OProps,
     extractM2OFieldProps,
+    Many2One,
     Many2OneField,
-} from "@web/fields/relational/many2one/many2one_field";
+} from "@web/fields/relational/many2one";
 
 import { Avatar } from "../avatar/avatar.js";
 import { Many2XAvatarUserAutocomplete } from "../avatar_autocomplete/avatar_many2x_autocomplete.js";

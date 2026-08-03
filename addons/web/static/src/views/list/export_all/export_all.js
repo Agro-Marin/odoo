@@ -7,9 +7,9 @@ import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { SearchModelEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_menus";
-import { user } from "@web/services/user";
 
 const cogMenuRegistry = registry.category("cogMenu");
 

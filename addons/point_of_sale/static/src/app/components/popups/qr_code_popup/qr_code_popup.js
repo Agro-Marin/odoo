@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { _t } from "@web/core/translation";
+import { ConfirmationDialog } from "@web/ui/dialog";
 export class QRPopup extends ConfirmationDialog {
     static template = "point_of_sale.QRConfirmationDialog";
     static props = {

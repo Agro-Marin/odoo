@@ -1,10 +1,9 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
-import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";
-
 import { useService } from "@web/core/utils/hooks";
+import { CalendarYearRenderer, useCalendarPopover } from "@web/views/calendar";
+
 import { useMandatoryDays } from "../../hooks.js";
-import { useCalendarPopover } from "@web/views/calendar/hooks/calendar_popover_hook";
 import { TimeOffCalendarYearPopover } from "./calendar_year_popover.js";
 
 export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {

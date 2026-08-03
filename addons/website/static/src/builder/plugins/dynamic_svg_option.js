@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { dynamicSVGSelector } from "@html_builder/plugins/utils";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 export class DynamicSvgOption extends BaseOptionComponent {
     static template = "website.DynamicSvgOption";

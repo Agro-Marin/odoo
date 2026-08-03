@@ -4,7 +4,7 @@
 /** @module @web/components/tree_editor/tree_editor_operator_editor */
 
 import { Select } from "@web/components/tree_editor/tree_editor_components";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import {
     getOperatorInfo,
     getOperatorLabel,

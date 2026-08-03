@@ -8,9 +8,9 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
-import { getFirstElementOfNode } from "@web/components/dropdown/dropdown";
+import { getFirstElementOfNode } from "@web/components/dropdown";
+import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
-import { useNavigation } from "@web/services/navigation/navigation";
 /**
  * CallDropdown is an alternative to the web popover for calls to make them available
  * in cases where they cannot be overlays (main components), such as in picture-in-picture mode.

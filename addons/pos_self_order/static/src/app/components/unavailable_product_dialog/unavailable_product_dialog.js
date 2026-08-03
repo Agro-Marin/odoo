@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 export class UnavailableProductsDialog extends Component {
     static template = "pos_self_order.UnavailableProductsDialog";
     static components = { Dialog };

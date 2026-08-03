@@ -9,12 +9,12 @@ import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { UserEvent } from "@web/core/events";
-import { _t } from "@web/core/l10n/translation";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user, userBus } from "@web/core/user";
 import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
-import { useCommand } from "@web/services/commands/command_hook";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { user, userBus } from "@web/services/user";
+import { useCommand } from "@web/ui/commands/command_hook";
 import {
     CompanySelector,
     getCompany,
@@ -151,25 +151,52 @@ export class SwitchCompanyMenu extends Component {
         }
     }
 
+    /**
+     * The filter selects subtrees, not rows.
+     *
+     * Selection cascades: `_selectCompany` recurses into `child_ids`, so
+     * acting on a company acts on its branches whether or not they are on
+     * screen. Matching row by row therefore lied in both directions -- a
+     * matched branch rendered indented under nothing, and "select all" over a
+     * filtered list quietly took in companies the user could not see.
+     *
+     * So visibility is closed under descendants: a company is shown when its
+     * subtree holds a match, and showing it shows everything under it. What is
+     * on screen is then exactly what the controls act on, and every rendered
+     * row still sits below its parent.
+     */
     computeVisibleCompanies() {
-        const companies = [];
+        /** @type {Map<number, boolean>} subtree holds a match */
+        const inSubtree = new Map();
+        const scanSubtree = (company) => {
+            let found = this.matchSearch(company.name);
+            for (const companyId of company.child_ids || []) {
+                // Every child is scanned: `found` short-circuiting here would
+                // leave the map incomplete for the pass below.
+                if (scanSubtree(getCompany(companyId))) {
+                    found = true;
+                }
+            }
+            inSubtree.set(company.id, found);
+            return found;
+        };
 
-        const addCompany = (company, level = 0) => {
-            if (this.matchSearch(company.name)) {
+        const companies = [];
+        const emit = (company, level, ancestorShown) => {
+            const shown = ancestorShown || inSubtree.get(company.id);
+            if (shown) {
                 companies.push({ company, level });
             }
-
-            if (company.child_ids) {
-                for (const companyId of company.child_ids) {
-                    addCompany(getCompany(companyId), level + 1);
-                }
+            for (const companyId of company.child_ids || []) {
+                emit(getCompany(companyId), level + 1, shown);
             }
         };
 
-        user.allowedCompaniesWithAncestors
+        const roots = user.allowedCompaniesWithAncestors
             .filter((c) => !c.parent_id)
-            .sort((c1, c2) => c1.sequence - c2.sequence)
-            .forEach((c) => addCompany(c));
+            .sort((c1, c2) => c1.sequence - c2.sequence);
+        roots.forEach(scanSubtree);
+        roots.forEach((c) => emit(c, 0, false));
 
         return companies;
     }

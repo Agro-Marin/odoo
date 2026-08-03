@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
+import { SelectCreateDialog } from "@web/views/view_dialogs";
 
 /**
  * Open the "Select Packages to Move" dialog and, on confirmation, add the chosen

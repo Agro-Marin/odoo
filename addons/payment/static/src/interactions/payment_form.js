@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { browser } from '@web/core/browser/browser';
 import { Tooltip } from "@web/libs/bootstrap";
-import { ConfirmationDialog } from '@web/ui/dialog/confirmation_dialog';
-import { _t } from '@web/core/l10n/translation';
-import { rpc, RPCError } from '@web/core/network/rpc';
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { _t } from '@web/core/translation';
+import { rpc, RPCError } from "@web/core/network";
 import { registry } from '@web/core/registry';
 import { renderToMarkup } from '@web/core/utils/render';
 import { Interaction } from '@web/public/interaction';

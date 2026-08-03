@@ -8,10 +8,10 @@ import {
     makeSequential,
     nearestGreaterThanOrEqual,
 } from "@mail/utils/common/misc";
-import { _t } from "@web/core/l10n/translation";
 import { formatList } from "@web/core/l10n/utils";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { patch } from "@web/core/utils/patch";

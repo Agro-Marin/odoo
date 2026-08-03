@@ -1,15 +1,14 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { sprintf } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { usePopover } from "@web/ui/popover/popover_hook";
-import { FormController } from "@web/views/form/form_controller";
-import { formView } from "@web/views/form/form_view";
-import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
+import { usePopover } from "@web/ui/popover";
+import { FormController, formView } from "@web/views/form";
+import { FormViewDialog } from "@web/views/view_dialogs";
 
 import { WebsiteDialog } from "./dialog.js";
 

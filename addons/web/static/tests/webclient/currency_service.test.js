@@ -10,8 +10,8 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { currencies } from "@web/core/currency";
 import { rpcBus, RPCError } from "@web/core/network/rpc";
-import { currencies } from "@web/services/currency";
 
 class Currency extends models.Model {
     _name = "res.currency";

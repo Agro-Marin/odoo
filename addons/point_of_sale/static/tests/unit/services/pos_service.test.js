@@ -2,7 +2,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { changesToOrder } from "@point_of_sale/app/models/utils/order_change";
 import { onRpc } from "@web/../tests/web_test_helpers";
 import { luxon } from "@web/core/l10n/luxon";
-import { ConnectionLostError } from "@web/core/network/rpc";
+import { ConnectionLostError } from "@web/core/network";
 import { imageUrl } from "@web/core/utils/urls";
 
 import { prepareRoundingVals } from "../accounting/utils.js";

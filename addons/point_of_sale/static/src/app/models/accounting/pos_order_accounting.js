@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
-import { formatCurrency } from "@web/services/currency";
+import { formatCurrency } from "@web/core/currency";
 
 import { logPosMessage } from "../../utils/pretty_console_log.js";
 import { Base } from "../related_models/index.js";

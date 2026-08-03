@@ -92,6 +92,7 @@
                             </div>
                         </button>
                         <button class="oe_stat_button" name="%(action_project_cfd_report)d" type="action" icon="fa-area-chart" invisible="is_template"
+                            context="{'search_default_project_id': id}"
                             groups="project.group_project_user">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">CFD</span>
@@ -499,7 +500,7 @@
                                             <a name="action_project_task_burndown_chart_report" type="object">Burndown Chart</a>
                                         </div>
                                         <div class="d-inline-block" role="menuitem" name="project_cfd_menu" groups="project.group_project_user">
-                                            <a name="%(action_project_cfd_report)d" type="action">CFD</a>
+                                            <a name="%(action_project_cfd_report)d" type="action" context="{'search_default_project_id': id}">CFD</a>
                                         </div>
                                     </div>
                                 </div>

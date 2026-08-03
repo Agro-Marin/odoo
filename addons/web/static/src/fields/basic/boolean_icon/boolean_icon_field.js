@@ -4,7 +4,7 @@
 /** @module @web/fields/basic/boolean_icon/boolean_icon_field */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 

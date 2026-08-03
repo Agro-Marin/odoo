@@ -1,28 +1,29 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { DEFAULT_PALETTE } from "@html_editor/utils/color";
+import { BuilderAction } from "@html_builder/core/builder_action";
 import { getShapeURL } from "@html_builder/plugins/image/image_helpers";
-import {
-    activateCropper,
-    createDataURL,
-    cropperDataFields,
-    loadImage,
-    loadImageInfo,
-    isGif,
-} from "@html_editor/utils/image_processing";
-import { getValueFromVar } from "@html_builder/utils/utils";
 import { imageShapeDefinitions } from "@html_builder/plugins/image/image_shapes_definition";
+import { handleImagesIfDataset } from "@html_builder/utils/image";
+import { getValueFromVar } from "@html_builder/utils/utils";
 import {
     getImageTransformationData,
     shouldPreventGifTransformation,
 } from "@html_editor/main/media/image_post_process_plugin";
-import { _t } from "@web/core/l10n/translation";
-import { BuilderAction } from "@html_builder/core/builder_action";
+import { Plugin } from "@html_editor/plugin";
+import { DEFAULT_PALETTE } from "@html_editor/utils/color";
 import { getFetchedMimetype, getMimetype } from "@html_editor/utils/image";
+import {
+    activateCropper,
+    createDataURL,
+    cropperDataFields,
+    isGif,
+    loadImage,
+    loadImageInfo,
+} from "@html_editor/utils/image_processing";
 import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { deepCopy, deepMerge } from "@web/core/utils/collections/objects";
-import { handleImagesIfDataset } from "@html_builder/utils/image";
+
 import { applyFunDependOnSelectorAndExclude } from "../utils.js";
 
 /**

@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
 import { getLNATargetAddressSpace, initLNA } from "@point_of_sale/app/utils/init_lna";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 const EPSON_ERRORS = {
     DeviceNotFound: _t(
         "Check the printer configuration for the 'Device ID' setting.\nIt should be set to: 'local_printer'",

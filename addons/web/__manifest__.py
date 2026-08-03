@@ -169,19 +169,28 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/libs/bootstrap.js",
             "web/static/src/env.js",
             "web/static/src/ui/**/*",
-            "web/static/src/services/**/*",
             (
                 "remove",
-                "web/static/src/services/commands/**/*",
+                "web/static/src/ui/commands/**/*",
             ),
-            (
-                "remove",
-                "web/static/src/services/debug/debug_menu.js",
-            ),
-            "web/static/src/services/commands/default_providers.js",
-            "web/static/src/services/commands/command_palette.js",
+            "web/static/src/ui/commands/default_providers.js",
+            "web/static/src/ui/commands/command_palette.js",
             "web/static/src/components/**/*",
             "web/static/src/core/**/*",
+            # The debug menu moved from `services/debug/` to `webclient/debug/`,
+            # and `webclient/**` is not globbed here — so what used to arrive
+            # via `services/**` has to be named. Listed file by file rather than
+            # `webclient/debug/**`, because the set is the point: the frontend
+            # gets the BASIC menu and its providers, never `debug_menu.js`,
+            # which the old block removed by name for that reason.
+            "web/static/src/webclient/debug/debug_menu_basic.js",
+            "web/static/src/webclient/debug/debug_menu_items.js",
+            "web/static/src/webclient/debug/debug_providers.js",
+            "web/static/src/webclient/debug/debug_menu.scss",
+            "web/static/src/webclient/debug/debug_menu.xml",
+            "web/static/src/webclient/debug/debug_menu_items.xml",
+            "web/static/src/webclient/install_scoped_app/install_scoped_app.js",
+            "web/static/src/webclient/install_scoped_app/install_scoped_app.xml",
             (
                 "remove",
                 "web/static/src/components/emoji_picker/emoji_data.js",
@@ -378,7 +387,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/session.js",
             "web/static/src/env.js",
             "web/static/src/ui/**/*",
-            "web/static/src/services/**/*",
             "web/static/src/components/**/*",
             "web/static/src/core/**/*",
             (

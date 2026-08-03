@@ -2,15 +2,15 @@
 
 Complete mapping of HTTP endpoints to Python handlers and JavaScript callers.
 
-> **See also**: `doc/FLOW_DIAGRAM.md` traces each route category end-to-end:
+> **See also**: `FLOW_DIAGRAM.md` traces each route category end-to-end:
 > Flow 1 (Bootstrap), Flow 2 (Login), Flow 3 (RPC), Flow 9 (Binary), Flow 10
-> (Assets), Flow 11 (Export). `doc/COMPONENT_DIAGRAM.md` maps routes to audit areas.
+> (Assets), Flow 11 (Export). `COMPONENT_DIAGRAM.md` maps routes to audit areas.
 
 Legend: `JSONRPC` = POST JSON-RPC 2.0 | `HTTP` = standard HTTP (all methods unless noted) | `HTTP GET`/`POST` = method-restricted | `auth` = authentication type | `readonly` = routed to read replica if configured
 
 ## Core Data (RPC)
 
-These are the primary backend APIs consumed by the JS ORM service (`core/network/rpc.js` + `services/orm_service.js`).
+These are the primary backend APIs consumed by the JS ORM service (`core/network/rpc.js` + `core/network/orm_service.js`).
 
 ### controllers/dataset.py — DataSet
 
@@ -82,6 +82,7 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | HTTP | `/web/health` | none (save_session=False) | `health()` | Legacy health check (DB status optional). Prefer `/web/healthz` + `/web/readyz` for K8s probes. |
 | HTTP | `/web/healthz` | none (save_session=False) | `healthz()` | Kubernetes-style liveness probe (no I/O, returns 200 if the process is up) |
 | HTTP | `/web/readyz` | none (save_session=False) | `readyz()` | Kubernetes-style readiness probe (checks DB + data_dir, returns 503 on failure) |
+| HTTP | `/web/metrics` | none (save_session=False) | `metrics()` | Prometheus exposition of this process's counters. Off unless the `ODOO_METRICS_TOKEN` **env var** (not a config key — it must not be writable into a saved `.conf`) is set, and answers **404** rather than 401 when unset, so an unenabled surface is indistinguishable from one never built. Token travels as `Authorization: Bearer` and is compared with `consteq`; a bad token gets 401. Gated because the payload names every database this process serves |
 | HTTP | `/robots.txt` | none | `robots()` | Search engine robots file |
 
 ### controllers/webclient.py — WebClient
@@ -154,11 +155,11 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | HTTP POST | `/web/database/backup` | none (csrf=False) | `backup()` | Export database (ZIP/SQL) |
 | HTTP POST | `/web/database/restore` | none (csrf=False, max_content_length=None) | `restore()` | Import database backup. `max_content_length=None` means uploads are unbounded — relies on reverse proxy to cap request size. |
 | HTTP POST | `/web/database/change_password` | none (csrf=False) | `change_password()` | Change master password |
+| JSONRPC | `/web/database/list` | none | `list()` | List databases (mobile API) |
 
 > **Database POST footgun** (`database.py` `_handle_insecure_password`): on first successful POST with a non-"admin" `master_pwd`, the helper auto-upgrades the stored master password to whatever was submitted — browser autofill of the form can silently replace the default. The helper is invoked from five POST handlers (`create`, `duplicate`, `drop`, `backup`, `restore`), so any of those routes is a trigger surface. Any refactor hardening master-pwd handling should remove this auto-upgrade.
 
 > **Restore / upload safety gaps** — `/web/database/restore` has `max_content_length=None` (unbounded upload) and no MIME/magic-byte check; `/web/binary/upload_attachment` has no size cap beyond the framework default and no MIME validation; `/report/barcode` accepts arbitrary `width`/`height`/`value` (reportlab can allocate large images). All three are known limitations — consumers must enforce limits at the reverse proxy.
-| JSONRPC | `/web/database/list` | none | `list()` | List databases (mobile API) |
 
 ## PWA and Manifest
 
@@ -218,6 +219,14 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 |--------|-------|------|---------|---------|
 | HTTP POST | `/web/observability/cwv` | public (csrf=False, sitemap=False) | `cwv()` | Core Web Vitals beacon (LCP/FCP/CLS/TTFB/INP — INP as worst-observed P100 interaction duration) sent via `navigator.sendBeacon` from `web_vitals_service.js` on `pagehide`. Validates and clamps payload, persists to `web.cwv.metric`, emits `[cwv]`-tagged INFO log. |
 | HTTP POST | `/web/observability/js_error` | public (csrf=False, sitemap=False) | `js_error()` | JS error beacon sent via `navigator.sendBeacon` from the inline `module_loader.js` shim's pre-bundle error handler. Throttled JS-side to one beacon per `(message,line,col,hash(stack+cause))` per page lifetime — the stack and cause discriminate because OWL reports every lifecycle failure with one generic message at `0:0`. Clamps payload fields to length caps, emits a `[js_error]` WARNING log, and persists to `web.js.error` (see `MODEL_MAP.md`). |
+
+## OpenAPI
+
+### controllers/openapi.py — OpenAPI
+
+| Method | Route | Auth | Handler | Purpose |
+|--------|-------|------|---------|---------|
+| HTTP GET | `/web/openapi.json` | user (readonly) | `openapi_json()` | OpenAPI 3.1 document generated live from the routing map by `odoo.http.openapi:openapi_from_map` with `typed_only=True`, so only `@route(typed=True)` endpoints are listed — never the full internal route map. Additionally gated on `base.group_system` inside the handler (403 otherwise): even the curated surface is deployment reconnaissance |
 
 ## Route Count Summary
 

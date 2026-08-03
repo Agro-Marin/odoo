@@ -28,6 +28,7 @@ import {
     toggleMenuItem,
     toggleSearchBarMenu,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 import { WithSearch } from "@web/search/with_search/with_search";
@@ -3161,7 +3162,7 @@ test("Don't display empty state message when some filters are available", async 
 });
 
 test("search panel can be collapsed/expanded", async () => {
-    patchWithCleanup(localStorage, {
+    patchWithCleanup(browser.localStorage, {
         setItem(key, value) {
             if (key.startsWith("search_panel_expanded")) {
                 expect.step(["setItem", key, value]);
@@ -3194,7 +3195,7 @@ test("search panel can be collapsed/expanded", async () => {
 });
 
 test("search panel can be collapsed by default if it was set in local storage beforehand", async () => {
-    localStorage.setItem("search_panel_expanded,false,1", false);
+    browser.localStorage.setItem("search_panel_expanded,false,1", false);
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
     expect(`.o_search_panel`).toHaveCount(0);

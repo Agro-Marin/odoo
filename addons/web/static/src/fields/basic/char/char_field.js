@@ -5,7 +5,7 @@
 
 import { useRef } from "@odoo/owl";
 import { formatChar } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";

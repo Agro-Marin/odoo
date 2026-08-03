@@ -4,10 +4,10 @@
 /** @module @web/views/form/form_label */
 
 import { Component } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { fieldVisualFeedback } from "@web/fields/field";
 import { getTooltipInfo } from "@web/fields/field_tooltip";
-import { user } from "@web/services/user";
 
 export class FormLabel extends Component {
     static template = "web.FormLabel";

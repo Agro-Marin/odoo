@@ -5,7 +5,7 @@
 
 import { Component, onPatched, status, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 /**
  * @extends Component
  */

@@ -12,8 +12,9 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { useAction } from "@web/core/action_port";
 import { FileUploader } from "@web/core/file_upload/file_handler";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { url } from "@web/core/utils/urls";
@@ -30,7 +31,7 @@ export class PdfViewerField extends Component {
         fileNameField: { type: String, optional: true },
     };
 
-    /** @type {import("services").ServiceFactories["action"]} */
+    /** @type {import("@web/core/action_port").ActionPort} */
     action;
     /** @type {import("@odoo/owl").Ref} */
     iframeViewerPdfRef;
@@ -41,7 +42,7 @@ export class PdfViewerField extends Component {
 
     setup() {
         this.notification = useService("notification");
-        this.action = useService("action");
+        this.action = useAction();
         this.state = useState({
             isValid: true,
             objectUrl: "",

@@ -4,7 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { download } from "@web/core/network/download";
 import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import { ReportAction } from "@web/webclient/actions/reports/report_action";
 import {
     executeReportAction,

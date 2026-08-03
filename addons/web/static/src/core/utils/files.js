@@ -3,7 +3,7 @@
 
 /** @module @web/core/utils/files */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { humanNumber } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";

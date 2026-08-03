@@ -3,9 +3,8 @@ import { onMounted, useEnv, useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { FormController } from "@web/views/form/form_controller";
-import { formView } from "@web/views/form/form_view";
-import { ViewButton } from "@web/views/view_button/view_button";
+import { FormController, formView } from "@web/views/form";
+import { ViewButton } from "@web/views/view_button";
 
 /*
  * Common code for theme installation/update handler.

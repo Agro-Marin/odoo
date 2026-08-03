@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onMounted, useState, useRef } from "@odoo/owl";
-import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video_scanner";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { isBarcodeScannerSupported } from "@web/components/barcode";
+import { Dialog } from "@web/ui/dialog";
 import { useService } from "@web/core/utils/hooks";
 
 export class EventRegistrationSummaryDialog extends Component {

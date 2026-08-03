@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { formatCurrency } from "@web/core/currency";
 import { formatFloat } from "@web/core/formatters";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { formatCurrency } from "@web/services/currency";
 import { SIZES } from "@web/ui/viewport";
-import { ViewButton } from "@web/views/view_button/view_button";
+import { ViewButton } from "@web/views/view_button";
 
 import { ProjectMilestone } from "./components/project_milestone.js";
 import { ProjectProfitability } from "./components/project_profitability.js";

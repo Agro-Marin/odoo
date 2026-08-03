@@ -21,9 +21,9 @@ The `@types/` ambients are loaded as ordinary program files by the `include`
 glob — `**/*.ts` matches `.d.ts` — not as `@types` packages, which is why
 `typeRoots` is absent: it resolves `<root>/<pkg>/index.d.ts`, and nothing in
 those folders provides one. Opt-in editor template at
-`addons/web/tooling/_jsconfig.json` (copied by `addons/web/tooling/enable.sh`);
-keep it in step with the committed `jsconfig.json`, since `enable.sh` overwrites
-the latter from it.
+`addons/web/tooling/_jsconfig.json`; `addons/web/tooling/enable.sh` copies it to
+an untracked repo-root `jsconfig.json`. The template is the committed artefact —
+edit it, not the generated copy, which `enable.sh` overwrites.
 
 Check a single file against the full program rather than in isolation — run the
 real config and filter to the file. An isolated program under-resolves the
@@ -230,10 +230,11 @@ registerField({ name: "text", view: "list" }, listTextField);
 registerField({ name: "text", view: "liist" }, buggyVariant);
 ```
 
-**Don't drop the string form** — 75 of the 102 fork-wide `registerField` /
-`registerFallbackField` sites are plain (no view prefix) and have no typo risk;
-converting them yields no win. Reserve the typed form for view-prefixed
-registrations.
+**Don't drop the string form** — 79 of the 110 fork-wide `registerField` /
+`registerFallbackField` sites are plain strings with no view prefix and no typo
+risk; the other 31 already use the spec object. Reserve the typed form for
+view-prefixed registrations and for `aliases`, which the string form cannot
+express.
 
 **Naming nuance**: the `name` in `FieldRegistrationSpec.name` is the widget
 identifier the view arch references via `widget="<name>"`, NOT necessarily a
@@ -285,7 +286,7 @@ constructor already assigned:
 Prefer deriving the type over restating it, so it cannot drift:
 
 ```js
-/** @type {ReturnType<typeof import("@web/services/name_service").nameService.start>} */
+/** @type {ReturnType<typeof import("@web/core/name_service").nameService.start>} */
 nameService;
 ```
 
@@ -294,8 +295,8 @@ read like `record.model.urgentSave`), use `@ts-ignore` with a comment stating
 why — **not `@ts-expect-error`**. `tsconfig.strict.json` runs
 `strictNullChecks: true` but the committed `tsconfig.json` — the config the
 count ratchet runs — does not, so under that gate the error does not occur and
-`@ts-expect-error` reports `TS2578 Unused directive`. Note the editor configs
-(`jsconfig.json`, `addons/web/tooling/_jsconfig.json`) *do* set `strictNullChecks: true`,
+`@ts-expect-error` reports `TS2578 Unused directive`. Note the editor config
+(`addons/web/tooling/_jsconfig.json`, deployed as `jsconfig.json`) *does* set `strictNullChecks: true`,
 so the directive resolves differently there; `@ts-ignore` is the form that is
 inert under all three.
 
@@ -363,7 +364,7 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
   1. **Project-wide count ratchet** — `tsc -p tsconfig.json --noEmit`, floor in
      `tooling/ratchet/baselines/tsc.json`. Read the value there, not from this
      page. The floor is not guaranteed monotonic downward: it may be corrected
-     **upward** to absorb accumulated debt (ADR-0009 sets the precedent). It
+     **upward** to absorb accumulated debt. It
      fails on *improvement* too — a count below the floor exits 1 to force a
      lock-in, so a fix wave that is not committed back leaves mainline red. To
      move it: `python tooling/ratchet/ratchet.py tsc --count "$N" --update`.

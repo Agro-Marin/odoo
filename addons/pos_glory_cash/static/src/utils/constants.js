@@ -3,7 +3,7 @@
  * @type {import("models").GloryRequestInfo[]}
  */
 
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 export const WEBSOCKET_REQUESTS = {
     login: {
         requestName: "login request",

@@ -1,15 +1,15 @@
 /** @odoo-module native */
 //@ts-check
 
-import { EvaluationError, CellErrorType } from "@odoo/o-spreadsheet";
-import { RPCError } from "@web/core/network/rpc";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { CellErrorType,EvaluationError } from "@odoo/o-spreadsheet";
 import {
     getFields,
     LOADING_ERROR,
     ModelNotFoundError,
 } from "@spreadsheet/data_sources/data_source";
-import { _t } from "@web/core/l10n/translation";
+import { RPCError } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { KeepLast } from "@web/core/utils/concurrency";
 
 /**
  * @typedef {import("@spreadsheet").OdooFields} OdooFields

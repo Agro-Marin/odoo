@@ -9,7 +9,7 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { makePopover, usePopover } from "@web/ui/popover/popover_hook";
 
 test("close popover when component is unmounted", async () => {

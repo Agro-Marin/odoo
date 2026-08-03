@@ -2,8 +2,8 @@
 import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
 import { CancelDialog } from "@pos_glory_cash/app/components/cancel_dialog";
 import { GLORY_STATUS_STRING } from "@pos_glory_cash/utils/constants";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-import { _t } from "@web/core/l10n/translation";
+import { AlertDialog } from "@web/ui/dialog";
+import { _t } from "@web/core/translation";
 import { GloryService } from "@pos_glory_cash/glory_service";
 
 const CONNECT_TIMEOUT_MS = 5000;

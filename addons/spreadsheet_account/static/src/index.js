@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import * as spreadsheet from "@odoo/o-spreadsheet";
+import { camelToSnakeObject } from "@spreadsheet/helpers/helpers";
+import { _t } from "@web/core/translation";
+
+import { parseAccountingDate } from "./accounting_functions.js";
 import { AccountingPlugin } from "./plugins/accounting_plugin.js";
 import { getFirstAccountFunction, getNumberOfAccountFormulas } from "./utils.js";
-import { parseAccountingDate } from "./accounting_functions.js";
-import { camelToSnakeObject } from "@spreadsheet/helpers/helpers";
 
 const { cellMenuRegistry, featurePluginRegistry } = spreadsheet.registries;
 const { astToFormula } = spreadsheet;

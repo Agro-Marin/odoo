@@ -6,11 +6,11 @@ import {
 } from "@html_editor/others/embedded_components/core/embedded_component_toolbar/embedded_component_toolbar";
 import { StateFileModel } from "@html_editor/others/embedded_components/core/file/state_file_model";
 import { Component, useState } from "@odoo/owl";
-import { useFileViewer } from "@web/components/file_viewer/file_viewer_hook";
-import { _t } from "@web/core/l10n/translation";
-import { downloadFile } from "@web/core/network/download";
+import { useFileViewer } from "@web/components/file_viewer";
+import { downloadFile } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { AlertDialog } from "@web/ui/dialog";
 
 export class ReadonlyEmbeddedFileComponent extends Component {
     static components = {

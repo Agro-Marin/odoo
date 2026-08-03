@@ -1,10 +1,9 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class MOListViewDropdown extends Component {
     static template = "mrp.MOViewListDropdown";

@@ -10,9 +10,9 @@ import {
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 import { downloadPosLogs } from "../pretty_console_log.js";
 const { DateTime } = luxon;

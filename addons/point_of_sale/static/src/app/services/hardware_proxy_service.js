@@ -3,7 +3,7 @@ import { EventBus, reactive } from "@odoo/owl";
 import { HWPrinter } from "@point_of_sale/app/utils/printer/hw_printer";
 import { deduceUrl } from "@point_of_sale/utils";
 import { browser } from "@web/core/browser/browser";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { effect } from "@web/core/utils/reactive";
 

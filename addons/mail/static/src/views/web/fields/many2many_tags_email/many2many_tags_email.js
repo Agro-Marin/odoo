@@ -2,16 +2,16 @@
 import { RecipientsInputTagsList } from "@mail/core/web/recipients_input_tags_list";
 import { RecipientsPopover } from "@mail/core/web/recipients_popover";
 import { parseEmail } from "@mail/utils/common/format";
-import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
-} from "@web/fields/relational/many2many_tags/many2many_tags_field";
+} from "@web/fields/relational/many2many_tags";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 export class FieldMany2ManyTagsEmailTagsList extends RecipientsInputTagsList {
     static template = "FieldMany2ManyTagsEmailTagsList";
 }

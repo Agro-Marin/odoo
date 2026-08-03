@@ -15,8 +15,8 @@ import {
     tick,
 } from "@odoo/hoot";
 import { Component, onMounted, useSubEnv, xml } from "@odoo/owl";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { Dialog } from "@web/ui/dialog/dialog";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { View } from "@web/views/view";
 
 import { mountWithCleanup } from "./component_test_helpers.js";

@@ -23,7 +23,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import * as spreadsheet from "@odoo/o-spreadsheet";
 
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 import {
     getBasicServerData,
     defineSpreadsheetActions,

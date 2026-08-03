@@ -221,8 +221,10 @@ test("the default app falls through a dangling first menu id", async () => {
     // `getApps()` skips the dangling id and opens the first real app.
     const def = new Deferred();
     onRpc("/web/webclient/load_menus", () => def);
+    // menu_storage scopes the cache token to `${registry_hash}:${user.userId}`
+    // (serverState userId defaults to 7); a bare hash is a miss.
     browser.localStorage.webclient_menus_version =
-        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0:7";
     browser.localStorage.webclient_menus = JSON.stringify({
         2: { appID: 2, children: [], name: "Real App", id: 2, actionID: 1001 },
         root: { id: "root", name: "root", appID: "root", children: [999, 2] },

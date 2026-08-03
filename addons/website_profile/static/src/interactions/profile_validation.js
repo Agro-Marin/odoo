@@ -3,7 +3,7 @@ import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
 import { redirect } from "@web/core/utils/urls";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 
 export class ProfileValidation extends Interaction {
     static selector = ".o_wprofile_email_validation_container";

@@ -2,7 +2,7 @@
 /* global Razorpay */
 
 import { loadJS } from '@web/core/assets';
-import { _t } from '@web/core/l10n/translation';
+import { _t } from '@web/core/translation';
 import { patch } from '@web/core/utils/patch';
 
 import { PaymentForm } from '@payment/interactions/payment_form';

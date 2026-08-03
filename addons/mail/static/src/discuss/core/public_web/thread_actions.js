@@ -5,8 +5,8 @@ import { ChannelMemberList } from "@mail/discuss/core/common/channel_member_list
 import { SubChannelList } from "@mail/discuss/core/public_web/sub_channel_list";
 import { useChildSubEnv } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { _t } from "@web/core/translation";
+import { usePopover } from "@web/ui/popover";
 registerThreadAction("show-threads", {
     actionPanelComponent: SubChannelList,
     actionPanelComponentProps: ({ action }) => ({ close: () => action.close() }),

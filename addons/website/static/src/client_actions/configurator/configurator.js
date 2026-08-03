@@ -13,21 +13,20 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { router } from "@web/core/browser/router";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { delay } from "@web/core/utils/concurrency";
 import { mixCssColors } from "@web/core/utils/format/colors";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { fuzzyLevenshteinLookup } from "@web/core/utils/search";
 import { getDataURLFromFile, redirect } from "@web/core/utils/urls";
-import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { standardActionServiceProps } from "@web/webclient/actions";
 import { svgToPNG, webpToPNG } from "@website/js/utils";
 
 const sessionStorage = browser.sessionStorage;

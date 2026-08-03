@@ -6,7 +6,11 @@
         <field name="name">project.project.portfolio.list</field>
         <field name="model">project.project</field>
         <field name="arch" type="xml">
-            <list string="Portfolio" default_order="health_score asc, name">
+            <!-- Not ordered by health_score: it is a non-stored compute (see
+                 project.project._compute_health_indicators, which documents
+                 that it cannot be searched or grouped), so ordering by it
+                 fails the read with "Cannot convert ... to SQL". -->
+            <list string="Portfolio" default_order="name">
                 <field name="name" class="fw-bold"/>
                 <field name="user_id" string="PM" widget="many2one_avatar_user"/>
                 <field name="health_score"/>
@@ -54,7 +58,9 @@
         </field>
     </record>
 
-    <!-- Portfolio graph: health score by project, grouped by phase -->
+    <!-- Portfolio graph: health score by project, grouped by phase.
+         NOT reachable from the action: `health_score` is a non-stored compute
+         and cannot be aggregated. See the note on `view_mode` below. -->
     <record id="project_portfolio_graph" model="ir.ui.view">
         <field name="name">project.project.portfolio.graph</field>
         <field name="model">project.project</field>
@@ -66,7 +72,9 @@
         </field>
     </record>
 
-    <!-- Portfolio pivot: flow metrics by project and phase -->
+    <!-- Portfolio pivot: flow metrics by project and phase.
+         NOT reachable from the action, for the same reason as the graph: all
+         five measures are non-stored computes. -->
     <record id="project_portfolio_pivot" model="ir.ui.view">
         <field name="name">project.project.portfolio.pivot</field>
         <field name="model">project.project</field>
@@ -87,7 +95,13 @@
     <record id="action_project_portfolio" model="ir.actions.act_window">
         <field name="name">Portfolio Dashboard</field>
         <field name="res_model">project.project</field>
-        <field name="view_mode">list,graph,pivot,kanban</field>
+        <!-- graph/pivot are deliberately NOT offered: every measure they
+             declare is a non-stored compute, so read_group cannot aggregate
+             any of them and the view opens on an error dialog. The records
+             below are kept for whoever decides how to make them work (store
+             the metrics, or measure stored columns instead); re-add the
+             modes here in the same change. -->
+        <field name="view_mode">list,kanban</field>
         <field name="view_id" ref="project_portfolio_list"/>
         <field name="search_view_id" ref="project_portfolio_search"/>
         <field name="domain">[('is_template', '=', False)]</field>

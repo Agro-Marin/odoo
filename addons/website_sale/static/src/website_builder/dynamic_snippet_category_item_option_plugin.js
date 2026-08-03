@@ -2,8 +2,8 @@
 import { BuilderAction } from '@html_builder/core/builder_action';
 import { BaseOptionComponent } from '@html_builder/core/utils';
 import { Plugin } from '@html_editor/plugin';
-import { _t } from '@web/core/l10n/translation';
-import { rpc } from '@web/core/network/rpc';
+import { _t } from '@web/core/translation';
+import { rpc } from "@web/core/network";
 import { registry } from '@web/core/registry';
 
 export class DynamicSnippetCategoryItemOptions extends BaseOptionComponent {

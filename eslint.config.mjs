@@ -616,33 +616,22 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
         },
     },
     // ── Shared layer: core/ ──────────────────────────────────────────────
+    // The shared tier is ORDERED: core < ui < components. It used to be flat,
+    // and that is what let `services/` grow inside it importing freely across
+    // all three. Mirrors tooling/architecture/js_layer_check.py.
     {
         files: ["**/web/static/src/core/**/*.js"],
         rules: {
             "no-restricted-imports": ["error", {
                 patterns: [
                     {
-                        group: ["@web/views/*", "@web/search/*"],
-                        message: "Shared layer cannot import widget layer.",
+                        group: ["@web/ui/*", "@web/components/*"],
+                        message: "core/ is the floor of the shared tier: it owns no surface, so it cannot import ui/ or components/. File the module with what it serves instead.",
                     },
                     {
-                        group: ["@web/webclient/*"],
-                        message: "Shared layer cannot import page layer.",
+                        group: ["@web/model/*"],
+                        message: "Shared layer cannot import entity layer.",
                     },
-                    {
-                        group: ["@web/fields/*"],
-                        message: "Shared layer cannot import feature layer.",
-                    },
-                ],
-            }],
-        },
-    },
-    // ── Shared layer: services/ ──────────────────────────────────────────
-    {
-        files: ["**/web/static/src/services/**/*.js"],
-        rules: {
-            "no-restricted-imports": ["error", {
-                patterns: [
                     {
                         group: ["@web/views/*", "@web/search/*"],
                         message: "Shared layer cannot import widget layer.",
@@ -666,6 +655,14 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
             "no-restricted-imports": ["error", {
                 patterns: [
                     {
+                        group: ["@web/components/*"],
+                        message: "Overlay infrastructure sits BELOW the widgets that use it: a widget opens a popover, a popover does not know what a widget is. A single-purpose service belongs next to the component it renders.",
+                    },
+                    {
+                        group: ["@web/model/*"],
+                        message: "Shared layer (ui/) cannot import entity layer.",
+                    },
+                    {
                         group: ["@web/views/*", "@web/search/*"],
                         message: "Shared layer (ui/) cannot import widget layer.",
                     },
@@ -687,6 +684,10 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
         rules: {
             "no-restricted-imports": ["error", {
                 patterns: [
+                    {
+                        group: ["@web/model/*"],
+                        message: "Presentational components take their data as props; reaching into model/ binds them to the datapoint instead of the values they render.",
+                    },
                     {
                         group: ["@web/views/*", "@web/search/*"],
                         message: "Shared layer (components/) cannot import widget layer.",

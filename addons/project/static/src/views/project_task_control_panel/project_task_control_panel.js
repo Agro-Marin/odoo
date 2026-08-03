@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { getShowSubtasks, setShowSubtasks } from "@project/utils/project_utils";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 
 export class ProjectTaskControlPanel extends ControlPanel {

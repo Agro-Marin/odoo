@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
-import { user } from "@web/services/user";
+import { user } from "@web/core/user";
 
 export const companyAutocompleteService = {
     dependencies: ["orm"],

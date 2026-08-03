@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { SaleOrderLineProductField } from "@sale/js/sale_product_field";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { x2ManyCommands } from "@web/model/relational_model";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { ReceiptHeader } from "@point_of_sale/app/screens/receipt_screen/receipt/receipt_header/receipt_header";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 patch(ReceiptHeader.prototype, {
     /** @returns {string} */

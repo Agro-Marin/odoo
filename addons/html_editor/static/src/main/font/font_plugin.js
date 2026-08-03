@@ -34,7 +34,7 @@ import { weakMemoize } from "@html_editor/utils/functions";
 import { DIRECTIONS } from "@html_editor/utils/position";
 import { READ, withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
+import { _t } from "@web/core/translation";
 
 import { FontSelector } from "./font_selector.js";
 import { FontSizeSelector } from "./font_size_selector.js";

@@ -1,17 +1,15 @@
 /** @odoo-module native */
 /** @ts-check */
 
-import { luxon } from "@web/core/l10n/luxon";
-import { _t } from "@web/core/l10n/translation";
-import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
-import { Domain } from "@web/core/domain";
-import { getOperatorLabel as getDomainOperatorLabel } from "@web/core/tree/operator_labels";
-
 import { CommandResult } from "@spreadsheet/o_spreadsheet/cancelled_reason";
-
 import { Registry } from "@spreadsheet/o_spreadsheet/o_spreadsheet";
-import { deepEqual } from "@web/core/utils/collections/objects";
+import { Domain } from "@web/core/domain";
+import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { formatList } from "@web/core/l10n/utils";
+import { _t } from "@web/core/translation";
+import { getOperatorLabel as getDomainOperatorLabel } from "@web/core/tree";
+import { deepEqual } from "@web/core/utils/collections/objects";
 
 export const globalFieldMatchingRegistry = new Registry();
 

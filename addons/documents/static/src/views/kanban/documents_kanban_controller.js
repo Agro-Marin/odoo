@@ -3,8 +3,8 @@ import { preSuperSetup, useDocumentView } from "@documents/views/hooks";
 import { DocumentsControllerMixin } from "@documents/views/documents_controller_mixin";
 import { DocumentsSelectionBox } from "@documents/views/selection_box/documents_selection_box";
 import { onWillRender, useEffect, useRef, useState } from "@odoo/owl";
-import { KanbanController } from "@web/views/kanban/kanban_controller";
-import { Dropdown } from "@web/components/dropdown/dropdown";
+import { KanbanController } from "@web/views/kanban";
+import { Dropdown } from "@web/components/dropdown";
 
 export class DocumentsKanbanController extends DocumentsControllerMixin(KanbanController) {
     static template = "documents.DocumentsKanbanView";

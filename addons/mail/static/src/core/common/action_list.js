@@ -2,8 +2,7 @@
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { attClassObjectToString } from "@mail/utils/common/format";
 import { Component, onWillUnmount } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
 const actionListProps = [
     "inline?",

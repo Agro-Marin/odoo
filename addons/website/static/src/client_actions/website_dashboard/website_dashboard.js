@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { Component, useEffect, useState } from "@odoo/owl";
-import { rpc } from "@web/core/network/rpc";
+import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { Layout } from "@web/search/layout";
-import { DocumentationLink } from "@web/views/widgets/documentation_link/documentation_link";
+import { DocumentationLink } from "@web/views/widgets";
 
 class WebsiteDashboard extends Component {
     static template = "website.WebsiteDashboardMain";

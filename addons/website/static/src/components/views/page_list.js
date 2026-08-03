@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { listView } from "@web/views/list/list_view";
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { listView } from "@web/views/list";
 import {
     DeletePageDialog,
     DuplicatePageDialog,

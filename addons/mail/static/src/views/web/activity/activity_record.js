@@ -5,11 +5,8 @@ import { luxon } from "@web/core/l10n/luxon";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
 import { Field } from "@web/fields/field";
-import { user } from "@web/services/user";
-import {
-    getFormattedRecord,
-    getImageSrcFromRecordInfo,
-} from "@web/views/kanban/kanban_record";
+import { user } from "@web/core/user";
+import { getFormattedRecord, getImageSrcFromRecordInfo } from "@web/views/kanban";
 import { useViewCompiler } from "@web/views/view_compiler";
 export class ActivityRecord extends Component {
     static components = {

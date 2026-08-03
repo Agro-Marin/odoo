@@ -3,11 +3,11 @@ import { Component, onMounted, onWillStart, reactive } from "@odoo/owl";
 import { Navbar } from "@point_of_sale/app/components/navbar/navbar";
 import { CustomerDisplayPosAdapter } from "@point_of_sale/app/customer_display/customer_display_adapter";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { MainComponentsContainer } from "@web/components/main_components_container";
-import { Transition } from "@web/components/transition";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
+import { Transition } from "@web/core/transition";
 import { effect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
-import { useOwnDebugContext } from "@web/services/debug/debug_context";
+import { useOwnDebugContext } from "@web/core/debug/debug_context";
 
 import useTours from "./hooks/use_tours.js";
 import { init as initDebugFormatters } from "./utils/debug-formatter.js";

@@ -9,9 +9,9 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 beforeEach(async () => {
@@ -389,4 +389,100 @@ test("a component overriding the header slot can reuse web.Dialog.header", async
     await click(".o_dialog header [aria-label=Close]");
     await animationFrame();
     expect(".o_dialog").toHaveCount(0);
+});
+
+test("destroy() closes open dialogs and runs their onClose", async () => {
+    // On the usual teardown path `overlay` is destroyed first (it is a
+    // dependency) and takes the dialogs with it, which hid that destroying this
+    // service on its own only dropped its bookkeeping: the modal stayed
+    // mounted, `onClose` never ran, and the service reported nothing open.
+    class Body extends Component {
+        static props = ["*"];
+        static template = xml`<div class="destroy-probe"/>`;
+    }
+    let closed = 0;
+    getService("dialog").add(Body, {}, { onClose: () => closed++ });
+    await animationFrame();
+    expect(".destroy-probe").toHaveCount(1);
+    expect(document.body).toHaveClass("modal-open");
+
+    getService("dialog").destroy();
+    await animationFrame();
+
+    expect(closed).toBe(1);
+    expect(".destroy-probe").toHaveCount(0);
+    expect(document.body).not.toHaveClass("modal-open");
+});
+
+// `aria-modal` claims everything OUTSIDE the element is inert, so exactly one
+// dialog may carry it. Three stacked dialogs all carried it, i.e. each buried
+// one told assistive technology that the dialog on top of it -- the only one
+// the user can reach -- was inert.
+test("only the topmost dialog claims aria-modal", async () => {
+    class CustomDialog extends Component {
+        static components = { Dialog };
+        static template = xml`<Dialog title="props.title">content</Dialog>`;
+        static props = ["*"];
+    }
+    const closers = [];
+    for (const title of ["one", "two", "three"]) {
+        closers.push(getService("dialog").add(CustomDialog, { title }));
+        await animationFrame();
+    }
+
+    const modalState = () =>
+        queryAll(".o_dialog .modal").map((m) => [
+            m.querySelector(".modal-title").textContent,
+            m.getAttribute("aria-modal"),
+        ]);
+
+    expect(modalState()).toEqual([
+        ["one", null],
+        ["two", null],
+        ["three", "true"],
+    ]);
+
+    // Closing the top hands the claim back to the one beneath it.
+    closers.at(-1)();
+    await animationFrame();
+    expect(modalState()).toEqual([
+        ["one", null],
+        ["two", "true"],
+    ]);
+});
+
+// `closeAll` discarded every close it started, so a caller could not tell when
+// the dialogs were actually gone. The one caller that tried -- pos_restaurant's
+// idle timeout, chaining off its return with `&&` -- got `undefined` and never
+// reached the navigation behind it.
+test("closeAll settles only once every dialog has gone", async () => {
+    class Slow extends Component {
+        static template = xml`<Dialog title="'s'">body</Dialog>`;
+        static components = { Dialog };
+        static props = ["*"];
+    }
+
+    /** @type {(() => void)[]} */
+    const releases = [];
+    const slowClose = () =>
+        new Promise((resolve) => releases.push(() => resolve(undefined)));
+
+    getService("dialog").add(Slow, {}, { onClose: slowClose });
+    getService("dialog").add(Slow, {}, { onClose: slowClose });
+    await animationFrame();
+    expect(".modal").toHaveCount(2);
+
+    let settled = false;
+    getService("dialog")
+        .closeAll()
+        .then(() => (settled = true));
+    await animationFrame();
+    expect(settled).toBe(false);
+    expect(releases).toHaveLength(2);
+
+    releases.forEach((release) => release());
+    await animationFrame();
+    await animationFrame();
+    expect(settled).toBe(true);
+    expect(".modal").toHaveCount(0);
 });

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Base } from "@point_of_sale/app/models/related_models";
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 export class RestaurantOrderCourse extends Base {
     static pythonModel = "restaurant.order.course";
 

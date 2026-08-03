@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { Interaction } from "@web/public/interaction";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 export class EnrollEmail extends Interaction {
     static selector = "#wrapwrap";

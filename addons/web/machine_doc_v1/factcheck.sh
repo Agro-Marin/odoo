@@ -21,9 +21,9 @@ WEB="$(dirname "$SCRIPT_DIR")"                 # <repo>/addons/web
 REPO="$(cd "$WEB/../.." && pwd)"               # <repo>  (the odoo fork)
 ADDONS="$(dirname "$REPO")"                    # <workspace>/addons
 WORKSPACE="$(dirname "$ADDONS")"               # <workspace>
-VENV_PY="${VENV_PY:-$WORKSPACE/venv/p314o19m/bin/python}"
+VENV_PY="${VENV_PY:-$WORKSPACE/venv/p314o19marin/bin/python}"
 [ -x "$VENV_PY" ] || VENV_PY="$(command -v python3)"
-ODOO_CONF="${ODOO_CONF:-$WORKSPACE/config/p314o19m.conf}"
+ODOO_CONF="${ODOO_CONF:-$WORKSPACE/config/p314o19marin.conf}"
 DOC="$WEB/machine_doc_v1"
 PASS=0
 FAIL=0
@@ -43,7 +43,10 @@ assert_doc_cites() {
     # $1 = human name, $2 = actual value, $3 = printf-style grep pattern with %s
     local name="$1" actual="$2" pat="$3"
     local rendered; rendered=$(printf "$pat" "$actual")
-    local hits; hits=$(grep -cE "$rendered" "$DOC/$4" 2>/dev/null || echo 0)
+    # grep -c already prints "0" (and exits 1) on no match, so a `|| echo 0`
+    # here appended a SECOND "0" -> "0\n0" -> `[: integer expected`. Let the
+    # count stand and only default the missing-file case (empty output).
+    local hits; hits=$(grep -cE "$rendered" "$DOC/$4" 2>/dev/null); hits=${hits:-0}
     if [ "$hits" -ge 1 ]; then
         echo "PASS: $name [doc cites $actual]"; PASS=$((PASS+1))
     else
@@ -68,33 +71,27 @@ assert_range() {
 }
 
 # ------- Module size -------
-# (core/errors/stack_frames.js — native stack parsing + sourcemap consumer
-# audit wave (core/lib/{chartjs,fullcalendar}.js, search/embedded_actions_bar,
-# views/list/list_record_row.js, model/relational_model split files, ...)
-# minus the deleted polyfills/ file and load_coordinator.js.
-SRC_JS=$(find "$WEB/static/src" -name "*.js" -type f | wc -l)
+# -not -name ".*" excludes gitignored editor droppings (.__e.js), which are not
+# source and inflated every count derived from this one.
+find_src_js() { find "$WEB/static/src" -name "*.js" -type f -not -name ".*"; }
+SRC_JS=$(find_src_js | wc -l)
 assert_doc_cites "ARCHITECTURE cites the src JS count" "$SRC_JS" '%s JavaScript' ARCHITECTURE.md
 
 # ------- Type coverage -------
-# 656 = 658 total - 2 intentional exclusions (module_loader + service_worker)
 assert_eq "@ts-check coverage" \
-    "$(grep -rl "@ts-check" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "$((SRC_JS - 2))"
+    "$(find_src_js | xargs grep -l "@ts-check" | wc -l)" "$((SRC_JS - 2))"
 assert_eq "Untyped JS files (intentional: module_loader + service_worker)" \
-    "$(find "$WEB/static/src" -name "*.js" -type f -exec grep -L "@ts-check" {} + 2>/dev/null | wc -l)" "2"
+    "$(find_src_js | xargs grep -L "@ts-check" | wc -l)" "2"
 
 # ------- Test scope -------
 HOOT_JS=$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)
 TESTS_JS=$(find "$WEB/static/tests" -name "*.js" -type f | wc -l)
-# vendored static/lib/qunit/, the web.tests_assets / web.__assets_tests_call__ /
-# web.qunit_suite_tests bundles and the /web/tests/legacy route are all gone.
-# The Class/publicWidget suites were later deleted with the legacy namespace
 assert_eq "Legacy QUnit tree deleted (static/tests/legacy)" \
     "$([ -d "$WEB/static/tests/legacy" ] && echo 1 || echo 0)" "0"
 assert_eq "Vendored QUnit deleted (static/lib/qunit)" \
     "$([ -d "$WEB/static/lib/qunit" ] && echo 1 || echo 0)" "0"
 assert_eq "No qunit bundles left in manifest" \
     "$(grep -c "qunit" "$WEB/__manifest__.py")" "0"
-# no executable QUnit API usage remains.
 assert_eq "No QUnit. references remain (legacy chain fully removed)" \
     "$(grep -rl "QUnit\." "$WEB/static/tests" --include="*.js" 2>/dev/null | wc -l)" "0"
 assert_eq "No QUnit.test/QUnit.module calls anywhere in static/" \
@@ -123,14 +120,6 @@ count_prod_decls() {
     fi
 }
 reactive_prod=$(count_prod_decls "$REACTIVE_PATTERN")
-#       — required deleting web_studio's parallel Reactive class at
-#         enterprise/web_studio/static/src/client_action/utils.js:75-86 and replacing
-#         8 .raw() callers with toRaw(this) from @odoo/owl in edition_flow.js.
-#   Total: 22 of 22 production sites on SignalStore. 0 remaining on Reactive alias.
-#   form_save_coordinator.js:60 to own the form save lifecycle (replacing
-#   CONVENTIONS.md gotcha #12).  It extends SignalStore so its `status`
-#   and `lastError` fields are observable from external readers.
-#   axis is keepLast + the reactive model.isReady flag.
 assert_eq "Reactive class declarations (production)" "$reactive_prod" "0"
 
 reactive_web=$(grep -rEln "$REACTIVE_PATTERN" "$WEB/static/src" 2>/dev/null | wc -l)
@@ -138,7 +127,7 @@ assert_eq "Reactive class declarations in core/addons/web" "$reactive_web" "0"
 
 if skip_missing "$ADDONS/enterprise" "SignalStore cross-repo declaration count" 1; then :; else
     signalstore=$(count_prod_decls "$SIGNALSTORE_PATTERN")
-    assert_eq "SignalStore class declarations (production code)" "$signalstore" "32"
+    assert_eq "SignalStore class declarations (production code)" "$signalstore" "26"
 fi
 assert_eq "load_coordinator.js stays deleted" \
     "$([ -f "$WEB/static/src/model/relational_model/load_coordinator.js" ] && echo 1 || echo 0)" "0"
@@ -163,7 +152,7 @@ fi
 rum_telemetry=$(grep -rln "PerformanceObserver\|web-vitals" "$WEB/static/src" 2>/dev/null | wc -l)
 assert_eq "PerformanceObserver/web-vitals (service + browser abstraction)" "$rum_telemetry" "2"
 assert_eq "web_vitals INP reducer keeps a worst-observed (P100) running max" \
-    "$(grep -c 'metrics.inp = e.duration' "$WEB/static/src/services/web_vitals/web_vitals_service.js")" "1"
+    "$(grep -c 'metrics.inp = e.duration' "$WEB/static/src/core/network/web_vitals/web_vitals_service.js")" "1"
 assert_eq "MODEL_MAP.md inp row no longer claims 'currently always null'" \
     "$(grep -c 'currently always null' "$WEB/machine_doc_v1/MODEL_MAP.md")" "0"
 # Coverage in BOTH directions: every models/*.py has a section, every section
@@ -227,7 +216,7 @@ cwv_cron_in_manifest=$(grep -c "web_cwv_metric_data.xml" "$WEB/__manifest__.py" 
 assert_eq "cwv cron registered in manifest" "$cwv_cron_in_manifest" "1"
 cwv_session_param=$(grep -c '"cwv_sample_rate":' "$WEB/models/ir_http.py" 2>/dev/null)
 assert_eq "cwv_sample_rate key present in session_info dict" "$cwv_session_param" "1"
-cwv_js_sampling=$(grep -c "session.cwv_sample_rate" "$WEB/static/src/services/web_vitals/web_vitals_service.js" 2>/dev/null)
+cwv_js_sampling=$(grep -c "session.cwv_sample_rate" "$WEB/static/src/core/network/web_vitals/web_vitals_service.js" 2>/dev/null)
 assert_eq "JS service reads sample_rate from session" "$cwv_js_sampling" "1"
 
 # ------- Accessibility instrumentation -------
@@ -237,11 +226,11 @@ assert_eq "axe-core references" \
 css_decls=$(grep -rh "^\s*--[a-zA-Z]" "$WEB/static/src" --include="*.scss" 2>/dev/null | wc -l)
 assert_range "CSS custom property declarations" "$css_decls" 300 500
 css_uses=$(grep -rh "var(--" "$WEB/static/src" --include="*.scss" 2>/dev/null | wc -l)
-assert_range "var(--*) usages" "$css_uses" 350 450
+assert_range "var(--*) usages" "$css_uses" 500 650
 
 assert_eq "form_controller distinct top-level dirs" \
     "$(grep "^import" "$WEB/static/src/views/form/form_controller.js" \
-        | grep -oE "@web/[a-z_]+" | sort -u | wc -l)" "7"
+        | grep -oE "@web/[a-z_]+" | sort -u | wc -l)" "6"
 
 assert_eq "legacy/ namespace deleted" \
     "$([ -d "$WEB/static/src/legacy" ] && echo 1 || echo 0)" "0"
@@ -259,22 +248,22 @@ assert_eq "frontend boot extracted to public/public_boot(.js/_instance.js)" \
 # ar).  Real msgid_plural / msgstr[N] gettext extraction needs Python tooling
 # work in core/odoo/tools/translate.py and is tracked as Phase 2 — the
 # `ngettext functions` assertion stays at 0 until that lands.
-assert_eq "Intl.PluralRules used in core/l10n (Phase 1 helper)" \
-    "$(grep -rln "Intl\.PluralRules" "$WEB/static/src/core/l10n" 2>/dev/null | wc -l)" "1"
+assert_eq "Intl.PluralRules used by the _pl helper" \
+    "$(grep -rln "Intl\.PluralRules" "$WEB/static/src/core/translation.js" 2>/dev/null | wc -l)" "1"
 assert_eq "ngettext functions (Phase 2 deferred — needs Python extractor)" \
     "$(grep -rln "ngettext\|\bngt\b" "$WEB/static/src" 2>/dev/null | wc -l)" "0"
 # `_pl` is the canonical export name; lock both the export and the call-site
 # convention so a future rename trips a CI assertion.
 assert_eq "translation.js exports _pl" \
-    "$(grep -c "^export function _pl(" "$WEB/static/src/core/l10n/translation.js")" "1"
+    "$(grep -c "^export function _pl(" "$WEB/static/src/core/translation.js")" "1"
 assert_eq "formatX2many uses _pl" \
     "$(grep -c "_pl(count, {" "$WEB/static/src/core/formatters.js")" "1"
 # The plural categories come from Intl.LDMLPluralRule, not a hand-maintained
 # list, so assert the type binding rather than the six category names.
 assert_eq "_pl forms are typed by Intl.LDMLPluralRule" \
-    "$(grep -c 'Intl.LDMLPluralRule' "$WEB/static/src/core/l10n/translation.js")" "1"
+    "$(grep -c 'Intl.LDMLPluralRule' "$WEB/static/src/core/translation.js")" "1"
 assert_eq "_pl selects via Intl.PluralRules with an 'other' fallback" \
-    "$(grep -c 'forms\[category\] ?? forms.other' "$WEB/static/src/core/l10n/translation.js")" "1"
+    "$(grep -c 'forms\[category\] ?? forms.other' "$WEB/static/src/core/translation.js")" "1"
 
 # ------- OWL bundle -------
 assert_eq "OWL bundle bytes" "$(stat -c '%s' "$WEB/static/lib/owl/owl.es.js")" "233543"
@@ -312,30 +301,23 @@ PYEOF
 )
 assert_eq "markup() trust-hatch import sites" "${markup_importers:-PARSE_FAILED}" "15"
 
-# The G3 startViewTransition wrap was removed from action_container.js; only
-# an explanatory comment remains (it explains why the API can't wrap OWL's
-# render directly).  Lock the removal so the feature doesn't half-return
-# without docs/factcheck being updated.
+# startViewTransition cannot wrap OWL's render; lock its absence so the
+# feature cannot half-return without the docs moving with it.
 assert_eq "ActionContainer no longer calls document.startViewTransition" \
     "$(grep -cE 'document\.startViewTransition\(' "$WEB/static/src/webclient/actions/action_container.js")" "0"
 assert_eq "No startViewTransition call anywhere in static/src" \
     "$(grep -rE 'startViewTransition\(' "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "0"
 
-# Convention enforced via CONVENTIONS.md gotcha #13 (prototype-only patching
-# for classes, plain-object patching for env/services; never patch a frozen
-# ES-module namespace).  No factcheck assertion: a coarse "files combining
-# import * as with patch()" grep produced 44 false positives (mostly test
-# files where the two patterns are used independently).  The right
-# not a regex.
+# CONVENTIONS.md gotcha #13 (never patch a frozen ES-module namespace) carries
+# no assertion: the "import * as + patch()" grep produced 44 false positives.
 
-# orm.retry() default must match the documented boot-path budget in CONVENTIONS.md
-# (retry: 1).  Pre-G5 the source defaulted to 3, drifting from documented intent.
-# A bare orm.retry().call(...) silently got 3 retries against the rationale of
-# "cap user-perceived delay at one backoff interval ~200ms".
+# orm.retry() must default to the documented boot-path budget of 1: a bare
+# orm.retry().call(...) otherwise caps user-perceived delay well above the
+# one-backoff-interval (~200 ms) rationale in CONVENTIONS.md.
 assert_eq "orm.retry() default value [1]" \
-    "$(grep -c 'retry(options = 1)' "$WEB/static/src/services/orm_service.js")" "1"
+    "$(grep -c 'retry(options = 1)' "$WEB/static/src/core/network/orm_service.js")" "1"
 assert_eq "orm.retry() does NOT default to 3" \
-    "$(grep -c 'retry(options = 3)' "$WEB/static/src/services/orm_service.js")" "0"
+    "$(grep -c 'retry(options = 3)' "$WEB/static/src/core/network/orm_service.js")" "0"
 
 # ------- Production bundle sizes (NEW — from DB ir_attachment) -------
 FACTCHECK_DB="${FACTCHECK_DB:-hoot_web}"
@@ -347,25 +329,12 @@ else
     SKIP=$((SKIP+1))
 fi
 
-# Each pair locks both directions: the new wording must be present AND the
-# stale wording must be gone.  This catches the failure mode where a fix
-# lands in code but the cited doc keeps describing the old behavior — the
-#
-# Precedent: STATE_MANAGEMENT.md still described an "Optimistic-locking
-# divergence" three weeks after record_save.js:80-83 fixed it; CONVENTIONS.md
-# gotcha #12 still described "5 `true` call sites" with positional booleans
-# after FormSaveCoordinator replaced them; ARCHITECTURE.md still claimed
-# "615 JS files" after five new src files landed.
-#
-# Adding a doc-consistency assertion alongside every code-state assertion
-# makes the doc-vs-code drift fail loud at CI time instead of silently
-# misleading the next code reader.
+# Each pair below locks both directions: the new wording must be present AND
+# the stale wording gone, so a fix that lands in code without moving its cited
+# doc fails here instead of misleading the next reader.
 
-# 1. Optimistic locking is now FIELD-SCOPED (known_values baseline map,
-#    commits 4ecbac1e7cb + d08cb6b77a8) — the client no longer sends
-#    last_write_date; the server keeps it only as a legacy fallback.
-#    Both save paths must send the baseline, and the docs must describe
-#    the new mechanism.
+# 1. Optimistic locking is field-scoped (known_values baseline map). The client
+#    does not send last_write_date; the server keeps it as a legacy fallback.
 assert_eq "STATE_MANAGEMENT urgent-save: stale 'divergence' wording removed" \
     "$(grep -c 'Optimistic-locking divergence' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "0"
 assert_eq "STATE_MANAGEMENT urgent-save: optimistic-locking parity documented" \
@@ -387,7 +356,7 @@ assert_eq "CONVENTIONS gotcha #9 documents known_values (field-scoped locking)" 
 assert_eq "STATE_MANAGEMENT documents known_values" \
     "$(grep -c 'known_values' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "3"
 
-# 2. FormSaveCoordinator — CONVENTIONS.md gotcha #12 must reflect the rewrite.
+# 2. FormSaveCoordinator — CONVENTIONS.md gotcha #12 must reflect it.
 assert_eq "CONVENTIONS gotcha #12: stale '5 \`true\` call sites' wording removed" \
     "$(grep -c '5 \`true\` call sites' "$WEB/machine_doc_v1/CONVENTIONS.md")" "0"
 assert_eq "CONVENTIONS gotcha #12: mentions FormSaveCoordinator" \
@@ -396,11 +365,8 @@ assert_eq "CONVENTIONS gotcha #12: mentions FormSaveCoordinator" \
 # exists and exports a FormSaveCoordinator class extending SignalStore.
 assert_eq "form_save_coordinator.js exports FormSaveCoordinator class" \
     "$(grep -c 'export class FormSaveCoordinator extends SignalStore' "$WEB/static/src/views/form/form_save_coordinator.js")" "1"
-# Cite-fingerprint: the doc cites the named-option API (errorMode); verify
-# the typedef declares the three documented modes verbatim.  Counting raw
-# occurrences of the strings overcounts (8) because they appear in JSDoc,
-# default-value bindings, and dispatch arms; targeting the canonical
-# typedef line locks the public contract.
+# Target the canonical typedef line: counting raw occurrences of the mode
+# strings overcounts (8) across JSDoc, defaults and dispatch arms.
 assert_eq "FormSaveCoordinator errorMode typedef declares three modes" \
     "$(grep -cE '^\s\*\s+errorMode\?: "dialog" \| "rethrow" \| "silent"' "$WEB/static/src/views/form/form_save_coordinator.js")" "1"
 
@@ -432,14 +398,9 @@ if skip_missing "$REPO/eslint.config.mjs" "eslint Reactive-import rule assertion
         "$(grep -c "imported.name='Reactive'" "$REPO/eslint.config.mjs")" "0"
 fi
 
-# 6. Per-section JS file counts — reality checks against the filesystem.
-#    (Top-line total is covered by "JS file count" above.  The former
-#    DIRECTORY_MAP.md's per-directory map.)
-# Per-section subtotals are NOT pinned to literals here any more. The layer
-# loop in section 15 asserts that ARCHITECTURE.md cites whatever the filesystem
-# reports for each layer, which catches the same drift without keeping a second
-# copy of the numbers to go stale (this list had webclient/ at 61 against a real
-# 63, and never listed public/ at all).
+# 6. Per-layer JS subtotals are not pinned to literals here: the layer loop in
+#    section 15 asserts ARCHITECTURE.md cites whatever the filesystem reports,
+#    so there is no second copy of the numbers to go stale.
 
 # 7. Gotcha #10 cite-fingerprint: archiveEnabled consolidated into
 #    view_utils.computeArchiveEnabled(readonlySource, presenceSource).
@@ -461,9 +422,30 @@ assert_eq "CONVENTIONS gotcha #10 names the computeArchiveEnabled form call" \
 assert_eq "CONVENTIONS gotcha #10 carries no stale form_controller.js line cites" \
     "$(grep -cE 'form_controller.js:[0-9]' "$WEB/machine_doc_v1/CONVENTIONS.md")" "0"
 
-# 8. Gotcha #5 cite-fingerprint: /web/image route count (claim: 17 patterns).
-assert_eq "binary.py /web/image route mentions match doc claim (17)" \
-    "$(grep -cE '/web/image' "$WEB/controllers/binary.py")" "20"
+# Gotcha #5 cites 17 /web/image URL patterns and 7 /web/content. Count DECLARED
+# ROUTE URLs, not grep hits: the old raw grep counted 20 because docstrings and
+# helper strings mention the prefix too, and it would have passed at any value.
+read -r IMG_URLS CONTENT_URLS <<<"$(python3 - "$WEB/controllers" <<'PYEOF'
+import ast, pathlib, sys
+urls = set()
+for f in sorted(pathlib.Path(sys.argv[1]).glob("*.py")):
+    for node in ast.walk(ast.parse(f.read_text())):
+        for dec in getattr(node, "decorator_list", []):
+            if isinstance(dec, ast.Call) and getattr(
+                    dec.func, "attr", getattr(dec.func, "id", "")) == "route":
+                for a in dec.args:
+                    if isinstance(a, ast.Constant):
+                        urls.add(a.value)
+                    elif isinstance(a, (ast.List, ast.Tuple)):
+                        urls |= {e.value for e in a.elts if isinstance(e, ast.Constant)}
+print(sum(1 for u in urls if u.startswith("/web/image")),
+      sum(1 for u in urls if u.startswith("/web/content")))
+PYEOF
+)"
+assert_eq "/web/image declared route URLs" "${IMG_URLS:-PARSE_FAILED}" "17"
+assert_eq "/web/content declared route URLs" "${CONTENT_URLS:-PARSE_FAILED}" "7"
+assert_eq "CONVENTIONS gotcha #5 cites both numbers" \
+    "$(grep -c 'has 17 declared URL patterns' "$DOC/CONVENTIONS.md")" "1"
 
 # 9. Gotcha #6 cite-fingerprint: Chart.js is lazy-loaded as a real ES module
 #     via core/lib/chartjs.js (dynamic import of the `chart.js` import-map
@@ -484,16 +466,9 @@ assert_eq "no loadBundle(chartjs_lib) call sites remain in static/src" \
     "$(grep -rc 'loadBundle("web.chartjs_lib")' "$WEB/static/src" --include="*.js" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')" "0"
 assert_eq "CONVENTIONS gotcha #6 documents loadChartJS" \
     "$(grep -c 'loadChartJS' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
-# Cite-fingerprint: the `set groupId` setter is the *canonical exception* to
-# Pattern 4 — it must clear sample data on the same microtask as the groupId
-# deferred cleanup breaks 3 sample-data integration tests.
-#
-# Per the no-explanatory-comments rule, the source carries only a SELF-CONTAINED
-# eslint-disable and STATE_MANAGEMENT.md is the rationale of record. So lock:
-# the setter line, a pragma that explains itself without pointing outside the
-# line, and the rationale (incl. the reverted commit) living in the doc.
-# The previous version asserted the rationale lived in the source, which the
-# "see comment above" with nothing above it.
+# The `set groupId` setter is the canonical Pattern 4 exception: it must clear
+# sample data on the same microtask as the mutation. The source carries only a
+# self-contained eslint-disable; STATE_MANAGEMENT.md is the rationale of record.
 KANBAN_JS="$WEB/static/src/views/kanban/kanban_controller.js"
 assert_eq "kanban_controller.js groupId setter (canonical Pattern 4 exception)" \
     "$(grep -c 'set groupId(groupId)' "$KANBAN_JS")" "1"
@@ -508,22 +483,13 @@ assert_eq "STATE_MANAGEMENT.md carries the reverted-migration commit" \
 assert_eq "STATE_MANAGEMENT.md no longer points at a source comment block" \
     "$(grep -c 'comment block above the setter' "$DOC/STATE_MANAGEMENT.md")" "0"
 
-#     The `GlobalRegistryCategories` interface in @types/registries/registries.d.ts
-#     `effects: EffectsRegistryItemShape` (correct).  Cross-repo grep across
-#     core/enterprise/agromarin showed zero consumers of the typo'd name — it was
-#     pure dead type, contributing nothing to type checking and confusing readers.
-#     Removed the typo line; locked it here so it doesn't get re-introduced by a
-#     future copy/paste from old commit history.
+# The typo'd `effetcs` key in @types/registries/registries.d.ts had zero
+# consumers fork-wide. Locked so a copy/paste from old history cannot revive it.
 assert_eq "registries.d.ts: typo'd 'effetcs' key removed" \
     "$(grep -c "^\s*effetcs:" "$WEB/static/src/@types/registries/registries.d.ts")" "0"
 assert_eq "registries.d.ts: 'effects' key still declared" \
     "$(grep -c "^\s*effects: EffectsRegistryItemShape;" "$WEB/static/src/@types/registries/registries.d.ts")" "1"
-# Cross-repo: confirm no dangling consumer of the typo'd name slipped in
-# through downstream addons after the type definition was cleaned up.
-# Exclude this script itself (it cites the typo in its own docstring +
-# assertion strings, which would self-trigger), machine_doc directories
-# (where forensic notes about the fix may legitimately mention the typo),
-# and .git/ (the reflog records past commits whose messages or diffs
+# Excludes machine_doc_v1/ and .git/, which may legitimately name the typo.
 assert_eq "no 'effetcs' consumers across active repos" \
     "$(grep -rln "effetcs" \
         "$ADDONS/odoo" \
@@ -532,12 +498,10 @@ assert_eq "no 'effetcs' consumers across active repos" \
         --exclude-dir=machine_doc_v1 \
         --exclude-dir=.git 2>/dev/null | wc -l)" "0"
 
-# fix stays in lockstep with code.  Catches the failure mode "doc was updated
-# but the code subsequently shifted underneath it".
-
 # 11. dedup proxy on ORM — ARCHITECTURE.md must document it; rpc.js must
+#     whitelist the setting.
 assert_eq "orm_service.js exports 'get dedup' proxy" \
-    "$(grep -cE '^\s+get dedup\(\)' "$WEB/static/src/services/orm_service.js")" "1"
+    "$(grep -cE '^\s+get dedup\(\)' "$WEB/static/src/core/network/orm_service.js")" "1"
 # RPC_SETTINGS is a multi-line Set literal; match the "dedup" member directly.
 assert_eq "rpc.js RPC_SETTINGS whitelist includes 'dedup'" \
     "$(grep -cE '^\s*"dedup",' "$WEB/static/src/core/network/rpc.js")" "1"
@@ -557,8 +521,8 @@ assert_eq "ARCHITECTURE.md no stale fullcalendar 6.1.20 / 7.0.0-rc.3" \
 assert_eq "fullcalendar vendored bundle is v7 (final 7.0.0 present in source)" \
     "$(grep -c 'FullCalendar v7' "$WEB/static/lib/fullcalendar/fullcalendar.esm.js"):$(grep -m1 -coE 'v7\.0\.0' "$WEB/static/lib/fullcalendar/fullcalendar.esm.js")" "1:1"
 
-# 13. STATE_MANAGEMENT.md phantom AppEvent.FORM_DIALOG_* events removed.
-#     push()/pop() calls; the constants no longer exist in core/events.js.
+# 13. AppEvent.FORM_DIALOG_* never existed in core/events.js; the stack is
+#     driven by direct push()/pop() calls. Lock the phantom rows out.
 assert_eq "STATE_MANAGEMENT.md no phantom FORM_DIALOG_ADD row" \
     "$(grep -c 'AppEvent.FORM_DIALOG_ADD' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "0"
 assert_eq "STATE_MANAGEMENT.md no phantom FORM_DIALOG_REMOVE row" \
@@ -566,8 +530,7 @@ assert_eq "STATE_MANAGEMENT.md no phantom FORM_DIALOG_REMOVE row" \
 assert_eq "core/events.js does not export FORM_DIALOG_ADD" \
     "$(grep -cE 'FORM_DIALOG_ADD\s*:' "$WEB/static/src/core/events.js")" "0"
 
-# 14. ARCHITECTURE.md table counts — numeric claims locked.  Catches the
-#     drift pattern that motivated this audit (counts grew, doc lagged).
+# 14. ARCHITECTURE.md File Counts table.
 PY_TESTS=$(find "$WEB/tests" -name "test_*.py" | wc -l)
 assert_doc_cites "ARCHITECTURE.md File Counts: Python tests" "$PY_TESTS" '\| Python \(tests\) \| %s ' ARCHITECTURE.md
 assert_doc_cites "ARCHITECTURE.md File Counts: JS tests total" "$TESTS_JS" '\| JavaScript \(tests\) \| %s \(incl' ARCHITECTURE.md
@@ -577,23 +540,24 @@ assert_eq "ARCHITECTURE.md File Counts: vendored libs = 92" \
 assert_eq "static/lib JS file count = 92 (reality check)" \
     "$(find "$WEB/static/lib" -name "*.js" -type f | wc -l)" "92"
 
-# 15. ARCHITECTURE.md JavaScript Architecture table — lock the Layer subtotals.
-#     These mirror the per-section filesystem assertions but for the
-#     ARCHITECTURE doc's view of the same numbers.
-# Every layer row must cite the count the filesystem reports for that directory.
-for layer_spec in "Primitives:core" "Components:components" "Services:services" \
+# 15. Every Layer row must cite the count the filesystem reports for its
+#     directory.
+for layer_spec in "Primitives:core" "Components:components" \
                   "UI:ui" "Fields:fields" "Views:views" "Webclient:webclient" \
                   "Search:search" "Model:model" "Public:public"; do
     lname="${layer_spec%:*}"; ldir="${layer_spec##*:}"
-    lcount=$(find "$WEB/static/src/$ldir" -name "*.js" -type f | wc -l)
+    lcount=$(find "$WEB/static/src/$ldir" -name "*.js" -type f -not -name ".*" | wc -l)
     assert_doc_cites "ARCHITECTURE.md Layer: $lname ($ldir/)" "$lcount" \
         "\\| \\*\\*$lname\\*\\* \\| .$ldir/. \\|.*\\| %s JS \\|" ARCHITECTURE.md
 done
+assert_eq "services/ layer is dissolved (no static/src/services)" \
+    "$([ -d "$WEB/static/src/services" ] && echo 1 || echo 0)" "0"
+assert_eq "no doc still describes a services/ layer" \
+    "$(grep -lE '^\| \*\*Services\*\* \|' "$DOC"/*.md | wc -l)" "0"
 assert_eq "ARCHITECTURE.md Layer table covers libs/" \
     "$(grep -cE '\| .libs/. \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 
-# 16. DIRECTORY_MAP.md header count — single source of truth for the dir total.
-#     + search/embedded_actions_bar/.
+# 16. DIRECTORY_MAP.md header count and row set.
 SRC_DIRS=$(find "$WEB/static/src" -mindepth 1 -type d -not -path '*/.claude*' | wc -l)
 assert_doc_cites "DIRECTORY_MAP.md header states the entry count" "$((SRC_DIRS + 1))" \
     '\\*\\*%s entries\\*\\*' DIRECTORY_MAP.md
@@ -617,7 +581,7 @@ for ln in open(web / "machine_doc_v1/DIRECTORY_MAP.md"):
         continue
     d, files = m.group(1), int(m.group(2))
     p = src if d == "(root)" else src / d.rstrip("/")
-    if not p.is_dir() or len(list(p.glob("*.js"))) != files:
+    if not p.is_dir() or sum(1 for f in p.glob("*.js") if not f.name.startswith(".")) != files:
         bad += 1
 print(bad)
 PYEOF
@@ -638,7 +602,19 @@ for base in ("addons/odoo", "addons/enterprise", "addons/agromarin", "addons/des
     for p in b.rglob("*"):
         if p.is_file():
             index[p.name].append(str(p))
-SKIP_BASE = {"load_coordinator.js"}
+# Deliberately-absent references: load_coordinator.js is cited AS deleted;
+# jsconfig.json is generated (untracked) by addons/web/tooling/enable.sh from
+# the committed _jsconfig.json template. The three search_* names are cited by
+# COMPONENT_DIAGRAM.md's rename note precisely to say they are gone -- the note
+# names each pre-rename file next to what replaced it, so resolving them would
+# mean the rename had not happened.
+SKIP_BASE = {
+    "load_coordinator.js",
+    "jsconfig.json",
+    "search_properties.js",
+    "search_query_mutations.js",
+    "search_split_domain.js",
+}
 bad = 0
 for doc in sorted(doc_dir.glob("*.md")):
     for m in re.finditer(r"`([\w./\-]+\.(?:py|js|mjs|xml|json|yml|scss|csv|rst|md|sh))`", doc.read_text()):
@@ -651,7 +627,7 @@ for doc in sorted(doc_dir.glob("*.md")):
         # A ref beginning with a repo-root directory unambiguously means the
         # repo root, so a suffix match elsewhere must NOT satisfy it (that is
         # how `tooling/enable.sh` hid at addons/web/tooling/enable.sh).
-        # `doc/` is ambiguous: the repo root has doc/adr/, the web module has
+        # `doc/` is ambiguous: the repo root has doc/, and the web module has
         # its own doc/ (COMPONENT_DIAGRAM, FLOW_DIAGRAM). Accept either root for
         # it; the rest are unambiguously repo-root.
         top = ref.split("/")[0]
@@ -738,7 +714,7 @@ assert_eq "DIRECTORY_MAP.md lists no directory that does not exist" "${map_only:
 assert_eq "DIRECTORY_MAP.md omits no directory that does exist" "${disk_only:-none}" "none"
 # Cite-fingerprint: confirm the underlying count.
 assert_eq "static/src directory entries incl. root (excl. gitignored .claude cruft)" \
-    "$((SRC_DIRS + 1))" "238"
+    "$((SRC_DIRS + 1))" "239"
 assert_eq "polyfills/ directory deleted" \
     "$([ -d "$WEB/static/src/polyfills" ] && echo 1 || echo 0)" "0"
 assert_eq "DIRECTORY_MAP.md dropped the polyfills row" \
@@ -748,8 +724,7 @@ assert_eq "DIRECTORY_MAP.md has a core/lib row" \
 assert_eq "DIRECTORY_MAP.md has a search/embedded_actions_bar row" \
     "$(grep -cE '^\| .search/embedded_actions_bar/. \|' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "1"
 
-# 17. TEST_TAGS.md untagged-files table — the five test files that carry no
-#     web_* topic tag, derived from the AST rather than hardcoded here.
+# 17. Test files carrying no web_* topic tag, derived from the AST.
 untagged=$("$VENV_PY" - "$WEB/tests" <<'PYEOF' 2>/dev/null
 import ast, pathlib, sys
 n = 0
@@ -802,8 +777,7 @@ fi
 assert_eq "ESM_BUNDLING.md documents the manifest 'esm' key" \
     "$(grep -c 'dynamic_children' "$WEB/machine_doc_v1/ESM_BUNDLING.md")" "4"
 
-# 19. Symbols named in STATE_MANAGEMENT.md "Key files" block. Asserted by
-#     refactor, so the docs now name symbols and this harness matches them.
+# 19. Symbols named in STATE_MANAGEMENT.md "Key files".
 assert_eq "form_controller.js defines save()" \
     "$(grep -cE 'async save\(' "$WEB/static/src/views/form/form_controller.js")" "1"
 assert_eq "form_controller.js defines discard()" \
@@ -816,9 +790,9 @@ assert_eq "record.js defines discard()" \
     "$(grep -cE 'async discard\(' "$WEB/static/src/model/relational_model/record.js")" "1"
 # CLEAR-CACHES emission/listener inventory (STATE_MANAGEMENT "emission sites").
 assert_eq "invalidator service emits CLEAR_CACHES" \
-    "$(grep -c 'CLEAR_CACHES' "$WEB/static/src/services/result_set_cache_invalidator_service.js")" "2"
+    "$(grep -c 'CLEAR_CACHES' "$WEB/static/src/core/network/result_set_cache_invalidator_service.js")" "2"
 assert_eq "invalidator service handles lang_install full clear" \
-    "$(grep -c 'lang_install' "$WEB/static/src/services/result_set_cache_invalidator_service.js")" "1"
+    "$(grep -c 'lang_install' "$WEB/static/src/core/network/result_set_cache_invalidator_service.js")" "1"
 assert_eq "action_cache_invalidation.js emits CLEAR_CACHES" \
     "$(grep -c 'CLEAR_CACHES' "$WEB/static/src/webclient/actions/action_cache_invalidation.js")" "1"
 assert_eq "service_worker_service.js emits CLEAR_CACHES on SW hard refresh" \
@@ -826,13 +800,9 @@ assert_eq "service_worker_service.js emits CLEAR_CACHES on SW hard refresh" \
 assert_eq "rpc.js is the CLEAR_CACHES listener" \
     "$(grep -c 'addEventListener(RpcEvent.CLEAR_CACHES' "$WEB/static/src/core/network/rpc.js")" "1"
 
-# 21. TEST_TAGS.md test counts.
-#     Counted through Odoo's own loader, NOT by grepping `def test_`.  The old
-#     regex here split the file on `@tagged(...)\nclass` and counted `def test_`
-#     until the next tagged class, so it (a) attributed an untagged class's
-#     methods to whichever tagged class preceded it and (b) missed every method
-#     make_suite() is what `--test-tags` actually selects, so it cannot drift
-#     from the runner the way a text pattern can.
+# 21. TEST_TAGS.md test counts, collected through make_suite() — what
+#     --test-tags actually selects, including methods inherited from untagged
+#     base classes. A `def test_` grep gets both of those wrong.
 count_tag_tests() {
     # $1 = topic tag; emits the number of tests make_suite() collects for it.
     # No database required — collection only.
@@ -850,16 +820,20 @@ PY
 }
 if ! (cd "$REPO" && "$VENV_PY" -c "import odoo" >/dev/null 2>&1); then
     echo "SKIP: TEST_TAGS make_suite counts — odoo not importable with $VENV_PY"
-    SKIP=$((SKIP+14))
+    SKIP=$((SKIP+16))
 else
+    # addon_js is generated (one method per uncovered addon), so it drifts
+    # whenever an addon gains or loses a bundled suite — exactly the number a
+    # hand-maintained doc gets wrong. It was 159 in the doc against 158 real.
     for spec in \
-        "web_unit:290" \
+        "web_unit:291" \
         "web_http:87" \
         "web_tour:5" \
-        "web_js:39" \
+        "web_js:37" \
         "web_perf:26" \
         "web_benchmark:8" \
-        "click_all:2"; do
+        "click_all:2" \
+        "addon_js:158"; do
         tag="${spec%:*}"
         expected="${spec##*:}"
         actual=$(count_tag_tests "$tag")
@@ -872,8 +846,8 @@ fi
 
 # 20. (removed) JS_FILE_INDEX body-header assertions — JS_FILE_INDEX.md deleted
 
-# 22. CI typecheck gate is a BLOCKING drift-zero ratchet (floor committed in
-#     tooling/ratchet/baselines/tsc.json), not the old warn-only annotate job.
+# 22. CI typecheck gate is a blocking ratchet, floor in
+#     tooling/ratchet/baselines/tsc.json.
 if skip_missing "$REPO/.github/workflows/typecheck.yml" "CI typecheck-gate assertions" 6; then :; else
 TYPECHECK_YML="$REPO/.github/workflows/typecheck.yml"
 assert_eq "typecheck.yml has no continue-on-error key (blocking gate)" \
@@ -882,8 +856,8 @@ assert_eq "typecheck.yml enforces via tooling/ratchet" \
     "$(grep -c 'tooling/ratchet/ratchet.py tsc' "$TYPECHECK_YML")" "3"
 assert_eq "JSDOC doc: warn-only claim replaced by blocking ratchet" \
     "$(grep -c 'continue-on-error: true' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
-# The doc must NOT restate the floor — that duplication is what drifted
-# (workflow comment said 2002, doc said 1917, baseline said 2274, truth 2155).
+# Neither the doc nor the workflow may restate the floor: that duplication is
+# what drifted last time (four sources, four different numbers).
 assert_eq "JSDOC doc does not restate the tsc floor" \
     "$(grep -cE '\*\*(1917|2002|2274|2155)\*\* errors' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
 assert_eq "typecheck.yml does not restate the tsc floor" \
@@ -914,8 +888,7 @@ assert_eq "model.js notify() bumps _updateEpoch" \
     "$(grep -c 'this._updateEpoch++' "$WEB/static/src/model/model.js")" "1"
 assert_eq "reactiveRenderers opt-out is checked in the model hook" \
     "$(grep -c 'ModelClass).reactiveRenderers' "$WEB/static/src/model/model.js")" "1"
-# The pivot and graph RENDERERS subscribe; their models do not (the old
-# assertion's label claimed 4 files incl. models, which was never true).
+# The pivot and graph RENDERERS subscribe; their models do not.
 assert_eq "pivot renderer uses useReactiveModel" \
     "$(grep -c 'useReactiveModel(this.props.model)' "$WEB/static/src/views/pivot/pivot_renderer.js")" "1"
 assert_eq "graph renderer uses useReactiveModel" \
@@ -923,8 +896,7 @@ assert_eq "graph renderer uses useReactiveModel" \
 assert_eq "STATE_MANAGEMENT documents useReactiveModel" \
     "$(grep -c 'useReactiveModel' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "2"
 
-# 25. _updateConfig was renamed to _patchConfig / _reloadWithConfig — docs must
-#     not cite the old name.
+# 25. _updateConfig is now _patchConfig / _reloadWithConfig.
 assert_eq "no _updateConfig left in model/" \
     "$(grep -rc '_updateConfig' "$WEB/static/src/model" --include='*.js' 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')" "0"
 assert_eq "docs do not cite _updateConfig" \
@@ -954,10 +926,9 @@ assert_eq "progress_bar_hook has _reconcileMove (JSDoc + definition)" \
 assert_eq "CONVENTIONS gotcha #16 covers the local reconcile" \
     "$(grep -c '_reconcileMove' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
 
-# 29. SearchModelEvent enum (typed events table row must match the export).
-# Typed-events table: every constant in core/events.js must be documented with
-# its real string value. 14 of 33 were missing while the table still "passed"
-# a cardinality check on one group.
+# 29. Every constant in core/events.js must be documented with its real string
+#     value. A cardinality check on one group is not enough — it passed while
+#     14 of 33 were missing.
 read -r ev_undoc ev_badval <<<"$("$VENV_PY" - "$WEB" <<'PYEOF' 2>/dev/null
 import re, pathlib, sys
 web = pathlib.Path(sys.argv[1])
@@ -999,7 +970,7 @@ assert_eq "STATE_MANAGEMENT typed-events table has the 4 SearchModelEvent rows" 
 assert_eq "rpc_cache.js implements the immutable option (deepFreeze)" \
     "$(grep -c 'immutable ? deepFreeze : deepCopy' "$WEB/static/src/core/network/rpc_cache.js")" "1"
 assert_eq "field_service uses cache({type:'disk', immutable:true})" \
-    "$(grep -c 'immutable: true' "$WEB/static/src/services/field_service.js")" "1"
+    "$(grep -c 'immutable: true' "$WEB/static/src/core/field_service.js")" "1"
 
 # 31. EmbeddedActionsBar extracted out of ControlPanel.
 assert_eq "embedded_actions_bar component exists" \
@@ -1008,11 +979,9 @@ assert_eq "embedded_actions_bar component exists" \
 # 31b. ROUTE_MAP totals + removed QUnit runner route.
 assert_eq "webclient.py no longer serves /web/tests/legacy" \
     "$(grep -c '/web/tests/legacy' "$WEB/controllers/webclient.py")" "0"
-# AST-count route-decorated FUNCTIONS. The old raw `grep -c @route` counted
-# One handler carries two @route decorators, so counting decorator occurrences
-# over-reports handlers by one; count decorated FUNCTIONS instead. URLs are the
-# distinct route strings those decorators declare (verified against the live
-# werkzeug routing map: all 108 resolve).
+# Count route-decorated FUNCTIONS, not @route occurrences: one handler carries
+# two decorators, so occurrence-counting over-reports handlers by one. URLs are
+# the distinct route strings those decorators declare.
 read -r ROUTE_HANDLERS ROUTE_URLS <<<"$(python3 - "$WEB/controllers" <<'PYEOF'
 import ast, pathlib, sys
 n = 0; urls = set()
@@ -1034,8 +1003,8 @@ for f in sorted(pathlib.Path(sys.argv[1]).glob("*.py")):
 print(n, len(urls))
 PYEOF
 )"
-# The per-category rows must SUM to the AST truth. Cardinality-only checking is
-# what let the openapi row go missing while the total still read 75.
+# The per-category rows must SUM to the AST truth: cardinality-only checking
+# let the openapi row go missing while the total still read 75.
 route_sum=$("$VENV_PY" - "$DOC/ROUTE_MAP.md" <<'PYEOF' 2>/dev/null
 import re, sys
 h = u = 0
@@ -1051,11 +1020,163 @@ assert_eq "ROUTE_MAP category rows sum to the handler/URL truth" \
 assert_doc_cites "ROUTE_MAP total row cites the handler count" "$ROUTE_HANDLERS" \
     '\\*\\*%s handlers' ROUTE_MAP.md
 
-# 32. ADR index (core-root doc/adr) lists ADR-0011.
-if skip_missing "$REPO/doc/adr/README.md" "ADR index assertion" 1; then :; else
-assert_eq "doc/adr/README.md indexes ADR-0011" \
-    "$(grep -c '0011-persistence-backend-port' "$REPO/doc/adr/README.md" 2>/dev/null || echo 0)" "1"
-fi
+# 32. Per-HANDLER coverage. The sum check above is still cardinality-only one
+#     level down: /web/metrics and openapi_json were both absent from every
+#     table while the category rows and the total stayed correct, because the
+#     Bootstrap row said "11 handlers" and only 10 were tabulated. Name each
+#     handler, or it is not documented.
+route_undoc="$("$VENV_PY" - "$WEB" <<'PYEOF' 2>/dev/null
+import ast, pathlib, re, sys
+web = pathlib.Path(sys.argv[1])
+handlers = set()
+for f in sorted((web / "controllers").glob("*.py")):
+    tree = ast.parse(f.read_text())
+    for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+        for fn in (n for n in cls.body if isinstance(n, ast.FunctionDef)):
+            for dec in fn.decorator_list:
+                if isinstance(dec, ast.Call) and getattr(
+                        dec.func, "attr", getattr(dec.func, "id", "")) == "route":
+                    handlers.add(fn.name)
+doc = (web / "machine_doc_v1/ROUTE_MAP.md").read_text()
+# A handler counts as documented only from a real table row citing `name()`.
+documented = set(re.findall(r"\|\s*`?(\w+)\(\)`?\s*\|", doc))
+print(len(handlers - documented))
+PYEOF
+)"
+assert_eq "ROUTE_MAP has a table row for every route handler" \
+    "${route_undoc:-PARSE_FAILED}" "0"
+
+# 33. session_info() key coverage. MODEL_MAP calls its list the "Full key list";
+#     has_unaccent was added to _base_session_info and the list never grew.
+sess_undoc="$("$VENV_PY" - "$WEB" <<'PYEOF' 2>/dev/null
+import ast, pathlib, re, sys
+web = pathlib.Path(sys.argv[1])
+src = (web / "models/ir_http.py").read_text()
+tree = ast.parse(src)
+keys = set()
+for fn in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
+    if fn.name not in ("_base_session_info", "session_info", "_get_config_limits"):
+        continue
+    for node in ast.walk(fn):
+        # info = {...} / return {...}
+        if isinstance(node, ast.Dict):
+            keys |= {k.value for k in node.keys
+                     if isinstance(k, ast.Constant) and isinstance(k.value, str)}
+        # info["x"] = ...
+        elif isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
+            if isinstance(node.value, ast.Name) and node.value.id == "info":
+                keys.add(node.slice.value)
+        # info.update(x=..., y=...)
+        elif isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "update":
+            keys |= {kw.arg for kw in node.keywords if kw.arg}
+# Nested keys reached by walking into value dicts; documented in prose on
+# their parent's row (bundle_params, groups) rather than as keys in their own
+# right, so a bare-token match would report them missing forever.
+keys -= {"lang", "debug"}
+doc = (web / "machine_doc_v1/MODEL_MAP.md").read_text()
+# Substring, not a backticked-token match: `groups` is documented as the
+# literal {"base.group_allow_export": bool}, which no token regex sees.
+print(sum(1 for k in keys if k not in doc))
+PYEOF
+)"
+assert_eq "MODEL_MAP cites every session_info() key" "${sess_undoc:-PARSE_FAILED}" "0"
+
+# 34. Field coverage for the models MODEL_MAP gives a Fields list for.
+#     pageview_id was added to web.cwv.metric — changing the table from
+#     append-only to upsert-keyed — and the field list never mentioned it.
+#     base_document_layout is exempt: the doc marks it "not exhaustive" on
+#     purpose (a wizard of related company fields).
+read -r field_undoc field_scanned <<<"$("$VENV_PY" - "$WEB" <<'PYEOF' 2>/dev/null
+import ast, pathlib, re, sys
+web = pathlib.Path(sys.argv[1])
+doc = (web / "machine_doc_v1/MODEL_MAP.md").read_text()
+cited = set(re.findall(r"`([\w.]+)`", doc))
+EXEMPT = {"base_document_layout.py"}
+missing = 0
+scanned = 0
+for f in sorted((web / "models").glob("*.py")):
+    if f.name in EXEMPT:
+        continue
+    # Only models the doc actually gives a "**Fields:**" block for.
+    if f"models/{f.name} —" not in doc:
+        continue
+    section = doc.split(f"models/{f.name} —", 1)[1].split("\n### ", 1)[0]
+    # "**Fields:**", "**Fields** (30):", "**Fields** (numeric vitals ...)" all
+    # introduce a list. Matching only the colon form skipped web.cwv.metric —
+    # the one model this gate was written for — and reported a clean pass.
+    if "**Fields" not in section:
+        continue
+    scanned += 1
+    tree = ast.parse(f.read_text())
+    for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+        for node in cls.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            v = node.value
+            if not (isinstance(v, ast.Call) and getattr(
+                    getattr(v.func, "value", None), "id", "") == "fields"):
+                continue
+            for t in node.targets:
+                if isinstance(t, ast.Name) and f"`{t.id}`" not in section:
+                    missing += 1
+print(missing, scanned)
+PYEOF
+)"
+assert_eq "MODEL_MAP Fields lists name every field on those models" \
+    "${field_undoc:-PARSE_FAILED}" "0"
+# Empty-tree refusal: unlike the route/session gates (which count doc MISSES and
+# so blow up on an empty doc), this one iterates doc sections — nothing to scan
+# reads as nothing missing. Pin the section count so a heading rename that
+# silently drops a model out of scope fails instead of passing.
+assert_eq "MODEL_MAP field gate actually scanned its models" \
+    "${field_scanned:-PARSE_FAILED}" "5"
+
+# 35. Module faces. The count is a filesystem property (a directory with a
+#     sibling <name>.js), so derive it; the doc said 38 against a real 39,
+#     which tooling/architecture/js_face_boundary.py had right all along.
+FACES=$("$VENV_PY" - "$WEB/static/src" <<'PYEOF' 2>/dev/null
+import pathlib, sys
+src = pathlib.Path(sys.argv[1])
+print(sum(1 for d in src.rglob("*")
+          if d.is_dir() and (d.parent / f"{d.name}.js").exists()))
+PYEOF
+)
+assert_doc_cites "ARCHITECTURE cites the real module-face count" \
+    "${FACES:-PARSE_FAILED}" '^%s directories are fronted' ARCHITECTURE.md
+
+# 36. registerField / registerFallbackField call sites, fork-wide. Repeated in
+#     four places across three docs, so it rots four times over: it read 107/76
+#     against a real 110/79 (the spec-form 31 stayed correct).
+read -r RF_TOTAL RF_PLAIN RF_SPEC <<<"$("$VENV_PY" - "$ADDONS" <<'PYEOF' 2>/dev/null
+import pathlib, re, sys
+call = re.compile(r"(?<!function )\b(registerField|registerFallbackField)\(\s*")
+tot = plain = spec = 0
+for p in pathlib.Path(sys.argv[1]).rglob("*.js"):
+    if "machine_doc" in str(p) or "node_modules" in str(p):
+        continue
+    try:
+        t = p.read_text(errors="ignore")
+    except OSError:
+        continue
+    for m in call.finditer(t):
+        tot += 1
+        if t[m.end()] == "{":
+            spec += 1
+        else:
+            plain += 1
+print(tot, plain, spec)
+PYEOF
+)"
+assert_doc_cites "ARCHITECTURE cites the real registerField site count" \
+    "${RF_TOTAL:-PARSE_FAILED}" '%s fork-wide' ARCHITECTURE.md
+assert_doc_cites "CONVENTIONS cites the real registerField site count" \
+    "${RF_TOTAL:-PARSE_FAILED}" '%s fork-wide' CONVENTIONS.md
+assert_doc_cites "JSDOC cites the real registerField site count" \
+    "${RF_TOTAL:-PARSE_FAILED}" 'of the %s fork-wide' JSDOC_TYPE_TIGHTENING.md
+assert_doc_cites "ARCHITECTURE cites the real plain/spec split" \
+    "${RF_PLAIN:-PARSE_FAILED}" '%s plain and' ARCHITECTURE.md
+assert_doc_cites "ARCHITECTURE cites the real spec-form count" \
+    "${RF_SPEC:-PARSE_FAILED}" 'and %s through the typed spec form' ARCHITECTURE.md
 
 echo ""
 echo "================================================================"

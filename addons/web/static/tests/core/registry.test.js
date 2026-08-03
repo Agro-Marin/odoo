@@ -1,6 +1,6 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { describe, expect, mockSendBeacon, test } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
 import {
     mountWithCleanup,
@@ -327,6 +327,32 @@ test("non-debug: refuses (quarantines) an invalid entry without throwing", async
     expect(() => registry.get("jean")).toThrow();
     registry.add("jean", { name: "Jean" });
     expect(registry.get("jean")).toEqual({ name: "Jean" });
+});
+
+test("non-debug: a quarantined invalid entry beacons the anomaly (observability)", async () => {
+    // The prod branch of the validation fork must not merely drop-and-warn: it
+    // reports the anomaly through the js_error beacon, so a silently-refused
+    // registration stays observable in production, where a console warning
+    // reaches no one. This is the "debug throws, prod beacons" contract, and the
+    // beacon is the half a console.warn assertion does not pin -- removing it
+    // would let prod go silent again with the suite still green.
+    const calls = [];
+    mockSendBeacon((url, blob) => {
+        calls.push({ url, blob });
+        return true;
+    });
+    patchWithCleanup(console, { warn: () => {} });
+
+    const registry = new Registry("registry_beacon_probe");
+    registry.addValidation({ name: String });
+    registry.add("bad_entry", { name: 50 });
+
+    expect(registry.contains("bad_entry")).toBe(false); // dropped, not stored...
+    expect(calls).toHaveLength(1); // ...and the drop is observable, not silent
+    const payload = JSON.parse(await calls[0].blob.text());
+    expect(payload.message).toInclude("[registry]");
+    expect(payload.message).toInclude(`Validation error for key "bad_entry"`);
+    expect(payload.filename).toBe("@web/core/registry");
 });
 
 test("non-debug: addValidation retroactively quarantines invalid existing entries", async () => {

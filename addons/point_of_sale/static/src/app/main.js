@@ -4,10 +4,10 @@ import { Loader } from "@point_of_sale/app/components/loader/loader";
 import { Chrome } from "@point_of_sale/app/pos_app";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { localization } from "@web/core/l10n/localization";
-import { _t, appTranslateFn } from "@web/core/l10n/translation";
 import { getTemplate } from "@web/core/templates";
+import { _t, appTranslateFn } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { mountComponent } from "@web/env";
-import { user } from "@web/services/user";
 import { session } from "@web/session";
 
 const loader = reactive({ isShown: true, error: false });
