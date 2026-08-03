@@ -9,14 +9,7 @@ from odoo.addons.mail.tools.discuss import Store
 
 
 class MailFollowers(models.Model):
-    """mail_followers holds the data related to the follow mechanism inside
-    Odoo. Partners can choose to follow documents (records) of any kind
-    that inherits from mail.thread. Following documents allow to receive
-    notifications for new messages. A subscription is characterized by:
-
-    :param: res_model: model of the followed objects
-    :param: res_id: ID of resource (may be 0 for every objects)
-    """
+    """Subscription of a partner to a mail.thread document, driving notifications."""
 
     _name = "mail.followers"
     _log_access = False
@@ -49,11 +42,7 @@ class MailFollowers(models.Model):
     is_active = fields.Boolean("Is Active", related="partner_id.active")
 
     def _invalidate_documents(self, vals_list=None):
-        """Invalidate the cache of the documents followed by ``self``.
-
-        Modifying followers change access rights to individual documents. As the
-        cache may contain accessible/inaccessible data, one has to refresh it.
-        """
+        """Invalidate the cache of the documents followed by ``self``."""
         to_invalidate = defaultdict(list)
         for record in vals_list or [
             {"res_model": rec.res_model, "res_id": rec.res_id} for rec in self
@@ -130,9 +119,7 @@ class MailFollowers(models.Model):
         return res
 
     def _get_recipient_data(self, records, message_type, subtype_id, pids=None):
-        """Private method allowing to fetch recipients data based on a subtype.
-        Purpose of this method is to fetch all data necessary to notify recipients
-        in a single query. It fetches data from
+        """Fetch in a single query all data needed to notify recipients, taken from
 
          * followers of records that follow the given subtype if records and
            subtype are set;
@@ -155,9 +142,8 @@ class MailFollowers(models.Model):
             'is_follower': True if linked to a record and if partner is a follower;
             'lang': partner.lang;
             'name': partner.name;
-            'groups': groups of the partner's user (see 'uid'). If several users
-                of the same kind (e.g. several internal users) exist groups are
-                concatenated;
+            'groups': groups of the single user given by 'uid', completed with
+                their transitive closure of implied groups;
             'notif': notification type ('inbox' or 'email'). Overrides may change
                 this value (e.g. 'sms' in sms module);
             'share': if partner is a customer (no user or share user);
@@ -353,9 +339,8 @@ class MailFollowers(models.Model):
         res_ids = records.ids if records else [0]
         doc_infos = {res_id: {} for res_id in res_ids}
         # Memoize the transitive group closure per distinct group set: most
-        # recipients share the same groups, so recomputing
-        # browse(...).all_implied_ids per row was thousands of redundant
-        # recordset builds on a mass notification (the hot message_post path).
+        # recipients share the same groups, and a mass notification (hot
+        # message_post path) would otherwise rebuild it once per row.
         group_closure_cache = {}
         for (
             partner_id,
@@ -372,9 +357,8 @@ class MailFollowers(models.Model):
             is_follower,
         ) in res:
             to_update = [res_id] if res_id else res_ids
-            # add transitive closure of implied groups; note that the field
-            # all_implied_ids relies on ormcache'd data, which shouldn't add
-            # more queries. Memoized per distinct group set (see above).
+            # add transitive closure of implied groups; 'all_implied_ids' relies
+            # on ormcache'd data, hence adds no query
             group_key = frozenset(groups or ())
             groups = group_closure_cache.get(group_key)
             if groups is None:
@@ -414,12 +398,12 @@ class MailFollowers(models.Model):
     def _get_subscription_data(
         self, doc_data, pids, include_pshare=False, include_active=False
     ):
-        """Private method allowing to fetch follower data from several documents of a given model.
-        MailFollowers can be filtered given partner IDs and channel IDs.
+        """Fetch follower data from several documents of a given model. Followers
+        can be filtered given partner IDs.
 
         :param doc_data: list of pair (res_model, res_ids) that are the documents from which we
           want to have subscription data;
-        :param pids: optional partner to filter; if None take all, otherwise limitate to pids
+        :param pids: optional partner IDs to filter on; if None, take them all;
         :param include_pshare: optional join in partner to fetch their share status
         :param include_active: optional join in partner to fetch their active flag
 
@@ -484,9 +468,9 @@ GROUP BY fol.id%s%s""" % (
         check_existing=True,
         existing_policy="skip",
     ):
-        """Main internal method allowing to create or update followers for documents, given a
-        res_model and the document res_ids. This method does not handle access rights. This is the
-        role of the caller to ensure there is no security breach.
+        """Create or update followers for the documents given by 'res_model' and
+        'res_ids'. Access rights are not handled: it is the role of the caller to
+        ensure there is no security breach.
 
         :param subtypes: see ``_add_followers``. If not given, default ones are computed.
         :param customer_ids: see ``_add_default_followers``
@@ -494,7 +478,7 @@ GROUP BY fol.id%s%s""" % (
         :param existing_policy: see ``_add_followers``;
         """
         sudo_self = self.sudo().with_context(default_partner_id=False)
-        if not subtypes:  # no subtypes -> default computation, no force, skip existing
+        if not subtypes:  # no subtypes -> compute the default ones per partner
             new, upd = self._add_default_followers(
                 res_model,
                 res_ids,
@@ -518,26 +502,20 @@ GROUP BY fol.id%s%s""" % (
                 for res_id, values_list in new.items()
                 for values in values_list
             ]
-            # savepoint(flush=False) + flush_recordset: isolate the unique-index
-            # IntegrityError without running a full cr.flush() on enter. A
-            # flushing savepoint (the default) flushes pending work and *runs
-            # precommit callbacks* before create() executes -- so a tracked
-            # write's _track_finalize would post its tracking message and compute
-            # recipients here, before these followers exist, silently never
-            # notifying the partners the very write just auto-subscribed.
-            # flush_recordset() then persists the INSERT so the unique-index
-            # conflict still surfaces inside the savepoint, without running
-            # precommit.
+            # savepoint(flush=False): a flushing savepoint (the default) runs
+            # precommit callbacks before create(), so a tracked write's
+            # _track_finalize would post its message and compute recipients
+            # before these followers exist -- silently never notifying the
+            # partners that same write just auto-subscribed. flush_recordset()
+            # still persists the INSERT, so the unique-index conflict surfaces here.
             try:
                 with self.env.cr.savepoint(flush=False):
                     sudo_self.create(new_vals).flush_recordset()
             except IntegrityError:
-                # Two transactions posting on the same record and auto-subscribing
-                # the same partner (author-subscribe, double-submitted assignment)
-                # race the unique(res_model, res_id, partner_id) index; the plain
-                # batch create would surface a 500. The follower we wanted exists
-                # either way, so retry row by row and treat "already there" as
-                # success -- mirroring the reaction add/remove race handling.
+                # Two transactions auto-subscribing the same partner to the same
+                # record race the unique(res_model, res_id, partner_id) index and
+                # the batch create would surface a 500. The wanted follower exists
+                # either way: retry row by row, treating "already there" as success.
                 self.env["mail.followers"].invalidate_model()
                 for vals in new_vals:
                     try:
@@ -557,15 +535,15 @@ GROUP BY fol.id%s%s""" % (
         check_existing=True,
         existing_policy="skip",
     ):
-        """Shortcut to ``_add_followers`` that computes default subtypes. Existing
-        followers are skipped as their subscription is considered as more important
-        compared to new default subscription.
+        """Shortcut to ``_add_followers`` that computes default subtypes per
+        partner: external subtypes for customers, default ones otherwise.
 
         :param customer_ids: optional list of partner ids that are customers. It is used if computing
          default subtype is necessary and allow to avoid the check of partners being customers (no
          user or share user). It is just a matter of saving queries if the info is already known;
         :param check_existing: see ``_add_followers``;
-        :param existing_policy: see ``_add_followers``;
+        :param existing_policy: see ``_add_followers``; the default 'skip' keeps an
+          existing subscription, considered more important than a new default one;
 
         :return: see ``_add_followers``
         """
@@ -582,9 +560,8 @@ GROUP BY fol.id%s%s""" % (
                 .search([("id", "in", partner_ids), ("partner_share", "=", True)])
                 .ids
             )
-        # set membership: `pid in customer_ids` over a list made this dict-comp
-        # O(partners^2) on large subscribes (channel invites, big partner_ids
-        # posts). Also normalizes the caller-supplied customer_ids=[] case.
+        # set membership: `pid in customer_ids` over a list makes the dict-comp
+        # below O(partners^2) on large subscribes (channel invites, mass posts)
         customer_ids = set(customer_ids or ())
 
         p_stypes = {
@@ -610,18 +587,17 @@ GROUP BY fol.id%s%s""" % (
         check_existing=False,
         existing_policy="skip",
     ):
-        """Internal method that generates values to insert or update followers. Callers have to
-        handle the result, for example by making a valid ORM command, inserting or updating directly
-        follower records, ... This method returns two main data
+        """Generate values to insert or update followers, leaving it to callers to
+        apply them (ORM commands, direct create / write, ...). Two dicts are
+        returned
 
-         * first one is a dict which keys are res_ids. Value is a list of dict of values valid for
-           creating new followers for the related res_id;
-         * second one is a dict which keys are follower ids. Value is a dict of values valid for
+         * the first one keyed by res_id, holding a list of dict of values valid
+           for creating new followers of that res_id;
+         * the second one keyed by follower id, holding a dict of values valid for
            updating the related follower record;
 
-        :param subtypes: optional subtypes for new partner followers. This
-          is a dict whose keys are partner IDs and value subtype IDs for that
-          partner.
+        :param subtypes: subtypes for new partner followers, as a dict whose keys
+          are partner IDs and values subtype IDs for that partner;
         :param check_existing: if True, check for existing followers for given
           documents and handle them according to existing_policy parameter.
           Setting to False allows to save some computation if caller is sure
@@ -630,9 +606,9 @@ GROUP BY fol.id%s%s""" % (
           existing followers:
 
           * skip: simply skip existing followers, do not touch them;
-          * force: update existing with given subtypes only;
-          * replace: replace existing with new subtypes (like force without old / new follower);
-          * update: gives an update dict allowing to add missing subtypes (no subtype removal);
+          * force: unlink existing followers, then recreate them with given subtypes;
+          * replace: keep the follower, add missing subtypes and remove the others;
+          * update: keep the follower, only add missing subtypes (no removal);
         """
         _res_ids = res_ids or [0]
         data_fols, doc_pids = {}, {i: set() for i in _res_ids}
@@ -649,11 +625,9 @@ GROUP BY fol.id%s%s""" % (
             if existing_policy == "force":
                 self.sudo().browse(data_fols.keys()).unlink()
 
-        # Index existing followers by (record, partner) once. (res_model, res_id,
-        # partner_id) is unique, so each key maps to one follower. This replaces a
-        # per-pair next() scan over data_fols that was O(res_ids x partners x
-        # existing_followers) -- quadratic on large subscribes (same fix already
-        # applied in mail.thread._message_auto_subscribe_batch).
+        # Index existing followers by (record, partner) once -- the key is unique,
+        # so it maps to a single follower. Scanning data_fols per pair instead is
+        # quadratic on large subscribes (as in _message_auto_subscribe_batch).
         fols_by_key = {
             (rid, pid): (fid, sids) for fid, (rid, pid, sids) in data_fols.items()
         }
