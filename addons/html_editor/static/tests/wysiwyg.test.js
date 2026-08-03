@@ -16,8 +16,7 @@ describe("Wysiwyg Component", () => {
         expect(".odoo-editor-editable").toHaveCount(1);
         await expectElementCount(".o-we-toolbar", 0);
 
-        // set the selection to a range, and check that the toolbar
-        // is opened
+        // Set the selection to a range and check that the toolbar opens.
         expect(getContent(el)).toBe("");
         setContent(el, "hello [hoot]");
         await animationFrame();
@@ -53,7 +52,7 @@ describe("Wysiwyg Component", () => {
             },
         });
 
-        // Add some content before the iframe to make sure it's top does not
+        // Add some content before the iframe to make sure its top does not
         // match the top window's top (i.e. create a vertical offset).
         const iframe = document.querySelector("iframe");
         for (let i = 0; i < 10; i++) {

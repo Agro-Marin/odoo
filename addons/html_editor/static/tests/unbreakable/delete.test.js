@@ -407,8 +407,8 @@ describe("forward", () => {
             });
         });
     });
-    // Only few tests are made with the selection not collapsed it should use the
-    // same logic as for the backward (deleteRange).
+    // Few tests with the selection not collapsed: it goes through the same
+    // logic as backward (deleteRange).
     describe("selection not collapsed", () => {
         test("should not break unbreakables (delete forward) (1)", async () => {
             await testEditor({
@@ -434,7 +434,7 @@ describe("forward", () => {
                 stepFunction: deleteForward,
                 contentAfter: unformat(`
                         <p class="oe_unbreakable">a[]</p>
-                        <p class="oe_unbreakable">d</p>`), // JW without oe_breakable classes of course
+                        <p class="oe_unbreakable">d</p>`),
             });
         });
 

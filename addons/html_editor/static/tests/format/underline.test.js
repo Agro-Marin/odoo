@@ -93,7 +93,6 @@ test("should make a selection with underline text in the middle fully underline"
 
 test("should make a selection ending with underline text fully underline", async () => {
     await testEditor({
-        // @phoenix content adapted to make it valid html
         contentBefore: `<p>[ab</p><p><u>c]d</u></p>`,
         stepFunction: underline,
         contentAfter: `<p><u>[ab</u></p><p><u>c]d</u></p>`,
@@ -256,7 +255,8 @@ describe("with strikeThrough", () => {
             contentBefore: `<p>ab<u><s>cd</s></u><s><u>ghi[]</u></s><u><s>ef</s></u></p>`,
             stepFunction: underline,
             contentAfterEdit: `<p>ab<u><s>cd</s></u><s><u>ghi</u></s><s data-oe-zws-empty-inline="">\u200B[]</s><u><s>ef</s></u></p>`,
-            // The reason the cursor is after the tag <s> is because when the editor get's cleaned, the zws tag gets deleted.
+            // The cursor ends up after the <s> tag because the zws tag gets
+            // deleted when the editor is cleaned.
             contentAfter: `<p>ab<u><s>cd</s></u><s><u>ghi</u></s>[]<u><s>ef</s></u></p>`,
         });
     });
@@ -372,7 +372,8 @@ describe("with italic", () => {
             contentBefore: `<p>ab<u><em>cd</em></u><em><u>ghi[]</u></em><u><em>ef</em></u></p>`,
             stepFunction: underline,
             contentAfterEdit: `<p>ab<u><em>cd</em></u><em><u>ghi</u></em><em data-oe-zws-empty-inline="">\u200B[]</em><u><em>ef</em></u></p>`,
-            // The reason the cursor is after the tag <s> is because when the editor get's cleaned, the zws tag gets deleted.
+            // The cursor ends up after the <em> tag because the zws tag gets
+            // deleted when the editor is cleaned.
             contentAfter: `<p>ab<u><em>cd</em></u><em><u>ghi</u></em>[]<u><em>ef</em></u></p>`,
         });
     });
@@ -415,9 +416,8 @@ test("should not add history step for underline on collapsed selection", async (
 
     patchWithCleanup(console, { warn: () => {} });
 
-    // Collapsed formatting shortcuts (e.g. Ctrl+U) shouldn’t create a history
-    // step. The empty inline tag is temporary: auto-cleaned if unused. We want
-    // to avoid having a phantom step in the history.
+    // Collapsed formatting shortcuts (e.g. Ctrl+U) must not create a phantom
+    // history step: the empty inline tag is temporary, auto-cleaned if unused.
     await press(["ctrl", "u"]);
     expect(getContent(el)).toBe(
         `<p>abcd<u data-oe-zws-empty-inline="">\u200B[]</u></p>`,

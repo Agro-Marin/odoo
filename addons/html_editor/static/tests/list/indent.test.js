@@ -1379,7 +1379,7 @@ describe("Mixed: list + paragraph", () => {
 
         expect(getContent(el)).toBe(expectedContent);
 
-        // Check that it was done as single history step.
+        // Check that it was done as a single history step.
         undo(editor);
         expect(getContent(el)).toBe(contentBefore);
     });
