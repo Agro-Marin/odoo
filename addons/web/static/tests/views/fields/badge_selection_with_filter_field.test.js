@@ -63,6 +63,10 @@ class Partner extends models.Model {
 defineModels([Partner]);
 
 test("badge selection field with filter, empty list", async () => {
+    // An empty allowed list hides every value the record does not hold. The
+    // stored one stays: filtering it away too left the widget with no badge
+    // selected while the record held "white", which reads as an empty field and
+    // gives the user no way to see -- or restore -- the value that is there.
     Partner._records[0].allowed_colors = [];
     await mountView({
         type: "form",
@@ -77,7 +81,30 @@ test("badge selection field with filter, empty list", async () => {
         `,
     });
 
-    expect(".o_selection_badge").toHaveCount(0);
+    expect(".o_selection_badge").toHaveCount(1);
+    expect(".o_selection_badge[value='\"white\"']").toHaveClass("active");
+    expect(".o_selection_badge[value='\"grey\"']").toHaveCount(0);
+    expect(".o_selection_badge[value='\"black\"']").toHaveCount(0);
+});
+
+test("badge selection field with filter, stored value already allowed", async () => {
+    Partner._records[0].allowed_colors = ["white", "grey"];
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="allowed_colors" invisible="1"/>
+                <field name="color" widget="selection_badge_with_filter"
+                    options="{'allowed_selection_field': 'allowed_colors'}"/>
+            </form>
+        `,
+    });
+
+    // Kept once, not twice.
+    expect(".o_selection_badge").toHaveCount(2);
+    expect(".o_selection_badge[value='\"white\"']").toHaveCount(1);
 });
 
 test("badge selection field with filter, single choice", async () => {
@@ -95,8 +122,10 @@ test("badge selection field with filter, single choice", async () => {
         `,
     });
 
-    expect(".o_selection_badge").toHaveCount(1);
-    expect(".o_selection_badge[value='\"white\"']").toHaveCount(0);
+    // "white" is what the record holds, so it stays offered and selected next
+    // to the single allowed value.
+    expect(".o_selection_badge").toHaveCount(2);
+    expect(".o_selection_badge[value='\"white\"']").toHaveClass("active");
     expect(".o_selection_badge[value='\"grey\"']").toBeVisible();
     expect(".o_selection_badge[value='\"black\"']").toHaveCount(0);
 });
@@ -226,6 +255,9 @@ test("the allowed-values field is loaded without the view naming it", async () =
     // own; forgetting it left `allowed_selection_field` absent from the record,
     // which filtered every option away instead of failing visibly.
     Partner._records[0].allowed_colors = ["grey", "black"];
+    // An allowed value, so "white" is filtered on its own merits and the
+    // assertions below still show the filter doing something.
+    Partner._records[0].color = "grey";
     onRpc("web_read", ({ kwargs }) => {
         expect(Object.keys(kwargs.specification)).toInclude("allowed_colors");
     });

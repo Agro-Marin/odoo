@@ -155,6 +155,7 @@ class ResUserGroupIdsPrivilegeField extends Component {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const resUserGroupIdsPrivilegeField = {
     component: ResUserGroupIdsPrivilegeField,
+    supportedTypes: ["many2many"],
 };
 
 registerField("res_user_group_ids_privilege", resUserGroupIdsPrivilegeField);

@@ -26,6 +26,14 @@ export class Many2ManyTagsAvatarField extends Many2ManyTagsField {
         return {};
     }
 
+    /** @override @returns {Object} */
+    get many2XAutocompleteProps() {
+        return {
+            ...super.many2XAutocompleteProps,
+            specification: this.specification,
+        };
+    }
+
     /**
      * @override
      * @param {any} record

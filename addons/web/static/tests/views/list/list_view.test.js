@@ -5205,7 +5205,13 @@ test(`aggregates monetary (different currencies, record without value)`, async (
     expect(`tfoot`).toHaveText("$ 650.00?");
 });
 
-test(`aggregates monetary (currency field not in view)`, async () => {
+test(`aggregates monetary (currency field named only by the option)`, async () => {
+    // The option now declares its field as a dependency, so the currency is
+    // loaded and the amounts carry its symbol. Before that the field was absent
+    // from the read and every cell rendered bare -- money with no currency --
+    // unless the arch also named it. 144 of the 164 arch usages in this
+    // workspace already carried that manual `<field name="..."/>`; these are
+    // the other 20.
     Foo._fields.currency_test = fields.Many2one({
         relation: "res.currency",
         default: 1,
@@ -5222,12 +5228,12 @@ test(`aggregates monetary (currency field not in view)`, async () => {
         `,
     });
     expect(queryAllTexts(`tbody .o_monetary_cell`)).toEqual([
-        "1,200.00",
-        "500.00",
-        "300.00",
-        "0.00",
+        "$ 1,200.00",
+        "$ 500.00",
+        "$ 300.00",
+        "$ 0.00",
     ]);
-    expect(`tfoot`).toHaveText("2,000.00");
+    expect(`tfoot`).toHaveText("$ 2,000.00");
 });
 
 test(`aggregates monetary (currency field in view)`, async () => {

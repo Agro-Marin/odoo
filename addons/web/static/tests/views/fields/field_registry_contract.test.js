@@ -122,19 +122,68 @@ const FIELD_OF_TYPE = {
     text: "f_text",
 };
 
-/** Widgets registered without a `view.` prefix, i.e. usable from any arch. */
-function genericEntries() {
+/**
+ * Every entry, split into the view it is reachable from and the widget name an
+ * arch would spell. A third of the registry is registered under a `view.`
+ * prefix; restricting the contracts below to the unprefixed ones left those
+ * entries -- the list and kanban variants users actually meet -- unchecked.
+ *
+ * @returns {{ key: string, descr: any, viewType: string, widget: string }[]}
+ */
+function registryEntries() {
     return registry
         .category("fields")
         .getEntries()
-        .filter(([key]) => !key.includes("."));
+        .map(([key, descr]) => {
+            const [prefix, widget] = key.includes(".") ? key.split(".") : ["form", key];
+            return { key, descr, viewType: prefix, widget };
+        });
+}
+
+/**
+ * The subset the render contract can actually mount. `calendar.`, `hierarchy.`
+ * and `base_settings.` entries are real registry entries and stay in scope for
+ * the two option contracts -- only this one needs a view it can build an arch
+ * for, and narrowing the others to the same three prefixes quietly dropped six
+ * widgets (including the two `calendar.` tag aliases) out of the option checks.
+ */
+function mountableEntries() {
+    return registryEntries().filter(({ viewType }) =>
+        ["form", "list", "kanban"].includes(viewType),
+    );
+}
+
+/**
+ * @param {string} viewType
+ * @param {string} fieldName
+ * @param {string} widget
+ * @returns {string}
+ */
+function archFor(viewType, fieldName, widget) {
+    switch (viewType) {
+        case "list":
+            return `<list>
+                        <field name="currency_id" column_invisible="1"/>
+                        <field name="${fieldName}" widget="${widget}"/>
+                    </list>`;
+        case "kanban":
+            return `<kanban><templates><t t-name="card">
+                        <field name="currency_id" invisible="1"/>
+                        <field name="${fieldName}" widget="${widget}"/>
+                    </t></templates></kanban>`;
+        default:
+            return `<form>
+                        <field name="currency_id" invisible="1"/>
+                        <field name="${fieldName}" widget="${widget}"/>
+                    </form>`;
+    }
 }
 
 test("every widget renders each type it claims in supportedTypes", async () => {
     const failures = [];
     let attempted = 0;
 
-    for (const [key, descr] of genericEntries()) {
+    for (const { key, descr, viewType, widget } of mountableEntries()) {
         for (const type of descr.supportedTypes || []) {
             const fieldName = FIELD_OF_TYPE[type];
             if (!fieldName) {
@@ -143,14 +192,10 @@ test("every widget renders each type it claims in supportedTypes", async () => {
             attempted++;
             try {
                 await mountView({
-                    type: "form",
+                    type: /** @type {any} */ (viewType),
                     resModel: "partner",
-                    resId: 1,
-                    arch: `
-                        <form>
-                            <field name="currency_id" invisible="1"/>
-                            <field name="${fieldName}" widget="${key}"/>
-                        </form>`,
+                    resId: viewType === "form" ? 1 : undefined,
+                    arch: archFor(viewType, fieldName, widget),
                 });
                 await animationFrame();
             } catch (error) {
@@ -168,69 +213,183 @@ test("every widget renders each type it claims in supportedTypes", async () => {
  * `daterange`; the range-only options belong to `daterange`'s declaration, not
  * to theirs. Every other entry here was real drift and has been declared.
  */
-/** @type {Record<string, string[]>} */
+/**
+ * `float_time` is a deliberate deprecation, not drift: `displaySeconds` is the
+ * historical camelCase spelling and is still live in a dozen arches, so it is
+ * still read, but only the conventional `display_seconds` is advertised.
+ *
+ * @type {Record<string, string[]>}
+ */
 const UNDECLARED_BY_DESIGN = {
     date: ["always_range", "end_date_field", "rounding", "start_date_field"],
     datetime: ["always_range", "end_date_field", "start_date_field"],
+    float_time: ["displaySeconds"],
 };
+
+/**
+ * Which names `extractProps` touches on `attrs` and on `options`, for one value
+ * the proxies hand back. Run for a falsy and a truthy value and unioned: with
+ * only one, a name behind `a && b` or a ternary is reachable in just one branch
+ * and the other run reports it as never read.
+ *
+ * @param {any} descr
+ * @param {any} value
+ * @returns {{ options: Set<string>, attrs: Set<string> } | null} null when the
+ *   widget needs more than this skeleton, which is out of scope rather than a
+ *   failure.
+ */
+function namesReadByExtractProps(descr, value) {
+    const options = new Set();
+    const attrs = new Set();
+    const proxyInto = (/** @type {Set<string>} */ sink) =>
+        new Proxy(
+            {},
+            {
+                get: (_target, prop) => {
+                    if (typeof prop !== "string") {
+                        return undefined;
+                    }
+                    sink.add(prop);
+                    return value;
+                },
+                has: (_target, prop) => {
+                    if (typeof prop === "string") {
+                        sink.add(prop);
+                    }
+                    return Boolean(value);
+                },
+            },
+        );
+    try {
+        descr.extractProps(
+            // Deliberately a skeleton, not a full StaticFieldInfo.
+            /** @type {any} */ ({
+                attrs: proxyInto(attrs),
+                options: proxyInto(options),
+                string: "",
+                placeholder: "",
+                decorations: {},
+                viewType: "form",
+                type: "char",
+                name: "f_char",
+                views: {},
+                relatedFields: {},
+            }),
+            /** @type {any} */ ({
+                context: {},
+                domain: () => /** @type {any[]} */ ([]),
+                readonly: false,
+                required: false,
+            }),
+        );
+    } catch {
+        return null;
+    }
+    return { options, attrs };
+}
 
 test("extractProps reads no option that supportedOptions does not declare", () => {
     const drift = [];
+    let checked = 0;
 
-    for (const [key, descr] of genericEntries()) {
+    for (const { key, descr, widget } of registryEntries()) {
         if (typeof descr.extractProps !== "function") {
             continue;
         }
-        const read = new Set();
-        const record = (/** @type {string | symbol} */ prop) => {
-            if (typeof prop === "string") {
-                read.add(prop);
-            }
-        };
-        const options = new Proxy(
-            {},
-            {
-                get: (_target, prop) => void record(prop),
-                has: (_target, prop) => (record(prop), false),
-            },
-        );
-        try {
-            descr.extractProps(
-                // Deliberately a skeleton, not a full StaticFieldInfo: the
-                // catch below treats "needs more than this" as out of scope.
-                /** @type {any} */ ({
-                    attrs: {},
-                    options,
-                    string: "",
-                    placeholder: "",
-                    decorations: {},
-                    viewType: "form",
-                    type: "char",
-                    name: "f_char",
-                    views: {},
-                    relatedFields: {},
-                }),
-                /** @type {any} */ ({
-                    context: {},
-                    domain: () => /** @type {any[]} */ ([]),
-                    readonly: false,
-                    required: false,
-                }),
-            );
-        } catch {
-            // A widget whose extractProps needs more than this skeleton is out
-            // of scope here rather than a failure.
+        const read = namesReadByExtractProps(descr, undefined);
+        if (!read) {
             continue;
         }
+        checked++;
         const declared = new Set([
             ...(descr.supportedOptions || []).map((/** @type {any} */ o) => o.name),
-            ...(UNDECLARED_BY_DESIGN[key] || []),
+            ...(UNDECLARED_BY_DESIGN[widget] || []),
         ]);
-        const undeclared = [...read].filter((name) => !declared.has(name)).sort();
+        const undeclared = [...read.options]
+            .filter((name) => !declared.has(name))
+            .sort();
         if (undeclared.length) {
             drift.push(`${key}: ${undeclared.join(", ")}`);
         }
     }
 
     expect(drift).toEqual([]);
+    // `namesReadByExtractProps` returns null for a widget that needs more than
+    // the skeleton, and this loop skips it. That is a silent coverage cliff:
+    // one widget made to throw here would drop out of the contract without any
+    // test going red. 90 entries have an extractProps and none currently
+    // throws, so hold the floor just under that.
+    expect(checked).toBeGreaterThan(88);
+});
+
+/**
+ * The other direction. A declared name that nothing reads is worse than
+ * undocumented: Studio and the developer tooltip offer it, an integrator sets
+ * it, and it silently does nothing. `many2many_tags` inherited the whole
+ * many2one option list and so advertised barcode scanning it has no button for;
+ * `float_toggle` carried a `type` option only an <input> widget can honour.
+ *
+ * `placeholder_field` is exempt: it is consumed by `Field` itself, before
+ * `extractProps` is ever called.
+ */
+test("supportedOptions and supportedAttributes declare nothing extractProps ignores", () => {
+    const drift = [];
+    let checked = 0;
+
+    for (const { key, descr } of registryEntries()) {
+        if (typeof descr.extractProps !== "function") {
+            continue;
+        }
+        const falsy = namesReadByExtractProps(descr, undefined);
+        const truthy = namesReadByExtractProps(descr, "1");
+        if (!falsy || !truthy) {
+            continue;
+        }
+        checked++;
+        const isRead = (
+            /** @type {"options"|"attrs"} */ sink,
+            /** @type {string} */ name,
+        ) => falsy[sink].has(name) || truthy[sink].has(name);
+        const deadOptions = (descr.supportedOptions || [])
+            .map((/** @type {any} */ o) => o.name)
+            .filter(
+                (/** @type {string} */ n) =>
+                    n !== "placeholder_field" && !isRead("options", n),
+            );
+        const deadAttrs = (descr.supportedAttributes || [])
+            .map((/** @type {any} */ o) => o.name)
+            .filter((/** @type {string} */ n) => !isRead("attrs", n));
+        if (deadOptions.length || deadAttrs.length) {
+            drift.push(
+                `${key}: options[${deadOptions.join(", ")}] attributes[${deadAttrs.join(", ")}]`,
+            );
+        }
+    }
+
+    expect(drift).toEqual([]);
+    expect(checked).toBeGreaterThan(88);
+});
+
+/**
+ * A widget without `supportedTypes` is exempt from the only check the framework
+ * itself performs: `getFieldFromRegistry` warns when a widget is put on a type
+ * it does not claim, and silently accepts anything from a widget that claims
+ * nothing. Six entries were in that state and now declare a type.
+ *
+ * `property_tags` cannot: it serves the `tags` *property* type, which is not a
+ * field type at all and so is rejected by the registry's own `validFieldTypes`
+ * validation.
+ */
+const NO_SUPPORTED_TYPES_BY_DESIGN = ["property_tags"];
+
+test("every registry entry declares the types it supports", () => {
+    const missing = registryEntries()
+        .filter(
+            ({ key, descr }) =>
+                !descr.supportedTypes && !NO_SUPPORTED_TYPES_BY_DESIGN.includes(key),
+        )
+        .map(({ key }) => key)
+        .sort();
+
+    expect(missing).toEqual([]);
 });

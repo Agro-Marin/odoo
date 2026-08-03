@@ -21,12 +21,14 @@ export class MonetaryField extends NumericInputFieldBase {
     static props = {
         ...standardFieldProps,
         currencyField: { type: String, optional: true },
+        formatNumber: { type: Boolean, optional: true },
         inputType: { type: String, optional: true },
         useFieldDigits: { type: Boolean, optional: true },
         hideSymbol: { type: Boolean, optional: true },
         trailingZeros: { type: Boolean, optional: true },
     };
     static defaultProps = {
+        formatNumber: true,
         hideSymbol: false,
         inputType: "text",
         trailingZeros: true,
@@ -100,7 +102,10 @@ export class MonetaryField extends NumericInputFieldBase {
 
     /** @returns {string} */
     get formattedValue() {
-        if (this.props.inputType === "number" && !this.props.readonly) {
+        if (
+            !this.props.formatNumber ||
+            (this.props.inputType === "number" && !this.props.readonly)
+        ) {
             return this.rawValue;
         }
         return formatMonetary(this.value, {
@@ -123,6 +128,15 @@ export class MonetaryField extends NumericInputFieldBase {
 export const monetaryField = {
     component: MonetaryField,
     supportedOptions: [
+        {
+            label: _t("Format number"),
+            name: "enable_formatting",
+            type: "boolean",
+            default: true,
+            help: _t(
+                "Format the value according to your language setup - e.g. thousand separators, rounding, etc.",
+            ),
+        },
         {
             label: _t("Hide symbol"),
             name: "no_symbol",
@@ -152,8 +166,20 @@ export const monetaryField = {
     supportedTypes: ["monetary", "float", "integer"],
     displayName: _t("Monetary"),
     isEmpty: isFalseEmpty,
+    // `currencyId` reads the override straight out of `record.data`, so a view
+    // that names the option but not the field rendered the amount with no
+    // symbol and the wrong digits. The default currency field comes from the
+    // field's own metadata and is already part of the read.
+    fieldDependencies: ({ options }) =>
+        options.currency_field
+            ? [{ name: options.currency_field, optional: true, readonly: true }]
+            : [],
     extractProps: ({ attrs, options }) => ({
         currencyField: options.currency_field,
+        formatNumber:
+            options.enable_formatting !== undefined
+                ? Boolean(options.enable_formatting)
+                : true,
         inputType: attrs.type,
         useFieldDigits: options.field_digits,
         hideSymbol: options.no_symbol,

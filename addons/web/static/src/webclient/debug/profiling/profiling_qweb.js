@@ -334,6 +334,7 @@ export class ProfilingQwebView extends Component {
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const profilingQwebView = {
     component: ProfilingQwebView,
+    supportedTypes: ["text"],
 };
 
 registerField("profiling_qweb_view", profilingQwebView);

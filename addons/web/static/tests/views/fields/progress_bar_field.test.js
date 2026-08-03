@@ -688,3 +688,17 @@ test("the readonly modifier wins over 'editable' in kanban", async () => {
         message: "...while an unmodified one stays editable",
     });
 });
+
+test("the bar renders human-readable numbers, literal max included", async () => {
+    // Not a literal-vs-field distinction: `formatMaxValue`/`formatCurrentValue`
+    // are only ever called with humanReadable=true outside edit mode, so both
+    // ends round. Pinned because it is easy to mistake for a formatting bug in
+    // the literal-max path -- there is no separate path.
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="float_field" widget="progressbar" options="{'max_value': 7.5}"/></form>`,
+    });
+    expect(".o_progressbar").toHaveText("0\n/\n8");
+});

@@ -95,11 +95,6 @@ export const floatToggleField = {
             type: "digits",
         },
         {
-            label: _t("Type"),
-            name: "type",
-            type: "string",
-        },
-        {
             label: _t("Range"),
             name: "range",
             type: "string",

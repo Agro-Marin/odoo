@@ -102,6 +102,9 @@ function extractProps({ string, attrs }) {
 export const copyClipboardButtonField = {
     component: CopyClipboardButtonField,
     displayName: _t("Copy to Clipboard"),
+    // The button copies `record.data[name]` verbatim, so it only makes sense on
+    // a value that is already a string.
+    supportedTypes: ["char", "text"],
     supportedOptions: [
         {
             label: _t("Button style"),
