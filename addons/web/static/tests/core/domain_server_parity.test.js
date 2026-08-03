@@ -25,9 +25,23 @@ describe.current.tags("headless");
  *
  * Verdicts are one bit per record, in `RECORDS` order.
  *
- * To regenerate: create `RECORDS` on `res.partner`, run each case through
- * `recs.filtered_domain([case])`, and read the payloads back with `read()` --
- * the shape the web client actually holds.
+ * To re-derive these expectations against a live server, and to find out
+ * whether they have drifted from it:
+ *
+ *     python tooling/domain_parity/check_parity.py --database <db>
+ *
+ * It reads `RECORDS` and `CASES` straight out of this file, replays each case
+ * through `filtered_domain()` inside a rolled-back savepoint, and exits
+ * non-zero on any expectation the server no longer agrees with. Without it the
+ * snapshot's provenance is prose, and a change to the server's evaluator would
+ * leave the numbers below quietly meaning nothing.
+ *
+ * `RECORDS` alone is not enough to rebuild that database, which is why the
+ * script carries a small table of its own: `read()` reports a NULL numeric
+ * column and a stored 0 identically, and the two do not filter alike --
+ * `partner_latitude like "_"` matches the stored 0 and not the NULL, and
+ * `=like "\\"` does the reverse. Twelve of the cases below turn on exactly
+ * that distinction.
  */
 const RECORDS = [
     {
