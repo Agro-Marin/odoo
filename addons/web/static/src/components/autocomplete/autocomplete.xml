@@ -69,6 +69,7 @@
                                         t-attf-id="{{idPrefix}}_{{source_index}}_{{option_index}}"
                                         t-att-role="!option.unselectable and 'option'"
                                         t-att-href="!option.unselectable and '#'"
+                                        t-att-tabindex="!option.unselectable and props.dropdown and '-1'"
                                         t-att-class="{ 'ui-state-active': isActiveSourceOption([source_index, option_index]) }"
                                         t-att-aria-selected="isActiveSourceOption([source_index, option_index]) ? 'true' : 'false'"
                                     >

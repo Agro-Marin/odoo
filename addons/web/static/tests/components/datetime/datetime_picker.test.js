@@ -1413,3 +1413,43 @@ test("the day grid restates today after the clock crosses midnight", async () =>
 
     expect(queryAllTexts(".o_today")).toEqual(["27"]);
 });
+
+test("a render that does not move the value leaves the browsed month alone", async () => {
+    class Parent extends Component {
+        static template = xml`
+            <span class="tick" t-esc="state.tick"/>
+            <DateTimePicker value="state.value" onSelect="() => {}" type="'date'"/>`;
+        static components = { DateTimePicker };
+        static props = [];
+        state = useState({ value: DateTime.fromISO("2023-04-25"), tick: 0 });
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect(".o_datetime_picker_header").toHaveText(/April 2023/i);
+
+    await click(".o_next");
+    await animationFrame();
+    expect(".o_datetime_picker_header").toHaveText(/May 2023/i);
+
+    // A parent that re-renders for its own reasons hands over the same value.
+    // What the user browsed to is theirs until the value itself moves.
+    parent.state.tick++;
+    await animationFrame();
+    expect(".o_datetime_picker_header").toHaveText(/May 2023/i);
+});
+
+test("a value moving to another month takes the browsed month with it", async () => {
+    class Parent extends Component {
+        static template = xml`<DateTimePicker value="state.value" onSelect="() => {}" type="'date'"/>`;
+        static components = { DateTimePicker };
+        static props = [];
+        state = useState({ value: DateTime.fromISO("2023-04-25") });
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click(".o_next");
+    await animationFrame();
+    expect(".o_datetime_picker_header").toHaveText(/May 2023/i);
+
+    parent.state.value = DateTime.fromISO("2023-07-14");
+    await animationFrame();
+    expect(".o_datetime_picker_header").toHaveText(/July 2023/i);
+});
