@@ -50,16 +50,14 @@ class MailBlacklist(models.Model):
             bl_entries = dict(self.env.cr.fetchall())
             to_create = [v for v in new_values if v["email"] not in bl_entries]
 
-        # TODO DBE Fixme : reorder ids according to incoming ids.
+        # TODO reorder ids according to incoming ids.
         results = super().create(to_create)
         return self.env["mail.blacklist"].browse(bl_entries.values()) | results
 
     def write(self, vals):
         if "email" in vals:
-            # Validate like create(): email is required (NOT NULL), so an
-            # unnormalizable value used to surface as an IntegrityError traceback
-            # here instead of the clean UserError create() raises for the very
-            # same input.
+            # validate like create(): 'email' is NOT NULL, so an unnormalizable
+            # value would reach the database as an IntegrityError
             normalized = tools.email_normalize(vals["email"])
             if not normalized:
                 raise UserError(_("Invalid email address “%s”", vals["email"]))
@@ -67,8 +65,8 @@ class MailBlacklist(models.Model):
         return super().write(vals)
 
     def _search(self, domain, *args, **kwargs):
-        """Override _search in order to grep search on email field and make it
-        lower-case and sanitized"""
+        """Normalize the value of every 'email' condition before searching, as
+        stored addresses are normalized."""
         domain = Domain(domain).map_conditions(
             lambda cond: (
                 Domain(cond.field_expr, cond.operator, norm_value)

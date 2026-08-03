@@ -74,9 +74,7 @@ class Publisher_WarrantyContract(AbstractModel):
 
     @api.model
     def _get_sys_logs(self):
-        """
-        Utility method to send a publisher warranty get logs messages.
-        """
+        """Utility method to send a publisher warranty get logs messages."""
         msg = self._get_message()
         arguments = {"arg0": str(msg), "action": "update"}
 
@@ -87,12 +85,11 @@ class Publisher_WarrantyContract(AbstractModel):
         return literal_eval(r.text)
 
     def update_notification(self, cron_mode=True):
-        """
-        Send a message to Odoo's publisher warranty server to check the
+        """Send a message to Odoo's publisher warranty server to check the
         validity of the contracts, get notifications, etc...
 
-        @param cron_mode: If true, catch all exceptions (appropriate for usage in a cron).
-        @type cron_mode: boolean
+        :param bool cron_mode: if true, catch all exceptions (appropriate for
+            usage in a cron)
         """
         try:
             try:
@@ -104,7 +101,7 @@ class Publisher_WarrantyContract(AbstractModel):
                 raise UserError(
                     _("Error during communication with the publisher warranty server.")
                 ) from None
-            # old behavior based on res.log; now on mail.message, that is not necessarily installed
+            # notifications are posted as mail.message, hence best-effort below
             user = self.env["res.users"].sudo().browse(SUPERUSER_ID)
             poster = self.sudo().env.ref("mail.channel_all_employees")
             for message in result["messages"]:

@@ -20,13 +20,14 @@ class IrModel(models.Model):
     )
 
     def unlink(self):
-        """Delete mail data (followers, messages, activities) associated with
-        the models being deleted.
+        """Delete mail data (followers, messages, activities, attachments)
+        associated with the models being deleted.
         """
         if not self:
             return True
 
-        # Delete followers, messages and attachments for models that will be unlinked.
+        # activities, activity types, followers and messages, unless one of those
+        # mail models is itself part of the deletion
         mail_models = self.search(
             [
                 (

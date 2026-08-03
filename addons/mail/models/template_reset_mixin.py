@@ -58,10 +58,9 @@ class TemplateResetMixin(models.AbstractModel):
         translation_importer.save(overwrite=True, force_overwrite=True)
 
     def reset_template(self):
-        """Resets the Template with values given in source file. We ignore the case of
-        template being overridden in another modules because it is extremely less likely
-        to happen. This method also tries to reset the translation terms for the current
-        user lang (all langs are not supported due to costly file operation)."""
+        """Reset the template with the values of its source file, and reimport
+        the translation terms of every installed language from the module '.po'
+        files. Templates overridden in another module are not handled."""
         expr = "//*[local-name() = $tag and (@id = $xml_id or @id = $external_id)]"
         templates_with_missing_source = []
         lang_false = {

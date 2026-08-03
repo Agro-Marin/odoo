@@ -5,16 +5,11 @@ from odoo.exceptions import ValidationError
 
 
 class MailGatewayAllowed(models.Model):
-    """List of trusted email address which won't have the quota restriction.
+    """Trusted senders exempted from the incoming mail gateway quota.
 
-    The incoming emails have a restriction of the number of records they can
-    create with alias, defined by the 2 systems parameters;
-    - mail.gateway.loop.minutes
-    - mail.gateway.loop.threshold
-
-    But we might have some legit use cases for which we want to receive a ton of emails
-    from an automated-source. This model stores those trusted source and this restriction
-    won't apply to them.
+    Inbound emails are otherwise capped, per 'mail.gateway.loop.minutes'
+    window, by 'mail.gateway.loop.threshold' records created or replies posted
+    through an alias, which a legit automated source would exceed.
     """
 
     _name = "mail.gateway.allowed"
@@ -35,16 +30,9 @@ class MailGatewayAllowed(models.Model):
 
     @api.constrains("email")
     def _check_email_normalizes(self):
-        """Reject an entry whose address does not normalize.
-
-        ``email`` is only ``required``; a value like "Support Team" stored a
-        NULL ``email_normalized`` (indexed, searched with ``=``). Such a row is
-        a meaningless no-op -- it can never match a real normalized ``From``,
-        and matching an unparseable ``From`` (also NULL) has no effect either,
-        since loop detection already treats a null sender as a no-op. Refuse the
-        bad value at the source anyway, the way ``mail.blacklist`` does, so the
-        allow list cannot accumulate confusing dead rows.
-        """
+        """Reject an entry whose address does not normalize."""
+        # 'email' is only required, so a value like "Support Team" would store a
+        # NULL 'email_normalized': a dead row loop detection can never match
         for record in self:
             if not tools.email_normalize(record.email):
                 raise ValidationError(_("Invalid email address “%s”", record.email))
