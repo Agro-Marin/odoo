@@ -17,7 +17,7 @@ class TestTrackerHttpRequests(MockLinkTracker, common.HttpCase):
         self.assertEqual(len(link_tracker.link_click_ids), 0)
         link = '/r/' + link_tracker.code
 
-        # Check that no click is registrered for a MicrosoftPreview agent
+        # Check that no click is registered for a MicrosoftPreview agent
         self.url_open(
             link,
             headers={
@@ -27,7 +27,7 @@ class TestTrackerHttpRequests(MockLinkTracker, common.HttpCase):
         )
         self.assertEqual(len(link_tracker.link_click_ids), 0)
 
-        # Check that no click is registered for a Google Messages preview agent
+        # Check that no click is registered for a Google-PageRenderer agent
         self.url_open(
             link,
             headers={

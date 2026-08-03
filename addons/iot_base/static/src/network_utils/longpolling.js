@@ -31,13 +31,13 @@ export class IoTLongpolling {
     }
 
     /**
-     * Add a device_identifier to listeners[iot_ip] and restart polling
+     * Add devices to listeners[iot_ip] and restart polling
      *
      * @param {string} iot_ip
-     * @param {Array} devices list of devices
+     * @param {Array} devices list of device identifiers
      * @param {string} listener_id
-     * @param {boolean} fallback if true, no notification will be displayed on fail
      * @param {Callback} callback
+     * @param {boolean} fallback if true, no notification will be displayed on fail
      */
     async addListener(iot_ip, devices, listener_id, callback, fallback = true) {
         if (!this._listeners[iot_ip]) {
@@ -116,10 +116,9 @@ export class IoTLongpolling {
     }
 
     /**
-     * Stops any started long polling
-     *
-     * Aborts a pending long-poll so that we immediately remove ourselves
-     * from listening on notifications on this channel.
+     * Abort the pending long-poll of `iot_ip`, so that we immediately stop
+     * listening on the notifications of its devices.
+     * @param {string} iot_ip
      */
     stopPolling(iot_ip) {
         if (this._listeners[iot_ip].abortController) {
@@ -204,7 +203,7 @@ export class IoTLongpolling {
     }
 
     /**
-     * This method is needed in _poll.
+     * Warn the user that the IoT Box could not be reached.
      * @param {string} url
      */
     _doWarnFail(url) {

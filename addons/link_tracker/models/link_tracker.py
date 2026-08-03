@@ -20,13 +20,10 @@ LINK_TRACKER_MIN_CODE_LENGTH = 3
 
 
 class LinkTracker(models.Model):
-    """ Link trackers allow users to wrap any URL into a short URL that can be
-    tracked by Odoo. Clicks are counter on each link. A tracker is linked to
-    UTMs allowing to analyze marketing actions.
-
-    This model is also used in mass_mailing where each link in html body is
-    automatically converted into a short link that is tracked and integrates
-    UTMs. """
+    """ Wrap any URL into a short URL whose clicks are counted and which is
+    linked to UTMs, allowing to analyze marketing actions. Also used by
+    mass_mailing, which converts every link of an html body into such a
+    tracked short link. """
     _name = 'link.tracker'
     _rec_name = "short_url"
     _description = "Link Tracker"
@@ -100,9 +97,9 @@ class LinkTracker(models.Model):
     def _compute_redirected_url(self):
         """Compute the URL to which we will redirect the user.
 
-        By default, add UTM values as GET parameters. But if the system parameter
-        `link_tracker.no_external_tracking` is set, we add the UTM values in the URL
-        *only* for URLs that redirect to the local website (base URL).
+        UTM values are added as GET parameters; when the system parameter
+        `link_tracker.no_external_tracking` is set, only for URLs pointing to
+        the local website (base URL).
         """
         no_external_tracking = self.env['ir.config_parameter'].sudo().get_param('link_tracker.no_external_tracking')
 
@@ -124,7 +121,7 @@ class LinkTracker(models.Model):
 
             query = urlencode(query)
             # '...' is detected as malicious by some nginx
-            # configuration, encoding it solve the issue
+            # configurations, encoding it solves the issue
             query = query.replace('...', '%2E%2E%2E')
             tracker.redirected_url = urlunsplit(parsed._replace(query=query))
 
@@ -138,7 +135,7 @@ class LinkTracker(models.Model):
 
     @api.constrains(*LINK_TRACKER_UNIQUE_FIELDS)
     def _check_unicity(self):
-        """Check that the link trackers are unique."""
+        """Check that the (url, campaign, medium, source, label) combinations are unique."""
         def _format_value(tracker, field_name):
             if field_name == 'label' and not tracker[field_name]:
                 return False
@@ -187,7 +184,7 @@ class LinkTracker(models.Model):
             if not vals.get('title'):
                 vals['title'] = self._get_title_from_url(vals['url'])
 
-            # Prevent the UTMs to be set by the values of UTM cookies
+            # Prevent the UTMs from being set by the values of UTM cookies
             for (__, fname, __) in self.env['utm.mixin'].tracking_fields():
                 if fname not in vals:
                     vals[fname] = False

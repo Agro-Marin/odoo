@@ -7,7 +7,7 @@ import { uniqueId } from "@web/core/utils/functions";
 export class DeviceController {
     /**
      * @param {import("@iot_base/network_utils/longpolling").IoTLongpolling} iotLongpolling
-     * @param {{ iot_ip: string, identifier: string, iot_id: Object, manual_measurement: string }} deviceInfo - Representation of an iot device
+     * @param {{ iot_ip: string, identifier: string, iot_id: Object, manual_measurement: boolean }} deviceInfo - Representation of an iot device
      */
     constructor(iotLongpolling, deviceInfo) {
         this.id = uniqueId('listener-');

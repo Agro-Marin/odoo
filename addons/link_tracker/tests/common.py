@@ -20,7 +20,7 @@ class MockLinkTracker(common.BaseCase):
         self.startPatcher(link_tracker_title_patch)
 
     def _get_href_from_anchor_id(self, body, anchor_id):
-        """ Parse en html body to find the href of an element given its ID. """
+        """ Parse an html body to find the href of an element given its ID. """
         html = etree.fromstring(body, parser=etree.HTMLParser())
         return html.xpath("//*[@id='%s']" % anchor_id)[0].attrib.get('href')
 
@@ -33,13 +33,10 @@ class MockLinkTracker(common.BaseCase):
         return self._get_code_from_short_url(short_url).link_id
 
     def assertLinkShortenedHtml(self, body, link_info, link_params=None):
-        """ Find shortened links in an HTML content. Usage :
+        """ Assert the anchor of ``link_info`` in an HTML content is shortened
+        (or not), and that its tracker carries ``link_params``.
 
-        self.assertLinkShortenedHtml(
-            message.body,
-            ('url0', 'http://www.odoo.com',  True),
-            {'utm_campaign': self.utm_c.name, 'utm_medium': self.utm_m.name}
-        )
+        :param tuple link_info: (anchor id, expected target url, is shortened)
         """
         (anchor_id, url, is_shortened) = link_info
         anchor_href = self._get_href_from_anchor_id(body, anchor_id)
@@ -53,13 +50,10 @@ class MockLinkTracker(common.BaseCase):
             self.assertEqual(anchor_href, url)
 
     def assertLinkShortenedText(self, body, link_info, link_params=None):
-        """ Find shortened links in an text content. Usage :
+        """ Assert the url of ``link_info`` in a text content is shortened
+        (or not), and that its tracker carries ``link_params``.
 
-        self.assertLinkShortenedText(
-            message.body,
-            ('http://www.odoo.com',  True),
-            {'utm_campaign': self.utm_c.name, 'utm_medium': self.utm_m.name}
-        )
+        :param tuple link_info: (expected target url, is shortened)
         """
         (url, is_shortened) = link_info
         link_tracker = self.env['link.tracker'].search([('url', '=', url)])
@@ -72,14 +66,8 @@ class MockLinkTracker(common.BaseCase):
             self.assertIn(url, body)
 
     def assertLinkParams(self, url, link_tracker, link_params=None):
-        """ Usage
-
-        self.assertLinkTracker(
-            'http://www.example.com',
-            link_tracker,
-            {'utm_campaign': self.utm_c.name, 'utm_medium': self.utm_m.name}
-        )
-        """
+        """ Assert the tracker redirects to ``url`` with ``link_params`` as
+        query parameters. """
         # check UTMS are correctly set on redirect URL
         original_url = urlsplit(url)
         redirect_url = urlsplit(link_tracker.redirected_url)
