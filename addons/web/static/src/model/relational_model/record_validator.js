@@ -92,6 +92,32 @@ export function findUnsetRequiredFields(
 }
 
 /**
+ * Drop invalidity the user has no way to clear.
+ *
+ * {@link findUnsetRequiredFields} has always skipped invisible fields, so
+ * required-driven invalidity is already "invisible implies not blocking". Field
+ * widgets mark their own invalidity through {@link setInvalidField} -- an
+ * unparseable date or number, a malformed domain -- and that half was never
+ * re-examined once set. A field hidden by a modifier AFTER the user typed into
+ * it therefore kept blocking every save, behind a notification naming a field
+ * that is not on screen: the form could only be escaped by discarding.
+ *
+ * Nothing unsafe is written by clearing it. A parse failure means the widget
+ * never handed the value to the record, so what gets saved is the last value
+ * that did parse -- and the server validates regardless.
+ *
+ * @param {RelationalRecord} record
+ */
+function pruneUnreachableInvalidFields(record) {
+    for (const fieldName of [...toRaw(record._invalidFields)]) {
+        if (!(fieldName in record.activeFields) || record._isInvisible(fieldName)) {
+            record._invalidFields.delete(fieldName);
+            record._unsetRequiredFields.delete(fieldName);
+        }
+    }
+}
+
+/**
  * @param {RelationalRecord} record
  * @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options]
  * @returns {boolean}
@@ -100,6 +126,11 @@ export function checkValidity(
     record,
     { silent, displayNotification, removeInvalidOnly, scopedFields } = {},
 ) {
+    // `silent` means "answer the question without touching state", so the prune
+    // is skipped there along with every other mutation below.
+    if (!silent) {
+        pruneUnreachableInvalidFields(record);
+    }
     const callbacks = {
         isInvisible: (fieldName) => record._isInvisible(fieldName),
         isRequired: (fieldName) => record._isRequired(fieldName),
