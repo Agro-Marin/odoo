@@ -5,11 +5,10 @@ from odoo.exceptions import AccessError, UserError
 class MailTemplatePreview(models.TransientModel):
     _name = "mail.template.preview"
     _description = "Email Template Preview"
-    # report_template_ids is deliberately excluded: _generate_template would
-    # render every linked report to PDF (_render_qweb_pdf) into values
-    # ["attachments"], which the preview never reads (_set_mail_attributes only
-    # consumes attachment_ids and partner_ids) — a heavy render thrown away on
-    # every record/language change of the preview.
+    # report_template_ids is deliberately excluded: _generate_template would render
+    # every linked report (_render_qweb_pdf) into an 'attachments' entry the preview
+    # never reads (_set_mail_attributes only reads the fields listed below plus
+    # 'partner_ids') — a heavy render thrown away on every preview recompute.
     _MAIL_TEMPLATE_FIELDS = [
         "attachment_ids",
         "body_html",
@@ -100,7 +99,7 @@ class MailTemplatePreview(models.TransientModel):
     def _compute_mail_template_fields(self):
         """Preview the mail template (body, subject, ...) depending of the language and
         the record reference, more precisely the record id for the defined model of the mail template.
-        If no record id is selectable/set, the inline_template placeholders won't be replace in the display information."""
+        If no record id is selectable/set, the inline_template placeholders won't be replaced in the display information."""
         for preview in self:
             error_msg = False
             mail_template = preview.mail_template_id.with_context(lang=preview.lang)

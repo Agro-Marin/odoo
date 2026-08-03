@@ -164,10 +164,8 @@ class MailActivitySchedule(models.TransientModel):
         for scheduler in self:
             errors = set()
             warnings = set()
-            # Bind once per iteration: applied_on used to be assigned only inside
-            # the `res_model` branch yet read in the `plan_id` branch, so a plan
-            # scheduler with no res_model raised UnboundLocalError (and, mid-batch,
-            # leaked the previous scheduler's records). None when there is no model.
+            # bind once per iteration: both branches below read it, and it is
+            # None when the scheduler has no model
             applied_on = scheduler._get_applied_on_records()
             if scheduler.res_model:
                 if applied_on and (
@@ -334,10 +332,8 @@ class MailActivitySchedule(models.TransientModel):
 
                         schedule_line_values_list.append(schedule_line_values)
 
-            # Assign once per scheduler, after every template has contributed its
-            # line(s). Doing this inside the template loop re-issued a full
-            # (5,) clear + recreate on each iteration (O(n^2) command churn,
-            # correct only because last-write-wins).
+            # assign once per scheduler, after every template contributed its
+            # line(s): a (5,) clear + recreate per template would be O(n^2)
             scheduler.plan_schedule_line_ids = [(5,)] + [
                 (0, 0, values) for values in schedule_line_values_list
             ]
@@ -539,7 +535,7 @@ class MailActivitySchedule(models.TransientModel):
         )
 
     def _evaluate_res_ids(self):
-        """Parse composer res_ids, which can be: an already valid list or
+        """Parse the wizard res_ids, which can be: an already valid list or
         tuple (generally in code), a list or tuple as a string (coming from
         actions). Void strings / missing values are evaluated as an empty list.
 
