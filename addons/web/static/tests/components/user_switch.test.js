@@ -93,7 +93,9 @@ test("dropping an account removes it and remembers that", async () => {
     await animationFrame();
 
     expect(queryAllTexts(".o_user_switch_login")).toEqual(["User 1", "User 2"]);
-    const stored = JSON.parse(browser.localStorage.getItem("web.lastConnectedUser") ?? "null");
+    const stored = JSON.parse(
+        browser.localStorage.getItem("web.lastConnectedUser") ?? "null",
+    );
     expect(stored.map((/** @type {{ login: string }} */ u) => u.login)).toEqual([
         "user1",
         "user2",
@@ -118,9 +120,7 @@ test("dropping the last account hands the form back", async () => {
     expect(".oe_login_form").not.toHaveClass("d-none");
     expect(
         JSON.parse(browser.localStorage.getItem("web.lastConnectedUser") ?? "null"),
-    ).toEqual(
-        [],
-    );
+    ).toEqual([]);
 });
 
 test("the way into the chooser does not jump the page's tab order", async () => {
