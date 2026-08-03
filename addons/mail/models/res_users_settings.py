@@ -52,12 +52,11 @@ class ResUsersSettings(models.Model):
         return formatted
 
     def set_volume_setting(self, partner_id, volume, guest_id=None):
-        """
-        Saves the volume of a guest or a partner.
-        Either partner_id or guest_id must be specified.
-        :param float volume: the selected volume between 0 and 1
-        :param int partner_id:
-        :param int guest_id:
+        """Save the volume of a guest or a partner, one of which must be given.
+
+        :param int partner_id: partner the volume applies to
+        :param float volume: the selected volume, between 0 and 1
+        :param int guest_id: guest the volume applies to
         """
         self.ensure_one()
         volume_setting = self.env["res.users.settings.volumes"].search(

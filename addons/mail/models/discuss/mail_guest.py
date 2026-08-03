@@ -134,10 +134,8 @@ class MailGuest(models.Model):
             )
         """
         self.env.cr.execute(query, (timezone, self.id))
-        # The raw UPDATE bypasses the ORM, so the cached ``timezone`` is now
-        # stale: a later read in the same request (including the ``if not
-        # guest.timezone`` guard in the caller) would see the pre-update value
-        # and could double-fire the update. Drop it from the cache.
+        # The raw UPDATE bypasses the ORM: without this the caller's ``if not
+        # guest.timezone`` guard still reads the pre-update value and re-fires.
         self.invalidate_recordset(["timezone"])
 
     def _get_im_status_access_token(self):

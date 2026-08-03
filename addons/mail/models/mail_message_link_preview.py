@@ -29,10 +29,8 @@ class MessageMailLinkPreview(models.Model):
             return
         self.is_hidden = True
         for message_link_preview in self:
-            # per-record channel: self._bus_channel() delegates to
-            # message_id._bus_channel() which ensure_one()s, so computing it on
-            # the whole recordset crashes as soon as `self` spans two messages
-            # (and needlessly recomputed the same channel N times otherwise).
+            # per-record channel: _bus_channel() delegates to message_id, which
+            # ensure_one()s, so `self` spanning two messages must not compute it.
             Store(bus_channel=message_link_preview._bus_channel()).delete(
                 message_link_preview
             ).bus_send()

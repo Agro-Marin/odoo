@@ -2,9 +2,7 @@ from odoo import api, fields, models, tools
 
 
 class MailMessageSubtype(models.Model):
-    """Class holding subtype definition for messages. Subtypes allow to tune
-    the follower subscription, allowing only some subtypes to be pushed
-    on the Wall."""
+    """Subtype of a message, used to tune which of them a follower is notified about."""
 
     _name = "mail.message.subtype"
     _description = "Message subtypes"
@@ -70,23 +68,15 @@ class MailMessageSubtype(models.Model):
 
     @tools.ormcache("model_name")
     def _get_auto_subscription_subtypes(self, model_name):
-        """Return data related to auto subscription based on subtype matching.
-        Here model_name indicates child model (like a task) on which we want to
-        make subtype matching based on its parents (like a project).
+        """Return auto-subscription data for the given child model (e.g. a task),
+        matching its subtypes against those of its parents (e.g. a project).
 
-        Example with tasks and project :
-
-         * generic: discussion, res_model = False
-         * task: new, res_model = project.task
-         * project: task_new, parent_id = new, res_model = project.project, field = project_id
-
-        Returned data
-
-          * child_ids: all subtypes that are generic or related to task (res_model = False or model_name)
-          * def_ids: default subtypes ids (either generic or task specific)
-          * all_int_ids: all internal-only subtypes ids (generic or task or project)
-          * parent: dict(parent subtype id, child subtype id), i.e. {task_new.id: new.id}
-          * relation: dict(parent_model, relation_fields), i.e. {'project.project': ['project_id']}
+        :param str model_name: child model to match subtypes for
+        :return: (child_ids, def_ids, all_int_ids, parent, relation) -- ids of the
+          generic/model subtypes, of the default ones, of the internal-only ones,
+          then {parent subtype id: child subtype id} and
+          {parent model: {relation fields}}
+        :rtype: tuple
         """
         child_ids, def_ids = [], []
         all_int_ids = []

@@ -67,10 +67,8 @@ class IrWebsocket(models.AbstractModel):
             .sudo(False)
         )
         partner, guest = self.env["res.partner"]._get_current_persona()
-        # Batch the access check (one query) instead of a has_access() per
-        # partner: a subscription to many avatars would otherwise fire N ir.rule
-        # evaluations. The token check short-circuits, so accessibility is only
-        # consulted for the token-less ids.
+        # One batched access check instead of N ir.rule evaluations; the token
+        # check short-circuits it for the ids that carry one.
         accessible_partner_ids = set(partners._filtered_access("read")._ids)
         allowed_partners = (
             partners.filtered(

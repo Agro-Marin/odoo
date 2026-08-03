@@ -11,11 +11,9 @@ class ResUsersSettingsVolumes(models.Model):
         "res.users.settings", required=True, ondelete="cascade", index=True
     )
     partner_id = fields.Many2one("res.partner", ondelete="cascade", index=True)
-    # comodel is mail.guest, not res.partner: callers pass a mail.guest id
-    # (JS volume_model declares `guest_id = fields.One("mail.guest")`). With the
-    # wrong comodel the FK either silently binds the guest volume to an
-    # unrelated res.partner sharing the id (leaking that partner's name) or
-    # raises ForeignKeyViolation once guest ids exceed the max partner id.
+    # comodel is mail.guest, not res.partner: callers pass a mail.guest id (as JS
+    # volume_model.js does). A res.partner FK here would bind the guest volume to
+    # whatever partner shares that id, leaking its name.
     guest_id = fields.Many2one("mail.guest", ondelete="cascade", index=True)
     volume = fields.Float(
         default=0.5,

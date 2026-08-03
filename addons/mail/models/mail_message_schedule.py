@@ -52,13 +52,10 @@ class MailMessageSchedule(models.Model):
         if not messages_scheduled:
             return
         _logger.info("Send %s scheduled messages", len(messages_scheduled))
-        # Isolate each schedule: without this, a single failing _notify_thread
-        # (broken template, recipient with a bad lang/company, uninstalled
-        # model, …) would roll back the whole batch and be retried unchanged on
-        # every cron tick, indefinitely blocking every other user's scheduled
-        # notifications (poison pill). Commit per schedule and drop failed rows,
-        # mirroring mail.scheduled.message._post_message. skip_existing=True
-        # already guards against re-notifying on replay.
+        # Commit per schedule and drop failed rows (as
+        # mail.scheduled.message._post_message does): a single failing
+        # _notify_thread must not roll back the batch and wedge the queue on every
+        # tick. skip_existing=True guards against re-notifying on replay.
         auto_commit = not modules.module.current_test
         for schedule in messages_scheduled:
             try:
@@ -68,14 +65,9 @@ class MailMessageSchedule(models.Model):
             except Exception as error:
                 if auto_commit:
                     self.env.cr.rollback()
-                # Distinguish a *transient* DB error (serialization failure,
-                # deadlock, lock timeout -- realistic in this concurrent-session
-                # workspace) from a deterministic poison pill (broken template,
-                # recipient with a bad lang, uninstalled model). Dropping the row
-                # on a transient error would silently lose a real message's whole
-                # notification fan-out; leave it in place to retry on the next
-                # tick. Only deterministic failures are dropped, so a single bad
-                # row can still never wedge the queue forever.
+                # Only deterministic failures (broken template, bad lang,
+                # uninstalled model) are dropped. Dropping on a transient DB error
+                # would silently lose a real message's whole notification fan-out.
                 if getattr(error, "sqlstate", None) in PG_CONCURRENCY_ERRORS_TO_RETRY:
                     _logger.warning(
                         "Transient DB error sending scheduled notification %s; "
@@ -118,10 +110,8 @@ class MailMessageSchedule(models.Model):
         """
         for model, schedules in self._group_by_model().items():
             # Resolve the record per schedule: two schedules may share a
-            # mail_message_id, so ``schedules.mapped("mail_message_id.res_id")``
-            # deduplicates and the positional ``zip`` would drop (and then
-            # unlink unsent) the tail schedules. Pre-compute the existing ids
-            # from a single browse for prefetching.
+            # mail_message_id, so a mapped()+zip() would drop the tail ones (and
+            # then unlink them unsent). One browse up front, for prefetching.
             existing_ids = ()
             if model:
                 res_ids = schedules.mapped("mail_message_id.res_id")
@@ -140,10 +130,8 @@ class MailMessageSchedule(models.Model):
                         schedule._deserialize_notification_parameters()
                     )
                 except Exception:
-                    # Fall back to default notify kwargs, but leave a trace: a
-                    # silently-dropped payload means the notification goes out
-                    # with wrong company branding / auto-delete and nothing to
-                    # explain it.
+                    # Fall back to defaults, but leave a trace: a silently-dropped
+                    # payload sends with the wrong company branding / auto-delete.
                     _logger.warning(
                         "Invalid notification_parameters on mail.message.schedule %s; "
                         "using defaults.",
@@ -165,12 +153,11 @@ class MailMessageSchedule(models.Model):
     def _serialize_notification_parameters(self, notify_kwargs):
         """JSON-encode notify kwargs for the ``notification_parameters`` field.
 
-        Some valid notify parameters are recordsets (e.g. ``force_email_company``,
-        a ``res.company``) that ``json.dumps`` cannot serialize; store them as ids
-        so they survive the round-trip through the queue and can be rebuilt on
-        replay by ``_deserialize_notification_parameters``.
+        :rtype: str
         """
         serializable = dict(notify_kwargs)
+        # ``force_email_company`` may be a <res.company>, which json cannot
+        # encode: store its id, rebuilt by _deserialize_notification_parameters.
         company = serializable.get("force_email_company")
         if company is not None and not isinstance(company, (bool, int)):
             serializable["force_email_company"] = company.id
