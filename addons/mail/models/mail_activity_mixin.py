@@ -11,35 +11,26 @@ _logger = logging.getLogger(__name__)
 
 
 class MailActivityMixin(models.AbstractModel):
-    """Mail Activity Mixin is a mixin class to use if you want to add activities
-    management on a model. It works like the mail.thread mixin. It defines
-    an activity_ids one2many field toward activities using res_id and res_model_id.
-    Various related / computed fields are also added to have a global status of
-    activities on documents.
+    """Add activity management to a model, with fields giving a global status.
 
-    A form-view widget (embedded in the Chatter) lets users schedule, edit and
-    mark activities done. A kanban widget (widget="kanban_activity" on
-    activity_ids) manages activities directly from kanban vignettes.
+    Context keys controlling the mixin behavior, useful e.g. on import:
 
-    Some context keys allow to control the mixin behavior. Use those in some
-    specific cases like import
-
-     * ``mail_activity_automation_skip``: skip activities automation; it means
-       no automated activities will be generated, updated or unlinked, allowing
-       to save computation and avoid generating unwanted activities;
+     * ``mail_activity_automation_skip``: skip activities automation, so no
+       automated activity is generated, updated or unlinked;
     """
 
     _name = "mail.activity.mixin"
     _description = "Activity Mixin"
 
     def _default_activity_type(self):
-        """Define a default fallback activity type when requested xml id wasn't found.
+        """Fallback activity type used when the requested xml id was not found.
 
-        Can be overriden to specify the default activity type of a model.
-        It is only called in in activity_schedule() for now.
+        Override to specify the default activity type of a model. Only called
+        from activity_schedule().
         """
         return self.env["mail.activity"]._default_activity_type_for_model(self._name)
 
+    # managed from the Chatter, and in kanban vignettes by widget="kanban_activity"
     activity_ids = fields.One2many(
         "mail.activity",
         "res_id",
@@ -168,10 +159,8 @@ class MailActivityMixin(models.AbstractModel):
 
         reverse_search = False
         if False in search_states:
-            # If we search "activity_state = False", they might be a lot of records
-            # (million for some models), so instead of returning the list of IDs
-            # [(id, 'in', ids)] we will reverse the domain and return something like
-            # [(id, 'not in', ids)], so the list of ids is as small as possible
+            # searching "activity_state = False" can match millions of records, so
+            # reverse the domain to keep the returned list of ids as small as possible
             reverse_search = True
             search_states = all_states - search_states
 
@@ -309,13 +298,10 @@ class MailActivityMixin(models.AbstractModel):
         if alias in query._joins:
             return SQL.identifier(alias, "activity_state")
 
-        # The SQL below reads mail_activity.active and mail_activity.user_tz, so
-        # both must be flushed (mirrors _search_activity_state). The old list
-        # omitted them -> a same-transaction archive/reassign was read stale
-        # (reproduced: an archived activity stayed counted in activity_state
-        # grouping). It also flushed res.users.partner_id / res.partner.tz,
-        # which this query never joins (dead flushes from before user_tz was
-        # denormalized onto the activity).
+        # The SQL below reads mail_activity.active and user_tz, so both must be
+        # flushed (mirrors _search_activity_state) or a same-transaction archive
+        # is read stale. res.users / res.partner are never joined, user_tz being
+        # denormalized onto the activity.
         self.env["mail.activity"].flush_model(
             ["active", "date_deadline", "res_model", "res_id", "user_id", "user_tz"]
         )
@@ -347,6 +333,7 @@ class MailActivityMixin(models.AbstractModel):
 
         return SQL.identifier(alias, "activity_state")
 
+    # Reschedule my next activity to Today
     def action_reschedule_my_next_today(self):
         self.ensure_one()
         my_next_activity = self.activity_ids.filtered(
@@ -354,6 +341,7 @@ class MailActivityMixin(models.AbstractModel):
         )[:1]
         my_next_activity.action_reschedule_today()
 
+    # Reschedule my next activity to Tomorrow
     def action_reschedule_my_next_tomorrow(self):
         self.ensure_one()
         my_next_activity = self.activity_ids.filtered(
@@ -361,6 +349,7 @@ class MailActivityMixin(models.AbstractModel):
         )[:1]
         my_next_activity.action_reschedule_tomorrow()
 
+    # Reschedule my next activity to Next Monday
     def action_reschedule_my_next_nextweek(self):
         self.ensure_one()
         my_next_activity = self.activity_ids.filtered(
@@ -387,14 +376,12 @@ class MailActivityMixin(models.AbstractModel):
         additional_domain=None,
         only_automated=True,
     ):
-        """Search automated activities on current record set, given a list of activity
-        types xml IDs. It is useful when dealing with specific types involved in automatic
-        activities management.
+        """Search activities of the given activity types on the current record set.
 
         :param act_type_xmlids: list of activity types xml IDs
-        :param user_id: if set, restrict to activities of that user_id;
-        :param additional_domain: if set, filter on that domain;
-        :param only_automated: if unset, search for all activities, not only automated ones;
+        :param user_id: if set, restrict to activities of that user_id
+        :param additional_domain: if set, filter on that domain
+        :param only_automated: if unset, search all activities, not only automated ones
         """
         if self.env.context.get("mail_activity_automation_skip"):
             return self.env["mail.activity"]
@@ -432,16 +419,14 @@ class MailActivityMixin(models.AbstractModel):
         self, act_type_xmlid="", date_deadline=None, summary="", note="", **act_values
     ):
         """Schedule an activity on each record of the current record set.
-        This method allow to provide as parameter act_type_xmlid. This is an
-        xml_id of activity type instead of directly giving an activity_type_id.
-        It is useful to avoid having various "env.ref" in the code and allow
-        to let the mixin handle access rights.
 
-        Note that unless specified otherwise in act_values, the activities created
-        will have their "automated" field set to True.
+        Created activities have "automated" set to True unless act_values says
+        otherwise.
 
-        :param date_deadline: the day the activity must be scheduled on
-        the timezone of the user must be considered to set the correct deadline
+        :param act_type_xmlid: xml id of the activity type, taken instead of a raw
+          activity_type_id to avoid "env.ref" in callers
+        :param date_deadline: day the activity must be scheduled on, expressed in
+          the timezone of the user
         """
         if self.env.context.get("mail_activity_automation_skip"):
             return False
@@ -501,9 +486,8 @@ class MailActivityMixin(models.AbstractModel):
         render_context=None,
         **act_values,
     ):
-        """Helper method: Schedule an activity on each record of the current record set.
-        This method allow to the same mecanism as `activity_schedule`, but provide
-        2 additionnal parameters:
+        """Same as `activity_schedule`, rendering the activity note from a qweb view.
+
         :param views_or_xmlid: record of ir.ui.view or string representing the xmlid
             of the qweb template to render
         :type views_or_xmlid: string or recordset
@@ -545,12 +529,9 @@ class MailActivityMixin(models.AbstractModel):
         new_user_id=None,
         only_automated=True,
     ):
-        """Reschedule some automated activities. Activities to reschedule are
-        selected based on type xml ids and optionally by user. Purpose is to be
-        able to
-
-         * update the deadline to date_deadline;
-         * update the responsible to new_user_id;
+        """Reschedule activities selected by type xml ids and optionally by user,
+        updating their deadline to date_deadline and/or their responsible to
+        new_user_id.
         """
         if self.env.context.get("mail_activity_automation_skip"):
             return False

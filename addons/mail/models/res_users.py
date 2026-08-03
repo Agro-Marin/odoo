@@ -12,12 +12,7 @@ _logger = logging.getLogger(__name__)
 
 
 class ResUsers(models.Model):
-    """Update of res.users class
-    - add a preference about sending emails about notifications
-    - make a new user follow itself
-    - add a welcome message
-    - add suggestion preference
-    """
+    """Add notification preferences, out-of-office and personal mail server to users."""
 
     _inherit = "res.users"
 
@@ -90,9 +85,8 @@ class ResUsers(models.Model):
 
     @api.depends("share", "all_group_ids")
     def _compute_notification_type(self):
-        # Triggered by any group change (all_group_ids depends), not just the
-        # inbox group or share flag, so keep it cheap and avoid writes when
-        # neither actually changed.
+        # Recomputed on any group change (all_group_ids), so the filtered_domain
+        # calls below skip records whose notification_type is already correct.
         inbox_group_id = self.env["ir.model.data"]._xmlid_to_res_id(
             "mail.group_mail_notification_type_inbox"
         )
@@ -116,9 +110,9 @@ class ResUsers(models.Model):
 
     @api.depends("out_of_office_from", "out_of_office_to")
     def _compute_is_out_of_office(self):
-        """Out-of-office is considered as activated once out_of_office_from is
-        set in the past. "To" is not mandatory, as users could simply deactivate
-        it when coming back if the leave timerange is unknown."""
+        """Out-of-office is active once out_of_office_from is set in the past."""
+        # "to" is optional: users may simply deactivate OOO when coming back if
+        # the leave timerange is unknown.
         now = self.env.cr.now()
         todo = self.filtered(lambda u: u.out_of_office_from and u._is_internal())
         for user in todo:
@@ -305,15 +299,15 @@ class ResUsers(models.Model):
     def _notify_security_setting_update(
         self, subject, content, mail_values=None, **kwargs
     ):
-        """This method is meant to be called whenever a sensitive update is done on the user's account.
-        It will send an email to the concerned user warning him about this change and making some security suggestions.
+        """Warn the concerned user by email that a sensitive account change occurred.
 
-        :param str subject: The subject of the sent email (e.g: 'Security Update: Password Changed')
-        :param str content: The text to embed within the email template (e.g: 'Your password has been changed')
-        :param kwargs: 'suggest_password_reset' key:
-            Whether or not to suggest the end-user to reset
-            his password in the email sent.
-            Defaults to True."""
+        :param str subject: subject of the sent email
+        :param str content: text embedded in the security alert template
+        :param dict mail_values: optional overrides of the mail.mail values
+        :param kwargs: 'suggest_password_reset' (default True) and 'force_email'
+        :return: the created mails
+        :rtype: recordset
+        """
 
         mail_create_values = []
         for user in self:
@@ -359,9 +353,8 @@ class ResUsers(models.Model):
         try:
             mails.send()
         except Exception:
-            # these are security-sensitive "your account changed" notices; a
-            # delivery failure must not block the underlying change, but leave a
-            # trace so the user/ops are not silently unaware.
+            # a delivery failure must not block the account change it notifies,
+            # but must not pass silently either
             _logger.warning(
                 "Could not send security notification email(s) %s",
                 mails.ids,
@@ -370,7 +363,7 @@ class ResUsers(models.Model):
         return mails
 
     def _notify_security_setting_update_prepare_values(self, content, **kwargs):
-        """ "Prepare rendering values for the 'mail.account_security_alert' qweb template."""
+        """Prepare rendering values for the 'mail.account_security_alert' template."""
         reset_password_enabled = str2bool(
             self.env["ir.config_parameter"]
             .sudo()
@@ -425,9 +418,8 @@ class ResUsers(models.Model):
         return body
 
     def _deactivate_portal_user(self, **post):
-        """Blacklist the email of the user after deleting it.
-
-        Log a note on the related partner so we know why it's archived.
+        """Log on the related partner why the account is archived, and blacklist
+        the user email when 'request_blacklist' is set.
         """
         current_user = self.env.user
         for user in self:
@@ -507,7 +499,7 @@ class ResUsers(models.Model):
                 settings=settings._res_users_settings_format(),
             )
         if guest := self.env["mail.guest"]._get_guest_from_context():
-            # sudo() => adding current guest data is acceptable
+            # sudo: mail.guest - adding current guest data is acceptable
             store.add_global_values(
                 self_guest=Store.One(guest.sudo(), ["avatar_128", "name"])
             )
@@ -515,7 +507,7 @@ class ResUsers(models.Model):
     def _init_messaging(self, store: Store):
         self.ensure_one()
         self = self.with_user(self)
-        # sudo: bus.bus: reading non-sensitive last id
+        # sudo: bus.bus - reading non-sensitive last id
         bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()
         store.add_global_values(
             inbox={
@@ -593,12 +585,9 @@ class ResUsers(models.Model):
                     .with_context(allowed_company_ids=user_company_ids)
                     ._filtered_access("read")
                 )
-            # setdefault, not assignment: activities on unreadable records of
-            # *other* models are counted into the shared "mail.activity" bucket
-            # (model_key below), and model-less activities also key on
-            # "mail.activity". Re-assigning here would zero that bucket when the
-            # "mail.activity" group is iterated after those models, dropping
-            # their counts from the systray total.
+            # setdefault, not assignment: the "mail.activity" bucket is shared by
+            # model-less activities and by activities on unreadable records, so
+            # re-assigning it here would drop counts already collected.
             model_activity_states.setdefault(
                 model_name,
                 {
@@ -674,7 +663,9 @@ class ResUsers(models.Model):
 
     @api.autovacuum
     def _gc_personal_mail_servers(self):
-        """In case the user change their email, we need to delete the old personal servers."""
+        """Delete personal mail servers no longer current for their owner (e.g. email
+        changed) or left archived by an unfinished setup.
+        """
         self.env["ir.mail_server"].with_context(active_test=False).search(
             [("owner_user_id", "!=", False)]
         ).filtered(
