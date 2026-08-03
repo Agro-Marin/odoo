@@ -118,9 +118,8 @@ test("should not apply font size to list item when selection excludes trailing e
 });
 
 test("list padding doubles the marker width for UL but not for OL", async () => {
-    // Same pinned marker, same font size: a UL doubles it, an OL does not.
-    // This is the one asymmetry in adjustListPadding's arithmetic, and it was
-    // previously only observable through environment-dependent pixel values.
+    // Same pinned marker, same font size: a UL doubles it, an OL does not —
+    // the one asymmetry in adjustListPadding's arithmetic.
     pinMarkerWidth(25);
     await testEditor({
         styleContent: pinRootFontSize("16px"),

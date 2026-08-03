@@ -671,7 +671,7 @@ test("should remove multiple color (5)", async () => {
         contentAfter: '<div>ab<font style="background: blue">c</font>[def]gh</div>',
     });
 });
-// TODO: we should avoid <font> element into <font> element when possible
+// TODO: we should avoid a <font> element inside another <font> element when possible
 test.todo("should remove multiple color (6)", async () => {
     await testEditor({
         contentBefore:
