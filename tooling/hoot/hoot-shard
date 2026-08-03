@@ -1,35 +1,10 @@
 #!/bin/sh
 ''':'
-# Self-locating trampoline (sh/python polyglot): re-exec this file with the
-# workspace venv interpreter so no venv path is ever hardcoded. Mirrors the
-# sibling ``hoot`` runner. The checkout root is found by walking up for
-# `odoo-bin` rather than counting directories. Override with
-# $ODOO_VENV_PYTHON when the workspace holds several venvs.
-# NB: no `set --` in here — it would clobber "$@" (the real CLI arguments).
-here="$(cd "$(dirname "$0")" && pwd)"
-root="$here"
-while [ "$root" != "/" ] && [ ! -f "$root/odoo-bin" ]; do root="$(dirname "$root")"; done
-if [ ! -f "$root/odoo-bin" ]; then
-    echo "$(basename "$0"): no odoo-bin above $here; cannot locate the checkout" >&2
-    exit 1
-fi
-ws="$(cd "$root/../.." && pwd)"
-py="${ODOO_VENV_PYTHON:-}"
-if [ -z "$py" ]; then
-    for cand in "$ws"/venv/*/bin/python; do
-        [ -x "$cand" ] || continue
-        if [ -n "$py" ]; then
-        echo "$(basename "$0"): several venvs under $ws/venv; set ODOO_VENV_PYTHON" >&2
-            exit 1
-        fi
-        py="$cand"
-    done
-    if [ -z "$py" ]; then
-        echo "$(basename "$0"): no venv python under $ws/venv; set ODOO_VENV_PYTHON" >&2
-        exit 1
-    fi
-fi
-exec "$py" "$0" "$@"
+# Self-locating sh/python trampoline: re-exec this file with the workspace venv
+# interpreter. The logic is shared — see tooling/_trampoline.sh.
+_t="$(dirname "$0")/../_trampoline.sh"
+[ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
+. "$_t"
 '''
 """Parallel shard wrapper around the warm-server ``hoot`` runner.
 
@@ -61,8 +36,8 @@ reused); shards 1..N-1 use ``hoot_web_s1`` .. ``hoot_web_s{N-1}`` (created +
 ``web``-installed once, in parallel, on first use).
 """
 
-# CLI tool: print() is the user-facing output channel.
-# ruff: noqa: T201
+# CLI tool: print() is the user-facing output channel (T201 is already
+# ignored for tooling/** in ruff.toml, so no per-file directive is needed).
 import argparse
 import contextlib
 import json
@@ -77,17 +52,18 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 HOOT = HERE / "hoot"
 
-sys.path.insert(0, str(HERE))
-import hoot_lib as H  # noqa: E402  (needs HERE on the path)
+sys.path.insert(0, str(HERE))  # hoot_lib lives beside this script
+import hoot_lib as H
+
 WEIGHTS_PATH = HERE / "data" / "hoot_shard_weights.json"
 
+# Colours and the isatty-aware wrapper live in hoot_lib: `hoot-shard` parses
+# `hoot`'s output, so the two agreeing on them is a contract.
 C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
-    "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
+    H.C_GREEN, H.C_RED, H.C_YEL, H.C_DIM, H.C_RST
 )
+_color = H.color
 
-
-def _color(txt: str, code: str) -> str:
-    return f"{code}{txt}{C_RST}" if sys.stdout.isatty() else txt
 
 
 def default_web_suites() -> list[str]:
@@ -122,13 +98,18 @@ DEFAULT_WEIGHT = 30  # unknown suite
 
 
 def load_weights() -> dict:
+    """The measured runtime table, seeded with SEED_WEIGHTS.
+
+    Read-only. It used to write SEED_WEIGHTS to the committed weights file when
+    that file was absent, which put a tracked-file mutation on the path of
+    every `--plan` and every run — a getter with a side effect that shows up in
+    `git status`. `--calibrate` is the one thing that writes here, and it says
+    so on the tin.
+    """
     weights = dict(SEED_WEIGHTS)
     if WEIGHTS_PATH.exists():
-        with contextlib.suppress(ValueError):
+        with contextlib.suppress(ValueError, OSError):
             weights.update(json.loads(WEIGHTS_PATH.read_text()))
-    else:  # persist the seed so it is discoverable and tunable
-        with contextlib.suppress(OSError):
-            WEIGHTS_PATH.write_text(json.dumps(SEED_WEIGHTS, indent=2, sort_keys=True))
     return weights
 
 

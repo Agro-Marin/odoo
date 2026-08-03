@@ -62,12 +62,22 @@ DEFAULT_BASELINE_PATH = (
     Path(__file__).resolve().parent / "baselines" / "doc_link_baseline.json"
 )
 
+# Surfaces where a broken reference actively misleads a reader about how the
+# system works, as opposed to merely rotting. Kept in step with
+# ``doc_link_gate.DEFAULT_SCAN_GLOBS``: every machine_doc tree (not just web's),
+# the workflows, the CLAUDE.md surfaces and the ADRs.
 AUTHORITATIVE_PATHS = (
     "addons/web/machine_doc_v1/",
     ".github/workflows/",
     "CLAUDE.md",
     "addons/web/CLAUDE.md",
+    "doc/adr/",
+    "tooling/",
 )
+
+
+def _is_machine_doc(source_file: str) -> bool:
+    return "/machine_doc_v1/" in source_file
 
 
 @dataclass(frozen=True)
@@ -82,7 +92,9 @@ class FileScore:
 
     @property
     def is_authoritative(self) -> bool:
-        return any(self.source_file.startswith(p) for p in AUTHORITATIVE_PATHS)
+        return _is_machine_doc(self.source_file) or any(
+            self.source_file.startswith(p) for p in AUTHORITATIVE_PATHS
+        )
 
 
 def _ease_for_ref(source_file: str, raw_path: str) -> float:
@@ -150,10 +162,17 @@ def score_files(baseline: dict) -> list[FileScore]:
     return scores
 
 
-def _print_table(rows: list[FileScore], limit: int) -> None:
+def _print_table(rows: list[FileScore], limit: int, *, from_baseline: bool = False) -> None:
     """Pretty-print the ranked list."""
     if not rows:
-        print("(no candidates — baseline is empty?)")
+        # The default source is the LIVE tree, not the baseline — so an empty
+        # result normally means the gate is clean, which is the good outcome
+        # and should not be reported as a suspected empty baseline.
+        print(
+            "(nothing to rank — the committed baseline is empty)"
+            if from_baseline
+            else "(nothing to rank — every .md reference in scope resolves)"
+        )
         return
     name_w = max(len(r.source_file) for r in rows[:limit])
     name_w = min(name_w, 80)
@@ -233,7 +252,7 @@ def _main() -> int:
         f"(top {min(args.limit, total_files)} of {total_files}, "
         f"{total_refs} refs total):\n"
     )
-    _print_table(scores, args.limit)
+    _print_table(scores, args.limit, from_baseline=args.from_baseline)
     return 0
 
 

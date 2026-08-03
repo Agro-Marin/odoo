@@ -199,14 +199,25 @@ def parse_program_files(text: str) -> set[str]:
 
     ``tsc --listFiles`` prints one absolute path per line alongside the
     diagnostics, so a single run yields both halves of the verdict.
+
+    A space is treated as evidence the line is prose rather than a path — but
+    only when the path does not exist. Rejecting every spaced line outright
+    dropped a real file named ``with space.js`` from the program, which the
+    gate then reported as ``unchecked`` and failed on, with a message telling
+    the operator to widen the tsconfig's include/exclude: a true failure with
+    an untrue cause. Existence on disk settles it without letting prose in.
     """
     files = set()
     for raw in text.splitlines():
         line = raw.strip()
-        if not line or " " in line or ERROR_LINE_RE.match(raw):
+        if not line or ERROR_LINE_RE.match(raw):
             continue
-        if line.endswith(PROGRAM_SUFFIXES):
-            files.add(_normalise(line))
+        if not line.endswith(PROGRAM_SUFFIXES):
+            continue
+        normalised = _normalise(line)
+        if " " in line and not (ROOT / normalised).exists():
+            continue
+        files.add(normalised)
     return files
 
 

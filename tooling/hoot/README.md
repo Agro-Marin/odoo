@@ -129,7 +129,7 @@ server and the cached bundle. Ports 8069 and the `wjsaudit` DB are never touched
 
 `hoot-affected` / `hoot --affected` maps changed JS files to the minimal set of
 HOOT suites to run, using a conservative ESM import-scan of the fork's `@addon/…`
-specifiers (see `web/machine_doc_v1/ESM_BUNDLING.md`):
+specifiers (see `addons/web/machine_doc_v1/ESM_BUNDLING.md`):
 
 * a changed `*.test.js` file → its own suite;
 * a changed `src` file → every test file that imports it **directly**, plus test

@@ -306,6 +306,31 @@ class ProgramMembershipTests(unittest.TestCase):
         self.assertEqual(v.unchecked, [files[1]])
         self.assertEqual(v.locked, 1)
 
+    def test_a_path_with_a_space_stays_in_the_program(self):
+        # `--listFiles` lines were rejected outright if they contained a space,
+        # as a way of telling a path from prose. A real file named with a space
+        # then vanished from the program, was reported UNCHECKED, and failed
+        # the gate with a message blaming the tsconfig's include/exclude —
+        # a true failure with an untrue cause. Existence settles it.
+        self.touch(f"{WEB_SRC}with space.js")
+        self.touch(f"{WEB_SRC}plain.js")
+        log = f"{self.root}/{WEB_SRC}plain.js\n{self.root}/{WEB_SRC}with space.js\n"
+        program = scope_gate.parse_program_files(log)
+        self.assertEqual(
+            program, {f"{WEB_SRC}plain.js", f"{WEB_SRC}with space.js"}
+        )
+        v = evaluate_module(
+            "web", {}, [], sorted(program), "exact", program=program
+        )
+        self.assertTrue(v.ok)
+        self.assertEqual(v.locked, 2)
+
+    def test_prose_that_merely_ends_in_a_suffix_is_still_rejected(self):
+        # The other half: a sentence ending in `.ts` must not become a program
+        # entry just because the space rule loosened.
+        log = "error: could not read tsconfig.json\nSome prose about a file.ts\n"
+        self.assertEqual(scope_gate.parse_program_files(log), set())
+
     def test_buckets_partition_the_scope(self):
         # locked + excepted + unchecked must equal the file count: an excepted
         # file that is also uncompiled belongs to one bucket, not two, or the

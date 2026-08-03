@@ -229,9 +229,17 @@ class HOOTCommon(odoo.tests.HttpCase):
         self.hoot_filters = self.get_hoot_filters()
 
     def _generate_hash(self, test_string):
+        # Iterate UTF-16 CODE UNITS: `hoot_utils.js::generateHash` uses
+        # `charCodeAt`, and the browser recomputes the id and keeps only the
+        # jobs that match, so a disagreement selects NOTHING rather than
+        # selecting the wrong thing. `ord()` returns one value above 0xFFFF
+        # where JS returns a surrogate pair, so every astral character
+        # diverged — and two suites really carry one ("hotkeys evil 👹",
+        # "commands evilness 👹"), which were therefore unselectable by id.
         hash_val = 0
-        for char in test_string:
-            hash_val = (hash_val << 5) - hash_val + ord(char)
+        units = test_string.encode("utf-16-le")
+        for i in range(0, len(units), 2):
+            hash_val = (hash_val << 5) - hash_val + (units[i] | units[i + 1] << 8)
             hash_val = hash_val & 0xFFFFFFFF
         return f"{hash_val:08x}"
 
@@ -253,6 +261,14 @@ class HOOTCommon(odoo.tests.HttpCase):
         self.assertEqual(
             self._generate_hash("@web/core/autocomplete/open dropdown on input"),
             "ee565d54",
+        )
+        # An astral character, which JS hashes as a surrogate PAIR. Vector
+        # taken from the real suite `@web/services/hotkey_service` and checked
+        # against `hoot_utils.js::generateHash` under node. Before the UTF-16
+        # iteration this returned d7eaaa1d and the browser matched no job.
+        self.assertEqual(
+            self._generate_hash("@web/services/hotkey_service/hotkeys evil \U0001f479"),
+            "25490ab8",
         )
 
     def test_get_hoot_filter(self):

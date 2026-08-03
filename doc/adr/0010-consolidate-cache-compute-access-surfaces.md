@@ -164,7 +164,7 @@ lighter first step.
 ## Implementation status
 
 - **Steps 1–3: done.** `OrmCore` / `Environment._core` docstrings and
-  `ARCHITECTURE.md` document the curated boundary (step 1);
+  `odoo/ARCHITECTURE.md` document the curated boundary (step 1);
   `Transaction.cache_store` / `compute_engine` are now `_cache_store` /
   `_compute_engine`, with the single external reader (an account test) moved to
   `env._core` (step 2); `TestOrmCoreDelegationDrift` in

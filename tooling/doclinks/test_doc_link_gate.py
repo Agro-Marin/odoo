@@ -54,6 +54,49 @@ class TestScanCoverage:
         files = gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
         assert all(f.is_file() for f in files)
 
+    def test_every_machine_doc_tree_is_covered_not_just_web_s(self):
+        # The scope was four globs over 24 files while SEVEN machine_doc_v1
+        # directories existed, so four genuinely broken references sat in the
+        # six it did not watch. Green meant "those four globs are clean", not
+        # "this repo's docs are clean".
+        files = gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
+        scanned = {f.parent for f in files if f.parent.name == "machine_doc_v1"}
+        on_disk = {p for p in gate.REPO_ROOT.glob("**/machine_doc_v1") if p.is_dir()}
+        on_disk = {p for p in on_disk if "node_modules" not in p.parts}
+        assert scanned == on_disk, f"unwatched machine_doc trees: {on_disk - scanned}"
+
+    def test_third_party_trees_are_excluded(self):
+        files = gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
+        assert not [f for f in files if "node_modules" in f.parts]
+
+
+class TestExcludeMatching:
+    """``**/<dir>/**`` must exclude that directory wherever it sits."""
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "node_modules/ajv/README.md",          # top level — the broken case
+            "addons/web/node_modules/x/README.md",  # nested — the case that worked
+        ],
+    )
+    def test_node_modules_is_excluded_at_any_depth(self, path):
+        assert gate._glob_match(path, "**/node_modules/**")
+
+    def test_a_similarly_named_directory_is_not_excluded(self):
+        assert not gate._glob_match("addons/node_modules_notes/x.md", "**/node_modules/**")
+
+    def test_a_file_named_like_the_directory_is_not_excluded(self):
+        assert not gate._glob_match("doc/node_modules.md", "**/node_modules/**")
+
+    def test_non_directory_patterns_still_use_fnmatch(self):
+        # The fallback keeps fnmatch semantics deliberately, `*` spanning `/`
+        # included — these are exclude patterns, where matching too much is the
+        # safe direction and matching too little is the bug fixed above.
+        assert gate._glob_match("doc/x.md", "doc/*.md")
+        assert gate._glob_match("doc/sub/x.md", "doc/*.md")
+        assert not gate._glob_match("other/x.md", "doc/*.md")
+
 
 class TestBaseline:
     def test_baseline_sits_beside_the_gate(self):

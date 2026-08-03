@@ -1,35 +1,10 @@
 #!/bin/sh
 ''':'
-# Self-locating trampoline (sh/python polyglot): re-exec this file with the
-# workspace venv interpreter so no venv path is ever hardcoded. The checkout
-# root is found by walking up for `odoo-bin` rather than counting directories,
-# so moving this script cannot silently point it at the wrong tree. Override
-# with $ODOO_VENV_PYTHON when the workspace holds several venvs.
-# NB: no `set --` in here — it would clobber "$@" (the real CLI arguments).
-here="$(cd "$(dirname "$0")" && pwd)"
-root="$here"
-while [ "$root" != "/" ] && [ ! -f "$root/odoo-bin" ]; do root="$(dirname "$root")"; done
-if [ ! -f "$root/odoo-bin" ]; then
-    echo "$(basename "$0"): no odoo-bin above $here; cannot locate the checkout" >&2
-    exit 1
-fi
-ws="$(cd "$root/../.." && pwd)"
-py="${ODOO_VENV_PYTHON:-}"
-if [ -z "$py" ]; then
-    for cand in "$ws"/venv/*/bin/python; do
-        [ -x "$cand" ] || continue
-        if [ -n "$py" ]; then
-        echo "$(basename "$0"): several venvs under $ws/venv; set ODOO_VENV_PYTHON" >&2
-            exit 1
-        fi
-        py="$cand"
-    done
-    if [ -z "$py" ]; then
-        echo "$(basename "$0"): no venv python under $ws/venv; set ODOO_VENV_PYTHON" >&2
-        exit 1
-    fi
-fi
-exec "$py" "$0" "$@"
+# Self-locating sh/python trampoline: re-exec this file with the workspace venv
+# interpreter. The logic is shared — see tooling/_trampoline.sh.
+_t="$(dirname "$0")/../_trampoline.sh"
+[ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
+. "$_t"
 '''
 """Print the minimal set of @web/... HOOT suites affected by changed JS files.
 
@@ -50,8 +25,8 @@ Examples
 """
 
 
-# CLI tool: print() is the user-facing output channel.
-# ruff: noqa: T201
+# CLI tool: print() is the user-facing output channel (T201 is already
+# ignored for tooling/** in ruff.toml, so no per-file directive is needed).
 import sys
 from pathlib import Path
 

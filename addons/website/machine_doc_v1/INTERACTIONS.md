@@ -1,6 +1,7 @@
 # Public-Site Interaction Framework
 
-> The website analog of web's `STATE_MANAGEMENT.md`. Where the backend webclient
+> The website analog of web's `addons/web/machine_doc_v1/STATE_MANAGEMENT.md`.
+> Where the backend webclient
 > is an OWL SPA, the public site is **server-rendered HTML animated by
 > Interactions** — small DOM-bound controllers. This doc is the reference for
 > writing, registering, and edit-enabling them.

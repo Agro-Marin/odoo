@@ -49,13 +49,28 @@ from _repo_root import find_odoo_root
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="named_export_coherence")
 
 #: ``import { a, b as c } from "@web/x/y";`` -- brace body plus specifier.
-NAMED_IMPORT_RE = re.compile(r"""import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']""")
+#: The optional leading group covers ``import Default, { a } from "..."``: the
+#: default binding sits between ``import`` and the brace, and without it the
+#: whole statement went unchecked. Zero such imports exist in-tree today, which
+#: is precisely why it would have gone unnoticed the day one appeared.
+NAMED_IMPORT_RE = re.compile(
+    r"""import\s*(?:[A-Za-z_$][\w$]*\s*,\s*)?\{([^}]*)\}\s*from\s*["']([^"']+)["']"""
+)
 #: ``export { a, b as c } from "..."`` / ``export { a, b };``
 NAMED_EXPORT_RE = re.compile(r"""export\s*\{([^}]*)\}""")
-#: ``export function f`` / ``export class C`` / ``export const x`` (may be indented).
+#: ``export function f`` / ``export class C`` / ``export const x`` (may be
+#: indented). ``function\s*\*?`` so the generator star binds either way --
+#: ``export function* g`` and ``export function *g`` are the same declaration,
+#: and treating the second as no export at all would report every importer of
+#: ``g`` as broken.
 DECL_EXPORT_RE = re.compile(
     r"""^[ \t]*export\s+(?:async\s+)?"""
-    r"""(?:function\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)""",
+    # `function* g` and `function *g` are one declaration written two ways; the
+    # star may take the whitespace from either side, so both spellings need
+    # their own alternative rather than an optional `\*?` that then still
+    # demands a space.
+    r"""(?:function\s*\*\s*|function\s+|class\s+|const\s+|let\s+|var\s+)"""
+    r"""([A-Za-z_$][\w$]*)""",
     re.MULTILINE,
 )
 #: ``export const { Modal, Tooltip } = Bootstrap;`` / ``export const [a, b] = ...``

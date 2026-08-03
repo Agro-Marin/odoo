@@ -65,12 +65,15 @@ explicitly marked.
 from __future__ import annotations
 
 import argparse
+import datetime
+import fnmatch
 import json
 import re
 import sys
+from bisect import bisect_right
 from dataclasses import dataclass
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
@@ -85,11 +88,30 @@ DEFAULT_BASELINE_PATH = (
     Path(__file__).resolve().parent / "baselines" / "doc_link_baseline.json"
 )
 
+# Every fork-authored documentation surface in this checkout.
+#
+# It used to be four globs covering 24 files: web's machine_doc, the workflows
+# and two CLAUDE.md. The gate was green, but that was a statement about those
+# four globs and not about the tree — seven `machine_doc_v1/` directories
+# exist and it watched one, so four genuinely broken references (in mail's and
+# website's machine_doc, in an ADR, and in this tooling's own README) sat
+# unseen. Narrowing the gate to THIS REPO is what let it become blocking, and
+# that stays; what widens here is coverage inside the repo, from 24 files to
+# ~72, with the baseline still empty.
+#
+# `doc/adr/*.md` and `doc/*.md`, not `doc/**`: `doc/cla/` is upstream Odoo's
+# and carries upstream's own rot (`sign-cla.md` cites a corporate CLA that was
+# never added). Baselining another project's broken links teaches nobody
+# anything; the fork's ADRs are ours and are worth holding at zero.
 DEFAULT_SCAN_GLOBS = [
-    "addons/web/machine_doc_v1/*.md",
+    "addons/*/machine_doc_v1/*.md",
+    "odoo/**/machine_doc_v1/*.md",
     ".github/workflows/*.yml",
     "CLAUDE.md",
-    "addons/web/CLAUDE.md",
+    "addons/*/CLAUDE.md",
+    "doc/adr/*.md",
+    "doc/*.md",
+    "tooling/**/*.md",
 ]
 
 DEFAULT_EXCLUDES = [
@@ -138,16 +160,13 @@ def _is_placeholder(raw_path: str) -> bool:
     return any(marker in raw_path for marker in PLACEHOLDER_MARKERS)
 
 
-def _is_unverifiable(raw_path: str) -> bool:
-    """Refs this repo cannot check are refs this repo should not be making.
-
-    There used to be an allowlist of sibling-checkout names whose refs were
-    skipped as "may exist in the workspace". That is what let a doc here cite
-    an external tree indefinitely: unverifiable by construction, so never
-    reported, so never removed. A framework fork that stands alone can only
-    point at itself, and a reference it cannot resolve is a reference to fix.
-    """
-    return False
+# There used to be an ``_is_unverifiable`` hook here: an allowlist of
+# sibling-checkout names whose refs were skipped as "may exist in the
+# workspace". That is what let a doc here cite an external tree indefinitely —
+# unverifiable by construction, so never reported, so never removed. A
+# framework fork that stands alone can only point at itself, and a reference it
+# cannot resolve is a reference to fix, so the hook was emptied to `return
+# False` and is now gone entirely rather than left as a no-op in the scan loop.
 
 
 @dataclass(frozen=True)
@@ -178,8 +197,6 @@ def _extract_refs(content: str) -> list[tuple[int, str]]:
             line_starts.append(i + 1)
 
     def _line_of(offset: int) -> int:
-        from bisect import bisect_right
-
         return bisect_right(line_starts, offset)
 
     for pattern in REF_PATTERNS:
@@ -267,12 +284,20 @@ def _glob_files(globs: list[str], excludes: list[str]) -> list[Path]:
 def _glob_match(path: str, pattern: str) -> bool:
     """Minimal glob matcher for negative-exclude paths.
 
-    Path/Path.match() semantics aren't quite right for exclude patterns
-    (they require a full match against a single path component).  For
-    excludes like ``**/node_modules/**`` we want substring-style match.
-    """
-    import fnmatch
+    ``Path.match()`` semantics aren't right for exclude patterns (they require
+    a full match against a single path component), and neither is bare
+    ``fnmatch``: under it ``**/node_modules/**`` needs a literal ``/`` before
+    the name, so it excluded ``a/node_modules/x.md`` and NOT the top-level
+    ``node_modules/x.md``. Every exclude here names a directory that is
+    usually at the root, so all four were inert against the very trees they
+    name — invisible while the scan globs stayed narrow, and a flood of 107
+    third-party violations the moment they widen.
 
+    A ``**/<name>/**`` pattern is therefore matched against path *segments*;
+    anything else falls back to ``fnmatch``.
+    """
+    if pattern.startswith("**/") and pattern.endswith("/**"):
+        return pattern[3:-3] in PurePosixPath(path).parts
     return fnmatch.fnmatch(path, pattern)
 
 
@@ -292,7 +317,7 @@ def scan(
         except OSError, UnicodeDecodeError:
             continue
         for line, raw_path in _extract_refs(content):
-            if _is_placeholder(raw_path) or _is_unverifiable(raw_path):
+            if _is_placeholder(raw_path):
                 continue
             resolved = _resolve_ref(source_file, raw_path)
             if resolved is None:
@@ -338,10 +363,7 @@ def write_baseline(path: Path, violations: list[Violation]) -> dict:
 
 
 def _today_iso() -> str:
-    """Return today's date as YYYY-MM-DD (UTC).  Avoids a datetime import
-    on the hot path; baseline regen is cold so the cost doesn't matter."""
-    import datetime
-
+    """Return today's date as YYYY-MM-DD (UTC)."""
     return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
 
 

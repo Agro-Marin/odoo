@@ -142,3 +142,85 @@ def test_core_still_provides_existing_module():
 
 def test_core_still_provides_false_for_absent_module():
     assert not crc.core_still_provides("@web/core/definitely_not_a_module")
+
+
+# --- git output parsing: paths git does not print verbatim -------------------
+
+
+_ODD_NAMES = ["café.js", "with space.js", "日本語.js", "plain.js"]
+
+
+def _fixture_repo(tmp_path):
+    """A core-shaped repo whose src/ holds names git will quote."""
+    root = tmp_path / "core"
+    src = root / "addons" / "web" / "static" / "src"
+    src.mkdir(parents=True)
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+    git("init", "-q", ".")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    for name in _ODD_NAMES:
+        (src / name).write_text("export const x = 1;\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "init")
+    git("branch", "-M", "19.0-marin")
+    return root, git
+
+
+def test_removed_specifiers_reads_paths_git_would_quote(tmp_path, monkeypatch):
+    # git QUOTES any path outside plain ASCII by default (`core.quotePath`):
+    # deleting src/café.js prints `D\t"addons/web/static/src/caf\303\251.js"`.
+    # The leading quote alone stops `path_to_specifier` matching, so the
+    # removal was dropped and its consumers were never checked — a pre-push
+    # gate reporting "coherent" over the one removal it could not read.
+    root, git = _fixture_repo(tmp_path)
+    for name in _ODD_NAMES:
+        git("rm", "-q", f"addons/web/static/src/{name}")
+    git("commit", "-qm", "remove")
+    monkeypatch.setattr(crc, "ROOT", root)
+    removed = crc.removed_specifiers("19.0-marin~1", "HEAD")
+    assert set(removed) == {f"@web/{n[:-3]}" for n in _ODD_NAMES}
+
+
+def test_a_rename_reports_the_old_path_not_the_new_one(tmp_path, monkeypatch):
+    root, git = _fixture_repo(tmp_path)
+    git("mv", "addons/web/static/src/café.js", "addons/web/static/src/renamed.js")
+    git("commit", "-qm", "rename")
+    monkeypatch.setattr(crc, "ROOT", root)
+    removed = crc.removed_specifiers("19.0-marin~1", "HEAD")
+    assert "@web/café" in removed
+    assert "@web/renamed" not in removed
+
+
+def test_a_rename_does_not_desync_the_records_after_it(tmp_path, monkeypatch):
+    # A rename record is THREE NUL-separated fields (R100, old, new) while a
+    # delete is two. Consuming only two leaves `new` to be read as the next
+    # record's status, shifting everything after it — so a deletion following
+    # a rename silently disappears.
+    root, git = _fixture_repo(tmp_path)
+    git("mv", "addons/web/static/src/café.js", "addons/web/static/src/renamed.js")
+    git("rm", "-q", "addons/web/static/src/plain.js")
+    git("rm", "-q", "addons/web/static/src/日本語.js")
+    git("commit", "-qm", "rename and remove")
+    monkeypatch.setattr(crc, "ROOT", root)
+    removed = crc.removed_specifiers("19.0-marin~1", "HEAD")
+    assert removed.keys() >= {"@web/café", "@web/plain", "@web/日本語"}
+    assert "@web/renamed" not in removed
+
+
+def test_consumer_candidates_are_paths_that_exist(tmp_path):
+    # `git grep -l` quotes too, and the quoted string names no file on disk —
+    # the read then failed and the candidate was skipped by a suppressed
+    # OSError, so the dangling import it held was never reported.
+    root, git = _fixture_repo(tmp_path)
+    (root / "addons/web/static/src/café.js").write_text(
+        'import "@web/gone";\n', encoding="utf-8"
+    )
+    git("add", "-A")
+    git("commit", "-qm", "import")
+    found = crc._consumer_js_files_importing(root, "@web/gone")
+    assert found
+    assert all(path.is_file() for path in found)

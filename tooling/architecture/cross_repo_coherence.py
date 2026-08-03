@@ -142,16 +142,28 @@ def removed_specifiers(from_ref: str, to_ref: str) -> dict[str, str]:
     """Specifiers of core JS modules deleted or renamed away in the range.
 
     Returns ``{specifier: old_path}`` so the report can cite the removal.
+
+    ``-z`` because git QUOTES any path outside plain ASCII by default
+    (``core.quotePath``): deleting ``src/café.js`` prints
+    ``D\\t"addons/web/static/src/caf\\303\\251.js"``, whose leading quote alone
+    stops ``path_to_specifier`` matching, so the removal was dropped and its
+    consumers never checked — a pre-push gate reporting "coherent" over the one
+    removal it could not read. Under ``-z`` the records are NUL-separated and
+    the paths are raw.
     """
     raw = _git(
-        ROOT, "diff", "--name-status", "--diff-filter=DR", f"{from_ref}..{to_ref}"
+        ROOT, "diff", "--name-status", "-z", "--diff-filter=DR", f"{from_ref}..{to_ref}"
     )
     removed: dict[str, str] = {}
-    for line in raw.splitlines():
-        parts = line.split("\t")
-        status = parts[0]
-        # D: ``D\told``. R: ``R100\told\tnew`` — the OLD path's specifier dies.
-        old_path = parts[1] if len(parts) >= 2 else ""
+    fields = [f for f in raw.split("\0") if f]
+    i = 0
+    while i < len(fields):
+        status = fields[i]
+        # D: ``D`` NUL ``old``. R: ``R100`` NUL ``old`` NUL ``new`` — the OLD
+        # path's specifier is the one that dies.
+        width = 3 if status.startswith(("R", "C")) else 2
+        old_path = fields[i + 1] if i + 1 < len(fields) else ""
+        i += width
         if not status.startswith(("D", "R")):
             continue
         spec = path_to_specifier(old_path)
@@ -187,9 +199,13 @@ class Dangling:
 def _consumer_js_files_importing(repo: Path, spec: str) -> list[Path]:
     """Candidate files in ``repo`` whose text mentions ``spec`` (fast prefilter
     via git grep). Comment-only mentions are pruned later by ``collect_imports``.
+
+    ``-z`` for the same reason as :func:`removed_specifiers`: ``git grep -l``
+    quotes a non-ASCII path, and the quoted string names no file on disk, so
+    the read failed and the candidate was skipped by an OSError nobody sees.
     """
-    raw = _git(repo, "grep", "-l", "-F", spec, "--", "*/static/src/*.js")
-    return [repo / line for line in raw.splitlines() if line.strip()]
+    raw = _git(repo, "grep", "-l", "-z", "-F", spec, "--", "*/static/src/*.js")
+    return [repo / name for name in raw.split("\0") if name.strip()]
 
 
 def find_dangling(

@@ -128,15 +128,6 @@ def _interface_name(model_name: str) -> str:
     return "".join(part.capitalize() for part in model_name.split("."))
 
 
-def _module_name_safe(module: str) -> str:
-    """Convert ``"sale_management"`` → ``"sale_management"`` (filesystem-safe).
-
-    Currently a no-op since module names already follow snake_case, but
-    centralized so future renames (hyphen handling, etc.) update here.
-    """
-    return module
-
-
 def _file_name(model_name: str) -> str:
     """Convert ``"sale.order.line"`` → ``"sale_order_line.d.ts"``."""
     return model_name.replace(".", "_") + ".d.ts"
@@ -331,7 +322,7 @@ def generate(
         fields = env[model_name].fields_get()
         content = _model_to_dts(model_name, fields, module)
 
-        target_dir = output_dir / _module_name_safe(module)
+        target_dir = output_dir / module
         target_path = target_dir / _file_name(model_name)
 
         if (clash := claimed.get(target_path)) is not None:

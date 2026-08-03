@@ -10,6 +10,19 @@
 target-version = "py314"
 line-length = 88
 
+# Extension-less executables ruff's own discovery would never find. `odoo-bin`
+# is the famous one; the three hoot runners are 961 lines — 23% of tooling/'s
+# Python — that `ruff check tooling/` reported "All checks passed!" over,
+# because it walks for `*.py`. The gates in tooling/ police this repo, and
+# ruff.yml lints them "at zero"; a fifth of them being invisible to that step
+# is the same fail-open those gates exist to end.
+extend-include = [
+    "odoo-bin",
+    "tooling/hoot/hoot",
+    "tooling/hoot/hoot-shard",
+    "tooling/hoot/hoot-affected",
+]
+
 exclude = [
     ".git",
     ".ruff_cache",
@@ -449,6 +462,14 @@ ignore = [
 
 # CLI/scripts — print() is legitimate user output in CLI commands
 "**/odoo-bin" = ["E402", "T201"]
+# The hoot runners are sh/python polyglots: the file opens with a `#!/bin/sh`
+# trampoline inside a string literal, so every import is legitimately "not at
+# top of file" (E402) and the shebang legitimately is not python (EXE003).
+# Both are properties of the trampoline, not defects — everything else about
+# these files is linted normally.
+"tooling/hoot/hoot" = ["E402", "EXE003"]
+"tooling/hoot/hoot-shard" = ["E402", "EXE003"]
+"tooling/hoot/hoot-affected" = ["E402", "EXE003"]
 "odoo/cli/**" = ["T201"]           # print() is legitimate user output in CLI commands
 "doc/**/*.py" = ["T201"]           # CLA stats script: print() is user-facing output
 "tools/**" = ["T201"]              # FA4 migration scripts: print() is user-facing output
