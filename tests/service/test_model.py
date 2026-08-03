@@ -1,7 +1,7 @@
 """Pure-pytest tests for ``odoo.service.model``.
 
 Covers the mockable, database-free portions of the service layer:
-  - ``Params.__str__()``
+  - ``Params.__str__()`` — deterministic RPC-log rendering
   - ``get_public_method()`` — RPC access-control gate
   - ``_force_lazy_values()`` — recursive lazy-value forcing
   - ``retrying()`` — PostgreSQL serialization-retry loop
@@ -30,6 +30,7 @@ import psycopg.errors
 import pytest
 
 import odoo.http  # noqa: F401 - see below; imported for its side effect
+from odoo.service.model import Params
 
 # ``odoo.http`` is imported for a SIDE EFFECT, not for use: several tests below
 # ``patch("odoo.http")``, which resolves the attribute ``http`` on the ``odoo``
@@ -458,6 +459,32 @@ class TestForceLazyValues:
         for _ in range(sys.getrecursionlimit() + 500):
             deep = [deep]
         mod._force_lazy_values(deep)
+
+
+class TestParamsStr:
+    """``Params.__str__`` sorts kwargs (for stable logs) and preserves args
+    order (positional semantics)."""
+
+    def test_args_preserve_order(self):
+        # args in reversed alphabetical order must remain reversed
+        p = Params(["z", "a", "m"], {})
+        assert str(p) == "'z', 'a', 'm'"
+
+    def test_kwargs_sorted_alphabetically(self):
+        p = Params([], {"z_last": 1, "a_first": 2, "m_middle": 3})
+        assert str(p) == "a_first=2, m_middle=3, z_last=1"
+
+    def test_mixed_args_and_kwargs(self):
+        p = Params(["first", "second"], {"z": 1, "a": 2})
+        assert str(p) == "'first', 'second', a=2, z=1"
+
+    def test_deterministic_across_dict_orderings(self):
+        # Python dicts preserve insertion order — build two dicts with
+        # the same keys in different orders and verify the stringification
+        # is identical.
+        p1 = Params([], dict.fromkeys(["x", "y", "z"], 0))
+        p2 = Params([], dict.fromkeys(["z", "x", "y"], 0))
+        assert str(p1) == str(p2)
 
 
 class TestRetrying:
@@ -903,6 +930,188 @@ class TestRetrying:
                 mod.retrying(lambda: "ok", mock_env)
 
 
+class TestRequestIsResetForReplay:
+    """A retried request must be reset through the request's own
+    ``_reset_for_replay`` — the same hook the RO->RW cursor upgrade uses, so the
+    two replay paths cannot drift.
+
+    The guard is ``if reset is not None``, because ``retrying`` also serves
+    non-HTTP callers (``bus.websocket`` passes a request object with no such
+    method).  Nothing asserted either half: the sibling tests use a
+    ``MagicMock`` request, which auto-creates every attribute, so they never
+    distinguish "the hook ran" from "the hook was skipped" — confirmed by
+    mutation, flipping the guard to ``is None`` left the suite green.
+    """
+
+    @staticmethod
+    def _retry_once(mod, mock_env, request):
+        exc = psycopg.errors.SerializationFailure()
+        exc.sqlstate = "40001"
+        calls = 0
+
+        def func():
+            nonlocal calls
+            calls += 1
+            if calls < 2:
+                raise exc
+            return "ok"
+
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.http.helpers.rewind_uploaded_files"),
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
+            mock_http.request = request
+            mock_random.uniform.return_value = 0.0
+            assert mod.retrying(func, mock_env) == "ok"
+
+    def test_the_replay_hook_is_invoked_on_retry(self, mod, mock_env):
+        request = MagicMock()
+        request._get_session_and_dbname.return_value = ("s", "db")
+        self._retry_once(mod, mock_env, request)
+        request._reset_for_replay.assert_called_once_with()
+
+    def test_a_request_without_the_hook_does_not_crash_the_retry(self, mod, mock_env):
+        """``bus.websocket``'s request object has no ``_reset_for_replay``; the
+        retry must proceed rather than raising ``TypeError`` from the guard."""
+        request = MagicMock(spec=["_get_session_and_dbname", "httprequest", "session"])
+        request._get_session_and_dbname.return_value = ("s", "db")
+        assert not hasattr(request, "_reset_for_replay")
+        self._retry_once(mod, mock_env, request)  # must not raise
+
+
+class TestIntegrityErrorPicksTheRightModel:
+    """The friendly ``ValidationError`` is built from the model whose ``_table``
+    matches the failing constraint's — ``exc.diag.table_name == rclass._table``.
+
+    Every existing test registers exactly ONE model in ``env.registry.values()``
+    and has ``env[...]`` return that same mock regardless of the key, so the
+    lookup could not be wrong: confirmed by mutation, flipping that ``==`` to
+    ``!=`` left the suite green.  With several models registered — which is the
+    real shape of a registry — the comparison is load-bearing again.
+    """
+
+    @staticmethod
+    def _model(name, table, message):
+        m = MagicMock()
+        m._name = name
+        m._table = table
+        m._sql_error_to_message.return_value = message
+        return m
+
+    def _run(self, mod, mock_env, failing_table):
+        partner = self._model("res.partner", "res_partner", "partner says no")
+        invoice = self._model("account.move", "account_move", "invoice says no")
+        base = self._model("base", "base", "base says no")
+        by_name = {m._name: m for m in (partner, invoice, base)}
+
+        mock_env.registry.values.return_value = [partner, invoice]
+        mock_env.__getitem__ = MagicMock(side_effect=by_name.__getitem__)
+
+        def func():
+            raise _FakeIntegrityError(table_name=failing_table)
+
+        with patch("odoo.http") as mock_http:
+            mock_http.request = None
+            with pytest.raises(Exception) as excinfo:
+                mod.retrying(func, mock_env)
+        return str(excinfo.value), by_name
+
+    def test_the_matching_model_formats_the_message(self, mod, mock_env):
+        message, _ = self._run(mod, mock_env, "account_move")
+        assert "invoice says no" in message
+        assert "partner says no" not in message
+
+    def test_a_different_constraint_selects_a_different_model(self, mod, mock_env):
+        message, _ = self._run(mod, mock_env, "res_partner")
+        assert "partner says no" in message
+        assert "invoice says no" not in message
+
+    def test_only_the_matching_model_is_asked_to_format(self, mod, mock_env):
+        _message, by_name = self._run(mod, mock_env, "account_move")
+        by_name["account.move"]._sql_error_to_message.assert_called_once()
+        by_name["res.partner"]._sql_error_to_message.assert_not_called()
+
+    def test_an_unknown_table_falls_back_to_base(self, mod, mock_env):
+        """A constraint on a table no registered model owns still produces a
+        message rather than an ``IndexError`` or a raw driver error."""
+        message, _by_name = self._run(mod, mock_env, "some_table_nobody_owns")
+        assert "base says no" in message
+
+
+class TestConcurrencyBackoffSchedule:
+    """The retry wait is ``uniform(0, min(2**tryno, MAX_CONCURRENCY_BACKOFF_SECONDS))``.
+
+    The cron worker's equivalent schedule IS pinned exactly
+    (``[2, 4, 8, 16, 32, 60, 60]`` in ``test_server``), but this one was not:
+    every other test here stubs ``random.uniform`` and asserts only its CALL
+    COUNT, so the bound it is handed was never looked at.
+
+    Worth stating plainly, because it is not what the expression looks like:
+    at the shipped cap of 2.0 s the exponential is INERT.  ``2**tryno`` is 2 on
+    the very first retry, so ``min(...)`` clamps every attempt to 2.0 and the
+    schedule is flat-with-jitter, not exponential-with-ceiling.  That also makes
+    ``2**tryno`` -> ``3**tryno`` an equivalent mutation — it survives a mutation
+    sweep, and correctly so; there is nothing here to catch.  These tests
+    therefore pin the behaviour that EXISTS (a bounded, jittered wait) rather
+    than a growth curve the cap forbids.  If the cap is ever raised, the first
+    test starts asserting a real curve without being touched.
+    """
+
+    def _bounds(self, mod, tx, mock_env):
+        exc = psycopg.errors.SerializationFailure()
+        exc.sqlstate = "40001"
+        bounds = []
+
+        def func():
+            raise exc
+
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
+            mock_http.request = None
+            mock_random.uniform.side_effect = lambda lo, hi: (
+                bounds.append((lo, hi)) or 0.0
+            )
+            with suppress(psycopg.errors.SerializationFailure):
+                mod.retrying(func, mock_env)
+        return bounds
+
+    def test_the_bound_doubles_each_attempt_up_to_the_cap(self, mod, tx, mock_env):
+        bounds = self._bounds(mod, tx, mock_env)
+        assert bounds, "no backoff was computed at all"
+        cap = tx.MAX_CONCURRENCY_BACKOFF_SECONDS
+        expected = [
+            (0.0, min(2**n, cap)) for n in range(1, tx.MAX_TRIES_ON_CONCURRENCY_FAILURE)
+        ]
+        assert bounds == expected
+
+    def test_the_backoff_is_jittered_from_zero(self, mod, tx, mock_env):
+        """``uniform(0, bound)`` rather than ``sleep(bound)``: without the
+        jitter every worker contending on the same row retries in lockstep and
+        collides again.  The lower bound must stay 0, not the previous wait."""
+        bounds = self._bounds(mod, tx, mock_env)
+        assert bounds
+        assert all(lo == 0.0 for lo, _hi in bounds)
+
+    def test_no_wait_ever_exceeds_the_cap(self, mod, tx, mock_env):
+        """The property the cap exists for: a request retried to exhaustion adds
+        at most ``MAX_TRIES - 1`` waits of ``cap`` seconds to its own latency."""
+        bounds = self._bounds(mod, tx, mock_env)
+        cap = tx.MAX_CONCURRENCY_BACKOFF_SECONDS
+        assert all(hi <= cap for _lo, hi in bounds), bounds
+
+    def test_one_wait_per_retry_and_none_after_the_last(self, mod, tx, mock_env):
+        """Pairs the bound with the retry it precedes — the count assertion
+        elsewhere is on ``time.sleep``, which says nothing about how many bounds
+        were computed."""
+        bounds = self._bounds(mod, tx, mock_env)
+        assert len(bounds) == tx.MAX_TRIES_ON_CONCURRENCY_FAILURE - 1
+
+
 class TestRetryVocabularyMatchesPostgres:
     """The retry SQLSTATE set and exception-class tuple must stay in sync with
     each other AND with psycopg's own SQLSTATE→class mapping.
@@ -1052,24 +1261,23 @@ class TestRetryingRequestSideEffects:
 
 
 @pytest.fixture()
-def _restore_rpc_model_method():
-    """Restore ``current_thread().rpc_model_method`` after the test.
+def owns_rpc_model_method(monkeypatch):
+    """Declare that this test OWNS ``current_thread().rpc_model_method``.
 
-    ``execute_cr`` stamps it on whichever thread runs the call, which under
-    pytest is the MainThread — so without this the label of the last RPC test
-    leaks into every later test and into the runner's own log records.
+    ``execute_cr`` stamps the label on whichever thread runs the call, which
+    under pytest is the MainThread — so without this it leaks into every later
+    test and into the runner's own log records.
+
+    ``monkeypatch`` owns the teardown, which is what ``conftest``'s
+    ``_no_global_state_leak`` failure message asks for.  This was a hand-rolled
+    save/restore, byte-identical to a second copy in ``test_server.py``; both
+    are gone.  Deliberately opt-in, never ``autouse``: an ``autouse`` restore
+    disarms the guard for every test in the file, including the ones leaking by
+    accident (which is exactly what had happened in ``test_server.py``).
     """
-    thread = threading.current_thread()
-    missing = object()
-    before = getattr(thread, "rpc_model_method", missing)
-    try:
-        yield
-    finally:
-        if before is missing:
-            with suppress(AttributeError):
-                del thread.rpc_model_method
-        else:
-            thread.rpc_model_method = before
+    monkeypatch.setattr(
+        threading.current_thread(), "rpc_model_method", None, raising=False
+    )
 
 
 class TestExecuteCr:
@@ -1107,14 +1315,14 @@ class TestExecuteCr:
             result = mod.execute_cr(cr, 7, "res.partner", "read", [[1]], {})
         return result, cr, env, retry
 
-    def test_cursor_is_reset_before_the_call(self, mod, _restore_rpc_model_method):
+    def test_cursor_is_reset_before_the_call(self, mod, owns_rpc_model_method):
         """A retried request reuses the cursor; stale caches from the previous
         attempt must not survive into this one."""
         _result, cr, _env, _retry = self._run(mod)
         cr.reset.assert_called_once_with()
 
     def test_result_is_passed_through_force_lazy_values(
-        self, mod, _restore_rpc_model_method
+        self, mod, owns_rpc_model_method
     ):
         """The regression the mutation exposed: the forcing must actually happen."""
         cr = MagicMock()
@@ -1130,7 +1338,7 @@ class TestExecuteCr:
         assert out is sentinel, "execute_cr returned the unforced result"
 
     def test_a_real_lazy_in_the_result_is_materialised(
-        self, mod, _restore_rpc_model_method
+        self, mod, owns_rpc_model_method
     ):
         """End-to-end through the real ``_force_lazy_values``.
 
@@ -1163,7 +1371,7 @@ class TestExecuteCr:
             )
         assert out == {"total": 42}
 
-    def test_unknown_model_raises_user_error(self, mod, _restore_rpc_model_method):
+    def test_unknown_model_raises_user_error(self, mod, owns_rpc_model_method):
         """``env.get`` returning ``None`` is "no such model"; it must not fall
         through to ``retrying`` with ``None`` as the recordset."""
         from odoo.exceptions import UserError
@@ -1178,7 +1386,7 @@ class TestExecuteCr:
                 mod.execute_cr(cr, 7, "no.such.model", "read", [[1]], {})
         retry.assert_not_called()
 
-    def test_the_call_is_routed_through_retrying(self, mod, _restore_rpc_model_method):
+    def test_the_call_is_routed_through_retrying(self, mod, owns_rpc_model_method):
         """``call_kw`` must not be invoked directly — the serialization-retry
         loop is the whole reason this indirection exists."""
         _result, _cr, env, retry = self._run(mod)
@@ -1188,15 +1396,13 @@ class TestExecuteCr:
         assert thunk.func is mod.call_kw
         assert thunk.args[1:] == ("read", [[1]], {})
 
-    def test_thread_is_labelled_with_model_and_method(
-        self, mod, _restore_rpc_model_method
-    ):
+    def test_thread_is_labelled_with_model_and_method(self, mod, owns_rpc_model_method):
         """The label the request log and ``rpc_model_method`` fragment read."""
         self._run(mod)
         assert threading.current_thread().rpc_model_method == "res.partner.read"
 
     def test_environment_is_built_under_the_caller_uid(
-        self, mod, _restore_rpc_model_method
+        self, mod, owns_rpc_model_method
     ):
         cr = MagicMock()
         env = self._env(MagicMock())
@@ -1253,6 +1459,60 @@ class TestCallKw:
         with patch.object(mod, "get_public_method", return_value=method):
             with pytest.raises(AccessError):
                 mod.call_kw(model, "write", [], {})
+
+    def test_ids_are_split_off_and_the_rest_stay_positional(self, mod):
+        """``ids, args = args[0], args[1:]`` — the FIRST param is the id list and
+        everything after it is forwarded verbatim.
+
+        Found by mutation: ``args[2:]`` — which silently drops the first real
+        argument of every non-``@api.model`` RPC call, e.g. the vals dict of a
+        ``write`` — left the suite green.  The existing tests all pass a single
+        param, where ``[1:]`` and ``[2:]`` are both empty.
+        """
+        method = MagicMock(__name__="write", return_value=True)
+        del method._api_model
+        model = self._model()
+        with patch.object(mod, "get_public_method", return_value=method):
+            mod.call_kw(model, "write", [[7, 8], {"name": "x"}, "extra"], {})
+        model.browse.assert_called_once_with([7, 8])
+        recs = model.browse.return_value.with_context.return_value
+        method.assert_called_once_with(recs, {"name": "x"}, "extra")
+
+    def test_the_caller_context_reaches_the_recordset(self, mod):
+        """``kwargs.pop("context", None) or {}`` then ``with_context(...)``.
+
+        Found by mutation: turning that ``or`` into ``and`` left the suite green
+        — and it is not a cosmetic change.  With ``and``, a caller-supplied
+        context evaluates to ``{}``, so every RPC call would silently lose its
+        ``lang``, ``tz`` and ``allowed_company_ids``; and a call with no context
+        passes ``None``, which is not a mapping.
+        """
+        method = MagicMock(__name__="read", return_value=[])
+        del method._api_model
+        model = self._model()
+        ctx = {"lang": "es_MX", "tz": "America/Mexico_City"}
+        with patch.object(mod, "get_public_method", return_value=method):
+            mod.call_kw(model, "read", [[1]], {"context": ctx})
+        model.browse.return_value.with_context.assert_called_once_with(ctx)
+
+    def test_a_missing_context_becomes_an_empty_dict_not_none(self, mod):
+        method = MagicMock(__name__="read", return_value=[])
+        del method._api_model
+        model = self._model()
+        with patch.object(mod, "get_public_method", return_value=method):
+            mod.call_kw(model, "read", [[1]], {})
+        model.browse.return_value.with_context.assert_called_once_with({})
+
+    def test_context_is_not_forwarded_as_a_keyword_argument(self, mod):
+        """It is POPPED: an ORM method must not also receive ``context=`` in
+        ``**kwargs``, which most signatures would reject outright."""
+        method = MagicMock(__name__="read", return_value=[])
+        del method._api_model
+        model = self._model()
+        with patch.object(mod, "get_public_method", return_value=method):
+            mod.call_kw(model, "read", [[1]], {"context": {"lang": "en"}, "load": "_"})
+        assert "context" not in method.call_args.kwargs
+        assert method.call_args.kwargs == {"load": "_"}
 
     def test_create_without_vals_raises_accesserror_before_calling(self, mod):
         """The ``create`` arity guard must run BEFORE the ORM method.
@@ -1404,6 +1664,125 @@ class TestDispatchValidation:
         with pytest.raises(AccessDenied):
             mod.dispatch("execute", ["db", 1, "", "res.partner", "read", [1]])
 
+    def test_exactly_five_params_is_enough_for_execute(self, mod):
+        """The arity guard is ``len(params) < 5``, so FIVE is the legal minimum.
+
+        Found by mutation: both ``<= 5`` and ``< 6`` — each of which rejects a
+        perfectly well-formed ``execute`` call carrying no method arguments
+        (``res.users.context_get`` is exactly this shape) — left the whole suite
+        green.  The only arity test passed three params, so it could not see
+        either side of the boundary.
+
+        Driven to the point where the guard is behind us: a passing call reaches
+        ``Registry``, which we make raise a sentinel.
+        """
+        with patch.object(mod, "Registry", side_effect=RuntimeError("past the guard")):
+            with pytest.raises(RuntimeError, match="past the guard"):
+                mod.dispatch("execute", ["db", 1, "pw", "res.partner", "read"])
+
+    def test_four_params_is_still_too_few(self, mod):
+        with pytest.raises(TypeError, match="at least 5"):
+            mod.dispatch("execute", ["db", 1, "pw", "res.partner"])
+
+
+class TestDispatchExecuteVersusExecuteKw:
+    """``execute`` and ``execute_kw`` differ only in how the trailing params are
+    shaped: ``execute`` passes them straight through with NO keyword arguments,
+    ``execute_kw`` unpacks ``(args, kw)``.
+
+    Nothing exercised that branch.  Every existing ``dispatch`` test stops at a
+    validation guard or at ``Registry``, so the whole body after it was
+    unreachable in tests: confirmed by mutation, inverting
+    ``if dispatch_method == "execute"`` left the suite green — which means an
+    ``execute`` call could have started being shaped like an ``execute_kw`` one
+    (``args, kw = args`` on a 2-element arg list, silently swallowing the second
+    argument as kwargs) with nothing to say so.
+    """
+
+    @staticmethod
+    def _driven(mod, verb, params):
+        """Run ``dispatch`` far enough to capture what ``execute_cr`` receives."""
+        seen = {}
+
+        def fake_execute_cr(cr, uid, model, method, args, kw):
+            seen.update(uid=uid, model=model, method=method, args=args, kw=kw)
+            return "ok"
+
+        registry = MagicMock()
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        registry.check_signaling.return_value = registry
+        registry.cursor.return_value = cursor
+
+        with (
+            patch.object(mod, "Registry", return_value=registry),
+            patch.object(mod, "execute_cr", fake_execute_cr),
+            patch("odoo.api.Environment"),
+        ):
+            result = mod.dispatch(verb, params)
+        return result, seen
+
+    def test_execute_passes_its_arguments_through_with_no_kwargs(self, mod):
+        _result, seen = self._driven(
+            mod, "execute", ["db", 1, "pw", "res.partner", "read", [7], ["name"]]
+        )
+        assert seen["args"] == [[7], ["name"]], (
+            "execute must forward every trailing param as positional args"
+        )
+        assert seen["kw"] == {}, "execute takes no keyword arguments"
+
+    def test_execute_kw_unpacks_args_and_kw(self, mod):
+        _result, seen = self._driven(
+            mod,
+            "execute_kw",
+            ["db", 1, "pw", "res.partner", "read", [7], {"context": {"lang": "en"}}],
+        )
+        assert seen["args"] == [7]
+        assert seen["kw"] == {"context": {"lang": "en"}}
+
+    def test_execute_kw_defaults_missing_kw_to_an_empty_dict(self, mod):
+        _result, seen = self._driven(
+            mod, "execute_kw", ["db", 1, "pw", "res.partner", "read", [7]]
+        )
+        assert seen["args"] == [7]
+        assert seen["kw"] == {}
+
+    def test_execute_kw_treats_an_explicit_none_kw_as_empty(self, mod):
+        _result, seen = self._driven(
+            mod, "execute_kw", ["db", 1, "pw", "res.partner", "read", [7], None]
+        )
+        assert seen["kw"] == {}
+
+    def test_the_credentials_are_checked_before_the_call(self, mod):
+        """``_check_uid_passwd`` runs inside the registry's cursor, before
+        ``execute_cr`` — the only thing standing between an ``auth="none"``
+        endpoint and the ORM."""
+        from odoo.exceptions import AccessDenied
+
+        registry = MagicMock()
+        cursor = MagicMock()
+        cursor.__enter__ = MagicMock(return_value=cursor)
+        cursor.__exit__ = MagicMock(return_value=False)
+        registry.check_signaling.return_value = registry
+        registry.cursor.return_value = cursor
+
+        users = MagicMock()
+        users._check_uid_passwd.side_effect = AccessDenied
+        env = MagicMock()
+        env.__getitem__ = MagicMock(return_value=users)
+
+        with (
+            patch.object(mod, "Registry", return_value=registry),
+            patch.object(mod, "execute_cr") as execute_cr,
+            patch("odoo.api.Environment", return_value=env),
+        ):
+            with pytest.raises(AccessDenied):
+                mod.dispatch("execute", ["db", 1, "bad", "res.partner", "read"])
+        execute_cr.assert_not_called()
+
+
+class TestDispatchArgShape:
     def test_execute_kw_bad_arg_shape_raises_typeerror(self, mod):
         with patch.object(mod, "Registry") as reg:
             reg.return_value.check_signaling.return_value = reg.return_value

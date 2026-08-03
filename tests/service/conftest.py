@@ -74,30 +74,40 @@ def _no_global_state_leak():
     been bitten by.  Threads are excluded on purpose — several tests legitimately
     leave a bounded stderr-drain thread behind, so watching them would mean
     encoding exceptions here instead of catching real leaks.
+
+    A guard is only armed if nothing downstream disarms it.  ``test_server.py``
+    used to install an ``autouse`` fixture that restored ``rpc_model_method``
+    for all 266 of its tests; conftest fixtures are OUTER, so that restore tore
+    down first and this check could never observe a leak in the suite's largest
+    file — where one (the ``log_handler`` fixture) was in fact live.  Tests that
+    genuinely own one of these names must say so with ``monkeypatch``, per the
+    message below, never with a blanket restore.
     """
     from odoo.service import lifecycle
 
     thread = threading.current_thread()
     missing = object()
-    before = {
-        "lifecycle.server": lifecycle.server,
-        "lifecycle.server_phoenix": lifecycle.server_phoenix,
-        "current_thread().name": thread.name,
-        "current_thread().rpc_model_method": getattr(
-            thread, "rpc_model_method", missing
-        ),
-    }
+
+    def snapshot():
+        return {
+            "lifecycle.server": lifecycle.server,
+            "lifecycle.server_phoenix": lifecycle.server_phoenix,
+            "current_thread().name": thread.name,
+            "current_thread().rpc_model_method": getattr(
+                thread, "rpc_model_method", missing
+            ),
+            # Stamped by ``_listen_thread`` on whichever thread drives it (the
+            # MainThread, under pytest) and read by ``ThreadedServer.process_limit``
+            # to decide a thread is over its time limit.  Leaked, it makes every
+            # later reader see a permanently over-limit thread.
+            "current_thread().start_time": getattr(thread, "start_time", missing),
+        }
+
+    before = snapshot()
 
     yield
 
-    after = {
-        "lifecycle.server": lifecycle.server,
-        "lifecycle.server_phoenix": lifecycle.server_phoenix,
-        "current_thread().name": thread.name,
-        "current_thread().rpc_model_method": getattr(
-            thread, "rpc_model_method", missing
-        ),
-    }
+    after = snapshot()
     leaked = {k: (before[k], after[k]) for k in before if before[k] is not after[k]}
     # `is not` above catches identity changes; fall back to equality so an equal
     # but freshly-built value (a new str with the same text) is not a false positive.

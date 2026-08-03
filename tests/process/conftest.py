@@ -41,6 +41,8 @@ from pathlib import Path
 import psutil
 import pytest
 
+from .._pg import pg_reachable
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ODOO_BIN = REPO_ROOT / "odoo-bin"
 
@@ -49,25 +51,35 @@ ODOO_BIN = REPO_ROOT / "odoo-bin"
 # failure that teaches nobody anything.
 BOOT_TIMEOUT_S = 90.0
 
+# Plain markers resolved by the autouse fixture below, not eager ``skipif``
+# conditions: a ``skipif`` argument runs when the decorator does, i.e. during
+# collection, so merely listing this suite paid a real connect attempt.  The
+# probe itself is shared with ``tests/contract`` (it used to exist here in a
+# second, subtly different copy) and cached, so both suites in one invocation
+# cost one connect rather than two.  See ``tests/_pg``.
+requires_pg = pytest.mark.requires_pg
+requires_posix = pytest.mark.requires_posix
 
-def _pg_reachable() -> bool:
-    try:
-        import psycopg
+_REQUIREMENTS = {
+    "requires_pg": (pg_reachable, "process suite needs a reachable PostgreSQL"),
+    "requires_posix": (
+        lambda: os.name == "posix",
+        "process suite exercises POSIX fork/signal behaviour",
+    ),
+}
 
-        psycopg.connect(dbname="postgres", connect_timeout=5).close()
-    except Exception:
-        return False
-    return True
+
+def pytest_configure(config):
+    for name in _REQUIREMENTS:
+        config.addinivalue_line("markers", f"{name}: needs that external dependency")
 
 
-PG_REACHABLE = _pg_reachable()
-
-requires_pg = pytest.mark.skipif(
-    not PG_REACHABLE, reason="process suite needs a reachable PostgreSQL"
-)
-requires_posix = pytest.mark.skipif(
-    os.name != "posix", reason="process suite exercises POSIX fork/signal behaviour"
-)
+@pytest.fixture(autouse=True)
+def _skip_without_dependencies(request):
+    """Skip a test whose external dependency is absent — resolved lazily."""
+    for name, (available, reason) in _REQUIREMENTS.items():
+        if request.node.get_closest_marker(name) and not available():
+            pytest.skip(reason)
 
 
 def free_port() -> int:

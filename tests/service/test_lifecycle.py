@@ -1,10 +1,23 @@
-"""Pure-pytest tests for ``odoo.service.lifecycle``'s startup checks.
+"""Pure-pytest tests for ``odoo.service.lifecycle``.
+
+Startup checks (the connection budget, the test-spec narrowing rule,
+``preload_registries``' exit code) plus the process-lifetime surface:
+``restart``, ``_reexec``, the watcher cleanup on ``start``'s error path, and
+the ``server`` / ``server_phoenix`` single-source-of-truth invariants.
+
+That second half was filed in ``test_server.py`` — which had reached 60
+classes spanning 11 modules — even though this file already existed and is
+where anyone would look for it.
 
 Run with::
 
     python -m pytest tests/service/test_lifecycle.py -v
 """
 
+import errno
+import os
+import signal
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,6 +27,20 @@ import pytest
 def mod():
     """Return ``odoo.service.lifecycle``, imported once per session."""
     import odoo.service.lifecycle as m
+
+    return m
+
+
+@pytest.fixture(scope="module")
+def srv():
+    """The ``odoo.service.server`` façade.
+
+    The classes moved here from ``test_server.py`` were written against it.
+    ``restart`` and the phoenix flags are re-exported from ``lifecycle``, so the
+    façade is what pins that they are reachable under both names — which is
+    exactly what ``TestServerPhoenixSingleSourceOfTruth`` asserts.
+    """
+    import odoo.service.server as m
 
     return m
 
@@ -353,3 +380,261 @@ class TestPreloadRegistriesReturnCode:
             [f"db{i}" for i in range(40)], report=make_report()
         )
         assert registry_cls.registries.count >= 40
+
+
+class TestReexecNtServiceRestart:
+    """``_reexec`` must not start a SECOND server after the SCM restarted one.
+
+    On Windows the SCM branch runs ``net stop && net start`` and then fell
+    through to ``os.execve``.  When the SCM restart succeeds a fresh instance is
+    already coming up, so the re-exec would put two servers on the same port and
+    database.  When it FAILS, falling through is the right fallback — otherwise
+    the operator gets a reload that silently did nothing.
+    """
+
+    def _run(self, scm_returncode):
+        from odoo.service import lifecycle
+
+        with (
+            patch.object(
+                lifecycle.osutil, "is_running_as_nt_service", return_value=True
+            ),
+            patch.object(
+                lifecycle.subprocess, "call", return_value=scm_returncode
+            ) as mock_call,
+            patch.object(lifecycle.os, "execve") as mock_execve,
+        ):
+            lifecycle._reexec()
+        return mock_call, mock_execve
+
+    def test_successful_scm_restart_does_not_also_reexec(self):
+        mock_call, mock_execve = self._run(0)
+        mock_call.assert_called_once()
+        mock_execve.assert_not_called()
+
+    def test_failed_scm_restart_falls_back_to_reexec(self):
+        mock_call, mock_execve = self._run(2)
+        mock_call.assert_called_once()
+        mock_execve.assert_called_once()
+
+
+class TestServerPhoenixSingleSourceOfTruth:
+    """``server`` and ``server_phoenix`` live only in ``lifecycle``.
+
+    Regression: ``server.py`` used to expose them via a module ``__getattr__``
+    forwarding to ``lifecycle``.  Because module ``__getattr__`` only fires for
+    *absent* names, a single ``server.server_phoenix = X`` assignment created a
+    real attribute that shadowed the forwarder permanently, silently desyncing
+    later reads from ``lifecycle``.  The shim was removed; these tests pin that.
+    """
+
+    def test_lifecycle_is_the_canonical_holder(self):
+        from odoo.service import lifecycle
+
+        assert hasattr(lifecycle, "server")
+        assert hasattr(lifecycle, "server_phoenix")
+
+    def test_server_module_does_not_forward_phoenix(self, srv):
+        # No forwarding ``__getattr__`` -> the name is simply absent here, so a
+        # stray ``server.server_phoenix = X`` can never masquerade as canonical.
+        with pytest.raises(AttributeError):
+            _ = srv.server_phoenix
+
+    def test_server_module_does_not_forward_server(self, srv):
+        with pytest.raises(AttributeError):
+            _ = srv.server
+
+
+# ---------------------------------------------------------------------------
+# WorkerCron._connect_postgres()
+# ---------------------------------------------------------------------------
+
+
+class TestLifecycleStartWatcherCleanup:
+    """``lifecycle.start`` must stop the autoreload watcher even when the
+    server's ``run()`` raises (e.g. a port-bind ``OSError`` surfacing from
+    ``http_spawn``).
+
+    Without a ``try/finally`` around ``server.run`` the watcher thread and its
+    inotify kernel watches leak, and ``FSWatcherInotify.stop``'s
+    ``del self.watcher`` — documented as freeing the watches before a reexec —
+    never runs.
+    """
+
+    def test_watcher_stopped_when_server_run_raises(self):
+        import odoo
+        from odoo.service import lifecycle
+
+        mock_server = MagicMock()
+        mock_server.run.side_effect = OSError(errno.EADDRINUSE, "address in use")
+        mock_watcher = MagicMock()
+        fake_config = {"workers": 0, "dev_mode": ["reload"], "server_wide_modules": []}
+
+        with (
+            patch.object(lifecycle, "load_server_wide_modules"),
+            patch.object(lifecycle, "config", fake_config),
+            patch.object(odoo, "evented", False),
+            patch("odoo.service.server.ThreadedServer", return_value=mock_server),
+            patch.object(lifecycle, "inotify", True),
+            patch.object(lifecycle, "FSWatcherInotify", return_value=mock_watcher),
+            patch.object(lifecycle, "server_phoenix", False),
+            # ``start()`` assigns the module global ``lifecycle.server`` itself
+            # (``global server; server = ThreadedServer(...)``), so unlike every
+            # other name patched here it is written by the code under test and
+            # would survive this test.  ``test_metrics`` reads that global
+            # through ``service_metrics()``; leaving a MagicMock behind made its
+            # exposition unparseable, which only stayed hidden because
+            # alphabetical collection puts test_metrics before test_server.
+            # Patching it makes `patch` responsible for restoring it.
+            patch.object(lifecycle, "server", None),
+            pytest.raises(OSError),
+        ):
+            lifecycle.start()
+
+        mock_watcher.start.assert_called_once()
+        mock_watcher.stop.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# restart() — guard against pre-start invocation
+# ---------------------------------------------------------------------------
+
+
+class TestRestartGuard:
+    """``restart()`` must no-op when ``server`` has not been assigned yet.
+
+    Regression: previously raised ``AttributeError: 'NoneType' has no
+    attribute 'pid'`` if an addon triggered ``restart()`` during
+    ``load_server_wide_modules()`` before ``start()`` set the module global.
+    """
+
+    def test_restart_with_none_server_is_noop(self, srv, caplog):
+        """If ``server`` is None, restart() must log a warning and return."""
+        with (
+            # restart() reads ``server`` from lifecycle, not from the
+            # server-module re-export — see test_restart_with_real_server.
+            patch("odoo.service.lifecycle.server", None),
+            patch.object(os, "kill") as mock_kill,
+            patch.object(threading, "Thread") as mock_thread,
+            caplog.at_level("WARNING", logger="odoo.service.server"),
+        ):
+            srv.restart()
+
+        mock_kill.assert_not_called()
+        mock_thread.assert_not_called()
+        assert any("restart() called before" in m for m in caplog.messages)
+
+    def test_restart_with_real_server_posix_sends_sighup(self, srv):
+        """Baseline: when server exists, POSIX path sends SIGHUP to its pid."""
+        fake_server = MagicMock()
+        fake_server.pid = 12345
+
+        # ``restart()`` reads ``server`` from ``odoo.service.lifecycle`` directly
+        # (server.py forwards via ``__getattr__``).  Patching the server-module
+        # re-export sets a shadowing attribute that the lifecycle-side
+        # function never reads.
+        with (
+            patch("odoo.service.lifecycle.server", fake_server),
+            patch.object(os, "name", "posix"),
+            patch.object(os, "kill") as mock_kill,
+        ):
+            srv.restart()
+
+        mock_kill.assert_called_once_with(12345, signal.SIGHUP)
+
+    def test_threaded_server_reload_delegates_to_lifecycle(self, srv):
+        """``ThreadedServer.reload`` must route through ``lifecycle.restart``.
+
+        Regression: previously called ``os.kill(self.pid, signal.SIGHUP)``
+        directly, which raises ``AttributeError`` on Windows (no
+        ``signal.SIGHUP``).  ``lifecycle.restart`` already handles both
+        branches: SIGHUP on POSIX, a background ``_reexec`` thread on
+        Windows.
+        """
+        ts = object.__new__(srv.ThreadedServer)
+        ts.pid = 12345
+        with patch("odoo.service.lifecycle.restart") as mock_restart:
+            ts.reload()
+        mock_restart.assert_called_once_with()
+
+    def test_threaded_server_reload_is_windows_safe(self, srv):
+        """Simulating Windows (no signal.SIGHUP), ``reload`` must not crash.
+
+        Goes through ``lifecycle.restart``'s ``os.name == 'nt'`` branch,
+        which spawns a background ``_reexec`` thread.  ``reload`` itself
+        must reference no Windows-incompatible signal constants.
+        """
+        ts = object.__new__(srv.ThreadedServer)
+        ts.pid = 12345
+        # Force the NT branch inside lifecycle.restart and stub _reexec so
+        # nothing actually re-execs in the test process.
+        from odoo.service import lifecycle
+
+        with (
+            patch("odoo.service.lifecycle.server", ts),
+            patch.object(lifecycle.os, "name", "nt"),
+            patch.object(lifecycle, "_reexec") as mock_reexec,
+            patch.object(lifecycle.threading, "Thread") as mock_thread,
+        ):
+            ts.reload()
+        # The Windows branch must spawn a Thread on _reexec specifically.
+        # Accept it passed either way round, but never accept "some thread was
+        # started": the earlier `... or mock_thread.call_args.args` fallback
+        # made any positional callable pass, so pointing the branch at an
+        # unrelated function went unnoticed.
+        mock_thread.assert_called_once()
+        args, kwargs = mock_thread.call_args
+        target = kwargs.get("target", args[0] if args else None)
+        assert target is mock_reexec, (
+            f"the Windows restart branch spawned a thread on {target!r}, not "
+            f"_reexec; the process would never re-exec"
+        )
+        mock_thread.return_value.start.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# ThreadedServer SIGCHLD no-op handler removed
+# ---------------------------------------------------------------------------
+
+
+# ``ThreadedServer.start()`` must not install SIGCHLD -- a handler with no
+# SIGCHLD branch caused spurious main-loop wakeups every time a subprocess
+# (pg_dump, psql) exited.  Covered by driving ``start()`` and reading back the
+# signals it registered: ``TestStartInstallsTheHandlers`` in
+# ``test_threaded_lifecycle.py`` asserts SIGCHLD is absent from that set, and
+# the same fixture asserts the handlers that must be present -- which the AST
+# walk formerly here could not, since it only rejected one call shape.
+
+
+# ---------------------------------------------------------------------------
+# _ON_STOP_FUNCS module-level + backward-compatible class alias
+# ---------------------------------------------------------------------------
+
+
+class TestSigHupSentinel:
+    """server.py must not install ``signal.SIGHUP = -1`` on Windows — that
+    monkey-patches a stdlib module globally. The fix exposes a local
+    ``_SIGHUP_AVAILABLE`` boolean instead and guards call sites with it.
+    """
+
+    def test_local_sentinel_exported(self, srv):
+        assert hasattr(srv, "_SIGHUP_AVAILABLE")
+        assert isinstance(srv._SIGHUP_AVAILABLE, bool)
+
+    def test_on_posix_sentinel_is_true(self, srv):
+        """On Linux (the project's target OS) the sentinel must be True."""
+        import os
+
+        if os.name == "posix":
+            assert srv._SIGHUP_AVAILABLE is True
+
+    # ``ThreadedServer.signal_handler``'s use of the sentinel is covered
+    # behaviourally, by running it against a signal module with no SIGHUP —
+    # see ``TestSignalHandlerOnAPlatformWithoutSighup`` in
+    # ``test_threaded_lifecycle.py``.  The AST walk that used to live here only
+    # proved the name appeared in an ``if`` test.
+
+
+# ---------------------------------------------------------------------------
+# stop_workers_gracefully — dict-mutation race regression
+# ---------------------------------------------------------------------------

@@ -179,9 +179,14 @@ class TestEnvStr:
     endpoint's auth token — but the parser is not a metrics concern, and
     splitting the three left ``env_str`` out of every check applied to
     ``env_float`` / ``env_int``.  The blank-is-unset rule is a security
-    property wherever it is used: ``ODOO_PROMETHEUS_TOKEN="   "`` must read as
+    property wherever it is used: ``ODOO_METRICS_TOKEN="   "`` must read as
     "no token configured", i.e. endpoint disabled, not as a token of spaces
     that a caller could match.
+
+    (That knob is read in ``addons/web/controllers/home.py`` and its endpoint
+    behaviour is covered by ``addons/web/tests/test_health.py``; this file owns
+    only the parser.  The name here previously read ``ODOO_PROMETHEUS_TOKEN``,
+    which exists nowhere in the workspace.)
     """
 
     @pytest.mark.parametrize(

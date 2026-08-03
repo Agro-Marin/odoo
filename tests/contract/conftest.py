@@ -8,34 +8,40 @@ present`` in ``test_pg_connect_contract.py`` is the canary for that.
 """
 
 import os
-import shutil
 import subprocess
 import uuid
 
 import pytest
 
+from .._pg import pg_dump_path, pg_reachable, psql_path
 
-def _pg_reachable() -> bool:
-    try:
-        import psycopg
-    except ImportError:  # pragma: no cover
-        return False
-    try:
-        psycopg.connect(dbname="postgres", connect_timeout=5).close()
-    except Exception:
-        return False
-    return True
+# Plain markers, NOT ``skipif`` conditions.  A ``skipif`` argument is evaluated
+# when the decorator runs — i.e. at import, during collection — which made a
+# mere ``--collect-only`` pay a real connect attempt (10.57 s with PostgreSQL
+# unreachable; see ``tests/_pg``).  The autouse fixture below resolves each
+# marker at SETUP instead, so a collected-but-unrun suite probes nothing.
+requires_pg = pytest.mark.requires_pg
+requires_psql = pytest.mark.requires_psql
+requires_pg_dump = pytest.mark.requires_pg_dump
+
+_REQUIREMENTS = {
+    "requires_pg": (pg_reachable, "no reachable PostgreSQL (contract suite needs one)"),
+    "requires_psql": (lambda: psql_path() is not None, "psql not on PATH"),
+    "requires_pg_dump": (lambda: pg_dump_path() is not None, "pg_dump not on PATH"),
+}
 
 
-PG_REACHABLE = _pg_reachable()
-PSQL = shutil.which("psql")
-PG_DUMP = shutil.which("pg_dump")
+def pytest_configure(config):
+    for name in _REQUIREMENTS:
+        config.addinivalue_line("markers", f"{name}: needs that external dependency")
 
-requires_pg = pytest.mark.skipif(
-    not PG_REACHABLE, reason="no reachable PostgreSQL (contract suite needs one)"
-)
-requires_psql = pytest.mark.skipif(not PSQL, reason="psql not on PATH")
-requires_pg_dump = pytest.mark.skipif(not PG_DUMP, reason="pg_dump not on PATH")
+
+@pytest.fixture(autouse=True)
+def _skip_without_dependencies(request):
+    """Skip a test whose external dependency is absent — resolved lazily."""
+    for name, (available, reason) in _REQUIREMENTS.items():
+        if request.node.get_closest_marker(name) and not available():
+            pytest.skip(reason)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -60,7 +66,7 @@ def scratch_db():
     difference, and named uniquely so a parallel run or a leftover from a
     crashed session cannot collide.
     """
-    if not PG_REACHABLE:
+    if not pg_reachable():
         pytest.skip("no reachable PostgreSQL")
     name = f"odoo_contract_{uuid.uuid4().hex[:12]}"
     subprocess.run(
@@ -86,7 +92,7 @@ def run_psql(scratch_db):
     def _run(sql_path):
         return subprocess.run(
             [
-                PSQL,
+                psql_path(),
                 "-d",
                 scratch_db,
                 "-q",
