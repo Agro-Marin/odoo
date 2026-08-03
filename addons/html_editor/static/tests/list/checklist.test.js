@@ -5,20 +5,9 @@ import { testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 import { clickCheckbox, pasteHtml } from "../_helpers/user_actions.js";
 
-// TODO: 12 of 15 tests in this file fail with "Cannot translate string:
-// translations have not been loaded" because the checklist plugin calls
-// ``_t("Checked")`` / ``_t("Unchecked")`` lazily when rendering the
-// wrapper title.  Adding ``allowTranslations()`` or directly setting
-// ``translatedTerms[translationLoaded] = true`` in a ``beforeEach`` does
-// not unblock these tests — the ``valueOf()`` throw still fires, which
-// suggests either (a) the test bundle's ``translatedTerms`` is a
-// distinct copy from the module that calls ``_t()`` despite the
-// globalThis routing, or (b) the lazy TranslatedString instance is
-// created before the ``beforeEach`` runs and its ``lazy`` flag is
-// already set.  Either way the fix needs deeper investigation of
-// the ``TranslatedString`` lifecycle in cross-bundle test mode.
-// Tracked as a follow-up; the failing tests don't reflect a product
-// regression, only test-harness translation initialization.
+// TODO: tests here can fail with "Cannot translate string: translations have not
+// been loaded" — the list plugin's lazy ``_t()`` titles throw before the harness
+// loads translations. The fix belongs to the test harness, not to the product.
 
 test("should do nothing if do not click on the checkbox", async () => {
     await testEditor({
@@ -268,7 +257,7 @@ test("should uncheck a nested item and the wrapper wrapper title", async () => {
     });
 });
 
-// @todo @phoenix: this test's contentAfter does not match its description.
+// TODO: this test's contentAfter does not match its description.
 test("should check all nested checklist item", async () => {
     await testEditor({
         contentBefore: unformat(`
@@ -313,7 +302,7 @@ test("should check all nested checklist item", async () => {
     });
 });
 
-// @todo @phoenix: this test's contentAfter does not match its description.
+// TODO: this test's contentAfter does not match its description.
 test("should uncheck all nested checklist item", async () => {
     await testEditor({
         contentBefore: unformat(`

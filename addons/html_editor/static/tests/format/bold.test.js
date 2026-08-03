@@ -319,8 +319,7 @@ test("should insert a span zws when toggling a formatting command twice", () =>
             bold(editor);
             bold(editor);
         },
-        // todo: It would be better to remove the zws entirely so that
-        // the P could have the "/" hint but that behavior might be
+        // TODO: it would be better to remove the zws entirely, but that is
         // complex with the current implementation.
         contentAfterEdit: `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><span data-oe-zws-empty-inline="">\u200B[]</span></p>`,
     }));
@@ -507,9 +506,8 @@ test("should not add history step for bold on collapsed selection", async () => 
 
     patchWithCleanup(console, { warn: () => {} });
 
-    // Collapsed formatting shortcuts (e.g. Ctrl+B) shouldn’t create a history
-    // step. The empty inline tag is temporary: auto-cleaned if unused. We want
-    // to avoid having a phantom step in the history.
+    // A collapsed formatting shortcut must not add a phantom history step: the
+    // empty inline tag is temporary and auto-cleaned if unused.
     await press(["ctrl", "b"]);
     expect(getContent(el)).toBe(
         `<p>abcd<strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`,
@@ -534,7 +532,7 @@ test("Should properly apply bold format if closest element is bold but not close
         {
             styleContent: `
                 blockquote {
-                    font-weight: 300;   
+                    font-weight: 300;
                 }
             `,
         },
