@@ -15,10 +15,8 @@ class DiscussSettingsController(Controller):
         :param minutes: (integer) number of minutes to mute notifications, -1 means mute until the user unmutes
         :param channel_id: (integer) id of the discuss.channel record
         """
-        # search (not browse): browse returns a truthy recordset for any int,
-        # so a non-existent/inaccessible id would slip past the guard and 500 in
-        # member creation instead of returning a clean 404 (as the sibling
-        # /custom_notifications route does).
+        # search (not browse): browse is truthy for any int, so a non-existent or
+        # inaccessible id would slip past the guard and 500 in member creation.
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(channel_id))]
         )

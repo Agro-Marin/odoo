@@ -7,8 +7,8 @@ from werkzeug.exceptions import BadRequest
 
 from odoo.http import Controller, request, route
 
-# The proxied provider is Klipy (api.klipy.com); the constants kept the Tenor
-# name from a previous integration, which was misleading.
+# The proxied GIF provider is Klipy (api.klipy.com); the `tenor_gif_id` field and
+# route parameter keep the name of the provider used before it.
 KLIPY_CONTENT_FILTER = "medium"
 KLIPY_GIF_LIMIT = 8
 
@@ -18,9 +18,8 @@ _logger = logging.getLogger(__name__)
 class DiscussGifController(Controller):
     def _gif_client_key(self):
         """A stable, opaque per-database identifier for the GIF provider's
-        rate-limiting ``client_key``. Previously we sent ``cr.dbname`` verbatim,
-        disclosing the internal database name to a third party; a hash gives the
-        provider the same stable-per-tenant key without leaking the name."""
+        rate-limiting ``client_key``."""
+        # Hashed: the provider gets a stable per-tenant key, not the db name.
         return hashlib.sha256(request.env.cr.dbname.encode()).hexdigest()[:32]
 
     def _request_gifs(self, endpoint):
@@ -29,8 +28,8 @@ class DiscussGifController(Controller):
             response = requests.get(f"https://api.klipy.com/v2/{endpoint}", timeout=3)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            # covers ConnectionError, HTTPError AND Timeout (not a subclass of the
-            # first two) — an unhandled Timeout previously surfaced as a raw 500.
+            # covers ConnectionError, HTTPError AND Timeout, which is not a
+            # subclass of the first two and would surface as a raw 500
             _logger.error("Klipy GIF API request failed: %s", e)
 
         if not response:

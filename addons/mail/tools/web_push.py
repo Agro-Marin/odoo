@@ -149,22 +149,16 @@ def push_to_end_point(
     """
     endpoint = device["endpoint"]
     url = urlsplit(endpoint)
-    # The TDL ".invalid" is intended for use in online construction of domain names that are sure to be invalid and
+    # The TLD ".invalid" is intended for use in online construction of domain names that are sure to be invalid and
     # which it is obvious at a glance are invalid.
     # https://datatracker.ietf.org/doc/html/rfc2606#section-2
     if (url.hostname or "").endswith(".invalid"):
         raise DeviceUnreachableError("Device Unreachable")
-    # SSRF guard: ``endpoint`` is attacker-controlled (any authenticated user
-    # registers their own push device). The cron POSTs to it under sudo, so an
-    # endpoint pointing at loopback / link-local / private ranges (e.g. the
-    # cloud metadata service) would turn this into a blind SSRF primitive.
-    #
-    # Distinguish a BLOCKED endpoint (resolves to a non-global address — a bogus
-    # subscription, delete it) from an UNRESOLVABLE one (DNS blip, proxy-only
-    # egress). Treating the latter as unreachable used to delete every device in
-    # the batch on a transient resolver failure, silently and permanently losing
-    # users' web-push registrations; raise a retryable error instead so the
-    # caller keeps the device.
+    # SSRF guard: ``endpoint`` is attacker-controlled (any user registers their own
+    # push device) and the cron POSTs to it under sudo, so a loopback/link-local/
+    # private target (e.g. cloud metadata) would be a blind SSRF primitive.
+    # BLOCKED is a bogus subscription to delete; UNRESOLVABLE is transient and
+    # must raise a retryable error, or a resolver blip deletes every device.
     safety = _classify_url_safety(endpoint)
     if safety is UrlSafety.BLOCKED:
         raise DeviceUnreachableError("Device Unreachable")

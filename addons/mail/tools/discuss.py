@@ -13,12 +13,10 @@ from odoo.tools import groupby
 
 from odoo.addons.bus.websocket import wsrequest
 
-# Canonical post-render form of the empty-message edit marker.
-# Emitted by ``mail.thread`` after a user removes all content from a previously
-# posted message; consumed by chatter filters that need to ignore the stub.
-# The emit pipeline (``mail/models/mail_thread.py``) uses ``lxml`` self-closing
-# tags internally; browsers normalise to this canonical form, which is what the
-# tests in ``mail/tests/discuss/`` assert and what filters must match.
+# Canonical post-render form of the empty-message edit marker, emitted by
+# ``mail.thread`` when a user removes all content from a posted message and
+# matched by the chatter filters that ignore the stub. ``_message_update_content``
+# writes it as a self-closing tag; browsers normalise it to this form.
 EMPTY_EDIT_MARKER = '<span class="o-mail-Message-edited"></span>'
 
 
@@ -467,10 +465,9 @@ class Store:
                     if (
                         (res_model := record[res_model_field])
                         and (res_id := record["res_id"])
-                        # 'model' / 'res_model' are free-form Chars here
-                        # (mail.message, mail.followers, ir.attachment): a name
-                        # that is no longer in the registry must leave the
-                        # thread unresolved, not raise out of serialization.
+                        # 'model' / 'res_model' are free-form Chars here: a name no
+                        # longer in the registry leaves the thread unresolved
+                        # rather than raising out of serialization
                         and res_model in record.env
                     ):
                         target = record.env[res_model].browse(res_id)

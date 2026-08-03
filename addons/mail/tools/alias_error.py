@@ -5,10 +5,9 @@ from dataclasses import dataclass, field
 class AliasError:
     """Alias error description.
 
-    Arguments:
-        code (str): error code
-        message (str): translated user message
-        is_config_error (bool): whether the error was caused by a mis-configured alias or not
+    :param str code: error code
+    :param str message: translated user message
+    :param bool is_config_error: whether a mis-configured alias caused the error
     """
 
     code: str

@@ -7,14 +7,12 @@ from odoo.tools import is_list_of
 def parse_res_ids(res_ids, env):
     """Returns the already valid list/tuple of int or returns the literal eval
     of the string as a list/tuple of int. Void strings / missing values are
-    evaluated as an empty list.
+    returned unchanged.
 
     :param str|tuple|list res_ids: a list of ids, tuple or list;
-
-    :raise: ValidationError if the provided res_ids is an incorrect type or
-      invalid format;
-
-    :return list: list of ids
+    :raises ValidationError: if res_ids has an incorrect type or invalid format
+    :return: list of ids
+    :rtype: list
     """
     if is_list_of(res_ids, int) or not res_ids:
         return res_ids

@@ -233,9 +233,8 @@ class MailController(http.Controller):
                 "cids", "-".join([str(cid) for cid in cids])
             )
 
-        # @see commit c63d14a0485a553b74a8457aee158384e9ae6d3f
-        # @see router.js: heuristics to discrimate a model name from an action path
-        # is the presence of dots, or the prefix m- for models
+        # router.js discriminates a model name from an action path by the presence
+        # of dots, or by the "m-" prefix for models
         model_in_url = model if "." in model else "m-" + model
         url = f"/odoo/{model_in_url}/{res_id}?{urlencode(sorted(url_params.items()))}"
         return request.redirect(url)
@@ -270,10 +269,9 @@ class MailController(http.Controller):
     # csrf is disabled here because it will be called by the MUA with unpredictable session at that time
     @http.route("/mail/unfollow", type="http", auth="public", csrf=False)
     def mail_action_unfollow(self, model, res_id, pid, token, **kwargs):
-        # auth="public", csrf=False: res_id/pid are fully client-controlled. A
-        # non-numeric value used to reach a bare int()/browse() and surface an
-        # uncaught ValueError as an HTTP 500 to anonymous callers. Coerce first;
-        # a malformed id simply cannot match a valid (record, token) pair.
+        # auth="public", csrf=False: res_id/pid are fully client-controlled, so
+        # coerce before use — a malformed id cannot match a valid (record, token)
+        # pair, and reaching browse() would 500 an anonymous caller.
         try:
             res_id, pid = int(res_id), int(pid)
         except TypeError, ValueError:
@@ -360,19 +358,17 @@ class MailController(http.Controller):
         Awesome font by default) and is used only for mass mailing because
         custom fonts are not supported in mail.
 
-        :param icon : decimal encoding of unicode character
-        :param color : RGB code of the color
-        :param bg : RGB code of the background color
-        :param size : Pixels in integer
-        :param alpha : transparency of the image from 0 to 255
-        :param width : Pixels in integer
-        :param height : Pixels in integer
-
-        :returns PNG image converted from given font
+        :param icon: decimal encoding of unicode character
+        :param color: RGB code of the color
+        :param bg: RGB code of the background color
+        :param size: Pixels in integer
+        :param alpha: transparency of the image from 0 to 255
+        :param width: Pixels in integer
+        :param height: Pixels in integer
+        :return: PNG image converted from given font
         """
-        # The font is a fixed server-side asset, never caller-controlled: this
-        # is an auth="none" route, so exposing `font` as a parameter let an
-        # unauthenticated caller point ImageFont.truetype at any file inside the
+        # Keep the font a fixed server-side asset: on this auth="none" route a
+        # caller-supplied one would point ImageFont.truetype at any file in the
         # addons tree (file-existence oracle / 500 on a non-font file).
         font = "/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2"
         if icon.isdigit() and icon in self._OI_FONT_CHAR_CODES:
@@ -390,9 +386,8 @@ class MailController(http.Controller):
         # if received character is not a number, keep old behaviour (icon is character)
         if icon.isdigit():
             code = int(icon)
-            # chr() only accepts a valid Unicode code point; a huge value on
-            # this unauthenticated (auth="none") route would raise ValueError
-            # and surface as a 500. Reject out-of-range codes cleanly instead.
+            # chr() only accepts a valid Unicode code point; a huge value would
+            # raise ValueError, a 500 on this auth="none" route.
             if code > 0x10FFFF:
                 raise request.not_found()
             icon = chr(code)
@@ -406,10 +401,8 @@ class MailController(http.Controller):
             color = color.replace("rgba", "rgb")
             color = ",".join(color.split(",")[:-1]) + ")"
 
-        # Validate the caller-supplied colors up-front: an invalid color string
-        # would otherwise raise ValueError deep inside PIL (Image.new / draw.text)
-        # and surface as a 500 on this auth="none" route. Reject cleanly with a
-        # 404, matching the size/glyph-width hardening above.
+        # Validate the caller-supplied colors up-front: an invalid string raises
+        # ValueError deep inside PIL, a 500 on this auth="none" route.
         for _color in (color, bg):
             if _color is not None:
                 try:
@@ -421,8 +414,7 @@ class MailController(http.Controller):
         draw = ImageDraw.Draw(dummy)
         bbox = draw.textbbox((0, 0), icon, font=font_obj)
         # Clamp the glyph width to the same 512px ceiling as height/width: a long
-        # caller-supplied non-digit `icon` string would otherwise size the output
-        # image by its full rendered width, an unauthenticated memory amplifier.
+        # non-digit `icon` would size the image by its full rendered width.
         boxw = max(1, min(bbox[2] - bbox[0], 512))
 
         outimage = Image.new("RGBA", (boxw, height), bg or (0, 0, 0, 0))
