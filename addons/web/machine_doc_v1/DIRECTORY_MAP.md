@@ -10,32 +10,32 @@
 | `components/` | features | 2 | Reusable OWL UI components (pickers, dropdowns, editors, file handling) |
 | `components/action_swiper/` | features | 1 | Touch swipe component that triggers actions on left/right swipe gestures |
 | `components/autocomplete/` | features | 1 | Generic autocomplete dropdown with multi-source results, keyboard navigation,... |
-| `components/barcode/` | features | 4 | BarcodeDetector polyfill built on ZXing for browsers without native support |
+| `components/barcode/` | features | 4 | Camera barcode scanning: the video scanner and its dialog, a draggable crop overlay, and a ZXing-based `BarcodeDetector` polyfill for browsers without a native one |
 | `components/checkbox/` | features | 1 | Accessible checkbox component with label slot and hotkey support |
 | `components/code_editor/` | features | 1 | Ace-based code editor component with syntax highlighting and theme support |
 | `components/color_picker/` | features | 1 | Full-featured color picker with preset palette, custom colors, and gradient s... |
 | `components/color_picker/custom_color_picker/` | features | 1 | HSL/RGB color picker with canvas gradient, sliders, and hex input |
-| `components/color_picker/tabs/` | features | 2 | Color picker tab for custom color input with gradient support |
+| `components/color_picker/tabs/` | features | 2 | The two tabs the color picker registers in `color_picker_tabs`: a solid palette and a custom colour input |
 | `components/colorlist/` | features | 1 | Expandable color swatch picker for selecting from predefined Odoo color indices |
 | `components/copy_button/` | features | 1 | Clipboard copy button with success tooltip feedback |
-| `components/datetime/` | features | 4 | Date/time text input component that opens a DateTimePicker popover |
+| `components/datetime/` | features | 4 | Date/time picking: the calendar picker, the popover that hosts it, the text input, and the hook binding them to a field's inputs |
 | `components/domain_selector/` | features | 3 | Visual domain builder that converts between string domains and tree editors |
 | `components/domain_selector_dialog/` | features | 1 | Modal dialog for editing and validating an Odoo domain filter |
-| `components/dropdown/` | features | 6 | Collapsible accordion panel with animated expand/collapse transitions |
-| `components/dropdown/_behaviours/` | features | 3 | Hook that registers a dropdown within a DropdownGroup and tracks group open s... |
+| `components/dropdown/` | features | 6 | The dropdown system: toggler, menu items (plain, checkbox, accordion), grouping, and the shared open/close state hooks |
+| `components/dropdown/_behaviours/` | features | 3 | Dropdown internals: group membership, parent/child nesting and peer closing, and the popover component that hosts the menu |
 | `components/dropzone/` | features | 2 | Visual drop target overlay that tracks drag enter/leave and fires onDrop |
 | `components/emoji_picker/` | features | 2 | Emoji data (generated) and picker UI with search and categories |
 | `components/errors/` | features | 1 | Error dialog components for RPC, client, network, and validation errors |
 | `components/expression_editor/` | features | 2 | Visual tree-based editor for Python expressions with field path selection |
 | `components/expression_editor_dialog/` | features | 1 | Modal dialog for editing Python expressions with validation preview |
 | `components/file_input/` | features | 1 | Customizable file upload input with route-based server upload and multi-file ... |
-| `components/file_upload/` | features | 3 | Progress bar with cancel button for active file uploads |
-| `components/file_viewer/` | features | 3 | FileModelMixin providing URL routing and type detection for viewable file att... |
+| `components/file_upload/` | features | 3 | Upload progress UI: the bar with its cancel action, plus the per-record and container wrappers that place it in kanban and list views |
+| `components/file_viewer/` | features | 3 | Attachment viewer: the full-screen viewer with zoom/rotate, the hook that opens it as a main component, and the `FileModelMixin` giving attachments URLs and type detection |
 | `components/model_field_selector/` | features | 2 | Field path selector with breadcrumb display and popover field browser |
 | `components/model_selector/` | features | 1 | Autocomplete component for searching and selecting Odoo model names |
 | `components/notebook/` | features | 1 | Tabbed notebook component that renders one page at a time with tab navigation |
-| `components/pager/` | features | 2 | Pagination component with prev/next navigation and editable page range input |
-| `components/record_selectors/` | features | 5 | Base class for record selector components with display name loading infrastru... |
+| `components/pager/` | features | 2 | Pagination: prev/next navigation with an editable range input, and the transient indicator it broadcasts to on small screens |
+| `components/record_selectors/` | features | 5 | Record pickers built on `AutoComplete`: single and multi selectors, their shared display-name loading base, and tag keyboard navigation |
 | `components/resizable_panel/` | features | 1 | Side panel component with drag handle for interactive width resizing |
 | `components/select_menu/` | features | 1 | Searchable dropdown select menu with multi-select tags and keyboard navigation |
 | `components/signature/` | features | 2 | Signature pad component with draw, auto-generate, and load modes |
