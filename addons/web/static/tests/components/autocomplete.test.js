@@ -1646,3 +1646,51 @@ test("a loading source does not present itself as a selected option", async () =
     expect(".o-autocomplete .o_loading").toHaveCount(0);
     expect(".o-autocomplete--dropdown-menu").not.toHaveAttribute("aria-busy");
 });
+
+test("a dropdown list is not in the tab order", async () => {
+    class Parent extends Component {
+        static template = xml`
+            <div>
+                <AutoComplete value="''" sources="sources"/>
+                <button class="after">after</button>
+            </div>`;
+        static components = { AutoComplete };
+        static props = [];
+        sources = buildSources(() => [item("World"), item("Hello")]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    expect(".o-autocomplete--dropdown-menu").toHaveCount(1);
+
+    // Tab dismisses this list -- and its default action runs while the options
+    // are still on screen, because removing them is a render and renders land
+    // later. A popup listbox the combobox drives through `aria-activedescendant`
+    // holds no tab stop, so the caret goes where the user aimed it instead of
+    // catching on an option that is about to disappear underneath it.
+    await press("Tab");
+    expect(document.activeElement).toBe(queryOne("button.after"));
+});
+
+test("an inline list is reachable by tab", async () => {
+    class Parent extends Component {
+        static template = xml`
+            <div>
+                <AutoComplete value="''" sources="sources" dropdown="false"/>
+                <button class="after">after</button>
+            </div>`;
+        static components = { AutoComplete };
+        static props = [];
+        sources = buildSources(() => [item("World"), item("Hello")]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+
+    // Without `dropdown`, the list is not a popup: it is permanent page content
+    // that no keystroke dismisses, so its options are ordinary controls in the
+    // flow and tabbing into them is the only way to reach them. The kanban
+    // quick-assign popover is built on exactly this.
+    await press("Tab");
+    expect(document.activeElement).toBe(
+        queryOne(".o-autocomplete--dropdown-item:first-child a"),
+    );
+});

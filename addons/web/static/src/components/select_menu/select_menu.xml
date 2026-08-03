@@ -69,7 +69,7 @@
                     <button type="button" t-attf-class="o_select_menu_toggler d-flex border btn btn-light w-100 bg-light {{ props.togglerClass }}" t-att-disabled="props.disabled"
                         role="combobox" aria-haspopup="listbox"
                         t-att-aria-expanded="dropdownState.isOpen ? 'true' : 'false'"
-                        t-att-aria-controls="menuId">
+                        t-att-aria-controls="listboxId">
                         <span class="o_select_menu_toggler_slot text-start text-truncate">
                             <span t-if="props.placeholder and !props.value" class="text-muted" t-out="props.placeholder"/>
                             <t t-slot="default" />

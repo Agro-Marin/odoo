@@ -389,6 +389,7 @@ export class DateTimePicker extends Component {
      * @param {DateTimePickerProps} props
      */
     onPropsUpdated(props) {
+        const previousValues = this.values;
         this.values = /** @type {[NullableDateTime] | NullableDateRange} */ (
             ensureArray(props.value).map((value) =>
                 value && !value.isValid ? null : value,
@@ -414,8 +415,31 @@ export class DateTimePicker extends Component {
         }
 
         this.state.timeValues = this.getTimeValues(props);
-        this.shouldAdjustFocusDate = !props.range;
+        // What is browsed follows the value, not the render: a parent that
+        // re-renders for its own reasons hands over the same value, and
+        // re-deriving the focus from it would undo every step the user took
+        // through the months. Only a value that actually moved -- including the
+        // one this picker's own selection produces -- may take the focus with it.
+        this.shouldAdjustFocusDate = !props.range && this.hasValueMoved(previousValues);
         this.adjustFocus(this.values, props.focusedDateIndex);
+    }
+
+    /**
+     * @param {NullableDateTime[]} [previousValues] the values of the previous
+     *  pass, absent on the first one.
+     * @returns {boolean}
+     */
+    hasValueMoved(previousValues) {
+        if (!previousValues || previousValues.length !== this.values.length) {
+            return true;
+        }
+        return this.values.some((value, index) => {
+            const previous = previousValues[index];
+            if (!value || !previous) {
+                return Boolean(value) !== Boolean(previous);
+            }
+            return !value.equals(previous);
+        });
     }
 
     onWillRender() {
@@ -649,7 +673,9 @@ export class DateTimePicker extends Component {
         }
         const [value] = dateItem.range;
         const valueIndex = this.props.focusedDateIndex;
-        const isValid = this.validateAndSelect(value, valueIndex, "date");
-        this.shouldAdjustFocusDate = isValid && !this.props.range;
+        // The selection reaches the focus through the value the parent hands
+        // back, which is what onPropsUpdated compares; setting the flag here
+        // would be overwritten by that same pass before anything reads it.
+        this.validateAndSelect(value, valueIndex, "date");
     }
 }
