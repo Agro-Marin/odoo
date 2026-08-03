@@ -34,7 +34,7 @@ function columnize(numberOfColumns) {
 describe("2 columns", () => {
     test("should display hint for focused empty column.", async () => {
         await testEditor({
-             
+
             contentBefore:
                 columnsContainer(
                     column(6, "<p>[]<br></p>") +
@@ -45,13 +45,13 @@ describe("2 columns", () => {
                     columnDuringEdit(6, `<p o-we-hint-text="Empty column" class="o-we-hint">[]<br></p>`) +
                     columnDuringEdit(6, `<p o-we-hint-text="Empty column" class="o-we-hint"><br></p>`)
                 ),
-             
+
         });
     });
 
     test("should display the normal hint when cursor is in an empty cell of an empty table in one of the columns", async () => {
         await testEditor({
-             
+
             contentBefore:
                 columnsContainer(
                     column(6, `<table><tbody><tr><td><p>[]<br></p></td><td><p><br></p></td></tr></tbody></table>`) +
@@ -62,7 +62,7 @@ describe("2 columns", () => {
                     columnDuringEdit(6, `<p data-selection-placeholder=""><br></p><table><tbody><tr><td><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p></td><td><p><br></p></td></tr></tbody></table><p data-selection-placeholder=""><br></p>`) +
                     columnDuringEdit(6, `<p o-we-hint-text="Empty column" class="o-we-hint"><br></p>`)
                 ),
-             
+
         });
     });
 
@@ -83,7 +83,7 @@ describe("2 columns", () => {
             contentBefore: "<p>[]abcd</p>",
             stepFunction: columnize(2),
             contentAfterEdit:
-             
+
                 columsDuringEditContainer(
                     columnDuringEdit(6, "<p>[]abcd</p>") +
                     columnDuringEdit(6, `<p o-we-hint-text="Empty column" class="o-we-hint"><br></p>`)
@@ -93,7 +93,7 @@ describe("2 columns", () => {
                     column(6, "<p>[]abcd</p>") +
                     column(6, "<p><br></p>")
                 )
-             
+
         });
     });
 
@@ -152,14 +152,14 @@ describe("3 columns", () => {
             contentBefore: columnsContainer(
                 column(4, "<p>abcd</p>") + column(4, "<p><br></p>") + column(4, "<p>[]<br></p>")
             ),
-             
+
             contentBeforeEdit:
                 columsDuringEditContainer(
                     columnDuringEdit(4, "<p>abcd</p>") +
                     columnDuringEdit(4, `<p o-we-hint-text="Empty column" class="o-we-hint"><br></p>`) +
                     columnDuringEdit(4, `<p o-we-hint-text="Empty column" class="o-we-hint">[]<br></p>`)
                 ),
-             
+
             stepFunction: columnize(3),
             contentAfter: columnsContainer(
                 column(4, "<p>abcd</p>") + column(4, "<p><br></p>") + column(4, "<p>[]<br></p>")
@@ -171,7 +171,7 @@ describe("3 columns", () => {
         await testEditor({
             contentBefore: "<p>ab[]cd</p>",
             stepFunction: columnize(3),
-             
+
             contentAfterEdit:
                 columsDuringEditContainer(
                     columnDuringEdit(4, "<p>ab[]cd</p>") +
@@ -184,7 +184,7 @@ describe("3 columns", () => {
                     column(4, "<p><br></p>") +
                     column(4, "<p><br></p>")
                 ),
-             
+
         });
     });
 
@@ -405,8 +405,7 @@ describe("complex", () => {
                 columnize(2)(editor);
                 columnize(0)(editor);
             },
-            // A paragraph was created for each column + after them and
-            // they were all kept.
+            // The paragraph created for each added column was kept.
             contentAfter: "<p>ab[]cd</p><p><br></p><p><br></p><p><br></p>",
         });
     });
@@ -535,7 +534,7 @@ describe("selection", () => {
 describe("helper hint", () => {
     test("should display helper hint in first block of each column", async () => {
         await testEditor({
-             
+
             contentBefore:
                 columnsContainer(
                     column(4, "<p>[]<br></p>") +
@@ -548,13 +547,13 @@ describe("helper hint", () => {
                     columnDuringEdit(4, `<h1 o-we-hint-text="Heading 1" class="o-we-hint"><br></h1>` + "<h2><br></h2>") +
                     columnDuringEdit(4, `<p o-we-hint-text="Empty column" class="o-we-hint"><br></p>`)
                 ),
-             
+
         });
     });
 
     test("should not display hint in first block if cursor is inside different block in same column", async () => {
         await testEditor({
-             
+
             contentBefore:
                 columnsContainer(
                     column(4, "<p><br></p>") +
@@ -567,13 +566,13 @@ describe("helper hint", () => {
                     columnDuringEdit(4, "<h1><br></h1>" + `<h2 o-we-hint-text="Heading 2" class="o-we-hint">[]<br></h2>`) +
                     columnDuringEdit(4, `<p o-we-hint-text="Empty column" class="o-we-hint"><br></p>`)
                 ),
-             
+
         });
     });
 
     test("should display normal hint on focused paragraph if paragraph is not first block of column", async () => {
         await testEditor({
-             
+
             contentBefore:
                 columnsContainer(
                     column(4, "<p><br></p>" + "<p>[]<br></p>") +
@@ -586,7 +585,7 @@ describe("helper hint", () => {
                     columnDuringEdit(4, `<p o-we-hint-text="Empty column" class="o-we-hint"><br></p>`) +
                     columnDuringEdit(4, `<p o-we-hint-text="Empty column" class="o-we-hint"><br></p>`)
                 ),
-             
+
         });
     });
 

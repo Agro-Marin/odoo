@@ -76,7 +76,7 @@ testUrlRegex("google.com?}", { expectedUrl: "google.com?" });
 testUrlRegex("google.com?'", { expectedUrl: "google.com?" });
 testUrlRegex('google.com?"', { expectedUrl: "google.com?" });
 
-// The previous special character should be included when they are nt at the end.
+// The previous special characters should be included when they are not at the end.
 testUrlRegex("google.com/.a", { expectedUrl: "google.com/.a" });
 testUrlRegex("google.com/,a", { expectedUrl: "google.com/,a" });
 testUrlRegex("google.com/)a", { expectedUrl: "google.com/)a" });
@@ -85,7 +85,7 @@ testUrlRegex("google.com/}a", { expectedUrl: "google.com/}a" });
 testUrlRegex("google.com/'a", { expectedUrl: "google.com/'a" });
 testUrlRegex('google.com/"a', { expectedUrl: 'google.com/"a' });
 
-// Other special character can be included at the end.
+// Other special characters can be included at the end.
 testUrlRegex("google.com/(", { expectedUrl: "google.com/(" });
 testUrlRegex("google.com/[", { expectedUrl: "google.com/[" });
 testUrlRegex("google.com/{", { expectedUrl: "google.com/{" });
@@ -192,7 +192,7 @@ testUrlRegex("https://1234-abc.runbot007.odoo.com/web#id=3&menu_id=221", {
     insideText: true,
 });
 
-//Phone links
+// Phone links
 testPhoneRegex("+32 470 12 34 56");
 testPhoneRegex("+ 32 470 12 34 56");
 testPhoneRegex("+14155552671");

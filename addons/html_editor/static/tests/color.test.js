@@ -570,7 +570,7 @@ test("should remove background gradient and apply new background color if gradie
     });
 });
 test("should merge adjacent font with the same text color when mutations common root is <font>", async () => {
-    // This test should not execute clean for save as the bug will no longer exists
+    // Checked without cleanForSave: it would mask the bug.
     const { el, editor } = await setupEditor(
         '<p><font style="color: rgb(255, 0, 0);">first </font><font style="color: rgb(0, 255, 0);">[second]</font></p>',
     );
