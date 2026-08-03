@@ -368,10 +368,8 @@ test("Image cropper disappear on backspace", async () => {
     const base64Image =
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII=";
 
-    // This promise is needed to ensure that the `show` method has completed
-    // before destroying the cropper as it sets `isCropperActive` true
-    // at the end. In `closeCropper` method `isCropperActive` must be true
-    // to close the cropper.
+    // Wait for `show` to complete before destroying the cropper: it sets
+    // `isCropperActive` at the end, which `closeCropper` requires to close.
     const cropperReadyPromise = new Promise((resolve) => {
         patchWithCleanup(ImageCrop.prototype, {
             async show(...args) {

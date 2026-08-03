@@ -386,7 +386,7 @@ describe("row", () => {
                     </table>
                 `),
                 stepFunction: (editor) => {
-                    // Select the second row
+                    // Target the second row, not the one holding the selection.
                     const row = editor.editable.querySelectorAll("tr")[1];
                     removeRow(row)(editor);
                 },
@@ -554,9 +554,8 @@ describe("column", () => {
                     '<td style="width: 29px;">ab</td>' +
                     '<td style="width: 36px;">cd</td>' +
                     '<td style="width: 41px;">ef[]</td>' +
-                    // size was slightly adjusted to
-                    // preserve table width in view on
-                    // fractional division results
+                    // Last cell width adjusted so fractional division still
+                    // preserves the table width.
                     '<td style="width: 43px;"><p><br></p></td>' +
                     "</tr>" +
                     '<tr style="height: 30px;">' +
@@ -684,7 +683,7 @@ describe("column", () => {
                     </table>
                 `),
                 stepFunction: (editor) => {
-                    // Select the second cell
+                    // Target the second cell, not the one holding the selection.
                     const cell = editor.editable.querySelectorAll("td")[1];
                     removeColumn(cell)(editor);
                 },
@@ -762,7 +761,7 @@ describe("tab", () => {
 
         expect(getContent(el)).toBe(expectedContent);
 
-        // Check that it was registed as a history step.
+        // Check that it was registered as a history step.
         undo(editor);
         expect(getContent(el)).toBe(
             '<p data-selection-placeholder=""><br></p>' +
