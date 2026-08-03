@@ -191,11 +191,9 @@
     </template>
 
     <template id="500">
-        <!-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -->
-        <!-- This template should not use any variable except those provided by http_routing.ir_http._handle_exception  -->
-        <!--    no request.crsf_token, no theme style, no assets, ... cursor can be broken during rendering !      -->
-        <!--    see test_05_reset_specific_view_controller_broken_request                                          -->
-        <!-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -->
+        <!-- Use only the values ir_http._handle_error passes in: the cursor can
+             already be broken when this renders, so no request.csrf_token(), no
+             theme style and no assets. -->
         <html>
             <head>
                 <title t-esc="status_message">Internal Server Error</title>
