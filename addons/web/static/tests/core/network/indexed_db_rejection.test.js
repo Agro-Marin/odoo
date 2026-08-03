@@ -95,3 +95,52 @@ test("invalidate() settles on the transaction, not on its clear() requests", asy
 
     after(() => db.deleteDatabase());
 });
+
+/**
+ * Stub ``indexedDB.open`` so it *returns* a request that then fails
+ * asynchronously — what a browser does when storage is denied or the stored
+ * database is unreadable, as opposed to `open` throwing outright. Counts the
+ * attempts. Restored after the test.
+ *
+ * @param {{ opens: number }} state
+ */
+function patchOpenToFailAsynchronously(state) {
+    const original = indexedDB.open;
+    indexedDB.open = () => {
+        state.opens++;
+        const request = {
+            onsuccess: null,
+            onerror: null,
+            onupgradeneeded: null,
+            onblocked: null,
+            error: new DOMException("storage is unavailable", "UnknownError"),
+        };
+        Promise.resolve().then(() =>
+            request.onerror?.({ target: request, type: "error" }),
+        );
+        return /** @type {any} */ (request);
+    };
+    after(() => {
+        indexedDB.open = original;
+    });
+}
+
+test("an open that fails asynchronously is not retried on every call", async () => {
+    // A synchronous throw already flips `_degraded`; a request that resolves to
+    // an error did not, so a permanently unusable IndexedDB was reopened once
+    // per cached RPC, each attempt logging its own console error.
+    const state = { opens: 0 };
+    patchOpenToFailAsynchronously(state);
+
+    const db = new IndexedDB(CACHE_NAME, 1);
+    for (let i = 0; i < 5; i++) {
+        expect(await db.read("mytable", `key${i}`)).toBe(undefined);
+    }
+
+    expect(db._degraded).toBe(true, {
+        message: "a failed open must be remembered",
+    });
+    expect(state.opens).toBe(1, {
+        message: `opened the database ${state.opens} times for 5 reads`,
+    });
+});

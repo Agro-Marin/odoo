@@ -318,6 +318,14 @@ export class IndexedDB {
             };
             request.onerror = (event) => {
                 settle(() => {
+                    // Remembered, like the synchronous-throw path above: an
+                    // `open` that resolves to an error is a persistent
+                    // condition for this (name, version) -- denied storage, an
+                    // unreadable file, a version another context holds. Without
+                    // the flag the database was reopened once per call, so a
+                    // cold session with an unusable IndexedDB paid an open and
+                    // logged a console error for every cached RPC it made.
+                    this._degraded = true;
                     console.error(
                         `IndexedDB error: ${/** @type {IDBRequest} */ (event.target).error?.message}`,
                     );
