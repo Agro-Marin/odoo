@@ -20,9 +20,8 @@ const pressArrowKey = async (editor, key) => {
         selection.isCollapsed &&
         closestElement(selection.anchorNode, isTableCell)
     ) {
-        // Since the selection is in a table, the table plugin handles the
-        // arrow key so we use `press` instead of `simulateArrowKeyPress`
-        // (which would then change the selection twice).
+        // Inside a cell the table plugin moves the caret itself (ArrowUp and
+        // ArrowDown), so press the key instead of simulating the move.
         // TODO: detect this without relying on implementation if possible.
         await press(key);
     } else {
@@ -282,10 +281,9 @@ test("moving the caret into a selection placeholder shows a horizontal caret", a
                         "The placeholder stopped blinking when taking the focus into the textarea.",
                 },
             );
-            // Refocus the editable.
+            // Refocus the editable: it should start blinking again.
             editor.editable.focus();
             await animationFrame();
-            // Focus again, it should start blinking again.
         },
         contentAfterEdit: unformat(
             `<p data-selection-placeholder="" class="o-horizontal-caret o-we-hint" o-we-hint-text='Type "/" for commands'>[]<br></p>
