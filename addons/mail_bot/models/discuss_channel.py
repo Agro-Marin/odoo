@@ -8,7 +8,8 @@ class DiscussChannel(models.Model):
 
     def execute_command_help(self, **kwargs):
         super().execute_command_help(**kwargs)
-        self.env['mail.bot']._apply_logic(self, kwargs, command="help")  # kwargs are not usefull but...
+        # kwargs carry the typed body, which the bot logic matches on
+        self.env['mail.bot']._apply_logic(self, kwargs, command="help")
 
     def _message_post_after_hook(self, message, msg_vals):
         self.env["mail.bot"]._apply_logic(self, msg_vals)
