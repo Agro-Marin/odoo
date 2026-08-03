@@ -7,10 +7,9 @@ from odoo.tests import TransactionCase, tagged
 class TestSlug(TransactionCase):
     """Characterization tests for the slug/unslug helpers on ``ir.http``.
 
-    These helpers back every frontend URL (blog posts, products, events, ...)
-    yet lived without direct unit coverage; the behaviour they encode -- the
+    They back every frontend URL, and the behaviour they encode -- the
     ``name-id`` grammar, negative ids carved out by the slug regex, id ``0``,
-    unicode -- is easy to break during a refactor. Pin it down here.
+    unicode -- is easy to break during a refactor.
     """
 
     @classmethod
@@ -116,7 +115,4 @@ class TestSlug(TransactionCase):
             self.IrHttp._unslug_url("/blog/about?page=2"), "/blog/about?page=2"
         )
 
-    # NOTE: get_nearest_lang() is covered in test_lang.py. In this module its
-    # base implementation is a pure function of the active languages (no
-    # ``request``), so it is unit-testable here; website's override (which reads
-    # ``request``) is exercised by website's test_lang_url.
+    # NOTE: get_nearest_lang() is covered in test_lang.TestNearestLang.
