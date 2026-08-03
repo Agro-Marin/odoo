@@ -30,6 +30,7 @@ class TestMailRenderCommon(common.MailCommon):
             }
         )
 
+        # some inline templates
         cls.base_inline_template_bits = [
             "<p>Hello</p>",
             "<p>Hello {{ object.name }}</p>",
@@ -228,9 +229,7 @@ class TestMailRender(TestMailRenderCommon):
 
     @users("employee")
     def test_render_qweb_compiles_once_per_batch(self):
-        """A batch qweb render compiles the template once, not once per record:
-        etree templates are not ormcached, so without a shared compile cache
-        each record re-ran codegen + compile() + eval (perf regression guard)."""
+        """A batch qweb render compiles the template once, not once per record."""
         template = self.env["mail.template"].create(
             {
                 "name": "Batch perf",
@@ -241,6 +240,8 @@ class TestMailRender(TestMailRenderCommon):
         partners = self.env["res.partner"].create(
             [{"name": "P%d" % idx} for idx in range(6)]
         )
+        # etree templates are not ormcached: without a shared compile cache,
+        # each record re-runs codegen + compile() + eval
         ir_qweb_cls = type(self.env["ir.qweb"])
         origin = ir_qweb_cls._generate_code_uncached
         compiles = []
@@ -399,7 +400,7 @@ class TestMailRender(TestMailRenderCommon):
 
     @users("employee")
     def test_render_template_various(self):
-        """Test static rendering"""
+        """Test rendering various static and dynamic sources"""
         partner = self.env["res.partner"].browse(self.render_object.ids)
         MailRenderMixin = self.env["mail.render.mixin"]
 
@@ -449,7 +450,7 @@ class TestMailRender(TestMailRenderCommon):
                 partner.ids,
                 engine=engine,
             )[partner.id]
-            self.assertEqual(expected, result)  # tde: checkme
+            self.assertEqual(expected, result)
 
         # code xml
         srces = [
@@ -703,7 +704,8 @@ class TestMailRenderSecurity(TestMailRenderCommon):
 
     @users("user_rendering_restricted")
     def test_render_inline_template_restricted(self):
-        """Test if we correctly detect static template."""
+        """A restricted user is denied dynamic code, but may still render a
+        static template."""
         res_ids = self.env["res.partner"].search([], limit=1).ids
         with self.assertRaises(
             AccessError, msg="Simple user should not be able to render dynamic code"
@@ -732,7 +734,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
 
     @users("employee")
     def test_render_inline_template_unrestricted(self):
-        """Test if we correctly detect static template."""
+        """Test that a template editor can render dynamic inline_template code."""
         res_ids = self.env["res.partner"].search([], limit=1).ids
         result = self.env["mail.render.mixin"]._render_template_inline_template(
             self.base_inline_template_bits[3], "res.partner", res_ids
@@ -834,7 +836,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
         MailRenderMixin = self.env["mail.render.mixin"]
 
         def cust_function():
-            # Can not use "MagicMock" in a Jinja sand-boxed environment
+            # Can not use "MagicMock" in the safe_eval sand-boxed environment
             # so create our own function
             cust_function.call = True
             return "return value"
@@ -866,7 +868,8 @@ class TestMailRenderSecurity(TestMailRenderCommon):
 
     @users("user_rendering_restricted")
     def test_security_inline_template_restricted(self):
-        """Test if we correctly detect condition block (which might contains code)."""
+        """A restricted user must not render an inline template holding a
+        condition block, which can carry arbitrary code."""
         res_ids = self.env["res.partner"].search([], limit=1).ids
         with self.assertRaises(
             AccessError, msg="Simple user should not be able to render dynamic code"
@@ -877,7 +880,8 @@ class TestMailRenderSecurity(TestMailRenderCommon):
 
     @users("employee")
     def test_security_inline_template_unrestricted(self):
-        """Test if we correctly detect condition block (which might contains code)."""
+        """A template editor renders the condition block, and only the taken
+        branch reaches the output."""
         res_ids = self.env["res.partner"].search([], limit=1).ids
         result = self.env["mail.render.mixin"]._render_template_inline_template(
             self.base_inline_template_bits[4], "res.partner", res_ids
@@ -888,7 +892,8 @@ class TestMailRenderSecurity(TestMailRenderCommon):
 
     @users("user_rendering_restricted")
     def test_security_qweb_template_restricted(self):
-        """Test if we correctly detect condition block (which might contains code)."""
+        """A restricted user must not render a qweb template holding a
+        ``t-if``/``t-else`` block, which can carry arbitrary code."""
         res_ids = self.env["res.partner"].search([], limit=1).ids
         with self.assertRaises(
             AccessError,
@@ -900,7 +905,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
 
     @users("user_rendering_restricted")
     def test_security_qweb_template_restricted_cached(self):
-        """Test if we correctly detect condition block (which might contains code)."""
+        """Test that the check still raises when an admin already filled the render cache."""
         res_ids = self.env["res.partner"].search([], limit=1).ids
 
         # Render with the admin first to fill the cache
@@ -925,7 +930,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
 
     @users("employee")
     def test_security_qweb_template_unrestricted(self):
-        """Test if we correctly detect condition block (which might contains code)."""
+        """Test that a template editor can render dynamic qweb code."""
         res_ids = self.env["res.partner"].search([], limit=1).ids
         result = self.env["mail.render.mixin"]._render_template_qweb(
             self.base_qweb_bits[1], "res.partner", res_ids

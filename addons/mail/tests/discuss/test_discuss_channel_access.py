@@ -60,9 +60,8 @@ class TestDiscussChannelAccess(MailCommon):
             ("user", "no_group", "member", "unlink", False),
             ("user", "no_group", "outside", "create", True),
             ("user", "no_group", "outside", "read", True),
-            # structural writes (name/active/...) require membership: a
-            # non-member internal user must not be able to reconfigure a public
-            # channel they never joined.
+            # structural writes (name/active/...) require membership: a non-member
+            # internal user must not reconfigure a public channel they never joined.
             ("user", "no_group", "outside", "write", False),
             ("user", "no_group", "outside", "unlink", False),
             ("user", "group_matching", "member", "read", True),
@@ -315,7 +314,7 @@ class TestDiscussChannelAccess(MailCommon):
         :param cases: A list of test cases, where each tuple contains:
 
             - user_key (``"portal"`` | ``"public"`` | ``"user"``): The user performing the operation.
-            - group_key (``"chat"`` | ``"group"`` | ``"no_group"`` | ``"group_matching"`` |
+            - channel_key (``"chat"`` | ``"group"`` | ``"no_group"`` | ``"group_matching"`` |
             ``"group_failing"``): The group specification to use. ``chat`` and ``group`` define the
             channel type, while the others configure group setups for the channels.
             - membership (``"member"`` | ``"outside"``): Whether the user is a member of the channel.
@@ -403,7 +402,7 @@ class TestDiscussChannelAccess(MailCommon):
         :param cases: A list of test cases, where each tuple contains:
             - user_key (``"portal"`` | ``"public"`` | ``"user"``):
                 The user performing the operation.
-            - group_key (``"chat"`` | ``"group"`` | ``"no_group"`` | ``"group_matching"`` |
+            - channel_key (``"chat"`` | ``"group"`` | ``"no_group"`` | ``"group_matching"`` |
             ``"group_failing"``):
                 The group specification to use. ``chat`` and ``group`` define the channel type, while the
                 others configure group setups for the channels.
