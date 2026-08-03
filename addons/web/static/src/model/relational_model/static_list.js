@@ -48,7 +48,6 @@ function cloneCommandsById(byId) {
 const RESTORABLE_STATE = {
     _commands: { clone: cloneCommands },
     _currentIds: { clone: (ids) => [...ids] },
-    count: { clone: (n) => n },
     _unknownRecordCommands: { clone: cloneCommandsById },
     _loadingStubIds: {
         clone: (ids) => new Set(ids),
@@ -111,12 +110,13 @@ export class StaticList extends DataPoint {
         this._membership.records = records;
     }
 
+    /**
+     * Derived from `_currentIds` -- see {@link ListMembership}. There is no
+     * setter: membership changes by inserting into or removing from
+     * `_currentIds`, and the total follows.
+     */
     get count() {
         return this._membership.count;
-    }
-
-    set count(count) {
-        this._membership.count = count;
     }
 
     get _currentIds() {
@@ -501,6 +501,16 @@ export class StaticList extends DataPoint {
             if (!this._currentIds.includes(listId(record))) {
                 await this._addRecord(record);
             } else if (!record.hasPendingChanges) {
+                // Deliberate, not an oversight: a row confirmed without a
+                // single edit KEEPS the widened active fields the dialog gave
+                // it. Narrowing them back to the list's columns makes the next
+                // onchange payload for a sub-form-only x2many fail the
+                // `fieldName in record.activeFields` test in the command
+                // engine, which defers it into `_unknownRecordCommands` -- and
+                // `extendRecord` only replays those the FIRST time a row is
+                // extended, so reopening the dialog shows the pre-onchange
+                // value forever. Covered by one2many_field.test.js, "onchange
+                // specification complete after open sub form view not inline".
                 return;
             }
             await this._onUpdate();
@@ -621,7 +631,6 @@ export class StaticList extends DataPoint {
             }
             this._commands.push(command);
         }
-        this.count++;
         this._needsReordering = true;
     }
 
@@ -907,7 +916,6 @@ export class StaticList extends DataPoint {
         const kept = this._currentIds.filter((id) => confirmed.has(id));
         const keptSet = new Set(kept);
         this._currentIds = [...kept, ...serverIds.filter((id) => !keptSet.has(id))];
-        this.count = this._currentIds.length;
         this.model._patchConfig(this.config, { resIds: [...serverIds] });
         this._commands = [];
         this._initialCommands = [];
@@ -1006,7 +1014,6 @@ export class StaticList extends DataPoint {
         }
         this._commands = [];
         this._currentIds = [...this.resIds];
-        this.count = this.resIds.length;
         this._unknownRecordCommands = {};
         this._loadingStubIds.clear();
         const limit = this.limit - this._tmpIncreaseLimit;
@@ -1130,29 +1137,10 @@ export class StaticList extends DataPoint {
             nextCurrentIds = nextCurrentIds.filter((id) => !missing.has(id));
         }
         // Both `_load` and its `sort` caller silently drop ids the server no
-        // longer returns; `count` is the x2many pager total, so it has to follow
-        // or a concurrently-unlinked row lives on as a phantom page entry until
-        // the next save. Only *departures* count -- `_addRecord` legitimately
-        // grows membership through this same path and does its own `count++` --
-        // and they are counted as a MULTISET difference, because an id present
-        // twice that comes back once is one departure, not zero.
-        if (nextCurrentIds !== this._currentIds) {
-            /** @type {Map<any, number>} */
-            const remaining = new Map();
-            for (const id of nextCurrentIds) {
-                remaining.set(id, (remaining.get(id) || 0) + 1);
-            }
-            let dropped = 0;
-            for (const id of this._currentIds) {
-                const left = remaining.get(id);
-                if (left) {
-                    remaining.set(id, left - 1);
-                } else {
-                    dropped++;
-                }
-            }
-            this.count -= dropped;
-        }
+        // longer returns -- `_loadRecords` throws only on a ZERO-row response.
+        // `count` is the x2many pager total and is derived from `_currentIds`,
+        // so a concurrently-unlinked row leaves the pager the moment it leaves
+        // the id list; nothing has to reconcile the two.
         this._currentIds = nextCurrentIds;
         this.model._patchConfig(this.config, { limit, offset, orderBy });
     }
@@ -1180,7 +1168,6 @@ export class StaticList extends DataPoint {
         );
         this._commands = [x2ManyCommands.set(presentIds), ...updateCommandsToKeep];
         this._currentIds = [...presentIds];
-        this.count = this._currentIds.length;
         for (const id of Object.keys(this._unknownRecordCommands)) {
             if (!idSet.has(id) && !idSet.has(Number(id))) {
                 delete this._unknownRecordCommands[id];

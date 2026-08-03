@@ -5,14 +5,33 @@
 
 /** @import { RelationalRecord } from "./record.js" */
 
+/**
+ * The membership ledger of a {@link StaticList}: the ordered id list, the page
+ * of materialised records, and the pager total.
+ *
+ * `count` is DERIVED, not stored. It used to be a field that every mutator had
+ * to keep in step with `ids` by hand -- ~12 sites across three files, each one
+ * an opportunity to drift, and the reason `_load` once needed a multiset
+ * difference just to work out how far `count` had fallen behind. Making it a
+ * getter is what makes `count !== ids.length` unrepresentable rather than
+ * merely untested.
+ */
 export class ListMembership {
     /** @param {(number | string)[]} [ids] */
     constructor(ids = []) {
         this.ids = [...ids];
-        this.count = this.ids.length;
         /** @type {RelationalRecord[]} */
         this.records = [];
         this.tmpIncreaseLimit = 0;
+    }
+
+    /**
+     * The number of members, i.e. the x2many pager total.
+     *
+     * @returns {number}
+     */
+    get count() {
+        return this.ids.length;
     }
 
     /** @returns {number} */
@@ -65,7 +84,6 @@ export class ListMembership {
                 this.records.splice(recordIndex, 1);
             }
         }
-        this.count--;
         return true;
     }
 }

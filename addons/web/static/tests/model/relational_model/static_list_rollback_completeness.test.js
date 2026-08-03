@@ -34,7 +34,6 @@ function makeList(overrides = {}) {
             fields: {},
         },
         records: [],
-        count: 0,
         _cache: markRaw({}),
         _commands: [],
         _initialCommands: [],
@@ -75,7 +74,7 @@ describe("rollback completeness after a failed commit", () => {
         // ``preprocessX2manyChanges`` routes a SET command in a field change to
         // ``_replaceWith``, so this runs inside ``record._update``'s try block
         // and is covered by ``rollbackLists`` when the onchange then throws.
-        const list = makeList({ _currentIds: [1], count: 1 });
+        const list = makeList({ _currentIds: [1] });
         for (const id of [1, 2, 3]) {
             list._cache[id] = { resId: id, _virtualId: false };
         }
@@ -112,7 +111,6 @@ describe("rollback completeness after a failed commit", () => {
                 fields: {},
             },
             _currentIds: [1, 7],
-            count: 2,
         });
         list._cache[1] = { resId: 1, _virtualId: false };
         list.records = [list._cache[1]];
@@ -146,7 +144,6 @@ describe("_needsReordering is part of the restorable set", () => {
                 fields: {},
             },
             _currentIds: [1],
-            count: 1,
         });
         list._cache[1] = { resId: 1, _virtualId: false, data: { sequence: 1 } };
         list.records = [list._cache[1]];

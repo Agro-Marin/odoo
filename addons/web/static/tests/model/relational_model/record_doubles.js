@@ -75,6 +75,48 @@ export const RECORD_STATE_TRANSITIONS = {
 };
 
 /**
+ * The record surface the ``relational_model/`` helpers and ``StaticList`` reach
+ * for. Written down once here so the two directions of drift both fail loudly:
+ * ``record_doubles_conformance.test.js`` asserts a REAL ``RelationalRecord``
+ * has every entry (so a rename in the class breaks this list rather than
+ * silently orphaning it) and that {@link makeRecordDouble} does too (so the
+ * double cannot fall behind the list).
+ *
+ * @type {string[]}
+ */
+export const RECORD_CONTRACT_SURFACE = [
+    // identity + shape
+    "activeFields",
+    "data",
+    "fields",
+    "isNew",
+    // editable state
+    "_changes",
+    "_initialTextValues",
+    "_invalidFields",
+    "_savePoint",
+    "_textValues",
+    "_unsetRequiredFields",
+    "_values",
+    "dirty",
+    "hasPendingChanges",
+    // list-facing
+    "_loadedFieldNames",
+    // behaviour the helpers invoke
+    "_checkValidity",
+    "_clearChanges",
+    "_clearValidity",
+    "_commitChanges",
+    "_discardChanges",
+    "_isInvisible",
+    "_isRequired",
+    "_rebuildData",
+    "_resetValues",
+    "_restoreActiveFields",
+    "_setEvalContext",
+];
+
+/**
  * @param {Object} [opts]
  * @param {Record<string, any>} [opts.changes] pending edits
  * @param {Record<string, any>} [opts.textValues]
@@ -182,6 +224,12 @@ export function makeRecordDouble({
         get _unsetRequiredFields() {
             return editState.unsetRequiredFields;
         },
+
+        // The list-facing half of the contract. `StaticList._getResIdsToLoad`
+        // asks a cached record which fields it already holds, to decide whether
+        // a row still needs a webRead; a double without it makes that question
+        // throw rather than answer.
+        _loadedFieldNames: new Set(Object.keys(merged)),
 
         ...RECORD_STATE_TRANSITIONS,
         _clearChanges: () => editState.clearChanges(),

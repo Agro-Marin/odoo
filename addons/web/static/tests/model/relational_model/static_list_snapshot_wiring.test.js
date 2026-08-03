@@ -23,7 +23,6 @@ function makeSpyList() {
     return {
         _commands: [],
         _currentIds: [],
-        count: 0,
         snapshots: 0,
         restores: 0,
         _snapshot() {
@@ -135,7 +134,6 @@ describe("_discard restores the savepoint's page limit", () => {
                 fields: {},
             },
             records: [],
-            count: 2,
             _cache: markRaw({}),
             _commands: [],
             _initialCommands: [],
@@ -170,7 +168,6 @@ describe("_discard restores the savepoint's page limit", () => {
         // dialog is opened on the list.
         list._bumpLimit(1);
         list._currentIds = [1, 2, 3];
-        list.count = 3;
         expect(list.limit).toBe(3);
 
         // Opening a form dialog on a row snapshots the list...
@@ -192,7 +189,6 @@ describe("_discard restores the savepoint's page limit", () => {
         const list = makeList();
         list._bumpLimit(1);
         list._currentIds = [1, 2, 3];
-        list.count = 3;
 
         list._discard();
 

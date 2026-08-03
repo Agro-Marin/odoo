@@ -188,7 +188,6 @@ export function applyCommands(
                 if (occupancy > list.limit) {
                     list._bumpLimit(occupancy - list.limit);
                 }
-                list.count++;
                 break;
             }
             case UPDATE: {
@@ -274,8 +273,6 @@ export function applyCommands(
             case LINK: {
                 let record;
                 const wasCached = command[1] in list._cache;
-                const needsLoad =
-                    !wasCached || list._getResIdsToLoad([command[1]]).length > 0;
                 if (wasCached) {
                     record = list._cache[command[1]];
                 } else {
@@ -284,6 +281,21 @@ export function applyCommands(
                         id: command[1],
                     });
                 }
+                // An inlined payload is AUTHORITATIVE: whoever sent the LINK
+                // decided what this row needs, and the omitted fields are not
+                // re-read. `_multiSave` relies on it -- it rewrites a
+                // many2many's LINKs to carry display_name alone -- and so does
+                // every onchange that inlines a subset.
+                //
+                // The cost is that a payload omitting a field the list DOES
+                // render leaves it at its default with nothing queued to fix
+                // it. Asking `_getResIdsToLoad` instead (i.e. completing every
+                // partial payload) is not the fix: it re-reads the whole tag
+                // list on any many2many_tags edit. If this ever bites, narrow
+                // the question to fields that are actually displayed rather
+                // than to the list's whole active set.
+                const needsLoad =
+                    !wasCached || list._getResIdsToLoad([command[1]]).length > 0;
                 if (
                     currentIdsSet.has(record.resId) &&
                     (!removedIds[record.resId] || readdedIds.has(record.resId))
@@ -313,7 +325,6 @@ export function applyCommands(
                 }
                 currentIdsSet.add(record.resId);
                 addOwnCommand([command[0], command[1], false]);
-                list.count++;
                 break;
             }
             default: {
@@ -348,7 +359,6 @@ export function applyCommands(
             removedIds,
             (id) => id,
         );
-        list.count = list._currentIds.length;
     }
 
     list._clampOffset();

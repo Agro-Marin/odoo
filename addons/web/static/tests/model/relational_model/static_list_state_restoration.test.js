@@ -51,7 +51,6 @@ function makeList({ resIds = [], limit = 40, offset = 0 } = {}) {
             fields: { display_name: { type: "char" } },
         },
         records: [],
-        count: resIds.length,
         _cache: markRaw({}),
         _commands: [],
         _initialCommands: [],
@@ -114,7 +113,6 @@ describe("snapshot / restore", () => {
         list._loadingStubIds.clear();
         list._tmpIncreaseLimit = 0;
         list._currentIds = [];
-        list.count = 0;
         list._restore(snapshot);
 
         expect(list._unknownRecordCommands).toEqual({

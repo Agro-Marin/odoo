@@ -106,6 +106,15 @@ export function shouldEmitUnlink(ownCommands) {
 }
 
 /**
+ * Drop *recordId* from a leading SET command, so unlinking a row the same batch
+ * just SET is expressed by shortening the SET rather than by appending an
+ * UNLINK the server would apply to a row that was never linked.
+ *
+ * Only the SET payload is touched. The caller owns the rest: on a true return
+ * it clears that id's own commands, and it rebuilds `list._commands` from its
+ * own index afterwards -- so splicing *allCommands* here would be writing to an
+ * array that is about to be replaced.
+ *
  * @param {Array<[number, any, any?]>} allCommands
  * @param {string|number} recordId
  * @returns {boolean}
@@ -120,11 +129,6 @@ export function absorbUnlinkIntoSet(allCommands, recordId) {
         return false;
     }
     firstCommand[2] = ids.filter((id) => id !== recordId);
-    for (let i = allCommands.length - 1; i > 0; i--) {
-        if (allCommands[i][0] === UPDATE && allCommands[i][1] === recordId) {
-            allCommands.splice(i, 1);
-        }
-    }
     return true;
 }
 

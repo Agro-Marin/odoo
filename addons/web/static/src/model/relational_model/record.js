@@ -945,6 +945,16 @@ export class RelationalRecord extends DataPoint {
                 throw e;
             }
         }
+        // Deliberately AFTER the onchange, not before. Setting a many2one to
+        // the pair it already holds is not always a no-op: the m2o widget does
+        // exactly that when its "internal link" dialog closes, to re-run the
+        // onchange because the REFERENT changed even though the pointer did
+        // not. The model cannot tell that apart from the user re-picking the
+        // current value in the autocomplete, so it runs the onchange either
+        // way and only suppresses the spurious *change entry* here. Skipping
+        // the round trip is a judgement only the widget can make -- see
+        // many2one_field.test.js, "onchanges on many2ones trigger when editing
+        // record in form view".
         for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type === "many2one") {
                 const curVal = toRaw(this.data[fieldName]);
