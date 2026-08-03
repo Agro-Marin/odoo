@@ -9,9 +9,7 @@ import { getContent, setSelection } from "../_helpers/selection.js";
 import { expectElementCount } from "../_helpers/ui_expectations.js";
 import { insertSpace, insertText, undo } from "../_helpers/user_actions.js";
 
-/**
- * Automatic link creation when pressing Space, Enter or Shift+Enter after an url
- */
+// Automatic link creation when pressing Space, Enter or Shift+Enter after a URL.
 test("should transform url after space (1)", async () => {
     await testEditor({
         contentBefore:
@@ -144,9 +142,8 @@ test("transform text url into link and undo it", async () => {
         '<p><a href="https://www.abc.jpg">www.abc.jpg</a>&nbsp;[]</p>',
     );
 
-    // The plugin commits the link creation and the programmatic nbsp as two
-    // separate history steps (see LinkPlugin.onBeforeInput), so the first undo
-    // takes back the space and the second the link itself.
+    // LinkPlugin.onBeforeInput commits the link and the programmatic nbsp as two
+    // history steps, so the first undo takes back the space, the second the link.
     undo(editor);
     expect(cleanLinkArtifacts(getContent(el))).toBe(
         '<p><a href="https://www.abc.jpg">www.abc.jpg</a>[]</p>',

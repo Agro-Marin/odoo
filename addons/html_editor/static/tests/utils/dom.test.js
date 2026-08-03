@@ -369,9 +369,8 @@ describe("wrapInlinesInBlocks", () => {
         const div = el.querySelector("div");
         editor.shared.selection.setSelection({ anchorNode: div, anchorOffset: 0 });
         editor.shared.selection.focusEditable();
-        // dom insert should take care not to insert inline content at the root
-        // inline non-phrasing content should not be added in a paragraph-related
-        // element.
+        // dom insert must not put inline content at the root, and inline
+        // non-phrasing content must not go in a paragraph-related element.
         editor.shared.dom.insert(
             parseHTML(
                 editor.document,
@@ -379,10 +378,8 @@ describe("wrapInlinesInBlocks", () => {
             ),
         );
         editor.shared.history.addStep();
-        // It is debatable whether an empty paragraph-related element
-        // should be kept or not after inserting an inline flow-content element
-        // (which would be wrapped inside a div, not in the paragraph-related
-        // element).
+        // Debatable: the emptied paragraph-related element is kept, while the
+        // inserted inline flow content goes in a div instead.
         expect(getContent(el)).toBe(
             unformat(`
                 <p data-selection-placeholder=""><br></p>
@@ -405,9 +402,8 @@ describe("wrapInlinesInBlocks", () => {
         const div = el.querySelector("div");
         editor.shared.selection.setSelection({ anchorNode: div, anchorOffset: 0 });
         editor.shared.selection.focusEditable();
-        // dom insert should take care not to insert inline content at the root
-        // inline non-phrasing content should not be added in a paragraph-related
-        // element.
+        // dom insert must not put inline content at the root, and inline
+        // non-phrasing content must not go in a paragraph-related element.
         editor.shared.dom.insert(
             parseHTML(
                 editor.document,
@@ -438,9 +434,8 @@ describe("wrapInlinesInBlocks", () => {
         );
         const div = el.querySelector("div");
         editor.shared.selection.setSelection({ anchorNode: div, anchorOffset: 0 });
-        // dom insert should take care not to insert inline content at the root
-        // inline non-phrasing content should not be added in a paragraph-related
-        // element.
+        // dom insert must not put inline content at the root, and inline
+        // non-phrasing content must not go in a paragraph-related element.
         editor.shared.dom.insert(
             parseHTML(
                 editor.document,

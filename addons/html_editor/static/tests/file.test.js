@@ -54,7 +54,7 @@ describe("file command", () => {
         // Check that there's no media dialog.
         expect(".o_select_media_dialog").toHaveCount(0);
         await mockedUpload;
-        // Check that file card (embedded component) was inserted in the editable.
+        // Check that the static file card was inserted in the editable.
         expect(".odoo-editor-editable .o_file_box").toHaveCount(1);
     });
 
@@ -62,9 +62,9 @@ describe("file command", () => {
         const { editor } = await setupEditor("<p>[]<br></p>");
         patchUpload(editor);
         execCommand(editor, "uploadFile");
-        // wait for the embedded component to be mounted
+        // Wait for the static file card to be rendered.
         await waitFor('.o_file_box .o_file_name_container:contains("file.txt")');
-        // Check that file card has inline display, with alert style.
+        // Check that file card has inline-block display, with alert style.
         const fileCard = queryOne(".o_file_box");
         expect(fileCard).toHaveStyle({ display: "inline-block" });
         expect(fileCard.firstElementChild).toHaveClass(["alert", "alert-info"]);
@@ -343,7 +343,7 @@ describe("powerbutton", () => {
         // Check that there's no media dialog.
         expect(".o_select_media_dialog").toHaveCount(0);
         await mockedUpload;
-        // Check that file card (embedded component) was inserted in the editable.
+        // Check that the static file card was inserted in the editable.
         expect(".odoo-editor-editable .o_file_box").toHaveCount(1);
     });
 
@@ -368,7 +368,7 @@ describe("zero width no-break space", () => {
         const { editor } = await setupEditor("<p>[]<br></p>");
         patchUpload(editor);
         execCommand(editor, "uploadFile");
-        // wait for the the file to be uploaded and the card rendered
+        // Wait for the file to be uploaded and the card rendered.
         await waitFor('.o_file_box a:contains("file.txt")');
         // Check that file card is padded with ZWNBSP on both sides.
         const fileCard = queryOne(".o_file_box");
