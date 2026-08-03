@@ -5,10 +5,7 @@ from odoo.exceptions import UserError
 
 
 class MailActivityType(models.Model):
-    """Activity Types are used to categorize activities. Each type is a different
-    kind of activity e.g. call, mail, meeting. An activity can be generic i.e.
-    available for all models using activities; or specific to a model in which
-    case res_model field should be used."""
+    """Category of activity (call, mail, meeting), generic or specific to a model."""
 
     _name = "mail.activity.type"
     _description = "Activity Type"
@@ -239,12 +236,10 @@ class MailActivityType(models.Model):
     def unlink(self):
         """When removing an activity type, put activities into a Todo."""
         todo_type = self.env.ref("mail.mail_activity_data_todo")
-        # sudo: activity_type_id is ondelete="restrict". A deleter who lacks read
-        # access to some referencing records would, with an access-filtered
-        # search, leave those activities unreassigned and hit the FK on
-        # super().unlink(). Defense-in-depth: reassign every referencing row.
-        # active_test=False: completed activities are archived (_action_done),
-        # so an active-only search would miss them and still hit the FK.
+        # sudo: mail.activity - activity_type_id is ondelete="restrict", so every
+        # referencing row must be reassigned, including those the deleter cannot
+        # read, else super().unlink() hits the FK. Same reason for active_test=False:
+        # completed activities are archived (_action_done) but still reference the type.
         self.env["mail.activity"].sudo().with_context(active_test=False).search(
             [("activity_type_id", "in", self.ids)]
         ).write(
@@ -255,7 +250,9 @@ class MailActivityType(models.Model):
         return super().unlink()
 
     def _get_date_deadline(self):
-        """Return the activity deadline computed from today or from activity_previous_deadline context variable."""
+        """Return the activity deadline, computed from the activity_previous_deadline
+        context variable when delay_from asks for it, else from today.
+        """
         self.ensure_one()
         if self.delay_from == "previous_activity" and self.env.context.get(
             "activity_previous_deadline"

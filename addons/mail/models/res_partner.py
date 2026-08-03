@@ -9,8 +9,7 @@ from odoo.addons.mail.tools.discuss import Store
 
 
 class ResPartner(models.Model):
-    """Update partner to add a field about notification preferences. Add a generic opt-out field that can be used
-    to restrict usage of automatic email templates."""
+    """Add chatter tracking, activities, blacklist and presence status to partners."""
 
     _name = "res.partner"
     _inherit = ["res.partner", "mail.activity.mixin", "mail.thread.blacklist"]
@@ -138,16 +137,10 @@ class ResPartner(models.Model):
         sort_reverse=True,
     ):
         """Based on a list of emails, find or (optionally) create partners.
-        If an email is not unique (e.g. multi-email input), only the first found
-        valid email in input is considered. Filter and sort options allow to
-        tweak the way we link emails to partners (e.g. share partners only, ...).
 
-        Optional additional values allow to customize the created partner. Data
-        are given per normalized email as it the creation criterion.
-
-        When an email is invalid but not void, it is used for search or create.
-        It allows updating it afterwards e.g. with notifications resend which
-        allows fixing typos / wrong emails.
+        If an email is not unique (e.g. multi-email input), only its first found
+        valid occurrence is considered. An invalid but not void email is used for
+        search or create, so it can be fixed afterwards e.g. on notification resend.
 
         :param list emails: list of emails that can be formatted;
         :param list ban_emails: optional list of banished emails e.g. because
@@ -157,18 +150,15 @@ class ResPartner(models.Model):
           raw invalid email given to partner creation. Typically used to
           propagate a company_id and customer information from related record.
           If email cannot be normalized, raw value is used as dict key instead;
-        :param sort_key: an optional sorting key for sorting partners before
-          finding one with matching email normalized. When several partners
-          have the same email, users might want to give a preference based
-          on e.g. company, being a customer or not, ... Default ordering is
-          to use 'id ASC', which means older partners first as they are considered
-          as more relevant compared to default 'complete_name';
-        :param bool sort_reverse: given to sorted (see 'reverse' argument of sort);
         :param bool no_create: skip the 'create' part of 'find or create'. Allows
           to use tool as 'find and sort' without adding new partners in db;
+        :param sort_key: an optional sorting key for sorting partners before
+          finding one with matching email normalized. Default ordering is 'id ASC',
+          aka older partners first as they are considered as more relevant;
+        :param bool sort_reverse: given to sorted (see 'reverse' argument of sort);
 
         :return: res.partner records in a list, following order of emails. Using
-          a list allows to to keep Falsy values when no match;
+          a list allows to keep Falsy values when no match;
         :rtype: list
         """
         additional_values = additional_values or {}
@@ -200,10 +190,8 @@ class ResPartner(models.Model):
                 partners = partners.filtered(filter_found)
 
         if not no_create:
-            # create partners for valid email without any existing partner. Keep
-            # only first found occurrence of each normalized email, aka: ('Norbert',
-            # 'norbert@gmail.com'), ('Norbert With Surname', 'norbert@gmail.com')'
-            # -> a single partner is created for email 'norbert@gmail.com'
+            # create partners for valid emails without any existing partner, keeping
+            # only the first found occurrence of each normalized email
             seen = set()
             notfound_emails = emails_normalized - set(
                 partners.mapped("email_normalized")
@@ -330,9 +318,12 @@ class ResPartner(models.Model):
     @api.readonly
     @api.model
     def get_mention_suggestions(self, search, limit=8):
-        """Return 'limit'-first partners' such that the name or email matches a 'search' string.
-        Prioritize partners that are also (internal) users, and then extend the research to all partners.
-        The return format is a list of partner data (as per returned by `_to_store()`).
+        """Return 'limit'-first partners such that the name or email matches a 'search'
+        string, prioritizing partners that are also (internal) users, and then extending
+        the research to all partners. Matching roles are added as well.
+
+        :return: store data of the matched partners and roles
+        :rtype: dict
         """
         domain = self._get_mention_suggestions_domain(search)
         partners = self._search_mention_suggestions(domain, limit)
