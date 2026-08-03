@@ -65,7 +65,6 @@ describe("parse/render", () => {
 
     test("should parse a solid fontawesome", async () => {
         await testEditor({
-            // @phoenix content adapted to make it valid html
             contentBefore: '<p><i class="fa-solid fa-pastafarianism"></i></p>',
             contentBeforeEdit:
                 '<p>\ufeff<i class="fa-solid fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff</p>',
@@ -93,7 +92,6 @@ describe("parse/render", () => {
 
     test("should parse a fontawesome in a <i> (1)", async () => {
         await testEditor({
-            // @phoenix content adapted to make it valid html
             contentBefore: '<p><i class="fa-solid fa-pastafarianism"></i></p>',
             contentBeforeEdit:
                 '<p>\ufeff<i class="fa-solid fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff</p>',
@@ -103,7 +101,6 @@ describe("parse/render", () => {
 
     test("should parse a fontawesome in a <i> (2)", async () => {
         await testEditor({
-            // @phoenix content adapted to make it valid html
             contentBefore: '<p><i class="oi oi-pastafarianism"></i></p>',
             contentBeforeEdit:
                 '<p>\ufeff<i class="oi oi-pastafarianism" contenteditable="false">\u200b</i>\ufeff</p>',

@@ -111,7 +111,6 @@ describe("previousLeaf", () => {
 });
 
 describe("nextLeaf", () => {
-    // TODO @phoenix: add nextLeaf test cases when we add it in the code base
     test("should find the next leaf of a deeply nested node", () => {
         const [div] = insertTestHtml(
             "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>",
@@ -243,7 +242,7 @@ describe("isVisible", () => {
 
         test("should identify a visible string space in the middle of a paragraph", () => {
             const [p] = insertTestHtml("<p></p>");
-            // inserts 'a', '   ' and  'b' as 3 separate text nodes inside p
+            // inserts 'a', '   ' and 'b' as 3 separate text nodes inside p
             const textNodes = ["a", "   ", "b"].map((char) => {
                 const textNode = document.createTextNode(char);
                 p.appendChild(textNode);
@@ -279,7 +278,7 @@ describe("isVisible", () => {
 
         test("should identify empty text node as invisible", () => {
             const [p] = insertTestHtml("<p></p>");
-            // inserts 'a   b' as 5 separate text nodes inside p
+            // inserts an empty text node inside p
             const textNode = document.createTextNode("");
             p.appendChild(textNode);
             const result = isVisible(textNode);
