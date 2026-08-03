@@ -22,7 +22,8 @@ from odoo.service._dump_scanner import (
     _assert_dump_sql_safe,
 )
 
-from .conftest import PG_DUMP, requires_pg, requires_pg_dump
+from .._pg import pg_dump_path
+from .conftest import requires_pg, requires_pg_dump
 
 # A dump's COPY data is read verbatim by psql and is NOT lexed, so its lines --
 # including the ``\N`` NULL marker -- are not meta-commands.  Blocks start with
@@ -76,7 +77,10 @@ def dump_sql(scratch_db):
         capture_output=True,
     )
     proc = subprocess.run(
-        [PG_DUMP, "--no-owner", scratch_db], check=True, capture_output=True, text=True
+        [pg_dump_path(), "--no-owner", scratch_db],
+        check=True,
+        capture_output=True,
+        text=True,
     )
     return proc.stdout
 

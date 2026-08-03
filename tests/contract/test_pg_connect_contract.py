@@ -20,7 +20,8 @@ letting it resurface as a security defect several modules away.
 import psycopg
 import pytest
 
-from .conftest import PG_DUMP, PG_REACHABLE, PSQL, requires_pg
+from .._pg import pg_dump_path, pg_reachable, psql_path
+from .conftest import requires_pg
 
 MISSING_DB = "odoo_contract_no_such_db_xyzzy"
 
@@ -36,9 +37,9 @@ def test_dependencies_are_present():
 
     if not os.environ.get("ODOO_CONTRACT_REQUIRE_DEPS"):
         pytest.skip("set ODOO_CONTRACT_REQUIRE_DEPS=1 to enforce (do this in CI)")
-    assert PG_REACHABLE, "no reachable PostgreSQL"
-    assert PSQL, "psql not on PATH"
-    assert PG_DUMP, "pg_dump not on PATH"
+    assert pg_reachable(), "no reachable PostgreSQL"
+    assert psql_path(), "psql not on PATH"
+    assert pg_dump_path(), "pg_dump not on PATH"
 
 
 class TestPoolConnectFailureTranslation:
