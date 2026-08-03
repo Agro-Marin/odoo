@@ -66,12 +66,7 @@ class MicrosoftOutlookMixin(models.AbstractModel):
             }))
 
     def open_microsoft_outlook_uri(self):
-        """Open the URL to accept the Outlook permission.
-
-        This is done with an action, so we can force the user the save the form.
-        We need him to save the form so the current mail server record exist in DB and
-        we can include the record ID in the URL.
-        """
+        """Open the URL to accept the Outlook permission."""
         self.ensure_one()
 
         if not self.env.is_admin():
@@ -128,6 +123,8 @@ class MicrosoftOutlookMixin(models.AbstractModel):
         if not microsoft_outlook_uri:
             raise UserError(_('Please configure your Outlook credentials.'))
 
+        # returned as an action so the form is saved first: the record must exist
+        # in DB for its ID to be part of the URL
         return {
             'type': 'ir.actions.act_url',
             'url': microsoft_outlook_uri,
@@ -138,7 +135,7 @@ class MicrosoftOutlookMixin(models.AbstractModel):
         """Request the refresh token and the initial access token from the authorization code.
 
         :return:
-            refresh_token, access_token, id_token, access_token_expiration
+            refresh_token, access_token, access_token_expiration
         """
         response = self._fetch_outlook_token('authorization_code', code=authorization_code)
         return (
@@ -151,7 +148,7 @@ class MicrosoftOutlookMixin(models.AbstractModel):
         """Refresh the access token thanks to the refresh token.
 
         :return:
-            access_token, access_token_expiration
+            refresh_token, access_token, id_token, access_token_expiration
         """
         Config = self.env['ir.config_parameter'].sudo()
         microsoft_outlook_client_id = Config.get_param('microsoft_outlook_client_id')
@@ -172,7 +169,7 @@ class MicrosoftOutlookMixin(models.AbstractModel):
 
         Return the JSON response of the Outlook API and manage the errors which can occur.
 
-        :param grant_type: Depends the action we want to do (refresh_token or authorization_code)
+        :param grant_type: the OAuth grant to use (authorization_code or refresh_token)
         :param values: Additional parameters that will be given to the Outlook endpoint
         """
         Config = self.env['ir.config_parameter'].sudo()
@@ -205,11 +202,10 @@ class MicrosoftOutlookMixin(models.AbstractModel):
     def _fetch_outlook_access_token_iap(self, refresh_token):
         """Fetch the access token using IAP.
 
-        Make a HTTP request to IAP, that will make a HTTP request
-        to the Outlook API and give us the result.
+        IAP relays the request to the Outlook API and returns its result.
 
         :return:
-            access_token, access_token_expiration
+            refresh_token, access_token, id_token, access_token_expiration
         """
         outlook_iap_endpoint = self.env['ir.config_parameter'].sudo().get_param(
             'mail.server.outlook.iap.endpoint',
@@ -266,9 +262,9 @@ class MicrosoftOutlookMixin(models.AbstractModel):
         return 'user=%s\1auth=Bearer %s\1\1' % (login, self.microsoft_outlook_access_token)
 
     def _get_outlook_csrf_token(self):
-        """Generate a CSRF token that will be verified in `microsoft_outlook_callback`.
+        """Generate a CSRF token that will be verified in `_get_outlook_record`.
 
-        This will prevent a malicious person to make an admin user disconnect the mail servers.
+        This prevents a malicious person from making an admin user disconnect the mail servers.
         """
         self.ensure_one()
         _logger.info('Microsoft Outlook: generate CSRF token for %s #%i', self._name, self.id)

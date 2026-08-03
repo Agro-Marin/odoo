@@ -47,9 +47,7 @@ class IrMail_Server(models.Model):
 
     @api.onchange('smtp_encryption')
     def _onchange_encryption(self):
-        """Do not change the SMTP configuration if it's a Outlook server
-
-        (e.g. the port which is already set)"""
+        """Keep the SMTP configuration of an Outlook server (e.g. its port) untouched."""
         if self.smtp_authentication != 'outlook':
             super()._onchange_encryption()
 
@@ -82,10 +80,10 @@ class IrMail_Server(models.Model):
     def _get_personal_mail_servers_limit(self):
         """Return the number of email we can send in 1 minutes for this outgoing server.
 
-        0 fallbacks to 30 to avoid blocking servers.
+        0 fallbacks to 10 to avoid blocking servers.
         """
         if self.smtp_authentication == 'outlook':
-            # Outlook flag way faster email as spam, so we set a lower limit
+            # Outlook flags emails as spam much faster, so use a lower limit
             return int(self.env['ir.config_parameter'].sudo()
                 .get_param('mail.server.personal.limit.minutes_outlook')) or 10
         return super()._get_personal_mail_servers_limit()

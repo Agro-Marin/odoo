@@ -70,7 +70,7 @@ class MicrosoftOutlookController(http.Controller):
         model = request.env[model_name]
 
         if not isinstance(model, request.env.registry['microsoft.outlook.mixin']):
-            # The model must inherits from the "microsoft.outlook.mixin" mixin
+            # The model must inherit from the "microsoft.outlook.mixin" mixin
             _logger.error('Microsoft Outlook: Wrong model %r.', model_name)
             raise Forbidden
 
@@ -87,14 +87,11 @@ class MicrosoftOutlookController(http.Controller):
 
     def _check_email_and_redirect_to_outlook_record(self, access_token, expiration, refresh_token, record):
         if (record._name == 'ir.mail_server' and (record.owner_user_id or not request.env.user.has_group('base.group_system'))):
-            # Verify the token information (that the email set on the
-            # server is the email used to login on Outlook)
-            # We can not directly get the id_token from the response, even if we verify the signature
-            # because it comes from the user's browser redirection, and he could give an id_token of one account
-            # and the refresh_token of a different account.
-            # So we ask a new token to the outlook API to check the email address
-            # Because we received the JWT token from the API (or from IAP, with a direct HTTP request),
-            # we don't even need to check the signature
+            # Check that the email set on the server is the one used to login on Outlook.
+            # The id_token of the browser redirection is not trustworthy even signed: it
+            # could pair one account's id_token with another account's refresh_token. So
+            # we ask a fresh one to the API; coming straight from it (or from IAP, with a
+            # direct HTTP request), its signature needs no check.
             refresh_token, access_token, id_token, expiration = record._fetch_outlook_access_token(refresh_token)
             id_token_data = id_token.split(".")[1]
             id_token_data += '=' * (-len(id_token_data) % 4)  # `=` padding can be missing
