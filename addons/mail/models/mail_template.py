@@ -12,7 +12,7 @@ _logger = logging.getLogger(__name__)
 
 
 class MailTemplate(models.Model):
-    "Templates for sending email"
+    """Templates for sending email."""
 
     _name = "mail.template"
     _inherit = ["mail.render.mixin", "template.reset.mixin"]
@@ -198,10 +198,9 @@ class MailTemplate(models.Model):
 
     @api.depends("active", "description")
     def _compute_template_category(self):
-        """Base templates (or master templates) are active templates having
-        a description and an XML ID. User defined templates (no xml id),
-        templates without description or archived templates are not
-        base templates anymore."""
+        """Active templates having both a description and an XML ID are base
+        templates; archived ones and those with an XML ID but no description are
+        hidden; templates without XML ID are user defined (custom)."""
         deactivated = self.filtered(lambda template: not template.active)
         if deactivated:
             deactivated.template_category = "hidden_template"
@@ -293,20 +292,17 @@ class MailTemplate(models.Model):
                 )
 
     def _check_can_be_rendered(self, fnames=None, render_options=None):
-        # Skip during module install/upgrade: data-file templates are written
-        # via _load_records_write, and rendering a dynamic field against an
-        # arbitrary sample record could raise (e.g. the oldest record lacks the
-        # relation the expression walks), which would abort the whole upgrade.
-        # Render correctness is the template author's responsibility, not the
-        # installer's.
+        # Skip during module install/upgrade (data-file templates go through
+        # _load_records_write): rendering a dynamic field against an arbitrary
+        # sample record may raise (e.g. that record lacks the relation the
+        # expression walks) and would abort the whole upgrade.
         if self.env.context.get("install_mode"):
             return
         dynamic_fnames = self._get_dynamic_field_names()
 
         for template in self:
-            # Compute the fields to check before touching the DB: a write that
-            # changes no dynamic field (e.g. bulk archiving) must not pay a
-            # search([], limit=1) + render per template.
+            # Narrow the fields before touching the DB: a write changing no
+            # dynamic field (e.g. bulk archiving) must not pay a search + render.
             template_fnames = fnames & dynamic_fnames if fnames else dynamic_fnames
             if not template_fnames:
                 continue
@@ -365,9 +361,8 @@ class MailTemplate(models.Model):
             else None
         )
         # Attachment ownership (res_model/res_id -> this template) only needs
-        # fixing when the attachment set actually changes. Running it on every
-        # write re-wrote every attachment's ownership on unrelated edits (a
-        # rename, a subject change), dirtying them for no reason.
+        # fixing when the attachment set changes; doing it on every write dirties
+        # every attachment on unrelated edits (a rename, a subject change).
         if "attachment_ids" in vals:
             self._fix_attachment_ownership()
         return True
@@ -460,10 +455,9 @@ class MailTemplate(models.Model):
         self, res_ids, render_fields, render_results=None
     ):
         """Render attachments of template 'self', returning values for records
-        given by 'res_ids'. Note that ``report_template_ids`` returns values for
-        'attachments', as we have a list of tuple (report_name, base64 value)
-        for those reports. It is considered as being the job of callers to
-        transform those attachments into valid ``ir.attachment`` records.
+        given by 'res_ids'. ``report_template_ids`` fills an 'attachments' entry
+        with (report_name, base64 value) tuples that callers have to turn into
+        ``ir.attachment`` records themselves.
 
         :param list res_ids: list of record IDs on which template is rendered;
         :param list render_fields: list of fields to render on template which
@@ -477,11 +471,9 @@ class MailTemplate(models.Model):
         if render_results is None:
             render_results = {}
 
-        # Generating reports is per-record; browse the whole batch once and
-        # reuse those slices below (a bare ``browse(res_ids)`` reads nothing, and
-        # a fresh per-record ``browse(res_id)`` gets its own prefetch set, so the
-        # name rendering would read record-by-record). Keyed slices of a single
-        # recordset share one prefetch set.
+        # Report generation is per-record: browse the batch once and reuse those
+        # slices below, as they share a single prefetch set. A fresh per-record
+        # ``browse(res_id)`` would get its own and read record-by-record.
         records_by_id = {}
         if (
             res_ids
@@ -573,13 +565,6 @@ class MailTemplate(models.Model):
         (finding or creating partners). 'partner_to' field is transformed into
         'partner_ids' field.
 
-        Note: for performance reason, information from records are transferred to
-        created partners no matter the company. For example, if we have a record of
-        company A and one of B with the same email and no related partner, a partner
-        will be created with company A or B but populated with information from the 2
-        records. So some info might be leaked from one company to the other through
-        the partner.
-
         :param list res_ids: list of record IDs on which template is rendered;
         :param list render_fields: list of fields to render on template which
           are specific to recipients, e.g. email_cc, email_to, partner_to);
@@ -637,6 +622,9 @@ class MailTemplate(models.Model):
                         generated_field_values[res_id]
                     )
 
+        # create partners from emails if asked to. Record information is keyed by
+        # email only, for performance: two records of companies A and B sharing an
+        # email yield one partner populated from both, leaking info across companies.
         if find_or_create_partners:
             records_emails = {}
             for record in Model.browse(res_ids):
@@ -708,8 +696,9 @@ class MailTemplate(models.Model):
         dynamic, just static values used for configuration of emails.
 
         :param list res_ids: list of record IDs on which template is rendered;
-        :param list render_fields: list of fields to render, currently limited
-          to a subset (i.e. auto_delete, mail_server_id, model, res_id);
+        :param list render_fields: list of fields to render, currently limited to
+          a subset (i.e. auto_delete, email_layout_xmlid, mail_server_id, model,
+          res_id);
         :param dict render_results: res_ids-based dictionary of render values.
           For each res_id, a dict of values based on render_fields is given;
 
@@ -852,7 +841,7 @@ class MailTemplate(models.Model):
             generated email;
         :returns: id of the mail.mail that was created"""
 
-        # Grant access to send_mail only if access to related document
+        # access to the related document is checked by 'send_mail_batch'
         self.ensure_one()
         return self.send_mail_batch(
             [res_id],
@@ -860,7 +849,7 @@ class MailTemplate(models.Model):
             raise_exception=raise_exception,
             email_values=email_values,
             email_layout_xmlid=email_layout_xmlid,
-        )[0].id  # TDE CLEANME: return mail + api.returns ?
+        )[0].id  # CLEANME: return mail + api.returns ?
 
     def send_mail_batch(
         self,
@@ -870,11 +859,11 @@ class MailTemplate(models.Model):
         email_values=None,
         email_layout_xmlid=False,
     ):
-        """Generates new mail.mails. Batch version of 'send_mail'.'
+        """Generates new mail.mails. Batch version of 'send_mail'.
 
-        :param list res_ids: IDs of modelrecords on which template will be rendered
+        :param list res_ids: IDs of model records on which template will be rendered
 
-        :returns: newly created mail.mail
+        :returns: newly created mail.mail records, as sudo
         """
         # Grant access to send_mail only if access to related document
         self.ensure_one()
