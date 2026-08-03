@@ -1,8 +1,8 @@
 .o_list_renderer {
     --ListRenderer-table-padding-x: #{$table-cell-padding-x-sm};
     --ListRenderer-thead-padding-y: #{map-get($spacers, 4)};
-    --ListRenderer-thead-bg-color: #{$o-webclient-background-color};
-    --ListRenderer-thead-border-end-color: #{$border-color};
+    --ListRenderer-thead-bg-color: #{o-palette-token(--body-bg, $o-webclient-background-color)};
+    --ListRenderer-thead-border-end-color: #{o-token(--border-color, $border-color)};
     --ListRenderer-tfoot-bg-color: #{$o-list-footer-bg-color};
     --sticky-header-zindex: 1;
     --o-view-nocontent-zindex: calc(var(--sticky-header-zindex) + 1);
@@ -42,7 +42,7 @@
     }
 
     .o_list_table {
-        --table-bg: #{$o-view-background-color};
+        --table-bg: var(--o-bg-view);
 
         border-collapse: collapse;
         font-variant-numeric: tabular-nums;
@@ -63,12 +63,12 @@
             border-spacing: 0;
 
             &.o_list_table_grouped .o_group_header {
-                --table-bg: #{$gray-200};
+                --table-bg: #{o-palette-token(--o-gray-200, $gray-200)};
                 color: color-contrast($gray-200);
             }
 
             &.o_list_table_ungrouped {
-                --table-striped-bg: #{$gray-100};
+                --table-striped-bg: #{o-palette-token(--o-gray-100, $gray-100)};
                 --table-striped-color: #{color-contrast($gray-100)};
             }
         }
@@ -87,7 +87,7 @@
 
         thead {
             background-color: transparent;
-            border-bottom: 2px solid $o-gray-200;
+            border-bottom: 2px solid var(--o-gray-200);
 
             th {
                 padding-top: var(--ListRenderer-thead-padding-y);
@@ -96,7 +96,7 @@
                 // agree on what `$o-gray-500` means. Light reads it as mid-grey
                 // (4.55:1 here); dark inverts the ramp, where the same step is a
                 // divider tone and every column header dropped to 2.48:1.
-                color: $o-main-color-muted;
+                color: o-palette-token(--o-text-muted, $o-main-color-muted);
                 text-transform: uppercase;
                 font-size: $o-font-size-base-smaller;
                 letter-spacing: $o-tracking-wide;
@@ -277,7 +277,7 @@
             th:focus-within,
             td:focus-within {
                 --table-accent-bg: none;
-                background-color: $o-view-background-color;
+                background-color: var(--o-bg-view);
             }
         }
 
@@ -341,7 +341,7 @@
             position: relative;
             &:after {
                 @include o-position-absolute($top: 0, $bottom: 0, $right: 0);
-                background-color: #{$border-color};
+                background-color: #{o-token(--border-color, $border-color)};
                 width: 4px;
                 content: "";
             }
@@ -497,7 +497,7 @@
 
     .o_data_row.o_selected_row > .o_data_cell.o_invalid_cell:not(.o_readonly_modifier) {
         &:not(:focus-within) {
-            border-bottom: 1px solid $danger;
+            border-bottom: 1px solid o-token(--danger, $danger);
             background-color: $o-input-invalid-bg;
         }
     }
@@ -507,7 +507,7 @@
             border-bottom-width: var(--ListRenderer-data-row-border-bottom-width, 1px);
 
             &:hover:not(.o_selected_row):not(.o_data_row_selected) > * {
-                --#{$variable-prefix}table-accent-bg: #{rgba($o-brand-primary, 0.03)};
+                --#{$variable-prefix}table-accent-bg: color-mix(in srgb, var(--o-brand) 3%, transparent);
             }
 
             &:not(.o_selected_row):not(.o_data_row_selected):focus-within > * {

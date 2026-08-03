@@ -24,7 +24,7 @@
         height: var(--Ribbon-height, var(--Ribbon-height-default));
         box-shadow: 0 var(--Ribbon-shadow-distance) var(--Ribbon-shadow-blur)
             rgba(0, 0, 0, 0.1);
-        color: $white;
+        color: o-token(--o-white, $white);
         font-size: var(--Ribbon-font-size, var(--Ribbon-font-size-default));
         line-height: var(--Ribbon-height, var(--Ribbon-height-default));
         font-weight: $o-font-weight-bold;

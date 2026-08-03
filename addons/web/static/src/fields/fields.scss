@@ -21,19 +21,26 @@
     @include print-variable(o-caret-color, $input-color);
 }
 
+// Only the border: the caret is `$input-color`, which is already a token read.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        @include print-variable(o-input-border-color, $o-dark-form-lightsecondary);
+    }
+}
+
 .o_required_modifier {
     @include print-variable(o-input-border-color, $o-input-border-required);
     @include print-variable(o-caret-color, $o-input-border-required);
 }
 
 .o_field_widget:focus-within {
-    @include print-variable(o-input-border-color, $o-action);
-    @include print-variable(o-caret-color, $o-action);
+    @include print-variable(o-input-border-color, o-token(--o-action, $o-action));
+    @include print-variable(o-caret-color, o-token(--o-action, $o-action));
 }
 
 .o_field_invalid {
-    @include print-variable(o-input-border-color, map-get($theme-colors, "danger"));
-    @include print-variable(o-caret-color, map-get($theme-colors, "danger"));
+    @include print-variable(o-input-border-color, o-token(--danger, map-get($theme-colors, "danger")));
+    @include print-variable(o-caret-color, o-token(--danger, map-get($theme-colors, "danger")));
 }
 
 .o_input {
@@ -46,7 +53,7 @@
         box-shadow $o-duration-fast $o-easing-standard;
 
     &:focus {
-        border-color: $o-brand-primary;
+        border-color: var(--o-brand);
     }
 
     &:placeholder-shown {
@@ -237,7 +244,7 @@
             width: 100%;
 
             color: white;
-            background-color: $o-brand-primary;
+            background-color: var(--o-brand);
             opacity: 0;
             transition: opacity ease 400ms;
             min-width: 35px;
@@ -263,10 +270,10 @@
                     margin: 0px;
                     text-align: center;
                     &.o_select_file_button {
-                        background: $o-brand-primary;
+                        background: var(--o-brand);
                     }
                     &.o_clear_file_button {
-                        background: map-get($theme-colors, "danger");
+                        background: o-token(--danger, map-get($theme-colors, "danger"));
                     }
                 }
             }
@@ -277,7 +284,7 @@
         }
 
         &.o_field_invalid > img {
-            border: 1px solid map-get($theme-colors, "danger");
+            border: 1px solid o-token(--danger, map-get($theme-colors, "danger"));
         }
     }
 
@@ -312,9 +319,9 @@
         position: relative;
         width: 100% !important;
         border-radius: 5px;
-        border: 1px solid $primary;
+        border: 1px solid o-token(--primary, $primary);
         font-size: $font-size-sm;
-        color: $o-brand-primary;
+        color: var(--o-brand);
         font-weight: $badge-font-weight;
         text-align: center;
         padding-right: 6rem;

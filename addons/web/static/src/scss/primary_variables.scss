@@ -49,18 +49,8 @@ $o-font-weight-medium: 500 !default;
 $o-font-weight-semibold: 600 !default;
 $o-font-weight-bold: 700 !default;
 
-$o-white: #ffffff !default;
-$o-black: #000000 !default;
-
-$o-gray-100: #f8fafc !default;
-$o-gray-200: #e2e8f0 !default;
-$o-gray-300: #cbd5e1 !default;
-$o-gray-400: #94a3b8 !default;
-$o-gray-500: #64748b !default;
-$o-gray-600: #475569 !default;
-$o-gray-700: #334155 !default;
-$o-gray-800: #1e293b !default;
-$o-gray-900: #0f172a !default;
+// $o-white, $o-black and the grey ramp come from primitives.scss, which
+// resolves ahead of every palette so themes can read them without restating.
 
 $o-grays: (
     100: $o-gray-100,
@@ -156,7 +146,7 @@ $o-table-cell-padding-x-sm: 0.3rem !default;
 $o-table-cell-padding-y-sm: 0.5rem !default;
 
 $o-component-active-color: $o-black !default;
-$o-component-active-bg: mix($o-action, $o-gray-100, 20%) !default;
+$o-component-active-bg: o-round-color(mix($o-action, $o-gray-100, 20%)) !default;
 $o-component-active-border: $o-action !default;
 
 $o-view-background-color: white !default;
@@ -177,6 +167,11 @@ $o-bg-colors-custom: (
     "view": $o-view-background-color,
     "favourite": $o-main-favorite-color,
 ) !default;
+
+// `.text-bg-*` exists to be a legible pair, so it is paired at the WCAG AA text
+// threshold rather than the global `$min-contrast-ratio` (3), which also drives
+// borders and other non-text decisions and would repaint far more than this.
+$o-text-bg-contrast: 4.5 !default;
 
 $o-btn-custom: (
     "favourite": $o-main-favorite-color,
@@ -311,16 +306,49 @@ $o-duration-fast: 150ms !default;
 $o-duration-normal: 200ms !default;
 $o-duration-slow: 300ms !default;
 
-$o-shadow-xs: 0 1px 2px 0 rgba($o-gray-900, 0.05) !default;
+// The ink is the ramp's darkest step, so it inverts with the scheme — and
+// stated as `rgba($o-gray-900, …)` it inverts only by being compiled twice.
+// Through the token it follows the attribute instead, which is what lets one
+// stylesheet carry both: four definitions answer 162 declarations.
+//
+// `color-mix(… N%, transparent)` is `rgba(C, .N)`: mixing is premultiplied, so
+// the result is C at that alpha rather than C blended toward black. Written
+// once here, every consumer inherits it — none of the twenty does colour maths
+// on the value, they assign it.
+// The compiled colour is kept as a fallback: this palette reaches bundles the
+// token layer does not, and there the shadow should be what it always was.
+@function o-shadow-ink($-alpha) {
+    @return unquote(
+        "color-mix(in srgb, var(--o-gray-900, #{$o-gray-900}) #{$-alpha}, transparent)"
+    );
+}
+
+$o-shadow-xs: 0 1px 2px 0 o-shadow-ink(5%) !default;
 $o-shadow-sm:
-    0 1px 3px 0 rgba($o-gray-900, 0.1),
-    0 1px 2px -1px rgba($o-gray-900, 0.1) !default;
+    0 1px 3px 0 o-shadow-ink(10%),
+    0 1px 2px -1px o-shadow-ink(10%) !default;
 $o-shadow-md:
-    0 4px 6px -1px rgba($o-gray-900, 0.1),
-    0 2px 4px -2px rgba($o-gray-900, 0.1) !default;
+    0 4px 6px -1px o-shadow-ink(10%),
+    0 2px 4px -2px o-shadow-ink(10%) !default;
 $o-shadow-lg:
-    0 10px 15px -3px rgba($o-gray-900, 0.1),
-    0 4px 6px -4px rgba($o-gray-900, 0.1) !default;
+    0 10px 15px -3px o-shadow-ink(10%),
+    0 4px 6px -4px o-shadow-ink(10%) !default;
+
+// A surface that stays dark chrome in either scheme, so it inverts against the
+// ramp rather than with it: the file viewer's toolbar sits over a document, not
+// over the application background.
+$o-bg-chrome: $o-gray-800 !default;
+
+// A surface reading as inert. Light dims a light grey by half so the grid shows
+// through; dark cannot do the same without muddying it, so it steps up the ramp
+// instead. Two answers to one idea, which is why it belongs here.
+$o-bg-disabled: rgba($o-gray-200, 0.5) !default;
+
+// One step above the view: a hover fill, a tooltip, a raised card. The ramp
+// inverts, so the step that reads as "slightly raised" is not the same index in
+// both schemes — which is the whole reason each consumer used to ship a dark
+// sibling saying so.
+$o-bg-raised: $o-gray-200 !default;
 
 $o-glass-bg: $o-white !default;
 

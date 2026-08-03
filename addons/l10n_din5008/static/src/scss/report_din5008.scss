@@ -125,7 +125,7 @@
     table.o_main_table {
         tr {
             &.o_line_section td {
-                background-color: rgba($gray-300, 0.5);
+                background-color: o-token-alpha(--o-gray-300, $gray-300, 0.5);
             }
 
             th {

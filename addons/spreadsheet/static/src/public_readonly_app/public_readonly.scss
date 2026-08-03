@@ -12,7 +12,7 @@ $filter-panel-width: 300px;
     flex-grow: 1;
 
     .o-topbar-toolbar .o-readonly-toolbar.text-muted {
-        color: $info !important;
+        color: o-token(--info, $info) !important;
     }
 }
 

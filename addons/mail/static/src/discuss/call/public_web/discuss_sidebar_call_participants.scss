@@ -1,5 +1,9 @@
 .o-mail-DiscussSidebarCallParticipants-avatar.o-isTalking {
-    outline: 3px solid var(--discuss-talkingColor, $o-discuss-talkingColor);
+    outline: 3px solid
+        var(
+            --discuss-talkingColor,
+            light-dark(#{$o-discuss-talkingColor}, #{$o-dark-discuss-talkingColor})
+        );
     outline-offset: -2px;
 }
 
@@ -13,12 +17,12 @@
     }
 
     &:hover {
-        background-color: $gray-300;
+        background-color: o-palette-token(--o-gray-300, $gray-300);
     }
 }
 
 .o-mail-DiscussSidebarCallParticipants-name {
-    color: $black;
+    color: o-token(--o-black, $black);
     opacity: 60%;
 
     &.o-isTalking {

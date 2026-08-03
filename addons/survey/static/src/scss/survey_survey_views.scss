@@ -123,7 +123,7 @@
 /* Style of the tiles allowing the user to load a sample survey. */
 
 .o_survey_sample_card:hover {
-    background: var(--SurveySampleCard-background-hover, #{$o-gray-200});
+    background: var(--SurveySampleCard-background-hover, #{o-token(--o-gray-200, $o-gray-200)});
 }
 
 .o_form_label.o_form_label_readonly.o_survey_label_survey_start_url {
@@ -133,4 +133,22 @@
 
 .o_nocontent_help:has(.o_survey_load_sample) {
     max-width: unset !important;
+}
+
+
+// The dark half, folded in from `survey_survey_views.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // = Survey view
+        // ============================================================================
+        // No CSS hacks, variables overrides only
+
+        .o_survey_form {
+            --SurveyForm__section-background-color: #{$o-dark-gray-300};
+        }
+
+        .o_survey_sample_card {
+            --SurveySampleCard-background-hover: #{$o-dark-gray-300};
+        }
+    }
 }

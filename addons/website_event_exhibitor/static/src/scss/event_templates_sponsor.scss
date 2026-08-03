@@ -67,8 +67,8 @@
     position: relative;
     width: 100px;
     height: 100px;
-    border: 1px solid $gray-200;
-    background-color: $white;
+    border: 1px solid o-palette-token(--o-gray-200, $gray-200);
+    background-color: o-token(--o-white, $white);
     margin: 0 -1px -1px 0;
     cursor: pointer;
 
@@ -76,7 +76,7 @@
         content: "";
         display: block;
         @include o-position-absolute(0, 0, 0, 0);
-        background-color: $black;
+        background-color: o-token(--o-black, $black);
         opacity: 0;
         transition: opacity 0.3s;
     }

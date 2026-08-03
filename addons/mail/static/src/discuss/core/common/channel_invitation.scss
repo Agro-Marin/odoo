@@ -4,13 +4,13 @@
 
 .o-discuss-ChannelInvitation-selectable {
     &.o-odd {
-        background-color: $gray-100 !important;
+        background-color: o-palette-token(--o-gray-100, $gray-100) !important;
     }
     &:hover {
-        background-color: mix($gray-100, $gray-200) !important;
+        background-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-100, $gray-100)} 50%, #{o-palette-token(--o-gray-200, $gray-200)})") !important;
     }
     &.o-selected {
-        background-color: mix($o-view-background-color, $o-action, 85%) !important;
+        background-color: unquote("color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 85%, #{o-token(--o-action, $o-action)})") !important;
     }
 }
 
@@ -18,15 +18,15 @@
     max-height: 100px;
 
     button {
-        background-color: mix($o-view-background-color, $o-action, 85%);
+        background-color: unquote("color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 85%, #{o-token(--o-action, $o-action)})");
 
         &:not(:hover) .oi-close {
             border-color: transparent !important;
         }
 
         &:hover .oi-close {
-            color: $danger;
-            border-color: $danger !important;
+            color: o-token(--danger, $danger);
+            border-color: o-token(--danger, $danger) !important;
         }
     }
 }

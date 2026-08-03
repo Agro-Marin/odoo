@@ -1,5 +1,5 @@
 .o-mail-VoiceRecorder.o-recording {
-    background-color: $gray-200;
+    background-color: o-palette-token(--o-gray-200, $gray-200);
 }
 
 .o-mail-VoiceRecorder-dot {
@@ -17,5 +17,15 @@
     }
     &:not(.o-active) {
         transition: max-width 1s ease-in-out;
+    }
+}
+
+
+// The dark half, folded in from `voice_recorder.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-VoiceRecorder.o-recording {
+            background-color: $o-dark-gray-300;
+        }
     }
 }

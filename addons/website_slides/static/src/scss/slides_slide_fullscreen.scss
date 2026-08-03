@@ -95,7 +95,7 @@
             color: rgba(white, 0.8);
 
             &.active {
-                box-shadow: inset 2px 0 0 map-get($theme-colors, "primary");
+                box-shadow: inset 2px 0 0 o-token(--primary, map-get($theme-colors, "primary"));
                 background-color: rgba($o-wslides-color-dark3, 0.5);
 
                 &,
@@ -108,7 +108,7 @@
                 line-height: unset;
 
                 .list-unstyled i {
-                    color: $gray-600;
+                    color: o-palette-token(--o-gray-600, $gray-600);
                 }
 
                 i {
@@ -142,7 +142,7 @@
     .o_wslides_js_lesson_quiz_question {
         .list-group-item {
             input:checked + i.fa-circle {
-                color: $primary !important;
+                color: o-token(--primary, $primary) !important;
             }
         }
 
@@ -157,10 +157,10 @@
     }
 
     button.o_wslides_button_complete i {
-        color: $gray-400;
+        color: o-palette-token(--o-gray-400, $gray-400);
     }
     div.o_wslides_button_complete i {
-        color: $gray-600;
+        color: o-palette-token(--o-gray-600, $gray-600);
     }
 }
 

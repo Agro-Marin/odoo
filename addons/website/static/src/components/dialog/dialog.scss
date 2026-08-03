@@ -11,7 +11,7 @@
             box-shadow: 5px 5px 5px -5px rgba(0, 0, 0, 0.2);
         }
         .o_nested_sortable_placeholder_realsize {
-            outline: 1px dashed $o-gray-400;
+            outline: 1px dashed o-palette-token(--o-gray-400, $o-gray-400);
             @include border-radius($input-border-radius);
         }
     }

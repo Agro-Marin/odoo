@@ -18,20 +18,16 @@
     $_z-index: 4;
 
     .popover & {
-        --o-hb-row-bg-color: var(--o-hb-row-bg-color-popover, #{$o-we-fg-lighter});
-        --o-hb-row-active-bg-color: var(
-            --o-hb-row-active-bg-color-popover,
-            #{mix($o-we-color-accent, $o-we-fg-lighter, 20%)}
+        --o-hb-row-bg-color: light-dark(#{$o-we-fg-lighter}, #{$o-we-bg-lighter});
+        --o-hb-row-active-bg-color: light-dark(
+            #{mix($o-we-color-accent, $o-we-fg-lighter, 20%)},
+            #{mix($o-we-color-accent, $o-we-bg-dark, 20%)}
         );
-        --o-hb-row-color: var(--o-hb-row-color-popover, #{$o-we-bg-lightest});
-        --o-hb-row-color-active: var(
-            --o-hb-row-color-active-popover,
-            #{$o-we-bg-darkest}
-        );
-        --o-hb-row-sublevel-color: var(
-            --o-hb-row-sublevel-color-popover,
-            #{mix($o-we-bg-lighter, $o-we-fg-light)}
-        );
+        --o-hb-row-color: light-dark(#{$o-we-bg-lightest}, #{$o-we-fg-dark});
+        --o-hb-row-color-active: light-dark(#{$o-we-bg-darkest}, #{$o-we-fg-lighter});
+        // Both schemes said the same thing; the popover hook only ever carried
+        // it across the bundle boundary.
+        --o-hb-row-sublevel-color: #{mix($o-we-bg-lighter, $o-we-fg-light)};
         .hb-row-content:has(button.fa-trash) {
             align-items: stretch;
         }
@@ -186,5 +182,14 @@
         overflow: hidden;
         height: 0; // default collapsed state
         transition: height 0.35s ease;
+    }
+}
+
+// The one rule from `builder_row.dark.scss` with no light counterpart: the
+// popover's secondary button takes Bootstrap's border in light and the
+// builder's own in dark.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .popover .hb-row .btn.btn-secondary {
+        --btn-border-color: #{$o-we-bg-light};
     }
 }

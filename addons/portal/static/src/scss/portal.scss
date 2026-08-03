@@ -9,8 +9,8 @@ $o-theme-navbar-fixed-logo-height: $nav-link-height !default;
 
 // Portal toolbar (filters, search bar)
 $o-portal-mobile-toolbar: true; // Enable/Disable custom design
-$o-portal-mobile-toolbar-border: $border-color;
-$o-portal-mobile-toolbar-bg: $gray-200;
+$o-portal-mobile-toolbar-border: o-token(--border-color, $border-color);
+$o-portal-mobile-toolbar-bg: o-palette-token(--o-gray-200, $gray-200);
 
 // Portal Tables
 $o-portal-table-th-pt: map-get($spacers, 1) !default;
@@ -160,7 +160,7 @@ li > p {
     padding-bottom: $headings-margin-bottom;
     border-bottom-width: $border-width;
     border-bottom-style: solid;
-    border-bottom-color: $border-color;
+    border-bottom-color: o-token(--border-color, $border-color);
 }
 .o_page_header {
     @extend %o-page-header;
@@ -364,7 +364,7 @@ img,
 
         .fa {
             line-height: $line-height-base;
-            color: $o-gray-500;
+            color: o-palette-token(--o-gray-500, $o-gray-500);
 
             + span,
             + div {
@@ -436,7 +436,7 @@ img,
         .o_portal_chatter_message_title {
             p {
                 font-size: 85%;
-                color: $text-muted;
+                color: o-palette-token(--o-text-muted, $text-muted);
                 margin: 0px;
             }
         }
@@ -481,7 +481,7 @@ img,
 .o_portal_security_body {
     section {
         margin-top: map-get($spacers, 5);
-        border-top: $border-width solid $border-color;
+        border-top: $border-width solid o-token(--border-color, $border-color);
         padding-top: map-get($spacers, 4);
 
         form.oe_reset_password_form {

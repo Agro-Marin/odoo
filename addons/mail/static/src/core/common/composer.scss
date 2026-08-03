@@ -65,7 +65,7 @@
         }
         &.o-sendMessageActive {
             background-color: lighten($primary, 7.5%);
-            outline: 1px solid $primary;
+            outline: 1px solid o-token(--primary, $primary);
             outline-offset: -1px;
             opacity: 100% !important;
             &:focus-visible {
@@ -83,7 +83,7 @@
             backdrop-filter: invert(0.025);
         }
         &.o-mail-Composer-send.btn-link:not(:disabled) {
-            background-color: rgba($o-action, 0.75);
+            background-color: o-token-alpha(--o-action, $o-action, 0.75);
             opacity: 100% !important;
             &:focus-visible {
                 outline: darken($o-action, 15%) solid 1px;
@@ -101,7 +101,7 @@
 }
 
 .o-mail-Composer-bg {
-    background-color: var(--mail-Composer-bg, $o-view-background-color);
+    background-color: var(--mail-Composer-bg, o-token(--o-bg-view, $o-view-background-color));
 }
 
 .o-mail-Composer-inputStyle,
@@ -211,9 +211,27 @@
 }
 
 .o-mail-Composer-suggestionList:has(.o-open) {
-    border: $border-width solid $border-color;
+    border: $border-width solid o-token(--border-color, $border-color);
 }
 
 .o-mail-Composer-suggestionPartner-name.o-has-email {
     max-width: 70%;
+}
+
+
+// The dark half, folded in from `composer.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-Composer {
+            --mail-Composer-bg: #{mix($o-dark-gray-100, $o-dark-view-background-color)};
+        }
+
+        .o-mail-Composer-bg {
+            --border-opacity: 0.25;
+        }
+
+        .o-mail-Composer-actions {
+            --mail-Composer-actionHoverColor: white;
+        }
+    }
 }

@@ -11,7 +11,7 @@
 
 .o_setting_right_pane {
     margin-left: 24px;
-    border-left: 1px solid $border-color;
+    border-left: 1px solid o-token(--border-color, $border-color);
     padding-left: 12px;
 
     .o_form_label + .fa,

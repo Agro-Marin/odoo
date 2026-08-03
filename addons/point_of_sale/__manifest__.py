@@ -91,7 +91,6 @@
             "point_of_sale/static/src/app/utils/init_lna.js",
         ],
         "web.assets_web_dark": [
-            "point_of_sale/static/src/scss/pos_dashboard.dark.scss",
         ],
         "web.assets_tests": [
             "barcodes/static/tests/legacy/helpers.js",
@@ -122,6 +121,11 @@
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
             ("include", "web._assets_bootstrap_backend"),
+            # web._assets_core carries the component stylesheets that read the
+            # `--o-*` palette, so every bundle including it has to publish them
+            # -- an unresolvable var() voids the whole declaration. Same slot as
+            # in web.assets_backend: after Bootstrap, before the readers.
+            "web/static/src/scss/tokens.scss",
             ("include", "web._assets_core"),
             ("remove", "web/static/src/core/browser/router.js"),
             ("remove", "web/static/src/services/debug/**/*"),
@@ -198,7 +202,10 @@
             # and search/, so they need the same dark exclusion it makes.
             # point_of_sale.assets_prod_dark adds the tree back by glob.
             ("remove", "web/static/src/**/*.dark.scss"),
-        ],
+            # This module's own siblings answer the backend kanban dashboard,
+            # not the PoS UI: `point_of_sale/static/src/**/*` above reaches
+            # pos_dashboard.dark.scss, which web.assets_web_dark declares.
+                    ],
         "point_of_sale.base_tests": [
             "web/static/lib/hoot-dom/**/*",
             "web_tour/static/src/js/**/*",
@@ -214,8 +221,22 @@
             ("include", "point_of_sale._assets_pos"),
             "point_of_sale/static/src/app/main.js",
         ],
+        # The same three directives web.assets_web_dark carries, for the same
+        # reason: without them this resolved the light palette and came out
+        # byte-identical to point_of_sale.assets_prod, so `pos_assets_index`
+        # served a dark-scheme user a light PoS. It only ever looked dark
+        # because pos_enterprise contributed the mechanism -- which is a theme
+        # supplying what the base module owes, the arrangement the webclient
+        # gave up when dark mode moved from web_enterprise into web.
         "point_of_sale.assets_prod_dark": [
             ("include", "point_of_sale.assets_prod"),
+            ("include", "web._dark_mode_variables"),
+            (
+                "after",
+                "web/static/lib/bootstrap/scss/_functions.scss",
+                "web/static/src/scss/bs_functions_overridden.dark.scss",
+            ),
+            "web/static/src/**/*.dark.scss",
         ],
         "point_of_sale.customer_display_assets": [
             ("include", "point_of_sale.base_app"),

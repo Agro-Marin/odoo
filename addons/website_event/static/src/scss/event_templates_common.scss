@@ -2,7 +2,7 @@ $o-wevent-bg-color-base: $gray-100;
 $o-wevent-bg-color-base-contrast: color-contrast($o-wevent-bg-color-base);
 $o-wevent-bg-color-light: mix($o-wevent-bg-color-base, #e9ecef);
 $o-wevent-bg-color-dark: mix($o-wevent-bg-color-base, #24363a);
-$o-wevent-color: $body-color;
+$o-wevent-color: o-palette-token(--o-text, $body-color);
 
 .o_wevent_index,
 .o_wevent_event {

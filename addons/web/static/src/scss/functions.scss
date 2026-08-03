@@ -16,6 +16,35 @@ $-unit-references: (
     "ch": 1ch,
 );
 
+// Sass keeps colour channels at full precision, so a computed colour
+// serialises as `rgb(101.2285714286, 121.2857142857, 231.9714285714)` — valid,
+// and six times the bytes of the hex it rounds to. Snapping the channels lets
+// it print as `#6579e8` instead.
+//
+// It is rebuilding the colour that snaps it, not `round()`: `red()` already
+// reports a whole channel, so comparing one against its own rounding says
+// nothing about the precision the colour is carrying.
+//
+// Non-colours pass through, so a caller can hand this a whole palette without
+// knowing which of its values are computed. Alpha is carried, and only through
+// the branch that needs it — `rgba()` on an opaque colour would print
+// `rgba(255, 255, 255, 1)` where `rgb()` prints `white`.
+@function o-round-color($-color) {
+    @if type-of($-color) != "color" {
+        @return $-color;
+    }
+
+    $-r: round(red($-color));
+    $-g: round(green($-color));
+    $-b: round(blue($-color));
+
+    @if alpha($-color) == 1 {
+        @return rgb($-r, $-g, $-b);
+    }
+
+    @return rgba($-r, $-g, $-b, alpha($-color));
+}
+
 @function o-strip-unit($-value) {
     @if type-of($-value) == "number" and not unitless($-value) {
         $-ref: map-get($-unit-references, unit($-value));
@@ -61,6 +90,59 @@ $-unit-references: (
 }
 
 @mixin o-print-color($-color, $-rule, $-css-opacity-var) {
-    --#{$-rule}: RGBA(#{to-rgb($-color)}, var(--#{$-css-opacity-var}, 1));
+    @include o-print-color-rgb(to-rgb($-color), $-rule, $-css-opacity-var);
+}
+
+/// The same, for channels that are already CSS — a `var(--*-rgb)` token rather
+/// than a Sass colour. A caller reading the palette through a token has no
+/// colour to hand `to-rgb()`, and the whole point of the token is that the
+/// value is not decided at compile time.
+@mixin o-print-color-rgb($-rgb, $-rule, $-css-opacity-var) {
+    --#{$-rule}: RGBA(#{$-rgb}, var(--#{$-css-opacity-var}, 1));
     #{$-rule}: var(--#{$-rule}) !important;
+}
+
+/// Whether Bootstrap's own variables follow this palette.
+///
+/// `bootstrap_overridden.scss` says `$gray-200: $o-gray-200` and sets this true;
+/// `bootstrap_overridden_frontend.scss` does neither, because there Bootstrap
+/// keeps its own greys deliberately. So the same `$gray-200` is #e2e8f0 in a
+/// backend bundle and #e9ecef in a frontend one, while `--o-gray-200` is the
+/// Odoo palette in both.
+$o-bootstrap-follows-palette: false !default;
+
+/// A palette token with the compiling scheme's value behind it.
+///
+/// The token answers the scheme; the fallback is what the bundle would have
+/// said anyway, so a bundle carrying this file without `tokens.scss` is
+/// unchanged. `TestBundleTokenDefs` reads the pair and says so if the token is
+/// published nowhere the reader rides.
+@function o-token($-name, $-fallback) {
+    @return unquote("var(#{$-name}, #{$-fallback})");
+}
+
+/// `o-token()` for a *Bootstrap* variable that only equals the palette where
+/// Bootstrap follows it. On the frontend it stays the compiled colour, which is
+/// what that bundle means by the name.
+@function o-palette-token($-name, $-fallback) {
+    @return if($o-bootstrap-follows-palette, o-token($-name, $-fallback), $-fallback);
+}
+
+/// `rgba($colour, .N)` where the colour is a palette token.
+///
+/// `color-mix(in srgb, C N%, transparent)` is the same colour: mixing towards
+/// `transparent` is premultiplied, so the result carries C's channels at alpha
+/// N. Unlike `rgba()` it takes a `var()`, which is the whole point.
+@function o-token-alpha($-name, $-fallback, $-alpha) {
+    @return unquote(
+        "color-mix(in srgb, var(#{$-name}, #{$-fallback}) #{$-alpha * 100%}, transparent)"
+    );
+}
+
+@function o-palette-token-alpha($-name, $-fallback, $-alpha) {
+    @return if(
+        $o-bootstrap-follows-palette,
+        o-token-alpha($-name, $-fallback, $-alpha),
+        rgba($-fallback, $-alpha)
+    );
 }

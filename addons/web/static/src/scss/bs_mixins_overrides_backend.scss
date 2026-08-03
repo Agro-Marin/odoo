@@ -2,7 +2,11 @@
 // frontend keeps: this one routes through `o-print-color()` so `.text-*` survives
 // print colour-adjust, and covers `:active`/`.active` and `button` as well. The
 // two are not interchangeable - the frontend has no `--text-opacity` plumbing.
-@mixin text-emphasis-variant($-parent, $-color) {
+@mixin text-emphasis-variant(
+    $-parent,
+    $-color,
+    $-hover-color: shift-color($-color, $link-shade-percentage)
+) {
     #{$-parent} {
         @include o-print-color($-color, color, text-opacity);
     }
@@ -13,11 +17,7 @@
         &:focus,
         &:active,
         &.active {
-            @include o-print-color(
-                shift-color($-color, $link-shade-percentage),
-                color,
-                text-opacity
-            );
+            @include o-print-color($-hover-color, color, text-opacity);
         }
     }
 }

@@ -1,0 +1,102 @@
+///
+/// Dark-mode answers for `primary_variables.scss`.
+///
+/// `web._dark_mode_variables` injects this file immediately before the light
+/// palette, so every value here wins by `!default`.
+///
+/// A theme that overrides a light variable MUST answer it in its own
+/// `*.dark.scss`: theme palettes are ordered ahead of this file, so a theme's
+/// light value would otherwise survive into dark mode. Anything a theme leaves
+/// alone is answered here.
+///
+
+// = Colors
+// ============================================================================
+
+// The inverted ramp comes from primitives.dark.scss.
+
+$o-community-color: $o-dark-community-color !default;
+$o-brand-odoo: $o-dark-brand-odoo !default;
+$o-brand-primary: $o-dark-brand-primary !default;
+$o-action: $o-dark-action !default;
+
+// On these surfaces the brand is legible both as a fill and as text, so the
+// split the light palette needs collapses back onto it: 6.94:1 as text on
+// `$o-view-background-color`, and 8.66:1 for the `$o-white` (#000) label
+// `.btn-primary` sets on it.
+$o-brand-primary-filled: $o-dark-brand-primary-filled !default;
+$o-action-text: $o-dark-action-text !default;
+
+// Verified against `$o-view-background-color`: 6.94, 8.76, 6.62, 10.09, 6.09.
+$o-theme-text-colors: $o-dark-theme-text-colors !default;
+
+// The fill hue and the text hue are the same colour here — the split the light
+// palette needs collapses, as it does for `$o-action` just above — so the fills
+// read the one map rather than restating it beside it. Restating is what let
+// `--o-danger-text` and `.bg-danger` drift apart, since one comes from the map
+// and the other from the variable, and it is what a theme overriding only the
+// map would walk into.
+$o-success: map-get($o-theme-text-colors, "success") !default;
+$o-info: map-get($o-theme-text-colors, "info") !default;
+$o-warning: map-get($o-theme-text-colors, "warning") !default;
+$o-danger: map-get($o-theme-text-colors, "danger") !default;
+$light: $o-dark-bs-light !default;
+$dark: $o-dark-bs-dark !default;
+
+
+// = Text
+// ============================================================================
+
+$o-main-link-color: $o-dark-main-link-color !default;
+$o-main-color-muted: $o-dark-main-color-muted !default;
+$o-main-favorite-color: $o-dark-main-favorite-color !default;
+$o-main-code-color: $o-dark-main-code-color !default;
+
+
+// = Webclient
+// ============================================================================
+
+$o-webclient-color-scheme: dark !default;
+$o-webclient-background-color: $o-dark-webclient-background-color !default;
+$o-view-background-color: $o-dark-view-background-color !default;
+$o-shadow-color: $o-dark-shadow-color !default;
+
+
+// = Inputs
+// ============================================================================
+
+$o-ring-color: $o-dark-ring-color !default;
+
+$o-input-border-required: $o-dark-input-border-required !default;
+$o-input-boundary-color: $o-dark-input-boundary-color !default;
+
+
+// = Components
+// ============================================================================
+
+$o-component-active-bg: $o-dark-component-active-bg !default;
+$o-form-lightsecondary: $o-dark-form-lightsecondary !default;
+$o-brand-lightsecondary: $o-dark-brand-lightsecondary !default;
+$o-form-separator-color: $o-dark-form-separator-color !default;
+$o-bg-chrome: $o-dark-bg-chrome !default;
+$o-bg-disabled: $o-dark-bg-disabled !default;
+$o-bg-raised: $o-dark-bg-raised !default;
+$o-glass-bg: $o-dark-glass-bg !default;
+$o-list-group-active-bg: $o-dark-list-group-active-bg !default;
+$modal-backdrop-bg: $o-dark-modal-backdrop-bg !default;
+
+
+// = Buttons
+// ============================================================================
+// `map-merge` keeps the keys a theme registered first, so a theme answering only
+// "primary" still inherits the rest of this map.
+
+$o-text-colors-custom: $o-dark-text-colors-custom !default;
+$o-bg-colors-custom: $o-dark-bg-colors-custom !default;
+$o-btn-custom: $o-dark-btn-custom !default;
+
+$o-btns-bs-override: () !default;
+$o-btns-bs-override: map-merge($o-dark-btns-bs-override, $o-btns-bs-override);
+
+$o-btns-bs-outline-override: () !default;
+$o-btns-bs-outline-override: map-merge($o-dark-btns-bs-outline-override, $o-btns-bs-outline-override);

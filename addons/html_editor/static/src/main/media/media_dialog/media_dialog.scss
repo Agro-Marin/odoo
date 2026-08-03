@@ -4,7 +4,7 @@
 
     .o_we_file_selector_control_panel {
         top: -$o-horizontal-padding;
-        background-color: $o-view-background-color;
+        background-color: o-token(--o-bg-view, $o-view-background-color);
     }
 
     .o_we_existing_attachments {

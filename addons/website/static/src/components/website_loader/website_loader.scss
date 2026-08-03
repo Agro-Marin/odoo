@@ -1,6 +1,6 @@
 .o_website_loader_container {
     $-accent-color: #bb86fc; // dark mode primary color
-    background-color: $o-view-background-color;
+    background-color: o-token(--o-bg-view, $o-view-background-color);
     pointer-events: all;
     z-index: $zindex-modal - 1;
 
@@ -12,7 +12,7 @@
     }
     .o_website_loader_container_content {
         color: var(--website-loader-color);
-        background-color: $gray-100;
+        background-color: o-palette-token(--o-gray-100, $gray-100);
         width: 100%;
 
         @include media-breakpoint-up(lg) {
@@ -320,6 +320,20 @@
                 rgba(0, 0, 0, 0)
             );
             animation: rotateLoader 1.2s infinite linear;
+        }
+    }
+}
+
+
+// The dark half, folded in from `website_loader.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // = Website Loader
+        // ============================================================================
+        // No CSS hacks, variables overrides only
+        .o_website_loader_container {
+            --website-loader-logo-filter: grayscale(1) brightness(4);
+            --website-loader-color: #ffffff;
         }
     }
 }

@@ -51,7 +51,7 @@
             }
 
             ul.o_activity_log {
-                color: $body-color;
+                color: o-palette-token(--o-text, $body-color);
 
                 li {
                     .o_activity_title_entry {

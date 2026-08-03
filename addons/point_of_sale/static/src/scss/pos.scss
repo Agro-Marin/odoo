@@ -10,7 +10,7 @@ button {
 }
 
 select > option {
-    background: $light;
+    background: o-token(--light, $light);
 }
 
 .navbar-menu {
@@ -21,19 +21,19 @@ select > option {
 }
 
 .btn-light {
-    --btn-hover-bg: #{$o-gray-100};
+    --btn-hover-bg: #{o-token(--o-gray-100, $o-gray-100)};
     --btn-hover-border-color: transparent;
-    --btn-active-bg: #{$o-gray-300};
-    --btn-color: #{$o-gray-900};
+    --btn-active-bg: #{o-token(--o-gray-300, $o-gray-300)};
+    --btn-color: #{o-token(--o-gray-900, $o-gray-900)};
     --btn-active-border-color: transparent;
 }
 
 .btn-secondary {
     --btn-bg: #f4f4f4;
     --btn-border-color: #cccccc;
-    --btn-color: #{$o-gray-900};
+    --btn-color: #{o-token(--o-gray-900, $o-gray-900)};
     --btn-disabled-bg: var(--btn-bg);
-    --btn-disabled-color: #{$o-gray-700};
+    --btn-disabled-color: #{o-token(--o-gray-700, $o-gray-700)};
     --btn-disabled-border-color: var(--btn-border-color);
     &:disabled,
     &.disabled {
@@ -124,7 +124,7 @@ select {
     height: 40px;
 }
 .pos.big-scrollbars *::-webkit-scrollbar-track {
-    background: $gray-200;
+    background: o-palette-token(--o-gray-200, $gray-200);
     border-left: none;
 }
 .pos.big-scrollbars *::-webkit-scrollbar-thumb {

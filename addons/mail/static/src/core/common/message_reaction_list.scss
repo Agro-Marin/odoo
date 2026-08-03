@@ -1,5 +1,5 @@
 .o-mail-MessageReactionList-preview:hover {
-    background-color: $o-gray-100 !important;
+    background-color: o-palette-token(--o-gray-100, $o-gray-100) !important;
 }
 
 .o-mail-MessageReactionList-previewText {

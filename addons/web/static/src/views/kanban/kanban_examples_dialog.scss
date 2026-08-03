@@ -1,13 +1,13 @@
 .o_kanban_examples_dialog {
     .modal-body {
         padding: 0;
-        background: map-get($theme-colors, "light");
+        background: o-token(--light, map-get($theme-colors, "light"));
     }
 
     .o_notebook {
-        --Notebook__link-border-color: #{$border-color};
-        --Notebook__link-border-color--hover: #{$border-color};
-        --Notebook__link-border-top-color--active: #{$o-brand-primary};
+        --Notebook__link-border-color: #{o-token(--border-color, $border-color)};
+        --Notebook__link-border-color--hover: #{o-token(--border-color, $border-color)};
+        --Notebook__link-border-top-color--active: var(--o-brand);
 
         .nav-link.active {
             $o-btn-primary-theme-colors: map-get($o-btns-bs-override, "primary");

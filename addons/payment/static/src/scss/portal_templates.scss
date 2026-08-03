@@ -4,6 +4,6 @@ div[name="o_payment_status_alert"] div > p {
 
 .o_payment_summary_separator {
     @include media-breakpoint-up(md) {
-        border-left: $border-width solid $border-color;
+        border-left: $border-width solid o-token(--border-color, $border-color);
     }
 }

@@ -1,8 +1,8 @@
 .o-livechat-ChannelKanban-highlighted {
-    background-color: $o-component-active-bg !important;
-    color: $o-component-active-color;
+    background-color: o-token(--o-bg-active, $o-component-active-bg) !important;
+    color: o-token(--o-black, $o-component-active-color);
 
     &::before {
-        background-color: $o-component-active-bg !important;
+        background-color: o-token(--o-bg-active, $o-component-active-bg) !important;
     }
 }

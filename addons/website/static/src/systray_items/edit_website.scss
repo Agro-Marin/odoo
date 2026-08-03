@@ -1,3 +1,14 @@
 .o-website-btn-custo-primary {
     @include button-variant($o-info, $o-info);
 }
+
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o-website-btn-custo-primary {
+        @include o-scheme-button-variant(
+            $o-dark-bs-info,
+            $o-dark-bs-info,
+            o-dark-scheme()
+        );
+    }
+}

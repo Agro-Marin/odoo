@@ -1,5 +1,5 @@
 .product-card {
-    border: $border-width solid $border-color;
+    border: $border-width solid o-token(--border-color, $border-color);
     transition: border-color 0.2s ease-in-out;
 
     img {
@@ -8,10 +8,10 @@
     }
 
     &:hover {
-        border-color: $primary;
+        border-color: o-token(--primary, $primary);
     }
 }
 
 .product-card.selected {
-    border-color: $primary;
+    border-color: o-token(--primary, $primary);
 }

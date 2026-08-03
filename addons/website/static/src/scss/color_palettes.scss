@@ -69,3 +69,24 @@
         @include print-variable("base-#{$name}", $color);
     }
 }
+
+// The palette swatches are theme data and do not invert, except where a colour
+// *is* the brand: `base-1`'s colour 1 is `$o-brand-primary`, which the dark
+// palette moves. Same rule, and same guard, as the combinations' own colours in
+// `html_editor.scheme_rules.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        @each $-palette-name in $o-selected-color-palettes-names {
+            @if $-palette-name != "user-palette" {
+                @each $-key, $-color in map-get($o-color-palettes, $-palette-name) {
+                    @if $-color == $o-brand-primary {
+                        @include print-variable(
+                            "o-palette-#{$-palette-name}-#{$-key}",
+                            $o-dark-brand-primary
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

@@ -10,7 +10,7 @@
 }
 
 .modal-header {
-    border-bottom-color: $o-gray-100;
+    border-bottom-color: var(--o-gray-100);
 
     .modal-title {
         font-weight: $o-font-weight-semibold;
@@ -18,7 +18,7 @@
 }
 
 .modal-footer {
-    border-top-color: $o-gray-100;
+    border-top-color: var(--o-gray-100);
 }
 
 .modal.o_technical_modal {

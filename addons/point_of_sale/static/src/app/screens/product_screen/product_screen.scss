@@ -33,5 +33,5 @@
 
 .internal-note-container .o_tag {
     border-radius: 3px !important;
-    --background-color: #{$o-gray-200};
+    --background-color: #{o-token(--o-gray-200, $o-gray-200)};
 }

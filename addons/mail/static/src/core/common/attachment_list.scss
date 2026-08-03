@@ -8,7 +8,7 @@
         width: 13em;
         height: 10em;
     }
-    background-color: $gray-200;
+    background-color: o-palette-token(--o-gray-200, $gray-200);
 
     @include media-breakpoint-down(sm) {
         width: 12em;
@@ -26,7 +26,7 @@
 }
 
 .o-mail-Attachment-hover {
-    background: $gray-100;
+    background: o-palette-token(--o-gray-100, $gray-100);
 
     &.o-image {
         background: rgba(0, 0, 0, 0.4);

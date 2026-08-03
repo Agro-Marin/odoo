@@ -6,19 +6,19 @@
 
 .pos-scenario-card {
     &:hover {
-        background-color: $o-gray-200;
+        background-color: o-palette-token(--o-gray-200, $o-gray-200);
         cursor: pointer;
-        border: 1px solid $o-gray-300;
+        border: 1px solid o-palette-token(--o-gray-300, $o-gray-300);
 
         .img-container {
-            background-color: $o-gray-200;
+            background-color: o-palette-token(--o-gray-200, $o-gray-200);
         }
     }
 
     .img-container {
         height: 110px;
         width: 110px;
-        background-color: $o-gray-100;
+        background-color: o-palette-token(--o-gray-100, $o-gray-100);
 
         .scenario-img {
             height: 90px;
@@ -35,5 +35,26 @@
     .pos_res_config_container {
         height: 82vh;
         overflow-y: auto;
+    }
+}
+
+
+// The dark half, folded in from `pos_dashboard.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .pos-scenario-card {
+            .img-container {
+                background-color: darken($o-dark-card-bg, 2%);
+            }
+
+            &:hover {
+                background-color: lighten($o-dark-card-bg, 4%);
+                border-color: $o-dark-card-border-color;
+
+                .img-container {
+                    background-color: lighten($o-dark-card-bg, 4%);
+                }
+            }
+        }
     }
 }

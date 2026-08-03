@@ -1,5 +1,5 @@
 .o-mail-ActionPanel .form-check-input {
-    --form-check-bg: #{$white};
+    --form-check-bg: #{o-token(--o-white, $white)};
 }
 
 .o-mail-ActionPanel.o_resizable_panel {

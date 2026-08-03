@@ -108,9 +108,7 @@ class Home(http.Controller):
                 request.env.user._on_webclient_bootstrap()
             context = request.env["ir.http"].webclient_rendering_context()
 
-            hmac_payload = (
-                request.env.user._session_token_get_values()
-            )
+            hmac_payload = request.env.user._session_token_get_values()
             session_info = context.get("session_info")
             session_info["browser_cache_secret"] = hmac(
                 request.env(su=True), "browser_cache_key", hmac_payload
@@ -122,6 +120,7 @@ class Home(http.Controller):
             response.set_cookie(
                 "content_density", request.env["ir.http"].content_density()
             )
+            response.set_cookie("color_scheme", request.env["ir.http"].color_scheme())
             return response
         except AccessError:
             return request.redirect("/web/login?error=access")

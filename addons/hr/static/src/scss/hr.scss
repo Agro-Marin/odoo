@@ -4,7 +4,7 @@
 }
 
 .o_icon_employee_absent {
-    color: $warning;
+    color: o-token(--warning, $warning);
 }
 
 .o_hr_employee_form_view .o_form_renderer {
@@ -33,7 +33,7 @@
             right: -5px;
             padding-bottom: 1px;
             border-radius: 50%;
-            background-color: $o-view-background-color;
+            background-color: o-token(--o-bg-view, $o-view-background-color);
             height: 1rem;
             width: 1rem;
             * {
@@ -105,5 +105,5 @@
 }
 
 .button-on {
-    color: $o-success;
+    color: o-palette-token(--success, $o-success);
 }

@@ -1,5 +1,8 @@
 import logging
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,7 +12,7 @@ from odoo import SUPERUSER_ID, api
 from odoo.db import db_connect
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, TransactionCase, get_db_name
-from odoo.tools.assets.esbuild import _find_esbuild
+from odoo.tools.assets.esbuild import EsbuildCompiler, _find_esbuild
 from odoo.tools.assets.esm_bridges import BridgeShimManager
 from odoo.tools.assets.esm_graph import _MODULE_SYNTAX_RE
 from odoo.tools.assets.esm_registry import esm_registry, validate_esm_config
@@ -311,14 +314,71 @@ class TestExternalAssetFilter(TransactionCase):
 
 
 class TestBridgeShimLiterals(TransactionCase):
+    NAMES = {"alpha", "class", "default", "a-b"}
+
+
     def test_shim_specifier_is_json_quoted(self):
         shim, is_fallback = AssetsBundle._bridge_shim_source(
             "@web/core/x", set(), {"alpha"}, True
         )
         self.assertIn('odoo.loader.modules.get("@web/core/x");', shim)
         self.assertNotIn("get('@web/core/x')", shim)
-        self.assertIn("export const alpha = _m?.alpha;", shim)
+        self.assertIn("const _e0 = _m?.alpha;", shim)
+        self.assertIn("export { _e0 as alpha };", shim)
         self.assertFalse(is_fallback)
+
+    def test_a_reserved_word_survives_as_an_alias(self):
+        """``export const class = ...`` is a SyntaxError; the alias form is not.
+
+        An export name only has to be an IdentifierName, so a module really can
+        export ``class`` and the bridge really does meet it. Emitted as a
+        declaration it would take down the whole shim -- every other name it
+        carries included -- which is why the generators bind to a local and
+        re-export under an alias.
+        """
+        shim, _ = AssetsBundle._bridge_shim_source(
+            "@web/core/x", set(), self.NAMES, False
+        )
+
+        self.assertIn(" as class }", shim)
+        self.assertNotIn("const class", shim)
+        self.assertNotIn("a-b", shim)
+        self.assertNotIn("_m?.default;", shim)
+
+    @unittest.skipUnless(shutil.which("node"), "node binary not available")
+    def test_the_two_generators_agree(self):
+        """The Python and JS shim generators must emit the same text.
+
+        ``_bridge_shim_source`` builds the server's bridge attachment and
+        ``@web/core/module_bridge.buildBridgeModuleSource`` builds the client's
+        ``data:`` bridge for the same specifier; the two are interchangeable
+        only while they agree, and that contract lived in a docstring. It had
+        already drifted once -- this file asserted the pre-alias
+        ``export const <name> = ...`` shape that only one side still produced.
+        Comparing them directly is what keeps a change to either from being
+        silently one-sided.
+        """
+        bridge_js = file_path("web/static/src/core/module_bridge.js")
+        names = sorted(self.NAMES)
+        script = (
+            f"import {{ buildBridgeModuleSource }} from {json.dumps(bridge_js)};\n"
+            f"process.stdout.write("
+            f"buildBridgeModuleSource({json.dumps('@web/core/x')}, "
+            f"{json.dumps(names)}));\n"
+        )
+
+        proc = subprocess.run(
+            [shutil.which("node"), "--input-type=module", "-e", script],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        python_shim, _ = AssetsBundle._bridge_shim_source(
+            "@web/core/x", set(), self.NAMES, False
+        )
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout, python_shim)
 
 
 class TestUnlinkAttachmentsReturning(TransactionCase):
@@ -418,6 +478,137 @@ class TestBacktickMinification(TransactionCase):
         self.assertIn("var    spaced = 1;", content)
 
 
+class TestSecondarySingletonSurface(TransactionCase):
+    """How far the singleton guarantee of a secondary bundle actually reaches.
+
+    A secondary bundle is esbuild-compiled self-contained, so every module it
+    imports transitively is INLINED — a second copy, distinct from the one the
+    parent app bundle registered. ``_secondary_shared_specs`` stubs some of
+    them back to ``odoo.loader.modules`` so identity survives, which is what
+    makes ``patchWithCleanup(browser, …)`` from a tour reach the running app.
+
+    It stubs only what the bundle imports DIRECTLY, so the guarantee stops one
+    hop in. These pin the part that holds and measure the part that does not,
+    rather than leaving the shortfall to a docstring.
+    """
+
+    BUNDLE = "web.assets_tests"
+    PARENT = "web.assets_web"
+
+    def _specs(self, bundle):
+        return set(
+            self.env["ir.qweb"]
+            ._get_asset_bundle(bundle, js=True, css=False, assets_params={})
+            .get_native_module_data(with_bridges=False)["import_map"]
+        )
+
+    def test_every_stubbed_specifier_is_owned_by_the_parent(self):
+        """The shim reads the parent's registration, so the parent must have one.
+
+        A stub for a specifier no parent registers would resolve to
+        ``undefined`` at eval time and take the importing module down with it.
+        """
+        shared = self.env["ir.qweb"]._secondary_shared_specs(self.BUNDLE, {})
+        if not shared:
+            self.skipTest("no shared specifiers on this database")
+
+        self.assertLessEqual(set(shared), self._specs(self.PARENT))
+
+    def test_the_guarantee_stops_at_direct_imports(self):
+        """DOCUMENTED SHORTFALL, not an accident of this database.
+
+        Everything the parent owns and this bundle does not stub is inlined a
+        second time. Asserted as a property — some parent-owned specifier is
+        neither stubbed nor absent — because the count moves with whatever is
+        installed; it was 274 against 24 stubs when this was written.
+
+        Tightening ``discovered`` to a transitive walk should make this test
+        fail, and that is the signal to delete it.
+        """
+        shared = set(self.env["ir.qweb"]._secondary_shared_specs(self.BUNDLE, {}))
+        if not shared:
+            self.skipTest("no shared specifiers on this database")
+        parent_specs = self._specs(self.PARENT)
+        own_specs = self._specs(self.BUNDLE)
+
+        reachable_unstubbed = (parent_specs - shared) - own_specs
+
+        self.assertTrue(
+            reachable_unstubbed,
+            "the singleton guarantee now covers the whole parent surface -- "
+            "drop this test and the shortfall paragraph in "
+            "_secondary_shared_specs",
+        )
+
+
+class TestHootOwnership(TransactionCase):
+    """Which bundle owns a specifier decides whether Hoot loads it, not its path.
+
+    Anything Hoot owns is left out of the eager import so ``loadAndStart`` can
+    apply the page's ``&id=`` filter first. Anything else has to be imported
+    eagerly or it never runs — and a tour that never runs is invisible: the
+    registry simply lacks it and the runner reports the ready code as "always
+    falsy", naming nothing.
+    """
+
+    TOUR_BUNDLE = "web.assets_tests"
+    RUNNER_BUNDLE = "web.assets_unit_tests_setup"
+
+    def test_the_tour_bundle_owns_none_of_its_specifiers(self):
+        """The regression: a tour outside a ``tours/`` directory.
+
+        ``test_assetsbundle``'s own tour sits directly in ``static/tests``, as
+        do ``auth_passkey``'s and a dozen more. Read by directory they all
+        looked like Hoot's, so the frontend skipped them.
+        """
+        IrQweb = self.env["ir.qweb"]
+        specs = set(
+            IrQweb._get_asset_bundle(
+                self.TOUR_BUNDLE, js=True, css=False, assets_params={}
+            ).get_native_module_data(with_bridges=False)["import_map"]
+        )
+        self.assertTrue(specs, "the tour bundle must resolve to something")
+
+        owned = IrQweb._hoot_specifiers(self.TOUR_BUNDLE, specs)
+
+        self.assertFalse(owned, f"Hoot does not own tour-bundle specifiers: {owned}")
+
+    def test_a_suite_is_recognised_by_name_in_any_bundle(self):
+        """Name recognition is what keeps a self-contained runner bundle lazy.
+
+        ``im_livechat.embed_assets_unit_tests`` carries suites without
+        declaring an import-map relationship, so nothing but the file kind
+        identifies them.
+        """
+        suite = "@im_livechat/../tests/embed/thread.test"
+
+        self.assertEqual(
+            self.env["ir.qweb"]._hoot_specifiers("some.standalone_bundle", [suite]),
+            [suite],
+        )
+
+    def test_a_runner_bundle_still_owns_its_unnamed_helpers(self):
+        """The directory reading survives exactly where it is true.
+
+        A runner bundle's helpers (``_framework/*.js``, ``mock_*.hoot.js``) are
+        neither suites nor named like them, and eagerly importing them would
+        fetch most of the bundle before the ``&id=`` filter is read.
+        """
+        helper = "@web/../tests/_framework/mock_server/mock_server"
+
+        self.assertEqual(
+            self.env["ir.qweb"]._hoot_specifiers(self.RUNNER_BUNDLE, [helper]),
+            [helper],
+        )
+
+    def test_a_tour_is_never_owned_wherever_it_lives(self):
+        tour = "@web/../tests/tours/some_tour"
+
+        self.assertFalse(
+            self.env["ir.qweb"]._hoot_specifiers(self.RUNNER_BUNDLE, [tour])
+        )
+
+
 class TestEsmConfigValidation(TransactionCase):
     def test_live_registry_builds_and_validates(self):
         reg = esm_registry()
@@ -501,6 +692,247 @@ class TestEsmConfigValidation(TransactionCase):
     def test_dynamic_and_include_overlap_rejected(self):
         with self.assertRaisesRegex(ValueError, "both"):
             validate_esm_config({"p", "c"}, {"p": ["c"]}, {"p": ["c"]}, {})
+
+
+class TestEsmRegistryInstallationScope(TransactionCase):
+    """What the registry gates, given that it is built from *disk*, not the DB.
+
+    ``_build`` walks ``Manifest.all_addon_manifests()``, so every addon on the
+    addons path contributes whether or not it is installed here. That is a
+    deliberate choice, and the safe one *only* while two properties hold: a
+    module may not claim a bundle it does not own, and a declaration from an
+    absent module must resolve to nothing rather than to something wrong.
+    Neither is enforced by ``validate_esm_config``; these pin them.
+    """
+
+    def _declarations(self):
+        from odoo.modules import Manifest
+
+        for manifest in Manifest.all_addon_manifests():
+            esm = manifest.get("esm")
+            if esm:
+                yield manifest.name, esm
+
+    def _claims_a_live_foreign_namespace(self, module, bundle):
+        """Whether *module* registers *bundle* out of another addon's namespace.
+
+        A namespace with no addon behind it is not foreign: ``pos_enterprise``
+        registers and fills ``pos_preparation_display.*``, a bundle family whose
+        module was folded into it upstream, and there is no other claimant a
+        declaration could be stolen from. The rule worth enforcing is narrower
+        than "prefix equals declaring module" -- it is that no manifest may
+        register a bundle belonging to a *different addon that exists*.
+        """
+        from odoo.modules import Manifest
+
+        namespace = bundle.partition(".")[0]
+        if namespace == module:
+            return False
+        return Manifest.for_addon(namespace, display_warning=False) is not None
+
+    def test_a_module_only_registers_bundles_it_owns(self):
+        """The invariant that makes a disk-wide registry safe, unenforced.
+
+        ``esm.bundles`` entries are merged into one flat set with no check on
+        the namespace, so a single manifest anywhere on the addons path can
+        register ``web.assets_web`` -- flipping a core bundle to esbuild on
+        every database, whether or not either module is installed. Every
+        manifest in this workspace is well-behaved today, which is exactly why
+        the rule is worth pinning before one is not.
+        """
+        stolen = [
+            (module, bundle)
+            for module, esm in self._declarations()
+            for bundle in esm.get("bundles", ())
+            if self._claims_a_live_foreign_namespace(module, bundle)
+        ]
+
+        self.assertFalse(stolen, f"modules registering foreign bundles: {stolen}")
+
+    def test_child_declarations_stay_in_their_namespace(self):
+        """Same rule for the relationship mappings' *children*.
+
+        A parent may legitimately be another module's bundle -- that is the
+        whole point of ``dynamic_children``, where the child's module declares
+        itself against ``web.assets_web``. The child, though, is the thing being
+        contributed, and contributing another addon's bundle is the same theft
+        as registering it.
+        """
+        misplaced = [
+            (module, key, child)
+            for module, esm in self._declarations()
+            for key in ("dynamic_children", "import_map_includes")
+            for children in (esm.get(key) or {}).values()
+            for child in children
+            if self._claims_a_live_foreign_namespace(module, child)
+        ]
+
+        self.assertFalse(
+            misplaced, f"modules contributing foreign children: {misplaced}"
+        )
+
+    def test_absent_modules_contribute_empty_children_not_wrong_ones(self):
+        """Why a disk-wide registry is survivable, and what it actually costs.
+
+        ``esm_registry.py`` states that membership checks for unavailable
+        modules "are simply never asked". They are: ``_get_dynamic_child_bundles``
+        builds an ``AssetsBundle`` for every declared child of the rendered
+        bundle, including children whose module is not installed here. What
+        saves it is one layer down -- ``_get_asset_paths`` resolves those
+        bundles against the *installed* addon list, so each yields no files and
+        contributes nothing to the import map.
+
+        So the guarantee is real but indirect, and it is the empty result, not
+        the absent question, that has to hold.
+        """
+        registry = esm_registry()
+        installed = self.env["ir.asset"]._get_installed_addons_list()
+        absent = {
+            child
+            for children in registry.dynamic_children.values()
+            for child in children
+            if child.partition(".")[0] not in installed
+        }
+        if not absent:
+            self.skipTest("every module declaring a dynamic child is installed")
+
+        children = self.env["ir.qweb"]._get_dynamic_child_bundles(
+            "web.assets_web",
+            self.env["ir.asset"]._get_asset_params(),
+            debug_assets=True,
+        )
+        built = {child.name: child for child in children}
+
+        self.assertTrue(
+            absent & set(built),
+            "no absent child was built -- the registry became installation-aware",
+        )
+        for name in sorted(absent & set(built)):
+            child = built[name]
+            self.assertFalse(
+                child.native_modules or child.javascripts,
+                f"{name} is not installed yet contributed files to the import map",
+            )
+
+
+class TestSecondaryStubMirror(BaseCase):
+    """A stubbed specifier must not swallow the submodules beneath it.
+
+    ``--alias`` is a prefix rewrite, so aliasing ``@web/core/network`` straight
+    at a shim file remapped ``@web/core/network/model_mutation`` to
+    ``<shim>.js/model_mutation`` and esbuild refused the bundle outright. A
+    module face sitting beside its own directory is the normal shape in this
+    codebase, so the mirror has to keep the prefix meaningful.
+    """
+
+    FACE = "@probe/core/network"
+    NESTED = "@probe/core/network/rpc"
+    SIBLING = "@probe/core/network/model_mutation"
+
+    def _build_mirror(self, tmp):
+        odoo_root = Path(tmp)
+        real = odoo_root / "addons" / "probe" / "static" / "src" / "core"
+        (real / "network").mkdir(parents=True)
+        (real / "network.js").write_text("export const face = 'REAL_FACE';")
+        (real / "network" / "rpc.js").write_text("export const rpc = 'REAL_RPC';")
+        (real / "network" / "model_mutation.js").write_text(
+            "export const sub = 'REAL_SUB';"
+        )
+        stub_root = odoo_root / "stubs"
+        flags = EsbuildCompiler._write_stub_mirror(
+            stub_root,
+            {
+                self.FACE: "export const face = 'SHIM_FACE';",
+                self.NESTED: "export const rpc = 'SHIM_RPC';",
+            },
+            ["--alias:@probe=./addons/probe/static/src"],
+            odoo_root,
+        )
+        return stub_root, real, {f.split("=")[0]: f.split("=", 1)[1] for f in flags}
+
+    def test_the_alias_target_leaves_room_for_submodules(self):
+        """Extensionless, so the sibling directory can answer the prefix.
+
+        Resolution prefers ``network.js`` over the ``network/`` directory, so
+        the face still gets the shim while ``network/...`` stays a real path.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_root, _real, targets = self._build_mirror(tmp)
+
+            target = targets[f"--alias:{self.FACE}"]
+            self.assertEqual(target, str(stub_root / "probe" / "core" / "network"))
+            self.assertFalse(target.endswith(".js"))
+            self.assertEqual(
+                (stub_root / "probe/core/network.js").read_text(),
+                "export const face = 'SHIM_FACE';",
+            )
+
+    def test_an_unstubbed_submodule_still_reaches_the_real_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_root, _real, _targets = self._build_mirror(tmp)
+
+            mirrored = stub_root / "probe/core/network/model_mutation.js"
+
+            self.assertTrue(mirrored.exists())
+            self.assertEqual(mirrored.read_text(), "export const sub = 'REAL_SUB';")
+
+    def test_a_nested_stub_shadows_without_writing_through(self):
+        """The failure mode a whole-directory symlink would have caused.
+
+        With ``network/`` symlinked to the source tree, writing the nested
+        shim at ``network/rpc.js`` would follow the link and overwrite the real
+        module on disk. The directory is rebuilt entry by entry instead, so the
+        shim lands only in the mirror.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_root, real, _targets = self._build_mirror(tmp)
+
+            self.assertEqual(
+                (stub_root / "probe/core/network/rpc.js").read_text(),
+                "export const rpc = 'SHIM_RPC';",
+            )
+            self.assertEqual(
+                (real / "network" / "rpc.js").read_text(),
+                "export const rpc = 'REAL_RPC';",
+            )
+
+    @unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
+    def test_esbuild_resolves_face_and_submodule_together(self):
+        """The end the whole mirror exists for, driven through esbuild itself.
+
+        Asserting the layout is not the same as asserting esbuild agrees with
+        it -- the original bug was precisely a wrong belief about what esbuild
+        does with an alias.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            _stub_root, _real, targets = self._build_mirror(tmp)
+            entry = Path(tmp) / "entry.js"
+            entry.write_text(
+                f"import {{ face }} from '{self.FACE}';\n"
+                f"import {{ sub }} from '{self.SIBLING}';\n"
+                f"import {{ rpc }} from '{self.NESTED}';\n"
+                "console.log(face, sub, rpc);\n"
+            )
+
+            proc = subprocess.run(
+                [
+                    _find_esbuild(),
+                    str(entry),
+                    "--bundle",
+                    "--format=esm",
+                    "--alias:@probe=./addons/probe/static/src",
+                    *(f"{spec}={target}" for spec, target in targets.items()),
+                ],
+                capture_output=True,
+                text=True,
+                cwd=tmp,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("SHIM_FACE", proc.stdout)
+            self.assertIn("REAL_SUB", proc.stdout)
+            self.assertIn("SHIM_RPC", proc.stdout)
 
 
 class TestLastModifiedFallback(TransactionCase):

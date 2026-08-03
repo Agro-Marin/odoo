@@ -12,14 +12,14 @@
 
     .o_skeleton_list {
         th {
-            background: var(--o-list-thead-bg-color, #{$o-gray-200});
+            background: var(--o-list-thead-bg-color, var(--o-gray-200));
             padding: 8px 12px;
-            border-bottom: 2px solid $o-gray-300;
+            border-bottom: 2px solid var(--o-gray-300);
         }
 
         td {
             padding: 6px 12px;
-            border-bottom: 1px solid $o-gray-200;
+            border-bottom: 1px solid var(--o-gray-200);
         }
 
         .o_skeleton_checkbox {
@@ -32,11 +32,11 @@
     }
 
     .o_skeleton_kanban_card {
-        border-color: $o-gray-200;
+        border-color: var(--o-gray-200);
     }
 
     .o_skeleton_form {
-        background: $o-gray-100;
+        background: var(--o-gray-100);
     }
 }
 

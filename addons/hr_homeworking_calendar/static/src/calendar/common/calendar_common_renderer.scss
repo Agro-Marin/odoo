@@ -54,20 +54,35 @@
     }
 }
 
-@for $-i from 1 through length($o-colors-complete) {
-    $-color: nth($o-colors-complete, $-i);
-    $-color-subtle: tint-color($-color, 65%);
+// Both values mix the record colour towards a target the scheme decides, and
+// `tokens.scss` publishes both targets, so both derive in CSS: 56 colours × 2
+// schemes of published label colour become one declaration. What used to force
+// the label into a per-scheme token was naming the target instead of the mix —
+// `shade-color()` inverts to mix with #FFF, which is not `--o-black` (#E2E8F0
+// in dark), so there was no token to reach for.
+@function o-worklocation-subtle($-index) {
+    @return unquote(
+        "color-mix(in srgb, var(--o-tint-target) 65%, var(--o-record-color-#{$-index}))"
+    );
+}
 
+@function o-worklocation-label($-index) {
+    @return unquote(
+        "color-mix(in srgb, var(--o-shade-target) 10%, var(--o-record-color-#{$-index}))"
+    );
+}
+
+@for $-i from 1 through length($o-colors-complete) {
     .o_homework_multi {
         .wl_color_#{$-i - 1} {
-            color: shade-color($-color, 10%);
-            background-color: $-color-subtle;
-            border-color: $-color-subtle !important;
+            color: o-worklocation-label($-i);
+            background-color: o-worklocation-subtle($-i);
+            border-color: o-worklocation-subtle($-i) !important;
         }
     }
     .o_homework_single {
         .wl_color_#{$-i - 1} {
-            background-color: $-color-subtle;
+            background-color: o-worklocation-subtle($-i);
         }
     }
 }

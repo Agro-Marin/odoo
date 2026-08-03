@@ -80,5 +80,5 @@ $oi-sizes: (
 .o_barcode {
     -webkit-mask: url("/web/static/img/barcode.svg") center/contain no-repeat;
     mask: url("/web/static/img/barcode.svg") center/contain no-repeat;
-    background-color: $o-brand-primary;
+    background-color: var(--o-brand);
 }

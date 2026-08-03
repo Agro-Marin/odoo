@@ -33,7 +33,7 @@
         &.o_m2o_dropdown_option,
         &.o_calendar_dropdown_option {
             > a {
-                color: $link-color;
+                color: o-token(--link-color, $link-color);
                 &.ui-state-active:not(.o_m2o_start_typing) {
                     color: $link-hover-color;
                 }

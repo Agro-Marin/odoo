@@ -88,7 +88,7 @@ ul.o_checklist {
 blockquote {
     padding: calc($spacer / 2) $spacer;
     border-left: 5px solid;
-    border-color: map-get($grays, "300");
+    border-color: o-palette-token(--o-gray-300, map-get($grays, "300"));
     font-style: italic;
 }
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="web.DarkModeToggle">
+        <div class="o_dark_mode_toggle d-flex align-items-center px-2"
+             t-on-click="toggle"
+             role="button"
+             t-att-title="label"
+             t-att-aria-label="label">
+            <i t-att-class="colorScheme.isDark ? 'fa-regular fa-sun' : 'fa-regular fa-moon'"/>
+        </div>
+    </t>
+</templates>

@@ -8,6 +8,16 @@ import { isX2Many } from "./field_context.js";
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 /** @import { RecordEditState } from "@web/model/relational_model/record_edit_state" */
 
+/**
+ * `_editState` is set in `setup()`, which `DataPoint`'s constructor calls, so
+ * every constructed record has one. It cannot be declared as a class field to
+ * say so: field initializers run *after* the base constructor, and `setup()`
+ * reaches `_setData()`, which reads the edit state — a field would blank it
+ * first.
+ *
+ * @typedef {RelationalRecord & { _editState: RecordEditState }} ConstructedRecord
+ */
+
 export { createSavePoint } from "./record_edit_state.js";
 
 /**
@@ -15,14 +25,10 @@ export { createSavePoint } from "./record_edit_state.js";
  * commands on. The state itself belongs to `RecordEditState`; what lives here
  * is the recursion into the children, which the edit state cannot see.
  *
- * @param {RelationalRecord} record
+ * @param {ConstructedRecord} record
  */
 export function addSavePoint(record) {
-    // Cast, not a class-field declaration: `_editState` is assigned in
-    // `setup()`, which the base constructor calls, so declaring the field would
-    // re-initialise it to undefined after that assignment.
-    const editState = /** @type {RecordEditState} */ (record._editState);
-    editState.snapshot();
+    record._editState.snapshot();
     for (const fieldName of Object.keys(record._changes)) {
         if (isX2Many(record.fields[fieldName])) {
             record._changes[fieldName]._addSavePoint();
@@ -31,18 +37,18 @@ export function addSavePoint(record) {
 }
 
 /**
- * @param {RelationalRecord} record
+ * @param {ConstructedRecord} record
  * @returns {boolean} whether a savepoint was actually restored
  */
 export function restoreFromSavePoint(record) {
-    return /** @type {RecordEditState} */ (record._editState).restoreSnapshot();
+    return record._editState.restoreSnapshot();
 }
 
 /**
  * Drop the pending edits: back to the parked snapshot if a sub-flow left one,
  * otherwise back to the server values.
  *
- * @param {RelationalRecord} record
+ * @param {ConstructedRecord} record
  */
 export function discard(record) {
     for (const fieldName of Object.keys(record._changes)) {

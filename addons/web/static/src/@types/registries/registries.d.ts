@@ -27,7 +27,10 @@ declare module "registries" {
 
     export type DialogsRegistryItemShape = ComponentConstructor;
 
-    export type EffectsRegistryItemShape = (env: OdooEnv, params: object) => ({ Component: ComponentConstructor, props: object } | undefined);
+    // `remove` is the fallback branch: with effects switched off, `rainbow_man`
+    // opens a notification instead and hands back its dismisser, so `effect.add`
+    // returns a handle whichever branch ran.
+    export type EffectsRegistryItemShape = (env: OdooEnv, params: object) => ({ Component?: ComponentConstructor, props?: object, remove?: () => void } | undefined);
 
     export type ErrorDialogsRegistryItemShape = ComponentConstructor;
 

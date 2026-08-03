@@ -9,7 +9,7 @@
 }
 
 .o-EmojiPicker {
-    --EmojiPicker-active: #{rgba($o-action, 0.15)};
+    --EmojiPicker-active: color-mix(in srgb, var(--o-action) 15%, transparent);
 
     .o-Emoji {
         padding-left: map-get($spacers, 1);
@@ -60,8 +60,23 @@
         }
         &:not(:focus) {
             & + .oi-search {
-                color: $text-muted;
+                color: o-palette-token(--o-text-muted, $text-muted);
             }
+        }
+    }
+}
+
+
+// The dark half, folded in from `emoji_picker.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-EmojiPicker {
+            --EmojiPicker-placeholderOpacity: #{75%};
+            --EmojiPicker-active: #{mix($o-dark-gray-300, $o-dark-gray-400, 75%)};
+        }
+
+        .o-EmojiPicker-searchContour {
+            --border-opacity: 0.5;
         }
     }
 }

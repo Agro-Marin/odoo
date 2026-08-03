@@ -27,8 +27,8 @@
 
         .list-group {
             --list-group-border-radius: 0;
-            --list-group-active-bg: #{$o-brand-primary};
-            --list-group-active-border-color: #{$o-brand-primary};
+            --list-group-active-bg: #{o-token(--o-brand, $o-brand-primary)};
+            --list-group-active-border-color: #{o-token(--o-brand, $o-brand-primary)};
             --list-group-active-color: #{color-contrast($o-brand-primary)};
 
             min-width: 200px;
@@ -37,7 +37,7 @@
     }
 
     .o_add_snippet_dialog_search {
-        background-color: var(--SearchBar-bg-color, #{$o-white});
+        background-color: var(--SearchBar-bg-color, #{o-token(--o-white, $o-white)});
     }
 }
 .o_add_snippet_dialog_iframe_loader {
@@ -49,5 +49,19 @@
 @keyframes showLoader {
     to {
         visibility: visible;
+    }
+}
+
+
+// The dark half, folded in from `add_snippet_dialog.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // = Add Snippet Dialog
+        // ============================================================================
+        // No CSS hacks, variables overrides only
+
+        .o_add_snippet_dialog {
+            --SearchBar-bg-color: #{$o-dark-gray-100};
+        }
     }
 }

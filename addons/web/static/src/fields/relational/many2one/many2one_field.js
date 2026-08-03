@@ -129,7 +129,7 @@ export function extractCreatePermissions({ attrs, options }) {
 }
 
 /**
- * @param {Record<string, any>} staticInfo
+ * @param {{ attrs: Record<string, any>, options: Record<string, any> } & Record<string, any>} staticInfo
  * @param {Record<string, any>} dynamicInfo
  * @returns {Record<string, any>}
  */

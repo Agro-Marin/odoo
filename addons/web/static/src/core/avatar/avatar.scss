@@ -7,6 +7,6 @@ img.o_avatar {
 }
 
 .o_avatar_empty {
-    background: $o-black;
+    background: var(--o-black);
     opacity: 0.1;
 }

@@ -1,6 +1,6 @@
 .o_control_panel {
     border-bottom: var(--ControlPanel-border-bottom, #{$o-control-panel-border-bottom});
-    background-color: $o-control-panel-background-color;
+    background-color: o-token(--o-bg-view, $o-control-panel-background-color);
     @include media-only(screen) {
         .o_control_panel_breadcrumbs {
             --#{$variable-prefix}breadcrumb-font-size: #{$small-font-size};
@@ -97,7 +97,7 @@
         .o_back_button a::after {
             float: right;
             padding-left: $breadcrumb-item-padding-x;
-            color: $text-muted;
+            color: o-palette-token(--o-text-muted, $text-muted);
             content: var(--breadcrumb-divider, "/");
         }
 
@@ -131,17 +131,7 @@
 
 %-custom-button {
     $-value: map-get($o-btns-bs-override, "secondary");
-    @include button-variant(
-        o-safe-get($-value, background),
-        o-safe-get($-value, border),
-        o-safe-get($-value, color),
-        o-safe-get($-value, hover-background),
-        o-safe-get($-value, hover-border),
-        o-safe-get($-value, hover-color),
-        o-safe-get($-value, active-background),
-        o-safe-get($-value, active-border),
-        o-safe-get($-value, active-color)
-    );
+    @include o-button-variant-from($-value);
     --#{$prefix}btn-border-width: var(--border-width);
     --#{$prefix}btn-border-radius: #{$btn-border-radius};
 
@@ -179,5 +169,23 @@
             max-width: 100%;
             margin-left: 0 !important;
         }
+    }
+}
+
+
+// The dark half of `%-custom-button`. Only the button variables it emits are
+// scheme-dependent; the rest of the placeholder is geometry. Written here
+// rather than by scoping the `@extend` — an extend composes the whole current
+// selector into the placeholder's rule, so the scope would be carried into
+// every other selector sharing it.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_bottom_sheet .o_cp_switch_buttons
+        .o-dropdown-item {
+        @include o-button-variant-from(
+            o-dark-button-spec(
+                map-get($o-dark-btns-bs-override, "secondary"),
+                o-dark-scheme()
+            )
+        );
     }
 }

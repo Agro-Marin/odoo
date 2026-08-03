@@ -126,20 +126,46 @@ $-o-theme-text-colors: null;
     }
 }
 
+// White and black mean the palette's, which invert, so these were a compiled
+// colour in each of the two bundles. Through the `-rgb` sibling they follow the
+// attribute -- channels rather than a colour because `o-print-color()` composes
+// them with a `--*-opacity` variable, which no CSS colour function can take.
+// The compiled channels stay as a fallback: this file reaches bundles the token
+// layer does not.
+@function o-palette-rgb($-token, $-fallback) {
+    @return unquote("var(#{$-token}, #{to-rgb($-fallback)})");
+}
+
 %-text-white {
-    @include o-print-color($o-white, color, text-opacity);
+    @include o-print-color-rgb(
+        o-palette-rgb(--o-white-rgb, $o-white),
+        color,
+        text-opacity
+    );
 }
 
 %-text-black {
-    @include o-print-color($o-black, color, text-opacity);
+    @include o-print-color-rgb(
+        o-palette-rgb(--o-black-rgb, $o-black),
+        color,
+        text-opacity
+    );
 }
 
 %-bg-white {
-    @include o-print-color($o-white, background-color, bg-opacity);
+    @include o-print-color-rgb(
+        o-palette-rgb(--o-white-rgb, $o-white),
+        background-color,
+        bg-opacity
+    );
 }
 
 %-bg-black {
-    @include o-print-color($o-black, background-color, bg-opacity);
+    @include o-print-color-rgb(
+        o-palette-rgb(--o-black-rgb, $o-black),
+        background-color,
+        bg-opacity
+    );
 }
 
 .text-white {
@@ -197,17 +223,13 @@ $-o-bg-colors-custom: map-merge($o-bg-colors-custom, $o-grays);
     @include text-emphasis-variant(".text-#{$-name}", $-color);
 }
 
-// `.text-bg-*` exists to be a legible pair, so it is paired at the WCAG AA text
-// threshold rather than the global `$min-contrast-ratio` (3), which also drives
-// borders and other non-text decisions and would repaint far more than this.
 // Bootstrap's `helpers/_color-bg` already emitted the theme colours at 3; only
 // the foreground is restated here so the `--#{$prefix}*-rgb` backgrounds stand.
-$-o-text-bg-contrast: 4.5;
 
 @each $-name, $-color in $theme-colors {
     .text-bg-#{$-name} {
         @include o-print-color(
-            color-contrast($-color, $min-contrast-ratio: $-o-text-bg-contrast),
+            color-contrast($-color, $min-contrast-ratio: $o-text-bg-contrast),
             color,
             text-opacity
         );
@@ -222,14 +244,12 @@ $-o-text-bg-contrast: 4.5;
 
     .text-bg-#{$-name} {
         @include o-print-color(
-            color-contrast($-color, $min-contrast-ratio: $-o-text-bg-contrast),
+            color-contrast($-color, $min-contrast-ratio: $o-text-bg-contrast),
             color,
             text-opacity
         );
     }
 }
-
-$-o-text-bg-contrast: null;
 
 $-o-text-colors-custom: null;
 $-o-bg-colors-custom: null;
@@ -244,25 +264,31 @@ $-o-bg-colors-custom: null;
     margin-bottom: var(--alert-margin-bottom, $alert-margin-bottom);
 }
 
+// `--success`, not `--o-success-text`: the light palette splits the fill hue
+// from the text hue and the switch is painted with the fill. The dark palette
+// collapses the two, which is what made the wrong token look right.
+$-o-switch-on: var(--success, #{$o-success});
+$-o-switch-toggle: var(--o-action, #{$o-action});
+
 .form-switch {
     .form-check-input:checked {
-        background-color: $o-success;
-        border-color: $o-success;
+        background-color: $-o-switch-on;
+        border-color: $-o-switch-on;
     }
 
     .form-check-input:focus {
-        border-color: $o-success;
+        border-color: $-o-switch-on;
     }
 
     &:hover .form-check-input:not(:disabled) {
-        border-color: $o-success;
+        border-color: $-o-switch-on;
     }
 
     &.o_switch_toggle {
         .form-check-input,
         .form-check-input:checked {
-            border-color: $o-action;
-            background-color: $o-view-background-color;
+            border-color: $-o-switch-toggle;
+            background-color: var(--o-bg-view, #{o-token(--o-bg-view, $o-view-background-color)});
 
             &,
             &:focus,
@@ -274,7 +300,7 @@ $-o-bg-colors-custom: null;
         }
 
         &:hover .form-check-input:not(:disabled) {
-            border-color: $o-action;
+            border-color: $-o-switch-toggle;
         }
     }
 
@@ -284,6 +310,9 @@ $-o-bg-colors-custom: null;
         opacity: $o-opacity-disabled;
     }
 }
+
+$-o-switch-on: null;
+$-o-switch-toggle: null;
 
 .table {
     > :not(caption) > * > * {

@@ -89,9 +89,7 @@ Help your customers with this chat, and analyse their feedback.
             'im_livechat/static/src/core/common/**/*',
             'im_livechat/static/src/core/public_web/**/*',
             'im_livechat/static/src/core/web/**/*',
-            ('remove', 'im_livechat/static/src/**/*.dark.scss'),
-        ],        "web.assets_web_dark": [
-            'im_livechat/static/src/**/*.dark.scss',
+                    ],        "web.assets_web_dark": [
         ],
         'web.assets_unit_tests': [
             'im_livechat/static/tests/**/*',
@@ -110,7 +108,6 @@ Help your customers with this chat, and analyse their feedback.
             ('include', 'mail.assets_discuss_core_common'),
             ('include', 'mail.assets_discuss_call_common'),
             ('include', 'mail.assets_discuss_typing_common'),
-            ('remove', 'mail/static/src/**/*.dark.scss'),
             "rating/static/src/core/common/**/*",
             'im_livechat/static/src/core/common/**/*',
             'im_livechat/static/src/embed/common/**/*',
@@ -124,6 +121,9 @@ Help your customers with this chat, and analyse their feedback.
             'web/static/lib/bootstrap/scss/_maps.scss',
             ('include', 'web._assets_bootstrap_backend'),
             'web/static/src/scss/bootstrap_overridden.scss',
+            # The embedded widget serves web's component CSS onto a third-party
+            # page, and that CSS reads the palette as `--o-*`.
+            'web/static/src/scss/tokens.scss',
             'web/static/src/scss/ui.scss',
             'web/static/src/libs/fontawesome7/css/fontawesome.css',
             'web/static/src/libs/fontawesome7/css/solid.css',

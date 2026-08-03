@@ -1,6 +1,6 @@
 .o-filter-value {
     .o_datepicker_input {
-        color: $o-main-text-color;
+        color: o-palette-token(--o-text, $o-main-text-color);
     }
     .date_filter_values {
         display: flex;
@@ -14,7 +14,7 @@
     }
 
     select option {
-        color: $o-gray-700;
+        color: o-palette-token(--o-gray-700, $o-gray-700);
     }
 
     .o_multi_record_selector {

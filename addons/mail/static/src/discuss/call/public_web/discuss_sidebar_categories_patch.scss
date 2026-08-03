@@ -3,3 +3,13 @@
         var(--o-mail-DiscussSidebarChannel-inCallBorderOpacity, 0.15)
     );
 }
+
+
+// The dark half, folded in from `discuss_sidebar_categories_patch.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-DiscussSidebarChannel-container {
+            --o-mail-DiscussSidebarChannel-inCallBorderOpacity: 0.25;
+        }
+    }
+}

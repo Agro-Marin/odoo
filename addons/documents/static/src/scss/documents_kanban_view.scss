@@ -70,7 +70,7 @@
                 &:after {
                     content: "";
                     z-index: $o-dms-kanban-stack-zindex - 1;
-                    background: $o-view-background-color;
+                    background: o-token(--o-bg-view, $o-view-background-color);
                     outline: 1px solid var(--border-color);
                     width: 100%;
                     height: 100%;
@@ -84,7 +84,7 @@
             }
 
             > div:nth-of-type(1) {
-                background: $o-view-background-color;
+                background: o-token(--o-bg-view, $o-view-background-color);
             }
 
             &.o_record_selected {
@@ -143,7 +143,7 @@
                 opacity: 0.5;
 
                 &:hover {
-                    background-color: $gray-200;
+                    background-color: o-palette-token(--o-gray-200, $gray-200);
                 }
             }
 
@@ -206,7 +206,7 @@
         }
 
         &.o_documents_drop_over {
-            background: $gray-700;
+            background: o-palette-token(--o-gray-700, $gray-700);
 
             .o_kanban_record {
                 opacity: 0.2;
@@ -231,13 +231,13 @@
 .o_url_group {
     .o_field_copy {
         padding: $input-btn-padding-y-lg $input-btn-padding-x-lg;
-        color: $text-muted;
+        color: o-palette-token(--o-text-muted, $text-muted);
         text-align: left;
         font-style: italic;
-        border-color: $gray-500;
+        border-color: o-palette-token(--o-gray-500, $gray-500);
 
         .o_clipboard_button {
-            box-shadow: 1px 0 0 1px $o-brand-primary;
+            box-shadow: 1px 0 0 1px o-token(--o-brand, $o-brand-primary);
             border-radius: inherit; // To always get the container border radius;
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;

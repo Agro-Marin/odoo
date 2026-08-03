@@ -12,7 +12,7 @@ import {
 import { Notebook } from "@web/components/notebook/notebook";
 import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
-import { cookie } from "@web/core/browser/cookie";
+import { colorScheme } from "@web/core/color_scheme";
 import { formatDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
@@ -167,14 +167,13 @@ export class HistoryDialog extends Component {
                 "html_field_history_get_unified_diff_at_revision",
                 [this.props.recordId, this.props.versionedFieldName, revisionId],
             );
-            const colorScheme =
-                cookie.get("color_scheme") === "dark" ? "dark" : "light";
+            const scheme = colorScheme.current;
             // eslint-disable-next-line no-undef
             const diffHtml = Diff2Html.html(unifiedDiffString, {
                 drawFileList: false,
                 matching: "lines",
                 outputFormat: "side-by-side",
-                colorScheme: colorScheme,
+                colorScheme: scheme,
             });
             return markup(diffHtml);
         }.bind(this),

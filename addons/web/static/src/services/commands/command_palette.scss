@@ -12,7 +12,7 @@
 
         .o_command {
             &.focused {
-                background: rgba($o-component-active-bg, 0.65);
+                background: color-mix(in srgb, var(--o-bg-active) 65%, transparent);
             }
 
             &_hotkey {
@@ -30,7 +30,7 @@
     }
 
     .o_favorite {
-        color: $o-main-favorite-color;
+        color: o-token(--o-favorite, $o-main-favorite-color);
     }
 
     .o_app_icon {

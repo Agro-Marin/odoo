@@ -26,7 +26,7 @@
     }
 
     &.o_field_invalid img {
-        border: 1px solid map-get($theme-colors, "danger");
+        border: 1px solid o-token(--danger, map-get($theme-colors, "danger"));
     }
 }
 

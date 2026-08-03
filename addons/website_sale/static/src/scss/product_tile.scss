@@ -114,7 +114,7 @@
         width: var(--o-wsale-card-thumb-size);
         border-radius: var(--o-wsale-card-thumb-border-radius, inherit);
         box-shadow: var(--o-wsale-card-thumb-shadow);
-        background: var(--o-wsale-card-thumb-background, #{$gray-100});
+        background: var(--o-wsale-card-thumb-background, #{o-palette-token(--o-gray-100, $gray-100)});
         transform: var(--o-wsale-card-thumb-transform);
         transition: var(--o-wsale-card-thumb-transition);
         flex-shrink: 0;
@@ -261,7 +261,7 @@
 
         // Only visible in /shop page
         .css_attribute_preview_thumbnail {
-            border: $border-width solid $border-color;
+            border: $border-width solid o-token(--border-color, $border-color);
             border-radius: var(
                 --o-wsale-card-attribute-previewer-thumbnail-border-radius,
                 #{$border-radius-sm}
@@ -270,14 +270,14 @@
             transition: border-color 0.05s ease-in-out;
 
             &:hover {
-                border-color: map-get($theme-colors, "primary");
+                border-color: o-token(--primary, map-get($theme-colors, "primary"));
             }
         }
         .btn {
-            border: $border-width solid $border-color;
+            border: $border-width solid o-token(--border-color, $border-color);
 
             &:hover {
-                border-color: map-get($theme-colors, "primary");
+                border-color: o-token(--primary, map-get($theme-colors, "primary"));
             }
         }
 
@@ -304,7 +304,7 @@
         );
 
         > a {
-            color: var(--o-wsale-card-cc-link, #{$primary});
+            color: var(--o-wsale-card-cc-link, #{o-token(--primary, $primary)});
         }
     }
     .oe_subdescription_wrapper {
@@ -832,8 +832,8 @@
         var(--o-wsale-container-fluid-padding-xl, var(--gutter-x)) * 0.5
     );
     --o-wsale-topbar-border-width: 0 0 #{$border-width};
-    --o-border-color: #{$gray-300};
-    --border-color: #{$gray-300};
+    --o-border-color: #{o-palette-token(--o-gray-300, $gray-300)};
+    --border-color: #{o-palette-token(--o-gray-300, $gray-300)};
     --gap: 0px;
     --o-wsale-card-attribute-previewer-thumbnail-border-radius: 0;
 
@@ -1162,7 +1162,7 @@ $_wsale_products_roundness_map: (
 .o_wsale_products_opt_hover_border_primary {
     &:where(.o_wsale_products_opt_design_cards),
     &:where(.o_wsale_products_opt_design_chips) {
-        --o-wsale-card-border-color-hover: #{$primary};
+        --o-wsale-card-border-color-hover: #{o-token(--primary, $primary)};
     }
 }
 .o_wsale_products_opt_hover_shadow_out {

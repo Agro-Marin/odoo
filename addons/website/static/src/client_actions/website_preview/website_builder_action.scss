@@ -113,3 +113,16 @@ body:has(.o-website-builder_sidebar.o_builder_sidebar_open) {
         transition-delay: 200ms;
     }
 }
+
+
+// The dark half, folded in from `website_builder_action.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o_website_preview {
+            // Interpolated: without `#{}` this emits the literal text `$o-dark-gray-200`,
+            // which is a valid custom-property value and an invalid colour — so the
+            // consumer resolves to neither this nor its own fallback.
+            --websitePreview-bg-color: #{$o-dark-gray-200};
+        }
+    }
+}

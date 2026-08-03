@@ -31,9 +31,9 @@
         padding: var(--KanbanRecord-padding-v) var(--KanbanRecord-padding-h);
         border-width: var(--KanbanRecord-border-width, #{$border-width});
         border-style: solid;
-        border-color: $border-color;
+        border-color: o-token(--border-color, $border-color);
         border-radius: $o-border-radius-lg;
-        background-color: $o-view-background-color;
+        background-color: var(--o-bg-view);
         box-shadow: $o-shadow-xs;
         transition:
             box-shadow $o-duration-fast $o-easing-standard,
@@ -159,11 +159,12 @@
 
     @for $size from 2 through length($o-colors) {
         &.o_kanban_color_#{$size - 1}::after {
-            $-color: nth($o-colors, $size);
+            $-color: unquote("var(--o-record-color-#{$size})");
+            $-color-rgb: unquote("var(--o-record-color-#{$size}-rgb)");
 
             @include o-position-absolute(0, auto, 0, -$border-width);
-            border-left: $border-width solid rgba($-color, 0.5);
-            border-right: ($border-width * 2) solid $-color;
+            border-left: $border-width solid rgba(#{$-color-rgb}, 0.5);
+            border-right: ($border-width * 2) solid #{$-color};
             content: "";
         }
     }
@@ -175,7 +176,7 @@
 
         &:focus-within,
         &:hover {
-            background-color: $gray-100;
+            background-color: o-palette-token(--o-gray-100, $gray-100);
         }
     }
 
@@ -225,7 +226,7 @@
         border: none;
 
         &:not(:last-of-type) {
-            border-bottom: $border-width solid $border-color;
+            border-bottom: $border-width solid o-token(--border-color, $border-color);
         }
     }
     .o_kanban_ungrouped .o_kanban_record {

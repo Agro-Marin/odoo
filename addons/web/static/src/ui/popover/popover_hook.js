@@ -23,7 +23,7 @@ import { useService } from "@web/core/utils/hooks";
  * @returns {PopoverHookReturnType}
  */
 export function makePopover(addFn, component, options) {
-    /** @type {((removeParams?: any) => void) | null} */
+    /** @type {((removeParams?: any) => Promise<void>) | null} */
     let removeFn = null;
     function close(/** @type {any} */ removeParams = undefined) {
         removeFn?.(removeParams);

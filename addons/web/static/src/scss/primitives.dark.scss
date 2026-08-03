@@ -1,0 +1,41 @@
+///
+/// Dark-mode answers for `primitives.scss`.
+///
+/// Injected before it by `web._dark_mode_variables`, so these win by
+/// `!default` and every palette downstream — theme or base — reads the dark
+/// ramp without restating it.
+///
+/// The values come from `palette_dark.scss`, which every bundle carries so
+/// `tokens.scss` can publish this scheme alongside the light one.
+///
+/// The ramp inverts rather than shifts: `$o-white` is the deepest surface and
+/// `$o-black` the brightest text, so expressions written against the light
+/// palette keep their meaning.
+///
+
+$o-white: $o-dark-white !default;
+$o-black: $o-dark-black !default;
+
+$o-gray-100: $o-dark-gray-100 !default;
+$o-gray-200: $o-dark-gray-200 !default;
+$o-gray-300: $o-dark-gray-300 !default;
+$o-gray-400: $o-dark-gray-400 !default;
+$o-gray-500: $o-dark-gray-500 !default;
+$o-gray-600: $o-dark-gray-600 !default;
+$o-gray-700: $o-dark-gray-700 !default;
+$o-gray-800: $o-dark-gray-800 !default;
+$o-gray-900: $o-dark-gray-900 !default;
+
+// Lightness step for the record colours, applied to the one source list in
+// primitives.scss. 12% is what clears SC 1.4.11 (3:1) against
+// `$o-view-background-color` for the twelve in `$o-colors-source` — the worst,
+// #304be0, sits at 2.57:1 untouched and 4.37:1 here. Lightening alone keeps
+// every hue identifiable and leaves the neutral #a2a2a2 neutral, which adding
+// saturation does not.
+//
+// It does not clear 3:1 for all of `$o-colors-secondary-source`: four stay
+// under, #5e0231 worst at 2.01:1. Reaching 3:1 across both lists takes 22%,
+// which washes the ramp out, and the light ramp is not held to that bar either
+// — 22 of the 56 are under 3:1 on white. Raising the step is a decision about
+// the whole palette, not about this file.
+$o-colors-lighten: $o-dark-colors-lighten !default;

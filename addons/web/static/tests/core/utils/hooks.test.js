@@ -467,7 +467,7 @@ describe("useService", () => {
 
         failing.boom().then(
             () => expect.step("resolved"),
-            (error) => expect.step(`rejected:${error.message}`)
+            (error) => expect.step(`rejected:${error.message}`),
         );
         // No handler at all: this is the shape that used to surface globally.
         failing.boom();

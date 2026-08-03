@@ -30,7 +30,7 @@
     }
 }
 .o_stock_reports_page {
-    background-color: $o-view-background-color;
+    background-color: o-token(--o-bg-view, $o-view-background-color);
     &.o_stock_reports_no_print {
         margin: $o-horizontal-padding auto;
         @include o-webclient-padding(

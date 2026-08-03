@@ -36,7 +36,7 @@ $o-mail-CallMenu-bgColor-lighter: #374151ff !default;
     }
 
     &.disabled {
-        color: map-get($grays, "600");
+        color: o-palette-token(--o-gray-600, map-get($grays, "600"));
         background: none;
     }
 }

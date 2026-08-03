@@ -53,7 +53,7 @@
             cursor: default;
 
             &:hover {
-                background: #{rgba($body-color, 0.8)};
+                background: #{o-palette-token-alpha(--o-text, $body-color, 0.8)};
             }
         }
     }
@@ -74,7 +74,7 @@
             height: 20px;
             padding: 0 3px 0 0;
             font-size: 12px;
-            --btn-hover-bg: #{$o-gray-200};
+            --btn-hover-bg: #{o-token(--o-gray-200, $o-gray-200)};
         }
     }
 
@@ -83,6 +83,16 @@
     &:focus-within {
         .o_code_toolbar {
             display: flex;
+        }
+    }
+}
+
+
+// The dark half, folded in from `syntax_highlighting_plugin.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o_syntax_highlighting textarea.o_prism_source {
+            caret-color: white !important;
         }
     }
 }

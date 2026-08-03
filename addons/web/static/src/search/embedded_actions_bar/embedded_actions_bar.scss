@@ -20,7 +20,7 @@
     &::after {
         flex: 1 1 0;
         height: 1px;
-        background-color: $border-color;
+        background-color: o-token(--border-color, $border-color);
         content: "";
     }
 

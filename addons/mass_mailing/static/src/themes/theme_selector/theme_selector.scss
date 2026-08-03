@@ -137,7 +137,7 @@
             height: 20px;
         }
         i.fa-star {
-            color: $o-main-favorite-color;
+            color: o-token(--o-favorite, $o-main-favorite-color);
         }
     }
 }

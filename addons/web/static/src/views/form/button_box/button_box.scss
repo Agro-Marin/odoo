@@ -28,7 +28,7 @@
     %-stat-button-value {
         order: 2;
         font-weight: $font-weight-bold;
-        color: var(--o-stat-text-color, #{$o-brand-primary});
+        color: var(--o-stat-text-color, var(--o-brand));
         font-size: $o-font-size-base-smaller;
     }
 
@@ -52,7 +52,7 @@
 
         .o_button_icon {
             font-size: $-stat-button-icon-size;
-            color: var(--o-stat-button-color, #{$primary});
+            color: var(--o-stat-button-color, #{o-token(--primary, $primary)});
 
             &:before {
                 margin-right: $-stat-button-icon-margin-end;
@@ -234,7 +234,7 @@
         outline: none;
 
         &:not(:last-child) {
-            border-bottom: solid 1px var(--o-stat-button-border-color, #{$border-color});
+            border-bottom: solid 1px var(--o-stat-button-border-color, #{o-token(--border-color, $border-color)});
         }
 
         .oe_stat_button {

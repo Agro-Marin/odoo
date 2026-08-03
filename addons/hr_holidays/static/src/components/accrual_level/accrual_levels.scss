@@ -17,7 +17,7 @@
 
         &:not(.o_readonly_modifier) > *:first-child {
             min-width: 50px;
-            border-bottom: solid $border-width $border-color;
+            border-bottom: solid $border-width o-token(--border-color, $border-color);
             max-width: fit-content;
             field-sizing: content;
         }
@@ -43,9 +43,9 @@
         width: 70%;
         padding: 8px;
         font-weight: $o-font-weight-normal;
-        border: solid $border-width $border-color;
+        border: solid $border-width o-token(--border-color, $border-color);
         border-radius: $border-radius;
-        background-color: $o-webclient-background-color;
+        background-color: o-palette-token(--body-bg, $o-webclient-background-color);
     }
 }
 
@@ -65,7 +65,7 @@
     }
 
     .o_accrual_plan_levels {
-        background-color: $o-webclient-background-color;
+        background-color: o-palette-token(--body-bg, $o-webclient-background-color);
 
         & > .o_accrual_levels_scrollable {
             overflow-y: auto;
@@ -82,21 +82,21 @@
     .new-text {
         top: -20px;
         right: 5px;
-        color: $o-brand-primary;
+        color: o-token(--o-brand, $o-brand-primary);
         pointer-events: none;
     }
 
     .circle {
-        background-color: $border-color;
+        background-color: o-token(--border-color, $border-color);
     }
 
     .new {
-        background-color: $o-brand-primary;
-        border-color: $o-brand-primary;
+        background-color: o-token(--o-brand, $o-brand-primary);
+        border-color: o-token(--o-brand, $o-brand-primary);
     }
 
     .arrow {
-        border: solid $border-color;
+        border: solid o-token(--border-color, $border-color);
         border-width: 0 $border-width * 2 $border-width * 2 0;
         padding: 5px;
         margin-top: -10px - $border-width * 2;
@@ -104,26 +104,26 @@
     }
 
     .o_accrual_bg {
-        background-color: $o-view-background-color;
+        background-color: o-token(--o-bg-view, $o-view-background-color);
     }
 
     .delete span:hover {
-        background-color: $o-danger;
-        color: $o-white;
+        background-color: o-palette-token(--danger, $o-danger);
+        color: o-token(--o-white, $o-white);
     }
 
     &:has(.content:hover, .time > span:hover) {
         .content {
-            border-color: $o-brand-primary !important;
+            border-color: o-token(--o-brand, $o-brand-primary) !important;
         }
 
         .time > span {
-            border-color: $o-brand-primary !important;
+            border-color: o-token(--o-brand, $o-brand-primary) !important;
         }
 
         .timeline > .circle {
-            border-color: $o-brand-primary !important;
-            background-color: $o-brand-primary;
+            border-color: o-token(--o-brand, $o-brand-primary) !important;
+            background-color: o-token(--o-brand, $o-brand-primary);
         }
     }
 }

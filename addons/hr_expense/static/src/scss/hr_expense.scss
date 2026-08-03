@@ -25,9 +25,9 @@
     }
 
     .o_view_pink_overlay {
-        border: $border-width * 2 dashed $border-color;
+        border: $border-width * 2 dashed o-token(--border-color, $border-color);
         border-radius: $border-radius-lg;
-        background-color: $o-view-background-color;
+        background-color: o-token(--o-bg-view, $o-view-background-color);
         width: 600px;
         height: 300px;
 
@@ -37,8 +37,8 @@
     }
 
     .o_view_pink_overlay:hover {
-        border-color: $primary;
-        background-color: mix($primary, $o-view-background-color, 10%);
+        border-color: o-token(--primary, $primary);
+        background-color: unquote("color-mix(in srgb, #{o-token(--primary, $primary)} 10%, #{o-token(--o-bg-view, $o-view-background-color)})");
         cursor: pointer;
     }
 

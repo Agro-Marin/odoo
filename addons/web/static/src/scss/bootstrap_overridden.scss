@@ -8,6 +8,15 @@ $pink: #e83e8c !default;
 $green: #28a745 !default;
 $cyan: #17a2b8 !default;
 
+// Says that Bootstrap's palette is this palette, for `tokens.scss` to read.
+// It cannot tell on its own: it rides the frontend too, where Bootstrap keeps
+// its own greys on purpose (`--gray-200` is #e9ecef there against this ramp's
+// #e2e8f0, which `test_lint`'s TestGreyRampToken exists to keep apart). The
+// wiring below is the fact, and this is the file that knows it.
+// Plain, not `!default`: `functions.scss` declares the flag false so every
+// bundle can read it, and a `!default` here would never fire.
+$o-bootstrap-follows-palette: true;
+
 $white: $o-white !default;
 $gray-100: $o-gray-100 !default;
 $gray-200: $o-gray-200 !default;
@@ -29,6 +38,37 @@ $success: $o-success !default;
 $info: $o-info !default;
 $warning: $o-warning !default;
 $danger: $o-danger !default;
+
+// Bootstrap spells these `rgba($black, …)`, and `$black` is `$o-black`, which
+// inverts -- so its shadows are a compiled colour that only follows the scheme
+// by the bundle being built twice. Through the token they follow the attribute,
+// as `$o-shadow-*` does. Same reading in either bundle: mixing towards
+// `transparent` is premultiplied, so this is `$black` at that alpha.
+//
+// With the compiled colour as a fallback, because this file travels further
+// than `tokens.scss` does: `report_assets_common` has no token layer on purpose
+// (a dark block there would print), and three more served bundles carry the one
+// and not the other. There the shadow is simply what it was.
+@function o-shadow-ink-white($-alpha) {
+    @return unquote(
+        "color-mix(in srgb, var(--o-white, #{$white}) #{$-alpha}, transparent)"
+    );
+}
+
+@function o-shadow-ink-black($-alpha) {
+    @return unquote(
+        "color-mix(in srgb, var(--o-black, #{$black}) #{$-alpha}, transparent)"
+    );
+}
+
+$box-shadow: 0 0.5rem 1rem o-shadow-ink-black(15%) !default;
+$box-shadow-sm: 0 0.125rem 0.25rem o-shadow-ink-black(7.5%) !default;
+$box-shadow-lg: 0 1rem 3rem o-shadow-ink-black(17.5%) !default;
+$box-shadow-inset: inset 0 1px 2px o-shadow-ink-black(7.5%) !default;
+// `rgba($black, .125)`, and `$black` inverts -- so every `.btn-*` carried a
+// compiled `--btn-active-shadow` in each bundle, the one declaration the button
+// specs could not reach.
+$btn-active-box-shadow: inset 0 3px 5px o-shadow-ink-black(12.5%) !default;
 
 $min-contrast-ratio: 3 !default;
 
@@ -101,7 +141,7 @@ $table-bg: transparent !default;
 $table-striped-color: inherit !default;
 $table-striped-bg-factor: 0.01 !default;
 $table-hover-bg-factor: 0.055 !default;
-$table-border-color: $border-color !default;
+$table-border-color: o-token(--border-color, $border-color) !default;
 $table-group-separator-color: $gray-200 !default;
 $table-cell-padding-x: 0.75rem !default;
 $table-cell-padding-y: 0.75rem !default;
@@ -110,7 +150,7 @@ $table-cell-padding-y-sm: $o-table-cell-padding-y-sm !default;
 $table-striped-order: even !default;
 
 $table-active-bg-factor: 0.05 !default;
-$table-active-color: $headings-color !default;
+$table-active-color: o-token(--heading-color, $headings-color) !default;
 $table-th-font-weight: $headings-font-weight !default;
 
 $input-btn-padding-y: o-to-rem(6px) !default;
@@ -126,16 +166,17 @@ $btn-font-weight: $font-weight-bold !default;
 $btn-disabled-opacity: $o-opacity-disabled !default;
 $btn-border-radius-lg: $border-radius !default;
 
-$dropdown-border-color: $border-color !default;
+$dropdown-header-color: o-palette-token(--o-gray-600, $gray-600) !default;
+$dropdown-border-color: o-token(--border-color, $border-color) !default;
 
-$dropdown-link-color: $o-main-text-color !default;
-$dropdown-link-hover-color: $black !default;
-$dropdown-link-hover-bg: rgba($black, 0.08) !default;
+$dropdown-link-color: o-palette-token(--o-text, $o-main-text-color) !default;
+$dropdown-link-hover-color: o-token(--o-black, $black) !default;
+$dropdown-link-hover-bg: o-shadow-ink-black(8%) !default;
 
-$dropdown-link-active-color: $black !default;
+$dropdown-link-active-color: o-token(--o-black, $black) !default;
 $dropdown-link-active-bg: transparent !default;
 
-$dropdown-link-disabled-color: $o-main-color-muted !default;
+$dropdown-link-disabled-color: o-palette-token(--o-text-muted, $o-main-color-muted) !default;
 
 $dropdown-item-padding-y: $o-dropdown-vpadding !default;
 $dropdown-item-padding-x: $o-dropdown-hpadding !default;
@@ -145,23 +186,61 @@ $list-group-hover-bg: $dropdown-link-hover-bg !default;
 
 $list-group-active-color: $o-list-group-active-color !default;
 $list-group-active-bg: $o-list-group-active-bg !default;
-$list-group-action-hover-color: $gray-900 !default;
+$list-group-action-hover-color: o-palette-token(--o-gray-900, $gray-900) !default;
 
 $breadcrumb-item-padding-x: $o-breadcrumb-item-padding-x !default;
 
-$nav-tabs-link-active-bg: $white !default;
+$nav-tabs-link-active-bg: o-token(--o-white, $white) !default;
 
 $nav-pills-border-radius: 0 !default;
 $nav-pills-link-active-color: $white !default;
-$nav-pills-link-active-bg: $o-brand-primary !default;
+$nav-pills-link-active-bg: o-token(--o-brand, $o-brand-primary) !default;
 
 $tooltip-font-size: $font-size-sm !default;
 $tooltip-max-width: 400px !default;
-$tooltip-color: $o-gray-200 !default;
+$tooltip-color: o-palette-token(--o-gray-200, $o-gray-200) !default;
 $tooltip-opacity: 1 !default;
 
+$popover-header-color: o-token(--heading-color, $o-main-headings-color) !default;
+// The button's resting elevation, as ink on the palette's own white and black.
+//
+// `$focus-ring-box-shadow` is *not* converted beside it, twice attempted: it
+// feeds `$input-btn-focus-box-shadow`, which Bootstrap composes into a rule for
+// every control, and the `var()` costs 34 KB a bundle to answer three
+// declarations. Those three are restated under the scope instead.
+$btn-box-shadow: inset 0 1px 0 o-shadow-ink-white(15%),
+    0 1px 1px o-shadow-ink-black(7.5%) !default;
+
+$blockquote-footer-color: o-palette-token(--o-gray-600, $gray-600) !default;
+$btn-link-disabled-color: o-palette-token(--o-gray-600, $gray-600) !default;
+$carousel-dark-indicator-active-bg: o-token(--o-black, $black) !default;
+$carousel-dark-caption-color: o-token(--o-black, $black) !default;
+// Bootstrap's own `.navbar-dark` and `.dropdown-menu-dark`, which are a
+// component asking for a dark *treatment* rather than the page's colour scheme
+// — but they are built from `$white` and the ramp, both of which invert, so
+// they were compiled twice like everything else. `$navbar-dark-active-color`
+// and `$input-focus-border-color` stay colours: `rgba()` reads them.
+$navbar-dark-hover-color: o-shadow-ink-white(75%) !default;
+$navbar-dark-disabled-color: o-shadow-ink-white(25%) !default;
+$navbar-dark-toggler-border-color: o-shadow-ink-white(10%) !default;
+
+$dropdown-dark-bg: o-palette-token(--o-gray-800, $gray-800) !default;
+$dropdown-dark-color: o-palette-token(--o-gray-300, $gray-300) !default;
+$dropdown-dark-link-hover-color: o-token(--o-white, $white) !default;
+$dropdown-dark-link-hover-bg: o-shadow-ink-white(15%) !default;
+$dropdown-dark-link-disabled-color: o-palette-token(--o-gray-500, $gray-500) !default;
+$dropdown-dark-header-color: o-palette-token(--o-gray-500, $gray-500) !default;
+
+$kbd-color: o-palette-token(--o-gray-700, $o-gray-700) !default;
+$kbd-bg: o-palette-token(--o-gray-100, $o-gray-100) !default;
+$progress-bar-bg: o-token(--o-brand, $o-brand-primary) !default;
+$progress-bar-color: o-token(--o-white, $white) !default;
+$carousel-caption-color: o-token(--o-white, $white) !default;
+$pagination-active-bg: $component-active-bg !default;
+$pagination-active-border-color: $component-active-bg !default;
+$pagination-active-color: $component-active-color !default;
 $popover-bg: $white !default;
-$popover-border-color: $border-color !default;
+$popover-border-color: o-token(--border-color, $border-color) !default;
 $popover-border-radius: $border-radius !default;
 $popover-arrow-color: var(--popover-arrow-color, #{$popover-bg}) !default;
 $popover-arrow-outer-color: $popover-border-color !default;
@@ -220,7 +299,9 @@ $badge-color: inherit !default;
 $badge-padding-y: 0.25em !default;
 $badge-padding-x: 0.82em !default;
 
-$input-placeholder-color: mix($gray-400, $gray-500) !default;
+$input-placeholder-color: unquote(
+    "color-mix(in srgb, #{o-palette-token(--o-gray-400, $gray-400)} 50%, #{o-palette-token(--o-gray-500, $gray-500)})"
+) !default;
 
 $card-bg: $o-view-background-color !default;
 $card-spacer-y: $spacer !default;

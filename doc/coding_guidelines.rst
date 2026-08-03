@@ -1856,6 +1856,122 @@ Neither is expected to be clean; neither may get worse.
 * **RTL** is generated automatically. Use logical properties
   (``margin-inline-start``) and Odoo's RTL-aware mixins, not hard ``left`` / ``right``.
 
+5.3 Browser floor
+-----------------
+
+**Current evergreen browsers. This fork does not support old ones, and no
+declaration carries a fallback for them.** ``[review]``
+
+The JS side has said this for a while — ``_ESBUILD_TARGET = "es2023"`` in
+``odoo/tools/assets/esbuild.py`` — and the CSS side said nothing at all, so
+authors have been guessing conservatively: ``color-mix()`` appears in 26 files
+and ``light-dark()`` in none. It is written here so the guess stops.
+
+Anything **Baseline newly available** may be used directly, in every bundle,
+including the ones served to the public:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Use
+     - Instead of
+   * - ``color-mix(in srgb, C N%, transparent)``
+     - ``rgba($c, .N)`` — Baseline *widely* available, the workhorse
+   * - ``hsl(from C h s calc(l - 10))``
+     - ``darken($c, 10%)`` — reproduces the Sass value exactly, HSL for HSL
+   * - ``light-dark(a, b)``
+     - a one-off colour that differs by scheme and deserves no token name
+   * - ``oklch(from C calc(l - .1) c h)``
+     - a *deliberate* palette change: perceptually uniform, so a step looks the
+       same on yellow as on blue. It does **not** reproduce ``darken()``
+
+The point is not novelty. A Sass colour function resolves when the bundle
+compiles, which is why this fork ships every stylesheet twice; the CSS
+equivalents resolve in the cascade, which is what lets one stylesheet answer
+both colour schemes. ``test_lint``'s ``TestSchemeDuplication`` measures the
+distance still to go.
+
+``contrast-color()`` is the exception, and on semantics rather than support: it
+returns only white or black, while ``o-scheme-contrast()`` picks among four
+foregrounds — ``website`` puts ``$color-contrast-dark`` on ``o-color("900")``
+so a frontend label lands on ``#212529``. Contrast picks stay compile-time and
+published per scheme.
+
+5.4 Moving a variable onto a token
+----------------------------------
+
+``o-token(--name, $fallback)`` turns a Sass assignment into a ``var()``, so the
+value is decided in the cascade and one declaration answers both schemes. Two
+things make a variable ineligible, and only the first announces itself.
+``[review]``
+
+* **It is read by Sass colour maths.** ``darken()``, ``mix()``, ``rgba()``,
+  ``color-contrast()`` and friends take a colour, and a ``var()`` is not one.
+  Sass raises ``$color: var(…) is not a color`` and the bundle fails to compile,
+  so this is caught the first time it is run. Grep the whole workspace before
+  converting — ``$card-bg`` is read by ``color-contrast()`` from ``portal``, four
+  addons away from where it is assigned.
+* **It is interpolated into an SVG data URI.** ``$form-check-*-color`` reaches
+  ``stroke='#{…}'`` inside ``url("data:image/svg+xml,…")``. A custom property
+  there is inert: the URI is not CSS, so the ``var()`` neither resolves nor
+  errors — the compile succeeds and the icon simply stops being drawn. Nothing
+  reports it. Convert the variable only alongside the image that reads it, or
+  leave both and restate the pair under the scheme scope.
+
+The same applies to a value handed to a mixin: ``o-button-variant-from()`` and
+``o-print-color-rgb()`` accept tokens deliberately and say so, but a mixin that
+was written for colours will fail on the first function it reaches.
+
+5.5 Restating a rule for the other scheme
+-----------------------------------------
+
+When neither a token nor ``light-dark()`` can carry a value — a
+``color-contrast()`` pick, a ``shift-color()``, a variable a colour function
+reads — the rule is restated under ``:root[data-color-scheme="dark"]``, which
+outscores the plain rule (0,2,0) against (0,1,0). ``scheme_rules.scss`` and
+``html_editor.scheme_rules.scss`` are where those live. ``[review]``
+
+* **One rule per original rule, with its whole selector list.** Grouping three
+  of Bootstrap's ``:focus`` rules into one scoped rule answers *none* of them,
+  and ``.navbar-dark`` alone does not answer
+  ``.navbar-dark,.navbar[data-bs-theme=dark]``. Copy the selector as the bundle
+  emits it.
+* **Only the dark half.** Whatever emits the light half already did so.
+* **Screen only.** ``assets_web_print`` includes the backend bundle and is
+  linked unconditionally, so an unscoped block answers the attribute in print.
+* **Not where it cannot apply.** A file riding ``assets_frontend`` should not
+  carry the dark half: nothing there sets the attribute. Split it into a
+  sibling declared in the backend bundle alone —
+  ``html_editor.scheme_rules.scss`` exists because emitting it from the shared
+  file put 24 KB on every public page.
+* **Never call ``tint-color()`` or ``shade-color()`` from a scoped block.** The
+  dark bundle carries ``bs_functions_overridden.dark.scss``, which redefines
+  both — in dark, tint mixes with *black*. Calling Bootstrap's own function from
+  a light bundle therefore computes the light meaning of the word, and the two
+  bundles disagree about a colour they both call dark. Use
+  ``o-scheme-tint(…, $-scheme)`` / ``o-scheme-shade(…, $-scheme)``, which take
+  the mix colour from the scheme. The same applies to anything else a dark-only
+  file redefines; ``TestSchemeDuplication`` is what catches it, because the
+  restated rule simply keeps disagreeing.
+* **``@extend`` does not compose with a scope** unless what the placeholder
+  emits carries no colour, in which case the light half already answers and the
+  dark half must simply omit it. See ``o-bg-color()``'s
+  ``$extend-heading-reset``.
+
+----
+
+5.6 Weighing a conversion
+-------------------------
+
+**Weigh the bytes.** A ``var(--name, <fallback>)`` is longer than the colour it
+replaces, once per use. Converting ``$focus-ring-color`` — read by
+``$focus-ring-box-shadow``, which Bootstrap composes into a dozen rules — added
+34 KB to every backend bundle and answered nothing, because the composed shadow
+had already been flattened into a string by the time it reached the token. Read
+the compiled size alongside ``TestSchemeDuplication``'s count; a conversion that
+moves neither is a conversion to drop.
+
 ----
 
 6. Tests

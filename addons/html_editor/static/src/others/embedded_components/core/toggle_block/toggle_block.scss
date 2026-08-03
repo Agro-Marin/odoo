@@ -8,10 +8,10 @@
         aspect-ratio: 1 / 1;
         background-color: transparent;
         &:hover {
-            background-color: rgba($o-gray-300, 0.5);
+            background-color: o-token-alpha(--o-gray-300, $o-gray-300, 0.5);
         }
         &:active {
-            background-color: rgba($o-gray-300, 0.2);
+            background-color: o-token-alpha(--o-gray-300, $o-gray-300, 0.2);
         }
     }
 }

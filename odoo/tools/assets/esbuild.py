@@ -360,12 +360,11 @@ class EsbuildCompiler:
                     specs=bare_specs,
                 )
             if exact_stubs:
-                stub_dir = Path(tmp_dir) / "stubs"
-                stub_dir.mkdir()
-                for i, (spec, shim_js) in enumerate(sorted(exact_stubs.items())):
-                    stub_path = stub_dir / f"stub_{i}.js"
-                    stub_path.write_text(shim_js, encoding="utf-8")
-                    alias_flags.append(f"--alias:{spec}={stub_path}")
+                alias_flags.extend(
+                    self._write_stub_mirror(
+                        Path(tmp_dir) / "stubs", exact_stubs, alias_flags, odoo_root
+                    )
+                )
 
         log_event(
             _esbuild_log,
@@ -533,6 +532,86 @@ class EsbuildCompiler:
                     alias_path = f"addons{js_asset.url}"
                 alias_flags.append(f"--alias:{header['alias']}=./{alias_path}")
         return alias_flags, test_external_flags + dynamic_external_flags
+
+    @classmethod
+    def _write_stub_mirror(
+        cls,
+        stub_root: Path,
+        exact_stubs: dict[str, str],
+        alias_flags: list[str],
+        odoo_root: Path,
+    ) -> list[str]:
+        """Lay the shims out under *stub_root* mirroring their specifier paths.
+
+        ``--alias`` is a PREFIX rewrite, not the module-exact one this used to
+        assume: esbuild remaps ``<spec>/<sub>`` to ``<target>/<sub>`` too.
+        Pointing a specifier straight at a shim file therefore broke every
+        submodule of it -- ``@web/core/network`` is both a stub and the parent
+        of eleven live specifiers, so ``@web/core/network/model_mutation``
+        resolved to ``<stub>.js/model_mutation`` and esbuild failed the whole
+        bundle with *"Cannot read directory ...: not a directory"*.
+
+        That shape is the norm here rather than an oddity: a module's face is a
+        sibling file next to its own directory (no barrel files), so 38 of
+        ``web.assets_web``'s specifiers have submodules and any of them could be
+        stubbed by a test importing the face.
+
+        So the target has to be a place where the prefix rewrite is *also*
+        right. Each shim is written at ``<stub_root>/<spec>.js`` and aliased
+        without the extension -- resolution prefers the file over the sibling
+        directory -- and that sibling directory is filled in from the real one:
+        a symlink normally, or a directory of per-entry symlinks where a nested
+        stub has to shadow one of those entries.
+        """
+        addon_roots = {}
+        for flag in alias_flags:
+            spec, _, target = flag.removeprefix("--alias:").partition("=")
+            if spec.startswith("@") and "/" not in spec:
+                addon_roots[spec] = odoo_root / target.removeprefix("./")
+
+        # ``<dir>: {<file names the stubs occupy>}``, so a directory rebuilt
+        # entry by entry never symlinks over a nested shim -- writing the shim
+        # afterwards would follow that symlink into the source tree.
+        shadowed: dict[str, set[str]] = {}
+        for spec in exact_stubs:
+            parent_rel, _, name = spec.lstrip("@").rpartition("/")
+            shadowed.setdefault(parent_rel, set()).add(f"{name}.js")
+
+        flags = []
+        # Shortest first: a spec's directory must exist as a real one before any
+        # stub nested inside it is written.
+        for spec in sorted(exact_stubs):
+            rel = spec.lstrip("@")
+            stub_path = stub_root / rel
+            stub_path.parent.mkdir(parents=True, exist_ok=True)
+            real_dir = cls._stub_sibling_dir(spec, addon_roots)
+            if real_dir is not None and not stub_path.exists():
+                nested = shadowed.get(rel)
+                if nested:
+                    stub_path.mkdir(parents=True)
+                    for entry in real_dir.iterdir():
+                        if entry.name not in nested:
+                            (stub_path / entry.name).symlink_to(entry)
+                else:
+                    stub_path.symlink_to(real_dir, target_is_directory=True)
+            (stub_root / f"{rel}.js").write_text(exact_stubs[spec], encoding="utf-8")
+            flags.append(f"--alias:{spec}={stub_path}")
+        return flags
+
+    @staticmethod
+    def _stub_sibling_dir(spec: str, addon_roots: dict[str, Path]) -> Path | None:
+        """The real directory a stubbed specifier's submodules live in, if any.
+
+        ``None`` for a specifier with no addon alias behind it (``@odoo/owl``)
+        or no directory beside it, which both mean the prefix rewrite has
+        nothing to hijack.
+        """
+        addon, _, rest = spec.partition("/")
+        root = addon_roots.get(addon)
+        if root is None:
+            return None
+        candidate = root.joinpath(*rest.split("/"))
+        return candidate if candidate.is_dir() else None
 
     @staticmethod
     def _purge_stale_fail_dumps(name: str) -> None:

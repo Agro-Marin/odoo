@@ -9,11 +9,21 @@
     button {
         &:hover,
         &.show {
-            background-color: var(--mail-NotificationSettings-btnHoverBg, $gray-200);
+            background-color: var(--mail-NotificationSettings-btnHoverBg, o-palette-token(--o-gray-200, $gray-200));
         }
     }
 }
 
 .o-discuss-NotificationSettings-defaultValue {
-    color: $o-action;
+    color: o-token(--o-action, $o-action);
+}
+
+
+// The dark half, folded in from `notification_settings.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-discuss-NotificationSettings {
+            --mail-NotificationSettings-btnHoverBg: #{$o-dark-gray-300};
+        }
+    }
 }

@@ -4,7 +4,16 @@ from odoo import api, models, tools
 from odoo.http import request
 from odoo.modules import Manifest
 
-UNIT_TEST_ROUTE = "/web/tests"
+#: Routes on which ``module_scope`` is honoured: the runner page, and the
+#: bundle route the page's own ``loadBundle`` calls reach (the scope travels to
+#: those through ``session_info['bundle_params']``). Both are answered by
+#: resolving a bundle for the run, and neither is an ordinary page whose asset
+#: cache a stray parameter could fragment.
+UNIT_TEST_ROUTES = ("/web/tests", "/web/bundle/")
+
+#: Marks the scope in an asset URL. A literal segment rather than a bare addon
+#: name so the scoped route cannot shadow ``/web/assets/<unique>/<filename>``.
+UNIT_TEST_URL_SEGMENT = "scope"
 
 
 class IrAsset(models.Model):
@@ -32,14 +41,32 @@ class IrAsset(models.Model):
         asymmetry at its source: what cannot load cannot register.
 
         Read from the request rather than the bundle because the scope varies
-        per run, not per bundle definition. Only honoured on the runner route,
+        per run, not per bundle definition. Only honoured on the runner routes,
         so a stray ``module_scope`` elsewhere cannot fragment the asset cache
-        of ordinary pages.
+        of ordinary pages, and only for an installed addon, so the number of
+        variants it can mint is bounded by the addons on disk.
+
+        The bundle the runner page *links* is covered by the URL it was
+        published under (:meth:`_get_asset_url_segments`); this covers the ones
+        the page asks for afterwards.
         """
-        if not request or not request.httprequest.path.startswith(UNIT_TEST_ROUTE):
+        if not request or not request.httprequest.path.startswith(UNIT_TEST_ROUTES):
             return ""
         scope = request.params.get("module_scope") or ""
         return scope if scope in self._get_installed_addons_list() else ""
+
+    def _get_asset_url_segments(self, assets_params):
+        """Name the scope, so ``content_assets_scoped`` can rebuild the bundle.
+
+        Without it a scoped bundle is published under a URL that differs from
+        the unscoped one only by ``unique`` -- distinct, but not rebuildable,
+        because ``content_assets`` re-resolves from the URL alone. The scoped
+        CSS then 303'd to the unscoped bundle on every runner page load, which
+        is precisely the foreign content the scope exists to keep out.
+        """
+        segments = super()._get_asset_url_segments(assets_params)
+        scope = assets_params.get("unit_test_scope")
+        return (*segments, UNIT_TEST_URL_SEGMENT, scope) if scope else segments
 
     @api.model
     @tools.ormcache("scope")

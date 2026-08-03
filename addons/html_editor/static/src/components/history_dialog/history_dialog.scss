@@ -117,7 +117,7 @@
                 opacity: 0.5;
             }
             &:hover {
-                background-color: rgba($primary, 0.2);
+                background-color: o-token-alpha(--primary, $primary, 0.2);
             }
             &:after {
                 content: " ";
@@ -125,7 +125,7 @@
                 left: -1px;
                 top: -16px;
                 border-left: 2px solid;
-                border-color: $secondary;
+                border-color: o-token(--secondary, $secondary);
                 height: 24px;
             }
             &:before {
@@ -141,7 +141,7 @@
                 width: 24px;
                 height: 24px;
                 line-height: 24px;
-                background-color: $secondary;
+                background-color: o-token(--secondary, $secondary);
                 z-index: 10;
             }
             &.targeted {
@@ -156,14 +156,14 @@
                 }
             }
             &.selected {
-                color: $primary;
+                color: o-token(--primary, $primary);
                 &:before {
                     color: white;
                     content: "\f0da";
-                    background-color: $primary;
+                    background-color: o-token(--primary, $primary);
                 }
                 &:after {
-                    border-color: $primary;
+                    border-color: o-token(--primary, $primary);
                 }
                 .o_avatar {
                     opacity: 1;
@@ -171,6 +171,66 @@
             }
             &:first-child:after {
                 content: none !important;
+            }
+        }
+    }
+}
+
+
+// The dark half, folded in from `history_dialog.dark.scss`. Every value in it
+// was a literal but one, so nothing underneath is exposed by the fold.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .html-history-dialog .history-container {
+            --border-color: #3c3e4b;
+        }
+
+        .html-history-dialog {
+            .history-view-top-bar {
+                background-color: rgba(27, 161, 228, 0.1);
+                border-bottom: 1px solid #385f7f;
+                .text-info {
+                    --color: #ffffff;
+                }
+            }
+            .history-view-inner {
+                background-color: rgb(27, 29, 38);
+                border-color: rgba(27, 161, 228, 0.2);
+            }
+            .history-container {
+                --border-color: #ddd;
+                margin-left: 240px;
+                .o_notebook_content {
+                    padding: 10px 12px;
+                    border: 1px solid var(--border-color);
+                    border-top: 0;
+                }
+                .nav {
+                    padding-left: 24px;
+                }
+                removed {
+                    background-color: #8d1d1d;
+                    opacity: 1;
+                    color: #d58f8f;
+                }
+                added {
+                    background-color: #1e4506;
+                    color: #bbd9bb;
+                }
+            }
+            .revision-list {
+                .btn {
+                    color: #999;
+                    &:hover {
+                        background-color: rgba($o-dark-bs-primary, 0.4);
+                    }
+                    &.targeted {
+                        color: #c3c3c3;
+                    }
+                    &.selected {
+                        color: #fff;
+                    }
+                }
             }
         }
     }

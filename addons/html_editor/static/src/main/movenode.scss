@@ -79,3 +79,14 @@ $oe-dropzone-size: $oe-dropzone-size-outside + $oe-dropzone-size-inside;
 .oe-editor-dragging {
     pointer-events: none;
 }
+
+
+// The dark half, folded in from `movenode.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .oe-sidewidget-move {
+            color: rgb(255, 255, 255);
+            background-color: $o-dark-view-background-color;
+        }
+    }
+}

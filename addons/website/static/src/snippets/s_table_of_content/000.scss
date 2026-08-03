@@ -43,7 +43,7 @@
                     opacity: 1;
 
                     &:before {
-                        background-color: map-get($theme-colors, "primary");
+                        background-color: o-token(--primary, map-get($theme-colors, "primary"));
                     }
                 }
             }

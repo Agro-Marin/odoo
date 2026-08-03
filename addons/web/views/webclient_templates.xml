@@ -232,6 +232,25 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
 
     <template id="web.webclient_bootstrap" name="Web Client Bootstrap">
         <t t-call="web.layout">
+            <!-- The token layer answers this attribute, so a stylesheet can
+                 follow a scheme change through the cascade. Both bundles
+                 publish both schemes, so setting it changes nothing on its
+                 own — it is what a single bundle would key off.
+
+                 Only where the server knows the answer. For a `system` user it
+                 does not: `color_scheme` there is whatever the browser last
+                 cached in the cookie, while which stylesheet applies is decided
+                 live by `prefers-color-scheme`. The two can disagree — the OS
+                 changed theme since the last visit — and the attribute is read
+                 against whichever bundle the media query picked, so a stale one
+                 selects the dark values out of the light sheet. The inline
+                 resolver below sets it from the same input the media query
+                 uses, in the same `<head>` and ahead of every stylesheet, so
+                 emitting nothing here costs no paint and removes the one state
+                 that could be wrong. -->
+            <t t-set="html_data"
+               t-value="{} if color_scheme_preference == 'system'
+                        else {'data-color-scheme': color_scheme}" />
             <t t-set="head_web">
                 <meta name="viewport"
                     content="width=device-width, initial-scale=1, user-scalable=no" />
@@ -307,17 +326,39 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
                         }
                     }
                 </script>
+<!-- Before any bundle runs, so the cookie is already settled by the time
+                     the first module reads it. `prefers-color-scheme` is the one
+                     input the server has no access to, and a good deal of JS
+                     treats this cookie as a resolved light/dark answer — several
+                     modules at import time, where nothing later can correct them.
+                     Resolving here is what lets that be true by construction
+                     rather than by every reader remembering to read late.
+                     Mirrors cookie.set() in @web/core/browser/cookie. -->
+                <t t-if="color_scheme_preference == 'system'">
+                    <script id="web.layout.colorscheme">
+                        {
+                            const resolved = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+                            document.cookie = `color_scheme=${resolved}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+                            document.documentElement.dataset.colorScheme = resolved;
+                        }
+                    </script>
+                </t>
                 <t t-call-assets="web.assets_web_print" media="print" t-js="false" />
                 <t t-call-assets="web.assets_web" t-css="false" />
 
-                <t t-if="color_scheme == 'dark'">
-                    <t t-call-assets="web.assets_web_dark" media="screen" t-js="false" />
-                </t>
-                <t t-elif="color_scheme == 'system'">
+<!-- Keyed off the preference, not the resolved scheme: only the browser
+                     can answer `system`, so ship both and let the media queries
+                     decide. Keying this off `color_scheme` made the branch
+                     unreachable, and a dark-OS user got a full light paint
+                     followed by the reload that corrected it. -->
+                <t t-if="color_scheme_preference == 'system'">
                     <t t-call-assets="web.assets_web"
                         media="screen and (prefers-color-scheme: light)" t-js="false" />
                     <t t-call-assets="web.assets_web_dark"
                         media="screen and (prefers-color-scheme: dark)" t-js="false" />
+                </t>
+                <t t-elif="color_scheme == 'dark'">
+                    <t t-call-assets="web.assets_web_dark" media="screen" t-js="false" />
                 </t>
                 <t t-else="">
                     <t t-call-assets="web.assets_web" media="screen" t-js="false" />

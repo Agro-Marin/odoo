@@ -6,7 +6,7 @@
         circle {
             transform: rotate(-90deg);
             transform-origin: 30px 30px;
-            stroke: $link-color;
+            stroke: o-token(--link-color, $link-color);
             &.o_crm_tooltip_wheel_bg_circle {
                 stroke: #ddd;
             }

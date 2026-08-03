@@ -62,11 +62,11 @@
             width: 45px !important;
         }
         .o_analytic_status_invalid {
-            background-color: $o-danger;
+            background-color: o-palette-token(--danger, $o-danger);
             margin-left: 8px;
         }
         .o_analytic_status_ok {
-            background-color: $o-success;
+            background-color: o-palette-token(--success, $o-success);
             margin-left: 8px;
         }
         tr:hover {

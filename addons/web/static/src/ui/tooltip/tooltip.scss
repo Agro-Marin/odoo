@@ -2,8 +2,8 @@
     --#{$variable-prefix}tooltip-max-width: #{$tooltip-max-width};
     --#{$variable-prefix}tooltip-padding-x: #{$tooltip-padding-x};
     --#{$variable-prefix}tooltip-padding-y: #{$tooltip-padding-y};
-    --#{$variable-prefix}tooltip-color: #{$o-gray-900};
-    --#{$variable-prefix}tooltip-bg: #{$o-gray-300};
+    --#{$variable-prefix}tooltip-color: var(--o-gray-900);
+    --#{$variable-prefix}tooltip-bg: var(--o-gray-300);
     --#{$variable-prefix}tooltip-border-radius: #{$tooltip-border-radius};
 
     @include reset-text();
@@ -16,7 +16,7 @@
         max-width: $tooltip-max-width * 2;
 
         .o-tooltip--help {
-            background-color: $info;
+            background-color: o-token(--info, $info);
             color: color-contrast($info);
         }
 

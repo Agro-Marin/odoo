@@ -4,7 +4,7 @@
         flex-wrap: wrap;
         align-items: center;
         padding: 12px 24px;
-        border-bottom: 1px solid $o-gray-300;
+        border-bottom: 1px solid o-palette-token(--o-gray-300, $o-gray-300);
 
         td {
             border: 0;
@@ -28,8 +28,8 @@
 
     .partner-info {
         &.selected {
-            background-color: $o-component-active-bg;
-            color: $o-action;
+            background-color: o-token(--o-bg-active, $o-component-active-bg);
+            color: o-token(--o-action, $o-action);
         }
     }
 }
@@ -41,8 +41,8 @@
         color: $o-main-link-color;
     }
     &.selected {
-        background-color: $o-component-active-bg;
-        color: $o-action;
+        background-color: o-token(--o-bg-active, $o-component-active-bg);
+        color: o-token(--o-action, $o-action);
     }
 
     &.selected .btn.btn-link:hover .fa-check {

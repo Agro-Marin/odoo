@@ -34,7 +34,10 @@
 
         @extend %-main-navbar-entry-base;
         @extend %-main-navbar-entry-spacing;
-        color: var(--NavBar-entry-color, #{$o-navbar-entry-color});
+        color: var(
+            --NavBar-entry-color,
+            var(--o-navbar-entry-color, #{$o-navbar-entry-color})
+        );
 
         rect,
         g {
@@ -158,7 +161,10 @@
     .o_menu_sections {
         .o_nav_entry,
         .dropdown-toggle {
-            background: var(--NavBar-entry-backgroundColor, #{$o-navbar-background});
+            background: var(
+                --NavBar-entry-backgroundColor,
+                var(--o-navbar-background, #{$o-navbar-background})
+            );
             border: $border-width solid transparent;
 
             &:hover {
@@ -189,7 +195,10 @@
                 --NavBar-entry-backgroundColor--active,
                 #{$o-navbar-entry-bg--active}
             );
-            color: var(--NavBar-entry-color--active, #{$o-navbar-entry-color--active});
+            color: var(
+                --NavBar-entry-color--active,
+                var(--o-navbar-entry-color--active, #{$o-navbar-entry-color--active})
+            );
         }
     }
 
@@ -230,7 +239,10 @@
     .o_menu_brand,
     .o_navbar_breadcrumbs,
     .o_navbar_breadcrumbs .btn {
-        color: var(--NavBar-brand-color, #{$o-navbar-brand-color});
+        color: var(
+            --NavBar-brand-color,
+            var(--o-navbar-brand-color, #{$o-navbar-brand-color})
+        );
     }
 
     .o_menu_sections {
@@ -274,4 +286,64 @@ body.o_is_superuser .o_menu_systray {
         )
         2;
     border-image-width: map-get($border-widths, 2);
+}
+
+
+// The entry colours are published per scheme rather than restated, because
+// every rule that reads them does so through `%-main-navbar-entry-base` — an
+// `@extend`, so the emitted selector is the union of every extender and no
+// scoped rule can reproduce it. Read as the *fallback* of the existing
+// `--NavBar-entry-*` hook, they answer both schemes wherever that union lands.
+@include o-publish-per-scheme using ($-scheme, $-ramp, $-record-colors) {
+    $-dark: map-get($-scheme, "dark");
+
+    --o-navbar-entry-color: #{if(
+            $-dark,
+            $o-dark-navbar-entry-color,
+            $o-navbar-entry-color
+        )};
+    --o-navbar-entry-color--hover: #{if(
+            $-dark,
+            $o-dark-navbar-entry-color--hover,
+            $o-navbar-entry-color--hover
+        )};
+    --o-navbar-entry-bg--hover: #{if(
+            $-dark,
+            $o-dark-navbar-entry-bg--hover,
+            $o-navbar-entry-bg--hover
+        )};
+    --o-navbar-entry-color--active: #{if(
+            $-dark,
+            $o-dark-navbar-entry-color--active,
+            $o-navbar-entry-color--active
+        )};
+    --o-navbar-background: #{if($-dark, $o-dark-navbar-background, $o-navbar-background)};
+    --o-navbar-brand-color: #{if(
+            $-dark,
+            $o-dark-navbar-brand-color,
+            $o-navbar-brand-color
+        )};
+    --o-navbar-badge-bg: #{if($-dark, $o-dark-navbar-badge-bg, $o-navbar-badge-bg)};
+    --o-navbar-badge-text-shadow: #{if(
+            $-dark,
+            $o-dark-navbar-badge-text-shadow,
+            $o-navbar-badge-text-shadow
+        )};
+}
+
+// The dark half. The navbar's own variables come from a `*.variables.scss`,
+// which compiles before `tokens.scss` and so cannot hold a token; the values
+// are in `palette_dark.scss` instead and only what reads them is restated here.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_main_navbar {
+        --o-ring-color: #{o-ring-color-for(
+                $o-dark-navbar-background,
+                $o-dark-ring-color,
+                o-dark-scheme()
+            )};
+
+        border-bottom: $o-dark-navbar-border-bottom;
+        background: $o-dark-navbar-background;
+
+    }
 }

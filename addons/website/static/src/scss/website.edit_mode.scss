@@ -312,7 +312,7 @@ body.editor_enable {
         font-family: $o-we-font-family;
 
         a {
-            color: $o-brand-primary;
+            color: o-token(--o-brand, $o-brand-primary);
 
             &.text-muted {
                 color: rgba(0, 0, 0, 0.65) !important;

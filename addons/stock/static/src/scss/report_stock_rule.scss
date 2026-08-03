@@ -4,7 +4,7 @@
     }
 
     .table {
-        --table-border-color: #{$o-gray-300};
+        --table-border-color: #{o-token(--o-gray-300, $o-gray-300)};
     }
 
     .o_report_stock_rule_rule {

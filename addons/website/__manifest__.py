@@ -309,6 +309,8 @@
                 "remove",
                 "website/static/src/client_actions/website_preview/website_builder_action_test_mode.js",
             ),
+            # This bundle is light. The glob above reaches a dark sibling, and
+            # a dark sibling in a light bundle is not inert: it compiles with
             "website/static/src/components/fields/*",
             "website/static/src/components/fullscreen_indication/fullscreen_indication.js",
             "website/static/src/components/fullscreen_indication/fullscreen_indication.scss",
@@ -332,9 +334,6 @@
             "website/static/src/xml/website.cookies_bar.xml",
         ],
         "web.assets_web_dark": [
-            "website/static/src/components/dialog/*.dark.scss",
-            "website/static/src/scss/website.backend.dark.scss",
-            "website/static/src/components/website_loader/website_loader.dark.scss",
         ],
         "web.assets_unit_tests": [
             "web/static/src/public/minimal_dom.js",
@@ -426,7 +425,6 @@
             "website/static/src/components/website_loader/*.xml",
             "website/static/src/js/backend/**/*",
             # Don't include dark mode files in light mode
-            ("remove", "website/static/src/components/dialog/*.dark.scss"),
         ],
         "website.website_builder_assets": [
             ("include", "html_builder.assets"),

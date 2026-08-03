@@ -210,7 +210,6 @@ $o-livechat-font-size: 14px !default;
 
 // Source: webclient.scss
 :host {
-    --o-webclient-color-scheme: #{$o-webclient-color-scheme};
     font-size: $o-livechat-font-size;
 }
 

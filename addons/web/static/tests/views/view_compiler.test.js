@@ -277,17 +277,13 @@ describe("ViewCompiler — codegen escaping", () => {
     }
 
     test("a widget class holding a quote still produces a compilable template", () => {
-        const compiled = compileArch(
-            `<widget name="w" widget_id="w1" class="a'b"/>`,
-        );
+        const compiled = compileArch(`<widget name="w" widget_id="w1" class="a'b"/>`);
         expect(compiled).toInclude(toStringExpression("a'b"));
         expect(owlCompileError(compiled, "test.widget.quote")).toBe(null);
     });
 
     test("a widget class holding a backtick still produces a compilable template", () => {
-        const compiled = compileArch(
-            "<widget name=\"w\" widget_id=\"w2\" class=\"a`b\"/>",
-        );
+        const compiled = compileArch('<widget name="w" widget_id="w2" class="a`b"/>');
         expect(owlCompileError(compiled, "test.widget.backtick")).toBe(null);
     });
 
@@ -536,9 +532,7 @@ test("the Odoo spelling drives the same dropdown construct as the Bootstrap one"
 
     expect(compiled.querySelectorAll("Dropdown").length).toBe(1);
     expect(compiled.querySelectorAll(".dropdown-menu").length).toBe(0);
-    expect(
-        compiled.querySelector("t[t-set-slot='content'] ViewButton"),
-    ).not.toBe(null);
+    expect(compiled.querySelector("t[t-set-slot='content'] ViewButton")).not.toBe(null);
 });
 
 test("the Odoo spelling drives the same modal construct as the Bootstrap one", async () => {
@@ -560,6 +554,8 @@ test("the Odoo spelling drives the same modal construct as the Bootstrap one", a
         `['${key}'] = true`,
     );
     expect(
-        compiled.querySelector("t[t-set-slot='footer'] .cancel").getAttribute("t-on-click"),
+        compiled
+            .querySelector("t[t-set-slot='footer'] .cancel")
+            .getAttribute("t-on-click"),
     ).toInclude(`['${key}'] = false`);
 });

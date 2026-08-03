@@ -11,3 +11,14 @@ $o-mail-Message-sidebarWidth: 48px !default;
 $o-mail-LinkPreview-width: 320px !default;
 $o-mail-LinkPreview-height: 240px !default;
 $o-mail-LinkPreviewCard-height: 80px !default;
+
+// The talking indicator and the meeting surface. Both are read from files that
+// only the light bundle carries, so their dark answers have to be nameable
+// there. In the *primary* variables rather than beside `$o-discuss-talkingColor`
+// in `core/common/core.scss`, because `call_invitation.scss` also rides
+// `assets_frontend`, which carries no derived variables at all.
+$o-dark-discuss-talkingColor: rgba(
+    darken($o-dark-enterprise-action-color, 5%),
+    0.75
+) !default;
+$o-meeting-view-bg: #111827 !default;

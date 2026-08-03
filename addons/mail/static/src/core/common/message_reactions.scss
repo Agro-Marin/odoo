@@ -10,11 +10,21 @@
 
     &.o-selfReacted {
         --border-opacity: #{var(--mail-MessageReaction-selfReactedBorderOpacity, 1)};
-        background: $o-view-background-color;
+        background: o-token(--o-bg-view, $o-view-background-color);
     }
 }
 
 .o-mail-MessageReactions:not(.o-emojiPickerOpen):not(:hover)
     .o-mail-MessageReactions-add:not(.o-mobile) {
     visibility: hidden;
+}
+
+
+// The dark half, folded in from `message_reactions.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-MessageReaction {
+            --mail-MessageReaction-selfReactedBorderOpacity: 1;
+        }
+    }
 }

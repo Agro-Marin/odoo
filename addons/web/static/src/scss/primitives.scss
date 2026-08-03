@@ -1,0 +1,77 @@
+///
+/// Palette primitives — the raw values every other palette variable derives
+/// from, and the only ones with no dependency of their own.
+///
+/// Split out of `primary_variables.scss` because a theme's palette compiles
+/// *before* web's: `!default` makes the first assignment win, so a theme has
+/// to come first to override anything. That ordering also means a theme cannot
+/// read a value web declares later — and a value it cannot read is one it has
+/// to restate. `web_enterprise` was carrying a byte-identical copy of this
+/// ramp in each of its two palettes for exactly that reason.
+///
+/// Declared first in `web._assets_primary_variables`, these resolve ahead of
+/// every palette, theme or base, so each one reads a single definition.
+///
+/// To override, anchor a file *before* this one — as `primitives.dark.scss`
+/// does, and as `primary_variables_print.scss` does by loading earlier still.
+///
+
+$o-white: #ffffff !default;
+$o-black: #000000 !default;
+
+$o-gray-100: #f8fafc !default;
+$o-gray-200: #e2e8f0 !default;
+$o-gray-300: #cbd5e1 !default;
+$o-gray-400: #94a3b8 !default;
+$o-gray-500: #64748b !default;
+$o-gray-600: #475569 !default;
+$o-gray-700: #334155 !default;
+$o-gray-800: #1e293b !default;
+$o-gray-900: #0f172a !default;
+
+// Record colours — tags, kanban, calendar. Colour N identifies a record, so it
+// has to be the same hue in both schemes; only its lightness may move. A dark
+// file resolves *before* this one and so cannot derive from these values, but
+// it can set the step below and let the one source list apply it. Restating the
+// list instead is what left upstream's dark ramp on a stale set of hues, and a
+// shorter one, so a tag changed colour when the scheme did.
+$o-colors-lighten: 0% !default;
+
+$o-colors-source:
+    #a2a2a2, #ee2d2d, #dc8534, #e8bb1d, #5794dd, #9f628f, #db8865, #41a9a2, #304be0,
+    #ee2f8a, #61c36e, #9872e6 !default;
+
+$o-colors-secondary-source:
+    #aa4b6b, #30c381, #97743a, #f7cd1f, #4285f4, #8e24aa, #d6145f, #173e43, #348f50,
+    #aa3a38, #795548, #5e0231, #6be585, #999966, #e9d362, #b56969, #bdc3c7, #649173,
+    #ea00ff, #ff0026, #8bcc00, #00bfaf, #006aff, #af00bf, #bf001d, #bf6300, #8cff00,
+    #00f2ff, #004ab3, #ff00d0, #ffa600, #3acc00, #00b6bf, #0048ff, #bf7c00, #04ff00,
+    #00d0ff, #0036bf, #ff008c, #00bf49, #0092b3, #0004ff, #b20062, #649173 !default;
+
+@function o-build-color-ramp($-source, $-lighten) {
+    $-built: ();
+    @each $-color in $-source {
+        $-built: append($-built, o-round-color(lighten($-color, $-lighten)));
+    }
+    @return $-built;
+}
+
+$o-colors: o-build-color-ramp($o-colors-source, $o-colors-lighten) !default;
+$o-colors-secondary: o-build-color-ramp(
+    $o-colors-secondary-source,
+    $o-colors-lighten
+) !default;
+
+// The same two ramps at the dark step, built here in whichever scheme is
+// compiling. `tokens.scss` publishes both, so a light bundle has to be able to
+// state the dark ramp — and only this file can, being the one that holds the
+// source list. A theme that replaces `$o-colors` owes `$o-dark-colors` too,
+// the same contract `palette_dark.scss` sets for the rest of the palette.
+$o-dark-colors: o-build-color-ramp(
+    $o-colors-source,
+    $o-dark-colors-lighten
+) !default;
+$o-dark-colors-secondary: o-build-color-ramp(
+    $o-colors-secondary-source,
+    $o-dark-colors-lighten
+) !default;

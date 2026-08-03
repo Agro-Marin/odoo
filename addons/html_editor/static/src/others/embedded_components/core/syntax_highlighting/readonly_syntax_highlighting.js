@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillStart, xml } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
-import { cookie } from "@web/core/browser/cookie";
+import { colorScheme } from "@web/core/color_scheme";
 
 import {
     DEFAULT_LANGUAGE_ID,
@@ -20,10 +20,9 @@ export class ReadonlySyntaxHighlightingComponent extends Component {
 
     setup() {
         onWillStart(() =>
-            loadBundle(
-                `html_editor.assets_prism${cookie.get("color_scheme") === "dark" ? "_dark" : ""}`,
-                { targetDoc: this.props.host.ownerDocument },
-            ),
+            loadBundle(`html_editor.assets_prism${colorScheme.isDark ? "_dark" : ""}`, {
+                targetDoc: this.props.host.ownerDocument,
+            }),
         );
         onMounted(() => {
             const owlRoot = [...(this.props.host.children || [])].find(

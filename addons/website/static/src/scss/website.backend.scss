@@ -1,5 +1,5 @@
 .o_dashboards {
-    background-color: $o-view-background-color;
+    background-color: o-token(--o-bg-view, $o-view-background-color);
     height: 100%;
     display: flex;
     flex-flow: column nowrap;
@@ -8,7 +8,7 @@
         overflow: scroll;
     }
     .o_website_dashboard {
-        background-color: $o-view-background-color;
+        background-color: o-token(--o-bg-view, $o-view-background-color);
     }
     &.has_plausible {
         background-color: #f9fafb; // Copied from iframe.
@@ -69,7 +69,7 @@
             }
 
             .o_layer {
-                background-color: rgba($o-view-background-color, 0.3);
+                background-color: o-token-alpha(--o-bg-view, $o-view-background-color, 0.3);
                 position: absolute;
                 top: 0;
                 left: 0;
@@ -159,4 +159,18 @@
     position: absolute;
     inset: 0 0 0 0;
     background-color: white;
+}
+
+
+// The dark half, folded in from `website.backend.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        // = Website Backend
+        // ============================================================================
+        // No CSS hacks, variables overrides only
+
+        .o_demo_background {
+            --Dashboard__demoBackground: url("/website/static/src/img/website_dashboard_visit_demo_dark_mode.png");
+        }
+    }
 }

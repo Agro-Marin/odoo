@@ -33,7 +33,7 @@ $o-wslides-fs-side-width: 300px;
             @include font-size(1rem);
 
             input:checked + i.fa-circle {
-                color: $primary !important;
+                color: o-token(--primary, $primary) !important;
             }
         }
 

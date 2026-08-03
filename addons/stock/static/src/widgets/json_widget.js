@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
-import { cookie } from "@web/core/browser/cookie";
 import { getColor } from "@web/core/colors/colors";
 import { _t } from "@web/core/l10n/translation";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
@@ -142,9 +141,9 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
         const showYLabel = (tick) =>
             tick === this.productMinQty || tick === this.productMaxQty ? tick : "";
         const labels = this.jsonValue["x_axis_vals"];
-        const maxLineColor = getColor(1, cookie.get("color_scheme"), "odoo");
-        const minLineColor = getColor(2, cookie.get("color_scheme"), "odoo");
-        const curveLineColor = getColor(3, cookie.get("color_scheme"), "odoo");
+        const maxLineColor = getColor(1, "odoo");
+        const minLineColor = getColor(2, "odoo");
+        const curveLineColor = getColor(3, "odoo");
         return {
             type: "scatter",
             data: {

@@ -31,7 +31,7 @@
 .o-mail-NotificationItem-badge {
     padding: 3px 6px !important;
     &.o-discuss-badge:not(.o-important) {
-        --o-discuss-badge-bg: #{$gray-500};
+        --o-discuss-badge-bg: #{o-palette-token(--o-gray-500, $gray-500)};
     }
 }
 
@@ -56,16 +56,16 @@
 }
 
 .o-mail-NotificationItem-markAsRead {
-    background-color: $o-view-background-color;
-    color: $success !important;
-    outline: 1px solid rgba($success, 0.75);
+    background-color: o-token(--o-bg-view, $o-view-background-color);
+    color: o-token(--success, $success) !important;
+    outline: 1px solid o-token-alpha(--success, $success, 0.75);
     outline-offset: -1px;
     padding: calc(map-get($spacers, 1) / 2);
 
     &:hover {
         outline-color: rgba(darken($success, 10%), 1);
         color: darken($success, 10%) !important;
-        background-color: mix($o-view-background-color, $success, 75%);
+        background-color: unquote("color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 75%, #{o-token(--success, $success)})");
         filter: brightness(1.1);
         box-shadow: $box-shadow-sm;
     }
@@ -77,5 +77,15 @@
     &:before {
         // invisible character so that typing status bar has constant height, regardless of text content.
         content: "\200b"; /* unicode zero width space character */
+    }
+}
+
+
+// The dark half, folded in from `notification_item.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-NotificationItem {
+            --mail-NotificationItem-activeOutlineOpacity: 1;
+        }
     }
 }

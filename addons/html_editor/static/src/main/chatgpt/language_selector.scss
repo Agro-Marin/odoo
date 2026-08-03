@@ -1,3 +1,13 @@
 .oe-language-icon {
     fill: #000;
 }
+
+
+// The dark half, folded in from `language_selector.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .oe-language-icon {
+            fill: #fff;
+        }
+    }
+}

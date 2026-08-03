@@ -10,8 +10,8 @@
     & .btn {
         &.btn-primary {
             height: 31px;
-            background-color: $o-brand-primary;
-            border-color: $o-brand-primary;
+            background-color: o-token(--o-brand, $o-brand-primary);
+            border-color: o-token(--o-brand, $o-brand-primary);
             &:hover:not([disabled]) {
                 background-color: darken($o-brand-primary, 10%);
             }
@@ -21,13 +21,21 @@
         line-height: 0.75;
     }
 
-    @each $-name, $-bg-color in $theme-colors {
-        $-safe-text-color: color-contrast(mix($-bg-color, $o-view-background-color));
-        @include bg-variant(
-            ".bg-#{$-name}-light",
-            rgba(map-get($theme-colors, $-name), 0.5),
-            $-safe-text-color
-        );
+    @include o-bg-light-variants(
+        $theme-colors,
+        $o-view-background-color,
+        o-light-scheme()
+    );
+
+    @include media-only(screen) {
+        :root[data-color-scheme="dark"] & {
+            @include o-bg-light-variants(
+                $o-dark-theme-colors,
+                $o-dark-view-background-color,
+                o-dark-scheme(),
+                $-extend-reset: false
+            );
+        }
     }
     & thead {
         display: table-row-group;

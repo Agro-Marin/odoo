@@ -1,5 +1,5 @@
 .o-mail-CountryFlag {
-    --border-color: #{$o-webclient-background-color};
+    --border-color: #{o-palette-token(--body-bg, $o-webclient-background-color)};
 
     aspect-ratio: 3/2;
 }

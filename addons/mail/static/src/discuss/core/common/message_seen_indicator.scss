@@ -15,3 +15,13 @@
         }
     }
 }
+
+
+// The dark half, folded in from `message_seen_indicator.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-MessageSeenIndicator {
+            --mail-MessageSeenIndicator-hasEveryoneSeenColor: #{lighten($o-dark-bs-primary, 15%)};
+        }
+    }
+}

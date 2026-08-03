@@ -1,4 +1,4 @@
-$o-pdf-manager-name-text-color: $text-muted;
+$o-pdf-manager-name-text-color: o-palette-token(--o-text-muted, $text-muted);
 
 .o_documents_pdf_block_title {
     display: flex;
@@ -30,7 +30,7 @@ $o-pdf-manager-name-text-color: $text-muted;
 
 .o_pdf_name_input {
     max-width: 140px;
-    background-color: $o-view-background-color;
+    background-color: o-token(--o-bg-view, $o-view-background-color);
     border: white;
     text-align: center;
     color: $o-pdf-manager-name-text-color;

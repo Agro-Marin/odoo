@@ -1,5 +1,5 @@
 .o_timeoff_calendar {
-    background-color: $o-view-background-color;
+    background-color: o-token(--o-bg-view, $o-view-background-color);
     flex-grow: 1;
     flex-basis: fit-content;
 
@@ -32,7 +32,7 @@
 
         @for $size from 1 through length($o-colors) {
             .hr_mandatory_day_#{$size - 1} {
-                --mandatory-day-color: #{nth($o-colors, $size)};
+                --mandatory-day-color: #{unquote("var(--o-record-color-#{$size}, #{nth($o-colors, $size)})")};
             }
         }
 

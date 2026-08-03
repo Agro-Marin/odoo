@@ -1,5 +1,5 @@
 .o_mobile_preview_active {
     span.fa {
-        color: $o-success;
+        color: o-palette-token(--success, $o-success);
     }
 }

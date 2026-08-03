@@ -157,7 +157,6 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/**/public_web/**/*",
             "mail/static/src/**/web_portal/**/*",
             "mail/static/src/**/web/**/*",
-            ("remove", "mail/static/src/**/*.dark.scss"),
             # Discuss feature layer, grouped after the layers above. The
             # layer globs (mail/static/src/**/common/**, ...) also match
             # discuss files, so discuss is removed and re-added to keep it in
@@ -174,12 +173,8 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/discuss/**/common/**/*",
             "mail/static/src/discuss/**/public_web/**/*",
             "mail/static/src/discuss/**/web/**/*",
-            ("remove", "mail/static/src/discuss/**/*.dark.scss"),
             "mail/static/src/views/fields/**/*",
             "mail/static/src/views/web/activity/**",
-        ],
-        "web.assets_web_dark": [
-            "mail/static/src/**/*.dark.scss",
         ],
         "web.assets_frontend": [
             "mail/static/src/utils/common/format.js",
@@ -253,6 +248,10 @@ For more specific needs, you may also assign custom-defined actions
             "web/static/lib/bootstrap/scss/_maps.scss",
             ("include", "web._assets_bootstrap_backend"),
             "web/static/src/scss/bootstrap_overridden.scss",
+            # This bundle carries webclient.scss and mail's component styling,
+            # which read the palette as `--o-*`. Without this the declarations
+            # name tokens nothing defines.
+            "web/static/src/scss/tokens.scss",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
@@ -275,7 +274,6 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/**/public_web/**/*",
             "mail/static/src/**/public/**/*",
             "mail/static/lib/selfie_segmentation/selfie_segmentation.js",
-            ("remove", "mail/static/src/**/*.dark.scss"),
             # Discuss feature layer grouped last; see the comment in
             # web.assets_backend above.
             ("remove", "mail/static/src/discuss/**/*"),
@@ -285,7 +283,6 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/discuss/**/common/**/*",
             "mail/static/src/discuss/**/public_web/**/*",
             "mail/static/src/discuss/**/public/**/*",
-            ("remove", "mail/static/src/discuss/**/*.dark.scss"),
             ("remove", "web/static/src/**/*.dark.scss"),
         ],
     },

@@ -782,7 +782,7 @@ font[class*="bg-"] {
             }
         }
         // Default, if no background-color already selected
-        background-color: $gray-100;
+        background-color: o-palette-token(--o-gray-100, $gray-100);
     }
     &.img-thumbnail {
         padding: 0;
@@ -1038,7 +1038,7 @@ table.table_desc tr td {
     width: var(--o-timeline-dot-size, 24px);
     height: var(--o-timeline-dot-size, 24px);
     left: var(--o-dot-left);
-    color: $primary;
+    color: o-token(--primary, $primary);
 
     &:before,
     &:after {
@@ -1134,7 +1134,7 @@ $-o-carousel-controllers-size: var(--CarouselControllers-size, #{map-get($spacer
         width: auto;
         height: auto;
         background-image: none;
-        color: $body-color;
+        color: o-palette-token(--o-text, $body-color);
         &:before {
             font-family: "Font Awesome 7 Pro";
             font-weight: 900;
@@ -1365,7 +1365,7 @@ $-o-carousel-controllers-size: var(--CarouselControllers-size, #{map-get($spacer
         .carousel-control-prev-icon,
         .carousel-control-next-icon {
             border-radius: $border-radius;
-            border: $border-width solid $border-color;
+            border: $border-width solid o-token(--border-color, $border-color);
             background-color: $carousel-dark-indicator-active-bg;
             filter: $carousel-dark-control-icon-filter;
         }
@@ -1795,7 +1795,7 @@ $-transition-duration: 200ms;
 .navbar .o_extra_menu_items > .show {
     > li {
         + li {
-            border-top: $border-width solid $border-color;
+            border-top: $border-width solid o-token(--border-color, $border-color);
         }
         > a.dropdown-toggle {
             background-color: $body-tertiary-bg;

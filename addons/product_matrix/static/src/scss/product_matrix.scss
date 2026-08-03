@@ -21,8 +21,8 @@
         border: none;
         &:focus-within {
             --table-accent-bg: none;
-            background-color: $o-view-background-color;
-            border-bottom: $o-black 1px solid;
+            background-color: o-token(--o-bg-view, $o-view-background-color);
+            border-bottom: o-token(--o-black, $o-black) 1px solid;
         }
     }
     // Sticky header styles

@@ -27,9 +27,9 @@ label.o_wbooth_category_unavailable {
 
     & > input:checked + div,
     &:hover > input:checked + div {
-        --o-border-color: #{$primary};
+        --o-border-color: #{o-token(--primary, $primary)};
 
-        box-shadow: 0 0 0 ($border-width * 2) $primary;
+        box-shadow: 0 0 0 ($border-width * 2) o-token(--primary, $primary);
     }
 
     & img {
@@ -56,9 +56,9 @@ label.o_wbooth_category_unavailable {
 
     & > input:checked + label,
     &:hover > input:checked + label {
-        --o-border-color: #{$primary};
+        --o-border-color: #{o-token(--primary, $primary)};
 
-        box-shadow: 0 0 0 ($border-width) $primary;
+        box-shadow: 0 0 0 ($border-width) o-token(--primary, $primary);
     }
 }
 

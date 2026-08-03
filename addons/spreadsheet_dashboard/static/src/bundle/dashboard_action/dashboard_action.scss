@@ -13,7 +13,7 @@
         white-space: nowrap;
 
         &:hover:not(.active) {
-            background-color: $o-gray-100;
+            background-color: o-palette-token(--o-gray-100, $o-gray-100);
         }
 
         .o_dashboard_name {
@@ -117,7 +117,7 @@
             @include o-hover-text-color($o-main-color-muted, $o-main-favorite-color);
         }
         &.fa-solid.fa-star {
-            color: $o-main-favorite-color;
+            color: o-token(--o-favorite, $o-main-favorite-color);
         }
     }
 }

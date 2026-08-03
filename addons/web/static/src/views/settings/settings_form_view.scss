@@ -1,7 +1,8 @@
 body:not(.o_touch_device) .o_settings_container .o_field_selection {
     &:not(:hover):not(:focus-within) {
         & select:not(:hover) {
-            background: transparent $o-caret-down no-repeat right center;
+            background-color: var(--o-text, #{o-token(--o-text, $o-main-text-color)});
+            mask: $o-caret-down no-repeat right center;
         }
     }
 }
@@ -41,10 +42,10 @@ body:not(.o_touch_device) .o_settings_container .o_field_selection {
 }
 
 .o_base_settings_view .o_form_renderer {
-    --settings__tab-bg: #{map-get($grays, "100")};
-    --settings__tab-bg--active: #{$o-component-active-bg};
-    --settings__tab-color: #{$body-color};
-    --settings__title-bg: #{map-get($grays, "200")};
+    --settings__tab-bg: #{o-palette-token(--o-gray-100, map-get($grays, "100"))};
+    --settings__tab-bg--active: var(--o-bg-active);
+    --settings__tab-color: #{o-palette-token(--o-text, $body-color)};
+    --settings__title-bg: #{o-palette-token(--o-gray-200, map-get($grays, "200"))};
 
     height: 100%;
 
@@ -79,7 +80,7 @@ body:not(.o_touch_device) .o_settings_container .o_field_selection {
             .selected {
                 background-color: var(
                     --settings__tab-bg--active,
-                    #{$o-component-active-bg}
+                    var(--o-bg-active)
                 );
                 box-shadow: inset 2px 0 0 $o-component-active-border;
             }
@@ -102,7 +103,7 @@ body:not(.o_touch_device) .o_settings_container .o_field_selection {
 
                 &:hover,
                 &.selected {
-                    color: $black;
+                    color: o-token(--o-black, $black);
                 }
             }
         }
@@ -110,7 +111,7 @@ body:not(.o_touch_device) .o_settings_container .o_field_selection {
         .settings {
             position: relative;
             flex: 1 1 100%;
-            background-color: $o-view-background-color;
+            background-color: var(--o-bg-view);
             overflow: auto;
 
             > .app_settings_block {
@@ -149,7 +150,7 @@ body:not(.o_touch_device) .o_settings_container .o_field_selection {
                 align-items: center;
                 margin-bottom: 10px;
                 @include o-base-settings-horizontal-padding(0.8rem);
-                background-color: map-get($grays, "200");
+                background-color: o-palette-token(--o-gray-200, map-get($grays, "200"));
 
                 .icon {
                     width: 1.4em;

@@ -11,7 +11,7 @@
         height: 19px;
         margin-right: 3px;
         margin-bottom: 3px;
-        background-color: $o-gray-200;
+        background-color: o-palette-token(--o-gray-200, $o-gray-200);
         &.active {
             background-color: #71639e;
         }

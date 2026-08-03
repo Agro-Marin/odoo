@@ -68,6 +68,10 @@ actions(Check in/Check out) performed by them.
             'web/static/src/libs/fontawesome7/css/solid.css',
             'web/static/src/libs/fontawesome7/css/regular.css',
             'web/static/src/libs/fontawesome7/css/brands.css',
+            # web._assets_core carries the component stylesheets that read the
+            # `--o-*` palette, and an unresolvable var() voids the declaration
+            # rather than falling back to a colour.
+            'web/static/src/scss/tokens.scss',
             ('include', 'web._assets_core'),
 
             # Public Kiosk app and its components

@@ -1,7 +1,7 @@
 .o_location_selector_marker_icon {
     --LocationSelectorMarker-border-color: #{mix($body-bg, $body-color)};
     --LocationSelectorMarker-background: #{$body-bg};
-    --LocationSelectorMarker-color: #{$body-color};
+    --LocationSelectorMarker-color: #{o-palette-token(--o-text, $body-color)};
 }
 
 .o_location_selector_marker_icon_selected {
@@ -9,7 +9,7 @@
             map-get($theme-colors, "primary"),
             color-contrast(map-get($theme-colors, "primary"))
         )};
-    --LocationSelectorMarker-background: #{map-get($theme-colors, "primary")};
+    --LocationSelectorMarker-background: #{o-token(--primary, map-get($theme-colors, "primary"))};
     --LocationSelectorMarker-color: #{color-contrast(map-get($theme-colors, "primary"))};
 }
 

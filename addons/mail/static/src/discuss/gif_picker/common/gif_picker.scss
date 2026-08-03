@@ -4,7 +4,7 @@
 }
 
 .o-discuss-GifPicker {
-    --o-gif-picker-active: #{$gray-200};
+    --o-gif-picker-active: #{o-palette-token(--o-gray-200, $gray-200)};
     .o-active {
         background-color: var(--o-gif-picker-active) !important;
     }
@@ -25,7 +25,7 @@
 
 .o-discuss-Gif {
     .o-starred {
-        color: $o-main-favorite-color !important;
+        color: o-token(--o-favorite, $o-main-favorite-color) !important;
     }
 
     &:hover i {
@@ -35,4 +35,14 @@
 
 .o-discuss-GifPicker-error {
     font-size: 5rem;
+}
+
+
+// The dark half, folded in from `gif_picker.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-discuss-GifPicker {
+            --o-gif-picker-active: #{$o-dark-white};
+        }
+    }
 }

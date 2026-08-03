@@ -15,7 +15,7 @@
 
     select:hover,
     select:open {
-        color: $black;
+        color: o-token(--o-black, $black);
         opacity: 1 !important;
     }
 
@@ -35,7 +35,7 @@
 
     option::checkmark {
         font: 900 0.7em/1em "Font Awesome 7 Pro";
-        color: $link-color;
+        color: o-token(--link-color, $link-color);
         content: "\f00c";
     }
 

@@ -25,7 +25,7 @@ import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { disposableEffect } from "@web/core/utils/reactive";
-import { keepLiveOptions, useNavigation } from "@web/services/navigation/navigation";
+import { useNavigation } from "@web/services/navigation/navigation";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { utils } from "@web/ui/viewport";
 
@@ -78,6 +78,9 @@ export function getFirstElementOfNode(node) {
 export class Dropdown extends Component {
     static template = xml`<t t-slot="default"/>`;
     static components = {};
+
+    /** @type {string[]} */
+    _menuClassNames;
 
     static props = {
         menuClass: { optional: true },
@@ -168,10 +171,7 @@ export class Dropdown extends Component {
         this.nesting = useDropdownNesting(this.state);
         this.group = useDropdownGroup();
 
-        // Both the merge and the spread would flatten a caller's getters into
-        // values, so whatever `navigationOptions` declared as live is restored
-        // afterwards -- see keepLiveOptions.
-        const navigationOptions = {
+        this.navigation = useNavigation(this.menuRef, {
             shouldRegisterHotkeys: false,
             isNavigationAvailable: () => this.state.isOpen,
             getItems: () => {
@@ -184,11 +184,7 @@ export class Dropdown extends Component {
                 }
             },
             ...deepMerge(this.nesting.navigationOptions, this.props.navigationOptions),
-        };
-        this.navigation = useNavigation(
-            this.menuRef,
-            keepLiveOptions(navigationOptions, this.props.navigationOptions ?? {}),
-        );
+        });
 
         useChildSubEnv({ navigation: this.navigation });
 
@@ -294,10 +290,7 @@ export class Dropdown extends Component {
      */
     syncMenuClass(menuEl) {
         const wanted = this.menuClassNames;
-        // Assigned in setup(); cast rather than declared as a class field,
-        // which would re-initialise it to undefined after setup ran.
-        const applied = /** @type {string[]} */ (this._menuClassNames);
-        for (const name of applied) {
+        for (const name of this._menuClassNames) {
             if (!wanted.includes(name) && !STATIC_MENU_CLASSES.has(name)) {
                 menuEl.classList.remove(name);
             }

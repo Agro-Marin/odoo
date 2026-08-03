@@ -9,8 +9,8 @@
 
     i {
         &.fa-bell {
-            color: $o-gray-600;
-            -webkit-text-stroke-color: $o-gray-600;
+            color: o-palette-token(--o-gray-600, $o-gray-600);
+            -webkit-text-stroke-color: o-palette-token(--o-gray-600, $o-gray-600);
         }
     }
 }
@@ -185,7 +185,7 @@
     }
 
     .o_we_online_agenda_has_scroll {
-        border-top-color: $border-color;
+        border-top-color: o-token(--border-color, $border-color);
     }
 
     .o_we_online_agenda_has_content_hidden + .o_we_online_agenda_overlay {

@@ -1,13 +1,10 @@
 /** @odoo-module native */
 
 import { _t } from "@web/core/l10n/translation";
-
-import { cookie } from "@web/core/browser/cookie";
 import { getColor } from "@web/core/colors/colors";
 import { GraphRenderer } from "@web/views/graph/graph_renderer";
 import { groupBy } from "@web/core/utils/collections/arrays";
 
-const colorScheme = cookie.get("color_scheme");
 
 
 export class HrHolidaysGraphRenderer extends GraphRenderer {
@@ -59,7 +56,7 @@ export class HrHolidaysGraphRenderer extends GraphRenderer {
         let dataset = datasets[0];
 
         const dataset_index = this.datasets_offset + index;
-        const backgroundColor = getColor(dataset_index, colorScheme, this.datasets_length);
+        const backgroundColor = getColor(dataset_index, this.datasets_length);
 
         let balanceDataset = {
             'trueLabels': dataset.trueLabels,

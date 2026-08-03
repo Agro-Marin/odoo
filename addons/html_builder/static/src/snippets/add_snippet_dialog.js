@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillUnmount, onWillRender, useRef, useState } from "@odoo/owl";
+import { colorScheme } from "@web/core/color_scheme";
 import { loadBundle, loadCSS } from "@web/core/assets";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { localization } from "@web/core/l10n/localization";
 import { getFirstAndLastTabableElements } from "@web/ui/ui_service";
-import { cookie } from "@web/core/browser/cookie";
 import { useChildRef } from "@web/core/utils/hooks";
 import { SnippetViewer } from "./snippet_viewer.js";
 
@@ -143,13 +143,13 @@ export class AddSnippetDialog extends Component {
      * to be handled correctly across browsers.
      */
     insertColorScheme() {
-        const colorScheme = cookie.get("color_scheme") || "light";
+        const scheme = colorScheme.current;
         const metaElement = document.createElement("meta");
         const iframeDocument = this.iframeRef.el.contentDocument;
         metaElement.setAttribute("name", "color-scheme");
-        metaElement.content = colorScheme;
+        metaElement.content = scheme;
         iframeDocument.head.appendChild(metaElement);
-        iframeDocument.body.parentElement.classList.add("o_add_snippets_preview--" + colorScheme);
+        iframeDocument.body.parentElement.classList.add("o_add_snippets_preview--" + scheme);
     }
 
     /**

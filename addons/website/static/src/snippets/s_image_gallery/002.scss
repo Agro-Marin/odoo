@@ -215,7 +215,7 @@
             .carousel-control-prev-icon,
             .carousel-control-next-icon {
                 border-radius: $btn-border-radius;
-                border: $border-width solid $border-color;
+                border: $border-width solid o-token(--border-color, $border-color);
                 background-color: $carousel-dark-indicator-active-bg;
                 filter: $carousel-dark-control-icon-filter;
             }

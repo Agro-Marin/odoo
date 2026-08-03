@@ -3,7 +3,9 @@
 
 <!-- This contains the tour assets. They are included during testing. -->
 <template id="point_of_sale.index" name="POS Index">&lt;!DOCTYPE html&gt;
-<html>
+<t t-set="pos_color_scheme"
+   t-value="'dark' if request.cookies.get('pos_color_scheme') == 'dark' else 'light'"/>
+<html t-att-data-color-scheme="pos_color_scheme">
     <head>
         <title>Odoo POS</title>
         <meta name="darkreader-lock"/>
@@ -43,7 +45,7 @@
              test bundle inline a SECOND copy of ``browser`` that patches never
              reached — the singleton-split bug. Mirrors ``web.webclient`` (backend)
              and the frontend layout, which both render the app bundle first. -->
-        <t t-if="request.cookies.get('pos_color_scheme') == 'dark'">
+        <t t-if="pos_color_scheme == 'dark'">
             <t t-call-assets="point_of_sale.assets_prod_dark"/>
         </t>
         <t t-else="">

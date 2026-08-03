@@ -13,7 +13,7 @@
                 content: "\f056";
                 font-family: "Font Awesome 7 Pro";
                 font-weight: 900;
-                color: $gray-600;
+                color: o-palette-token(--o-gray-600, $gray-600);
                 position: absolute;
                 margin-left: -1.5em;
             }

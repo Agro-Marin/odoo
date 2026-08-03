@@ -2,11 +2,11 @@
     width: 475px;
     min-height: 50px;
     max-height: Min(calc(#{$o-dropdown-max-height} - 5px), 630px); // -5px for borders
-    background-color: var(--mail-MessagingMenu-bg, $o-view-background-color);
+    background-color: var(--mail-MessagingMenu-bg, o-token(--o-bg-view, $o-view-background-color));
 }
 
 .o-mail-MessagingMenu-list {
-    background-color: var(--mail-MessagingMenu-bg, $o-view-background-color);
+    background-color: var(--mail-MessagingMenu-bg, o-token(--o-bg-view, $o-view-background-color));
     --list-group-border-color: #{var(
             --mail-MessagingMenu-listBorderColor,
             rgba($gray-200, 0.5)
@@ -24,7 +24,7 @@
 }
 
 .o-mail-MessagingMenu-tabCounter.o-starred {
-    background-color: $gray-400 !important;
+    background-color: o-palette-token(--o-gray-400, $gray-400) !important;
 }
 
 .o-discuss-badge.o-mail-MessagingMenu-tabUnread {
@@ -34,7 +34,7 @@
 }
 
 .o_popover:has(.o-mail-MessagingMenu) {
-    --popover-border-color: #{$secondary};
+    --popover-border-color: #{o-token(--secondary, $secondary)};
 }
 
 .o-mail-MessagingMenu-navbar {
@@ -78,14 +78,14 @@
 
 .o-mail-MessagingMenu-tab {
     &:hover .o-mail-MessagingMenu-tabIcon {
-        background: $gray-200;
+        background: o-palette-token(--o-gray-200, $gray-200);
     }
 
     &.active {
         --btn-active-color: #{$o-enterprise-action-color};
 
         .o-mail-MessagingMenu-tabIcon {
-            background: $o-component-active-bg;
+            background: o-token(--o-bg-active, $o-component-active-bg);
             color: $o-enterprise-action-color;
         }
     }
@@ -96,5 +96,16 @@
 
     .o-mail-MessagingMenu-tabIcon {
         width: $spacer * 3;
+    }
+}
+
+
+// The dark half, folded in from `messaging_menu.dark.scss`.
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-MessagingMenu {
+            --mail-MessagingMenu-bg: #{mix($o-dark-gray-100, $o-dark-gray-200, 65%)};
+            --mail-MessagingMenu-listBorderColor: #{rgba($o-dark-gray-300, 0.25)};
+        }
     }
 }

@@ -72,10 +72,10 @@
                 .nav-link {
                     background-color: transparent;
                     border: 0;
-                    color: $gray-600;
+                    color: o-palette-token(--o-gray-600, $gray-600);
 
                     &.active {
-                        color: $gray-800;
+                        color: o-palette-token(--o-gray-800, $gray-800);
                         font-weight: 500;
                     }
                 }

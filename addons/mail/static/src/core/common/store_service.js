@@ -26,8 +26,8 @@ import { compareDatetime } from "@mail/utils/common/misc";
 import { reactive } from "@odoo/owl";
 import { loader } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
-import { cookie } from "@web/core/browser/cookie";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { colorScheme } from "@web/core/color_scheme";
 import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError, rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -665,8 +665,7 @@ export class Store extends BaseStore {
 
     /** Provides an override point for when the store service has started. */
     onStarted() {
-        this.isOdooWhiteTheme =
-            cookie.get("color_scheme") !== "dark" || this.inPublicPage;
+        this.isOdooWhiteTheme = !colorScheme.isDark || this.inPublicPage;
         // `browser.navigator`, not the raw global: it is the seam every other
         // service-worker call site in this module uses (out_of_focus_service,
         // notification_permission_service, webclient, rtc_service), and the one

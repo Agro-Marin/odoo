@@ -6,8 +6,8 @@
         padding: 0;
 
         .list-group {
-            --list-group-active-bg: #{$o-brand-primary};
-            --list-group-active-border-color: #{$o-brand-primary};
+            --list-group-active-bg: #{o-token(--o-brand, $o-brand-primary)};
+            --list-group-active-border-color: #{o-token(--o-brand, $o-brand-primary)};
             --list-group-active-color: #{color-contrast($o-brand-primary)};
 
             min-width: 200px;

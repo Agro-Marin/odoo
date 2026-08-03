@@ -1,5 +1,11 @@
 $enable-deprecation-messages: false !default;
 
+// A `var(--token)` reaches Sass as an unquoted string, so anything that has to
+// do colour maths on a value must ask first.
+@function o-is-color($-value) {
+    @return type-of($-value) == "color";
+}
+
 // These two live with `web._assets_helpers`, not with the backend helpers,
 // because their callers travel in bundles that do not carry
 // `web._assets_backend_helpers`: `bootstrap_review_backend.scss` rides
@@ -7,18 +13,54 @@ $enable-deprecation-messages: false !default;
 // `web._assets_core`, and account_reports, account_followup, frontdesk and
 // hr_attendance pull those without the backend helpers. Sass then fails the
 // whole bundle on the first call it cannot resolve.
+// Mirrors `button-variant`'s output rather than calling it, because a spec is
+// allowed to carry `var(--token)` where Bootstrap assumes a colour. Bootstrap
+// itself only assigns the nine values it is handed — the maths lives in
+// whoever builds the spec — but two of its results are computed and would
+// reject a token: `$disabled-color` defaults to `color-contrast($background)`,
+// and the focus shadow to `to-rgb(mix($color, $border, 15%))`.
+//
+// A spec of plain colours emits exactly what it did before. A spec carrying
+// tokens keeps them intact, and drops only the focus-shadow tint, which cannot
+// be derived without knowing the colour: give the spec `focus-shadow-rgb` to
+// state it.
 @mixin o-button-variant-from($-spec) {
-    @include button-variant(
-        map-get($-spec, background),
-        map-get($-spec, border),
-        map-get($-spec, color),
-        map-get($-spec, hover-background),
-        map-get($-spec, hover-border),
-        map-get($-spec, hover-color),
-        map-get($-spec, active-background),
-        map-get($-spec, active-border),
-        map-get($-spec, active-color)
-    );
+    $-background: map-get($-spec, background);
+    $-border: map-get($-spec, border);
+    $-color: map-get($-spec, color);
+    $-disabled-background: o-safe-get($-spec, disabled-background, $-background);
+    $-disabled-border: o-safe-get($-spec, disabled-border, $-border);
+
+    --#{$prefix}btn-color: #{$-color};
+    --#{$prefix}btn-bg: #{$-background};
+    --#{$prefix}btn-border-color: #{$-border};
+    --#{$prefix}btn-hover-color: #{map-get($-spec, hover-color)};
+    --#{$prefix}btn-hover-bg: #{map-get($-spec, hover-background)};
+    --#{$prefix}btn-hover-border-color: #{map-get($-spec, hover-border)};
+    --#{$prefix}btn-active-color: #{map-get($-spec, active-color)};
+    --#{$prefix}btn-active-bg: #{map-get($-spec, active-background)};
+    --#{$prefix}btn-active-border-color: #{map-get($-spec, active-border)};
+    --#{$prefix}btn-active-shadow: #{$btn-active-box-shadow};
+    --#{$prefix}btn-disabled-bg: #{$-disabled-background};
+    --#{$prefix}btn-disabled-border-color: #{$-disabled-border};
+
+    $-focus-shadow-rgb: o-safe-get($-spec, focus-shadow-rgb, null);
+    @if $-focus-shadow-rgb == null and o-is-color($-color) and o-is-color($-border) {
+        $-focus-shadow-rgb: to-rgb(mix($-color, $-border, 15%));
+    }
+    @if $-focus-shadow-rgb != null {
+        --#{$prefix}btn-focus-shadow-rgb: #{$-focus-shadow-rgb};
+    }
+
+    $-disabled-color: o-safe-get($-spec, disabled-color, null);
+    @if $-disabled-color == null {
+        $-disabled-color: if(
+            o-is-color($-disabled-background),
+            color-contrast($-disabled-background),
+            $-color
+        );
+    }
+    --#{$prefix}btn-disabled-color: #{$-disabled-color};
 }
 
 @function o-text-color($key) {
@@ -82,7 +124,8 @@ $o-color-extras-nesting-selector: "&" !default;
     $important: true,
     $yiq-min-opacity-threshold: $o-yiq-min-opacity-threshold,
     $background: $body-bg,
-    $nesting-selector: $o-color-extras-nesting-selector
+    $nesting-selector: $o-color-extras-nesting-selector,
+    $extend-heading-reset: true
 ) {
     @if ($color) {
         $-yiq-threshold-met: alpha($color) > $yiq-min-opacity-threshold;
@@ -105,7 +148,9 @@ $o-color-extras-nesting-selector: "&" !default;
 
         @if $with-extras and $-yiq-threshold-met {
             #{$nesting-selector} {
-                @extend %o-bg-color-component-color-reset;
+                @if $extend-heading-reset {
+                    @extend %o-bg-color-component-color-reset;
+                }
 
                 .text-muted {
                     color: mute-color($-yiq-color) !important;
@@ -115,9 +160,13 @@ $o-color-extras-nesting-selector: "&" !default;
     }
 }
 
-@mixin bg-variant($parent, $color, $text-color: null) {
+@mixin bg-variant($parent, $color, $text-color: null, $extend-heading-reset: true) {
     #{$parent} {
-        @include o-bg-color($color, $text-color);
+        @include o-bg-color(
+            $color,
+            $text-color,
+            $extend-heading-reset: $extend-heading-reset
+        );
     }
     a#{$parent},
     button#{$parent} {
@@ -125,6 +174,142 @@ $o-color-extras-nesting-selector: "&" !default;
         &:focus {
             @include o-bg-color(darken($color, 10%), $text-color, false);
         }
+    }
+}
+
+/// A dark button spec with everything `o-button-variant-from` would otherwise
+/// derive from the compiling palette.
+///
+/// It mirrors Bootstrap's `button-variant` and passes tokens through, so it
+/// needs no scheme of its own — with one exception: it derives `disabled-color`
+/// with `color-contrast()` when the spec does not state one, and that answers
+/// for whichever palette is compiling. Stated here instead.
+///
+/// The specs are `$o-dark-btns-bs-override` and its outline counterpart, moved
+/// out of `primary_variables.dark.scss` so a light bundle can read them.
+@function o-dark-button-spec($-spec, $-scheme) {
+    @if map-get($-spec, disabled-color) {
+        @return $-spec;
+    }
+    $-background: o-safe-get($-spec, disabled-background, map-get($-spec, background));
+    @return map-merge(
+        $-spec,
+        (
+            disabled-color:
+                if(
+                    o-is-color($-background),
+                    o-scheme-contrast($-background, $-scheme),
+                    map-get($-spec, color)
+                )
+        )
+    );
+}
+
+/// Bootstrap's `button-variant()` for a scheme that is not compiling.
+///
+/// Every default the mixin declares is derived from the compiling palette, so
+/// each one is handed in instead and Bootstrap's own body still emits the rule.
+/// `to-rgb(mix($color, $border, 15%))` is the only expression left inside it,
+/// and it reads neither palette.
+/// `$-color` and `$-hover-background` mirror `button-variant`'s own optional
+/// arguments: a caller that states either wants it, and stating one changes
+/// which way the rest tint or shade.
+@mixin o-scheme-button-variant(
+    $-background,
+    $-border,
+    $-scheme,
+    $-color: null,
+    $-hover-background: null
+) {
+    $-color: o-or($-color, o-scheme-contrast($-background, $-scheme));
+    $-shades: $-color == o-scheme-contrast-light($-scheme);
+    $-hover-background: o-or(
+        $-hover-background,
+        if(
+            $-shades,
+            o-scheme-shade($-background, $btn-hover-bg-shade-amount, $-scheme),
+            o-scheme-tint($-background, $btn-hover-bg-tint-amount, $-scheme)
+        )
+    );
+    $-active-background: if(
+        $-shades,
+        o-scheme-shade($-background, $btn-active-bg-shade-amount, $-scheme),
+        o-scheme-tint($-background, $btn-active-bg-tint-amount, $-scheme)
+    );
+    @include button-variant(
+        $-background,
+        $-border,
+        $color: $-color,
+        $hover-background: $-hover-background,
+        $hover-border:
+            if(
+                $-shades,
+                o-scheme-shade($-border, $btn-hover-border-shade-amount, $-scheme),
+                o-scheme-tint($-border, $btn-hover-border-tint-amount, $-scheme)
+            ),
+        $hover-color: o-scheme-contrast($-hover-background, $-scheme),
+        $active-background: $-active-background,
+        $active-border:
+            if(
+                $-shades,
+                o-scheme-shade($-border, $btn-active-border-shade-amount, $-scheme),
+                o-scheme-tint($-border, $btn-active-border-tint-amount, $-scheme)
+            ),
+        $active-color: o-scheme-contrast($-active-background, $-scheme),
+        $disabled-background: $-background,
+        $disabled-border: $-border,
+        $disabled-color: o-scheme-contrast($-background, $-scheme)
+    );
+}
+
+@mixin o-scheme-button-outline-variant($-color, $-scheme) {
+    @include button-outline-variant(
+        $-color,
+        $color-hover: o-scheme-contrast($-color, $-scheme),
+        $active-background: $-color,
+        $active-border: $-color,
+        $active-color: o-scheme-contrast($-color, $-scheme)
+    );
+}
+
+/// `text-emphasis-variant()` for a scheme that is not compiling. Only the hover
+/// colour needs handing in: it is `shift-color()`, which tints where the dark
+/// scheme shades.
+@mixin o-scheme-text-emphasis-variant($-parent, $-color, $-scheme, $-shade) {
+    @include text-emphasis-variant(
+        $-parent,
+        $-color,
+        o-scheme-shift($-color, $-shade, $-scheme)
+    );
+}
+
+/// `.bg-*-light`: a theme colour at half opacity, with a label picked against
+/// what it will sit on. Stated once because `webclient.scss` and
+/// `report_stock_reception.scss` both need it — and had drifted into
+/// byte-identical copies of the same loop.
+///
+/// `$-extend-reset` is the only thing the dark half changes. It controls an
+/// `@extend` whose output is `h1..h6 { color: inherit }` — no colour in it, so
+/// the light half's rule already answers under the attribute and the dark half
+/// must not restate it. It cannot, either: an `@extend` composes the *whole*
+/// current selector into the placeholder's rule, so emitting this under a scope
+/// carries that ancestor into every other selector sharing the placeholder and
+/// hoists it to wherever the placeholder landed —
+/// `.o_colored_level :root[data-color-scheme="dark"] .bg-dark-light h1`, which
+/// matches nothing.
+@mixin o-bg-light-variants(
+    $-theme-colors,
+    $-view-background,
+    $-scheme,
+    $-extend-reset: true
+) {
+    @each $-name, $-color in $-theme-colors {
+        @include bg-variant(
+            ".bg-#{$-name}-light",
+            rgba($-color, 0.5),
+            o-scheme-contrast(mix($-color, $-view-background), $-scheme),
+            $extend-heading-reset: $-extend-reset
+        );
     }
 }
 @mixin bg-gradient-variant($parent, $color, $text-color: null) {

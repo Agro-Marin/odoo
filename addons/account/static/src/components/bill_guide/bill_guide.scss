@@ -31,6 +31,6 @@
 
 .account_drag_drop_btn {
     border-style: dashed !important;
-    border-color: $o-brand-primary;
-    background-color: mix($o-brand-primary, $o-view-background-color, 15%);
+    border-color: o-token(--o-brand, $o-brand-primary);
+    background-color: unquote("color-mix(in srgb, #{o-token(--o-brand, $o-brand-primary)} 15%, #{o-token(--o-bg-view, $o-view-background-color)})");
 }

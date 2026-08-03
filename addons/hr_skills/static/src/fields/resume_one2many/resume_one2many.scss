@@ -26,7 +26,7 @@
                 );
                 width: $border-width;
                 height: 100%;
-                background-color: $border-color;
+                background-color: o-token(--border-color, $border-color);
                 content: "";
 
                 @include media-breakpoint-up(lg) {

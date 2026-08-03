@@ -6,7 +6,7 @@
  */
 
 import { markup } from "@odoo/owl";
-import { cookie } from "@web/core/browser/cookie";
+import { colorScheme } from "@web/core/color_scheme";
 import {
     darkenColor,
     DEFAULT_BG,
@@ -24,15 +24,12 @@ import { SEP } from "./graph_model.js";
 
 const NO_DATA = _t("No data");
 
-const colorScheme = cookie.get("color_scheme");
-const GRAPH_LEGEND_COLOR = getCustomColor(colorScheme, "#111827", "#ffffff");
-const GRAPH_GRID_COLOR = getCustomColor(
-    colorScheme,
-    "rgba(0,0,0,.1)",
-    "rgba(255,255,255,.15)",
-);
-const GRAPH_LABEL_COLOR = getCustomColor(colorScheme, "#111827", "#E4E4E4");
-const NO_DATA_COLOR = getCustomColor(colorScheme, DEFAULT_BG, "#3C3E4B");
+// One definition per colour pair. The helpers resolve the scheme themselves,
+// so these stay honest without caching anything that could go stale.
+const graphLegendColor = () => getCustomColor("#111827", "#ffffff");
+const graphGridColor = () => getCustomColor("rgba(0,0,0,.1)", "rgba(255,255,255,.15)");
+const graphLabelColor = () => getCustomColor("#111827", "#E4E4E4");
+const noDataColor = () => getCustomColor(DEFAULT_BG, "#3C3E4B");
 
 export const gridOnTop = {
     id: "gridOnTop",
@@ -44,7 +41,7 @@ export const gridOnTop = {
         const xAxis = chart.scales.x;
 
         ctx.lineWidth = 1;
-        ctx.strokeStyle = GRAPH_GRID_COLOR;
+        ctx.strokeStyle = graphGridColor();
 
         yAxis.ticks.forEach((value, index) => {
             const y = yAxis.getPixelForTick(index);
@@ -72,7 +69,7 @@ export const gridOnTop = {
                     ctx.beginPath();
                     ctx.moveTo(x, chartArea.top);
                     ctx.lineTo(x, chartArea.bottom);
-                    ctx.strokeStyle = GRAPH_GRID_COLOR;
+                    ctx.strokeStyle = graphGridColor();
                     ctx.stroke();
                 }
             });
@@ -138,7 +135,7 @@ export function styleBarChartData(data, metaData, lineOverlayDataset) {
     const { stacked } = metaData;
     for (let index = 0; index < data.datasets.length; ++index) {
         const dataset = data.datasets[index];
-        const itemColor = getColor(index, colorScheme, data.datasets.length);
+        const itemColor = getColor(index, data.datasets.length);
         if (stacked) {
             dataset.stack = "";
         }
@@ -154,12 +151,8 @@ export function styleBarChartData(data, metaData, lineOverlayDataset) {
             pointHitRadius: 20,
             pointRadius: 5,
             pointHoverRadius: 10,
-            backgroundColor: getCustomColor(colorScheme, "#343a40", "#e9ecef"),
-            borderColor: getCustomColor(
-                colorScheme,
-                "rgba(0,0,0,.3)",
-                "rgba(255,255,255,.5)",
-            ),
+            backgroundColor: getCustomColor("#343a40", "#e9ecef"),
+            borderColor: getCustomColor("rgba(0,0,0,.3)", "rgba(255,255,255,.5)"),
             borderWidth: 2,
             lineWidth: 3,
         });
@@ -181,9 +174,8 @@ export function styleLineChartData(data, metaData) {
     const { cumulated } = metaData;
     for (let index = 0; index < data.datasets.length; ++index) {
         const dataset = data.datasets[index];
-        const itemColor = getColor(index, colorScheme, data.datasets.length);
+        const itemColor = getColor(index, data.datasets.length);
         dataset.backgroundColor = getCustomColor(
-            colorScheme,
             lightenColor(itemColor, 0.5),
             darkenColor(itemColor, 0.5),
         );
@@ -225,10 +217,8 @@ export function stylePieChartData(data) {
     if (hasNoDataPlaceholder) {
         return data;
     }
-    const colors = data.labels.map((_, index) =>
-        getColor(index, colorScheme, data.labels.length),
-    );
-    const borderColor = getBorderWhite(colorScheme);
+    const colors = data.labels.map((_, index) => getColor(index, data.labels.length));
+    const borderColor = getBorderWhite();
     for (const dataset of data.datasets) {
         dataset.backgroundColor = colors;
         dataset.hoverBackgroundColor = colors;
@@ -245,7 +235,7 @@ export function stylePieChartData(data) {
             label: "",
             data: fakeData,
             trueLabels: fakeTrueLabels,
-            backgroundColor: [...colors, NO_DATA_COLOR],
+            backgroundColor: [...colors, noDataColor()],
             borderColor,
         });
         addNoDataToLegend = true;
@@ -264,7 +254,7 @@ export function stylePieChartData(data) {
 export function styleScatterChartData(data) {
     for (let index = 0; index < data.datasets.length; ++index) {
         const dataset = data.datasets[index];
-        const itemColor = getColor(index, colorScheme, data.datasets.length);
+        const itemColor = getColor(index, data.datasets.length);
         dataset.showLine = false;
         dataset.backgroundColor = itemColor;
         dataset.borderColor = itemColor;
@@ -274,7 +264,6 @@ export function styleScatterChartData(data) {
         dataset.pointHitRadius = 10;
         dataset.pointBackgroundColor = itemColor;
         dataset.pointBorderColor = getCustomColor(
-            colorScheme,
             lightenColor(itemColor, 0.3),
             darkenColor(itemColor, 0.3),
         );
@@ -348,7 +337,7 @@ export function buildScaleOptions(data, metaData) {
                 const value = labels[index];
                 return shortenLabel(value);
             },
-            color: GRAPH_LABEL_COLOR,
+            color: graphLabelColor(),
         },
         grid: {
             color: "transparent",
@@ -362,16 +351,16 @@ export function buildScaleOptions(data, metaData) {
         type: "linear",
         title: {
             text: measures[measure].string,
-            color: colorScheme === "dark" ? getColor(15, colorScheme, "xl") : null,
+            color: colorScheme.isDark ? getColor(15, "xl") : null,
         },
         ticks: {
             callback: (value) => formatValue(value, false, fieldAttrs[measure]?.widget),
-            color: GRAPH_LABEL_COLOR,
+            color: graphLabelColor(),
         },
         stacked: mode === "line" && stacked ? stacked : undefined,
         grid: {
             display: mode !== "line" && mode !== "scatter",
-            color: GRAPH_GRID_COLOR,
+            color: graphGridColor(),
         },
         border: {
             display: false,
@@ -444,15 +433,15 @@ export function generatePieLegendLabels(chart) {
         const text = shortenLabel(fullText);
         const fillStyle =
             label === NO_DATA
-                ? NO_DATA_COLOR
-                : getColor(index, colorScheme, chart.data.labels.length);
+                ? noDataColor()
+                : getColor(index, chart.data.labels.length);
         return {
             text,
             fullText,
             fillStyle,
             hidden,
             index,
-            fontColor: GRAPH_LEGEND_COLOR,
+            fontColor: graphLegendColor(),
             lineWidth: 0,
         };
     });
@@ -479,6 +468,6 @@ export function generateBarLineLegendLabels(chart, mode) {
         strokeStyle: dataset[referenceColor],
         pointStyle: dataset.pointStyle,
         datasetIndex: index,
-        fontColor: GRAPH_LEGEND_COLOR,
+        fontColor: graphLegendColor(),
     }));
 }

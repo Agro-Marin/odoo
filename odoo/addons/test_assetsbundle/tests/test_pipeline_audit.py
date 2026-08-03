@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from odoo.tests.common import BaseCase, TransactionCase
+from odoo.tests.common import BaseCase, TransactionCase, tagged
 from odoo.tools.assets.esbuild import has_nested_template_literal
 from odoo.tools.config import config
 
@@ -348,6 +348,7 @@ class TestCompileMemoContract(TransactionCase):
         self.assertFalse(CssPipeline._compiled_cache)
 
 
+@tagged("post_install", "-at_install")
 class TestBundleChangedBroadcastDedup(TransactionCase):
     def setUp(self):
         super().setUp()

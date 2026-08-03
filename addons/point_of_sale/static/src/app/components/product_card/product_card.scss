@@ -1,9 +1,9 @@
 .product {
-    --btn-border-color: #{$o-gray-200};
+    --btn-border-color: #{o-token(--o-gray-200, $o-gray-200)};
 
     &:hover {
-        border: $border-width solid $border-color;
-        --btn-hover-bg: #{$o-view-background-color};
+        border: $border-width solid o-token(--border-color, $border-color);
+        --btn-hover-bg: #{o-token(--o-bg-view, $o-view-background-color)};
     }
 
     @at-root .rightpane .product {
@@ -49,7 +49,7 @@
 
 @media screen and (max-width: 768px) {
     .product:active {
-        box-shadow: 0 0 0 2px $primary;
+        box-shadow: 0 0 0 2px o-token(--primary, $primary);
     }
 }
 

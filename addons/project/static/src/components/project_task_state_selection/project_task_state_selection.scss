@@ -37,11 +37,11 @@
     }
 
     .o_status_changes_requested {
-        color: $warning;
+        color: o-token(--warning, $warning);
     }
 
     .o_status_todo {
-        background-color: map-get($theme-colors, "info");
+        background-color: o-token(--info, map-get($theme-colors, "info"));
     }
 }
 
@@ -61,11 +61,11 @@
     }
 
     .o_status_changes_requested {
-        color: $warning;
+        color: o-token(--warning, $warning);
     }
 
     .o_status_todo {
-        background-color: map-get($theme-colors, "info");
+        background-color: o-token(--info, map-get($theme-colors, "info"));
     }
 }
 

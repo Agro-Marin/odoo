@@ -95,7 +95,7 @@
     background: {
         size: cover;
         attachment: fixed;
-        color: var(--homeMenu-bg-color, #{$o-gray-200});
+        color: var(--homeMenu-bg-color, #{o-token(--o-gray-200, $o-gray-200)});
         image: var(
             --homeMenu-bg-image,
             url("/hr_attendance/static/img/background-light.svg")
@@ -126,7 +126,7 @@
 
     &:focus-within {
         border-color: $input-focus-border-color;
-        box-shadow: 0 0 0 0.25rem rgba($primary, 0.25);
+        box-shadow: 0 0 0 0.25rem o-token-alpha(--primary, $primary, 0.25);
     }
 
     img {

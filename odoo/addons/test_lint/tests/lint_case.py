@@ -1,12 +1,16 @@
 import ast
 import fnmatch
 import inspect
+import re
 from collections.abc import Iterable
 from pathlib import Path
 
 from odoo.modules import Manifest
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, get_db_name, no_retry
+
+#: `t-call-assets="<bundle>"`, as it survives into `ir_ui_view.arch_db`.
+_T_CALL_ASSETS_RE = re.compile(r"""t-call-assets=\\?["']([\w.]+)\\?["']""")
 
 
 def get_odoo_module_name(python_module_name: str) -> str:
@@ -32,6 +36,56 @@ class LintCase(BaseCase):
                 for glob in globs:
                     fnames = fnmatch.filter(fnames, glob)
                 yield from fnames
+
+    @staticmethod
+    def served_bundle_names(env) -> list[str]:
+        """Bundle names that reach a browser, for the installed modules.
+
+        Two ways to be served, and a bundle needs only one of them: no other
+        bundle includes it, or a template links it with ``t-call-assets``.
+
+        The second half is not a refinement. Being included somewhere does not
+        make a bundle a fragment: ``web.assets_web`` is included by
+        ``web.assets_web_dark`` and ``point_of_sale.assets_prod`` by
+        ``point_of_sale.assets_prod_dark``, and both are linked by a template in
+        their own right. Reading inclusion alone as the test left the PoS UI --
+        386 unresolvable palette tokens across 1266 declarations -- outside
+        every check built on this list, while reporting its dark sibling.
+
+        Asking the templates rather than the names, because the ``_`` prefix
+        that marks ``web._assets_core`` as a fragment is a convention several
+        real fragments do not follow (``mail.assets_core_common``,
+        ``portal.assets_chatter_helpers``), and a fragment counted as served
+        reports offences its consumers already answer with a ``remove``.
+        """
+        installed = set(
+            env["ir.module.module"].search([("state", "=", "installed")]).mapped("name")
+        )
+        names = set()
+        included = set()
+        for manifest in Manifest.all_addon_manifests():
+            if manifest.name not in installed:
+                continue
+            assets = manifest.get("assets") or {}
+            names.update(assets)
+            for entries in assets.values():
+                for entry in entries:
+                    if (
+                        isinstance(entry, (list, tuple))
+                        and len(entry) > 1
+                        and entry[0] == "include"
+                    ):
+                        included.add(entry[1])
+
+        env.cr.execute("SELECT arch_db::text FROM ir_ui_view WHERE arch_db IS NOT NULL")
+        linked = {
+            name
+            for (arch,) in env.cr.fetchall()
+            for name in _T_CALL_ASSETS_RE.findall(arch)
+        }
+        return sorted(
+            name for name in (names - included) | (names & linked) if "." in name
+        )
 
 
 def iter_registry_methods(registry=None):

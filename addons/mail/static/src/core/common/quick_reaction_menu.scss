@@ -41,8 +41,8 @@ $quick-reaction-menu-slide-in-duration: 0.2s;
 
     &:hover,
     &:focus {
-        background-color: rgba($o-action, 0.1);
-        outline: 1px solid rgba($o-action, 0.5);
+        background-color: o-token-alpha(--o-action, $o-action, 0.1);
+        outline: 1px solid o-token-alpha(--o-action, $o-action, 0.5);
     }
 }
 
@@ -128,7 +128,7 @@ $quick-reaction-menu-picker-grow-duration: 0.25s;
         transform: translateY(var(--arrowTranslateY));
 
         &::after {
-            border-bottom-color: $gray-100 !important;
+            border-bottom-color: o-palette-token(--o-gray-100, $gray-100) !important;
         }
         &::before {
             border-bottom-color: var(--secondary) !important;

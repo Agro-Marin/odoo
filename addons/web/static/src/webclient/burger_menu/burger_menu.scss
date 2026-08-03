@@ -16,10 +16,10 @@
 
     .o_sidebar_topbar {
         min-height: $o-navbar-height;
-        background-color: $o-burger-topbar-bg;
-        color: $o-burger-topbar-color;
+        background-color: o-palette-token(--o-gray-100, $o-burger-topbar-bg);
+        color: o-token(--o-black, $o-burger-topbar-color);
         line-height: $o-navbar-height;
-        box-shadow: inset 0 -1px 0 $border-color;
+        box-shadow: inset 0 -1px 0 o-token(--border-color, $border-color);
 
         .dropdown-toggle,
         .o_sidebar_close {
@@ -29,7 +29,7 @@
 
     .o_burger_menu_content {
         &.o_burger_menu_app {
-            background-color: $o-burger-base-bg;
+            background-color: o-token(--o-white, $o-burger-base-bg);
         }
 
         ul {

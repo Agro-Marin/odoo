@@ -746,7 +746,7 @@ test("Stacked prop and default line chart", async () => {
     const expectedDatasets = [];
     const keysToEvaluate = ["backgroundColor", "borderColor", "pointBackgroundColor"];
     const datasets = getChart(view).data.datasets;
-    const colors = getColors(undefined, "sm");
+    const colors = getColors("sm");
     for (let i = 0; i < datasets.length; i++) {
         const expectedColor = colors[i];
         expectedDatasets.push({

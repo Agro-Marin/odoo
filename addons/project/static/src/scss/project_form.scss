@@ -37,7 +37,7 @@
     &:focus {
         background-color: transparent;
         opacity: 0.8;
-        color: $o-main-text-color;
+        color: o-palette-token(--o-text, $o-main-text-color);
     }
 }
 
