@@ -87,8 +87,8 @@ class MailLinkPreview(models.Model):
                 + len(link_previews_values)
                 >= 5
             ):
-                # cap at 5: the check runs after appending this iteration's
-                # preview, so ``> 5`` let a 6th through before stopping.
+                # cap at 5: the check runs after this iteration appended, so a
+                # ``> 5`` test would let a 6th through.
                 break
         new_link_preview_by_url = {
             link_preview.source_url: link_preview
@@ -133,16 +133,13 @@ class MailLinkPreview(models.Model):
 
     def _is_domain_thottled(self, url):
         domain = urlparse(url).netloc
-        # cr.now() is naive UTC like the stored create_date; datetime.now() is
-        # naive *local* time, so on a non-UTC server the "10s" window was skewed
-        # by the UTC offset (spanning hours and massively over-throttling).
+        # cr.now(), not datetime.now(): the latter is naive *local* time while
+        # create_date is naive UTC, skewing this window by the UTC offset.
         date_interval = fields.Datetime.to_string(
             self.env.cr.now() - relativedelta(seconds=10)
         )
-        # Count recent previews for the SAME host through the indexed netloc
-        # column, instead of fetching the whole create_date window across every
-        # host and re-parsing each source_url in Python (O(previews) per url under
-        # a preview storm).
+        # Count same-host previews through the indexed netloc column rather than
+        # re-parsing every source_url of the window in Python.
         call_counter = self.env["mail.link.preview"].search_count(
             [
                 ("create_date", ">", date_interval),
@@ -156,16 +153,15 @@ class MailLinkPreview(models.Model):
 
     @api.model
     def _create_from_values_race_safe(self, values_list):
-        """Create link previews, one per entry in ``values_list``, tolerating a
+        """Create one link preview per entry of ``values_list``, tolerating a
         concurrent creation of the same ``source_url``.
 
-        ``source_url`` is protected by the ``_unique_source_url`` index, and the
-        search-then-create in the callers has an outbound HTTP fetch in the race
-        window, so two requests previewing the same brand-new URL both miss the
-        search and both create -> one hits the unique index and 500s. Fall back
-        to re-fetching the row the other transaction inserted, mirroring the
-        savepoint pattern already used for reactions and followers.
+        :rtype: <mail.link.preview>
         """
+        # The callers' search-then-create has an outbound HTTP fetch in the race
+        # window, so two requests previewing the same new URL both create and one
+        # hits _unique_source_url: re-fetch the other transaction's row instead
+        # (same savepoint pattern as reactions and followers).
         previews = self.browse()
         for values in values_list:
             url = values["source_url"]
@@ -203,13 +199,11 @@ class MailLinkPreview(models.Model):
 
     @api.autovacuum
     def _gc_link_previews(self):
-        """Vacuum orphan previews. A `mail.link.preview` row is cached per unique
-        source_url and reused across messages; the through-rows
-        (`mail.message.link.preview`) cascade away with their messages, but the
-        preview payload itself was never collected, so the table grew unbounded
-        on chatty databases. Drop previews no longer referenced by any message
-        and older than a fortnight; the next post re-fetches (and thus refreshes)
-        the URL, which also fixes stale previews being served forever.
+        """Vacuum previews no message references anymore and older than a fortnight.
+
+        A row is cached per unique source_url and reused across messages, so only
+        the <mail.message.link.preview> through-rows cascade away. The next post
+        re-fetches the URL, which also refreshes a stale preview.
         """
         threshold = fields.Datetime.now() - relativedelta(weeks=2)
         self.search(

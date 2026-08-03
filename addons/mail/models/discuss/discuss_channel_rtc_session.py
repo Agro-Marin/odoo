@@ -63,14 +63,10 @@ class DiscussChannelRtcSession(models.Model):
                 channel,
                 {"rtc_session_ids": Store.Many(channel_sessions, mode="ADD")},
             ).bus_send()
-        # Serialize the "is this the first session of the call?" decision across
-        # concurrent joiners. Without a per-channel lock, two members joining an
-        # empty call in the same instant each see (under READ COMMITTED) only
-        # their own freshly-inserted session, so both evaluate the count below as
-        # 1 -> both post a "call started" notification and both open a
-        # discuss.call.history row for a single call. Locking the channel row
-        # forces the second transaction to wait until the first commits, after
-        # which it sees the first session and correctly skips the call-start.
+        # Serialize the "is this the first session of the call?" decision: under
+        # READ COMMITTED two simultaneous joiners each see only their own session,
+        # both count 1, and a single call gets two "call started" messages and two
+        # discuss.call.history rows. Locking the channel row orders them.
         channels = rtc_sessions.channel_id
         if channels:
             self.env.cr.execute(
@@ -124,7 +120,7 @@ class DiscussChannelRtcSession(models.Model):
             rtc_session._bus_send(
                 "discuss.channel.rtc.session/ended", {"sessionId": rtc_session.id}
             )
-        # sudo - dicuss.rtc.call.history: setting the end date of the call
+        # sudo - discuss.call.history: setting the end date of the call
         # after it ends is allowed.
         for history in (
             self.env["discuss.call.history"]
@@ -219,10 +215,9 @@ class DiscussChannelRtcSession(models.Model):
                 self.env["discuss.channel.rtc.session"]
                 .browse(target_session_ids)
                 .exists()
-                # only peers of the sender's own channel may be signaled: the
-                # target session ids are attacker-controlled, so without this
-                # scope a caller could push forged peer notifications onto the
-                # bus of any session in any other channel.
+                # Only peers of the sender's own channel may be signaled: the
+                # target ids come from the caller, who could otherwise push forged
+                # notifications onto any session's bus in any other channel.
                 .filtered(lambda target: target.channel_id == self.channel_id)
             ):
                 payload_by_target[target_session]["notifications"].append(content)

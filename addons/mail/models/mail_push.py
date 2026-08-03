@@ -18,11 +18,9 @@ _logger = logging.getLogger(__name__)
 # days; past that the resolver is treated as permanently dead and the queued
 # notification is dropped so it cannot accumulate forever.
 PUSH_ENDPOINT_RETRY_DAYS = 3
-# How long a notification whose endpoint was unresolvable is held back before it
-# is eligible again. Without a hold-off the kept rows -- which are the oldest,
-# hence the lowest ids, hence the head of every `id ASC` batch -- were re-picked
-# on every single run, so one dead endpoint host starved the entire queue for
-# PUSH_ENDPOINT_RETRY_DAYS while the cron re-armed itself in a tight loop.
+# Hold-off before a notification with an unresolvable endpoint is eligible again.
+# Kept rows are the oldest, hence the head of every `id ASC` batch, so without it
+# one dead endpoint host starves the whole queue.
 PUSH_ENDPOINT_RETRY_DELAY = timedelta(minutes=15)
 
 
@@ -51,7 +49,7 @@ class MailPush(models.Model):
 
     @api.model
     def _push_notification_to_endpoint(self, batch_size=50):
-        """Send to web browser endpoint computed notification"""
+        """Send the due queued notifications to their web browser endpoints."""
         due_domain = self._get_due_domain()
         web_push_notifications_sudo = self.sudo().search_fetch(
             due_domain, ["mail_push_device_id", "payload"], limit=batch_size
@@ -105,11 +103,9 @@ class MailPush(models.Model):
                 # Avoid blocking the whole cron just for a notification exception
                 _logger.error("An error occurred while trying to send web push: %s", e)
 
-        # clean up notif: drop everything we attempted, except notifications
-        # whose endpoint hit a transient PushEndpointUnresolvableError and are
-        # still within the retry window — those are left in place for the next
-        # cron run (matching the log above). Ones older than the window are
-        # dropped so a permanently dead resolver cannot accumulate rows.
+        # Drop every attempted notification, except the unresolvable ones still
+        # inside the retry window: those wait for the next run. Past the window a
+        # permanently dead resolver must not keep accumulating rows.
         retry_cutoff = fields.Datetime.now() - timedelta(days=PUSH_ENDPOINT_RETRY_DAYS)
         notifs_to_keep = web_push_notifications_sudo.filtered(
             lambda n: (
@@ -119,9 +115,8 @@ class MailPush(models.Model):
             )
         )
         (web_push_notifications_sudo - notifs_to_keep).unlink()
-        # Hold the kept ones back: they are the oldest rows, so without this they
-        # are the head of every subsequent `id ASC` batch and no other
-        # notification ever gets sent while the endpoint stays unresolvable.
+        # Hold the kept ones back: as the oldest rows they head every subsequent
+        # `id ASC` batch, blocking the queue while the endpoint stays unresolvable.
         if notifs_to_keep:
             notifs_to_keep.retry_after = (
                 fields.Datetime.now() + PUSH_ENDPOINT_RETRY_DELAY

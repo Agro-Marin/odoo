@@ -44,10 +44,8 @@ class MailIceServer(models.Model):
             formatted_ice_servers.append(formatted_ice_server)
         return formatted_ice_servers
 
-    # Twilio TURN tokens are short-lived but reusable (default TTL 24h), so the
-    # response is cached well under that. Without this, every RTC join did a
-    # synchronous Twilio round-trip that could stall the join RPC (and its worker
-    # thread) for the whole request timeout.
+    # Twilio TURN tokens are reusable (default TTL 24h), so cache well under that
+    # rather than let every RTC join wait on a synchronous Twilio round-trip.
     _ICE_CACHE_TTL = 3600
     _ICE_CACHE_PARAM = "mail.ice_servers_cache"
 

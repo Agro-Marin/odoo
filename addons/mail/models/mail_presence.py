@@ -10,11 +10,10 @@ PRESENCE_OUTDATED_TIMER = 12 * 60 * 60  # 12 hours
 
 
 class MailPresence(models.Model):
-    """User/Guest Presence
-    Its status is 'online', 'away' or 'offline'. This model should be a one2one, but is not
-    attached to res_users to avoid database concurrency errors.
-    """
+    """Online / away / offline presence of a user or a guest."""
 
+    # Logically a one2one, kept in its own table rather than on res_users to
+    # avoid database concurrency errors.
     _name = "mail.presence"
     _inherit = "bus.listener.mixin"
     _description = "User/Guest Presence"
@@ -67,11 +66,11 @@ class MailPresence(models.Model):
         """Updates the last_poll and last_presence of the current user
         :param inactivity_period: duration in milliseconds
         """
-        # This method is called in method _poll() and cursor is closed right
-        # after; see bus/controllers/main.py.
+        # Called while serving the websocket `update_presence` event (see
+        # ir_websocket._update_mail_presence), whose cursor closes right after.
         try:
-            # Hide transaction serialization errors, which can be ignored, the presence update is not essential
-            # The errors are supposed from presence.write(...) call only
+            # A presence update is not essential: mute the serialization errors
+            # that presence.write() may raise instead of surfacing them.
             with tools.mute_logger("odoo.db"):
                 self._update_presence(user_or_guest, inactivity_period)
                 self.env.cr.commit()

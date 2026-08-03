@@ -99,9 +99,7 @@ class MailNotification(models.Model):
             vals["mail_message_id"] for vals in vals_list
         )
         # A notification grants its recipient read access to the message, so
-        # creating one requires write access to that message (else users could
-        # forge inbox entries to self-grant access). Legitimate notify pipelines
-        # run in sudo, making this a no-op.
+        # forging one must require write access on it (notify pipelines run sudo).
         messages.check_access("write")
         for vals in vals_list:
             if vals.get("is_read"):
@@ -128,11 +126,8 @@ class MailNotification(models.Model):
                 "<",
                 fields.Datetime.now() - relativedelta(days=max_age_days),
             ),
-            # GC every read, old, terminal-status notification regardless of
-            # recipient type. An earlier partner_share predicate permanently
-            # spared share partners' read email notifications, leaking rows on
-            # portal DBs; the (is_read, read_date, notification_status) triple
-            # already bounds the set safely.
+            # Terminal statuses only, and regardless of recipient type: adding a
+            # partner_share predicate here leaks rows forever on portal DBs.
             ("notification_status", "in", ("sent", "canceled")),
         ]
         records = self.search(domain, limit=GC_UNLINK_LIMIT)

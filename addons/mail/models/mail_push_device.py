@@ -7,10 +7,9 @@ from ..tools.jwt import InvalidVapidError, generate_vapid_keys
 
 _logger = logger.getLogger(__name__)
 
-# Upper bound on stored push subscriptions per partner. register_devices is
-# gated only by the (non-secret) VAPID public key, so without a cap an
-# authenticated caller could register unbounded endpoints, each a row the
-# web-push cron then POSTs to.
+# Upper bound on stored push subscriptions per partner: register_devices is gated
+# only by the (non-secret) VAPID public key, so an authenticated caller could
+# otherwise register unbounded endpoints for the web-push cron to POST to.
 MAX_DEVICES_PER_PARTNER = 20
 
 
@@ -74,28 +73,18 @@ class MailPushDevice(models.Model):
         search_endpoint = (
             kw.get("previousEndpoint") or kw.get("previous_endpoint") or endpoint
         )
-        # These methods are @api.model + sudo(), so the group_system ACL on
-        # mail.push.device does not gate the caller; ownership must be enforced
-        # here. Only ever touch the *caller's* own subscription rows so that
-        # knowing another user's endpoint can neither reassign (hijack) nor
-        # overwrite their device. A subscription always belongs to the session
-        # that created it, so scoping by partner is correct for the legitimate
-        # endpoint-rotation path too.
+        # @api.model + sudo() bypasses the group_system ACL, so ownership is
+        # enforced here: only the caller's own rows are touched, else knowing
+        # another user's endpoint would hijack or overwrite their device.
         partner = self.env.user.partner_id
         mail_push_device = self.sudo().search(
             [("endpoint", "=", search_endpoint), ("partner_id", "=", partner.id)]
         )
         if mail_push_device:
-            # Endpoint-rotation path: the previous endpoint located the caller's
-            # row and new endpoint/keys are supplied. Always refresh so the row
-            # does not keep pointing at a dead endpoint (which would silently
-            # drop web push until a delivery failure GCs the device).
-            #
-            # The *new* endpoint may already exist on another row (the same
-            # browser previously registered under a different login, or a stale
-            # duplicate). endpoint is globally unique, so writing it here would
-            # violate _endpoint_unique and 500 — mirror the create path's guard
-            # by dropping the superseded conflicting row first.
+            # Endpoint-rotation path: always refresh, else the row keeps pointing
+            # at a dead endpoint and web push silently stops. The new endpoint may
+            # already sit on another row (same browser, other login), and endpoint
+            # is globally unique, so drop that superseded row first.
             conflicting = self.sudo().search(
                 [("endpoint", "=", endpoint), ("id", "!=", mail_push_device.id)]
             )
@@ -121,9 +110,8 @@ class MailPushDevice(models.Model):
                     }
                 ]
             )
-            # Keep only the most recent MAX_DEVICES_PER_PARTNER subscriptions for
-            # this partner, dropping the oldest, so the table cannot grow without
-            # bound from repeated registrations.
+            # Keep only this partner's MAX_DEVICES_PER_PARTNER most recent
+            # subscriptions so repeated registrations cannot grow the table.
             devices = self.sudo().search(
                 [("partner_id", "=", partner.id)], order="id desc"
             )
