@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <odoo><data>
-    <!-- Update user form !-->
+    <!-- Update user form -->
     <record id="res_users_view_form" model="ir.ui.view">
         <field name="name">res.users.view.form.mail_bot</field>
         <field name="model">res.users</field>

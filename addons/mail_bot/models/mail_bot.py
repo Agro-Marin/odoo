@@ -13,13 +13,14 @@ class MailBot(models.AbstractModel):
     _description = 'Mail Bot'
 
     def _apply_logic(self, channel, values, command=None):
-        """ Apply bot logic to generate an answer (or not) for the user
-        The logic will only be applied if odoobot is in a chat with a user or
-        if someone pinged odoobot.
+        """Apply bot logic to generate an answer (or not) for the user.
 
-         :param channel: the discuss channel where the user message was posted/odoobot will answer.
-         :param values: msg_values of the message_post or other values needed by logic
-         :param command: the name of the called command if the logic is not triggered by a message_post
+        An answer is only produced in a chat where odoobot is a member; a ping in
+        any other channel type is ignored.
+
+        :param channel: the discuss channel where the user message was posted/odoobot will answer.
+        :param values: msg_values of the message_post or other values needed by logic
+        :param command: the name of the called command if the logic is not triggered by a message_post
         """
         channel.ensure_one()
         odoobot_id = self.env['ir.model.data']._xmlid_to_res_id("base.partner_root")
@@ -325,7 +326,5 @@ class MailBot(models.AbstractModel):
         return any(chr(emoji) in body for emoji in emoji_list)
 
     def _is_help_requested(self, body):
-        """Returns whether a message linking to the documentation and videos
-        should be sent back to the user.
-        """
+        """Return whether the documentation and videos message should be sent back."""
         return any(token in body for token in ['help', _('help'), '?']) or self.env.user.odoobot_failed
