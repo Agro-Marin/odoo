@@ -705,15 +705,10 @@ describe("with selection", () => {
         });
     });
 
-    // @wrongCommand
-    // This test fails because the original test tested the "indentList" command
-    // (with mode="outdent"), which has a different behavior than keydown
-    // shift+Tab.
-    // In web_editor, "indentList" commmand is not called anywhere, except in
-    // the tests.
-    // So, not passing this test does not mean that a previously working feature
-    // is broken, as the user had no way to trigger the "indentList" command.
-    // By the way: is this a valid contentBefore?
+    // @wrongCommand: the original test drove the "indentList" command (with
+    // mode="outdent"), which behaves differently from keydown shift+Tab. That
+    // command is only reachable from tests, so skipping hides no user-facing
+    // regression.
     test.skip("should outdent multiples list item in the middle element of a list with sublist (1)", async () => {
         await testEditor({
             contentBefore: unformat(`
