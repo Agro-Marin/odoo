@@ -1,35 +1,10 @@
 """Regression tests for the eleventh mail hardening audit.
 
-Each test pins a defect reproduced end to end before being fixed, so a refactor
-cannot silently reintroduce it. Coverage:
-
- - ``/mail/data`` batches independent fetch params into one round-trip
-   (``["failures", "systray_get_activities", "init_messaging"]`` on every boot)
-   but ran them without isolation, so a crash in the best-effort ``failures``
-   handler discarded messaging init too -- and the client swallowed the
-   rejection, leaving the user with no error and no delivery-failure list.
- - the ``failures`` handler dereferenced ``mail.message.model`` -- a plain
-   ``Char`` with no constraint -- straight into ``env[model]``. A name that is
-   no longer in the registry raised ``KeyError``, which also kept the garbage
-   collection right below it from ever reaping the offending row.
- - ``/mail/message/post`` coerced ``attachment_ids`` / ``partner_ids`` with a
-   bare ``map(int, ...)``, so an anonymous caller on a public channel could
-   raise ``ValueError``/``TypeError`` server-side. Malformed ids must be
-   rejected, never trimmed: ``attachment_ids`` is zipped ``strict=True`` against
-   ``attachment_tokens``, so dropping one would slide the rest onto their
-   neighbour's ownership token.
- - ``read_subscription_data`` neither coerced ``follower_id`` nor guarded
-   ``mail.followers.res_model`` (documented as carrying no integrity check).
- - ``_notify_thread_by_inbox`` serialized the message payload once per recipient
-   in that recipient's own environment, so ``starred`` and the author's
-   ``main_user_id`` each cost one query per recipient: O(N) where the e-mail and
-   channel paths are O(1). Both are now resolved in one batch up front.
- - numeric mail ICPs were read with a bare ``int(get_param(...))`` in eight
-   places. The stored value is free text typed in Settings, so one stray
-   character raised ``ValueError`` inside whichever flow happened to read it --
-   losing an incoming e-mail in the gateway, breaking the outgoing-queue cron,
-   or a list view. They now share ``ir.config_parameter._get_int_param``, which
-   degrades to the documented default and warns.
+Each test pins a defect reproduced end to end, so a refactor cannot silently
+reintroduce it: fetch-param isolation on ``/mail/data``, stale model names
+reaching ``env[...]``, raw client ids coerced into a domain (rejected, never
+trimmed), the batched inbox fan-out, and numeric mail ICPs read through
+``ir.config_parameter._get_int_param``.
 """
 
 from contextlib import contextmanager
@@ -45,13 +20,10 @@ from odoo.addons.mail.tools.discuss import Store
 @tagged("-at_install", "post_install", "mail_hardening_v11")
 class TestFetchParamIsolationV11(HttpCase, MailCommon):
     def _plant_orphan_failure(self):
-        """A bounced notification whose message points at a dead model name.
-
-        The ``failures`` domain filters on ``author_id = <session partner>``, so
-        this must be authored by the *authenticated* user (admin), not by
-        ``self.env.user`` -- which is root in an HttpCase and would make the
-        route never see the row at all.
-        """
+        """A bounced notification whose message points at a dead model name."""
+        # the 'failures' domain filters on author_id = <session partner>, so the
+        # row must be authored by the *authenticated* user (admin), not by
+        # self.env.user (root in an HttpCase), or the route never sees it
         author = self.env.ref("base.user_admin").partner_id
         message = self.env["mail.message"].create(
             {
@@ -344,9 +316,8 @@ class TestInboxFanoutBatchingV11(MailCommon):
             record.message_subscribe(partner_ids=users.partner_id.ids)
             self.env.flush_all()
             # Warm-up post: 'res.users._get_group_ids' is @ormcache'd per user,
-            # so freshly created users each cost one miss on the first message.
-            # That is a fixture artifact -- in a running database those entries
-            # are warm. Measure the steady state, which is what production pays.
+            # so freshly created users each cost one miss on the first message --
+            # a fixture artifact. Measure the steady state instead.
             record.message_post(
                 body="warmup", message_type="comment", subtype_xmlid="mail.mt_comment"
             )
@@ -406,9 +377,9 @@ class TestConfigParameterIntegersV11(MailCommon):
         "odoo.addons.mail.models.mail_thread",
     )
     def test_broken_gateway_icp_does_not_break_loop_detection(self):
-        """A non-integer loop ICP used to raise straight out of
-        ``_detect_loop_sender`` -- i.e. out of ``message_process``, while
-        fetchmail acks the message anyway, losing the incoming mail for good."""
+        """A non-integer loop ICP must not raise out of ``_detect_loop_sender``:
+        that propagates out of ``message_process`` while fetchmail acks the
+        message anyway, losing the incoming mail for good."""
         icp = self.env["ir.config_parameter"].sudo()
         icp.set_param("mail.gateway.loop.minutes", "twenty")
         icp.set_param("mail.gateway.loop.threshold", "lots")
@@ -430,9 +401,8 @@ class TestConfigParameterIntegersV11(MailCommon):
 class TestRtcSessionIdCoercionV11(MailCommon):
     """``check_rtc_session_ids`` reaches ``_rtc_sync_sessions`` straight from
     ``/discuss/channel/ping`` and ``/mail/rtc/channel/join_call``, both
-    ``auth="public"``. A bare ``int()`` there surfaced ValueError/TypeError as a
-    server error to any channel member -- including a guest member of a public
-    channel."""
+    ``auth="public"``: a bare ``int()`` there is a server error for any channel
+    member, guests of a public channel included."""
 
     def test_malformed_session_ids_are_skipped(self):
         channel = self.env["discuss.channel"]._create_channel(
@@ -508,8 +478,8 @@ class TestStaleModelNameGuardsV11(MailCommon):
         )
 
     def test_store_serialization_survives_unknown_model(self):
-        """``mail.followers._to_store_defaults`` asks for ``Store.One("thread",
-        as_thread=True)``, which resolves ``res_model`` through ``env[...]``."""
+        """``mail.followers._to_store_defaults`` asks for a ``Store.One`` on
+        ``thread``, which resolves ``res_model`` through ``env[...]``."""
         partner = self.env["res.partner"].create({"name": "v11 stale thread"})
         follower = self.env["mail.followers"].create(
             {
@@ -564,9 +534,8 @@ class TestDomainBoundIdCoercionV11(HttpCase, MailCommon):
     def setUp(self):
         super().setUp()
         # Membership must belong to the user the request authenticates as
-        # (admin), not to self.env.user (root) -- otherwise
-        # cancel_call_invitation 404s on its membership gate and never reaches
-        # the coercion under test.
+        # (admin), not to self.env.user (root), or cancel_call_invitation 404s on
+        # its membership gate and never reaches the coercion under test.
         admin = self.env.ref("base.user_admin")
         self.channel = (
             self.env["discuss.channel"]

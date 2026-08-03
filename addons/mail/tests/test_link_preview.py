@@ -18,10 +18,9 @@ class TestLinkPreview(MailCommon):
         super().setUpClass()
         cls.maxDiff = None
         # The SSRF egress guard (link_preview._url_is_safe) does real DNS
-        # resolution and would reject the dummy/localhost URLs these tests use;
-        # egress control is covered directly in test_mail_hardening_v3. Disable
-        # it here so this suite keeps exercising parsing / link-extraction with
-        # the network mocked.
+        # resolution and rejects the dummy/localhost URLs used here, so disable it
+        # to keep exercising parsing / link extraction. Egress control itself is
+        # covered as a unit in test_mail_hardening_v3.
         _ssrf_patcher = patch.object(link_preview, "_url_is_safe", return_value=True)
         _ssrf_patcher.start()
         cls.addClassCleanup(_ssrf_patcher.stop)
@@ -280,9 +279,10 @@ class TestLinkPreview(MailCommon):
 
     def test_link_preview_throttle_is_per_host(self):
         """The per-domain throttle must count previews of the SAME host only.
-        Regression: ``source_url ilike domain`` was a substring match, so an
-        unrelated URL merely containing the domain (query param / look-alike
-        host) tripped the throttle for a host with no previews of its own."""
+
+        A substring match on ``source_url`` lets an unrelated URL merely
+        containing the domain (query param, look-alike host) trip the throttle
+        for a host with no previews of its own."""
         LP = self.env["mail.link.preview"]
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.link_preview_throttle", 1
