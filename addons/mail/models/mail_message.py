@@ -25,8 +25,8 @@ _image_dataurl = re.compile(
 
 # Upper bound for a caller-controlled message page size. ``_message_fetch`` is
 # reached from ``auth="public"`` routes that splat a raw client dict into it
-# (``fetch_params``), so the bound belongs on the model rather than in each of
-# the five controllers that call it.
+# (``fetch_params``), so the bound belongs on the model rather than in each
+# controller that calls it.
 MESSAGE_FETCH_LIMIT_MAX = 100
 MESSAGE_FETCH_LIMIT_DEFAULT = 30
 # Keys ``_message_fetch`` accepts from a client. Anything else used to reach the
@@ -37,54 +37,12 @@ MESSAGE_FETCH_PARAMS = frozenset(
 )
 
 
+# Sending states, failure types and error codes are declared on the models that
+# own them: mail.notification (notification_status / notification_type /
+# failure_type), mail.mail (state / failure_type / failure_reason) and, in their
+# own addons, sms.sms, snailmail.letter and mass_mailing's mailing.trace.
 class MailMessage(models.Model):
-    """Message model (from notifications to user input).
-
-    Note:: State management / Error codes / Failure types summary
-
-    * mail.notification
-      * notification_status
-        'ready', 'sent', 'bounce', 'exception', 'canceled'
-      * notification_type
-        'inbox', 'email', 'sms' (SMS addon), 'snail' (snailmail addon)
-      * failure_type
-        # generic
-        unknown,
-        # mail
-        "mail_email_invalid", "mail_smtp", "mail_email_missing",
-        "mail_from_invalid", "mail_from_missing",
-        "mail_spam"
-        # sms (SMS addon)
-        'sms_number_missing', 'sms_number_format', 'sms_credit',
-        'sms_server', 'sms_acc'
-        # snailmail (snailmail addon)
-        'sn_credit', 'sn_trial', 'sn_price', 'sn_fields',
-        'sn_format', 'sn_error'
-
-    * mail.mail
-      * state
-        'outgoing', 'sent', 'received', 'exception', 'cancel'
-      * failure_reason: text
-
-    * sms.sms (SMS addon)
-      * state
-        'outgoing', 'sent', 'error', 'canceled'
-      * error_code
-        'sms_number_missing', 'sms_number_format', 'sms_credit',
-        'sms_server', 'sms_acc',
-        # mass mode specific codes
-        'sms_blacklist', 'sms_duplicate'
-
-    * snailmail.letter (snailmail addon)
-      * state
-        'pending', 'sent', 'error', 'canceled'
-      * error_code
-        'CREDIT_ERROR', 'TRIAL_ERROR', 'NO_PRICE_AVAILABLE', 'FORMAT_ERROR',
-        'UNKNOWN_ERROR',
-
-    See ``mailing.trace`` model in mass_mailing application for mailing trace
-    information.
-    """
+    """Message model (from notifications to user input)."""
 
     _name = "mail.message"
     _inherit = ["bus.listener.mixin"]
@@ -214,8 +172,8 @@ class MailMessage(models.Model):
     incoming_email_cc = fields.Char("Emails Cc")
     # email recipients of outgoing emails: comma separated list of emails (not necessarily normalized)
     outgoing_email_to = fields.Char("emails To")
-    # list of partner having a notification. Caution: list may change over time because of notif gc cron.
-    # mainly usefull for testing
+    # Partners having a notification. Caution: the list may shrink over time, as
+    # the gc cron (mail.notification._gc_notifications) deletes aged rows.
     notified_partner_ids = fields.Many2many(
         "res.partner",
         "mail_notification",
@@ -355,7 +313,7 @@ class MailMessage(models.Model):
                 message.is_current_user_or_guest_author = False
 
     def _compute_needaction(self):
-        """Need action on a mail.message = notified on my channel"""
+        """Need action = the current partner has an unread notification on the message."""
         my_messages = (
             self.env["mail.notification"]
             .sudo()
@@ -453,20 +411,13 @@ class MailMessage(models.Model):
         self, domain, offset=0, limit=None, order=None, *, bypass_access=False, **kwargs
     ):
         """Apply mail.message access rules to drop ids uid cannot see (see
-        _check_access()).
+        ``_check_access``).
 
-        Non-employees only see messages with a non-internal subtype: this
-        excludes the 'is_internal' flag, the 'internal' subtype flag, and pure
-        logs (no subtype). See `_get_search_domain_share` for the domain.
-
-        After a classic search, keep only:
-        - if author_id == pid, uid is the author, OR
-        - uid belongs to a notified channel, OR
-        - uid is in the specified recipients, OR
-        - uid has a notification on the message, OR
-        - uid has acces to the message linked document for messages that are not
-          'user_notification'
-        - otherwise: remove the id
+        After a classic search, an id is kept only if uid is the author, the
+        creator, a recipient (partner_ids), notified, or has read access to the
+        linked document of a non-'user_notification' message. Non-internal users
+        are additionally restricted to messages carrying a non-internal subtype
+        (see ``_get_search_domain_share``).
         """
         if self.env.is_superuser() or bypass_access:
             return super()._search(
@@ -674,30 +625,18 @@ class MailMessage(models.Model):
         return allowed_ids
 
     def _check_access(self, operation: str) -> tuple | None:
-        """Access rules of mail.message:
-            - read: if
-                - author_id == pid, uid is the author OR
-                - create_uid == uid, uid is the creator OR
-                - uid is in the recipients (partner_ids) OR
-                - uid has been notified (needaction) OR
-                - uid have read access to the related document if model, res_id
-                - otherwise: raise
-            - create: if
-                - no model, no res_id (private message) OR
-                - pid in message_follower_ids if model, res_id OR
-                - uid can read the parent OR
-                - uid have write or create access on the related document if model, res_id, OR
-                - otherwise: raise
-            - write: if
-                - author_id == pid, uid is the author, OR
-                - uid is in the recipients (partner_ids) OR
-                - uid has write or create access on the related document if model, res_id
-                - otherwise: raise
-            - unlink: if
-                - uid has write or create access on the related document
-                - otherwise: raise
+        """Access rules of mail.message; raise unless:
+            - read: uid is the author, the creator, a recipient (partner_ids),
+              notified (needaction), or can read the related document
+            - create: the message is not a visible thread message (private or
+              'user_notification'), or uid follows the related document, is a
+              recipient of the parent message, or has on the related document
+              the access required by its '_mail_post_access' (write by default)
+            - write: uid is the author, or can write the related document
+            - unlink: uid can write the related document
 
-        Specific case: non employee users cannot see internal messages (aka logs):
+        The related document never grants access to a 'user_notification'
+        message. Non-internal users never access internal messages (aka logs):
         'is_internal' flag on message, 'internal' flag on subtype.
         """
         result = super()._check_access(operation)
@@ -1122,8 +1061,8 @@ class MailMessage(models.Model):
         return messages
 
     def read(self, fields=None, load="_classic_read"):
-        """Override to explicitely call check_access(), that is not called
-        by the ORM. It instead directly fetches ir.rules and apply them."""
+        """Override to explicitly call check_access(): the ORM does not call it on
+        read, it fetches and applies ir.rules directly."""
         self.check_access("read")
         return super().read(fields=fields, load=load)
 
@@ -1136,9 +1075,8 @@ class MailMessage(models.Model):
     def fetch(self, field_names=None):
         # This freaky hack is aimed at reading data without the overhead of
         # checking that "self" is accessible, which is already done above in
-        # methods read() and _search(). It reproduces the existing behavior
-        # before the introduction of method fetch(), where the low-lever
-        # reading method _read() did not enforce any actual permission.
+        # methods read() and _search(). It reproduces the behavior of the
+        # low-level _read(), which did not enforce any actual permission.
         self = self.sudo()
         return super().fetch(field_names)
 
@@ -1206,9 +1144,9 @@ class MailMessage(models.Model):
 
     @api.model
     def mark_all_as_read(self, domain=None):
-        # not really efficient method: it does one db request for the
-        # search, and one for each message in the result set is_read to True in the
-        # current notifications from the relation.
+        # Both paths bulk-write the current partner's unread notifications: one
+        # search on messages then set_message_done(), or a single search on the
+        # notifications when no domain narrows the set.
         if domain:
             messages = self.search(domain)
             messages.set_message_done()
@@ -1278,8 +1216,8 @@ class MailMessage(models.Model):
         )
 
     def toggle_message_starred(self):
-        """Toggle messages as (un)starred. Technically, the notifications related
-        to uid are set to (un)starred.
+        """Toggle the message as (un)starred for the current partner, by
+        (un)linking it in ``starred_partner_ids``.
         """
         self.ensure_one()
         self.check_access("read")
@@ -1347,10 +1285,10 @@ class MailMessage(models.Model):
         # Coerce the caller-controlled cursor/page-size here rather than in each
         # controller: an unbounded `limit` forced a full scan + Store
         # serialization of an entire thread, and a non-numeric before/after/around
-        # reached the domain as-is and blew up in psycopg with
-        # InvalidTextRepresentation. The sibling routes already did this via
-        # _clamp_limit/_to_record_id; this path was missed because its bound
-        # flows through a model method.
+        # reached the domain as-is and blew up in psycopg. The sibling routes
+        # already do this in the controllers, via ``_clamp_limit``
+        # (discuss/channel.py) and ``_to_record_id`` (thread.py); this path was
+        # missed because its bound flows through a model method instead.
         limit = self._clamp_fetch_limit(limit)
         before = self._to_message_cursor(before)
         after = self._to_message_cursor(after)
@@ -1823,10 +1761,11 @@ class MailMessage(models.Model):
         return []
 
     def _get_store_linked_messages_fields(self):
-        """Add the messages that are referenced by the current message's body to the given store.
-        This method should only return message data that are not sensitive to be broadcasted to
-        other users, as it doesn't check store.target by simplicity and the target might not
-        necessarily have permission to read the linked messages."""
+        """Return the Store fields for the messages referenced by the body.
+
+        Only non-sensitive message data may be listed here: ``store.target`` is
+        not checked, and the target may not be allowed to read those messages.
+        """
         record_by_message = self.linked_message_ids._record_by_message()
         return [
             Store.Many(
@@ -1852,11 +1791,10 @@ class MailMessage(models.Model):
         pass
 
     def _message_notifications_to_store(self, store: Store):
-        """Returns the current messages and their corresponding notifications in
-        the format expected by the web client.
+        """Add the messages and their notifications to the store, in the format
+        expected by the web client.
 
-        Notifications hold the information about each recipient of a message: if
-        the message was successfully sent or if an exception or bounce occurred.
+        Notifications hold the per-recipient outcome: sent, exception or bounce.
         """
         store.add(
             self,
@@ -1908,14 +1846,11 @@ class MailMessage(models.Model):
         for record in record_by_message.values():
             ids_by_model[record._name].append(record.id)
         accessible_ids_by_model = {
-            # ``.exists()`` first: a message outlives the record it points at,
-            # so ``_record_by_message`` deliberately hands back unverified
-            # browse records (its other callers guard with ``except
-            # MissingError``). ``_filtered_access`` is documented as
-            # ``filtered(has_access)`` and reads fields through
-            # ``filtered_domain``, so a cascade-deleted row raises MissingError
-            # instead of dropping out. One existence query per model makes the
-            # drop-out real while keeping the per-model batching.
+            # ``.exists()`` first: a message outlives the record it points at, so
+            # ``_record_by_message`` hands back unverified browse records.
+            # ``_filtered_access`` reads fields through ``filtered_domain``, so a
+            # cascade-deleted row would raise MissingError instead of dropping
+            # out. One existence query per model keeps the per-model batching.
             model: set(
                 self.env[model].browse(ids).exists()._filtered_access("read")._ids
             )
@@ -1992,15 +1927,11 @@ class MailMessage(models.Model):
         return message_id
 
     def _is_thread_message(self, vals=False, thread=None):
-        """Tool method to compute thread validity in notification methods.
-
-        Resolve ``model``/``res_id`` lazily: ``self`` may be a multi-record set
-        (e.g. the create-access check runs this per row over the whole batch,
-        passing each row's ``vals``), so ``self.model``/``self.res_id`` must only
-        be touched when ``vals``/``thread`` do not already provide the value —
-        otherwise a ``.get(key, self.model)`` default would eagerly dereference a
-        non-singleton ``self`` and raise ``Expected singleton``.
-        """
+        """Tool method to compute thread validity in notification methods."""
+        # Resolve model/res_id lazily: self may be a multi-record set (the
+        # create-access check runs this per row, passing each row's vals), so a
+        # ``.get(key, self.model)`` default would eagerly dereference a
+        # non-singleton self and raise 'Expected singleton'.
         vals = vals or {}
         if "model" in vals:
             res_model = vals["model"]
@@ -2030,7 +1961,7 @@ class MailMessage(models.Model):
         return is_thread
 
     def _invalidate_documents(self, model=None, res_id=None):
-        """Invalidate the cache of the documents followed by ``self``."""
+        """Invalidate the cache of the documents ``self`` is linked to."""
         fnames = ["message_ids", "message_needaction", "message_needaction_counter"]
         self.flush_recordset(["model", "res_id"])
         for record in self:
