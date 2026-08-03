@@ -82,7 +82,7 @@
             </field>
         </record>
 
-        <!-- Add mail-defined activity view to standard action on partners to manage activities related to partner model -->
+        <!-- Add the activity view to the standard partner actions -->
         <record id="base.action_partner_form" model="ir.actions.act_window">
             <field name="view_mode">list,kanban,form,activity</field>
         </record>
@@ -93,7 +93,7 @@
             <field name="view_mode">list,kanban,form,activity</field>
         </record>
 
-        <!--  Replace the default mass-mailing wizard in base with the composition wizard -->
+        <!-- Contextual "Send email" action on partners, opening the mass-mail composer -->
         <record id="action_partner_mass_mail" model="ir.actions.act_window">
             <field name="name">Send email</field>
             <field name="res_model">mail.compose.message</field>

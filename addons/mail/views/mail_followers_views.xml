@@ -2,7 +2,7 @@
 <odoo>
     <data>
 
-        <!--  FOLLOWERS !-->
+        <!-- mail.followers -->
         <record model="ir.ui.view" id="view_followers_tree">
             <field name="name">mail.followers.list</field>
             <field name="model">mail.followers</field>
@@ -36,7 +36,7 @@
                 </form>
             </field>
         </record>
-        
+
         <record id="action_view_followers" model="ir.actions.act_window">
             <field name="name">Followers</field>
             <field name="res_model">mail.followers</field>

@@ -176,7 +176,7 @@
         <t t-if="message.preview"> | </t>
     </t>
     <t t-if="subtype_internal">Internal communication: </t><t t-out="message.preview"/>
-    <!--Trailing whitespace to push back email content so that it doesn't appear in preview. Specific characters to use may change over time -->
+    <!-- Trailing whitespace pushes back email content so that it doesn't appear in preview -->
     <t t-out="'&#847; &#8203; ' * 140"/>
 </div>
         </template>

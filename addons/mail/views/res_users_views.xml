@@ -15,7 +15,7 @@
             <field name="act_window_id" ref="mail.action_res_users_my_fullpage"/>
         </record>
 
-        <!-- Update Preferences form !-->
+        <!-- Update Preferences form -->
         <record id="view_users_form_simple_modif_mail" model="ir.ui.view">
             <field name="name">res.users.preferences.form.mail</field>
             <field name="model">res.users</field>
@@ -39,7 +39,7 @@
                         <label for="out_of_office_from" string="Out-of-office" />
                         <div class="o_row">
                             <field name="out_of_office_from" widget="daterange" options="{'end_date_field': 'out_of_office_to', 'show_time': False}" placeholder="None planned"/>
-                            <field name="out_of_office_to" invisible="1"/> <!-- otherwise it is visible, smort -->
+                            <field name="out_of_office_to" invisible="1"/> <!-- already rendered by the daterange widget above -->
                         </div>
                         <field name="out_of_office_message" string="" options="{'height': 112}" class="border border-secondary w-100" placeholder="Your out-of-office message..."/>
                     </group>
@@ -47,7 +47,7 @@
             </field>
         </record>
 
-        <!-- Update user form !-->
+        <!-- Update user form -->
         <record id="view_users_form_mail" model="ir.ui.view">
             <field name="name">res.users.form.mail</field>
             <field name="model">res.users</field>
@@ -71,7 +71,7 @@
                         <label for="out_of_office_from" string="Out-of-office" />
                         <div class="o_row">
                             <field name="out_of_office_from" widget="daterange" options="{'end_date_field': 'out_of_office_to', 'show_time': False}" placeholder="None planned"/>
-                            <field name="out_of_office_to" invisible="1"/> <!-- otherwise it is visible, smort -->
+                            <field name="out_of_office_to" invisible="1"/> <!-- already rendered by the daterange widget above -->
                         </div>
                         <field name="out_of_office_message" string="" options="{'height': 112}" class="border border-secondary w-100" placeholder="Your out-of-office message..."/>
                     </group>
