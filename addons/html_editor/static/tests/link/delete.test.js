@@ -60,12 +60,9 @@ describe("delete images in a link", () => {
 });
 
 describe("empty list items, starting and ending with links", () => {
-    // Since we introduce \ufeff characters in and around links, we
-    // can enter situations where the links aren't technically fully
-    // selected but should be treated as if they were. These tests
-    // are there to ensure that is the case. They represent four
-    // variations of the same situation, and have the same expected
-    // result.
+    // The \ufeff characters in and around links can leave a link not
+    // technically fully selected while it must be treated as if it were.
+    // Four variations of the same situation, same expected result.
     const tests = [
         // (1) <a>[...</a>...<a>...]</a>
         '<ul><li>ab</li><li><a href="#">[cd</a></li><li>ef</li><li><a href="#a">gh]</a></li><li>ij</li></ul>',

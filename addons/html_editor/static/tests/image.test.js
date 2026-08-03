@@ -479,7 +479,7 @@ test("Image transformation scalers position", async () => {
     await expectElementCount(".o-we-toolbar", 1);
     expect(".transfo-container").toHaveCount(1);
     checkScalersPositions(queryOne("img"));
-    // resize by 25% update the position of the scalers
+    // Resizing by 25% removes the transformation container.
     await click(".o-we-toolbar [name='image_size'] .dropdown-toggle");
     await animationFrame();
     await click(".image_size_selector .dropdown-item:contains('25%')");

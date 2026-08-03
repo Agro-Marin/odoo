@@ -13,10 +13,6 @@ import {
     splitBlock,
 } from "./_helpers/user_actions.js";
 
-/**
- * Rating Star Element Tests
- */
-
 test("add 3 star elements", async () => {
     const { el, editor } = await setupEditor("<p>[]</p>");
     await insertText(editor, "/3star");
