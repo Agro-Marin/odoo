@@ -13,7 +13,7 @@ class LoyaltyRule(models.Model):
 
     @api.model
     def default_get(self, fields):
-        # Try to copy the values of the program types default's
+        # Copy the rule defaults of the program type given in the context, if any
         result = super().default_get(fields)
         if 'program_type' in self.env.context:
             program_type = self.env.context['program_type']
@@ -93,7 +93,7 @@ class LoyaltyRule(models.Model):
 
     @api.constrains('reward_point_split')
     def _constraint_trigger_multi(self):
-        # Prevent setting trigger multi in case of nominative programs, it does not make sense to allow this
+        # Splitting per unit makes no sense when points accumulate on a nominative card
         for rule in self:
             if rule.reward_point_split and (rule.program_id.applies_on == 'both' or rule.program_id.program_type == 'ewallet'):
                 raise ValidationError(_("Split per unit is not allowed for Loyalty and eWallet programs."))

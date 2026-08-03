@@ -16,7 +16,7 @@ class LoyaltyReward(models.Model):
 
     @api.model
     def default_get(self, fields):
-        # Try to copy the values of the program types default's
+        # Copy the reward defaults of the program type given in the context, if any
         result = super().default_get(fields)
         if 'program_type' in self.env.context:
             program_type = self.env.context['program_type']
@@ -320,7 +320,7 @@ class LoyaltyReward(models.Model):
     def unlink(self):
         programs = self.program_id
         res = super().unlink()
-        # Not guaranteed to trigger the constraint
+        # Unlinking rewards does not always trigger the program's constraint
         programs._constrains_reward_ids()
         return res
 

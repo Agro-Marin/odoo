@@ -283,7 +283,8 @@ class LoyaltyProgram(models.Model):
     @api.model
     def _program_type_default_values(self):
         # All values to change when program_type changes
-        # NOTE: any field used in `rule_ids`, `reward_ids` and `communication_plan_ids` MUST be present in the kanban view for it to work properly.
+        # NOTE: fields written here MUST appear in the sub-view used by the program form
+        # (kanban for `rule_ids`/`reward_ids`, list for `communication_plan_ids`).
         first_sale_product = self.env['product.product'].search([('company_id', 'in', [False, self.env.company.id]), ('sale_ok', '=', True)], limit=1)
         return {
             'coupons': {
@@ -456,9 +457,7 @@ class LoyaltyProgram(models.Model):
             program.portal_point_name = program.currency_id.symbol or ''
 
     def _get_valid_products(self, products):
-        '''
-        Returns a dict containing the products that match per rule of the program
-        '''
+        """Return a dict mapping each rule of the program to the products it matches."""
         rule_products = {}
         for rule in self.rule_ids:
             domain = rule._get_valid_product_domain()
@@ -490,14 +489,12 @@ class LoyaltyProgram(models.Model):
             raise UserError(_("You can not delete a program in an active state"))
 
     def write(self, vals):
-        # There is an issue when we change the program type, since we clear the rewards and create new ones.
-        # The orm actually does it in this order upon writing, triggering the constraint before creating the new rewards.
-        # However we can check that the result of reward_ids would actually be empty or not, and if not, skip the constraint.
+        # Changing the program type clears the rewards before recreating them, so the
+        # ORM checks the constraint in between; skip it if reward_ids ends up non-empty.
         if 'reward_ids' in vals and self._fields['reward_ids'].convert_to_cache(vals['reward_ids'], self):
             self = self.with_context(loyalty_skip_reward_check=True)
-            # We need add the program type to the context to avoid getting the default value
-            # ('discount') for reward type when calling the `default_get` method of
-            #`loyalty.reward`.
+            # Put the program type in the context, else `loyalty.reward.default_get`
+            # falls back on the default reward type ('discount').
             if 'program_type' in vals:
                 self = self.with_context(program_type=vals['program_type'])
                 res = super().write(vals)
@@ -521,9 +518,7 @@ class LoyaltyProgram(models.Model):
 
     @api.model
     def get_program_templates(self):
-        '''
-        Returns the templates to be used for promotional programs.
-        '''
+        """Return the program templates offered by the current menu."""
         ctx_menu_type = self.env.context.get('menu_type')
         if ctx_menu_type == 'gift_ewallet':
             return {
@@ -578,11 +573,10 @@ class LoyaltyProgram(models.Model):
 
     @api.model
     def create_from_template(self, template_id):
-        '''
-        Creates the program from the template id defined in `get_program_templates`.
+        """Create a program from the template id defined in `get_program_templates`.
 
-        Returns an action leading to that new record.
-        '''
+        :return: an action opening the new program, or False for an unknown template.
+        """
         template_values = self._get_template_values()
         if template_id not in template_values:
             return False
@@ -601,9 +595,7 @@ class LoyaltyProgram(models.Model):
 
     @api.model
     def _get_template_values(self):
-        '''
-        Returns the values to create a program using the template keys defined above.
-        '''
+        """Return the creation values of each `get_program_templates` key."""
         program_type_defaults = self._program_type_default_values()
         # For programs that require a product get the first sellable.
         product = self.env['product.product'].search([('sale_ok', '=', True)], limit=1)
@@ -669,10 +661,8 @@ class LoyaltyProgram(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """
-        trigger_product_ids will overwrite product ids defined in a loyalty rule in certain instances. Thus, it should
-        be explicitly removed from an incoming vals dict unless, of course, it was actually a visible field.
-        """
+        # `trigger_product_ids` would overwrite the products of the program's rule, so
+        # it is only kept for the program types whose view displays it.
         for vals in vals_list:
             if 'trigger_product_ids' in vals and vals.get('program_type') not in ['gift_card', 'ewallet']:
                 del vals['trigger_product_ids']
