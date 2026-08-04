@@ -2,9 +2,6 @@
 
 Each test pins a specific, empirically-confirmed finding so a future refactor
 cannot silently reintroduce it. Backend-only for fast, deterministic runs.
-Coverage spans the mail.mail strict-send contract, the inbound charset guard,
-discuss.channel pin ACL, activity-type reassignment, mail-gateway loop
-detection, default-recipient ban filtering and scheduled-message access.
 """
 
 import email
@@ -25,11 +22,9 @@ class TestMailStrictSendContract(MailCommon):
     def test_raise_exception_on_single_recipient_failure(self):
         """send(raise_exception=True) must raise when the only recipient fails.
 
-        The per-recipient isolation in _send isolates a delivery error and
-        keeps going for the remaining recipients; but with raise_exception a
-        mail whose every recipient failed (here, the single recipient) must
-        still surface the error rather than reporting a phantom success
-        (e.g. 2FA-code / invitation mails).
+        Per-recipient isolation lets _send carry on after one delivery error, but
+        a mail whose every recipient failed must not report a phantom success to
+        a strict caller (2FA codes, invitations).
         """
         partner = self.env["res.partner"].create(
             {"name": "P1", "email": "p1@ext.example.com"}
@@ -172,15 +167,14 @@ class TestActivityTypeUnlink(MailCommon):
 class TestLoopSenderDomain(MailCommon):
     def test_domain_is_anchored_and_escaped(self):
         """The base mail.thread._detect_loop_sender_domain fallback must build
-        anchored, wildcard-escaped matches, not an unanchored substring ilike
-        that over-matches (models with the blacklist mixin override it with an
-        exact email_normalized match, so test the fallback on the base).
+        anchored, wildcard-escaped matches, not an over-matching substring ilike.
 
-        Two alternatives are required, not one: message_new stores the *raw*
-        FROM, so the column holds either a bare address or the full
-        ``"Name" <addr>`` form. Matching only the bare form made the loop guard
-        match nothing at all on the standard gateway create path.
+        Both alternatives are required: message_new stores the *raw* FROM, so the
+        column holds either a bare address or the ``"Name" <addr>`` form, and
+        matching only the bare one makes the loop guard match nothing at all.
         """
+        # Tested on the base: models with the blacklist mixin override this with
+        # an exact email_normalized match.
         MailThread = self.env["mail.thread"]
         with patch.object(
             type(MailThread),
@@ -210,10 +204,10 @@ class TestLoopSenderDomain(MailCommon):
         )
 
     def test_domain_is_none_for_unparseable_sender(self):
-        """A FROM that cannot be normalized (``undisclosed-recipients:;``,
-        ``<>``, a bare display name) yields False from email_normalize. Building
-        a domain from it used to raise AttributeError out of message_process --
-        and fetchmail acked the message anyway, losing the mail permanently."""
+        """A FROM that cannot be normalized (``undisclosed-recipients:;``, ``<>``,
+        a bare display name) yields False from email_normalize; raising on it
+        escapes message_process, and fetchmail acks the message anyway -- the mail
+        is lost permanently."""
         MailThread = self.env["mail.thread"]
         with patch.object(
             type(MailThread),

@@ -88,7 +88,6 @@ class TestDiscussAttachmentController(MailControllerAttachmentCommon):
             ownership_token = attachment._get_ownership_token()
             url = f"/mail/attachment/pdf_first_page/{attachment.id}?access_token={ownership_token}"
             response = self.url_open(url)
-            # Depending on the environment, the response status_code may vary:
-            # - 200 if PyPDF2 and PyCryptodome are installed (PDF successfully parsed)
-            # - 415 if those libs are missing (PDF cannot be processed)
+            # Either outcome is acceptable: 200 when the page is extracted, 415
+            # when pypdf lacks a crypto backend or trips the invalid encoding.
             self.assertIn(response.status_code, [415, 200])

@@ -1,11 +1,10 @@
 """Regression tests for the chunked, access-filtered ``mail.message._search``.
 
-The override filters candidate rows by custom access rules in Python, so it
-scans candidates in growing SQL-limited chunks and stops once the requested page
-is filled — instead of materializing the whole thread. These tests pin that the
-paging is exactly equivalent to a full scan (including across chunk boundaries
-and past long runs of inaccessible rows) and that a small page no longer scans
-the whole thread.
+The override filters candidate rows by custom access rules in Python, scanning
+them in growing SQL-limited chunks until the requested page is filled instead of
+materializing the whole thread. These tests pin that the paging stays equivalent
+to a full scan -- across chunk boundaries and past long runs of inaccessible
+rows -- and that a small page does not scan the whole thread.
 """
 
 from unittest.mock import patch

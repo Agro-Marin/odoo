@@ -19,7 +19,7 @@ class TestDiscussSubChannels(HttpCase):
         sub_channel.channel_pin(pinned=True)
         self_member = sub_channel.channel_member_ids.filtered(lambda m: m.is_self)
         self.assertTrue(self_member.is_pinned)
-        # Last interrest of the member is older than 2 days, no activity on the
+        # Last interest of the member is older than 2 days, no activity on the
         # channel: should be unpinned.
         two_days_later_dt = datetime.now() + timedelta(days=3)
         with freeze_time(two_days_later_dt) as frozen_time:
@@ -32,14 +32,14 @@ class TestDiscussSubChannels(HttpCase):
             self.assertEqual(self_member.unpin_dt, unpin_dt)
         sub_channel.channel_pin(pinned=True)
         with freeze_time(two_days_later_dt) as frozen_time:
-            # Last interrest older than 2 days, activity on the channel: should be kept.
+            # Last interest older than 2 days, activity on the channel: should be kept.
             message = sub_channel.with_user(bob).message_post(
                 body="Hey!", message_type="comment"
             )
             self_member._mark_as_read(message.id)
             self.env["discuss.channel.member"]._gc_unpin_outdated_sub_channels()
             self.assertTrue(self_member.is_pinned)
-            # Unread messages: should be kept regardless of last interrest.
+            # Unread messages: should be kept regardless of last interest.
             message = sub_channel.with_user(bob).message_post(
                 body="Another message!", message_type="comment"
             )

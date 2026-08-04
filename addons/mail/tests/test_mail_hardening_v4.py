@@ -2,8 +2,6 @@
 
 Each test pins a specific bug found in the audit so a future refactor cannot
 silently reintroduce it. Backend-only (no browser) for fast, deterministic runs.
-The findings span models/mail_thread, mail_message, mail_mail, mail_notification,
-mail_message_schedule, discuss, fetchmail and tools/web_push.
 """
 
 from unittest.mock import patch
@@ -169,14 +167,11 @@ class TestBounceEmailNormalized(MailCommon):
 class TestDuplicateMailLock(TransactionCase):
     def test_advisory_lock_uses_64bit_hash(self):
         """The inbound-mail dedup advisory lock must use the 64-bit
-        ``hashtextextended`` (vs 32-bit ``hashtext``) so a hash collision does
-        not treat two distinct Message-Ids as duplicates and drop the second
-        inbound mail.
-
-        Assert against the model's own source rather than re-running the SQL
-        (which would only test PostgreSQL): reverting message_process to the
-        32-bit ``hashtext`` must fail this test.
+        ``hashtextextended``: with 32-bit ``hashtext`` a hash collision treats
+        two distinct Message-Ids as duplicates and drops the second inbound mail.
         """
+        # Asserted against the model's own source: re-running the SQL would only
+        # test PostgreSQL, not which hash the gateway asks for.
         import inspect
 
         source = inspect.getsource(self.env.registry["mail.thread"].message_process)
@@ -226,14 +221,9 @@ class TestRecordByMessageUnknownModel(MailCommon):
 class TestScheduleMisPair(MailCommon):
     def test_every_schedule_notifies_its_own_message(self):
         """Each ``mail.message.schedule`` must trigger a notification for its own
-        message. Two failure modes are pinned together:
-
-        * two schedules sharing one ``mail_message_id`` (the old positional
-          ``zip`` over the m2o-deduplicated ``mapped('mail_message_id.res_id')``
-          dropped the tail schedule, then unlinked it unsent);
-        * a group spanning several distinct messages (a naive
-          ``schedules.mail_message_id.res_id`` scalar read raises
-          ``Expected singleton``).
+        message: two schedules sharing one ``mail_message_id`` (else the tail one
+        is unlinked unsent) and a group spanning several distinct messages (else
+        the scalar read raises ``Expected singleton``).
         """
         record = self.env["res.partner"].create({"name": "Sched"})
         message_a = record.message_post(
@@ -256,9 +246,8 @@ class TestScheduleMisPair(MailCommon):
         def _fake_notify(self, notif_message, **kwargs):
             calls.append(notif_message.id)
 
-        # Patch on the record's registry class: the model's MRO resolves
-        # ``_notify_thread`` to module overrides (e.g. sms) ahead of the base
-        # mixin, so patching ``MailThread`` itself would not intercept the call.
+        # Patch on the record's registry class: module overrides (e.g. sms) win
+        # over the base mixin, so patching ``MailThread`` intercepts nothing.
         with patch.object(type(record), "_notify_thread", _fake_notify):
             schedules._send_notifications()
 
@@ -271,18 +260,17 @@ class TestScheduleMisPair(MailCommon):
 @tagged("post_install", "-at_install")
 class TestProcessEmailQueueExplicitIds(MailCommon):
     def test_explicit_ids_honored_beyond_search_cap(self):
-        """An explicit ``email_ids`` request must send those mails even when
-        more than ``batch_size * 10`` outgoing mails exist: the query is now
-        narrowed to the ids instead of searching all outgoing mail (capped)
-        and intersecting afterwards.
+        """An explicit ``email_ids`` request must send those mails even when the
+        outgoing queue is longer than the batch cap: the query is narrowed to the
+        ids instead of searching all outgoing mail and intersecting afterwards.
         """
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.mail.queue.batch.size", "1"
-        )  # cap becomes 1 * 10 = 10
+        )  # drops the batch cap well below the 12 queued mails
         mails = self.env["mail.mail"].create(
             [{"state": "outgoing", "subject": f"m{i}"} for i in range(12)]
         )
-        target = mails[0]  # lowest id -> sorts last under id desc -> beyond cap
+        target = mails[0]  # lowest id: what a capped newest-first search drops
 
         captured = []
 
@@ -299,8 +287,7 @@ class TestProcessEmailQueueExplicitIds(MailCommon):
 class TestNotificationGC(MailCommon):
     def test_gc_collects_email_only_notifications(self):
         """Email-only notifications (``res_partner_id`` NULL) must be garbage
-        collected. The old ``res_partner_id.partner_share = False`` clause
-        required a partner, so those rows grew unbounded forever.
+        collected: a GC domain requiring a partner lets those rows grow forever.
         """
         record = self.env["res.partner"].create({"name": "GC"})
         message = record.message_post(

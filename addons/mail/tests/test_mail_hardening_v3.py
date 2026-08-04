@@ -2,8 +2,8 @@
 
 Each test pins a specific bug found in the audit so a future refactor cannot
 silently reintroduce it. Kept backend-only (no browser) for fast, deterministic
-runs; the SSRF guard and link-preview head parser are exercised as pure units
-(literal IPs, so no DNS/network is touched).
+runs; the SSRF guard and link-preview head parser are exercised as pure units,
+with no outbound request.
 """
 
 import io
@@ -24,7 +24,7 @@ class TestLinkPreviewSSRF(TransactionCase):
 
         Any user who can post a message controls the URL, so without this guard
         the sudo/public fetch is an SSRF primitive (cloud metadata, localhost,
-        private ranges, non-http schemes). Literal IPs keep this DNS-free.
+        private ranges, non-http schemes).
         """
         for url in (
             "http://127.0.0.1/",
@@ -110,9 +110,8 @@ class TestVolumeGuestComodel(MailCommon):
     def test_guest_id_targets_mail_guest(self):
         """res.users.settings.volumes.guest_id must reference mail.guest.
 
-        It was declared against res.partner while used everywhere with a
-        mail.guest id -> FK violation (or a silent bind to an unrelated
-        partner sharing the id, leaking that partner's name).
+        Declared against res.partner it either violates the FK or silently binds
+        the partner sharing that id, leaking that partner's name.
         """
         field = self.env["res.users.settings.volumes"]._fields["guest_id"]
         self.assertEqual(field.comodel_name, "mail.guest")
@@ -134,9 +133,8 @@ class TestAliasCheckUnique(MailCommon):
     def test_check_unique_incoherent_lists_raises_valueerror(self):
         """The coherency guard must raise its intended ValueError, not crash.
 
-        alias_names may hold False and alias_domains is a plain list, so the old
-        ', '.join(alias_names) / alias_domains.mapped('name') both raised and
-        masked the real error.
+        alias_names may hold False and alias_domains is a plain list, so building
+        the error message must not itself raise and mask the real error.
         """
         domain = self.env["mail.alias.domain"].search([], limit=1)
         self.assertTrue(domain, "test setup expects at least one alias domain")
@@ -151,9 +149,8 @@ class TestBounceParsing(MailCommon):
         """A malformed multipart/report bounce with an empty payload must not
         crash message parsing.
 
-        email_part.get_payload()[0] raised IndexError (reproduced end-to-end at
-        mail_thread.py) and propagated out of message_process, losing the whole
-        inbound message (deleted on POP for POP servers).
+        An IndexError on the empty payload propagates out of message_process and
+        loses the whole inbound message (already deleted on POP servers).
         """
         import email
         import email.policy
