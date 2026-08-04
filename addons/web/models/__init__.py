@@ -24,3 +24,4 @@ from . import res_users_settings
 from . import res_users_settings_embedded_action
 
 from . import web_cwv_metric
+from . import web_js_error

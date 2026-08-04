@@ -27,10 +27,12 @@ This module provides the core of the Odoo Web Client.
         "views/ir_ui_view_views.xml",
         "views/res_config_settings_views.xml",
         "views/web_cwv_metric_views.xml",
+        "views/web_js_error_views.xml",
         "data/ir_attachment.xml",
         "data/report_theme.xml",
         "data/report_layout.xml",
         "data/web_cwv_metric_data.xml",
+        "data/web_js_error_data.xml",
         "views/web_menus.xml",
     ],
     "assets": {

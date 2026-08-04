@@ -1,6 +1,14 @@
 // @ts-check
 
-import { after, beforeEach, describe, expect, getFixture, test } from "@odoo/hoot";
+import {
+    after,
+    beforeEach,
+    describe,
+    expect,
+    getFixture,
+    mockSendBeacon,
+    test,
+} from "@odoo/hoot";
 import { Deferred, tick } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import {
@@ -567,4 +575,101 @@ test("service disposers run when the test env is torn down", async () => {
 
 test("the previous test's service disposer actually ran", async () => {
     expect(teardownProbe.destroyed).toBe(1);
+});
+
+describe("service-start beacon", () => {
+    /**
+     * ``reportJsError`` dedups on (message,line,col,stack-hash) in a
+     * module-level Set that lives for the whole page and has no seam to clear,
+     * so every test below uses a DISTINCT service name — that is what keeps the
+     * beacon keys apart. Reusing a name across tests would silently drop the
+     * second beacon and read as a logic failure.
+     *
+     * @returns {Blob[]}
+     */
+    function spyBeacon() {
+        const blobs = [];
+        mockSendBeacon((_url, blob) => {
+            blobs.push(blob);
+            return true;
+        });
+        return blobs;
+    }
+
+    /** @param {Blob} blob */
+    async function payloadOf(blob) {
+        return JSON.parse(await blob.text());
+    }
+
+    test("a service throwing synchronously is beaconed", async () => {
+        const errors = captureConsole("error");
+        const blobs = spyBeacon();
+        registerService("beacon-sync-fail", [], () => {
+            throw new TypeError("cannot read subscribe of undefined");
+        });
+
+        const { started } = startEnv();
+        await started;
+
+        expect(blobs).toHaveLength(1);
+        const payload = await payloadOf(blobs[0]);
+        expect(payload.kind).toBe("service_start");
+        expect(payload.message).toBe(
+            'service "beacon-sync-fail" failed to start (sync)',
+        );
+        // The whole point: the reason, not just the fact.
+        expect(payload.cause).toInclude("cannot read subscribe of undefined");
+        // console.error must survive — the beacon adds a channel, it does not
+        // replace the one developers already rely on.
+        expect(errors.length).toBe(1);
+    });
+
+    test("a service rejecting asynchronously is beaconed", async () => {
+        const blobs = spyBeacon();
+        registerService("beacon-async-fail", [], async () => {
+            throw new RangeError("nope");
+        });
+
+        const { started } = startEnv();
+        await started;
+
+        expect(blobs).toHaveLength(1);
+        const payload = await payloadOf(blobs[0]);
+        expect(payload.kind).toBe("service_start");
+        expect(payload.message).toBe(
+            'service "beacon-async-fail" failed to start (async)',
+        );
+        expect(payload.cause).toInclude("RangeError: nope");
+    });
+
+    test("dependents skipped by a failed service are NOT beaconed", async () => {
+        const blobs = spyBeacon();
+        registerService("beacon-base-fail", [], () => {
+            throw new Error("base down");
+        });
+        registerService("beacon-dependent", ["beacon-base-fail"], () => "never");
+
+        const { env, started } = startEnv();
+        await started;
+
+        // One base failure can strand dozens of dependents; they are all
+        // consequences of the same fact, so only the cause is reported.
+        expect(blobs).toHaveLength(1);
+        expect((await payloadOf(blobs[0])).message).toInclude("beacon-base-fail");
+        expect("beacon-dependent" in env.services).toBe(false);
+    });
+
+    test("a failed service still lets the app boot", async () => {
+        spyBeacon();
+        registerService("beacon-boot-fail", [], () => {
+            throw new Error("down");
+        });
+        registerService("beacon-boot-fine", [], () => "ok");
+
+        const { env, started } = startEnv();
+        // startServices must resolve, not reject: adding a report must not
+        // turn a swallowed failure into a fatal one.
+        await expect(started).resolves.toBe(undefined);
+        expect(env.services["beacon-boot-fine"]).toBe("ok");
+    });
 });

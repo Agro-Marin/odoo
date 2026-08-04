@@ -44,6 +44,7 @@ from . import test_web_redirect
 from . import test_web_benchmark
 from . import test_web_bundle_size
 from . import test_web_cwv_metric
+from . import test_web_js_error
 from . import test_web_perf_regression
 from . import test_web_read
 from . import test_web_read_group

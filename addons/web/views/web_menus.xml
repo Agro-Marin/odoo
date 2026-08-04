@@ -9,6 +9,19 @@
         sequence="0"
         groups="base.group_system" />
 
+    <!--
+        Beacon views belong under Technical, not as siblings of it: it groups
+        its entries into sections (bar the odd action leaf, e.g.
+        base_credential_manager's Rate Limit Buckets), and its base.group_no_one
+        restriction is what keeps raw browser telemetry behind dev mode. "Real
+        User Monitoring" is the fork's own term for these (see
+        controllers/observability.py) and covers performance metrics as well as
+        client errors, so a third beacon needs no naming argument.
+
+        Core Web Vitals above still hangs off base.menu_administration and has
+        the same misplacement — it predates this section, so moving it into here
+        is tracked on its own task (24516) rather than folded in.
+    -->
     <menuitem
         id="menu_web_cwv_metric"
         name="Core Web Vitals"
@@ -16,5 +29,18 @@
         action="action_web_cwv_metric"
         sequence="70"
         groups="base.group_system" />
+
+    <menuitem
+        id="menu_technical_rum"
+        name="Real User Monitoring"
+        parent="base.menu_custom"
+        sequence="27"
+        groups="base.group_system">
+        <menuitem
+            id="menu_web_js_error"
+            name="JS Errors"
+            action="action_web_js_error"
+            sequence="20" />
+    </menuitem>
 
 </odoo>

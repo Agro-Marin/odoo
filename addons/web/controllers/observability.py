@@ -75,8 +75,12 @@ _MAX_LATENCY_MS = 60_000
 _MAX_CLS = 5.0
 _MAX_URL_LEN = 500
 _MAX_UA_LEN = 500
-_MAX_ERROR_MSG_LEN = 1_000
+# Matches _MAX_ERROR_STACK_LEN. 1000 truncated real client messages: an
+# aggregate assertion dump or a stringified payload runs long, and the tail is
+# where the specifics are. The `cause` chain has its own cap below.
+_MAX_ERROR_MSG_LEN = 4_096
 _MAX_ERROR_STACK_LEN = 4_096
+_MAX_ERROR_CAUSE_LEN = 4_096
 _MAX_ERROR_FILENAME_LEN = 500
 
 
@@ -213,19 +217,25 @@ class Observability(Controller):
 
         Payload fields (all optional, all clamped to per-field length caps):
         ``phase`` (``"pre_boot"`` | ``"post_boot"``), ``kind`` (``"error"`` |
-        ``"unhandledrejection"`` | ``"module_rebind"``), ``message``, ``filename``,
-        ``line``,
-        ``col``, ``stack``, ``url``, ``user_agent``.
+        ``"unhandledrejection"`` | ``"module_rebind"`` | ``"service_start"`` |
+        ``"asset_load_error"``), ``message``, ``cause``, ``filename``,
+        ``line``, ``col``, ``stack``, ``url``, ``user_agent``, and
+        ``reloaded`` (``asset_load_error`` only — whether the loader's
+        self-heal reload fired or the once-a-minute guard suppressed it).
 
-        Logs each beacon as ``[js_error]`` at WARNING.  Persistence
-        (``web.js.error`` model + queryable dashboard) is intentionally
-        deferred to a follow-up phase; the log is enough for operators to
-        spot post-deploy regressions via the existing log pipeline.
+        Logs each beacon as ``[js_error]`` at WARNING and persists it to
+        ``web.js.error`` (list/form under Settings → Technical → Real User
+        Monitoring → JS Errors).
+        The log line stays because it needs no DB query to inspect and
+        survives even when the write fails; the model is what makes a
+        post-deploy regression greppable by kind, phase and cause instead of
+        by log scraping.
 
         ``csrf=False`` because ``navigator.sendBeacon`` cannot carry a CSRF
         token; the endpoint is purely write-only. The first-party client
-        rate-limits itself (one beacon per ``(message,line,col)`` per page
-        lifetime), but a hostile caller ignores that, so the server also
+        rate-limits itself (one beacon per
+        ``(message,line,col,hash(stack+cause))`` per page lifetime), but a
+        hostile caller ignores that, so the server also
         applies the same per-client fixed-window cap as ``cwv`` — each beacon
         emits a WARNING log line and must not be amplifiable without bound.
         The client key prefers ``session.uid`` (see ``cwv``) so users sharing an
@@ -256,7 +266,14 @@ class Observability(Controller):
 
         kind = (
             payload.get("kind")
-            if payload.get("kind") in ("error", "unhandledrejection", "module_rebind")
+            if payload.get("kind")
+            in (
+                "error",
+                "unhandledrejection",
+                "module_rebind",
+                "service_start",
+                "asset_load_error",
+            )
             else "error"
         )
         phase = (
@@ -268,8 +285,14 @@ class Observability(Controller):
         url = _str_field(payload.get("url"), _MAX_URL_LEN)
         user_agent = _str_field(payload.get("user_agent"), _MAX_UA_LEN)
         stack = _str_field(payload.get("stack"), _MAX_ERROR_STACK_LEN)
+        cause = _str_field(payload.get("cause"), _MAX_ERROR_CAUSE_LEN)
         line = _int_field(payload.get("line"))
         col = _int_field(payload.get("col"))
+        # Only asset_load_error carries this: it says whether the loader's
+        # one-per-minute self-heal reload actually fired or was suppressed by
+        # the guard, which is the difference between a page that recovered and
+        # one that stayed broken.
+        reloaded = bool(payload.get("reloaded")) if "reloaded" in payload else None
 
         uid = request.session.uid or False
         in_test = bool(modules.module.current_test) or config["test_enable"]
@@ -278,16 +301,42 @@ class Observability(Controller):
         )
         _logger.log(
             level,
-            "[js_error] uid=%s phase=%s kind=%s msg=%r at %r:%d:%d url=%r ua=%r stack=%r",
+            "[js_error] uid=%s phase=%s kind=%s reloaded=%s msg=%r cause=%r"
+            " at %r:%d:%d url=%r ua=%r stack=%r",
             uid or "anon",
             phase,
             kind,
+            reloaded,
             message,
+            cause,
             filename,
             line,
             col,
             url,
             user_agent,
             stack,
+        )
+        # sudo(): beacons arrive from anonymous frontend visitors too, and the
+        # model is deliberately unreachable to everyone but base.group_system.
+        # The per-client rate limit above is what bounds the insert volume.
+        request.env["web.js.error"].sudo()._record_beacon(
+            {
+                "user_id": uid,
+                "phase": phase,
+                "kind": kind,
+                "message": message,
+                "cause": cause,
+                "stack": stack,
+                "filename": filename,
+                "line": line,
+                "col": col,
+                "url": url,
+                "user_agent": user_agent,
+                "reloaded": (
+                    None
+                    if reloaded is None
+                    else ("reloaded" if reloaded else "suppressed")
+                ),
+            }
         )
         return Response("", status=204)

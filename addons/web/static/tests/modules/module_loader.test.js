@@ -1,6 +1,6 @@
 // @ts-check
 
-import { after, describe, expect, test } from "@odoo/hoot";
+import { after, describe, expect, mockSendBeacon, test } from "@odoo/hoot";
 
 /**
  * ``module_loader.js``'s pre-2026 AMD behaviors (``define()``, dependency-graph
@@ -219,5 +219,89 @@ describe("asset load self-heal", () => {
         });
         expect(loader.handleAssetLoadError(script)).toBe(true);
         expect(reloads).toHaveLength(1);
+    });
+});
+
+/**
+ * The beacon logic below is a byte-identical copy of
+ * ``@web/core/errors/error_beacon`` — the shim is pre-ESM and cannot import it.
+ * These tests reach it through ``odoo.loader._beacon``, the seam the shim
+ * exposes for exactly this reason (same rationale as ``_reloadPage``).
+ *
+ * ``seenErrors`` is module-level and lives for the whole page, so every dedup
+ * test clears it first; otherwise an earlier test's key silently suppresses a
+ * later one's beacon and the failure looks like a logic bug.
+ */
+describe("beacon (inlined copy)", () => {
+    test("hashCode: stable per input, and distinct across inputs", () => {
+        const { hashCode } = odoo.loader._beacon;
+        expect(hashCode("at foo (foo.js:1:1)")).toBe(hashCode("at foo (foo.js:1:1)"));
+        expect(hashCode("at foo (foo.js:1:1)")).not.toBe(hashCode("at bar (bar.js:2:2)"));
+        expect(hashCode("")).toHaveLength(8);
+    });
+
+    test("serializeCause: an Error chain is flattened in order", () => {
+        const { serializeCause } = odoo.loader._beacon;
+        const root = new RangeError("root");
+        const mid = new Error("mid", { cause: root });
+        expect(serializeCause(mid)).toBe(
+            "Caused by: Error: mid\nCaused by: RangeError: root",
+        );
+    });
+
+    test("serializeCause: a cycle terminates instead of spinning", () => {
+        const { serializeCause } = odoo.loader._beacon;
+        const a = new Error("a");
+        const b = new Error("b", { cause: a });
+        /** @type {any} */ (a).cause = b;
+        expect(serializeCause(b)).toInclude("[circular]");
+    });
+
+    test("serializeCause: depth is capped at 8 levels", () => {
+        const { serializeCause } = odoo.loader._beacon;
+        let deepest = new Error("level-0");
+        for (let i = 1; i < 20; i++) {
+            deepest = new Error(`level-${i}`, { cause: deepest });
+        }
+        expect(serializeCause(deepest).split("\n")).toHaveLength(8);
+    });
+
+    test("serializeCause: non-Error and absent causes degrade cleanly", () => {
+        const { serializeCause } = odoo.loader._beacon;
+        expect(serializeCause("plain")).toBe("Caused by: plain");
+        expect(serializeCause({ code: 500 })).toBe('Caused by: {"code":500}');
+        expect(serializeCause({ n: 1n })).toBe("Caused by: [unserializable]");
+        expect(serializeCause(undefined)).toBe("");
+        expect(serializeCause(null)).toBe("");
+    });
+
+    test("reportError: a different stack is a distinct beacon", async () => {
+        const { reportError, seenErrors } = odoo.loader._beacon;
+        seenErrors.clear();
+        const calls = [];
+        mockSendBeacon((url, blob) => {
+            calls.push(blob);
+            return true;
+        });
+        // The regression: OWL reports every lifecycle failure with one generic
+        // message at 0:0, so these two used to collapse into a single beacon.
+        const base = { message: "owl lifecycle", line: 0, col: 0 };
+        reportError({ ...base, stack: "at A (a.js:1:1)" });
+        reportError({ ...base, stack: "at B (b.js:2:2)" });
+        expect(calls).toHaveLength(2);
+    });
+
+    test("reportError: an exact repeat is still throttled", () => {
+        const { reportError, seenErrors } = odoo.loader._beacon;
+        seenErrors.clear();
+        const calls = [];
+        mockSendBeacon((url, blob) => {
+            calls.push(blob);
+            return true;
+        });
+        const info = { message: "same", line: 1, col: 1, stack: "at same (s.js:1:1)" };
+        reportError({ ...info });
+        reportError({ ...info });
+        expect(calls).toHaveLength(1);
     });
 });

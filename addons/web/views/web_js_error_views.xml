@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_web_js_error_search" model="ir.ui.view">
+        <field name="name">web.js.error.search</field>
+        <field name="model">web.js.error</field>
+        <field name="arch" type="xml">
+            <search string="JS Errors">
+                <field name="message" />
+                <field name="cause" />
+                <field name="url" />
+                <field name="user_id" />
+                <filter
+                    name="last_hour"
+                    string="Last Hour"
+                    domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S'))]" />
+                <filter
+                    name="last_day"
+                    string="Last 24h"
+                    domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S'))]" />
+                <filter
+                    name="last_week"
+                    string="Last 7 Days"
+                    domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S'))]" />
+                <separator />
+                <filter
+                    name="pre_boot"
+                    string="Pre-boot (loader down)"
+                    domain="[('phase', '=', 'pre_boot')]" />
+                <filter
+                    name="service_start"
+                    string="Service Failed to Start"
+                    domain="[('kind', '=', 'service_start')]" />
+                <filter
+                    name="asset_load_error"
+                    string="Bundle Asset Failed"
+                    domain="[('kind', '=', 'asset_load_error')]" />
+                <separator />
+                <filter
+                    name="has_cause"
+                    string="Has Cause Chain"
+                    domain="[('cause', '!=', False)]" />
+                <filter
+                    name="anonymous"
+                    string="Anonymous Traffic"
+                    domain="[('user_id', '=', False)]" />
+                <group>
+                    <filter
+                        name="group_by_kind"
+                        string="Kind"
+                        domain="[]"
+                        context="{'group_by': 'kind'}" />
+                    <filter
+                        name="group_by_phase"
+                        string="Boot Phase"
+                        domain="[]"
+                        context="{'group_by': 'phase'}" />
+                    <filter
+                        name="group_by_url"
+                        string="URL"
+                        domain="[]"
+                        context="{'group_by': 'url'}" />
+                    <filter
+                        name="group_by_user"
+                        string="User"
+                        domain="[]"
+                        context="{'group_by': 'user_id'}" />
+                    <filter
+                        name="group_by_day"
+                        string="Day"
+                        domain="[]"
+                        context="{'group_by': 'recorded_at:day'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_web_js_error_list" model="ir.ui.view">
+        <field name="name">web.js.error.list</field>
+        <field name="model">web.js.error</field>
+        <field name="arch" type="xml">
+            <list string="JS Errors" create="false" delete="false" edit="false">
+                <field name="recorded_at" />
+                <field
+                    name="kind"
+                    decoration-danger="kind in ['service_start', 'asset_load_error']" />
+                <field
+                    name="phase"
+                    decoration-warning="phase == 'pre_boot'"
+                    optional="show" />
+                <field name="message" />
+                <field name="cause" optional="show" />
+                <field name="url" optional="hide" />
+                <field name="user_id" optional="show" />
+                <field name="filename" optional="hide" />
+                <field name="reloaded" optional="hide" />
+                <field name="user_agent" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_web_js_error_form" model="ir.ui.view">
+        <field name="name">web.js.error.form</field>
+        <field name="model">web.js.error</field>
+        <field name="arch" type="xml">
+            <form string="JS Error" create="false" edit="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="recorded_at" />
+                            <field name="kind" />
+                            <field name="phase" />
+                            <field name="reloaded" />
+                        </group>
+                        <group>
+                            <field name="user_id" />
+                            <field name="url" />
+                            <field name="filename" />
+                            <field name="line" />
+                            <field name="col" />
+                        </group>
+                    </group>
+                    <group string="Message">
+                        <field name="message" nolabel="1" />
+                    </group>
+                    <group string="Cause Chain">
+                        <field name="cause" nolabel="1" />
+                    </group>
+                    <group string="Stack">
+                        <field name="stack" nolabel="1" />
+                    </group>
+                    <group string="Browser">
+                        <field name="user_agent" nolabel="1" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_web_js_error" model="ir.actions.act_window">
+        <field name="name">JS Errors</field>
+        <field name="res_model">web.js.error</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_web_js_error_search" />
+        <field name="context">{"search_default_last_day": 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No client-side JS errors recorded.
+            </p>
+            <p> Beacons arrive from the bootstrap loader, the ESM error beacon, and services
+                that fail to start. An empty view is good news; if you expected entries, check
+                the server log for <code>[js_error]</code> lines. </p>
+        </field>
+    </record>
+
+</odoo>

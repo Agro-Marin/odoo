@@ -1,0 +1,189 @@
+"""Client-side JS error records — the persistence half of the error beacon.
+
+Each row is one beacon emitted by ``module_loader.js`` (bootstrap shim),
+``@web/core/errors/error_beacon`` (ESM callers), or ``@web/env`` (services that
+never started), and persisted via ``controllers/observability.py``.  Like
+``web.cwv.metric`` the data is high-volume, write-only-from-controller and
+read-only-from-UI; the controller writes via ``sudo()`` because beacons arrive
+from anonymous frontend visitors as well as logged-in users.
+
+Retention is a daily cron (``_gc_old_errors``) driven by the
+``web.js_error.retention_days`` config parameter (default 30).  This matters
+more here than for CWV: the endpoint is ``auth="public"``, so a hostile caller
+bounded only by the per-client rate limit (120/60s) could add ~172k rows a day.
+The rate limit caps the burst, the cron caps the accumulation.
+"""
+
+import logging
+
+from odoo import api, fields, models
+
+_logger = logging.getLogger(__name__)
+
+
+class WebJsError(models.Model):
+    _name = "web.js.error"
+    _description = "Client-side JS Error"
+    _order = "recorded_at desc"
+    _log_access = False
+
+    recorded_at = fields.Datetime(
+        string="Recorded At",
+        required=True,
+        default=fields.Datetime.now,
+        index=True,
+        readonly=True,
+    )
+    user_id = fields.Many2one(
+        "res.users",
+        string="User",
+        index="btree_not_null",
+        ondelete="set null",
+        readonly=True,
+        help="User whose session emitted the beacon; null for anonymous "
+        "frontend traffic.",
+    )
+    phase = fields.Selection(
+        [
+            ("pre_boot", "Pre-boot"),
+            ("post_boot", "Post-boot"),
+            ("unknown", "Unknown"),
+        ],
+        string="Boot Phase",
+        readonly=True,
+        help="Whether the module system had finished booting. A pre_boot "
+        "failure means the loader itself did not come up, so nothing else in "
+        "the client is trustworthy at that point.",
+    )
+    kind = fields.Selection(
+        [
+            ("error", "Uncaught Error"),
+            ("unhandledrejection", "Unhandled Rejection"),
+            ("service_start", "Service Failed to Start"),
+            ("asset_load_error", "Bundle Asset Failed to Load"),
+            ("module_rebind", "Module Rebind"),
+        ],
+        string="Kind",
+        readonly=True,
+        index="btree",
+    )
+    message = fields.Char(
+        string="Message",
+        required=True,
+        size=4096,
+        readonly=True,
+        help="Capped at 4096 chars at the DB level so a writer bypassing the "
+        "controller cannot bloat the row.",
+    )
+    cause = fields.Text(
+        string="Cause Chain",
+        readonly=True,
+        help="Flattened ``error.cause`` chain, one 'Caused by:' segment per "
+        "level. This is the field an OWL lifecycle error points at: its own "
+        "message says to read `cause`, and without it the report names a "
+        "failure without saying why it happened.",
+    )
+    stack = fields.Text(string="Stack", readonly=True)
+    filename = fields.Char(string="File", size=500, readonly=True)
+    line = fields.Integer(string="Line", readonly=True)
+    col = fields.Integer(string="Column", readonly=True)
+    # No index: the search view reaches url through a `<field>` (ilike, which a
+    # btree cannot serve) and group_by, so an index would only add a tuple write
+    # per INSERT on a high-volume write-only table.
+    url = fields.Char(string="URL", size=500, readonly=True)
+    user_agent = fields.Char(string="User Agent", size=500, readonly=True)
+    reloaded = fields.Selection(
+        [("reloaded", "Reloaded"), ("suppressed", "Suppressed")],
+        string="Self-heal",
+        readonly=True,
+        help="Only set for asset_load_error: whether the loader's one-per-minute "
+        "self-heal reload fired, or the guard suppressed it. Null everywhere "
+        "else — an absent value must not read as 'suppressed', which would "
+        "claim a reload was withheld when none was ever attempted.",
+    )
+
+    # No CHECK for `message`: Char(size=4096) already emits varchar(4096), so
+    # the DB rejects an over-long value before a constraint could fire. `cause`
+    # and `stack` are Text, which carries no length of its own — hence theirs.
+    _check_cause_len = models.Constraint(
+        "CHECK(cause IS NULL OR char_length(cause) <= 4096)",
+        "A JS error cause chain cannot exceed 4096 characters.",
+    )
+    _check_stack_len = models.Constraint(
+        "CHECK(stack IS NULL OR char_length(stack) <= 4096)",
+        "A JS error stack cannot exceed 4096 characters.",
+    )
+
+    @api.model
+    def _record_beacon(self, values):
+        """Insert one beacon.
+
+        Raw INSERT rather than ``create``: the controller is on the hot path of
+        a page that is already failing, and the ORM's create machinery buys
+        nothing here — every field is a plain scalar the controller has already
+        validated and clamped.  Unlike ``web.cwv.metric`` there is no upsert
+        key: two identical errors from two sessions are two facts.
+
+        :param dict values: pre-clamped payload from the ``js_error`` endpoint
+        """
+        self.env.cr.execute(
+            f"""
+            INSERT INTO {self._table}
+                (recorded_at, user_id, phase, kind, message, cause, stack,
+                 filename, line, col, url, user_agent, reloaded)
+            VALUES
+                ((now() AT TIME ZONE 'UTC'), %(user_id)s, %(phase)s, %(kind)s,
+                 %(message)s, %(cause)s, %(stack)s, %(filename)s, %(line)s,
+                 %(col)s, %(url)s, %(user_agent)s, %(reloaded)s)
+            """,
+            {
+                "user_id": values.get("user_id") or None,
+                "phase": values.get("phase") or None,
+                "kind": values.get("kind") or None,
+                "message": values["message"],
+                "cause": values.get("cause") or None,
+                "stack": values.get("stack") or None,
+                "filename": values.get("filename") or None,
+                "line": values.get("line") or 0,
+                "col": values.get("col") or 0,
+                "url": values.get("url") or None,
+                "user_agent": values.get("user_agent") or None,
+                "reloaded": values.get("reloaded") or None,
+            },
+        )
+
+    @api.model
+    def _gc_old_errors(self):
+        """Daily cron — delete JS error records older than the retention window.
+
+        Reads ``web.js_error.retention_days`` (default ``30``).  A value of
+        ``0`` disables retention, for environments shipping these to an
+        external sink and using the model as a transit buffer only.
+        """
+        days_str = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("web.js_error.retention_days", "30")
+        )
+        try:
+            days = int(days_str)
+        except TypeError, ValueError:
+            _logger.warning(
+                "web.js_error.retention_days=%r is not an integer; skipping GC",
+                days_str,
+            )
+            return
+        if days <= 0:
+            return
+        self.env.cr.execute(
+            "DELETE FROM web_js_error"
+            " WHERE recorded_at < (now() AT TIME ZONE 'UTC') - (%s * interval '1 day')",
+            (days,),
+        )
+        deleted = self.env.cr.rowcount
+        if deleted:
+            _logger.info(
+                "[js-error-gc] deleted %d rows older than %d day(s)",
+                deleted,
+                days,
+            )

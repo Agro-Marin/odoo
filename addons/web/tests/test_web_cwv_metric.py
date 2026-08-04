@@ -155,33 +155,6 @@ class TestWebCwvBeacon(HttpCase):
         )
         self.assertEqual(Metric.search_count([]) - before, 3)
 
-    def test_js_error_beacon_is_rate_limited(self):
-        from odoo.addons.web.controllers import observability
-
-        observability._rate_state.clear()
-        self.addCleanup(observability._rate_state.clear)
-
-        with (
-            patch.object(observability, "_RATE_LIMIT_MAX", 3),
-            mute_logger("odoo.addons.web.controllers.observability"),
-        ):
-            statuses = [
-                self.url_open(
-                    "/web/observability/js_error",
-                    data=json.dumps({"message": f"boom {i}", "kind": "error"}),
-                    headers={"Content-Type": "application/json"},
-                ).status_code
-                for i in range(6)
-            ]
-
-        self.assertEqual(
-            statuses[:3], [204, 204, 204], "beacons within the cap must be accepted"
-        )
-        self.assertTrue(
-            all(s == 429 for s in statuses[3:]),
-            f"js_error beacons over the cap must be rejected with 429, got {statuses}",
-        )
-
     def test_cwv_and_js_error_have_separate_budgets(self):
         from odoo.addons.web.controllers import observability as obs
 

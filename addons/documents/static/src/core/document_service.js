@@ -770,6 +770,12 @@ export class DocumentService {
 export const documentService = {
     dependencies: [
         "action",
+        // Nothing in this module reads busService: its only consumer is
+        // enterprise `ai_documents`, which patches DocumentService.prototype
+        // .start and calls this.busService.subscribe(). A JS audit read the
+        // dependency as dead and pruned it, which broke that patch and took
+        // the whole service down with it — the consumer lives in another repo,
+        // so grep this module alone and it looks unused.
         "bus_service",
         "dialog",
         "file_upload",

@@ -5,6 +5,7 @@
 
 import { App, EventBus } from "@odoo/owl";
 import { isMacOS } from "@web/core/browser/feature_detection";
+import { reportJsError } from "@web/core/errors/error_beacon";
 import { AppEvent } from "@web/core/events";
 import { appTranslateFn } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -188,6 +189,41 @@ async function _startServices(env, toStart) {
     }
 
     let _wave = 0;
+    /**
+     * Beacon a service that never started.
+     *
+     * Both call sites below deliberately swallow the failure — the app boots
+     * without the service and its dependents are skipped — so nothing else
+     * reaches the window's error hooks and the server never hears about it.
+     * That silence is what this repairs: a whole class of client failure was
+     * only ever visible to someone with the console open.
+     *
+     * The failing ``error`` is passed as the ``cause`` rather than
+     * ``error.cause``: the message already says which service died, and what a
+     * reader needs next is why — ``TypeError: Cannot read properties of
+     * undefined (reading 'subscribe')`` — plus that error's own chain. Passing
+     * ``error.cause`` would skip exactly that line, which is usually the
+     * whole diagnosis.
+     *
+     * Reporting only the failing service, never the dependents that get
+     * skipped afterwards: one base service can strand dozens, and they are all
+     * consequences of the same fact.
+     *
+     * @param {string} name service that failed
+     * @param {"sync" | "async"} mode which arm of the start caught it
+     * @param {unknown} error whatever ``start()`` threw or rejected with
+     */
+    function _reportServiceFailure(name, mode, error) {
+        reportJsError({
+            kind: "service_start",
+            message: `service "${name}" failed to start (${mode})`,
+            stack: /** @type {any} */ (error)?.stack
+                ? String(/** @type {any} */ (error).stack)
+                : "",
+            cause: error,
+        });
+    }
+
     async function start() {
         for (const name of toStart.keys()) {
             _trackService(name);
@@ -216,6 +252,7 @@ async function _startServices(env, toStart) {
                 value = service.start(env, dependencies);
             } catch (error) {
                 console.error(`[env] service "${name}" failed to start (sync):`, error);
+                _reportServiceFailure(name, "sync", error);
                 continue;
             }
             if ("async" in service) {
@@ -233,6 +270,7 @@ async function _startServices(env, toStart) {
                             `[env] service "${name}" failed to start (async):`,
                             error,
                         );
+                        _reportServiceFailure(name, "async", error);
                     },
                 ),
             );

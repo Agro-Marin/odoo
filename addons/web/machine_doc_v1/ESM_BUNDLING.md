@@ -394,7 +394,9 @@ resolver surfaces the error directly in DevTools.
 The shim additionally inlines a **pre-bundle error reporter**: it
 installs `error` / `unhandledrejection` listeners before any module
 evaluates and `sendBeacon`s to `/web/observability/js_error`
-(throttled to one beacon per (message, line, col) per page).  This
+(throttled to one beacon per (message, line, col, hash(stack+cause))
+per page — the stack and cause discriminate, since OWL reports every
+lifecycle failure with one generic message at 0:0).  This
 covers the window where the bundle itself fails to parse/evaluate and
 `@web/services/error_service` is unreachable; it is the pre-ESM
 mirror of `@web/core/errors/error_beacon` — keep payload fields and

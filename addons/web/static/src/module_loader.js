@@ -49,6 +49,7 @@
                         kind: "module_rebind",
                         message:
                             "singleton split (module rebound): " + rebound.join(","),
+                        cause: "",
                         filename: "",
                         line: 0,
                         col: 0,
@@ -101,11 +102,111 @@
 
     o.loader = new OdooModuleLoader();
 
+    const MAX_CAUSE = 4096;
+    const MAX_CAUSE_DEPTH = 8;
+
+    /**
+     * Java ``String.hashCode`` over one string, as 8 hex chars.
+     *
+     * Byte-identical copy of the helper in
+     * ``@web/core/errors/error_beacon`` — this shim is the pre-ESM bootstrap
+     * and cannot ``import``.  Keep both in step; that module is canonical.
+     *
+     * @param {string} str
+     * @returns {string}
+     */
+    function hashCode(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = (hash << 5) - hash + str.charCodeAt(i);
+            hash |= 0;
+        }
+        return (hash + 16 ** 8).toString(16).slice(-8);
+    }
+
+    /**
+     * ``JSON.stringify`` replacer that keeps the root's own scalars and elides
+     * any nested object, bounding serialization of an unknown cause by its own
+     * key count instead of the graph it points into.
+     *
+     * Byte-identical copy of the helper in
+     * ``@web/core/errors/error_beacon``; keep both in step.
+     *
+     * @param {string} key
+     * @param {unknown} value
+     * @returns {unknown}
+     */
+    function elideNested(key, value) {
+        if (key === "") {
+            return value;
+        }
+        return value && typeof value === "object" ? "[object]" : value;
+    }
+
+    /**
+     * Flatten an error's ``cause`` chain into one string.
+     *
+     * Byte-identical copy of the helper in
+     * ``@web/core/errors/error_beacon``; see that module for the rationale.
+     * Keep both in step.
+     *
+     * @param {unknown} cause first ``.cause`` of the reported error
+     * @returns {string} ``"Caused by: ..."`` segments, or ``""`` when there is none
+     */
+    function serializeCause(cause) {
+        const parts = [];
+        const visited = new Set();
+        let current = cause;
+        let depth = 0;
+        while (current !== undefined && current !== null && depth < MAX_CAUSE_DEPTH) {
+            if (typeof current === "object") {
+                // A cycle would otherwise repeat two frames up to the depth cap.
+                if (visited.has(current)) {
+                    parts.push("Caused by: [circular]");
+                    break;
+                }
+                visited.add(current);
+            }
+            let text;
+            try {
+                if (current instanceof Error) {
+                    text = `${current.name}: ${current.message}`;
+                } else if (typeof current === "object") {
+                    // Elided, not walked: an OWL node would stringify whole.
+                    text = JSON.stringify(current, elideNested);
+                } else {
+                    text = String(current);
+                }
+            } catch {
+                // Best-effort: record that a level existed and move on.
+                text = "[unserializable]";
+            }
+            parts.push(`Caused by: ${text}`);
+            current = /** @type {{ cause?: unknown }} */ (current)?.cause;
+            depth++;
+        }
+        return parts.join("\n").slice(0, MAX_CAUSE);
+    }
+
+    // Bounded like the ESM copy's `seen`: the key embeds the message, and this
+    // shim runs on every page load before anything else, so an unbounded set is
+    // a leak. Insertion order makes dropping the oldest the right eviction.
+    const MAX_SEEN_KEYS = 512;
+
     const seenErrors = new Set();
     function reportError(payload) {
-        const key = `${payload.message}|${payload.line}|${payload.col}`;
+        // Stack AND cause discriminate. OWL builds its generic lifecycle
+        // wrapper inside handleError (owl.es.js:1661), so the wrapper's stack is
+        // the scheduler frames — identical for two component crashes flushed in
+        // the same tick. The component frames are on the cause.
+        const key = `${payload.message}|${payload.line}|${payload.col}|${hashCode(
+            (payload.stack || "") + (payload.cause || ""),
+        )}`;
         if (seenErrors.has(key)) {
             return;
+        }
+        if (seenErrors.size >= MAX_SEEN_KEYS) {
+            seenErrors.delete(seenErrors.values().next().value);
         }
         seenErrors.add(key);
         try {
@@ -115,11 +216,20 @@
             globalThis.navigator?.sendBeacon?.("/web/observability/js_error", blob);
         } catch {}
     }
+
+    /**
+     * Beacon seam — overridden/inspected in tests.  Same reason as
+     * ``_reloadPage`` above: these live in the IIFE closure, so a test has no
+     * other way to reach them, and the pre-ESM shim cannot export.
+     */
+    o.loader._beacon = { reportError, seenErrors, serializeCause, hashCode };
+
     globalThis.addEventListener?.("error", (ev) => {
         reportError({
             phase: globalThis.odoo?.isReady ? "post_boot" : "pre_boot",
             kind: "error",
             message: String(ev.message || ev.error?.message || "(no message)"),
+            cause: serializeCause(ev.error?.cause),
             filename: String(ev.filename || ""),
             line: ev.lineno | 0,
             col: ev.colno | 0,
@@ -151,6 +261,7 @@
                     ? "bundle asset failed to load; reloading once"
                     : "bundle asset failed to load; reload suppressed",
                 reloaded,
+                cause: "",
                 filename: String(src),
                 line: 0,
                 col: 0,
@@ -173,6 +284,13 @@
             phase: globalThis.odoo?.isReady ? "post_boot" : "pre_boot",
             kind: "unhandledrejection",
             message: String(message),
+            // The case this exists for: OWL surfaces a lifecycle failure as a
+            // rejection whose message only says to read `cause`.
+            cause: serializeCause(
+                reason instanceof Error
+                    ? reason.cause
+                    : /** @type {{ cause?: unknown }} */ (reason)?.cause,
+            ),
             filename: "",
             line: 0,
             col: 0,
