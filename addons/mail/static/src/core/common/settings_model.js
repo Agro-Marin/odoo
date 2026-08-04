@@ -286,7 +286,7 @@ export class Settings extends Record {
         this._saveSettings();
     }
     /**
-     * @param {event} ev
+     * @param {KeyboardEvent} ev
      */
     async setPushToTalkKey(ev) {
         const nonElligibleKeys = new Set(["Shift", "Control", "Alt", "Meta"]);
@@ -352,8 +352,7 @@ export class Settings extends Record {
     }
 
     /**
-     * @param {event} ev
-     * @param {Object} param1
+     * @param {KeyboardEvent} ev
      */
     isPushToTalkKey(ev) {
         if (!this.use_push_to_talk || !this.push_to_talk_key) {
@@ -458,6 +457,7 @@ export class Settings extends Record {
      * @param {Object} param0
      * @param {String} param0.key
      * @param {number} [param0.partnerId]
+     * @param {number} [param0.guestId]
      * @param {number} param0.volume
      */
     async _onSaveVolumeSettingTimeout({ key, partnerId, guestId, volume }) {

@@ -10,7 +10,7 @@ import { fuzzyLookup } from "@web/core/utils/search";
  * Build a comparator ordering suggestions by: entries whose cleaned key starts
  * with the search term first, then alphabetically by that key, then by
  * ascending id. Shared by the canned-response, role and channel suggestion
- * sorts (which otherwise each re-implemented this identical tail).
+ * sorts.
  *
  * @param {(item: any) => string} cleanedKeyFn returns the already-cleaned key
  * @param {string} cleanedSearchTerm
@@ -53,7 +53,7 @@ export class SuggestionService {
      * - c: (optional) if set, this is the minimum amount of extra char after delimiter to allow using this delimiter
      *
      * @param {import('models').Thread} thread
-     * @returns {Array<[string, number, number]>}
+     * @returns {Array<[string, number?, number?]>}
      */
     getSupportedDelimiters(thread, env) {
         return [["@"], ["#"], ["::"], [":", undefined, 2]];
@@ -82,7 +82,7 @@ export class SuggestionService {
     }
 
     /**
-     * Make an ORM call with a cancellable signal. Usefull to abort fetch
+     * Make an ORM call with a cancellable signal. Useful to abort fetch
      * requests from outside of the suggestion service.
      *
      * @param {String} model
@@ -178,7 +178,7 @@ export class SuggestionService {
      * Returns suggestions that match the given search term from specified type.
      *
      * @param {Object} [param0={}]
-     * @param {String} [param0.delimiter] can be one one of the following: ["@", "#"]
+     * @param {String} [param0.delimiter] one of ["@", "#", "::", ":"]
      * @param {String} [param0.term]
      * @param {Object} [options={}]
      * @param {import("models").Thread} [options.thread] prioritize and/or restrict
@@ -273,24 +273,19 @@ export class SuggestionService {
     }
 
     /**
-     * @param {[import("models").Persona | import("@mail/core/common/store_service").SpecialMention]} [partners]
+     * @param {(import("models").ResPartner|import("@mail/core/common/store_service").SpecialMention)[]} [partners]
      * @param {String} [searchTerm]
      * @param {import("models").Thread} thread
-     * @returns {[import("models").Persona]}
+     * @returns {(import("models").ResPartner|import("@mail/core/common/store_service").SpecialMention)[]}
      */
     sortPartnerSuggestions(partners, searchTerm = "", thread = undefined) {
         const cleanedSearchTerm = cleanTerm(searchTerm);
         const compareFunctions = partnerCompareRegistry.getAll();
         const context = this.sortPartnerSuggestionsContext(thread);
-        // Special mentions (@everyone/@here) are not real partners and have no
-        // meaningful pairwise order against them. Keep them out of the
-        // comparator entirely: mixing them in made it non-transitive -- it
-        // short-circuited to 0 whenever either operand was special while still
-        // ordering two regular partners -- which under V8's sort pinned the
-        // specials at their input position (last). The hard 8-item cap in the
-        // suggestion hook then silently dropped @everyone/@here whenever >=8
-        // partners matched the same term. Sort only the regular partners and
-        // surface the specials first so they always survive truncation.
+        // Special mentions (@everyone/@here) are not real partners: mixing
+        // them into the comparator makes it non-transitive. Sort only the
+        // regular partners and surface the specials first, so they survive the
+        // suggestion hook's 8-item truncation.
         const specials = [];
         const regular = [];
         for (const partner of partners) {

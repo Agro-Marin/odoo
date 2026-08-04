@@ -5,9 +5,6 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 const PREVIEW_MSG_MAX_SIZE = 350; // optimal for native English speakers
 
-/**
- * @typedef {Messaging} Messaging
- */
 export class OutOfFocusService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -81,8 +78,9 @@ export class OutOfFocusService {
      * @param {Object} param0
      * @param {string} [param0.message] The body of the
      * notification.
+     * @param {boolean} [param0.sound=true] Whether to also play a sound.
      * @param {string} [param0.title] The title of the notification.
-     * @param {string} [param0.type] The type to be passed to the no
+     * @param {string} [param0.type] The type to be passed to the notification
      * service when native notifications can't be sent.
      * @param {string} [param0.icon] The icon to be displayed in the
      * notification.

@@ -10,10 +10,11 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
 /**
  * @typedef SuggestedRecipient
+ * @property {string} display_name
  * @property {string} email
- * @property {import("models").Persona|false} persona
- * @property {string} lang
- * @property {string} reason
+ * @property {string} name
+ * @property {string} [lang]
+ * @property {number} [partner_id]
  */
 
 export class Thread extends Record {
@@ -380,7 +381,7 @@ export class Thread extends Record {
     });
     /** @type {"not_fetched"|"pending"|"fetched"} */
     fetchMembersState = "not_fetched";
-    /** @type {integer|null} */
+    /** @type {import("models").Message|undefined} */
     highlightMessage = fields.One("mail.message");
     /** @type {String|undefined} */
     access_token;
@@ -444,7 +445,7 @@ export class Thread extends Record {
      * Return the name of the given persona to display in the context of this
      * thread.
      *
-     * @param {import("models").Persona} persona
+     * @param {import("models").ResPartner|import("models").MailGuest} persona
      * @returns {string}
      */
     getPersonaName(persona) {
@@ -546,11 +547,8 @@ export class Thread extends Record {
 
     newestPersistentOfAllMessage = fields.One("mail.message", {
         compute() {
-            // O(n) max instead of the previous filter + full sort of
-            // allMessages: this recomputes on EVERY message insert of the
-            // thread and feeds the menuThreads ordering, so every message
-            // arriving anywhere re-sorted every loaded message of its thread
-            // just to read element [0]
+            // Single O(n) pass, no sort: this recomputes on EVERY message
+            // insert of the thread and feeds the menuThreads ordering.
             let newest;
             for (const message of this.allMessages) {
                 if (
@@ -618,7 +616,7 @@ export class Thread extends Record {
         return this.isMailbox || Boolean(this.id);
     }
 
-    /** @param {{after: Number, before: Number}} */
+    /** @param {{after?: number, around?: number, before?: number}} [param0] */
     async fetchMessages({ after, around, before } = {}) {
         this.status = "loading";
         if (!this.canFetchMessages) {
@@ -649,7 +647,7 @@ export class Thread extends Record {
         return msgs;
     }
 
-    /** @param {{after: Number, before: Number}} */
+    /** @param {{after?: number, around?: number, before?: number}} [param0] */
     async fetchMessagesData({ after, around, before } = {}) {
         // ordered messages received: newest to oldest
         return await rpc(this.getFetchRoute(), {
@@ -729,7 +727,7 @@ export class Thread extends Record {
      * Get the effective persona performing actions on this thread.
      * Priority order: logged-in user, portal partner (token-authenticated), guest.
      *
-     * @returns {import("models").Persona}
+     * @returns {import("models").ResPartner|import("models").MailGuest}
      */
     get effectiveSelf() {
         return this.store.self_partner || this.store.self_guest;
@@ -843,7 +841,7 @@ export class Thread extends Record {
      * is executed afterwards (intermediate queued jumps are superseded by the
      * last one) instead of being silently dropped.
      *
-     * @param {import("models").Message} [messageId] if not provided, load around newest message
+     * @param {number} [messageId] if not provided, load around newest message
      */
     async loadAround(messageId) {
         if (this.isLoaded && this.messages.some(({ id }) => id === messageId)) {
@@ -1253,7 +1251,7 @@ export class Thread extends Record {
      * Whether this thread is the 1:1 chat with the given persona. Neutral
      * default: document threads are not chats.
      *
-     * @param {import("models").Persona} persona
+     * @param {import("models").ResPartner|import("models").MailGuest} persona
      * @returns {boolean}
      */
     isChatWith(persona) {

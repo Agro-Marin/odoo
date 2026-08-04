@@ -4,11 +4,9 @@ import { createDocumentFragmentFromContent, isMarkup } from "@web/core/utils/dom
 import { renderToElement } from "@web/core/utils/render";
 
 /**
- * Message-posting helpers extracted from the store service: mention detection
- * from composed text and assembly of the `/mail/message/post` parameters.
- * Kept as free functions taking the store explicitly so they can be unit
- * tested without standing up the whole store, and so the store service is not
- * the home of every message concern.
+ * Message-posting helpers: mention detection from composed text and assembly
+ * of the `/mail/message/post` parameters. Free functions taking the store
+ * explicitly, so they are unit testable without standing up the whole store.
  */
 
 /**

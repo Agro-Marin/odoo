@@ -182,7 +182,7 @@ export class Store extends BaseStore {
                 ) === "true"
             );
         },
-        /** @this {import("models").DiscussApp} */
+        /** @this {import("models").Store} */
         onUpdate() {
             if (this.isNotificationPermissionDismissed) {
                 browser.localStorage.setItem(
@@ -224,12 +224,9 @@ export class Store extends BaseStore {
             // `discuss` and `starred` only exist once the web/public_web
             // patches are applied: guard so portal/livechat bundles that load
             // core/common alone don't crash.
-            /** @type {import("models").Thread[]} */
             const searchTerm = cleanTerm(this.discuss?.searchTerm ?? "");
-            let threads = this.menuThreadCandidates.filter(
-                // Skip the per-thread cleanTerm(displayName) normalization when
-                // no search is active (the common case): includes("") is always
-                // true, so it only ever cost CPU on every menuThreads recompute.
+            /** @type {import("models").Thread[]} */
+            let threads = Object.values(this.Thread.records).filter(
                 (thread) =>
                     !searchTerm || cleanTerm(thread.displayName).includes(searchTerm),
             );
@@ -372,38 +369,21 @@ export class Store extends BaseStore {
      * Import data received from init_messaging.
      *
      * Idempotent: only the first call issues the RPC; subsequent calls
-     * resolve against the same ``isReady`` Deferred.  The call site is
-     * now the mount of the backend WebClient (or the explicit trigger
-     * in the livechat embed) rather than ``start()``, so tests that
-     * mount an isolated component (e.g. ``mountView`` for a form view)
-     * do not incidentally hit ``/mail/data`` through the mail.store
-     * service boot.
+     * resolve against the same ``isReady`` Deferred. Called from the mount
+     * of the backend WebClient (or the livechat embed), not from service
+     * ``start()`` (@see storeService.start).
      */
     async initialize() {
         if (this._initializePromise) {
             return this._initializePromise;
         }
         this._initializePromise = (async () => {
-            // ``init_messaging`` is idempotent and the only path that
-            // populates ``store.isReady``.  Web-client bootstrap fires it
-            // very early (WebClient.setup), so a transient network race
-            // (server still warming after a fresh DB install, fetch
-            // aborted by an early lifecycle event, intermittent 5xx) can
-            // surface as a ``ConnectionLostError`` that:
-            //   1. propagates as an unhandled rejection from this
-            //      fire-and-forget call site, which the global error
-            //      service logs as ``console.error`` — failing
-            //      ``HttpCase`` tour tests that consider any browser
-            //      error fatal (e.g. test_main_flows.TestUi.
-            //      test_01_main_flow_tour was failing here in steady
-            //      state); and
-            //   2. leaves ``isReady`` unresolved forever, so chat /
-            //      notification / discuss components hang on
-            //      ``await store.isReady``.
-            // A single retry covers the first-request-after-cold-boot
-            // window without masking persistent connection loss — if
-            // the second attempt also fails, the error propagates as
-            // before and the user (or the test) sees the real problem.
+            // Web-client bootstrap fires this very early (WebClient.setup),
+            // where a transient ``ConnectionLostError`` both surfaces as an
+            // unhandled rejection (this call site is fire-and-forget) and
+            // leaves ``isReady`` unresolved forever, hanging every chat /
+            // notification / discuss component awaiting it. One retry covers
+            // the cold-boot window without masking a persistent loss.
             try {
                 await this.fetchStoreData("init_messaging");
             } catch (error) {
@@ -569,7 +549,7 @@ export class Store extends BaseStore {
     }
 
     /**
-     * @param {'chat' | 'group'} tab
+     * @param {string} tab
      * @returns Thread types matching the given tab.
      */
     tabToThreadType(tab) {
@@ -673,10 +653,8 @@ export class Store extends BaseStore {
 
     setup() {
         super.setup();
-        // Per-store temporary-id state (previously module-level `let`s, which
-        // were shared across every Store instance — e.g. a livechat embed and
-        // the backend web client on the same page, or successive stores in the
-        // test suite — causing temp-id collisions and cross-test state bleed).
+        // Temporary-id state must stay per store: a livechat embed and the
+        // backend web client share a page, and sharing it collides temp ids.
         this._prevLastMessageId = null;
         this._temporaryIdOffset = 0.01;
         this._fetchStoreDataDebounced = debounce(
@@ -815,7 +793,7 @@ export class Store extends BaseStore {
      * @param {Object} param0
      * @param {number} param0.userId
      * @param {number} param0.partnerId
-     * @returns {Promise<import("models").Persona> | undefined}
+     * @returns {Promise<import("models").ResPartner|undefined>}
      */
     async getPartner({ userId, partnerId }) {
         if (userId) {
@@ -962,14 +940,10 @@ export const storeService = {
          */
         store.self_guest ??= { id: -1 };
         store.settings ??= {};
-        // ``initialize()`` (the ``/mail/data`` init_messaging RPC) is no
-        // longer triggered eagerly from service ``start()``.  It now fires
-        // from the WebClient patch (backend) or the livechat embed
-        // service, so contexts that boot the mail.store service without
-        // a user-facing mail surface (e.g. unit tests mounting an
-        // isolated view) don't incidentally hit ``/mail/data``.  Any
-        // component that needs init_messaging data MUST either await
-        // ``store.isReady`` or call ``store.initialize()`` explicitly.
+        // ``initialize()`` (the ``/mail/data`` init_messaging RPC) is NOT
+        // triggered here: it fires from the WebClient patch (backend) or the
+        // livechat embed service. Any component needing init_messaging data
+        // must await ``store.isReady`` or call ``store.initialize()`` itself.
         store.onStarted();
         return store;
     },

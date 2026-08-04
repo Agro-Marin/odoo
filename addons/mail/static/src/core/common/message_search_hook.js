@@ -17,8 +17,7 @@ export function searchHighlight(searchTerm, target) {
     const htmlDoc = createDocumentFragmentFromContent(target);
     for (const term of searchTerm.split(" ")) {
         const regexp = new RegExp(`(${escapeRegExp(term)})`, "gi");
-        // Special handling for '
-        // Note: browsers use XPath 1.0, so uses concat() rather than ||
+        // Apostrophes need concat(): browsers use XPath 1.0, which has no ||
         const split = term.toLowerCase().split("'");
         let lowercase = split.map((s) => `'${s}'`).join(', "\'", ');
         let uppercase = lowercase.toUpperCase();

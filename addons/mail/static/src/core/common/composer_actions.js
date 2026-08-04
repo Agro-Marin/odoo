@@ -11,9 +11,10 @@ export const composerActionsRegistry = registry.category("mail.composer/actions"
 /** @typedef {import("@odoo/owl").Component} Component */
 /** @typedef {import("@mail/core/common/action").ActionDefinition} ActionDefinition */
 /** @typedef {import("models").Composer} Composer */
+/** @typedef {import("@mail/core/common/action").ActionParams & { composer: Composer }} ActionParams */
 /**
  * @typedef {Object} ComposerActionSpecificDefinition
- * @property {boolean|(comp: Component) => boolean} [condition=true]
+ * @property {boolean|(params: ActionParams) => boolean} [condition=true]
  * @property {boolean} [isPicker]
  * @property {string|(comp: Component) => string} [pickerName]
  */
@@ -173,8 +174,8 @@ export class ComposerAction extends Action {
     }
 
     /**
-     * @param {Object} param0
-     * @param {Composer|() => Composer} composer
+     * @param {ActionParams} param0
+     * @param {Composer} param0.composer
      */
     _disabledCondition({ composer }) {
         if (composer.restoredFromFullComposer && this.id !== "open-full-composer") {

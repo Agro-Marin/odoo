@@ -11,15 +11,16 @@ export const threadActionsRegistry = registry.category("mail.thread/actions");
 /** @typedef {import("@odoo/owl").Component} Component */
 /** @typedef {import("@mail/core/common/action").ActionDefinition} ActionDefinition */
 /** @typedef {import("models").Thread} Thread */
+/** @typedef {import("@mail/core/common/action").ActionParams & { thread: Thread }} ActionParams */
 /**
  * @typedef {Object} ThreadActionSpecificDefinition
  * @property {Component} [actionPanelComponent]
- * @property {(Component) => Object} [actionPanelComponentProps]
- * @property {(Component) => void} [close]
- * @property {boolean|(comp: Component) => boolean} [condition=true]
- * @property {string|(comp: Component) => string} [nameClass]
- * @property {(comp: Component) => void} [open]
- * @property {(comp: Component) => string} [panelOuterClass]
+ * @property {(params: ActionParams) => Object} [actionPanelComponentProps]
+ * @property {(params: ActionParams & { nextActiveAction?: Object }) => void} [close]
+ * @property {boolean|(params: ActionParams) => boolean} [condition=true]
+ * @property {string|(params: ActionParams) => string} [nameClass]
+ * @property {(params: ActionParams) => void} [open]
+ * @property {(params: ActionParams) => string} [panelOuterClass]
  * @property {boolean} [toggle]
  */
 
@@ -100,7 +101,7 @@ export class ThreadAction extends Action {
 
     /**
      * @param {Object} param0
-     * @param {Thread|() => Thread} thread
+     * @param {Thread|() => Thread} [param0.thread]
      */
     constructor({ thread }) {
         super(...arguments);

@@ -42,10 +42,9 @@ const fallbackDatetimes = new WeakMap();
 /**
  * Parsed-body cache: several computes (edited, extra body attachments,
  * hasLink, notification detection, onlyEmojis) each need the body as a DOM
- * and all (re)run on every body change — one parse per body serves them all
- * (previously up to 7 full HTML parses per message per change, ~400 on a
- * 60-message channel load). Keyed by the body markup instance: a new markup
- * is created whenever the body changes, so entries die with their body.
+ * and all (re)run on every body change — one parse per body serves them all.
+ * Keyed by the body markup instance: a new markup is created whenever the
+ * body changes, so entries die with their body.
  *
  * The fragment is shared — consumers must NOT mutate it (mutating call
  * sites like edit() keep their own fresh parses).
@@ -177,9 +176,9 @@ export class Message extends Record {
     });
     /** @type {number|string} */
     id;
-    /** @type {Array[Array[string]]} */
+    /** @type {string[][]} */
     incoming_email_cc;
-    /** @type {Array[Array[string]]} */
+    /** @type {string[][]} */
     incoming_email_to;
     get isDiscussion() {
         return this.store.mt_comment?.eq(this.subtype_id);
@@ -192,13 +191,13 @@ export class Message extends Record {
     message_link_preview_ids = fields.Many("mail.message.link.preview", {
         inverse: "message_id",
     });
-    /** @type {number[]} */
+    /** @type {import("models").Message} */
     parent_id = fields.One("mail.message");
     /**
      * When set, this temporary/pending message failed message post, and the
      * value is a callback to re-attempt to post the message.
      *
-     * @type {() => {} | undefined}
+     * @type {(() => Promise<void>)|undefined}
      */
     postFailRedo = undefined;
     reactions = fields.Many("MessageReactions", {
@@ -348,7 +347,7 @@ export class Message extends Record {
      * Get the effective persona performing actions on this message.
      * Priority order: logged-in user, portal partner (token-authenticated), guest.
      *
-     * @returns {import("models").Persona}
+     * @returns {import("models").ResPartner|import("models").MailGuest}
      */
     get effectiveSelf() {
         return this.thread?.effectiveSelf ?? this.store.self;
@@ -743,7 +742,7 @@ export class Message extends Record {
     /**
      * Provide fallback to displayName in the absence of a thread
      *
-     * @param {import("models").Persona} persona
+     * @param {import("models").ResPartner|import("models").MailGuest} persona
      * @returns {string}
      */
     getPersonaName(persona) {

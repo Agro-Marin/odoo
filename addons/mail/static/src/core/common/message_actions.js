@@ -20,9 +20,10 @@ export const messageActionsRegistry = registry.category("mail.message/actions");
 /** @typedef {import("@mail/core/common/action").ActionDefinition} ActionDefinition */
 /** @typedef {import("models").Message} Message */
 /** @typedef {import("models").Thread} Thread */
+/** @typedef {import("@mail/core/common/action").ActionParams & { message: Message, thread: Thread }} ActionParams */
 /**
  * @typedef {Object} MessageActionSpecificDefinition
- * @property {boolean|(comp: Component) => boolean} [condition=true]
+ * @property {boolean|(params: ActionParams) => boolean} [condition=true]
  */
 /**
  * @typedef {ActionDefinition & MessageActionSpecificDefinition} MessageActionDefinition
@@ -229,7 +230,8 @@ export class MessageAction extends Action {
     threadFn;
     /**
      * @param {Object} param0
-     * @param {Thread|() => Thread} thread
+     * @param {Message|() => Message} [param0.message]
+     * @param {Thread|() => Thread} [param0.thread]
      */
     constructor({ message, thread }) {
         super(...arguments);
@@ -250,9 +252,9 @@ class UseMessageActions extends UseActions {
 }
 
 /**
- * @param {Object} [params0={}]
- * @param {Message|() => Message} [message]
- * @param {Thread|() => Thread} [thread] when set, the thread the message is being viewed
+ * @param {Object} [param0={}]
+ * @param {Message|() => Message} [param0.message]
+ * @param {Thread|() => Thread} [param0.thread] when set, the thread the message is being viewed
  */
 export function useMessageActions({ message, thread } = {}) {
     const component = useComponent();

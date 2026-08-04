@@ -11,8 +11,8 @@ export const threadCompareRegistry = registry.category("mail.thread_compare");
 threadCompareRegistry.add(
     "mail.needaction",
     /**
-     * @param {import("models").Thread thread1}
-     * @param {import("models").Thread thread2}
+     * @param {import("models").Thread} thread1
+     * @param {import("models").Thread} thread2
      */
     (thread1, thread2) => {
         const aNeedaction = thread1.needactionMessages.length;
@@ -30,8 +30,8 @@ threadCompareRegistry.add(
 threadCompareRegistry.add(
     "mail.message-datetime",
     /**
-     * @param {import("models").Thread thread1}
-     * @param {import("models").Thread thread2}
+     * @param {import("models").Thread} thread1
+     * @param {import("models").Thread} thread2
      */
     (thread1, thread2) => {
         const aMessageDatetime = thread1.newestPersistentOfAllMessage?.datetime;

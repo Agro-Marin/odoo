@@ -56,11 +56,9 @@ export class NavigableList extends Component {
         useEffect(
             () => {
                 // Only (re)open — which resets the keyboard selection — when
-                // the displayed option set actually changes. Depending on
-                // props identity re-ran this on every parent render: arrow-key
-                // selection was yanked back to the first item whenever an
-                // unrelated re-render happened (e.g. a fetch flag flip), and
-                // Escape-dismissed lists were resurrected.
+                // the displayed option set actually changes: props identity
+                // alone changes on every parent render, which would yank the
+                // arrow-key selection back and resurrect dismissed lists.
                 const optionsKey = this.props.options
                     .map((option) => this.getOptionKey(option))
                     .join("\x00");

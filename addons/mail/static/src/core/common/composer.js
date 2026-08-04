@@ -661,14 +661,14 @@ export class Composer extends Component {
      * @property {import("models").Attachment[]} attachments
      * @property {boolean} isNote
      * @property {number} parentId
-     * @property {integer[]} mentionedChannelIds
-     * @property {integer[]} mentionedPartnerIds
+     * @property {import("models").Thread[]} mentionedChannels
+     * @property {import("models").ResPartner[]} mentionedPartners
      */
 
     /**
      * @param {ReturnType<markup>} value message body
      * @param {postData} postData Message meta data info
-     * @param {extraData} extraData Message extra meta data info needed by other modules
+     * @param {Object} extraData Message extra meta data info needed by other modules
      */
     async _sendMessage(value, postData, extraData) {
         const thread = toRaw(this.props.composer.thread);

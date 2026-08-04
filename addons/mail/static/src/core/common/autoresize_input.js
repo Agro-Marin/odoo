@@ -66,8 +66,7 @@ export class AutoresizeInput extends Component {
         if (this.cancelled) {
             // Escape restores the original value: don't validate (a rename
             // RPC on every cancelled edit otherwise). Still notify the owner:
-            // it may need to leave its editing mode (e.g. chat window thread
-            // rename), which `onValidate` used to do as a side effect.
+            // it may need to leave its editing mode (e.g. chat window rename).
             this.cancelled = false;
             this.props.onCancel();
             return;
