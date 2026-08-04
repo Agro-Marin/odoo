@@ -60,8 +60,8 @@ function elideNested(key, value) {
 
 /**
  * Flatten an error's ``cause`` chain — the property OWL's lifecycle message
- * points at. Never throws. Logic-identical copy in module_loader.js (comments
- * rewrap); keep both in step.
+ * points at. Never throws. Byte-identical copy in module_loader.js (modulo the
+ * shim's indentation); keep both in step.
  *
  * @param {unknown} cause first ``.cause`` of the reported error
  * @returns {string} ``"Caused by: ..."`` segments, or ``""`` when there is none

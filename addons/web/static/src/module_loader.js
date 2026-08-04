@@ -146,9 +146,9 @@
     /**
      * Flatten an error's ``cause`` chain into one string.
      *
-     * Logic-identical copy of the helper in
-     * ``@web/core/errors/error_beacon`` (the comments are wrapped
-     * differently); see that module for the rationale. Keep both in step.
+     * Byte-identical copy of the helper in
+     * ``@web/core/errors/error_beacon``; see that module for the rationale.
+     * Keep both in step.
      *
      * @param {unknown} cause first ``.cause`` of the reported error
      * @returns {string} ``"Caused by: ..."`` segments, or ``""`` when there is none
@@ -160,6 +160,7 @@
         let depth = 0;
         while (current !== undefined && current !== null && depth < MAX_CAUSE_DEPTH) {
             if (typeof current === "object") {
+                // A cycle would otherwise repeat two frames up to the depth cap.
                 if (visited.has(current)) {
                     parts.push("Caused by: [circular]");
                     break;
@@ -171,11 +172,13 @@
                 if (current instanceof Error) {
                     text = `${current.name}: ${current.message}`;
                 } else if (typeof current === "object") {
+                    // Elided, not walked: an OWL node would stringify whole.
                     text = JSON.stringify(current, elideNested);
                 } else {
                     text = String(current);
                 }
             } catch {
+                // Best-effort: record that a level existed and move on.
                 text = "[unserializable]";
             }
             parts.push(`Caused by: ${text}`);
@@ -184,6 +187,11 @@
         }
         return parts.join("\n").slice(0, MAX_CAUSE);
     }
+
+    // Bounded like the ESM copy's `seen`: the key embeds the message, and this
+    // shim runs on every page load before anything else, so an unbounded set is
+    // a leak. Insertion order makes dropping the oldest the right eviction.
+    const MAX_SEEN_KEYS = 512;
 
     const seenErrors = new Set();
     function reportError(payload) {
@@ -196,6 +204,9 @@
         )}`;
         if (seenErrors.has(key)) {
             return;
+        }
+        if (seenErrors.size >= MAX_SEEN_KEYS) {
+            seenErrors.delete(seenErrors.values().next().value);
         }
         seenErrors.add(key);
         try {
