@@ -9,10 +9,6 @@ class MailCase(TransactionCase):
     def test_schedule_notification_parameters_roundtrip(self):
         """Record-valued notify kwargs (e.g. force_email_company) must survive the
         JSON round-trip through mail.message.schedule.
-
-        Regression: notification_parameters used to be json.dumps(kwargs) directly,
-        which raised ``TypeError: Object of type res.company is not JSON
-        serializable`` whenever a scheduled notification carried a recordset.
         """
         Schedule = self.env["mail.message.schedule"]
         company = self.env.company
@@ -43,11 +39,6 @@ class MailCase(TransactionCase):
     def test_scheduled_date_accepts_plain_date(self):
         """A ``datetime.date`` (not a ``datetime``) passed as ``scheduled_date``
         must be stored at midnight, without raising.
-
-        Regression: the ``import datetime`` refactor left a call to
-        ``datetime.combine`` (which only exists on ``datetime.datetime``), so any
-        plain ``date`` reaching ``_parse_scheduled_datetime`` crashed with
-        ``AttributeError: module 'datetime' has no attribute 'combine'``.
         """
         # create() path
         mail = self.env["mail.mail"].create(
@@ -59,15 +50,9 @@ class MailCase(TransactionCase):
         self.assertEqual(mail.scheduled_date, datetime.datetime(2050, 2, 20, 0, 0, 0))
 
     def test_mail_send_non_connected_smtp_session(self):
-        """Check to avoid SMTPServerDisconnected error while trying to
-        disconnect smtp session that is not connected.
-
-        This used to happens while trying to connect to a
-        google smtp server with an expired token.
-
-        Or here testing non recipients emails with non connected
-        smtp session, we won't get SMTPServerDisconnected that would
-        hide the other error that is raised earlier.
+        """Quitting an smtp session that is not connected must not raise
+        SMTPServerDisconnected, which would hide the real error raised earlier
+        (e.g. a google smtp server refusing an expired token).
         """
         disconnected_smtpsession = mock.MagicMock()
         disconnected_smtpsession.quit.side_effect = smtplib.SMTPServerDisconnected
