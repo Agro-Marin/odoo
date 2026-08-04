@@ -7,10 +7,9 @@ import { memoize } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
-/** largely taken from documents' DocumentsDetailPanel, which selects arbitrary models and records
- * through two interactions:
- * 1- select the model through a list of accesible and appropriate models (getAvailableResModels)
- * 2- select one of this model's records through a tree view in a new dialog that opens
+/** Selects a model among the accessible ones (getAvailableResModels), then one of
+ * its records through a SelectCreateDialog list, like documents'
+ * DocumentsDetailsPanel.
  **/
 
 // Small hack, memoize uses the first argument as cache key, but we need the orm which will not be the same.
@@ -49,12 +48,10 @@ class ActivityModelSelector extends Component {
                     multiSelect: false,
                     resModel: this.state.resModel,
                     onSelected: async (resId) => {
-                        /* Changing the model linked to the activity also changes available activity types.
-                         * This in turn triggers a recompute of all fields dependent on activity types, including
-                         * summary and notes, which may already have been edited (especially summary as the user is
-                         * likely to fill out the wizard in order).
-                         * To prevent this, current summary and notes are saved and will be recovered after the model
-                         * has been changed.
+                        /* Changing the model changes the available activity
+                         * types, which recomputes the fields depending on them
+                         * (including the possibly already edited summary and
+                         * note): save both to restore them after.
                          */
                         const persistDataThroughModelChange = {
                             summary: this.props.record.data.summary,
@@ -94,7 +91,7 @@ class ActivityModelSelector extends Component {
     }
 
     onRecordReset() {
-        // information to persist current summary and notes through model_id changes
+        // information to persist current summary and notes through res_model changes
         const persistDataThroughModelChange = {
             summary: this.props.record.data.summary,
             note: this.props.record.data.note,

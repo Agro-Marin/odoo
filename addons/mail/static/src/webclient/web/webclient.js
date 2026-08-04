@@ -16,21 +16,16 @@ patch(WebClient.prototype, {
         super.setup();
         this.orm = useService("orm");
         this.notification = useService("notification");
-        // The service worker's activation gate. It used to be a field on this
-        // component (``this.serviceWorkerActivatedDeferred``) that mail reached
-        // through this very patch; it is now a declared service, so the
-        // contract this Mutex depends on is explicit rather than incidental.
+        // Service worker activation gate the push (un)subscriptions below await.
         this.serviceWorker = useService("service_worker");
-        // Serialize push (un)subscription: WEB_CLIENT_READY and the
-        // notification-permission `change` handler can both fire, and an
-        // overlapping subscribe/unsubscribe (or a subscribe racing its own
-        // retry) would double-register or interleave subscribe-vs-unsubscribe.
+        // Serialize push (un)subscription: WEB_CLIENT_READY and the notification-
+        // permission `change` handler can both fire, and overlapping calls would
+        // double-register or interleave subscribe-vs-unsubscribe.
         this._pushMutex = new Mutex();
-        // Trigger init_messaging (``/mail/data``) now that we're in the
-        // backend WebClient context.  The mail.store service no longer
-        // fires this from its ``start()``, so contexts without a
-        // WebClient (e.g. isolated unit-test component mounts via
-        // ``mountView``) don't incidentally hit the route.
+        // Trigger init_messaging (``/mail/data``) now that we're in the backend
+        // WebClient context: the mail.store service does not fire it from its
+        // ``start()``, so contexts without a WebClient (e.g. isolated unit-test
+        // component mounts via ``mountView``) don't incidentally hit the route.
         this.env.services["mail.store"]?.initialize();
         if (this._canSendNativeNotification) {
             this.env.bus.addEventListener(
@@ -57,9 +52,9 @@ patch(WebClient.prototype, {
                     notificationPerm.addEventListener("change", onPermissionChange);
                 })
                 .catch(() => {
-                    // engines that don't recognize the permission name reject
-                    // (historically Safari): an unhandled rejection on every
-                    // page load; permission-change tracking is best-effort
+                    // engines that don't recognize the permission name reject:
+                    // permission-change tracking is best-effort, and an unhandled
+                    // rejection on every page load is not
                 });
             onWillDestroy(() => {
                 notificationPerm?.removeEventListener("change", onPermissionChange);
@@ -67,7 +62,6 @@ patch(WebClient.prototype, {
         }
     },
     /**
-     *
      * @returns {boolean}
      * @private
      */
@@ -76,7 +70,7 @@ patch(WebClient.prototype, {
     },
 
     /**
-     * Subscribe device from push notification
+     * Subscribe device to push notifications
      *
      * @private
      * @return {Promise<void>}
@@ -136,11 +130,10 @@ patch(WebClient.prototype, {
                 subscription.options.applicationServerKey,
             );
             await this.orm.call(USER_DEVICES_MODEL, "register_devices", [], kwargs);
-            // refresh after EVERY successful registration, not only after a
-            // fresh subscribe: when the browser rotates the subscription while
-            // one exists (e.g. the worker's pushsubscriptionchange path, which
-            // cannot touch this localStorage), a stale previousEndpoint would
-            // otherwise be re-sent for a long-dead endpoint forever
+            // refresh after EVERY successful registration, not only after a fresh
+            // subscribe: the browser can rotate the subscription while one exists
+            // (e.g. the worker's pushsubscriptionchange path, which cannot touch this
+            // localStorage), and a stale previousEndpoint would be re-sent forever
             browser.localStorage.setItem(
                 `${USER_DEVICES_MODEL}_endpoint`,
                 subscription.endpoint,
@@ -193,8 +186,8 @@ patch(WebClient.prototype, {
     },
 
     /**
-     * Retrieve the PushManager interface of the Push API provides a way to receive notifications from third-party
-     * servers as well as request URLs for push notifications.
+     * Retrieve the PushManager interface of the Push API, which is used to receive
+     * notifications from third-party servers and to request push notification URLs.
      *
      * @return {Promise<PushManager>}
      */
@@ -204,13 +197,11 @@ patch(WebClient.prototype, {
     },
 
     /**
-     *
-     * The Application Server Key is need to be an Uint8Array.
-     * This format is used when the exchanging secret key between client and server.
-     * This base64 to Uint8Array implementation is inspired by https://github.com/gbhasha/base64-to-uint8array
+     * Fetch the VAPID public key and decode it from base64url to the Uint8Array
+     * format the Application Server Key must be exchanged in.
      *
      * @private
-     * @return {Uint8Array}
+     * @return {Promise<Uint8Array>}
      */
     async _getApplicationServerKey() {
         const vapid_public_key_base64 = await this.orm.call(
@@ -231,7 +222,7 @@ patch(WebClient.prototype, {
 
     /**
      * Convert an ArrayBuffer to a base64 string without padding
-     * @param buffer {ArrayBuffer}
+     * @param {ArrayBuffer} buffer
      * @return {string}
      * @private
      */

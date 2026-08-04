@@ -52,8 +52,7 @@ export class MailServerConfiguratorSelection extends SelectionField {
             }
         } catch (error) {
             this.state.value = oldValue;
-            // transport-level errors (connection lost, ...) have no .data:
-            // dereferencing it threw INSIDE the catch, swallowing the revert
+            // optional chain: transport-level errors (connection lost) have no .data
             this.notification.add(error.data?.message || error.message, {
                 type: "danger",
             });

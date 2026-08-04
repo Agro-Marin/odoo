@@ -11,7 +11,7 @@ export class ActivityCompiler extends ViewCompiler {
         if (el.hasAttribute("widget")) {
             compiled = super.compileField(el, params);
         } else {
-            // fields without a specified widget are rendered as simple spans in activity records
+            // fields without a specified widget are rendered as simple divs in activity records
             compiled = createElement("div", {
                 "t-out": `record["${el.getAttribute("name")}"].value`,
             });

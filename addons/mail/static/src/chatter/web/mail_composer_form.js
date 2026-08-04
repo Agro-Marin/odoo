@@ -76,12 +76,9 @@ export class MailComposerFormRenderer extends formView.Renderer {
             /** @param {Event} event */
             onDrop: async (event) => {
                 // Upload each dropped file exactly ONCE and link it to the single
-                // composer wizard. The composer is one `mail.compose.message`
-                // record regardless of how many recipients it targets; the
-                // previous per-thread loop uploaded and linked a separate copy of
-                // every file for each selected record, so dropping one file on an
-                // N-record selection created N identical attachments and every
-                // recipient's mail carried all N copies.
+                // composer wizard: the composer is one `mail.compose.message`
+                // record regardless of how many recipients it targets, so looping
+                // over the threads would attach N copies of every file.
                 const [thread] = getActiveMailThreads();
                 if (!thread) {
                     return;
@@ -104,7 +101,7 @@ export class MailComposerFormRenderer extends formView.Renderer {
             },
         });
 
-        /** @param {function} */
+        /** @param {function} callback */
         const onCloseWizardModal = (callback) => {
             this.env.dialogData.dismiss = callback;
         };

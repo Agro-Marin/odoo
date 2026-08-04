@@ -7,7 +7,7 @@ import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
 export const EmojisFieldCommon = (T) =>
     class EmojisFieldCommon extends T {
         /**
-         * Create an emoji textfield view to enable opening an emoji popover
+         * Set up the emoji picker popover opened from the field's emoji button.
          */
         _setupOverride() {
             this.emojiPicker = useEmojiPicker(

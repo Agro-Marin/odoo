@@ -4,7 +4,7 @@ import { useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 /**
- * Extension of the FieldChar that will add emojis support
+ * Extension of the CharField that will add emojis support
  */
 export class EmojisCharField extends EmojisFieldCommon(CharField) {
     static template = "mail.EmojisCharField";

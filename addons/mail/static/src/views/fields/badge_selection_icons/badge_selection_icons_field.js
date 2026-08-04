@@ -8,14 +8,13 @@ import {
 } from "@web/fields/selection/badge_selection/badge_selection_field";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 /**
- * @typedef BadgeSelectionIconsField
- * Overrides the standard BadgeSelectionField and inserts FontAwesome icons before each option's title.
- * Only compatible with Many2one selectors. Related options should have an "icon" field, the name
- * of which should be specified through the iconField prop.
+ * Overrides BadgeSelectionField to insert a FontAwesome icon before each option's
+ * title. Many2one only: the related options must carry the icon in the field named
+ * by the iconField prop.
  *
- * Special props:
- * @param {String} iconField The name of the field on which the icon is stored on the many2one option
- * @param {String} defaultIcon If the field pointed through iconField is empty on the related record, a default fa icon can be specified.
+ * @typedef {Object} Props
+ * @property {String} iconField field storing the icon on the many2one option
+ * @property {String} defaultIcon fa icon used when iconField is empty
  */
 export class BadgeSelectionWithIconsField extends BadgeSelectionField {
     static props = {

@@ -62,7 +62,7 @@ export class ScheduledMessage extends Record {
     }
 
     /**
-     * Open the mail_compose_mesage form view to allow edition of the scheduled message.
+     * Open the mail.scheduled.message form view to allow edition of the message.
      * If the message has already been sent, displays a notification instead.
      */
     async edit() {
@@ -74,9 +74,8 @@ export class ScheduledMessage extends Record {
                 [this.id],
             );
         } catch (e) {
-            // Only a server-side business error means the record is gone
-            // (already sent / deleted). A transient connection failure must not
-            // be reported as "already sent" — re-throw so it surfaces normally.
+            // Only a server-side business error means the record is gone (already
+            // sent / deleted); a transient connection failure is re-thrown instead.
             if (
                 e instanceof ConnectionLostError ||
                 e instanceof ConnectionAbortedError
@@ -111,9 +110,8 @@ export class ScheduledMessage extends Record {
                 [this.id],
             );
         } catch (e) {
-            // A server-side business error means already sent (by someone else
-            // or by cron) — swallow. A transient connection failure must not be
-            // silently ignored: re-throw it.
+            // A server-side business error means already sent (by someone else or
+            // by cron) and is swallowed; a connection failure is re-thrown.
             if (
                 e instanceof ConnectionLostError ||
                 e instanceof ConnectionAbortedError

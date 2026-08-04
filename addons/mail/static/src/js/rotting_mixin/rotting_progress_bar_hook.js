@@ -4,14 +4,10 @@
  * Build the rotting extension applied to a kanban controller's per-instance
  * ``progressBarState``.
  *
- * Returns a FRESH object on every call — this is required, not cosmetic:
- * ``patch()`` mutates its extension argument in place (it re-parents it onto the
- * super-skeleton), so an extension object is single-use. The controller patches
- * ``this.progressBarState`` in ``setup()``, which runs once per controller
- * instantiation; reusing a shared module-level object throws "extension object
- * already used in a patch" on the second kanban render (breaking every rotting
- * kanban). A fresh object per instance also gives each controller its own
- * ``rotIsFiltered`` state instead of silently sharing one dict across kanbans.
+ * Returns a FRESH object on every call: ``patch()`` mutates its extension argument
+ * in place, so reusing a shared one throws "extension object already used in a
+ * patch" on the second kanban render. It also gives each controller its own
+ * ``rotIsFiltered`` state instead of sharing one dict across kanbans.
  *
  * @returns {object} a single-use patch extension
  */
@@ -51,10 +47,9 @@ export function rottingProgressBarPatch() {
          */
         getGroupCount(group) {
             if (this.rotIsFiltered[group.id]) {
-                // client-side filter: counts only the loaded page, not the
-                // group's server-side total (unlike the super path). Inherent
-                // to filtering in-memory records; the rotting count can shrink
-                // to the loaded subset when the filter is toggled.
+                // client-side filter: counts only the loaded page, not the group's
+                // server-side total (unlike the super path), so the rotting count can
+                // shrink to the loaded subset when the filter is toggled.
                 return group.list.records.filter((record) => record.data.is_rotting)
                     .length;
             }
