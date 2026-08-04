@@ -81,7 +81,7 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 | `static/src/` | 698 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 17 directories (16 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
 | `static/tests/` | 620 `.js` (incl. 563 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
-| `tests/` | 54 Python test files (`test_*.py`) | `TEST_TAGS.md` |
+| `tests/` | 55 Python test files (`test_*.py`) | `TEST_TAGS.md` |
 | `doc/` | `doc/COMPONENT_DIAGRAM.md` (18 audit areas) · `doc/FLOW_DIAGRAM.md` (14 sequence diagrams) · `doc/LAZY_VIEW_LOADING.md` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 
@@ -349,7 +349,7 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 |----------|-------|
 | Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 24 (23 model files + `__init__.py`) |
-| Python (tests) | 54 (`test_*.py`; 55 files incl. `__init__.py`) |
+| Python (tests) | 55 (`test_*.py`; 56 files incl. `__init__.py`) |
 | JavaScript (src) | 698 (696 carry `@ts-check`; `module_loader.js` + `service_worker.js` excluded) |
 | JavaScript (tests) | 620 (incl. 563 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 92 |
