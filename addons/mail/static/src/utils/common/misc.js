@@ -39,7 +39,7 @@ export function assignIn(obj, data, keys = Object.keys(data)) {
  * @param {T[]} list
  * @param {number} target
  * @param {(item: T) => number} [itemToCompareVal]
- * @returns {T}
+ * @returns {T|null}
  */
 export function nearestGreaterThanOrEqual(list, target, itemToCompareVal) {
     const findNext = (left, right, next) => {
@@ -163,7 +163,7 @@ export function compareDatetime(date1, date2) {
  *
  * @param {string} v1 - The first version string to compare.
  * @param {string} v2 - The second version string to compare.
- * @return {number} -1 if v1 is less than v2, 1 if v1 is greater than v2, and 0 if they are equal.
+ * @returns {number} -1 if v1 is less than v2, 1 if v1 is greater than v2, and 0 if they are equal.
  */
 function compareVersion(v1, v2) {
     const parts1 = v1.split(".");
@@ -196,18 +196,15 @@ export function parseVersion(v) {
 }
 
 /**
- * Converts a given URL from platforms like YouTube, Google Drive, Instagram,
- * etc., into their embed format. This function extracts the necessary video ID
- * or content identifier from the input URL and returns the corresponding embed
- * URL for that platform.
+ * Converts a YouTube or Google Drive URL into its embed format, extracting the
+ * video ID or content identifier from the input URL.
  *
  * @param {string} url
  */
 export function convertToEmbedURL(url) {
-    // anchor on the hostname: the previous pattern matched ANY url whose
-    // path merely contained /v/, /embed/, ?v=…, so a link like
-    // https://example.com/v/dQw4w9WgXcQ rendered an autoplaying YouTube
-    // embed for a non-YouTube link (content spoofing in link previews)
+    // anchor on the hostname: matching any url whose path merely contains
+    // /v/, /embed/, ?v=… renders an autoplaying YouTube embed for a
+    // non-YouTube link (content spoofing in link previews)
     let parsed;
     try {
         parsed = new URL(url);
@@ -280,8 +277,9 @@ export const hasHardwareAcceleration = memoize(() => {
  * @param {Object} options
  * @param {(...dependencies: any[]) => void | (() => void)} options.effect The
  *        effect callback. May return a cleanup function.
- * @param {(...args: [...T]) => Object|Array} options.dependencies Returns an array of
- *        values to track. The effect is called only if these values change.
+ * @param {(...args: [...T]) => Object|Array} options.dependencies Returns the
+ *        values to track, as an array or an object. The effect is called only
+ *        if these values change.
  * @param {[...T]} options.reactiveTargets Objects that the effect depends on.
  */
 export function effectWithCleanup({ effect: effectFn, dependencies, reactiveTargets }) {
@@ -325,7 +323,7 @@ export function effectWithCleanup({ effect: effectFn, dependencies, reactiveTarg
  * @param {number} options.delay Debounce delay in milliseconds before running
  * cleanup.
  * @param {(...targets: T) => D} options.dependencies Function returning an
- * array of values tracked by the effect; passed to setup/cleanup.
+ * object of values tracked by the effect; passed to `effect`.
  * @param {(...targets: T) => boolean} options.predicate Function returning a
  * boolean to determine whether the effect should be activated.
  * @param {[...T]} options.reactiveTargets Array of reactive objects that the
@@ -386,12 +384,9 @@ export async function loadCssFromBundle(targetNode, bundleName) {
         }
     } catch (e) {
         if (e instanceof AssetsLoadingError && e.cause instanceof TypeError) {
-            // an AssetsLoadingError caused by a TypeError means that the
-            // fetch request has been cancelled by the browser. It can occur
-            // when the user changes page, or navigate away from the website
-            // client action, so the iframe is unloaded. In this case, we
-            // don't care abour reporting the error, it is actually a normal
-            // situation.
+            // an AssetsLoadingError caused by a TypeError means the browser
+            // cancelled the fetch, e.g. the user navigated away and the iframe
+            // was unloaded: a normal situation, not worth reporting.
             return new Promise(() => {});
         } else {
             throw e;

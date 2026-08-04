@@ -1,15 +1,9 @@
 /** @odoo-module native */
 
 /**
- * Inserts `text` at the composer's current selection, in whichever edit mode
- * the composer currently is:
- *
- * - HTML mode (`editor` given): insert through the editor and record a
- *   history step;
- * - plain-text mode: splice `composer.composerText` around the current
- *   selection and report the resulting cursor position through `moveCursor`
- *   (typically `useSelection().moveCursor`, which also synchronizes the DOM
- *   selection of the textarea).
+ * Inserts `text` at the composer's current selection: through the editor (plus
+ * a history step) in HTML mode, or by splicing `composer.composerText` and
+ * reporting the cursor position through `moveCursor` in plain-text mode.
  *
  * @param {import("models").Composer} composer
  * @param {string} text

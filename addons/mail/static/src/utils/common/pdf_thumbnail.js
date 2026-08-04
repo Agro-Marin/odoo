@@ -14,9 +14,8 @@ export async function generatePdfThumbnail(
     }
     try {
         // pdfjs' getDocument accepts a URL string directly, including a
-        // "blob:" object URL. (The previous blob branch wrapped the string in
-        // URL.createObjectURL(), which requires a Blob and threw for every
-        // blob URL, silently blanking the thumbnail.)
+        // "blob:" object URL: it must not be re-wrapped in
+        // URL.createObjectURL(), which requires a Blob and would throw.
         loadingTask = pdfjsLib.getDocument(pdfUrl);
         pdf = await loadingTask.promise;
     } catch (_error) {
@@ -42,9 +41,9 @@ export async function generatePdfThumbnail(
                 .replace("data:image/jpeg;base64,", "");
         }
     } finally {
-        // Release the parsed document and its worker port. pdfjs never reclaims
-        // the PDFDocumentProxy on its own, so each thumbnail generated (one per
-        // writable PDF attachment lacking a thumbnail) leaked its parsed data.
+        // Release the parsed document and its worker port: pdfjs never
+        // reclaims the PDFDocumentProxy on its own, so every generated
+        // thumbnail would leak its parsed data.
         await loadingTask?.destroy();
     }
     return { isPdfValid, thumbnail, pdfEnabled: true };

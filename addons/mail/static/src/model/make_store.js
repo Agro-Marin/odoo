@@ -81,11 +81,10 @@ export function makeStore(env, { localRegistry } = {}) {
                             }
                             if (kind !== ATTR_SYM) {
                                 // read through the receiver so a reactive
-                                // receiver wraps the returned list; the flag
-                                // makes the re-entrant trap call fall through.
-                                // A counter (not a boolean) so a nested read of
-                                // another field on the SAME record doesn't reset
-                                // the flag early on its way out.
+                                // receiver wraps the returned list; the counter
+                                // makes the re-entrant trap call fall through
+                                // (a boolean would be reset early by a nested
+                                // read of another field on the SAME record)
                                 record._.gettingField++;
                                 let recordList;
                                 try {
@@ -150,12 +149,10 @@ export function makeStore(env, { localRegistry } = {}) {
                     const recordProxy = reactive(recordProxyInternal);
                     record._proxy = recordProxy;
                     if (record?.[STORE_SYM]) {
-                        // Bootstrap: the Store record created by
-                        // `store.Store.insert()` in makeStore replaces the
-                        // temporary plain store; rebind the makeStore closure
-                        // and the `Record.store` global to it. Model refs and
-                        // `_rawStore` re-pointing are done by makeStore inside
-                        // the same enclosing update cycle, before any flush.
+                        // Bootstrap: this Store record replaces the temporary
+                        // plain store, so rebind the makeStore closure and the
+                        // `Record.store` global to it. makeStore re-points the
+                        // Models within the same update cycle, before any flush.
                         record.recordByLocalId = store.recordByLocalId;
                         record._ = markRaw(toRaw(store._));
                         store = record;
@@ -228,25 +225,19 @@ export function makeStore(env, { localRegistry } = {}) {
             }
         }
     }
-    /**
-     * Point every Model at the temporary plain store so the initial store
-     * insert can run: it shares its internal `_` (queues, UPDATE counter)
-     * with the real Store record, so both count as one update cycle.
-     */
+    // Point every Model at the temporary plain store so the initial store
+    // insert can run: it shares its internal `_` (queues, UPDATE counter) with
+    // the real Store record, so both count as one update cycle.
     for (const Model of Object.values(Models)) {
         Model._rawStore = store;
         Model.store = store._proxy;
     }
-    /**
-     * Bootstrap: create the real store (as a record) inside one enclosing
-     * update cycle. Since fields are always eager, the Store record's
-     * computes/sorts/hooks (and those of any record they create, e.g. a
-     * one-with-compute field like chatHub) are queued during the insert;
-     * the enclosing MAKE_UPDATE defers their flush until after every Model
-     * has been re-pointed at the real store record and attached to it.
-     * Flushing earlier would run computes like `this.Thread.records` or
-     * hooks dereferencing `this.store.<field>` against a half-wired store.
-     */
+    // Bootstrap: create the real store (as a record) inside one enclosing
+    // update cycle. Fields being always eager, the Store record's
+    // computes/sorts/hooks are queued during the insert, and the enclosing
+    // MAKE_UPDATE defers their flush until every Model has been re-pointed at
+    // the real store record. Flushing earlier would run computes like
+    // `this.Thread.records` against a half-wired store.
     const temporaryStore = store;
     temporaryStore.MAKE_UPDATE(function storeBootstrap() {
         // Make true store (as a model); this reassigns the `store` closure

@@ -38,9 +38,10 @@ function getMessageUrlRegExp() {
 
 /**
  * @param {string|ReturnType<markup>} rawBody
- * @param {Object} validMentions
- * @param {import("models").Persona[]} validMentions.partners
- * @returns {Promise<string|ReturnType<markup>>}
+ * @param {Object} [param1]
+ * @param {Object} [param1.validMentions]
+ * @param {import("models").ResPartner[]} [param1.validMentions.partners]
+ * @returns {string|ReturnType<markup>}
  */
 export function prettifyMessageText(rawBody, { validMentions = {}, thread } = {}) {
     if (rawBody instanceof Markup) {
@@ -52,12 +53,9 @@ export function prettifyMessageText(rawBody, { validMentions = {}, thread } = {}
     body = htmlReplace(body, /(\r|\n)/g, () => markup`<br/>`);
     body = htmlReplace(body, /&nbsp;/g, () => " ");
     body = htmlTrim(body);
-    // This message will be received from the mail composer as html content
-    // subtype but the urls will not be linkified. If the mail composer
-    // takes the responsibility to linkify the urls we end up with double
-    // linkification a bit everywhere. Ideally we want to keep the content
-    // as text internally and only make html enrichment at display time but
-    // the current design makes this quite hard to do.
+    // The mail composer sends html content whose urls are not linkified, and
+    // linkifying them there would double-linkify a bit everywhere. Ideally the
+    // content stays text internally and is enriched at display time only.
     body = generateMentionsLinks(body, { ...validMentions, thread });
     body = parseAndTransform(body, addLink);
     return body;
@@ -79,8 +77,9 @@ export async function generateEmojisOnHtml(
 
 /**
  * @param {string|ReturnType<markup>} rawBody
- * @param {Object} validMentions
- * @param {import("models").Persona[]} validMentions.partners
+ * @param {Object} [param1]
+ * @param {Object} [param1.validMentions]
+ * @param {import("models").ResPartner[]} [param1.validMentions.partners]
  */
 export async function prettifyMessageContent(
     rawBody,
@@ -171,16 +170,15 @@ function linkify(text) {
 
 /**
  * @param {Node} node
- * @param {function} transformFunction
- * @return {ReturnType<markup>}
+ * @param {function} transformChildren
+ * @returns {ReturnType<markup>}
  */
 export function addLink(node, transformChildren) {
     if (node.nodeType === 3) {
         const linkified = linkify(node.textContent);
         // compare escaped-to-escaped: linkified is html-escaped markup, so
-        // matching it against the RAW text flagged every node containing
-        // &, <, >, quotes… as "changed" and rebuilt its DOM on every message
-        // prettify even with zero URLs in it
+        // matching it against the RAW text would flag every node containing
+        // &, <, >, quotes… as changed and rebuild its DOM for nothing
         if (linkified.toString() !== htmlEscape(node.textContent).toString()) {
             const div = createElementWithContent("div", linkified);
             for (const childNode of [...div.childNodes]) {
@@ -525,7 +523,8 @@ export function trimEmptyBlocksAround(content) {
     };
     trimBoundaryParagraph("start");
     trimBoundaryParagraph("end");
-    // markup: innerHTML of the body is safe as it is generated from a DocumentFragment created from a trusted source and operations on body, the trim and removeNode, preserve it "safe".
+    // markup: the body comes from a DocumentFragment built from a trusted
+    // source, and trimming/removing nodes keeps its innerHTML safe.
     return changed ? markup(body.innerHTML) : content;
 }
 
@@ -534,10 +533,11 @@ export function cleanTerm(term) {
 }
 
 /**
- * Parses text to find email: Tagada <address@mail.fr> -> [Tagada, address@mail.fr] or False
+ * Parses text to find an email: `Tagada <address@mail.fr>` gives
+ * `["Tagada", "address@mail.fr"]`, and text without an email `[text, false]`.
  *
  * @param {string} text
- * @returns {[string,string|boolean]|false}
+ * @returns {[string, string|false]|undefined}
  */
 export function parseEmail(text) {
     if (!text) {
@@ -559,8 +559,6 @@ const r = String.raw;
 /**
  * Match Country Subdivision Flags.
  * Black Flag emoji + tag-encoded subdivision name + cancel tag
- * Example:
- * \uD83C\uDFF4 + [B] + [E] + [W] + [A] + [L] + [CANCEL] = Flag for Wallonia (BE-WAL)
  */
 const SUBDIVISION_FLAG = r`\uD83C\uDFF4[\u{E0020}-\u{E007E}]+\u{E007F}`;
 /**
@@ -616,9 +614,8 @@ export function decorateEmojis(content) {
                 node.textContent,
                 loader.loaded.emojiRegex,
                 (codepoints) =>
-                    // tagged template: interpolations are auto-escaped, unlike
-                    // the previous markup(`...`) plain-literal call which relied
-                    // on every interpolation being pre-escaped
+                    // tagged template: interpolations are auto-escaped, which
+                    // a markup(`...`) plain-literal call would not do
                     markup`<span class="o-mail-emoji" title="${htmlFormatList(
                         loader.loaded.emojiValueToShortcodes[codepoints],
                         { style: "unit-narrow" },
@@ -631,9 +628,8 @@ export function decorateEmojis(content) {
 }
 
 /**
- * Converts an object of key/value to string, where object represents a attClass with OWL syntax object
- * and value is evaluation of each key.
- * Example: "attClassObjectToString({ a: 1, b: 0, c: 1 })" converts to "a c".
+ * Converts an attClass object in OWL syntax to a string, keeping the keys whose
+ * value is truthy (`{ a: 1, b: 0, c: 1 }` gives "a c").
  */
 export function attClassObjectToString(obj) {
     return Object.entries(obj)

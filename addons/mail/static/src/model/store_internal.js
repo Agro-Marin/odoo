@@ -31,7 +31,7 @@ export class StoreInternal extends RecordInternal {
     UPDATE = 0;
 
     /**
-     * @param {"compute"|"sort"|"onAdd"|"onDelete"|"onUpdate"|"hard_delete"} type
+     * @param {"delete"|"compute"|"sort"|"onAdd"|"onDelete"|"onUpdate"|"hard_delete"} type
      * @param {...any} params
      */
     ADD_QUEUE(type, ...params) {
@@ -355,7 +355,6 @@ export class StoreInternal extends RecordInternal {
     /**
      * @param {RecordList} recordList
      * @param {any} value
-     * @returns {boolean} whether the value has changed
      */
     updateRelationOne(recordList, value) {
         if (isCommand(value)) {
