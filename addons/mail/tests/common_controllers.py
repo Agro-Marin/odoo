@@ -58,9 +58,8 @@ class MessagePostSubTestData:
 
 
 class MailControllerCommon(HttpCase, MailCommon):
-    # Note that '_get_with_access' is going to call '_get_thread_with_access'
-    # which relies on classic portal parameter given as kwargs on most routes
-    # (aka hash, token, pid)
+    # '_get_with_access' delegates to '_get_thread_with_access', which relies on
+    # the classic portal kwargs passed on most routes (hash, token, pid)
 
     @classmethod
     def setUpClass(cls):

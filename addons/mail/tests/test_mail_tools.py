@@ -71,7 +71,7 @@ class TestMailTools(MailCommon):
         self.assertEqual(found, [self.env["res.partner"]])
 
     def test_mail_find_partner_from_emails_alias_localpart(self):
-        """Test mail_find_partner_from_emails when dealing with aliases that
+        """Test '_partner_find_from_emails_single' when dealing with aliases that
         have alias_incoming_local enabled and emails include the local part."""
         self.env["mail.alias"].create(
             [

@@ -49,8 +49,6 @@ class MailTrackingDurationMixinCase(MailCommon):
     ):
         """Update the mock duration_tracking field for multiple records by the given minutes.
 
-        If new_stage is defined, the stage of the records is updated as well.
-
         :param record_to_tracking_dic: list of (record, tracking dict) tuples.
         :param minutes: minutes to add to the duration tracking (converted to seconds).
         :param new_stage: optional new stage to set for the records. Defaults to False.
@@ -73,9 +71,8 @@ class MailTrackingDurationMixinCase(MailCommon):
             self.assertDictEqual(dict(tracking_dic), record.duration_tracking)
 
     def _test_record_duration_tracking(self):
-        """
-        Moves a record's many2one field through several values and asserts the duration spent in that value each time
-        """
+        """Move a record's many2one field through several values, asserting the
+        duration spent in each value."""
 
         with patch.object(self.env.cr, "now", return_value=self.mock_start_time) as now:
             track_duration_tracking = defaultdict(lambda: 0)
@@ -134,10 +131,8 @@ class MailTrackingDurationMixinCase(MailCommon):
             self.assertTrackingDuration(record, [(record, track_duration_tracking)])
 
     def _test_record_duration_tracking_batch(self):
-        """
-        Moves for a batch of records many2one field through several values and asserts the duration
-        spent in that value each time.
-        """
+        """Move the many2one field of a batch of records through several values,
+        asserting the duration spent in each value."""
 
         with patch.object(self.env.cr, "now", return_value=self.mock_start_time) as now:
             track_duration_tracking1 = defaultdict(lambda: 0)
@@ -203,9 +198,7 @@ class MailTrackingDurationMixinCase(MailCommon):
             self.assertTrackingDuration(batch, record_to_tracking_dic)
 
     def _test_queries_batch_duration_tracking(self):
-        """
-        The MailTrackingDuration mixin is only supposed to add 3 queries
-        """
+        """The MailTrackingDuration mixin is only supposed to add 2 queries."""
 
         batch = self.rec_1 | self.rec_2 | self.rec_3 | self.rec_4
         batch[self.track_duration_field] = self.stage_2.id

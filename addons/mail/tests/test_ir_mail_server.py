@@ -827,7 +827,8 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(mail_server_1.owner_limit_count, 4)
         self.assertEqual(mail_server_1.owner_limit_time, DATE_SEND_8.replace(second=0))
 
-        # We send 4 emails this minute, check that will send 1 and schedule the remaining
+        # 4 mails already went out this minute, so of these 5 only 1 is sent and
+        # the remaining ones are scheduled
         new_mails_user_1 = (
             self.env["mail.mail"]
             .with_user(user_1)

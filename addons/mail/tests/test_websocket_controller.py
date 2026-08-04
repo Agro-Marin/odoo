@@ -70,8 +70,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         guest = self.env["mail.guest"].create({"name": "Guest"})
         channel.add_members(guest_ids=guest.ids)
         # pin a db-bound public session before adding the guest cookie so the
-        # request resolves against the db routing map (fork multi-db convention,
-        # see mail/tests/common_controllers.py::_authenticate_pseudo_user)
+        # request resolves against the db routing map (as _authenticate_pseudo_user)
         self.authenticate(None, None)
         self.opener.cookies[guest._cookie_name] = guest._format_auth_cookie()
         result = self.make_jsonrpc_request(

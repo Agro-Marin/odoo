@@ -44,7 +44,7 @@ class TestDiscussTools(TransactionCase):
             store.add_model_values("key1", True)
 
     def test_042_store_invalid_missing_id(self):
-        """Test Thread adding invalid list value."""
+        """Test adding a value without id."""
         store = Store()
         with self.assertRaises(AssertionError):
             store.add_model_values("key1", {"test": True})
@@ -105,7 +105,7 @@ class TestDiscussTools(TransactionCase):
         self.assertEqual(store.get_result(), {"Store": {"test": False, "abc": 1}})
 
     def test_140_store_store_invalid_bool(self):
-        """Test Store adding invalid value."""
+        """Test adding invalid bool value."""
         store = Store()
         with self.assertRaises(AttributeError):
             store.add_model_values("key1", True)
@@ -231,7 +231,7 @@ class TestDiscussTools(TransactionCase):
             store.add_model_values("mail.thread", {"model": "res.partner"})
 
     def test_243_store_thread_invalid_missing_model(self):
-        """Test Thread adding invalid list value."""
+        """Test Thread adding a value without model."""
         store = Store()
         with self.assertRaises(AssertionError):
             store.add_model_values("mail.thread", {"id": 1})

@@ -1,34 +1,23 @@
 """Store serialization contract between Python controllers and the JS mock server.
 
 The hoot mock server (``static/tests/mock_server/``) hand-mirrors the Python
-controllers and the ``Store`` serialization protocol (``tools/discuss.py``).
-Nothing pins the two implementations together: a server-side payload change
-fails no JS test, and mock-server drift silently invalidates the 100+ hoot
-suites built on top of it (audit finding F3).
-
-This test is the Python half of the drift gate:
-
-* a fixed scenario (two users, a channel with messages / attachment /
-  reactions / a reply, a chatter record with a follower and an attachment) is
-  seeded, then the real routes are called over HTTP;
-* for every *gated* Store model in each response, the **exact set of field
-  names** (union over records, sorted) is compared against the committed
-  expectation file ``static/tests/mock_server/contract/store_shapes.js``.
-
-The JS half (``static/tests/mock_server/contract.test.js``) replays the same
-scenario against the mock server and asserts the same field-name sets from the
-same committed file. Drift in either implementation therefore fails (at least)
-one of the two tests, and the diff names the route, model and fields.
+controllers and the ``Store`` serialization protocol (``tools/discuss.py``), and
+nothing pins the two implementations together. This test is the Python half of
+the drift gate: a fixed scenario is seeded, the real routes are called over
+HTTP, and for every *gated* Store model in each response the exact set of field
+names (union over records, sorted) is compared against the committed expectation
+file ``static/tests/mock_server/contract/store_shapes.js``. The JS half
+(``static/tests/mock_server/contract.test.js``) replays the same scenario
+against the mock server and asserts the same sets from the same file.
 
 Values are deliberately not snapshotted (ids, datetimes and access tokens are
 unstable); only a few hand-picked stable values are asserted inline.
 
-The committed shapes describe a **bare ``mail`` install** (the mock server only
-mirrors mail). On a registry where modules outside mail's dependency closure
-are installed (im_livechat, ai, ...), downstream ``_to_store`` overrides
-legitimately *add* fields, so the test degrades to a containment check: every
-committed field must still be present (removals and renames — the dangerous,
-silent kind of drift — still fail). On a bare-mail registry the match is exact.
+The committed shapes describe a bare ``mail`` install (the mock server only
+mirrors mail). When modules outside mail's dependency closure are installed,
+downstream ``_to_store`` overrides legitimately *add* fields, so the test
+degrades to a containment check: removals and renames — the dangerous, silent
+kind of drift — still fail. On a bare-mail registry the match is exact.
 
 To regenerate the expectation file after an intentional protocol change, run
 against a database with only mail's dependency closure installed::

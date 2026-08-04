@@ -82,7 +82,7 @@ class TestUser(MailCommon):
             groups="base.group_user",
         )
 
-        # Ensure the internal user has well the inbox notification type
+        # the internal user starts with the inbox notification type
         self.assertEqual(user.notification_type, "inbox")
         self.assertIn(
             self.env.ref("mail.group_mail_notification_type_inbox"), user.group_ids
@@ -196,8 +196,8 @@ class TestUser(MailCommon):
 @tagged("-at_install", "post_install", "res_users")
 class TestUserTours(HttpCaseWithUserDemo):
     def test_user_modify_own_profile(self):
-        """ " A user should be able to modify their own profile.
-        Even if that user does not have access rights to write on the res.users model."""
+        """A user should be able to modify their own profile, even without access
+        rights to write on the res.users model."""
         if "hr.employee" in self.env and not self.user_demo.employee_id:
             self.env["hr.employee"].create(
                 {

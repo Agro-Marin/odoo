@@ -13,6 +13,7 @@ class ActivityScheduleCase(MailCommon):
     def setUpClass(cls):
         super().setUpClass()
 
+        # prepare activity types
         cls.activity_type_todo = cls.env.ref("mail.mail_activity_data_todo")
         cls.activity_type_todo.delay_count = 4
         cls.activity_type_todo.sequence = 1
@@ -80,19 +81,17 @@ class ActivityScheduleCase(MailCommon):
     def assertActivitiesFromPlan(
         self, plan, record, expected_deadlines, expected_responsible=None
     ):
-        """Check that the last activities on the record correspond to the one
-        that the plan must create (number of activities and activities content).
-
-        We check the created activities values against the template values because
-        most of them are just copied when creating activities from templates except
-        for deadlines and responsible for which we pass the expected values as parameters.
+        """Check that the activities the plan created on the record match its
+        templates (number of activities and activities content).
 
         :param <mail.activity.plan> plan: activity plan that has been applied on the record
         :param recordset record: record on which the plan has been applied
         :param list<date> expected_deadlines: expected deadlines of the record created activities
-        :param <res.user> expected_responsible: expected responsible for the created activities
+        :param <res.users> expected_responsible: expected responsible for the created activities
             if set, otherwise checked against the responsible set on the related templates.
         """
+        # template values are copied as-is when creating activities from a plan,
+        # except deadline and responsible which come from the parameters
         expected_number_of_activity = len(plan.template_ids)
         activities = self._new_activities.filtered(
             lambda act: act.res_model == record._name and act.res_id == record.id
@@ -117,13 +116,13 @@ class ActivityScheduleCase(MailCommon):
     def assertMessagesFromPlan(
         self, plan, record, expected_deadlines, expected_responsible=None
     ):
-        """Check that the last posted message on the record correspond to the one
-        that the plan must generate (number of activities and activities content).
+        """Check that the last posted message on the record announces the plan and
+        lists each template summary, responsible and deadline.
 
         :param <mail.activity.plan> plan: activity plan that has been applied on the record
         :param recordset record: record on which the plan has been applied
         :param list<date> expected_deadlines: expected deadlines of the record created activities
-        :param <res.user> expected_responsible: expected responsible for the created activities
+        :param <res.users> expected_responsible: expected responsible for the created activities
             if set, otherwise checked against the responsible set on the related templates.
         """
         message = record.message_ids[0]
