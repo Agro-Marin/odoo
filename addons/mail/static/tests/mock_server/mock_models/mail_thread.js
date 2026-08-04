@@ -650,8 +650,7 @@ export class MailThread extends models.ServerModel {
         const MailScheduledMessage = this.env["mail.scheduled.message"];
 
         // mirror python's `is_request = request_list is not None`: access flags
-        // are only sent when the thread is explicitly requested, not on every
-        // as_thread serialization (contract-tested in mock_server/contract).
+        // are only sent when the thread is explicitly requested (contract.test.js)
         const is_request =
             kwargs.request_list !== undefined && kwargs.request_list !== null;
         if (!fields) {

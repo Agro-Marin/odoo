@@ -535,7 +535,8 @@ afterEach(() => (hasUsedContainsPositively = false), { global: true });
  * @property {number|"bottom"} [setScroll] if provided, sets the scrollTop on the first found
  *  element.
  * @property {HTMLElement|OdooEnv} [target=getFixture()]
- * @property {string[]} [triggerEvents] if provided, triggers the given events on the found element
+ * @property {(EventType|[EventType, EventInit])[]} [triggerEvents] if provided, triggers the given
+ *  events on the found element
  * @property {string} [text] if provided, the textContent of the found element(s) or one of their
  *  descendants must match. Use `textContent` option for a match on the found element(s) only.
  * @property {string} [textContent] if provided, the textContent of the found element(s) must match.
@@ -740,7 +741,7 @@ class Contains {
     /**
      * Executes the action(s) given to this constructor on the found element,
      * prints the success messages, and resolves the main deferred.
-
+     *
      * @param {HTMLElement} el
      */
     executeAction(el) {
@@ -786,12 +787,8 @@ class Contains {
                 dataTransfer.items.add(file);
             }
             el.files = dataTransfer.files;
-            /**
-             * Changing files programatically is not supposed to trigger the event but
-             * it does in Chrome versions before 73 (which is on runbot), so in that
-             * case there is no need to make a manual dispatch, because it would lead to
-             * the files being added twice.
-             */
+            // Chrome before 73 already fires "change" on a programmatic files
+            // assignation: dispatching manually there would add the files twice
             const versionRaw = navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);
             const chromeVersion = versionRaw ? parseInt(versionRaw[2], 10) : false;
             if (!chromeVersion || chromeVersion >= 73) {

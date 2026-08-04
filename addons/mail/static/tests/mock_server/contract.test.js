@@ -1,5 +1,5 @@
 /**
- * JS half of the Store serialization drift gate (audit finding F3).
+ * JS half of the Store serialization drift gate.
  *
  * The python half (mail/tests/test_mock_server_contract.py) seeds the same
  * scenario, calls the REAL controllers and asserts the same committed

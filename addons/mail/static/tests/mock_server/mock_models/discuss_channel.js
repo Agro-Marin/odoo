@@ -48,8 +48,7 @@ export class DiscussChannel extends models.ServerModel {
     _compute_channel_name_member_ids() {
         for (const channel of this) {
             const members = channel.channel_member_ids ?? [];
-            // numeric: the default comparator sorts ids lexicographically
-            // (10 < 2), diverging from the server's id ordering
+            // numeric comparator: mirrors the server's `ORDER BY id`
             members.sort((a, b) => a - b);
             channel.channel_name_member_ids = members.slice(0, 3);
         }
@@ -658,7 +657,7 @@ export class DiscussChannel extends models.ServerModel {
      * @param {number[]} partners_to
      * @param {string} [default_display_mode=undefined]
      * @param {string} name
-     * */
+     */
     _create_group(partners_to, default_display_mode, name) {
         const kwargs = getKwArgs(
             arguments,
@@ -703,7 +702,7 @@ export class DiscussChannel extends models.ServerModel {
         const MailMessage = this.env["mail.message"];
         /** @type {import("mock_models").BusBus} */
         const BusBus = this.env["bus.bus"];
-        /** @type {import {"mock_model"}.ResPartner} */
+        /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
         const self = this.browse(ids)[0];
         let message;
@@ -859,7 +858,7 @@ export class DiscussChannel extends models.ServerModel {
 
     /**
      * @param {string} search
-     * @param {limit} number
+     * @param {number} limit
      */
     get_mention_suggestions(search, limit) {
         const kwargs = getKwArgs(arguments, "search", "limit");
@@ -867,10 +866,8 @@ export class DiscussChannel extends models.ServerModel {
         limit = kwargs.limit || 8;
 
         /**
-         * Returns the given list of channels after filtering it according to
-         * the logic of the Python method `get_mention_suggestions` for the
-         * given search term. The result is truncated to the given limit and
-         * formatted as expected by the original method.
+         * Filter channels like python's `get_mention_suggestions`, truncated to
+         * `limit`.
          *
          * @param {this[]} channels
          * @param {string} search

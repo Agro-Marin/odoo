@@ -4,26 +4,11 @@ import { Command, serverState } from "@web/../tests/web_test_helpers";
  * @module @mail/../tests/mail_scenarios
  *
  * Composable scenario factories for the recurring pyEnv topologies of the mail
- * test suites (measured over static/tests: 849 inline `discuss.channel`
- * creates, 438 hand-built member `Command.create({ partner_id: ... })`
- * literals, 156 partner+user pairs, 44 member `search([...])` + `write`
- * blocks).
- *
- * Every factory is **exact-behavior**: it creates the same records with the
- * same fields as the inline code it replaces — no extra defaults, no implicit
- * records. Anything not covered by an option can be spread through verbatim
- * (`...vals` ends up on the created record untouched).
- *
- * All helpers are synchronous, take `pyEnv` first and return plain ids (or
- * small `{ ...Id }` objects), so they read like native `pyEnv` calls:
- *
- *     const { partnerId, userId } = createUserAndPartner(pyEnv, "Bob");
- *     const { channelId } = createChatWith(pyEnv, "Bob");
- *     const channelId = createChannel(pyEnv, {
- *         name: "General",
- *         members: ["self", partnerId, { partner_id: "self", message_unread_counter: 1 }],
- *     });
- *     writeSelfMember(pyEnv, channelId, { new_message_separator: messageId + 1 });
+ * test suites. Each factory creates the same records with the same fields as the
+ * inline code it replaces — no extra defaults, no implicit records; unhandled
+ * keys are spread through verbatim onto the created record. All helpers are
+ * synchronous, take `pyEnv` first and return plain ids (or small `{ ...Id }`
+ * objects), so they read like native `pyEnv` calls.
  */
 
 /**
@@ -37,8 +22,7 @@ import { Command, serverState } from "@web/../tests/web_test_helpers";
  */
 
 /**
- * Convert a {@link MemberEntry} into the exact `Command.create()` the inline
- * boilerplate builds.
+ * Convert a {@link MemberEntry} into a `Command.create()`.
  *
  * @param {MemberEntry} member
  * @returns {ReturnType<typeof Command.create>}
@@ -58,13 +42,10 @@ function memberCommand(member) {
 }
 
 /**
- * Create a `res.partner` and its `res.users`, both named `name` — the
- * dominant "chat correspondent" fixture:
+ * Create a `res.partner` and its `res.users`, both named `name` — the dominant
+ * "chat correspondent" fixture.
  *
- *     const partnerId = pyEnv["res.partner"].create({ name: "Bob" });
- *     const userId = pyEnv["res.users"].create({ name: "Bob", partner_id: partnerId });
- *
- * @param {import("./mail_test_helpers").MailMockServer} pyEnv
+ * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
  * @param {string} name
  * @param {Object} [options]
  * @param {Object} [options.partner] extra `res.partner` vals
@@ -78,18 +59,10 @@ export function createUserAndPartner(pyEnv, name, { partner = {}, user = {} } = 
 }
 
 /**
- * Create a chat between the current user and a (new or existing)
- * correspondent — the single most duplicated topology of the suite:
+ * Create a `channel_type: "chat"` channel between the current user and a (new or
+ * existing) correspondent.
  *
- *     const channelId = pyEnv["discuss.channel"].create({
- *         channel_member_ids: [
- *             Command.create({ partner_id: serverState.partnerId }),
- *             Command.create({ partner_id: partnerId }),
- *         ],
- *         channel_type: "chat",
- *     });
- *
- * @param {import("./mail_test_helpers").MailMockServer} pyEnv
+ * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
  * @param {string | Object} nameOrOptions correspondent name, or options:
  * @param {string} [nameOrOptions.name] correspondent name (when creating them)
  * @param {number} [nameOrOptions.partnerId] reuse an existing partner instead
@@ -145,7 +118,7 @@ export function createChatWith(pyEnv, nameOrOptions) {
  * (the mock model then applies its own defaults). All other keys are
  * forwarded verbatim as channel vals.
  *
- * @param {import("./mail_test_helpers").MailMockServer} pyEnv
+ * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
  * @param {string | { members?: MemberEntry[] } & Object} [nameOrVals]
  * @returns {number} the channel id
  */
@@ -160,21 +133,14 @@ export function createChannel(pyEnv, nameOrVals = {}) {
 
 /**
  * Create a channel whose *self* member starts with `unread` unread messages —
- * the messaging-menu / sidebar counter fixture:
+ * the messaging-menu / sidebar counter fixture.
  *
- *     const channelId = pyEnv["discuss.channel"].create({
- *         channel_member_ids: [
- *             Command.create({ message_unread_counter: 1, partner_id: serverState.partnerId }),
- *             Command.create({ partner_id: partnerId }),
- *         ],
- *     });
- *
- * @param {import("./mail_test_helpers").MailMockServer} pyEnv
- * @param {Object} [options]
+ * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
+ * @param {Object} [options] any key other than those below is forwarded as
+ *  channel vals
  * @param {number} [options.unread=1] self member's `message_unread_counter`
  * @param {Object} [options.selfMember] extra vals on the self member
  * @param {MemberEntry[]} [options.members] the *other* members
- * @param {...*} [options.vals] any other key: forwarded as channel vals
  * @returns {number} the channel id
  */
 export function createChannelWithUnreads(pyEnv, options = {}) {
@@ -193,7 +159,7 @@ export function createChannelWithUnreads(pyEnv, options = {}) {
  * `mail.message` vals; `model` / `res_id` are filled in, everything else is
  * forwarded verbatim (and may override the fill-ins).
  *
- * @param {import("./mail_test_helpers").MailMockServer} pyEnv
+ * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
  * @param {number} channelId
  * @param {(string | Object)[]} messages
  * @returns {number[]} the created message ids
@@ -212,7 +178,7 @@ export function createChannelMessages(pyEnv, channelId, messages) {
  * Find the `discuss.channel.member` id of `partnerId` in `channelId` — the
  * recurring `search([["channel_id", "="], ["partner_id", "="]])` block.
  *
- * @param {import("./mail_test_helpers").MailMockServer} pyEnv
+ * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
  * @param {number} channelId
  * @param {number} [partnerId=serverState.partnerId]
  * @returns {number} the member id
@@ -230,7 +196,7 @@ export function getMemberId(pyEnv, channelId, partnerId = serverState.partnerId)
  * for the seen-infrastructure fixtures (`seen_message_id`,
  * `fetched_message_id`, `new_message_separator`, ...).
  *
- * @param {import("./mail_test_helpers").MailMockServer} pyEnv
+ * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
  * @param {number} channelId
  * @param {number} partnerId
  * @param {Object} vals `discuss.channel.member` vals
@@ -243,12 +209,9 @@ export function writeMember(pyEnv, channelId, partnerId, vals) {
 }
 
 /**
- * Write vals on *all* members of `channelId` — the bulk seen/fetched fixture:
+ * Write vals on *all* members of `channelId` — the bulk seen/fetched fixture.
  *
- *     const memberIds = pyEnv["discuss.channel.member"].search([["channel_id", "=", channelId]]);
- *     pyEnv["discuss.channel.member"].write(memberIds, { seen_message_id: messageId });
- *
- * @param {import("./mail_test_helpers").MailMockServer} pyEnv
+ * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
  * @param {number} channelId
  * @param {Object} vals `discuss.channel.member` vals
  */
@@ -260,16 +223,10 @@ export function writeMembers(pyEnv, channelId, vals) {
 }
 
 /**
- * {@link writeMember} for the current user's member — collapses the
- * "simulate that there is at least one read message" boilerplate:
+ * {@link writeMember} for the current user's member — collapses the "simulate
+ * that there is at least one read message" boilerplate.
  *
- *     const [memberId] = pyEnv["discuss.channel.member"].search([
- *         ["channel_id", "=", channelId],
- *         ["partner_id", "=", serverState.partnerId],
- *     ]);
- *     pyEnv["discuss.channel.member"].write([memberId], { new_message_separator: messageId + 1 });
- *
- * @param {import("./mail_test_helpers").MailMockServer} pyEnv
+ * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
  * @param {number} channelId
  * @param {Object} vals `discuss.channel.member` vals
  */

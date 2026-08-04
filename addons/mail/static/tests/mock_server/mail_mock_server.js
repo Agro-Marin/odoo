@@ -28,7 +28,7 @@ export const DISCUSS_ACTION_ID = 104;
 
 const { DateTime } = luxon;
 
-/** @param {import("./mock_model").MailGuest} guest */
+/** @param {import("mock_models").MailGuest} guest */
 export const authenticateGuest = (guest) => {
     const { env } = MockServer;
     /** @type {import("mock_models").ResUsers} */
@@ -83,20 +83,17 @@ registry.category("mail.on_rpc_before_global").add(true, onRpcBeforeGlobal);
 registry.category("mail.on_rpc_after_global").add(true, onRpcAfterGlobal);
 
 /**
- * All `[route, handler]` pairs collected by `registerRoute`. Module-level
- * `onRpc` registrations are scoped to whichever test-file suite happened to
- * be importing when this module was first evaluated (the ESM loader imports
- * every test file inside its own synthetic suite — see
- * `start.hoot.js/_importInFileSuite`), so they are lost for every other test
- * file. `registerMailMockRoutes()` replays them for the calling file's suite.
+ * All `[route, handler]` pairs collected by `registerRoute`. The ESM loader
+ * imports every test file inside its own synthetic suite (see
+ * `start.hoot.js/_importInFileSuite`), so module-level `onRpc` registrations
+ * bind only to the file that first evaluated this module.
  */
 const registeredRoutes = [];
 
 /**
  * (Re-)register every collected mock route for the current suite. Must be
- * called at the top level of each test file's module (this is done by
- * `defineMailModels()`), so the `onRpc` registrations bind to that file's
- * suite and every test in the file sees the mail mock routes.
+ * called at the top level of each test file's module — `defineMailModels()`
+ * does it — so the `onRpc` registrations bind to that file's suite.
  */
 export function registerMailMockRoutes() {
     for (const [route, handler] of registeredRoutes) {
@@ -133,7 +130,7 @@ export function registerRoute(route, handler) {
 }
 
 registerRoute("/mail/attachment/upload", mail_attachment_upload);
-/** @type {RouteCallback}} */
+/** @type {RouteCallback} */
 async function mail_attachment_upload(request) {
     /** @type {import("mock_models").DiscussVoiceMetadata} */
     const DiscussVoiceMetadata = this.env["discuss.voice.metadata"];
@@ -199,8 +196,7 @@ async function load_attachments(request) {
             res_model === "discuss.channel" &&
             (!older_attachment_id || id < older_attachment_id),
     )
-        // newest first, like the real controller (default-comparator sort on
-        // record objects was a no-op returning insertion order)
+        // newest first, like the real controller's `order="id DESC"`
         .sort((a1, a2) => a2.id - a1.id)
         .slice(0, limit)
         .map(({ id }) => id);
@@ -347,9 +343,8 @@ async function discuss_channel_messages(request) {
     const res = MailMessage._message_fetch([], channel, makeKwArgs(fetch_params));
     const { messages } = res;
     delete res.messages;
-    // faithful to the controller: `if not request.env.user._is_public()` —
-    // unconditional on `around` (the previous mock skipped around-fetches,
-    // so server and tests disagreed on when messages get marked done)
+    // like the controller: `if not request.env.user._is_public()`, i.e.
+    // unconditional on `around`
     if (!this.env["res.users"]._is_public(this.env.uid)) {
         MailMessage.set_message_done(messages.map((message) => message.id));
     }
@@ -422,8 +417,7 @@ async function discuss_channel_sub_channel_fetch(request) {
     );
     const store = new mailDataHelpers.Store(DiscussChannel.browse(subChannels));
     const lastMessageIds = [];
-    // search() returns ids: browse to get records; Math.max needs a spread
-    // (Math.max(array) is NaN), and an empty channel has no last message.
+    // an empty channel has no last message
     for (const channel of DiscussChannel.browse(subChannels)) {
         if (channel.message_ids.length) {
             lastMessageIds.push(Math.max(...channel.message_ids));
@@ -538,7 +532,7 @@ async function discuss_channel_pins(request) {
 registerRoute("/discuss/channel/mark_as_read", discuss_channel_mark_as_read);
 /** @type {RouteCallback} */
 async function discuss_channel_mark_as_read(request) {
-    /** @type {import("mock_models").DiscussChannel} */
+    /** @type {import("mock_models").DiscussChannelMember} */
     const DiscussChannelMember = this.env["discuss.channel.member"];
     const { channel_id, last_message_id } = await parseRequestParams(request);
     const [partner, guest] = this.env["res.partner"]._get_current_persona();
@@ -619,10 +613,8 @@ async function discuss_inbox_messages(request) {
     const res = MailMessage._message_fetch(domain, makeKwArgs(fetch_params));
     const { messages } = res;
     delete res.messages;
-    // faithful to the controller: the real route attaches the thread's
-    // needaction counter plus the bus id it was read at (extra_fields on the
-    // message's thread) — without them, counter-bus-id reconciliation on
-    // inbox fetch was untestable against the mock
+    // like the controller: attach the thread's needaction counter plus the bus
+    // id it was read at, as extra_fields on the message's thread
     const busLastId = this.env["bus.bus"].lastBusNotificationId;
     return {
         ...res,
@@ -659,7 +651,7 @@ async function mail_link_preview(request) {
     const BusBus = this.env["bus.bus"];
     /** @type {import("mock_models").MailLinkPreview} */
     const MailLinkPreview = this.env["mail.link.preview"];
-    /** @type {import("mock_models").MailLinkPreviewMessage} */
+    /** @type {import("mock_models").MailMessageLinkPreview} */
     const MailMessageLinkPreview = this.env["mail.message.link.preview"];
     /** @type {import("mock_models").MailMessage} */
     const MailMessage = this.env["mail.message"];
@@ -919,7 +911,7 @@ async function mail_thread_partner_from_email(request) {
     const ResPartner = this.env["res.partner"];
 
     const { thread_model, thread_id, emails } = await parseRequestParams(request);
-    // use variables, but don't actually implement py in JS, much effort for nothing
+    // browsed for parity with the controller, but the py logic is not simulated
     this.env[thread_model].browse(thread_id);
     const partners = emails.map(
         (email) => ResPartner.search([["email", "=", email]])[0],
@@ -1212,9 +1204,9 @@ function _process_request_for_all(store, name, params, context = {}) {
             ["model", "!=", false],
             ["message_type", "!=", "user_notification"],
         ]).filter((message) => {
-            // Purpose is to simulate the following domain on mail.message:
+            // simulates the mail.message domain
             // ['notification_ids.notification_status', 'in', ['bounce', 'exception']],
-            // But it's not supported by getRecords domain to follow a relation.
+            // which `_filter` cannot express: it does not follow relations.
             const notifications = MailNotification._filter([
                 ["mail_message_id", "=", message.id],
                 ["notification_status", "in", ["bounce", "exception"]],
@@ -1426,10 +1418,8 @@ export class StoreRelation extends StoreAttr {
                 value: this.value,
                 predicate: this.predicate,
                 as_thread: this.as_thread,
-                // losing only_id here made every named Store.one/many relation
-                // fully serialize its target (e.g. spurious mail.thread records
-                // with access flags the real server never sends) — caught by
-                // the store contract tests (mock_server/contract.test.js).
+                // must be carried over: without it every named Store.one/many
+                // relation fully serializes its target (contract.test.js)
                 only_id: this.only_id,
             }),
         );

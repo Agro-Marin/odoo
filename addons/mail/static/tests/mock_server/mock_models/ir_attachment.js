@@ -30,15 +30,17 @@ export class IrAttachment extends webModels.IrAttachment {
         return true; // dummy value for mock server
     }
 
-    /** @param {number} ids */
+    /**
+     * @param {mailDataHelpers.Store} store
+     * @param {Array} fields
+     */
     _to_store(store, fields) {
         const kwargs = getKwArgs(arguments, "store", "fields");
         fields = kwargs.fields;
 
         for (const attachment of this) {
-            // _add_record_fields (not _read_format) so that Store.attr entries
-            // in the field list (access tokens, has_thumbnail) are serialized
-            // instead of being silently dropped by _read_format.
+            // _add_record_fields, not _read_format: the latter drops the
+            // Store.attr entries of the field list (access tokens, thumbnails)
             store._add_record_fields(
                 this.browse(attachment.id),
                 fields.filter((field) => field !== "thread"),

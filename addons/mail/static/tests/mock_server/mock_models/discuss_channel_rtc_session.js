@@ -94,7 +94,7 @@ export class DiscussChannelRtcSession extends models.ServerModel {
 
     /**
      * @param {number} id
-     * @param {{ extra?; boolean }} options
+     * @param {{ extra?: boolean }} options
      */
     _to_store(store, fields, extra) {
         const kwargs = getKwArgs(arguments, "store", "fields", "extra");

@@ -97,9 +97,8 @@ addBusMessageHandler("mail.record/insert", (_env, _id, payload) => {
 });
 
 export function defineMailModels() {
-    // Bind the mail mock-server routes to the calling test file's suite: the
-    // module-level registrations in mail_mock_server.js only bind to the file
-    // that first imported it (see registerMailMockRoutes).
+    // Bind the mail mock-server routes to the calling test file's suite (see
+    // registerMailMockRoutes).
     registerMailMockRoutes();
     defineParams({ suite: "mail" }, "replace");
     return defineModels(mailModels);
@@ -431,9 +430,9 @@ function getSizeFromWidth(width) {
 
 /**
  * Adjust ui size either from given size (mapped to window breakpoints) or
- * width. This will impact uiService.{isSmall/size}, (wowl/legacy)
- * browser.innerWidth, (wowl) env.isSmall and. When a size is given, the browser
- * width is set according to the breakpoints that are used by the webClient.
+ * width. This impacts uiService.{isSmall/size}, browser.innerWidth and
+ * env.isSmall. When a size is given, the browser width is set according to the
+ * breakpoints used by the webClient.
  *
  * @param {Object} params parameters to configure the ui size.
  * @param {number|undefined} [params.size]
@@ -678,12 +677,10 @@ export function prepareRegistriesWithCleanup() {
 const observeRenderResults = new Map();
 let nextObserveRenderResults = 0;
 /**
- * Patch component `onWillRender` to track amount of renders.
- * This only prepares with the patching. To effectively observe the amount of renders,
- * should call @see observeRenders
- * Having both function allow to track renders as side-effect on specific actions, rather
- * than aggregate all renders including setup: as this value requires some thinking on
- * which render comes from what, usually the less with brief explanations the better.
+ * Patch `Component.setup` with mount/patch/destroy hooks tracking the amount of
+ * renders. This only prepares the patching: call @see observeRenders to start
+ * counting, so that renders can be attributed to specific actions instead of
+ * aggregating setup renders too.
  */
 export function prepareObserveRenders() {
     patchWithCleanup(Component.prototype, {
@@ -843,10 +840,8 @@ export function listenStoreFetch(
         }
         return res;
     }
-    /**
-     * The fetch could happen through any of those routes depending on various conditions.
-     * Most tests don't care about which route is used, so we just listen to all of them.
-     */
+    // the fetch could go through either route depending on conditions, and most
+    // tests don't care which, so listen to all of STORE_FETCH_ROUTES
     onRpc("/mail/action", async (request) => {
         const { params } = await request.json();
         return registerSteps(request, params.fetch_params);
@@ -891,12 +886,8 @@ export async function waitStoreFetch(
         ],
         { ignoreOrder },
     );
-    /**
-     * Extra tick necessary to ensure the RPC is fully processed before resolving.
-     * This is necessary because the asyncStep in onRpc is not synchronous with the moment
-     * the RPC result is resolved and processed in the business code. Removing this tick
-     * won't make everything fail, but it might create subtle race conditions.
-     */
+    // the asyncStep in onRpc resolves before the business code processes the RPC
+    // result: without this tick, subtle race conditions appear
     await microTick();
 }
 
@@ -911,7 +902,7 @@ export function userContext() {
 
 /**
  * @typedef VoiceMessagePatchResources
- * @property {AudioProcessor}
+ * @property {AudioWorkletNode} audioProcessor
  */
 
 /** @returns {VoiceMessagePatchResources} */
@@ -1029,15 +1020,13 @@ export function mockPermissionsPrompt() {
 }
 
 /**
- * Assert IM status on chat bubble and chat window of given `conversationName` with `count`.
- * The conversation should be present as a bubble initially, becomes open and folded again
- * after calling function.
- *
- * This is made as a function so that negative assertion on ImStatus can use this function and
- * ensure using correct selector and await properly like the positive assertions.
+ * Assert IM status on chat bubble and chat window of given `conversationName`
+ * with `count`. The conversation should be present as a bubble initially, and is
+ * opened then folded again by this call. Shared by positive and negative
+ * assertions so both use the same selectors and awaits.
  *
  * @param {string} conversationName
- * @param {Number} count
+ * @param {number} count
  */
 export async function assertChatBubbleAndWindowImStatus(conversationName, count) {
     await contains(`.o-mail-ChatBubble[name=${conversationName}]`);

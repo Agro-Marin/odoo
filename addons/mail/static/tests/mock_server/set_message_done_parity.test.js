@@ -8,9 +8,8 @@ defineMailModels();
 
 /**
  * The mock's /discuss/channel/messages must mirror the controller: mark
- * needaction messages done for a non-public user *unconditionally* — including
- * `around` fetches (the mock previously skipped those, so server and tests
- * disagreed on when messages get marked read).
+ * needaction messages done for a non-public user *unconditionally*, `around`
+ * fetches included.
  */
 async function seedNeedaction() {
     const pyEnv = await startServer();
@@ -51,7 +50,6 @@ test("an 'around' channel messages fetch also marks needaction done", async () =
     const [message] = pyEnv["mail.message"].search_read([
         ["model", "=", "discuss.channel"],
     ]);
-    // the previous mock skipped set_message_done when `around` was set
     await rpc("/discuss/channel/messages", {
         channel_id: channelId,
         fetch_params: { around: message.id, limit: 30 },
