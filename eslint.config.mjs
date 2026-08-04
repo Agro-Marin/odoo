@@ -174,7 +174,13 @@ const SHARED_IGNORES = [
     // excluded structurally rather than via a per-library allowlist
     // (which always drifts). Putting a third-party file anywhere else is
     // the bug; fix it by relocating into static/lib, not by listing it.
-    "**/static/lib/**",
+    //
+    // Written as `/**/*` (files) rather than `/**` (files AND the directory):
+    // a pattern that ignores the directory prunes the traversal, and then a
+    // negation such as COMMUNITY_IGNORES' `!addons/web/static/lib/hoot/**`
+    // cannot re-include anything, because the directory is never descended
+    // into. Ignoring only the files keeps those negations effective.
+    "**/static/lib/**/*",
 ];
 
 const COMMUNITY_IGNORES = [
