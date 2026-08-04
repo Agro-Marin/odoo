@@ -130,10 +130,8 @@ const StorePatch = {
     },
     updateAppBadge() {
         if (unread_store) {
-            // Authoritative reset of the shared "unread" badge key: overwrites
-            // any background-push increments the service worker accumulated
-            // while no tab was running (see the ownership note in
-            // service_worker.js incrementUnread).
+            // Authoritative reset of the shared "unread" badge key, overwriting
+            // background-push increments (see service_worker.js incrementUnread)
             window.idbKeyval.set("unread", this.globalCounter, unread_store);
             Promise.resolve(navigator.setAppBadge?.(this.globalCounter)).catch(
                 () => {},
@@ -162,12 +160,9 @@ const StorePatch = {
                     id: data.payload.id,
                 });
                 thread.fetchNewMessages();
-                // messages alone are not enough: marking an activity done in
-                // another tab must also refresh this tab's activity list, or
-                // the done activity stays rendered with live buttons (a
-                // second "Done" click then errors server-side).
-                // `fetchThreadData` is patched onto Thread by the chatter
-                // layer; optional-chained since core/web may load without it.
+                // messages alone are not enough: the activity list must be
+                // refreshed too. `fetchThreadData` is patched onto Thread by
+                // the chatter layer, which core/web may load without.
                 thread.fetchThreadData?.(["activities"]);
                 break;
             }
@@ -180,8 +175,7 @@ const StorePatch = {
         const counterSnapshot = snapshotCounter(starredBox, "counter");
         for (const message of messages) {
             // keep message state in sync so the echoed
-            // `mail.message/toggle_star` notification sees no transition and
-            // does not decrement the already-zeroed counter.
+            // `mail.message/toggle_star` notification sees no transition
             message.starred = false;
         }
         starredBox.counter = 0;
@@ -189,10 +183,8 @@ const StorePatch = {
         try {
             await this.env.services.orm.call("mail.message", "unstar_all");
         } catch (error) {
-            // rollback the optimistic update; the counter is only restored
-            // when its bus id did not advance in the meantime: a newer
-            // absolute bus snapshot must not be overwritten by a stale local
-            // value.
+            // rollback the optimistic update; the counter is restored only if
+            // its bus id did not advance (see snapshotCounter fencing)
             for (const message of messages) {
                 message.starred = true;
             }

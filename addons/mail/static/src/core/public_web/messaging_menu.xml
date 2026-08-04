@@ -11,11 +11,8 @@
         <DiscussContent t-if="['inbox', 'starred'].includes(store.discuss.activeTab) and ui.isSmall"/>
         <div t-else="" class="o-mail-MessagingMenu-list d-flex flex-column overflow-auto o-scrollbar-thin flex-grow-1 list-group list-group-flush o-scrollbar-thin" t-ref="notification-list">
             <!-- keyboard indices: a t-set inside a t-foreach body does not
-                 survive the loop (each iteration gets a sub-context), so a
-                 hand-incremented counter restarts at 0 in the second loop and
-                 the highlighted item desyncs from the one Enter activates
-                 (a global DOM index). Derive the flat index from the loops'
-                 own *_index variables instead. -->
+                 survive the loop (each iteration gets a sub-context), so the
+                 flat index is derived from the loops' own *_index variables. -->
             <t t-foreach="visibleStandaloneMessages" name="standaloneInboxMessages" t-as="message" t-key="message.id">
                 <NotificationItem
                     isActive="state.activeIndex === message_index"

@@ -25,6 +25,8 @@ const StorePatch = {
         if (!this.Thread) {
             return super.computeGlobalCounter();
         }
+        // single pass over Thread.records: this eager compute re-runs on every
+        // thread counter mutation (its onUpdate refreshes the app badge)
         const channelsFetched = this.channels.status === "fetched";
         let channelsContribution = channelsFetched ? 0 : this.initChannelsUnreadCounter;
         // Needactions are already counted in the super call, but we want to

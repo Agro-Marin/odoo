@@ -3,7 +3,7 @@ import { Component } from "@odoo/owl";
 
 /**
  * @typedef {Object} Props
- * @prop {(persona: import("models").Persona) => string} [avatarClass]
+ * @prop {(persona: import("models").ResPartner|import("models").MailGuest) => string} [avatarClass]
  * Function used to determine extra classes for the avatars.
  * @prop {Array} personas List of personas to display in the stack.
  * @prop {"v"|"h"} [direction] Determine the direction of the

@@ -15,9 +15,8 @@ const StorePatch = {
         const data = await this.fetchSearchConversationsSequential(() =>
             rpc("/discuss/search", { term: searchValue }),
         );
-        // makeSequential resolves superseded (out-of-date) calls with undefined;
-        // skip the insert so a fast keystroke stream doesn't clobber the store
-        // with an empty payload (cf. channel_invitation.js which guards too).
+        // useSequential resolves superseded calls with undefined: skip the
+        // insert so a keystroke stream can't clobber the store with nothing
         if (!data) {
             return;
         }

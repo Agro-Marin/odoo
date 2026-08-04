@@ -8,10 +8,8 @@ patch(ChatWindow.prototype, {
             !this.store.discuss.isActive &&
             this.fromMessagingMenu
         ) {
-            // If we are in mobile and discuss is not open, it means the
-            // chat window was opened from the messaging menu. In that
-            // case it should be re-opened to simulate it was always
-            // there in the background.
+            // On mobile with discuss closed, the chat window came from the
+            // messaging menu: reopen it to simulate a background menu.
             document.querySelector(".o_menu_systray i[aria-label='Messages']")?.click();
             // ensure messaging menu is opened before chat window is closed
             await Promise.resolve();

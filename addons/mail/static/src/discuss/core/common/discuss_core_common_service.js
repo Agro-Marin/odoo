@@ -36,10 +36,8 @@ export class DiscussCoreCommon {
             const message = this.store["mail.message"].insert({
                 author_id: this.store.odoobot,
                 body: markup(body),
-                // getNextTemporaryId() (not getLastMessageId()+0.01): the latter
-                // only tracks persistent messages, so two transient messages
-                // arriving back-to-back computed the same id and the second
-                // insert overwrote the first.
+                // getNextTemporaryId() (not getLastMessageId()+0.01, which only
+                // tracks persistent messages) keeps back-to-back ids distinct
                 id: this.store.getNextTemporaryId(),
                 subtype_id: this.store.mt_note,
                 is_transient: true,
@@ -65,9 +63,7 @@ export class DiscussCoreCommon {
                     if (
                         self_member_id &&
                         // mirror the increment's guard: notification-type
-                        // messages never counted up, so deleting one must
-                        // not count down (the clamp at 0 would then hide a
-                        // real unread)
+                        // messages never count up, so must not count down
                         !message.isNotification &&
                         // no seen message means nothing was seen yet: the
                         // deleted message was necessarily unread.
@@ -102,9 +98,7 @@ export class DiscussCoreCommon {
             id: channelId,
         });
         // Re-guard after the await: a `discuss.channel/delete` in the same bus
-        // batch can delete the thread during the pending fetch, leaving a
-        // tombstoned record. Continuing would RPC (markAsFetched) on a deleted id
-        // and mutate counters on a dead record.
+        // batch can delete the thread while the fetch is pending.
         if (!channel?.exists()) {
             return;
         }

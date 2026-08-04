@@ -34,7 +34,7 @@ export class RecipientsInput extends Component {
             resModel: "res.partner",
             activeActions: {
                 create: false,
-                link: true, // Unable multi-select
+                link: true, // enables multi-select
             },
             /** @param {Object} resIds */
             onSelected: async (resIds) => {
@@ -173,7 +173,7 @@ export class RecipientsInput extends Component {
         ];
     }
 
-    /** @returns {Object} */
+    /** @returns {Object[]} */
     getTagsFromMailThread() {
         const tags = [];
         const createTagForRecipient = (recipient, recipientField) => {
@@ -182,11 +182,8 @@ export class RecipientsInput extends Component {
                     recipient.email ? "<" + recipient.email + ">" : ""
                 }`.trim();
             tags.push({
-                // Stable per recipient across re-renders: a fresh uniqueId every
-                // render changed the tag identity, so the downstream tags-list
-                // useEffect re-ran and popover.open() close()d + reopened the
-                // "add email" popover on each render, dropping focus and any
-                // half-typed input.
+                // Stable per recipient across re-renders: a changing identity
+                // makes the tags-list useEffect reopen the popover, losing focus
                 id: `${recipientField}_${
                     recipient.partner_id ?? recipient.email ?? uniqueId("tag_")
                 }`,
@@ -239,7 +236,7 @@ export class RecipientsInput extends Component {
         return tags;
     }
 
-    /** @return {Array[SuggestedRecipient]}*/
+    /** @returns {SuggestedRecipient[]} */
     getAllMailThreadRecipients() {
         return [
             ...this.props.thread.suggestedRecipients,
@@ -248,10 +245,10 @@ export class RecipientsInput extends Component {
     }
 
     /**
-     * This method updates a recipient with a new email address.
-     * @param {string} emailNormalized email address to be set on the partner. The address is not a mailbox
-     * notation and only address, e.g. "Raoulette <raoulette@gmail.com>" is not accepted but "raoulette@gmail.com"
-     * is accepted as input.
+     * Updates a recipient with a new email address.
+     *
+     * @param {string} emailNormalized bare address to set on the partner,
+     * never mailbox notation
      * @param {number} recipientPartnerId ID of the partner to update
      */
     async updateRecipient(emailNormalized, recipientPartnerId) {
@@ -273,9 +270,8 @@ export class RecipientsInput extends Component {
      */
     hasRecipient(recipient) {
         return this.getAllMailThreadRecipients().some((current) =>
-            // match by partner_id when both have one, so two distinct
-            // partners that both lack an email are not treated as the same
-            // recipient (email-only compared undefined === undefined => true)
+            // match by partner_id when both have one: comparing emails alone
+            // conflates two distinct partners that both lack one
             current.partner_id && recipient.partner_id
                 ? current.partner_id === recipient.partner_id
                 : Boolean(current.email) && current.email === recipient.email,

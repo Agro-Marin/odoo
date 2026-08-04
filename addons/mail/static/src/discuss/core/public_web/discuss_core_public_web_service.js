@@ -23,9 +23,8 @@ export class DiscussCorePublicWeb {
                 "message",
                 ({ data: { id, open } }) => {
                     const category = this.store.DiscussAppCategory.get(id);
-                    // mirror locally only — the full `open` setter re-issues
-                    // the set_res_users_settings RPC, so a toggle in one tab
-                    // triggered one identical server write per listening tab
+                    // mirror locally only: the full `open` setter re-issues the
+                    // set_res_users_settings RPC, once per listening tab
                     category?.applyBroadcastedOpen(open);
                 },
             );

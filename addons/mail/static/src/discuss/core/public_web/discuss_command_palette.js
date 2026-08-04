@@ -154,7 +154,7 @@ export class DiscussCommandPalette {
         ]);
     }
 
-    /** @param {Record[]} [filtered] persona or thread to filters, e.g. being build already in a category in a patch such as MENTIONS or RECENT */
+    /** @param {Set<Record>} [filtered] personas/threads already listed in another category */
     buildResults(filtered) {
         const TOTAL_LIMIT = this.ui.isSmall ? 7 : 10;
         const remaining = TOTAL_LIMIT - (filtered ? filtered.size : 0);
@@ -249,7 +249,7 @@ export class DiscussCommandPalette {
             };
         }
         if (threadOrPersona?.Model?._name === "res.partner") {
-            /** @type {import("models").Persona} */
+            /** @type {import("models").ResPartner} */
             const persona = threadOrPersona;
             const chat = persona.searchChat();
             return {

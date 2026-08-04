@@ -197,9 +197,8 @@ export class GifPicker extends Component {
             }
             const term = this.searchTerm;
             const res = await this.sequential(async () => {
-                // build params inside the sequential callback so a queued call
-                // uses the up-to-date pagination token, not the one captured
-                // when the call was scheduled.
+                // build params inside the callback so a queued call uses the
+                // up-to-date pagination token, not the one captured on schedule
                 const params = {
                     country: region,
                     locale: `${language}_${region}`,
@@ -218,10 +217,8 @@ export class GifPicker extends Component {
                 }
             });
             if (res && term === this.searchTerm) {
-                // a keystroke while this call was in flight ran clear() and
-                // queued a new search: processing the stale response would
-                // repollute the cleared columns AND poison `next` with a
-                // token bound to the previous query
+                // a stale response would repollute the cleared columns and
+                // poison `next` with a token bound to the previous query
                 const { next, results } = res;
                 this.next = next;
                 for (const gif of results) {
@@ -299,9 +296,7 @@ export class GifPicker extends Component {
         }
         if (this.showFavorite) {
             // the favorites view renders from the evenGif/oddGif columns, not
-            // state.favorites.gifs: rebuild them so a toggle while viewing
-            // favorites is reflected immediately (un-favoriting a visible gif
-            // otherwise left the tile on screen until the category reopened)
+            // state.favorites.gifs: rebuild them to reflect the toggle
             this.clear();
             for (const favorite of this.state.favorites.gifs) {
                 this.pushGif(favorite);
@@ -310,10 +305,8 @@ export class GifPicker extends Component {
     }
 
     async loadFavorites() {
-        // Reentrancy guard: onWillStart and the bottom-scroll debounce can both
-        // call this. Overlapping runs read the same `offset`, duplicate results
-        // and double-advance the cursor (skipping a page). (cf. `search()`,
-        // which is already serialized through `makeSequential`.)
+        // Reentrancy guard: onWillStart and the bottom-scroll debounce both
+        // call this, and overlapping runs would read the same `offset`.
         if (
             !this.store.hasGifPickerFeature ||
             this.favoritesAllLoaded ||
@@ -332,10 +325,8 @@ export class GifPicker extends Component {
             this.offset += results.length;
             this.state.favorites.gifs.push(...results);
             if (this.showFavorite) {
-                // the favorites view renders from the evenGif/oddGif columns:
-                // without this, pages after the first are fetched (the offset
-                // advances) but never displayed until the category is
-                // reopened
+                // the favorites view renders from the evenGif/oddGif columns,
+                // so pages after the first must be pushed into them too
                 for (const gif of results) {
                     this.pushGif(gif);
                 }
@@ -363,9 +354,8 @@ export class GifPicker extends Component {
     }
 
     onClickFavoritesCategory() {
-        // clear the previous category/search results first (like
-        // onClickCategory), otherwise favorites stack under them and duplicate
-        // when toggling back and forth
+        // clear the previous category/search results first, otherwise
+        // favorites stack under them and duplicate on toggling back
         this.clear();
         this.showFavorite = true;
         for (const gif of this.state.favorites.gifs) {
