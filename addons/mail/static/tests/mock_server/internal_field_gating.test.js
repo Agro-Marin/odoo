@@ -8,12 +8,10 @@ describe.current.tags("desktop");
 defineMailModels();
 
 /**
- * The JS mock server mirrors the Python Store field gating: email_from is
- * emitted only for an internal target (or an authorless message) and
- * notification_ids only for an internal target. These are exercised as the
- * internal user by the contract gate; this pins the GUEST-facing side (a
- * guest must never receive those fields), which the contract gate — running
- * as the internal admin — cannot cover.
+ * The JS mock server mirrors the Python Store field gating: email_from only for
+ * an internal target (or an authorless message), notification_ids only for an
+ * internal target. Pins the guest-facing side, which the contract gate cannot
+ * cover since it runs as the internal admin.
  */
 async function seed() {
     const pyEnv = await startServer();

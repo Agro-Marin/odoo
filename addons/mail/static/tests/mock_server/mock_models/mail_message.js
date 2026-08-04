@@ -211,9 +211,8 @@ export class MailMessage extends models.ServerModel {
             "message_type",
             "model",
             "message_link_preview_ids",
-            // notification_ids: python appends it only for internal targets
-            // (mail_message.py _to_store field list) — a guest-facing test
-            // otherwise sees fields a real guest never gets
+            // python appends notification_ids only for internal targets
+            // (mail_message.py _to_store_defaults)
             ...(this._store_target_is_internal() ? ["notification_ids"] : []),
             mailDataHelpers.Store.one("parent_id", makeKwArgs({ format_reply: false })),
             mailDataHelpers.Store.many("partner_ids", makeKwArgs({ fields: ["name"] })),
@@ -237,9 +236,9 @@ export class MailMessage extends models.ServerModel {
     }
 
     /**
-     * Mirror of python's `target.is_internal(self.env)` for the default
-     * store target: an authenticated non-share user (guests authenticate
-     * through the public user).
+     * Mirror of python's `target.is_internal(self.env)` for the default store
+     * target: an authenticated non-share user (guests authenticate through the
+     * public user).
      */
     _store_target_is_internal() {
         const user = this.env.user;
@@ -263,8 +262,8 @@ export class MailMessage extends models.ServerModel {
                 author_guest_id: false,
             };
             if (isInternal || (!message.author_id && !message.author_guest_id)) {
-                // python: Store.Attr("email_from", predicate=internal target
-                // or authorless) — never sent to guests/portal otherwise
+                // python: Store.Attr("email_from", predicate=envelope_visible),
+                // i.e. internal target or authorless message
                 data.email_from = message.email_from;
             }
             if (message.author_guest_id) {
@@ -285,10 +284,9 @@ export class MailMessage extends models.ServerModel {
     }
 
     /**
-     * Simulates `set_message_done` on `mail.message`, which turns provided
-     * needaction message to non-needaction (i.e. they are marked as read from
-     * from the Inbox mailbox). Also notify on the longpoll bus that the
-     * messages have been marked as read, so that UI is updated.
+     * Simulates `set_message_done` on `mail.message`: turn the given needaction
+     * messages to non-needaction (read from the Inbox mailbox) and notify it on
+     * the bus so the UI updates.
      *
      * @param {number[]} ids
      */
@@ -497,9 +495,7 @@ export class MailMessage extends models.ServerModel {
         if (reactions.length === 0) {
             reaction_group = [
                 // plain id, matching the real server payload
-                // (mail_message.py: {"message": self.id, "content": content});
-                // a browse() recordset serialized here as an array-wrapped raw
-                // row, which Record.get() cannot resolve
+                // (mail_message.py: {"message": self.id, "content": content})
                 ["DELETE", { message: id, content: content }],
             ];
         }

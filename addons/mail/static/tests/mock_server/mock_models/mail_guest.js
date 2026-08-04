@@ -9,7 +9,7 @@ export class MailGuest extends models.ServerModel {
     }
 
     /**
-     * @param {Number[]} ids
+     * @param {number[]} ids
      * @returns {Record<string, ModelRecord>}
      */
     _to_store(store, fields) {

@@ -129,7 +129,7 @@ export class ResUsers extends webModels.ResUsers {
     /**
      * @param {number[]} ids
      * @param {import("@mail/../tests/mock_server/mail_mock_server").mailDataHelpers.Store} store
-     **/
+     */
     _init_messaging(ids, store) {
         /** @type {import("mock_models").DiscussChannel} */
         const DiscussChannel = this.env["discuss.channel"];

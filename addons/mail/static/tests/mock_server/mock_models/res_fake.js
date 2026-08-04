@@ -41,7 +41,7 @@ export class ResFake extends models.Model {
     }
 
     /**
-     * @param {integer[]} ids
+     * @param {number[]} ids
      * @returns {Object}
      */
     _get_customer_information(ids) {

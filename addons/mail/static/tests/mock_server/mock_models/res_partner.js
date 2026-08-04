@@ -52,10 +52,8 @@ export class ResPartner extends webModels.ResPartner {
 
         search = search.toLowerCase();
         /**
-         * Returns the given list of partners after filtering it according to
-         * the logic of the Python method `get_mention_suggestions` for the
-         * given search term. The result is truncated to the given limit and
-         * formatted as expected by the original method.
+         * Filter partners like python's `get_mention_suggestions`, truncated to
+         * `limit`.
          *
          * @param {ModelRecord[]} partners
          * @param {string} search
@@ -138,7 +136,6 @@ export class ResPartner extends webModels.ResPartner {
         const searchLower = search.toLowerCase();
 
         // mirror python: `(channel.parent_channel_id or channel).group_public_id`
-        // (this used to browse a res.partner by the parent CHANNEL id)
         const [parent_channel] = this.env["discuss.channel"].browse(
             channel.parent_channel_id,
         );
@@ -223,37 +220,17 @@ export class ResPartner extends webModels.ResPartner {
     }
 
     /**
-     * @param {Array} domain
-     * @param {number} limit
-     * @param {number} channel_id
-     * @param {Array} extraDomain
-     * @returns {Array}
-     */
-    /**
      * Mirror of python `res.partner._search_mention_suggestions`: a tiered
-     * priority search over PARTNERS. Python evaluates real domains
-     * (`user_ids.active`, `partner_share`, ...); the mock uses explicit
-     * predicates instead — evaluating those partner-shaped leaves with the
-     * generic mock domain matcher is what previously let inactive-user
-     * partners (OdooBot) leak into mention suggestions.
-     *
-     * Tiers (each filling up to `limit`, deduplicated, in order):
-     *   1. base domain ∧ internal user (active, non-share) — python's
-     *      `domain_is_user & partner_share = False`
-     *   2. base domain ∧ active user — python's `domain_is_user`
-     *   3. base domain
-     *   4. when `extraTier` is given: any partner with an active internal
-     *      user, optionally restricted to `extraTier.allowedGroupId` —
-     *      python's raw `extra_domain` tier (deliberately NOT restricted by
-     *      the base domain, matching the server).
-     * When `channel_id` is given, the base domain is additionally restricted
-     * to members of the channel and its parent — python's
-     * `("channel_ids", "in", ...)` leaf added by
-     * `get_mention_suggestions_from_channel`.
+     * priority search over partners, each tier filling up to `limit`. Python
+     * evaluates real domains (`user_ids.active`, `partner_share`, ...) that the
+     * generic mock domain matcher cannot, so the tiers use explicit predicates.
+     * `extraTier` is python's raw `extra_domain` tier, which the server does not
+     * restrict by the base domain.
      *
      * @param {Array} domain base partner domain (name/email search)
      * @param {number} limit
-     * @param {number} [channel_id]
+     * @param {number} [channel_id] restrict to members of the channel and its
+     *  parent, like `get_mention_suggestions_from_channel`
      * @param {{ allowedGroupId?: number | false }} [extraTier]
      * @returns {number[]} partner ids
      */
