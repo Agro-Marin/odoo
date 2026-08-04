@@ -1,9 +1,7 @@
 """Regression tests (part b) for the sixth mail audit.
 
 Pins the non-obvious performance / security / correctness fixes that lacked a
-direct test: the O(N^2) inbox payload reduction (and the email-address leak it
-closed), the channel-invite membership gate, and the web-push retry of a
-transiently-unresolvable endpoint.
+direct test, so a future refactor cannot silently reintroduce them.
 """
 
 import json

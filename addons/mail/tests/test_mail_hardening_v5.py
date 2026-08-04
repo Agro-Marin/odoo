@@ -2,9 +2,7 @@
 
 Each test pins a specific, empirically-confirmed finding from the audit so a
 future refactor cannot silently reintroduce it. Backend-only for fast,
-deterministic runs. Coverage spans ir.actions.server, mail.push.device,
-discuss.channel write ACL, mail.message / mail.activity ACL pagination, the
-inbound bounce gateway, flat-thread parenting and the mail.mail send path.
+deterministic runs.
 """
 
 from unittest.mock import patch

@@ -145,7 +145,7 @@ class TestDiscussChannelInvite(HttpCase, MailCommon):
         )
         self.assertEqual(guest.email, "alice@test.com")
         self.assertEqual(guest.name, "Alice")
-        # Guest email is not overwriten if already filled
+        # Guest email is not overwritten if already filled
         guest = self.env["mail.guest"].create(
             {"name": "John", "email": "john@test.com"}
         )

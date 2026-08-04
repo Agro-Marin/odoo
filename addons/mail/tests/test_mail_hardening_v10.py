@@ -1,24 +1,7 @@
 """Regression tests for the tenth mail hardening audit.
 
 Each test pins a defect reproduced end to end (real channel records) before
-being fixed, so a refactor cannot silently reintroduce it. Coverage:
-
- - ``discuss.channel._message_receive_bounce`` auto-unfollowed any address that
-   bounced ``MAX_BOUNCE_LIMIT`` times regardless of channel type, which for a
-   2-person ``chat`` unlinked the correspondent and left a broken 1-member DM
-   that the create guard then forbids repairing. Bounce-unfollow is now scoped
-   to the channel types that actually allow leaving.
- - ``mail.message._is_thread_message`` eagerly dereferenced ``self.model`` as a
-   ``.get`` default, so a non-superuser *batch* create of thread messages
-   raised ``Expected singleton`` in the create-access check.
- - ``_notify_thread_by_email`` did ``int(get_param(...))`` on ``mail.batch_size``
-   / ``mail.mail.force.send.limit`` with no guard, so a non-integer ICP value
-   raised ``ValueError`` and broke every email notification.
- - ``_insert_followers`` created auto-subscribed followers inside a *flushing*
-   savepoint, whose enter-flush ran the precommit ``_track_finalize`` before the
-   followers existed, so a tracked write's tracking message never notified the
-   followers that same write just auto-subscribed (covered by
-   ``test_mail.test_performance:test_tracking_subscription_write``).
+being fixed, so a refactor cannot silently reintroduce it.
 """
 
 from odoo.tests import tagged
@@ -87,7 +70,9 @@ class TestMessageBatchCreateAccessV10(MailCommon):
 @tagged("-at_install", "post_install", "mail_hardening_v10")
 class TestChannelBounceScopeV10(MailCommon):
     def test_bounce_does_not_break_direct_message(self):
-        """A bouncing correspondent must not be unlinked from a 2-person chat."""
+        """A bouncing correspondent must not be unlinked from a 2-person chat:
+        the create guard then forbids repairing the 1-member DM it leaves behind.
+        """
         other = mail_new_test_user(
             self.env,
             login="v10_dm",

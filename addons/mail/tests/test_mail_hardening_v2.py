@@ -43,8 +43,8 @@ class TestMailHardeningV2(MailCommon):
         """Creating RTC sessions across >1 channel in one ``create`` must give
         every channel its "call started" side effects and return every session.
 
-        A leaked loop variable used to leave all but the last channel without a
-        call-history record and truncate the returned recordset.
+        A leaked loop variable used to drop the call-history record of every
+        channel but the last, and to truncate the returned recordset.
         """
         channels = self.env["discuss.channel"]
         members = self.env["discuss.channel.member"]
@@ -65,8 +65,7 @@ class TestMailHardeningV2(MailCommon):
         # the returned recordset spans BOTH channels, not just the last one
         self.assertEqual(len(sessions), 2)
         self.assertEqual(sessions.channel_id, channels)
-        # every channel got its own call-history record (the side effect that
-        # the leaked loop variable used to drop for all but the last channel)
+        # every channel got its own call-history record
         history = self.env["discuss.call.history"].search(
             [("channel_id", "in", channels.ids)]
         )
@@ -74,7 +73,7 @@ class TestMailHardeningV2(MailCommon):
 
     def test_followers_invalidate_documents_drops_cache(self):
         """``_invalidate_documents`` must actually evict the followed record's
-        cache; it previously built the map and discarded it (a no-op)."""
+        cache, not just build the invalidation map."""
         partner = self.env["res.partner"].create({"name": "Cache Subject"})
         # prime the ORM cache for a stored field
         partner.name  # noqa: B018
@@ -103,8 +102,8 @@ class TestMailHardeningV2(MailCommon):
 
     def test_tracking_selection_unknown_new_value_no_crash(self):
         """Tracking a selection whose new value is no longer a declared option
-        must fall back to the raw value instead of raising ``KeyError`` mid-write
-        (old value was already defensive; new value was not)."""
+        must fall back to the raw value instead of raising ``KeyError``
+        mid-write."""
         partner = self.env["res.partner"].create({"name": "Track Subject"})
         col_info = {
             "type": "selection",
@@ -117,12 +116,11 @@ class TestMailHardeningV2(MailCommon):
         self.assertEqual(values["new_value_char"], "delivery")
 
     def test_web_push_iv_distinct_per_record(self):
-        """RFC 8188 record nonces must differ per record (and the derivation
-        helper, previously dead code, must stay wired in)."""
+        """RFC 8188 record nonces must differ per record."""
         base = os.urandom(12)
         ivs = [_iv(base, seq) for seq in range(4)]
         self.assertEqual(len(set(ivs)), len(ivs), "record nonces must be distinct")
-        # first 4 bytes are the record-size prefix, unchanged across records
+        # only the low 8 bytes carry the sequence; the nonce base leads unchanged
         self.assertTrue(all(iv[:4] == base[:4] for iv in ivs))
 
     def test_jwt_sign_no_side_effects(self):

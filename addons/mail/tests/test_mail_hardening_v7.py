@@ -1,19 +1,7 @@
 """Regression tests for the seventh mail hardening audit.
 
 Each test pins a specific, empirically-confirmed finding so a future refactor
-cannot silently reintroduce it. Coverage:
-
- - public / none-auth discuss + mail routes must coerce client-supplied record
-   ids: a non-numeric id used to reach an integer-typed domain (or a bare
-   ``int()``) and surface a psycopg ``InvalidTextRepresentation`` -- an
-   anonymous unhandled-exception / HTTP-500 primitive -- instead of a clean
-   ``NotFound``;
- - routes taking a client-supplied model name must validate it (an unknown
-   model name used to ``KeyError`` -> 500);
- - ``mail.notification._gc_notifications`` must collect read, aged, terminal
-   notifications for *share* (portal / customer) partners, not only internal
-   users and email-only rows -- otherwise ``mail_notification`` (one of the
-   largest tables on portal databases) grew without bound.
+cannot silently reintroduce it.
 """
 
 import json
@@ -121,7 +109,8 @@ class TestControllerInputCoercion(HttpCase, MailCommon):
 
 @tagged("-at_install", "post_install", "mail_hardening_v7")
 class TestNotificationGcSharePartner(MailCommon):
-    """``_gc_notifications`` must not permanently spare share partners."""
+    """``_gc_notifications`` must not permanently spare share (portal) partners:
+    ``mail_notification`` is one of the largest tables on portal databases."""
 
     def _aged_read_notification(self, partner, message):
         notif = self.env["mail.notification"].create(

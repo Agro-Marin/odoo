@@ -1,20 +1,7 @@
 """Regression tests for the twelfth mail hardening audit.
 
 Each test pins a defect reproduced end to end before being fixed, so a refactor
-cannot silently reintroduce it. Coverage:
-
- - the two **regex render engines dropped the root segment** of an allow-listed
-   expression (``expr.split(".")[1:]`` evaluated against the record), so the
-   allow-list and the evaluator disagreed: ``mail_allowed_qweb_expressions`` is
-   a documented extension point, and an entry like ``user.name`` silently
-   rendered the *record's* ``name``. The allow-list is the security boundary for
-   non-``group_mail_template_editor`` users, so a reviewed entry did not
-   describe what was actually read.
- - ``_prepare_message_data`` had dropped ``from_create`` from its signature while
-   both call sites still passed it, leaving it to travel inside ``**kwargs``.
-   ``portal`` keys anonymous-chatter author attribution on that flag, so a typo
-   degraded silently to "not a create". The default ``message_type`` also leaked
-   onto the edit path.
+cannot silently reintroduce it.
 """
 
 import inspect
@@ -28,7 +15,9 @@ from odoo.addons.mail.tests.common import MailCommon
 
 @tagged("-at_install", "post_install", "mail_hardening_v12")
 class TestRestrictedRenderRoots(MailCommon):
-    """The restricted (regex) renderers must read what the allow-list says."""
+    """The restricted (regex) renderers must read what the allow-list says: it is
+    the security boundary for non-``group_mail_template_editor`` users, so a
+    reviewed entry must describe what is actually read."""
 
     @classmethod
     def setUpClass(cls):

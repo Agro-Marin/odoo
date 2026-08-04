@@ -1,22 +1,7 @@
 """Regression tests for the eighth mail hardening audit.
 
 Each test pins a specific, empirically-confirmed finding so a future refactor
-cannot silently reintroduce it. Coverage:
-
- - ``_get_mail_batch_size`` must treat a *negative* ``mail.batch_size`` ICP as
-   malformed (like a non-integer / zero) and fall back to the default: a
-   negative value is truthy, so ``batch_size or default`` let it through and
-   ``itertools.batched(res_ids, -5)`` raised "n must be at least one", aborting
-   every mass-send loop;
- - ``mail.message.create`` with a tracking-value command list that mixes
-   ``(0, 0, vals)`` (create) with other commands must not create the (0, 0)
-   entries twice;
- - ``mail.mail.send(raise_exception=True)`` must raise when the only recipient
-   is invalid/missing instead of silently returning as if the mail was sent;
- - ``_render_field`` must reuse a caller-supplied ``res_ids_lang`` instead of
-   recomputing the lang template via ``_classify_per_lang`` (the mass-mail
-   composer was rendering the lang expression 5x per batch);
- - ``mail.message._to_store`` must not mutate the caller's ``fields`` list.
+cannot silently reintroduce it.
 """
 
 from unittest.mock import patch
@@ -34,7 +19,11 @@ from odoo.addons.mail.tools.discuss import Store
 @tagged("-at_install", "post_install", "mail_hardening_v8")
 class TestMailHardeningV8(MailCommon):
     def test_get_mail_batch_size_rejects_negative(self):
-        """A negative ICP is as malformed as a garbage/zero one -> default."""
+        """A negative ICP is as malformed as a garbage/zero one -> default.
+
+        A negative value is truthy, so ``batch_size or default`` lets it through
+        and ``itertools.batched`` then aborts every mass-send loop.
+        """
         template = self.env["mail.template"]
         icp = self.env["ir.config_parameter"].sudo()
         for raw, expected in [
@@ -118,12 +107,8 @@ class TestMailHardeningV8(MailCommon):
                 "body_html": "<p>hi</p>",
             }
         )
-        # The mock drives the real NO_VALID_RECIPIENT path (send_email raises it
-        # once the connection is established). Before the fix, _send caught it,
-        # set failure_type, but never re-raised for a strict caller -> send()
-        # returned as if it had succeeded. The contract under test is simply that
-        # a total failure is surfaced (the persisted state is the caller's to
-        # roll back, so it is intentionally not asserted here).
+        # Only "a total failure is surfaced" is under test: the persisted state is
+        # the caller's to roll back, so it is intentionally not asserted here.
         with (
             patch.object(
                 IrMailServer, "_connect__", lambda self, *a, **k: _DummySession()
