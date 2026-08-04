@@ -24,9 +24,6 @@ patch(Thread.prototype, {
         });
     },
 
-    /**
-     * @param {import("models").Thread} channel
-     */
     async fetchPinnedMessages() {
         if (
             this.model !== "discuss.channel" ||
@@ -41,10 +38,8 @@ patch(Thread.prototype, {
                 channel_id: this.id,
             });
         } catch {
-            // Surface the failure via the reactive state: the panel's
-            // emptyText distinguishes "error" from a genuinely empty channel.
-            // Both callers invoke this fire-and-forget, so re-throwing only
-            // produced an unhandled rejection and never reached a handler.
+            // Surface the failure through the reactive state: both callers are
+            // fire-and-forget, so a re-throw would reach no handler.
             this.pinnedMessagesState = "error";
             return;
         }

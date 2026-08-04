@@ -4,10 +4,8 @@ import { browser } from "@web/core/browser/browser";
 const FPS = 30; // Frames per second for the blurred background stream
 
 function drawAndBlurImageOnCanvas(image, blurAmount, canvas) {
-    // Assigning canvas.width/height reallocates the backing store and resets the
-    // 2D context, so only do it when the dimensions actually change (camera
-    // resolution is stable across the ~30fps stream). getContext is fetched once
-    // instead of up to five times per frame.
+    // Assigning canvas.width/height reallocates the backing store and resets
+    // the 2D context: only do it when the dimensions actually change.
     if (canvas.width !== image.width) {
         canvas.width = image.width;
     }
@@ -40,8 +38,9 @@ export class BlurManager {
             `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/${file}`,
     });
     /**
-     * Promise or undefined, based on the input stream, resolved when selfieSegmentation has started painting on the canvas,
-     * resolves into a web.MediaStream that is the blurred version of the input stream.
+     * @type {Promise<MediaStream>} resolved once selfieSegmentation started
+     * painting on the canvas, with the blurred version of the input stream.
+     * Rejected if the source stream is removed or the model fails to load.
      */
     stream;
     video = document.createElement("video");
@@ -172,11 +171,9 @@ export class BlurManager {
         try {
             await this.selfieSegmentation.send({ image: this.video });
         } catch (error) {
-            // the mediapipe model/WASM files load at runtime from a CDN:
-            // unreachable (offline, CSP, air-gapped deployment) means send()
-            // rejects and no result callback ever fires. Without this, the
-            // `stream` promise stays pending FOREVER — setVideo hangs with
-            // the camera LED on — and each frame is an unhandled rejection.
+            // the mediapipe model/WASM files load at runtime from a CDN: when
+            // unreachable, send() rejects, no result callback ever fires and the
+            // `stream` promise would stay pending forever
             this.isVideoDataLoaded = false; // stop the tick/rAF loop
             if (this.resolveStreamPromise) {
                 this.rejectStreamPromise(error);

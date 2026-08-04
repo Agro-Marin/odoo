@@ -154,7 +154,7 @@ export class Peer {
         }
     }
     /**
-     * @param {{STREAM_TYPE[keyof STREAM_TYPE]}} streamType
+     * @param {STREAM_TYPE[keyof STREAM_TYPE]} streamType
      * @param {boolean} canUpload whether this transceiver needs upload capability (outbound stream)
      * @returns {RTCRtpTransceiverDirection}
      */
@@ -218,7 +218,7 @@ export class PeerToPeer extends EventTarget {
         isCameraOn: false,
         isScreenSharingOn: false,
     });
-    /** @type {String[]} */
+    /** @type {Array<RTCIceServer>} */
     _iceServers;
     _isPendingNotify = false;
     _notificationsToSend = new Map();
@@ -228,10 +228,7 @@ export class PeerToPeer extends EventTarget {
      * @type {number}
      */
     _tmpNotificationId = 0;
-    /**
-     * by peer ID
-     * @type {Map<timeoutID>}
-     */
+    /** @type {Map<number, number>} timeoutId by peer id */
     _recoverTimeouts = new Map();
     /** @type {String} */
     _notificationRoute;
@@ -317,16 +314,14 @@ export class PeerToPeer extends EventTarget {
         });
     }
     /**
-     * Adds a peer and starts the process of connection establishment. From this point the whole
-     * peer lifecycle is handled internally, including connection recovery attempts, until
-     * `removePeer()` or `disconnect()` is called.
-     * If a peer of that id already exists, it is returned without being re-created.
-     * This allows `addPeer` to be called to ensure that all of them are registered without fear
-     * of resetting connections (removePeer() should be called explicitly if that is the intention).
+     * Adds a peer and starts connection establishment; the whole peer
+     * lifecycle (including recovery attempts) is then handled internally until
+     * `removePeer()` or `disconnect()`. An already registered peer is returned
+     * as is, so `addPeer` never resets a live connection.
      *
      * @param {number} id
      * @param {object} [options={}] options for the Peer constructor
-     * @returns {Peer} resolved when the dataChannel is open
+     * @returns {Promise<Peer>} resolved when the dataChannel is open
      */
     async addPeer(id, options = {}) {
         const peer = this.peers.get(id);
@@ -441,12 +436,10 @@ export class PeerToPeer extends EventTarget {
             isCameraOn: Boolean(this._tracks[STREAM_TYPE.CAMERA]),
         });
         for (const peer of this.peers.values()) {
-            // Fan out in the background: `ready` only resolves once the
-            // handshake completes (or after a lengthy recovery), so awaiting
-            // every peer would block the caller for seconds behind a single
-            // stuck peer. `_updateRemote` reads `this._tracks` at execution
-            // time, so a late peer still picks up the latest track, and it
-            // handles its own errors (`_recover`).
+            // Fan out in the background: awaiting `ready` would block the
+            // caller behind a single stuck handshake. `_updateRemote` reads
+            // `this._tracks` at execution time, so a late peer still picks up
+            // the latest track.
             peer.ready.then(() => this._updateRemote(peer, streamType));
         }
     }
@@ -552,10 +545,8 @@ export class PeerToPeer extends EventTarget {
                         return;
                     }
                 } catch (error) {
-                    // Bail out like the non-throwing rejection path above:
-                    // without this return, a failed acceptOffer (e.g.
-                    // setRemoteDescription on a bad/racing SDP) fell through and
-                    // advanced the peer against a half-applied offer.
+                    // `acceptOffer` is caller-supplied: treat a throw like an
+                    // explicit rejection rather than advancing the negotiation.
                     this._emitLog(id, `offer rejected: ${error}`, LOG_LEVEL.INFO);
                     return;
                 }
@@ -744,12 +735,9 @@ export class PeerToPeer extends EventTarget {
                     peer.connection.connectionState === "connecting" ||
                     peer.connection.iceConnectionState === "checking"
                 ) {
-                    // still progressing: slow ICE (TURN relay allocation,
-                    // mobile networks) routinely exceeds the first timer.
-                    // Tearing the handshake down restarts it from scratch
-                    // with a doubled backoff — the "cannot connect for the
-                    // first ~30s" pathology. Give it another window; a
-                    // genuinely failed ICE leaves these states on its own.
+                    // still progressing: slow ICE (TURN allocation, mobile
+                    // networks) routinely exceeds the first timer, and tearing
+                    // the handshake down would restart it with a longer backoff
                     this._recover(peer.id, `${reason} (still progressing)`);
                     return;
                 }
@@ -783,11 +771,9 @@ export class PeerToPeer extends EventTarget {
                 if (!this.isActive || this._notificationsToSend.size === 0) {
                     return;
                 }
-                // Snapshot the notification object alongside its id: an OFFER
-                // reuses a per-target key (`latestOffer_to:<target>`), so a
-                // fresh offer queued during the RPC overwrites this map entry.
-                // Deleting by id alone (below) would then drop that newer offer
-                // — with its up-to-date SDP — before it is ever sent.
+                // Snapshot each notification alongside its id: an OFFER reuses
+                // a per-target key, so a fresher offer queued during the RPC
+                // must not be deleted by id below before being sent.
                 const sent = [];
                 const notifications = [];
                 this._notificationsToSend.forEach((notification, id) => {
@@ -813,19 +799,16 @@ export class PeerToPeer extends EventTarget {
                 } catch {
                     failedAttempts++;
                     if (failedAttempts > MAX_NOTIFICATION_RETRIES) {
-                        // Give up (probably offline): peers go through the
-                        // recovery flow on their own, while retrying forever
-                        // would hammer a dead network and leak rejections
-                        // into the event handlers that queued notifications.
+                        // Give up (probably offline): peers run their own
+                        // recovery flow, and retrying forever would hammer a
+                        // dead network.
                         this._emitLog(
                             this.selfId,
                             "too many failed attempts to send notifications, giving up",
                             LOG_LEVEL.ERROR,
                         );
-                        // Drop only what we actually tried to send (by identity),
-                        // like the success path below, so notifications queued
-                        // during the ~30s backoff survive for the recovery flow
-                        // instead of being cleared with the whole queue.
+                        // Drop only what was actually tried (by identity), so
+                        // notifications queued during the backoff survive.
                         for (const [id, notification] of sent) {
                             if (this._notificationsToSend.get(id) === notification) {
                                 this._notificationsToSend.delete(id);

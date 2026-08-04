@@ -89,19 +89,15 @@ export class Rtc extends Record {
     /** @type {"granted" | "denied" | "prompt" | undefined} */
     cameraPermission;
     /**
-     * The RtcSession of the current user for the call hosted by this tab, this is only set if
-     * the current tab is the cross-tab host (the tab that is maintaining the connections and streams).
-     *
-     * If you want a reference to the RtcSession of the call, regardless of where it is hosted,
-     * as long as it is on the same browser, use `selfSession`.
+     * RtcSession of the current user for the call hosted by this tab, only set
+     * when this tab is the cross-tab host. Use `selfSession` for the session of
+     * the call regardless of which tab of this browser hosts it.
      */
     localSession = fields.One("discuss.channel.rtc.session");
     /**
-     * The RtcSession shared between tabs, this is set if any of the tabs of that browser is in a call.
-     *
-     * For most use cases, this is the RtcSession you want to use (to ensure cross-tab consistency),
-     * unless you need to access actual connection data (connection stats, streams,...), which can only
-     * be accessed from the tab that is hosting the call.
+     * RtcSession shared between tabs, set if any tab of this browser is in a
+     * call. Connection data (stats, streams,...) is only reachable through
+     * `localSession`, on the hosting tab.
      */
     selfSession = fields.One("discuss.channel.rtc.session", {
         compute() {
@@ -450,24 +446,11 @@ export class Rtc extends Record {
                 this.sfuClient?.disconnect();
             }
         });
-    }
-
-    /**
-     * Call all sessions for which no peerConnection is established at
-     * a regular interval to try to recover any connection that failed
-     * to start.
-     *
-     * This is distinct from this.recover which tries to restore
-     * connections that were established but failed or timed out.
-     *
-     * Scoped to the call: started here and cleared by `clear()`. Started from
-     * `start()` instead, its id was written and never read, so it had no stop
-     * path at all — it kept waking every PING_INTERVAL outside any call, and a
-     * store torn down and rebuilt (every test does this) left the previous one
-     * ticking.
-     */
-    _startPing() {
-        browser.clearInterval(this._pingIntervalId);
+        /**
+         * Periodically calls the sessions that have no peerConnection yet, to
+         * recover connections that never started. Distinct from
+         * `PeerToPeer._recover`, which restores established connections.
+         */
         this._pingIntervalId = browser.setInterval(async () => {
             if (!this.localSession || !this.state.channel) {
                 return;
@@ -650,9 +633,8 @@ export class Rtc extends Record {
         try {
             await this.rpcLeaveCall(channel);
         } catch {
-            // best-effort, like the `pagehide` beacon path: hanging up while
-            // offline must still run the local cleanup, otherwise the mic and
-            // camera stay live with no way to stop them.
+            // best-effort: hanging up offline must still run the local cleanup,
+            // otherwise the mic and camera stay live with no way to stop them.
         } finally {
             // a stuck flag would permanently disable every join/leave action
             this.state.hasPendingRequest = false;
@@ -669,19 +651,16 @@ export class Rtc extends Record {
         }
         channel.activeRtcSession = undefined;
         if (channel.eq(this.state.channel)) {
-            // only when ending the active call: broadcasting CLOSE for an
-            // unrelated channel (invitation reject) would tear down the
-            // call this tab hosts or mirrors in another channel
+            // only for the active call: a CLOSE broadcast for an unrelated
+            // channel would tear down the call this tab hosts or mirrors
             try {
                 this._endHost();
                 this.state.logs.end = new Date().toISOString();
                 this.dumpLogs();
                 this.pttExtService.unsubscribe();
             } finally {
-                // Teardown must run even if a diagnostic above throws (e.g.
-                // buildSnapshot in dumpLogs): otherwise the transport socket,
-                // RTCPeerConnections and local mic/camera tracks leak for the
-                // tab's lifetime.
+                // teardown must run even if a diagnostic above throws, else the
+                // transport socket, peer connections and local tracks leak
                 this.transport?.disconnect();
                 this.clear();
                 this.soundEffectsService.play("call-leave");
@@ -768,15 +747,9 @@ export class Rtc extends Record {
             this.clear();
             return;
         }
-        // Note: ``selfie_segmentation.js`` is shipped eagerly via
-        // ``web.assets_backend`` (mail/__manifest__.py defines it under
-        // the bundle so ``window.SelfieSegmentation`` is available
-        // before any call starts).  A previous in-place ``loadJS``
-        // wrapped in ``Promise.resolve(() => loadJS(...))`` was a
-        // no-op (the arrow function was the resolved value, never
-        // invoked), and even when fixed would have been redundant.
-        // Removed 2026-05-10 — see machine_doc_v1/CONVENTIONS.md
-        // §"Lazy-loading vendored libraries".
+        // no lazy load needed here: ``selfie_segmentation.js`` ships in
+        // ``web.assets_backend``, so ``window.SelfieSegmentation`` exists
+        // before any call starts.
         if (this.state.hasPendingRequest) {
             return;
         }
@@ -786,9 +759,8 @@ export class Rtc extends Record {
         }
         if (!isActiveCall) {
             const joinCallOpts = { audio, camera };
-            // only a KNOWN not-granted state joins muted: undefined means
-            // the permission is unknowable here (permissions.query
-            // unsupported for these names) and getUserMedia must be tried
+            // only a KNOWN not-granted state joins muted: undefined means the
+            // permission is unknowable here and getUserMedia must be tried
             if (["denied", "prompt"].includes(this.microphonePermission)) {
                 joinCallOpts.audio = false;
             }
@@ -882,11 +854,9 @@ export class Rtc extends Record {
                 audio: audio ? this.store.settings.audioConstraints : false,
                 video: video ? this.store.settings.cameraConstraints : false,
             });
-            // a successful acquisition IS the permission proof — on every
-            // browser, not only Safari/mobile: engines whose
-            // permissions.query rejects on these names would otherwise keep
-            // the flags undefined and this method returned false forever
-            // (the user could then never join with audio)
+            // a successful acquisition IS the permission proof: engines whose
+            // permissions.query rejects on these names leave the flags
+            // undefined, and this method would then always return false
             if (audio) {
                 this.microphonePermission = "granted";
             }
@@ -1284,19 +1254,12 @@ export class Rtc extends Record {
             });
             return;
         }
-        // Fully leave the current call before joining another one. joinCall only
-        // clear()s, and clear() -> transport.dispose() deliberately skips
-        // disconnect() (it trusts endCall to have run). Without leaving first, the
-        // previous channel's peer connections and SFU socket leak, its p2p
-        // listeners keep firing (doubling updates), updateUpload replaceTracks the
-        // new mic/camera to the *old* participants, and no leave_call RPC is sent.
-        // Leave whatever call is in progress, including a call on *this* same
-        // channel: joinCall only clear()s, and clear() -> transport.dispose()
-        // deliberately skips disconnect(). Guarding on notEq left the
-        // same-channel rejoin (reachable from a `call=accept` action on a
-        // channel the user is already calling in) taking the leak path this
-        // very comment describes -- duplicated p2p listeners, an orphaned SFU
-        // socket, and no leave_call RPC.
+        // Leave whatever call is in progress, including one on *this* channel:
+        // joinCall only clear()s, and clear() -> transport.dispose() skips
+        // disconnect() (it trusts endCall to have run). Without leaving, the
+        // previous peer connections and SFU socket leak, p2p listeners keep
+        // firing, updateUpload replaceTracks to the old participants, and no
+        // leave_call RPC is sent.
         if (this.state.channel) {
             await this.leaveCall(this.state.channel);
         }
@@ -1415,11 +1378,9 @@ export class Rtc extends Record {
     buildSnapshot() {
         const server = {};
         if (this.state.connectionType === CONNECTION_TYPES.SERVER) {
-            // Never serialize call credentials into the log snapshot: it is
-            // persisted to IndexedDB and lands in the user-downloadable RTC log
-            // bundle. The SFU jsonWebToken is a replayable channel credential
-            // and TURN iceServers entries carry secrets; keep only whether they
-            // were present for debugging.
+            // Never serialize call credentials into the snapshot: it lands in
+            // the user-downloadable RTC log bundle. The SFU jsonWebToken is a
+            // replayable channel credential and TURN entries carry secrets.
             const { jsonWebToken, iceServers, ...safeInfo } =
                 toRaw(this.serverInfo) ?? {};
             server.info = {
@@ -1980,10 +1941,8 @@ export class Rtc extends Record {
                 screen: true,
             });
         } else {
-            /**
-             * We wait a bit before pausing a download to avoid flickering, if the user stops downloading and starts again
-             * soon after, it is not worth pausing the download.
-             */
+            // delay the pause to avoid flickering when the download is
+            // resumed soon after
             this.downloadTimeouts.set(
                 rtcSession.id,
                 browser.setTimeout(() => {
@@ -2053,10 +2012,8 @@ export const rtcService = {
                 status.onchange = () => (rtc.microphonePermission = status.state);
             })
             .catch(() => {
-                // engines that don't recognize the permission name reject
-                // (older Firefox, some WebViews): the flag stays undefined,
-                // meaning "unknown" — askForBrowserPermission sets it from
-                // an actual getUserMedia success instead
+                // engines that don't recognize the permission name reject: the
+                // flag stays undefined and askForBrowserPermission sets it
             });
         browser.navigator.permissions
             ?.query({ name: "camera" })
@@ -2070,10 +2027,8 @@ export const rtcService = {
             const session = await store["discuss.channel.rtc.session"].getWhenReady(
                 Number(id),
             );
-            /**
-             * We only accept offers for new connections (higher sequence),
-             * or offers that renegotiate an existing connection (same sequence).
-             */
+            // accept offers for new connections (higher sequence) and
+            // renegotiations of an existing one (same sequence)
             return sequence >= session?.sequence;
         };
         services["bus_service"].subscribe(
@@ -2111,19 +2066,15 @@ export const rtcService = {
             "discuss.channel.rtc.session/update_and_broadcast",
             (payload) => {
                 const { data, channelId } = payload;
-                /**
-                 * If this event comes from the channel of the current call, information is shared in real time
-                 * through the peer to peer connection. So we do not use this less accurate broadcast.
-                 */
+                // for the current call the info is already shared in real time
+                // over the connection: this broadcast is less accurate
                 if (channelId !== rtc.channel?.id) {
                     rtc.store.insert(data);
                 }
             },
         );
-        /**
-         * Attempts to play RTC medias when a user shows signs of presence (interaction with the page) as
-         * they cannot be played on windows that have not been interacted with.
-         */
+        // medias cannot be played on a window that was never interacted with:
+        // retry on the first sign of presence
         services["presence"].bus.addEventListener(
             "presence",
             () => {

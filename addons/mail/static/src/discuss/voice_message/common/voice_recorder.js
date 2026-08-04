@@ -45,10 +45,8 @@ export function useVoiceRecorder() {
     const store = useService("mail.store");
     const config = { bitRate: 128 }; // 128 or 160 kbit/s – mid-range bitrate quality
     onWillUnmount(() => {
-        // Discard on unmount — do NOT upload. The user never confirmed, and by
-        // now the attachment uploader may resolve to a different thread, so
-        // stopRecording() here would silently post a partial clip to the wrong
-        // conversation. Just tear down the mic/context.
+        // Discard on unmount, never upload: the user never confirmed and the
+        // attachment uploader may now resolve to a different thread.
         if (state.recording) {
             notification.add(_t("Voice recording stopped"), { type: "warning" });
         }
@@ -97,10 +95,8 @@ export function useVoiceRecorder() {
 
             await loadLamejs();
             // A stop (or unmount) during these awaits runs cleanUp(), which
-            // closes audioContext and clears `recording`. Re-check before
-            // touching the context again — otherwise the resumed init builds an
-            // AudioWorkletNode on a closed context and throws a spurious
-            // "not available" error at the user.
+            // closes audioContext: re-check before building an
+            // AudioWorkletNode on a closed context.
             if (!state.recording || status(component) === "destroyed") {
                 cleanUp();
                 return;
@@ -133,10 +129,8 @@ export function useVoiceRecorder() {
                     state.limitWarning = true;
                 }
                 if (elapsedSeconds >= 60) {
-                    // >=, not ===: elapsedSeconds derives from worklet message
-                    // timestamps, so a stall (throttled/suspended tab) can jump
-                    // 59 -> 61 and skip an exact 60, leaving the recording
-                    // uncapped. The early-return still guards re-entry.
+                    // >=, not ===: worklet timestamps can jump over an exact 60
+                    // on a throttled tab, leaving the recording uncapped
                     notification.add(
                         _t("The duration of voice messages is limited to 1 minute."),
                         {
@@ -220,10 +214,7 @@ export function useVoiceRecorder() {
         microphone?.getTracks().forEach((track) => track.stop());
         microphone = null;
         // reset so the `!encoder` guard in stopRecording reflects the CURRENT
-        // recording: without this it stayed pointing at the finished encoder,
-        // and a Stop clicked during a later recording's async-init window
-        // flushed the previous (empty) encoder instead of taking the
-        // init-in-progress branch.
+        // recording, instead of flushing the previous, finished encoder
         encoder = null;
         state.recording = false;
         state.limitWarning = false;

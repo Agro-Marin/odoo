@@ -83,12 +83,9 @@ patch(Composer.prototype, {
         }
         if (!this.typingNotified && value) {
             this.typingNotified = true;
-            // separate from typingNotified: "the server was told we type"
-            // (cleared only by an explicit stop) vs "a re-notification is
-            // due" (cleared by the LONG_TYPING timer). Conflating them made
-            // stopTyping() skip the final is_typing=false when the last
-            // keystroke fell just before the timer reset — the other clients
-            // then kept the indicator until their own 60s expiry.
+            // distinct from typingNotified: "the server was told we type"
+            // (cleared by an explicit stop) vs "a re-notification is due"
+            // (cleared by the LONG_TYPING timer below)
             this.serverKnowsTyping = true;
             this.notifyIsTyping();
             // After LONG_TYPING of continuous typing, clear the flag so the next

@@ -34,8 +34,8 @@ export class PinnedMessagesPanel extends Component {
      */
     get emptyText() {
         if (this.props.thread.pinnedMessagesState === "error") {
-            // distinct from "no pinned messages": a fetch failure used to be
-            // indistinguishable from a genuinely empty channel
+            // distinct from "no pinned messages": a fetch failure is not an
+            // empty channel
             return _t("Pinned messages could not be loaded.");
         }
         if (this.props.thread.channel_type === "channel") {

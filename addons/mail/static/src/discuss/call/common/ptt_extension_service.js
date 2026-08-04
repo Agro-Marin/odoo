@@ -80,10 +80,9 @@ export const pttExtensionHookService = {
                 case "toggle-voice":
                     {
                         if (!rtc.state.channel) {
-                            // no active call: onPushToTalk would be a no-op
-                            // but the flag would still flip, and a stale
-                            // voiceActivated pins the mic open in the next
-                            // call (isPushToTalkRelease stays false)
+                            // no active call: flipping the flag anyway leaves a
+                            // stale voiceActivated that pins the mic open in the
+                            // next call (isPushToTalkRelease stays false)
                             break;
                         }
                         if (self.voiceActivated) {

@@ -53,8 +53,8 @@ export class Mp3Encoder {
         this.encoding = true;
         this.samplesMono = this.convertBuffer(arrayBuffer);
         let remaining = this.samplesMono.length;
-        // `> 0`, not `>= 0`: when the length is an exact multiple of MAX_SAMPLES
-        // the old bound ran one extra iteration that encoded an empty buffer.
+        // `> 0`, not `>= 0`: an exact multiple of MAX_SAMPLES would otherwise
+        // run one extra iteration and encode an empty buffer.
         for (let i = 0; remaining > 0; i += MAX_SAMPLES) {
             const left = this.samplesMono.subarray(i, i + MAX_SAMPLES);
             const mp3buffer = this.mp3Encoder.encodeBuffer(left);

@@ -30,11 +30,9 @@ export class RtcSession extends Record {
             if (!deferred) {
                 deferred = new Deferred();
                 this.awaitedRecords.set(id, deferred);
-                // Fallback so callers never hang forever. The timer is cleared
-                // in new() when the session actually arrives; without that, a
-                // late-firing timer would `delete(id)` a *fresh* deferred
-                // registered for the same id in the meantime, leaving its
-                // caller (e.g. _applySessionInfo, handleRemoteTrack) hung.
+                // Fallback so callers never hang forever. `new()` clears the
+                // timer, and the identity check below keeps a late firing from
+                // deleting a fresh deferred registered for the same id.
                 deferred._timeout = browser.setTimeout(() => {
                     deferred.resolve();
                     if (this.awaitedRecords.get(id) === deferred) {
@@ -200,7 +198,7 @@ export class RtcSession extends Record {
     }
 
     /**
-     * @returns {{isSelfMuted: boolean, isDeaf: boolean, isTalking: boolean, isRaisingHand: boolean}}
+     * @returns {SessionInfo}
      */
     get info() {
         return {
