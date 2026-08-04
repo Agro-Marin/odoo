@@ -84,8 +84,7 @@ test("reportJsError: kind passes through for every kind the server accepts", asy
     reportJsError({ message: "beacon-kind-rebind", kind: "module_rebind" });
     reportJsError({ message: "beacon-kind-bogus", kind: /** @type {any} */ ("weird") });
     // The five kinds observability.py::js_error accepted when this was written.
-    // Nothing couples the two, so widening the server's tuple will not fail
-    // here — asset_load_error was added to KINDS and this case did not follow.
+    // Nothing couples the two, so widening the server's tuple will not fail here.
     expect((await payloadOf(calls[0].blob)).kind).toBe("error");
     expect((await payloadOf(calls[1].blob)).kind).toBe("unhandledrejection");
     expect((await payloadOf(calls[2].blob)).kind).toBe("service_start");
