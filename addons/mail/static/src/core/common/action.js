@@ -17,38 +17,45 @@ export const ACTION_TAGS = Object.freeze({
 /** @typedef {import("@odoo/owl").Component} Component */
 /** @typedef {import("@mail/model/record").Record} Record */
 /** @typedef {Component|Record} ActionOwner */
+/**
+ * Argument every action hook and definition callback receives: the `params`
+ * getter of the action, which owner-specific subclasses extend (e.g. `message`
+ * and `thread` for message actions).
+ *
+ * @typedef {{ action: Action, store: import("models").Store, owner: ActionOwner }} ActionParams
+ */
 
 /**
  * @typedef {Object} ActionDefinition
- * @property {boolean|(action: Action) => boolean} [badge]
- * @property {string|(action: Action) => string} [badgeIcon]
- * @property {string|(action: Action) => string} [badgeText]
- * @property {Object|(action: Action) => Object} [btnAttrs]
- * @property {string|(action: Action) => string} [btnClass]
+ * @property {boolean|(params: ActionParams) => boolean} [badge]
+ * @property {string|(params: ActionParams) => string} [badgeIcon]
+ * @property {string|(params: ActionParams) => string} [badgeText]
+ * @property {Object|(params: ActionParams) => Object} [btnAttrs]
+ * @property {string|(params: ActionParams) => string} [btnClass]
  * @property {Component} [component]
- * @property {boolean|(action: Action) => boolean} [componentCondition=true]
- * @property {(action: Action) => Component<Props, Env>} [componentProps]
- * @property {boolean|(action: Action) => boolean} [disabledCondition]
+ * @property {boolean|(params: ActionParams) => boolean} [componentCondition=true]
+ * @property {(params: ActionParams) => Component<Props, Env>} [componentProps]
+ * @property {boolean|(params: ActionParams) => boolean} [disabledCondition]
  * @property {boolean} [dropdown]
- * @property {Component|(action: Action) => Component} [dropdownComponent]
- * @property {Object|(action: Action) => Object} [dropdownComponentProps]
- * @property {string|(action: Action) => string} [dropdownMenuClass]
- * @property {string|(action: Action) => string} [dropdownPosition]
- * @property {DropdownState|(action: Action) => DropdownState} [dropdownState]
- * @property {string|(action: Action) => string} [dropdownTemplate]
- * @property {Object|(action: Action) => Object} [dropdownTemplateParams]
- * @property {boolean|(action: Action) => boolean} [hasBtnBg]
- * @property {string|(action: Action) => string} [hotkey]
- * @property {string|(action: Action) => string} [icon]
- * @property {boolean|(action: Action) => boolean} [inlineName=false]
- * @property {boolean|(action: Action) => boolean} [isActive]
- * @property {string|(action: Action) => string} [name]
- * @property {(action: Action, ev: Event) => void} [onSelected]
- * @property {number|(action: Action) => number} [sequence]
- * @property {boolean|(action: Action) => boolean} [sequenceGroup]
- * @property {boolean|(action: Action) => boolean} [sequenceQuick]
+ * @property {Component|(params: ActionParams) => Component} [dropdownComponent]
+ * @property {Object|(params: ActionParams) => Object} [dropdownComponentProps]
+ * @property {string|(params: ActionParams) => string} [dropdownMenuClass]
+ * @property {string|(params: ActionParams) => string} [dropdownPosition]
+ * @property {DropdownState|(params: ActionParams) => DropdownState} [dropdownState]
+ * @property {string|(params: ActionParams) => string} [dropdownTemplate]
+ * @property {Object|(params: ActionParams) => Object} [dropdownTemplateParams]
+ * @property {boolean|(params: ActionParams) => boolean} [hasBtnBg]
+ * @property {string|(params: ActionParams) => string} [hotkey]
+ * @property {string|(params: ActionParams) => string} [icon]
+ * @property {boolean|(params: ActionParams) => boolean} [inlineName=false]
+ * @property {boolean|(params: ActionParams) => boolean} [isActive]
+ * @property {string|(params: ActionParams) => string} [name]
+ * @property {(params: ActionParams, ev: Event) => void} [onSelected]
+ * @property {number|(params: ActionParams) => number} [sequence]
+ * @property {boolean|(params: ActionParams) => boolean} [sequenceGroup]
+ * @property {boolean|(params: ActionParams) => boolean} [sequenceQuick]
  * @property {() => void} [setup]
- * @property {string|string[]|(action: Action) => string|string[]} [tags]
+ * @property {string|string[]|(params: ActionParams) => string|string[]} [tags]
  */
 
 export class Action {
@@ -80,7 +87,7 @@ export class Action {
         return { action: this, store: this.store, owner: this.owner };
     }
 
-    /** @param {Action} action @returns {boolean|undefined} */
+    /** @param {ActionParams} action @returns {boolean|undefined} */
     _badge(action) {}
     /** Condition for showing badge on this action */
     get badge() {
@@ -92,7 +99,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|undefined} */
+    /** @param {ActionParams} action @returns {string|undefined} */
     _badgeIcon(action) {}
     /** When action shows badge @see badge this property tells the icon inside badge */
     get badgeIcon() {
@@ -104,7 +111,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|undefined} */
+    /** @param {ActionParams} action @returns {string|undefined} */
     _badgeText(action) {}
     /** When action shows badge @see badge this property tells the text inside badge. */
     get badgeText() {
@@ -116,7 +123,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {Object|undefined} */
+    /** @param {ActionParams} action @returns {Object|undefined} */
     _btnAttrs(action) {}
     get btnAttrs() {
         return (
@@ -127,7 +134,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|undefined} */
+    /** @param {ActionParams} action @returns {string|undefined} */
     _btnClass(action) {}
     get btnClass() {
         return (
@@ -138,14 +145,14 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {Component|undefined} */
+    /** @param {ActionParams} action @returns {Component|undefined} */
     _component(action) {}
     /** When provided, this component is mounted for this action. UI/UX of action is fully managed by the component */
     get component() {
         return this._component(this.params) ?? this.definition.component;
     }
 
-    /** @param {Action} action @returns {boolean|undefined} */
+    /** @param {ActionParams} action @returns {boolean|undefined} */
     _componentCondition(action) {}
     /** When provided, action.component is conditionally picked based on this condition. When condition is false, the usual UI/UX of action from other explicit definitions is chosen */
     get componentCondition() {
@@ -157,7 +164,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {Object|undefined} */
+    /** @param {ActionParams} action @returns {Object|undefined} */
     _componentProps(action) {}
     /** Props to pass to the component of this action. */
     get componentProps() {
@@ -167,7 +174,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {boolean|undefined} */
+    /** @param {ActionParams} action @returns {boolean|undefined} */
     _condition(action) {}
     /** Condition for availability of this action */
     get condition() {
@@ -179,7 +186,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {boolean|undefined} */
+    /** @param {ActionParams} action @returns {boolean|undefined} */
     _disabledCondition(action) {}
     /** Condition to disable the button of this action (but still display it). */
     get disabledCondition() {
@@ -189,14 +196,14 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {boolean|undefined} */
+    /** @param {ActionParams} action @returns {boolean|undefined} */
     _dropdown(action) {}
     /** Determines whether this action opens a dropdown on selection. */
     get dropdown() {
         return this._dropdown(this.params) ?? this.definition.dropdown;
     }
 
-    /** @param {Action} action @returns {Component|undefined} */
+    /** @param {ActionParams} action @returns {Component|undefined} */
     _dropdownComponent(action) {}
     /** When action is a dropdown @see dropdown, this determines an optional component to use for the content slot */
     get dropdownComponent() {
@@ -209,7 +216,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {Object|undefined} */
+    /** @param {ActionParams} action @returns {Object|undefined} */
     _dropdownComponentProps(action) {}
     /** When action is a dropdown @see dropdown, this determines optional props to pass to component of the content slot of dropdown. */
     get dropdownComponentProps() {
@@ -221,7 +228,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|undefined} */
+    /** @param {ActionParams} action @returns {string|undefined} */
     _dropdownMenuClass(action) {}
     /** When action is a dropdown @see dropdown, this determines an optional menu class for the dropdown, in addition to default dropdown menu classes */
     get dropdownMenuClass() {
@@ -233,7 +240,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|undefined} */
+    /** @param {ActionParams} action @returns {string|undefined} */
     _dropdownPosition(action) {}
     /** When action is a dropdown @see dropdown, this determines the preferred position of the dropdown */
     get dropdownPosition() {
@@ -245,7 +252,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {DropdownState|undefined} */
+    /** @param {ActionParams} action @returns {DropdownState|undefined} */
     _dropdownState(action) {}
     /** When action is a dropdown @see dropdown, this determines the preferred position of the dropdown */
     get dropdownState() {
@@ -257,7 +264,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|undefined} */
+    /** @param {ActionParams} action @returns {string|undefined} */
     _dropdownTemplate(action) {}
     /** When action is a dropdown @see dropdown, this determines an optional template to use for the content slot */
     get dropdownTemplate() {
@@ -269,7 +276,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {Object|undefined} */
+    /** @param {ActionParams} action @returns {Object|undefined} */
     _dropdownTemplateParams(action) {}
     /**
      * When action is a dropdown @see dropdown, this determines optional params to pass to template of the content slot of dropdown.
@@ -285,7 +292,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {boolean|undefined} */
+    /** @param {ActionParams} action @returns {boolean|undefined} */
     _hasBtnBg(action) {}
     get hasBtnBg() {
         return (
@@ -296,7 +303,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|undefined} */
+    /** @param {ActionParams} action @returns {string|undefined} */
     _hotkey(action) {}
     /** Determines whether this action has a keyboard hotkey to trigger the onSelected */
     get hotkey() {
@@ -308,7 +315,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|Object|undefined} */
+    /** @param {ActionParams} action @returns {string|Object|undefined} */
     _icon(action) {}
     /**
      * Icon for the button this action.
@@ -325,7 +332,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|undefined} */
+    /** @param {ActionParams} action @returns {string|undefined} */
     _inlineName(action) {}
     /** If set, when action is used in inline, shows action name in addition to icon. */
     get inlineName() {
@@ -338,7 +345,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {boolean|undefined} */
+    /** @param {ActionParams} action @returns {boolean|undefined} */
     _isActive(action) {}
     /** States whether this action is currently active. */
     get isActive() {
@@ -350,7 +357,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|undefined} */
+    /** @param {ActionParams} action @returns {string|undefined} */
     _name(action) {}
     /** Name of this action, displayed to the user. */
     get name() {
@@ -362,7 +369,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @param {Event} ev @returns {true|undefined} */
+    /** @param {ActionParams} action @param {Event} ev @returns {true|undefined} */
     _onSelected(action, ev) {}
     /** Action to execute when this action is selected @param {Event} ev */
     onSelected(ev) {
@@ -372,7 +379,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {number|undefined} */
+    /** @param {ActionParams} action @returns {number|undefined} */
     _sequence(action) {}
     /** Determines the order of this action (smaller first). */
     get sequence() {
@@ -384,7 +391,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {number|undefined} */
+    /** @param {ActionParams} action @returns {number|undefined} */
     _sequenceGroup(action) {}
     get sequenceGroup() {
         return (
@@ -395,7 +402,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {number|undefined} */
+    /** @param {ActionParams} action @returns {number|undefined} */
     _sequenceQuick(action) {}
     get sequenceQuick() {
         return (
@@ -406,7 +413,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {true|undefined} */
+    /** @param {ActionParams} action @returns {true|undefined} */
     _setup(action) {}
     /** setup is executed when the owner is being setup. */
     setup() {
@@ -415,7 +422,7 @@ export class Action {
         );
     }
 
-    /** @param {Action} action @returns {string|string[]|undefined} */
+    /** @param {ActionParams} action @returns {string|string[]|undefined} */
     _tags(action) {}
     /** If set, list of tags of this action. */
     get tags() {

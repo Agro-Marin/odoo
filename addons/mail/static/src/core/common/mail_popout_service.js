@@ -9,27 +9,20 @@ const DEFAULT_ID = Symbol("default");
 export const mailPopoutService = {
     /**
      * To be overridden to add specific assets to call PiP.
-     * @param [Window] window the window on which we may add assets
+     * @param {Window} window the window on which we may add assets
      */
     async addAssets(window) {},
 
     start(env) {
         /**
-         * @type {Map<any, { externalWindow: Window|null, generation: number, hooks: { beforePopout?: Function, afterPopoutClosed?: Function, app: App } }>}
+         * @type {Map<any, { externalWindow: Window|null, generation: number, hooks: { beforePopout?: Function, afterPopoutClosed?: Function }, app?: App }>}
          */
         const popouts = new Map();
 
         // Close any still-open popout windows when the main window unloads.
-        // Registered ONCE for the service's lifetime — the previous code added
-        // a fresh `beforeunload` listener inside popout() on every open, none
-        // of which were ever removed (and pip() had no such cleanup at all).
-        // `browser`, not the raw global: the service is instantiated per test,
-        // and going straight to `window` kept every such instance subscribed
-        // for the rest of the run (@see store_service.js `onStarted`). The test
-        // harness tracks and detaches listeners added through this seam during
-        // a test (@see web/static/tests/_framework/module_set.hoot.js). Held in
-        // a named binding so it can be removed; services have no teardown hook
-        // here, so in production its lifetime is the page's.
+        // Registered ONCE for the service's lifetime, and through `browser` so
+        // the test harness detaches it per test (@see store_service.js
+        // `onStarted`); services have no teardown hook here.
         const onBeforeUnload = () => {
             for (const popout of popouts.values()) {
                 const externalWindow = popout.externalWindow;
@@ -78,10 +71,9 @@ export const mailPopoutService = {
          * @param {number} generation - token of the window this poller owns
          */
         async function pollClosedWindow(id, generation) {
-            // A poller only ever owns the window it was started for: reopening
-            // within the 1s tick used to leave the previous poller looping
-            // forever on the new window, and whichever poller lost the race
-            // never fired `afterPopoutClosed` for the close it detected.
+            // A poller only ever owns the window it was started for (its
+            // `generation` token): a reopen within the 1s tick must not leave
+            // two pollers racing over the same popout.
             while (
                 popouts.get(id)?.externalWindow &&
                 popouts.get(id).generation === generation
@@ -95,11 +87,9 @@ export const mailPopoutService = {
                     const hooks = popout.hooks;
                     hooks?.afterPopoutClosed?.();
                     popout.externalWindow = null;
-                    // Destroy the OWL app mounted on the now-dead document:
-                    // `reset()` was the only teardown site and no consumer
-                    // called it on close, so the component tree stayed mounted
-                    // and subscribed to the store reactives (e.g. call PiP's
-                    // `Meeting`). `reset()` tolerates a null externalWindow.
+                    // Destroy the OWL app mounted on the now-dead document,
+                    // else its tree stays subscribed to the store reactives.
+                    // `reset()` tolerates a null externalWindow.
                     await reset(id);
                 }
             }
@@ -112,7 +102,8 @@ export const mailPopoutService = {
          * @param {Object} [param2.props]
          * @param {Object} [param2.options]
          *      If only one of width or height is provided, the other is calculated based on the aspect ratio.
-         *      If neither is provided, a default height of 320p is used.
+         *      If neither is provided, the height defaults to 240px (capped to
+         *      the current window height).
          * @param {number} [param2.options.width] - The width of the popout window.
          * @param {number} [param2.options.height] - The height of the popout window.
          * @param {number} [param2.options.aspectRatio=16/9] - The aspect ratio of the popout window.
@@ -245,8 +236,8 @@ export const mailPopoutService = {
                 /**
                  * Creates a picture-in-picture window and mounts the component
                  * @param component - The component to be mounted.
-                 * @param {Props} props - The props of the component.
-                 * @returns {Promise<Window>} The external window
+                 * @param {Object} [props] - `{ props, options }` (@see pip).
+                 * @returns {Promise<Window|null>} The external window
                  */
                 async pip(component, props) {
                     return pip(id, component, props);

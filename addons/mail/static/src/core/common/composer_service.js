@@ -5,7 +5,7 @@ export const composerService = {
     dependencies: ["mail.store", "legacy_multi_tab"],
     /**
      * Enable Html composer with: odoo.__WOWL_DEBUG__.root.env.services["mail.composer"].setHtmlComposer()
-     * @param {import("@web/env").OdooEnv}
+     * @param {import("@web/env").OdooEnv} env
      * @param {Partial<import("services").Services>} services
      */
     start(env, { legacy_multi_tab }) {

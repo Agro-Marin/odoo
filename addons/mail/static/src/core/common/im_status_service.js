@@ -81,11 +81,9 @@ export const imStatusService = {
             },
         );
         presence.bus.addEventListener("presence", () => {
-            // re-send only when nothing was ever sent or the server last saw
-            // us "away". `lastSentInactivity` is captured in the same tick as
-            // the presence event, so it is exactly 0 here: a falsy check would
-            // treat it as "never sent" and re-send update_presence on every
-            // (1/s-throttled) interaction for the rest of the session.
+            // Re-send only when nothing was ever sent or the server last saw
+            // us "away". Test `=== undefined`, not falsiness:
+            // `lastSentInactivity` is legitimately 0 on an active user.
             if (lastSentInactivity === undefined || lastSentInactivity >= AWAY_DELAY) {
                 updateBusPresence();
             }

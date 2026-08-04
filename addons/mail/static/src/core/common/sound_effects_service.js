@@ -54,7 +54,7 @@ export class SoundEffects {
     }
 
     /**
-     * @param {String} param0 soundEffectName
+     * @param {String} soundEffectName
      * @param {Object} param1
      * @param {boolean} [param1.loop] true if we want to make the audio loop, will only stop if stop() is called
      * @param {float} [param1.volume] the volume percentage in decimal to play this sound.
