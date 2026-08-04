@@ -62,7 +62,7 @@ export class RecordListInternal {
      * on relational field with inverse, to prevent infinite loops.
      *
      * @param {RecordList} recordList
-     * @param {...Record}
+     * @param {...Record} records
      */
     addNoinv(recordList, ...records) {
         const self = this;
@@ -97,12 +97,11 @@ export class RecordListInternal {
                                 oldRecord,
                             );
                             const inverse = getInverse(recordList);
-                            // computed inverses are excluded: their compute
-                            // re-asserts the value right after the eviction,
-                            // and two computes claiming the same exclusive One
-                            // slot would evict each other in an endless flush
-                            // cycle (e.g. channel members racing for
-                            // thread.self_member_id via threadAsSelf)
+                            // computed inverses are excluded: two computes
+                            // claiming the same exclusive One slot would evict
+                            // each other in an endless flush cycle (e.g. channel
+                            // members racing for thread.self_member_id via
+                            // threadAsSelf)
                             if (
                                 inverse &&
                                 !oldRecord.Model._.fieldsCompute.get(inverse)
@@ -163,11 +162,9 @@ export class RecordListInternal {
             // O(n), not O(n²) (mirrors the Set-based fast path in add()).
             // Records held by a RecordList always carry a localId.
             const oldLocalIdSet = new Set(oldRecords.map((record) => record.localId));
-            // dedupe while mapping (add() dedupes, assign() didn't): a
-            // payload containing the same record twice put duplicate
-            // localIds in data, double-counted uses, and a later delete()
-            // removed one occurrence while fully unlinking the inverse —
-            // bidirectional state diverged
+            // dedupe while mapping, like add(): the same record twice in a
+            // payload would double-count uses, and a later delete() would
+            // unlink the inverse while leaving one occurrence behind
             const newLocalIdSet = new Set();
             const newRecords = [];
             for (const val of vals) {
@@ -218,7 +215,7 @@ export class RecordListInternal {
      * on relational field with inverse, to prevent infinite loops.
      *
      * @param {RecordList} recordList
-     * @param {...Record}
+     * @param {...Record} records
      */
     deleteNoinv(recordList, ...records) {
         const self = this;
@@ -264,21 +261,21 @@ export class RecordListInternal {
      * @param {(R) => void} [fn] function that is called in-between preinsert and
      *   insert. Preinsert only inserted what's needed to make record, while
      *   insert finalize with all remaining data.
-     * @param {boolean} [inv=true] whether the inverse should be added or not.
+     * @param {Object} [options={}]
+     * @param {boolean} [options.inv=true] whether the inverse should be added or not.
      *   It is always added except when during an insert on a relational field,
      *   in order to avoid infinite loop.
-     * @param {"ADD"|"DELETE} [mode="ADD"] the mode of insert on the relation.
+     * @param {"ADD"|"DELETE"} [options.mode="ADD"] the mode of insert on the relation.
      *   Important to match the inverse. Most of the time it's "ADD", that is when
      *   inserting the relation the inverse should be added. Exception when the insert
      *   comes from deletion, we want to "DELETE".
      */
     insert(recordList, val, fn, { inv = true, mode = "ADD" } = {}) {
         if (val === undefined || val === null || val === false) {
-            // nullish entries materialized phantom records ("Model,undefined",
-            // "Model,null") registered in the store forever. Whole-value
-            // clears are handled upstream (updateRelationOne/Many): a nullish
-            // ENTRY in a relation write is a no-op. Callers must tolerate the
-            // undefined return.
+            // a nullish ENTRY in a relation write is a no-op, else it
+            // materializes a phantom record ("Model,undefined") registered in
+            // the store forever. Whole-value clears are handled upstream
+            // (updateRelationOne/Many). Callers must tolerate the undefined.
             return undefined;
         }
         const inverse = getInverse(recordList);
@@ -333,7 +330,7 @@ export class RecordListInternal {
     }
 }
 
-/** * @template {Record} R */
+/** @template {Record} R */
 export class RecordList extends Array {
     /** @type {import("models").Store} */
     _store;
@@ -352,7 +349,7 @@ export class RecordList extends Array {
         const recordList = this;
         recordList._raw = recordList;
         const recordListProxyInternal = new Proxy(recordList, {
-            /** @param {RecordList<R>} receiver */
+            /** @param {RecordList<R>} recordListFullProxy */
             get(recordList, name, recordListFullProxy) {
                 recordListFullProxy = recordList._.downgradeProxy(
                     recordList,
@@ -617,36 +614,19 @@ export class RecordList extends Array {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const store = recordList._store;
-        // Normalize to Array.prototype.splice semantics once, up front: the
-        // teardown slice below and the splice further down must agree on which
-        // entries are leaving. Used raw, a negative `start` made the slice
-        // empty (`slice(-1, 0)`) while the splice still removed the last
-        // entry — dropping it from `data` with its `uses`/inverse bookkeeping
-        // left dangling.
-        const length = recordList.data.length;
-        const relativeStart = Math.trunc(start) || 0;
-        const actualStart =
-            relativeStart < 0
-                ? Math.max(length + relativeStart, 0)
-                : Math.min(relativeStart, length);
-        const actualDeleteCount =
-            start === undefined
-                ? 0
-                : deleteCount === undefined
-                  ? length - actualStart
-                  : Math.min(
-                        Math.max(Math.trunc(deleteCount) || 0, 0),
-                        length - actualStart,
-                    );
+        if (deleteCount === undefined) {
+            // like Array.prototype.splice(start): remove to the end, else
+            // the undefined count slices on NaN and removes nothing
+            deleteCount = recordList.data.length - start;
+        }
         return store.MAKE_UPDATE(function recordListSplice() {
             const oldRecordLocalIds = recordList.data.slice(
                 actualStart,
                 actualStart + actualDeleteCount,
             );
             // Defensive symmetry with clear()/shift(): skip localIds that no
-            // longer resolve to a record instead of dereferencing undefined.
-            // No reachable trigger is known — the removal from `data` below is
-            // unaffected either way, only the per-record teardown is skipped.
+            // longer resolve, instead of dereferencing undefined (no reachable
+            // trigger is known; only the per-record teardown is skipped).
             const oldRecords = oldRecordLocalIds
                 .map((localId) => toRaw(recordList._store.recordByLocalId).get(localId))
                 .filter(Boolean)
@@ -699,7 +679,7 @@ export class RecordList extends Array {
             }
         });
     }
-    /** @param {(a: R, b: R) => boolean} func */
+    /** @param {(a: R, b: R) => number} func */
     sort(func) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
@@ -709,7 +689,7 @@ export class RecordList extends Array {
             return recordListFullProxy;
         });
     }
-    /** @param {...R[]|...RecordList[R]} collections */
+    /** @param {...(R[]|RecordList<R>)} collections */
     concat(...collections) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
@@ -719,10 +699,8 @@ export class RecordList extends Array {
             .concat(...collections.map((c) => [...c]));
     }
     /**
-     * @param {...R}
-     * @returns {R|R[]} the record(s) now in the relation, one per argument
-     *   (a single record for a single argument), as reactive proxies. Values
-     *   that resolve to no record (nullish entries) yield `undefined`.
+     * @param {...R} records
+     * @returns {R|R[]} the added record(s)
      */
     add(...records) {
         const recordList = toRaw(this)._raw;
@@ -774,7 +752,7 @@ export class RecordList extends Array {
             return records.length === 1 ? res[0] : res;
         });
     }
-    /** @param {...R}  */
+    /** @param {...R} records */
     delete(...records) {
         const recordList = toRaw(this)._raw;
         const store = recordList._store;
@@ -786,9 +764,8 @@ export class RecordList extends Array {
                 }
                 if (!isRecord(val)) {
                     // resolve WITHOUT creating: a DELETE for a record the
-                    // client never loaded (reachable in production via server
-                    // ("DELETE", {...}) commands, e.g. deleting a reaction
-                    // that was never fetched) used to fully insert a
+                    // client never loaded (server ("DELETE", {...}) command for
+                    // e.g. an unfetched reaction) would otherwise fully insert a
                     // detached ghost record just to not-remove it
                     target = recordList._store[getTargetModel(recordList)].get(val);
                     if (!target) {
@@ -818,8 +795,7 @@ export class RecordList extends Array {
                 return;
             }
             // empty `data` in a single write (per-pop splicing is O(n²));
-            // hooks are queued per record, in removal order (last first),
-            // matching the historical pop-based behavior
+            // hooks are queued per record, in removal order (last first)
             if (isOne(recordList)) {
                 recordList._proxy.data.pop();
             } else {

@@ -30,9 +30,8 @@ export function isToday(datetime) {
     if (!datetime) {
         return false;
     }
-    // hasSame, not locale-string comparison: each side of the string compare
-    // rendered in its own zone (wrong for a DateTime carrying a non-local
-    // zone) and paid two locale formats per call — this runs per rendered
-    // notification item
+    // hasSame, not locale-string comparison: comparing rendered strings uses
+    // each side's own zone (wrong for a non-local zone) and costs two locale
+    // formats per call, on a path that runs per rendered notification item
     return datetime.hasSame(DateTime.now(), "day");
 }

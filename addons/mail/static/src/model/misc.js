@@ -150,7 +150,8 @@ export const fields = {
         };
     },
     /**
-     * HTML fields are ATTR that are automatically markup when the data being inserted is a markup.
+     * HTML fields are attr fields holding markup: a plain string is escaped,
+     * while the serialized `["markup", html]` form is kept as markup.
      *
      * @param {string} def
      * @param {Object} [param1={}]

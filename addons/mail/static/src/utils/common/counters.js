@@ -12,19 +12,9 @@
  *   (its `message_unread_counter_ui` companion is a UI-lagged copy maintained
  *   by a field onUpdate hook, not by these helpers).
  *
- * Fencing rules:
- * - an absolute snapshot (bus payload carrying the full counter value) is
- *   applied only when its bus id is newer than the last applied snapshot, and
- *   advances the bus id;
- * - an event-driven delta (bus payload describing a single transition) is
- *   applied only when its bus id is newer than the last absolute snapshot —
- *   an older-or-equal snapshot already accounts for the event. It does NOT
- *   advance the bus id: it is not a snapshot;
- * - an optimistic local delta ignores bus ids entirely;
- * - an optimistic rollback goes through a snapshot captured before the
- *   optimistic update, and is skipped when the bus id advanced in the
- *   meantime: a newer absolute snapshot must not be overwritten by a stale
- *   local value.
+ * Only an absolute snapshot advances the bus id; a delta is fenced against the
+ * last snapshot because an older-or-equal one already accounts for the event.
+ * See each helper for its own rule.
  */
 
 /**

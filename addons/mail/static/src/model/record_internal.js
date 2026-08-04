@@ -56,8 +56,7 @@ export class RecordInternal {
                 // object allocated by the class-field initializer
                 record[fieldName] = record[fieldName].default;
             } else {
-                // primitive default: read from the Model-level definition
-                // cache; the per-instance definition object is never consulted
+                // primitive default: read from the Model-level cache
                 record[fieldName] = def;
             }
         }
@@ -132,8 +131,8 @@ export class RecordInternal {
         } catch (err) {
             store.handleError(err);
             // keep the previous value (like sort()): writing the undefined
-            // computedValue would clear attrs and clear() relations, firing
-            // onDelete hooks and cascading one bad compute into deletions
+            // computedValue would clear attrs and relations, firing onDelete
+            // hooks and cascading one bad compute into deletions
             return;
         }
         store._.updateFields(record, {
@@ -172,9 +171,8 @@ export class RecordInternal {
     }
     onUpdate(record, fieldName) {
         if (record[IS_DELETED_SYM]) {
-            // Consistent with requestCompute/requestSort: never run a user hook
-            // on a tombstoned record (a late dependency change could otherwise
-            // fire onUpdate after the record was deleted).
+            // Consistent with requestCompute/requestSort: a late dependency
+            // change must not fire onUpdate on an already deleted record.
             return;
         }
         const store = record._rawStore;

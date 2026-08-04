@@ -88,9 +88,8 @@ export class Store extends Record {
             // No update cycle is running to drain the queue (computes, sorts
             // and onChange callbacks triggered by a direct assignment execute
             // AFTER the assignment's own flush — OWL notifies observers after
-            // Reflect.set returns). Parking the error here left it for the
-            // NEXT unrelated MAKE_UPDATE to throw at an innocent caller,
-            // masking that cycle's own failures. Report it now instead.
+            // Reflect.set returns). Report now: a parked error would be thrown
+            // at the next, unrelated MAKE_UPDATE and mask its own failures.
             if (this.warnErrors) {
                 console.warn(err);
                 return;
@@ -428,11 +427,10 @@ export class Store extends Record {
         return () => {
             // OWL has no unsubscribe API: `targetToKeysToCallbacks` holds a
             // STRONG ref to the callback until the observed key next changes
-            // (and forever if it never does). The `ready` latch alone left the
-            // closure retaining `record`/`proxy`/`callback` — i.e. whole
-            // component graphs (@see core/common/thread_scroll_hook.js). Drop
-            // the captures too, so the still-registered callback holds nothing.
-            // Idempotent: a second dispose() is a no-op.
+            // (and forever if it never does). The `ready` latch alone would
+            // leave the closure retaining `record`/`proxy`/`callback`, i.e.
+            // whole component graphs (@see core/common/thread_scroll_hook.js),
+            // so drop the captures too. A second dispose() is a no-op.
             ready = false;
             proxy = undefined;
             record = undefined;

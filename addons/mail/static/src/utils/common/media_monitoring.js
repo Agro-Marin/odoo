@@ -15,8 +15,7 @@ const HUMAN_VOICE_FREQUENCY_RANGE = [80, 1000];
  * @param {function(number):void} [processorOptions.onTic] a function to be called at each tics
  * @param {number} [processorOptions.processInterval] how many ms between each volume computation
  * @param {number} [processorOptions.volumeThreshold] the normalized minimum value for audio detection
- * @returns {Object} returnValue
- * @returns {function} returnValue.disconnect callback to cleanly end the monitoring
+ * @returns {Promise<() => Promise<void>>} callback to cleanly end the monitoring
  */
 export async function monitorAudio(track, processorOptions) {
     // cloning the track so it is not affected by the enabled change of the original track.
@@ -86,9 +85,8 @@ function _loadScriptProcessor(
 
     const intervalInFrames = (processInterval / 1000) * analyser.context.sampleRate;
     // Count down in frames (onaudioprocess decrements by bitSize per block and
-    // re-adds intervalInFrames), so seed it in frames too. Seeding with the raw
-    // processInterval (a millisecond value) made the very first tic fire one
-    // audio block in (~21ms) instead of after processInterval.
+    // re-adds intervalInFrames), so seed it in frames too: seeding with the raw
+    // processInterval in ms would fire the first tic one audio block in.
     let nextUpdateFrame = intervalInFrames;
 
     let activityBuffer = 0;

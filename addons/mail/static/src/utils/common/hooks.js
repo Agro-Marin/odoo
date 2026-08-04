@@ -109,7 +109,7 @@ export function onExternalClick(refName, cb) {
  * @param {Object} param1
  * @param {() => void} [param1.onHover] callback when hovering the ref names.
  * @param {() => void} [param1.onAway] callback when stop hovering the ref names.
- * @param {number, () => void} [param1.onHovering] array where 1st param is duration until start hovering
+ * @param {[number, () => void]} [param1.onHovering] array where 1st param is duration until start hovering
  *   and function to be executed at this delay duration after hovering is kept true.
  * @param {() => Array} [param1.stateObserver] when provided, function that, when called, returns list of
  *   reactive state related to presence of targets' el. This is used to help the hook detect when the targets
@@ -182,9 +182,9 @@ export function useHover(
         } else if (!hovering) {
             state.isHover = false;
             clearTimeout(awayTimeout);
-            // unconditional: with no onAway callback (or an onHovering delay
-            // expiring inside the 100ms away debounce) the pending timer
-            // fired its callback while not hovering anymore
+            // unconditional: with no onAway callback, or a delay expiring
+            // inside the 100ms away debounce, the pending timer would fire
+            // its callback while not hovering anymore
             clearTimeout(hoveringTimeout);
             if (typeof onAway === "function") {
                 awayTimeout = setTimeout(() => {
@@ -319,11 +319,9 @@ export function useOnBottomScrolled(refName, callback, threshold = 1) {
             callback();
         }
     }
-    // Bind through useLazyExternalListener so the listener (re)attaches when the
-    // scroll target appears or changes. Binding once in onMounted missed a
-    // target rendered behind a t-if (e.g. gif_picker's scroller): ref.el was
-    // null at mount and the listener was never attached, silently breaking
-    // infinite scroll.
+    // Bind through useLazyExternalListener so the listener (re)attaches when
+    // the scroll target appears or changes: a target rendered behind a t-if
+    // (e.g. gif_picker's scroller) has no ref.el at mount.
     useLazyExternalListener(() => ref.el, "scroll", onScroll);
 }
 
@@ -349,13 +347,10 @@ export function useVisible(refName, cb, { ready = true } = {}) {
             if (el && ready) {
                 observer.observe(el);
                 return () => {
-                    // Dispatching `cb` here is deliberate, not an oversight:
-                    // consumers derive state from `isVisible` and this is how
-                    // they learn the observed element went away. Dropping the
-                    // dispatch leaves that derived state stale -- e.g. "Jump to
-                    // Present" survives "Mark all read" once the message list
-                    // it was tracking is gone (@see core/common/thread.js
-                    // updateShowJumpPresent, and the discuss_app/inbox suite).
+                    // Dispatching `cb` here is deliberate: consumers derive
+                    // state from `isVisible` and this is how they learn the
+                    // observed element went away (@see core/common/thread.js
+                    // updateShowJumpPresent).
                     setValue(undefined);
                     observer.unobserve(el);
                 };
@@ -461,13 +456,10 @@ export function useMessageScrolling(duration = 2000) {
         },
         highlightedMessageId: null,
     });
-    // The hook owns a highlight-clear timer plus two Deferreds, and nothing
-    // cancelled them: closing a chat window mid-highlight left the timer firing
-    // against a destroyed component's state, and left `startupDeferred` /
-    // `scrollPromise` pending forever. A never-resolved startupDeferred also
-    // wedges Thread.scrollingToHighlight (it awaits it before clearing the
-    // latch), and a pending scrollPromise blocks fetchMoreMessages -- silently
-    // disabling both message highlighting and infinite scroll for that thread.
+    // The hook owns a highlight-clear timer plus two Deferreds: closing a chat
+    // window mid-highlight must not leave the timer firing against a destroyed
+    // component, nor `startupDeferred` pending (Thread.scrollingToHighlight
+    // awaits it) nor `scrollPromise` pending (it gates fetchMoreMessages).
     onWillUnmount(() => {
         browser.clearTimeout(timeout);
         timeout = null;
@@ -547,8 +539,8 @@ export function useMicrophoneVolume() {
             await audioMonitorPromise;
         } catch {
             // already handled by toggle()'s catch: re-awaiting the same
-            // rejected promise here escaped as an unhandled rejection AND
-            // skipped the track/monitor cleanup below
+            // rejected promise would escape as an unhandled rejection and
+            // skip the cleanup below
         }
         audioTrack?.stop();
         disconnectAudioMonitor?.();

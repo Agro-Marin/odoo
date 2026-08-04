@@ -39,7 +39,7 @@ export class Record {
     static records;
     /** @type {import("models").Store} */
     static store;
-    /** @param {() => any} fn */
+    /** @param {() => void} cb */
     static onChange(record, name, cb) {
         // route through the record's own store, not the last-created one
         return toRaw(record)._raw._rawStore.onChange(record, name, cb);
@@ -272,21 +272,15 @@ export class Record {
         return toRaw(this)._raw.Model._rawStore;
     }
     /**
-     * Technical attribute, contains the Model entry in the store.
-     * This is almost the same as the class, except it's an object
-     * (so it works with OWL reactivity), and it's the actual object
-     * that store the records.
-     *
-     * Indeed, `this.constructor.records` is there to initiate `records`
-     * on the store entry, but the class `static records` is not actually
-     * used because it's non-reactive, and we don't want to persistently
-     * store records on class, to make sure different tests do not share
-     * records.
+     * Technical attribute, contains the Model entry in the store. Almost the
+     * same as the class, except it's an object (so it works with OWL
+     * reactivity), and it's the actual object that stores the records: the
+     * class `static records` is non-reactive, and records must not persist on
+     * the class so that different tests do not share them.
      *
      * @type {typeof Record}
      */
     Model;
-    /** @type {string} */
     /** @type {this} */
     _raw;
     /** @type {this} */

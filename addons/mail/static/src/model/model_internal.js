@@ -20,8 +20,9 @@ export class ModelInternal {
     /** @type {Map<string, () => any>} */
     fieldsCompute = new Map();
     /**
-     * Default values of attr fields, interned once per Model at registration
-     * so record construction never reads the per-instance definition objects.
+     * Default values of attr fields, interned once per Model at registration.
+     * Only object defaults are re-read from the per-instance definition object,
+     * so that each record gets its own instance.
      *
      * @type {Map<string, any>}
      */
@@ -102,14 +103,10 @@ export class ModelInternal {
                     break;
                 }
                 default: {
-                    // Unknown options were dropped without a word, so a typo
-                    // ("computed", "sortBy", "onUpdated") produced a silently
-                    // inert field that no test could catch -- and `eager: true`
-                    // accumulated at 16 call sites while meaning nothing (fields
-                    // are always eager; see model/store.js). Warn rather than
-                    // throw: options may still be passed from addons in other
-                    // repos, and breaking their registration at load time is a
-                    // worse failure than a console message.
+                    // An unknown option is a typo ("computed", "sortBy") making
+                    // a silently inert field. Warn rather than throw: options
+                    // may come from addons in other repos, and breaking their
+                    // registration at load time is a worse failure.
                     console.warn(
                         `Record field ${fieldName}: unknown option "${key}" is ignored.`,
                     );
