@@ -82,16 +82,14 @@ export class MailCoreWeb {
                 const { message_ids: messageIds, needaction_inbox_counter } = payload;
                 const inbox = this.store.inbox;
                 for (const messageId of messageIds) {
-                    // We need to ignore all not yet known messages because we don't want them
-                    // to be shown partially as they would be linked directly to cache.
-                    // Furthermore, server should not send back all messageIds marked as read
-                    // but something like last read messageId or something like that.
-                    // (just imagine you mark 1000 messages as read ... )
+                    // ignore not yet known messages: linking them straight to
+                    // the cache would show them partially
                     const message = this.store["mail.message"].get(messageId);
                     if (!message) {
                         continue;
                     }
-                    // update thread counter (before removing message from Inbox, to ensure isNeedaction check is correct)
+                    // update the thread counter before removing the message from
+                    // Inbox, so the `needaction` check below still holds
                     const thread = message.thread;
                     if (thread && message.needaction) {
                         applyCounterDelta(thread, "message_needaction_counter", -1, {

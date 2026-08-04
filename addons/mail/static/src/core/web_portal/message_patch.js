@@ -24,13 +24,9 @@ patch(Message.prototype, {
         Array.from(bodyEl.querySelectorAll(".o-mail-ellipsis")).forEach((el) =>
             el.remove(),
         );
-        // reset before each top-level pass: prepareMessageBody re-runs on
-        // every search keystroke / translation toggle / edit. A monotonic
-        // counter allocated fresh indices each time, so isReadMoreByIndex
-        // grew unbounded AND an expanded quote collapsed on the next render
-        // (its new index defaulted to collapsed). The DOM structure is
-        // identical across re-renders, so resetting to 0 reproduces the same
-        // index per group — state is preserved and the map stays bounded.
+        // reset before each top-level pass: the DOM is identical across
+        // re-renders, so restarting at 0 yields the same index per group and
+        // keeps isReadMoreByIndex bounded with its expanded state intact
         this.state.lastReadMoreIndex = 0;
         this.insertEllipsisbtn(bodyEl);
     },

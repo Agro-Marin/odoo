@@ -135,9 +135,8 @@ export class ChannelInvitation extends Component {
 
     onInput() {
         this.searchStr = this.inputRef.el.value;
-        // same gate as onWillStart: guests legitimately see the panel (to
-        // copy the invite link) but may not call the partner-search RPC —
-        // typing in the box otherwise fires it and toasts an access error
+        // same gate as onWillStart: guests may see the panel (to copy the
+        // invite link) but may not call the partner-search RPC
         if (this.store.self_partner) {
             this.debouncedFetchPartnersToInvite();
         }

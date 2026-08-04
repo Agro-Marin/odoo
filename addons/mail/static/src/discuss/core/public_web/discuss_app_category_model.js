@@ -38,9 +38,9 @@ export class DiscussAppCategory extends Record {
 
     /** @type {string} */
     extraClass;
-    /** @string */
+    /** @type {string} */
     icon;
-    /** @string */
+    /** @type {string} */
     id;
     /** @type {string} */
     name;
@@ -54,14 +54,9 @@ export class DiscussAppCategory extends Record {
         onUpdate() {
             const key = `mail.sidebar_category_${this.id}_hidden`;
             if (!this.hidden && this.hidden !== undefined) {
-                // Only call removeItem when the key actually exists — the
-                // eager compute fires on EVERY record creation and the
-                // resulting unconditional removeItem leaks a storage I/O
-                // step into tests that patch ``localStorage.removeItem``
-                // for verification (e.g. clickbot's ``only one app`` test
-                // sees stray ``savedState: null`` steps that don't match
-                // its expected sequence). Real localStorage no-ops on
-                // missing keys, but the test-time patch logs the call.
+                // Only remove an existing key: this compute fires on every
+                // record creation, and tests that patch removeItem log each
+                // call (e.g. clickbot's ``only one app``).
                 if (localStorage.getItem(key) !== null) {
                     localStorage.removeItem(key);
                 }
@@ -87,11 +82,8 @@ export class DiscussAppCategory extends Record {
         },
         onUpdate() {
             if (this.localStateKey) {
-                // Defensive: storage may return the literal string
-                // "undefined" (from a polluted setItem(k, undefined))
-                // which the ``?? "true"`` defense does NOT catch — the
-                // string is truthy and reaches ``JSON.parse("undefined")``
-                // which throws and aborts the enclosing store insert.
+                // storage may hold the literal string "undefined", which is
+                // truthy (so `??` misses it) and breaks JSON.parse
                 const raw = browser.localStorage.getItem(this.localStateKey) ?? "true";
                 try {
                     this._openLocally = raw === "undefined" ? true : JSON.parse(raw);
@@ -134,10 +126,8 @@ export class DiscussAppCategory extends Record {
     }
 
     /**
-     * Applies a state change broadcast by another tab: update the local
-     * mirror WITHOUT re-persisting — the originating tab already saved
-     * (server or localStorage), so persisting here would issue one duplicate
-     * settings RPC per listening tab.
+     * Applies a state change broadcast by another tab: updates the local
+     * mirror WITHOUT re-persisting, since the originating tab already saved.
      *
      * @param {boolean} value
      */

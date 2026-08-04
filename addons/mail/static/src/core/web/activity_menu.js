@@ -50,8 +50,8 @@ export class ActivityMenu extends Component {
     openActivityGroup(group, filter = "all", newWindow) {
         this.dropdown.close();
         const context = {
-            // Necessary because activity_ids of mail.activity.mixin has auto_join
-            // So, duplicates are faking the count and "Load more" doesn't show up
+            // activity_ids of mail.activity.mixin is bypass_search_access, so
+            // duplicates fake the count and "Load more" doesn't show up
             force_search_count: 1,
             search_default_filter_activities_my: 1,
         };

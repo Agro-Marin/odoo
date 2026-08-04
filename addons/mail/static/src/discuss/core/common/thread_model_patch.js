@@ -49,12 +49,8 @@ const threadStaticPatch = {
             return Promise.resolve(thread);
         }
         if (thread?.channel_type && thread.self_member_id) {
-            // fully delivered by another channel payload (channels_as_member,
-            // the sidebar fetch, delivers everything fetchChannel would):
-            // without this, the FIRST bus message of every such channel
-            // triggered one redundant full channel fetch, and all the
-            // new-message side effects (counters, mark-as-fetched) waited
-            // on it
+            // already fully delivered by another channel payload (e.g. the
+            // `channels_as_member` sidebar fetch): re-fetching is redundant
             thread.fetchChannelInfoState = "fetched";
             return Promise.resolve(thread);
         }
@@ -86,11 +82,8 @@ const threadStaticPatch = {
                     id: data.id,
                     model: data.model,
                 });
-                // Resolve (never reject) with the existing thread or undefined.
-                // Every caller null-checks the result; the previous
-                // `def.reject(thread)` both rejected with a *Thread* record
-                // (not an Error) and produced unhandled rejections in the
-                // fire-and-forget awaits (e.g. the new-message bus handler).
+                // Resolve (never reject) so the fire-and-forget awaits raise
+                // no unhandled rejection; every caller null-checks the result.
                 def.resolve(thread?.exists() ? thread : undefined);
             },
         );
@@ -208,10 +201,8 @@ const threadPatch = {
                 );
             },
         });
-        // Thread-level maxima (excluding the self member), maintained once
-        // per member seen/fetched change, so the per-message seen indicators
-        // resolve in O(1) instead of each scanning channel_member_ids — the
-        // scan was O(messages × members) per receipt in large groups.
+        // Thread-level maxima (excluding the self member) so the per-message
+        // seen indicators resolve in O(1) instead of scanning the members.
         this.maxSeenMessageIdByOthers = fields.Attr(0, {
             /** @this {import("models").Thread} */
             compute() {
@@ -335,11 +326,7 @@ const threadPatch = {
             (member) => !this.store.onlineMemberStatuses.includes(member.im_status),
         );
     },
-    /**
-     * @override
-     * Single place knowing the channel discriminator: every other override
-     * (here and in base components) routes through this predicate.
-     */
+    /** @override */
     get isChannelKind() {
         return this.model === "discuss.channel";
     },
@@ -681,10 +668,8 @@ const threadPatch = {
         }
         if (this.channel_name_member_ids.length && !this.name) {
             const nameParts = [...this.channel_name_member_ids]
-                // copy before sorting: `.sort()` on the reactive Many mutates
-                // it in place, and this getter runs on the render path (every
-                // channel-row render), permanently reordering the stored field
-                // and churning reactivity.
+                // copy before sorting: `.sort()` would mutate the reactive
+                // Many in place, and this getter runs on the render path
                 .sort((m1, m2) => m1.id - m2.id)
                 .slice(0, 3)
                 .map((member) => member.name);
@@ -798,12 +783,8 @@ const threadPatch = {
             return;
         }
         // Reset inside the callback, not on the outer markReadSequential
-        // promise: those are different chains. makeSequential resolves a queued
-        // call immediately when a newer one supersedes it, and runs the next
-        // callback synchronously after resolving the previous one -- so an
-        // outer .finally() cleared the flag while a later RPC was still in
-        // flight, defeating the `!thread.markingAsRead` dedup guard in
-        // utils/common/thread_read.js and firing duplicate mark_as_read calls.
+        // promise: useSequential resolves superseded calls early, so an outer
+        // .finally() would clear the flag while an RPC is still in flight.
         this.markReadSequential(async () => {
             this.markingAsRead = true;
             try {

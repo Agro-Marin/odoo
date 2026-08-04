@@ -7,12 +7,9 @@ patch(MailCoreCommon.prototype, {
         const { id: notifId } = metadata;
         const { message_ids: messageIds, starred } = payload;
         const starredBox = this.store.starred;
-        // capture pre-update state: the base handler overwrites
-        // message.starred, and an optimistic local update (unstarAll) may
-        // already have applied this very change — only actual transitions may
-        // move the counter, else the echoed notification double-counts.
-        // Unknown messages (undefined) still count: the snapshot counter
-        // includes messages that are not loaded locally.
+        // capture pre-update state: the base handler overwrites message.starred,
+        // and only an actual transition may move the counter (an optimistic
+        // unstarAll may already have applied it). Unknown messages still count.
         const wasStarredById = new Map(
             messageIds.map((id) => [
                 id,

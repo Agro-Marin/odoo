@@ -48,8 +48,7 @@ export class Activity extends Component {
         browser.clearTimeout(this.updateDelayMidnightTimeout);
         this.updateDelayMidnightTimeout = browser.setTimeout(() => {
             this.render();
-            // re-arm: without this the "delay" label stopped updating after
-            // the first midnight for a panel left open across days
+            // re-arm so the "delay" label keeps updating past midnight
             this.updateDelayAtNight();
         }, getMsToTomorrow() + 100); // Make sure there is no race condition
     }
@@ -105,10 +104,8 @@ export class Activity extends Component {
     async unlink() {
         const thread = this.thread;
         const { activity } = this.props;
-        // server first: the local remove() broadcasts the deletion to every
-        // tab and has no rollback — removing before the RPC made a failed
-        // unlink (access error, network) vanish the activity everywhere
-        // while it still exists server-side
+        // server first: the local remove() broadcasts to every tab and has no
+        // rollback, so a failed unlink must not reach it
         await this.env.services.orm.unlink("mail.activity", [activity.id]);
         activity.remove();
         this.props.onActivityChanged(thread);

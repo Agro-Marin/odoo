@@ -54,9 +54,7 @@ export class FollowerSubtypeDialog extends Component {
             s.in(this.props.follower.subtype_ids),
         );
         // snapshot so a failed subscribe can be rolled back: onChangeCheckbox
-        // mutates the shared follower.subtype_ids live, so without this a
-        // network error would leave the store record (and any other UI
-        // reading it) reflecting a subscription that was never persisted
+        // mutates the shared follower.subtype_ids live
         const previousSubtypes = [...this.props.follower.subtype_ids];
         if (selectedSubtypes.length === 0) {
             await this.props.follower.remove();

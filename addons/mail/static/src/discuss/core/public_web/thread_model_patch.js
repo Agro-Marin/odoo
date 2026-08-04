@@ -48,9 +48,7 @@ const threadPatch = {
         /** @type {import("models").Thread|null} */
         this.lastSubChannelLoaded = null;
         // Searching paginates independently of the full list: the two cursors
-        // describe different result sets, so a filtered page must never write
-        // the unfiltered one (doing so wrongly terminates the sidebar's
-        // pagination).
+        // describe different result sets and must never write each other.
         this.searchSubChannelsDone = false;
         /** @type {import("models").Thread|null} */
         this.lastSearchSubChannelLoaded = null;
@@ -145,7 +143,7 @@ const threadPatch = {
         });
     },
     /**
-     * @param {*} param0
+     * @param {Object} [param0={}]
      * @param {string} [param0.searchTerm]
      * @returns {Promise<import("models").Thread[]|undefined>}
      */
@@ -180,9 +178,8 @@ const threadPatch = {
             this.eq(thread.parent_channel_id),
         );
         if (searchTerm) {
-            // Advance the *search* cursor only. Page exhaustion is judged on
-            // what the server returned, not on what survives the parent filter,
-            // so a page whose entries are all filtered out still moves forward.
+            // Advance the *search* cursor only, and judge exhaustion on what
+            // the server returned, not on what survives the parent filter.
             this.lastSearchSubChannelLoaded = subChannels.reduce(
                 (min, channel) => (!min || channel.id < min.id ? channel : min),
                 this.lastSearchSubChannelLoaded,
@@ -190,9 +187,8 @@ const threadPatch = {
             if (sub_channel_ids.length < limit) {
                 this.searchSubChannelsDone = true;
             }
-            // Still return nothing: the list may have holes when filtered, and
-            // the caller renders search results from the store rather than from
-            // this slice.
+            // Return nothing: the caller renders search results from the
+            // store, not from this (possibly holed) slice.
             return;
         }
         this.lastSubChannelLoaded = subChannels.reduce(

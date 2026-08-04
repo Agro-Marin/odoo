@@ -52,11 +52,8 @@ const suggestionServicePatch = {
                 (thread.channel_type === "channel" &&
                     (thread.parent_channel_id || thread).group_public_id));
         if (isNonPublicChannel) {
-            // Only return the channel members when in the context of a
-            // group restricted channel. Indeed, the message with the mention
-            // would be notified to the mentioned partner, so this prevents
-            // from inadvertently leaking the private message to the
-            // mentioned partner.
+            // On a group-restricted channel, only suggest its members:
+            // mentioning an outsider would notify them of a private message.
             const partnersById = new Map(
                 [
                     ...thread.channel_member_ids,

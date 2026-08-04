@@ -19,15 +19,10 @@ const messagePatch = {
         );
     },
     async toggleStar() {
-        // The "Starred" mailbox counter is moved by the echoed
-        // `mail.message/toggle_star` notification, but only on an actual
-        // starred transition (see mail_core_common_service_patch). The base
-        // toggleStar's RPC result eagerly flips `starred`, so by the time that
-        // notification arrives it sees no transition and the counter would
-        // never move. Update the counter (and the box's message set)
-        // optimistically here — like unstarAll — and let the notification's
-        // guard dedupe it. Only relevant on the web layer, where `starred`
-        // exists.
+        // The echoed `mail.message/toggle_star` notification only moves the
+        // "Starred" counter on an actual transition, and the base RPC result
+        // already flipped `starred`. So move it optimistically here (like
+        // unstarAll) and let the notification's guard dedupe it.
         const starredBox = this.store.starred;
         if (!starredBox) {
             return super.toggleStar(...arguments);

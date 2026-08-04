@@ -19,9 +19,8 @@ patch(DiscussClientAction.prototype, {
         const url = new URL(browser.location.href);
         url.searchParams.delete("email_token");
         browser.history.replaceState(browser.history.state, null, url.toString());
-        // useExternalListener auto-removes on unmount; the previous bare
-        // browser.addEventListener leaked a listener (retaining this component
-        // and its props) on every remount and fired on destroyed instances.
+        // useExternalListener auto-removes on unmount, unlike a bare
+        // browser.addEventListener which would leak on every remount
         useExternalListener(browser, "popstate", () =>
             this.restoreDiscussThread(this.props),
         );
