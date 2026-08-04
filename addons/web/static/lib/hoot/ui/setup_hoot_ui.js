@@ -76,7 +76,7 @@ async function loadBundle(bundle) {
                 loadAsset("script", {
                     src,
                     type: "text/javascript",
-                })
+                }),
             );
         }
     }
@@ -165,7 +165,7 @@ export async function setupHootUI() {
             createLinkElement("/web/static/src/libs/fontawesome7/css/regular.css"),
             createLinkElement("/web/static/src/libs/fontawesome7/css/brands.css"),
             prismStyleLink,
-            createLinkElement("/web/static/lib/hoot/ui/hoot_style.css")
+            createLinkElement("/web/static/lib/hoot/ui/hoot_style.css"),
         );
     }
 

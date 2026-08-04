@@ -68,7 +68,7 @@ export class HootDropdown extends Component {
                     this.state.open = !this.state.open;
                 }
             },
-            { capture: true }
+            { capture: true },
         );
     }
 

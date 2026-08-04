@@ -64,7 +64,7 @@ describe(parseUrl(import.meta.url), () => {
         expect(() =>
             runner.test([], "standalone test", () => {
                 expect(true).toBe(false);
-            })
+            }),
         ).toThrow();
     });
 
@@ -93,7 +93,7 @@ describe(parseUrl(import.meta.url), () => {
             {
                 name: "b",
                 exclude: ["a"],
-            }
+            },
         );
 
         const runner = makeTestRunner();
@@ -105,7 +105,9 @@ describe(parseUrl(import.meta.url), () => {
             runner.test("second test", () => {});
 
             runner.test.tags("a", "b");
-            expect(() => runner.test("third test", () => {})).toThrow(`cannot apply tag "b"`);
+            expect(() => runner.test("third test", () => {})).toThrow(
+                `cannot apply tag "b"`,
+            );
 
             runner.test.tags("a", "c");
             runner.test("fourth test", () => {});
@@ -121,7 +123,9 @@ describe(parseUrl(import.meta.url), () => {
             runner.test("a test", () => {});
         });
 
-        expect(() => runner._prepareRunner()).toThrow(/no suite or test matches id "deadbeef"/);
+        expect(() => runner._prepareRunner()).toThrow(
+            /no suite or test matches id "deadbeef"/,
+        );
     });
 
     test("headless run names every id that matches nothing", () => {
@@ -131,7 +135,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         expect(() => runner._prepareRunner()).toThrow(
-            /no suite or test matches ids "deadbeef", "d15ea5e"/
+            /no suite or test matches ids "deadbeef", "d15ea5e"/,
         );
     });
 

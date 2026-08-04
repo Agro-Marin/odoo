@@ -88,7 +88,7 @@ describe(parseUrl(import.meta.url), () => {
         await animationFrame();
 
         expect(".hoot-technical:first").toHaveText(
-            `Object(2){\na\n:\ntrue\n,\nsub\n:\nObject(1)\n}`
+            `Object(2){\na\n:\ntrue\n,\nsub\n:\nObject(1)\n}`,
         );
         expect.verifySteps([]);
 
@@ -96,7 +96,7 @@ describe(parseUrl(import.meta.url), () => {
         await animationFrame();
 
         expect(".hoot-technical:first").toHaveText(
-            `Object(2){\na\n:\ntrue\n,\nsub\n:\nObject(1){\nkey\n:\n"oui"\n,\n}\n}`
+            `Object(2){\na\n:\ntrue\n,\nsub\n:\nObject(1){\nkey\n:\n"oui"\n,\n}\n}`,
         );
         expect.verifySteps([{ key: "oui" }]);
     });

@@ -159,6 +159,6 @@ export function mockedWindowScrollTo(...args) {
 export function subscribeToTransitionChange(onChange) {
     onChange(allowTransitions);
     animationChangeCleanups.push(
-        on(animationChangeBus, "toggle-transitions", () => onChange(allowTransitions))
+        on(animationChangeBus, "toggle-transitions", () => onChange(allowTransitions)),
     );
 }

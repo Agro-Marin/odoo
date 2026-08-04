@@ -1,7 +1,11 @@
 /** @odoo-module */
 
 import { EventBus } from "@odoo/owl";
-import { getCurrentDimensions, getDocument, getWindow } from "@odoo/hoot-dom-helpers-dom";
+import {
+    getCurrentDimensions,
+    getDocument,
+    getWindow,
+} from "@odoo/hoot-dom-helpers-dom";
 import {
     mockedCancelAnimationFrame,
     mockedClearInterval,
@@ -106,7 +110,10 @@ function applyPropertyDescriptors(target, descriptors) {
  */
 function callMediaQueryChanges(changedKeys) {
     for (const mediaQueryList of mediaQueryLists) {
-        if (!changedKeys || changedKeys.some((key) => mediaQueryList.media.includes(key))) {
+        if (
+            !changedKeys ||
+            changedKeys.some((key) => mediaQueryList.media.includes(key))
+        ) {
             const event = new MediaQueryListEvent("change", {
                 matches: mediaQueryList.matches,
                 media: mediaQueryList.media,
@@ -284,7 +291,10 @@ function mockedElementFromPoint(...args) {
  * @type {Document["elementsFromPoint"]}
  */
 function mockedElementsFromPoint(...args) {
-    const { value: elementsFromPoint } = findOriginalDescriptor(this, "elementsFromPoint");
+    const { value: elementsFromPoint } = findOriginalDescriptor(
+        this,
+        "elementsFromPoint",
+    );
     const result = [];
     let hasDocumentElement = false;
     let hasBody = false;
@@ -633,7 +643,10 @@ export function patchWindow(view = getWindow()) {
         applyPropertyDescriptors(view.document, DOCUMENT_MOCK_DESCRIPTORS);
 
         applyPropertyDescriptors(view.Element.prototype, ELEMENT_MOCK_DESCRIPTORS);
-        applyPropertyDescriptors(view.HTMLAnchorElement.prototype, ANCHOR_MOCK_DESCRIPTORS);
+        applyPropertyDescriptors(
+            view.HTMLAnchorElement.prototype,
+            ANCHOR_MOCK_DESCRIPTORS,
+        );
     });
 }
 
@@ -703,7 +716,7 @@ export function watchKeys(target, whiteList) {
 
     return function checkKeys() {
         const keysDiff = $ownKeys(target).filter(
-            (key) => $isNaN($parseFloat(key)) && !acceptedKeys.has(key)
+            (key) => $isNaN($parseFloat(key)) && !acceptedKeys.has(key),
         );
         for (const key of keysDiff) {
             const descriptor = $getOwnPropertyDescriptor(target, key);

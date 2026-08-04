@@ -73,7 +73,7 @@ export class HootSideBarSuite extends Component {
                 }
                 wasSelected = selected;
             },
-            () => [this.props.selected]
+            () => [this.props.selected],
         );
     }
 
@@ -225,7 +225,9 @@ export class HootSideBar extends Component {
         });
 
         runner.beforeAll(() => {
-            const singleRootSuite = runner.rootSuites.filter((suite) => suite.currentJobs.length);
+            const singleRootSuite = runner.rootSuites.filter(
+                (suite) => suite.currentJobs.length,
+            );
             if (singleRootSuite.length === 1) {
                 this.unfoldAndSelect(singleRootSuite[0]);
             } else {

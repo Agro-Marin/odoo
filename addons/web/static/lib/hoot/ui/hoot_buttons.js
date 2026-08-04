@@ -161,7 +161,7 @@ export class HootButtons extends Component {
                 this.state.disable = true;
                 this.disableTimeout = setTimeout(
                     () => (this.state.disable = false),
-                    DISABLE_TIMEOUT
+                    DISABLE_TIMEOUT,
                 );
                 break;
             }

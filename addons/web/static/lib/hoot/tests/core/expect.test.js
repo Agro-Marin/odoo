@@ -1,7 +1,12 @@
 /** @odoo-module */
 
 import { describe, expect, makeExpect, test } from "@odoo/hoot";
-import { check, manuallyDispatchProgrammaticEvent, tick, waitFor } from "@odoo/hoot-dom";
+import {
+    check,
+    manuallyDispatchProgrammaticEvent,
+    tick,
+    waitFor,
+} from "@odoo/hoot-dom";
 import { Component, xml } from "@odoo/owl";
 import { mountForTest, parseUrl } from "../local_helpers.js";
 
@@ -13,7 +18,7 @@ describe(parseUrl(import.meta.url), () => {
         const [customExpect, hooks] = makeExpect({ headless: true });
 
         expect(() => customExpect(true).toBe(true)).toThrow(
-            "cannot call `expect()` outside of a test"
+            "cannot call `expect()` outside of a test",
         );
 
         hooks.before();
@@ -76,7 +81,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("makeExpect with no assertions & query events", async () => {
-        await mountForTest(  `<div>ABC</div>`);
+        await mountForTest(`<div>ABC</div>`);
 
         const [, hooks] = makeExpect({ headless: true });
 
@@ -97,7 +102,7 @@ describe(parseUrl(import.meta.url), () => {
         hooks.before();
 
         expect(() => customExpect.assertions(0)).toThrow(
-            "expected assertions count should be more than 1"
+            "expected assertions count should be more than 1",
         );
 
         const results = hooks.after();
@@ -116,7 +121,9 @@ describe(parseUrl(import.meta.url), () => {
 
         hooks.before();
 
-        expect(() => customExpect(true, true)).toThrow("`expect()` only accepts a single argument");
+        expect(() => customExpect(true, true)).toThrow(
+            "`expect()` only accepts a single argument",
+        );
         customExpect(1).toBe(1);
         customExpect(true);
 
@@ -125,7 +132,7 @@ describe(parseUrl(import.meta.url), () => {
         expect(results.pass).toBe(false);
         expect(results.events).toHaveLength(2);
         expect(results.events[1].message.join(" ")).toBe(
-            "called once without calling any matchers"
+            "called once without calling any matchers",
         );
     });
 
@@ -163,7 +170,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("'expect' results contain the correct informations", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <label style="color: #f00">
                 Checkbox
                 <input class="cb" type="checkbox" />
@@ -222,7 +229,9 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(testResult.pass).toBe(true);
         expect(testResult.events).toHaveLength(matchers.length);
-        expect(testResult.events.map(({ label }) => label)).toEqual(matchers.map(([name]) => name));
+        expect(testResult.events.map(({ label }) => label)).toEqual(
+            matchers.map(([name]) => name),
+        );
     });
 
     test("'expect' error handling", async () => {
@@ -231,7 +240,7 @@ describe(parseUrl(import.meta.url), () => {
         hooks.before();
 
         expect(() => customExpect(undefined).toInclude("3")).toThrow(
-            "expected received value to be of type string, any[] or object, got undefined"
+            "expected received value to be of type string, any[] or object, got undefined",
         );
 
         const testResult = hooks.after();
@@ -290,7 +299,9 @@ describe(parseUrl(import.meta.url), () => {
             expect(new Date(0)).not.toBe(new Date(0));
 
             expect(new Image()).not.toBe(new Image());
-            expect(document.createElement("div")).not.toBe(document.createElement("div"));
+            expect(document.createElement("div")).not.toBe(
+                document.createElement("div"),
+            );
         });
 
         test("toBeCloseTo", () => {
@@ -344,8 +355,12 @@ describe(parseUrl(import.meta.url), () => {
             expect(new Date(0)).toEqual(new Date(0));
 
             expect(new Image()).toEqual(new Image());
-            expect(document.createElement("div")).toEqual(document.createElement("div"));
-            expect(document.createElement("div")).not.toEqual(document.createElement("span"));
+            expect(document.createElement("div")).toEqual(
+                document.createElement("div"),
+            );
+            expect(document.createElement("div")).not.toEqual(
+                document.createElement("span"),
+            );
         });
 
         test("toMatch", () => {
@@ -380,10 +395,10 @@ describe(parseUrl(import.meta.url), () => {
                 { tralalero: "tralala" },
                 { foo: 1 },
             ]);
-            expect([{ tralalero: "tralala" }, { foo: 1, lirili: "larila" }]).toMatchObject([
+            expect([
                 { tralalero: "tralala" },
-                { foo: 1 },
-            ]);
+                { foo: 1, lirili: "larila" },
+            ]).toMatchObject([{ tralalero: "tralala" }, { foo: 1 }]);
         });
 
         test("toThrow", async () => {
@@ -408,7 +423,7 @@ describe(parseUrl(import.meta.url), () => {
             expect.assertions(2);
 
             expect(() => expect.verifyErrors(["event", "promise", "timeout"])).toThrow(
-                "cannot call `expect.verifyErrors()` without calling `expect.errors()` beforehand"
+                "cannot call `expect.verifyErrors()` without calling `expect.errors()` beforehand",
             );
 
             expect.errors(3);
@@ -445,7 +460,7 @@ describe(parseUrl(import.meta.url), () => {
 
     describe("DOM matchers", () => {
         test("toBeChecked", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <input type="checkbox" />
                 <input type="checkbox" checked="" />
             `);
@@ -455,7 +470,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("toHaveAttribute", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <input type="number" disabled="" />
             `);
 
@@ -465,7 +480,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("toHaveCount", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <ul>
                     <li>milk</li>
                     <li>eggs</li>
@@ -483,7 +498,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("toHaveProperty", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <input type="search" readonly="" />
             `);
 
@@ -515,7 +530,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("toHaveInnerHTML", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="parent">
                     <p>
                         abc<strong>def</strong>ghi
@@ -525,13 +540,13 @@ describe(parseUrl(import.meta.url), () => {
                 </div>
             `);
 
-            expect(".parent").toHaveInnerHTML(  `
+            expect(".parent").toHaveInnerHTML(`
                 <p>abc<strong>def</strong>ghi<br><input type="text"></p>
             `);
         });
 
         test("toHaveOuterHTML", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="parent">
                     <p>
                         abc<strong>def</strong>ghi
@@ -541,7 +556,7 @@ describe(parseUrl(import.meta.url), () => {
                 </div>
             `);
 
-            expect(".parent").toHaveOuterHTML(  `
+            expect(".parent").toHaveOuterHTML(`
                 <div class="parent">
                     <p>abc<strong>def</strong>ghi<br><input type="text"></p>
                 </div>
@@ -550,13 +565,16 @@ describe(parseUrl(import.meta.url), () => {
 
         test("toHaveStyle", async () => {
             const documentFontSize = parseFloat(
-                getComputedStyle(document.documentElement).fontSize
+                getComputedStyle(document.documentElement).fontSize,
             );
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="div" style="width: 3rem; height: 26px" />
             `);
 
-            expect(".div").toHaveStyle({ width: `${3 * documentFontSize}px`, height: 26 });
+            expect(".div").toHaveStyle({
+                width: `${3 * documentFontSize}px`,
+                height: 26,
+            });
             expect(".div").toHaveStyle({ display: "block" });
             expect(".div").toHaveStyle("border-top");
             expect(".div").not.toHaveStyle({ height: 50 });
@@ -570,7 +588,7 @@ describe(parseUrl(import.meta.url), () => {
             const [customExpect, hooks] = makeExpect({ headless: true });
             hooks.before();
 
-            await mountForTest(  `
+            await mountForTest(`
                 <div />
             `);
 

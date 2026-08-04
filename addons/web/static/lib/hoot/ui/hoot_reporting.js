@@ -21,7 +21,7 @@ const { Boolean } = globalThis;
  * @param {keyof import("../core/runner").Runner["state"]} varName
  * @param {string} colorClassName
  */
-const issueTemplate = (varName, colorClassName) =>   `
+const issueTemplate = (varName, colorClassName) => `
     <t t-foreach="runnerState['${varName}']" t-as="key" t-key="key">
         <t t-set="issue" t-value="runnerState['${varName}'][key]" />
         <div
@@ -282,12 +282,15 @@ export class HootReporting extends Component {
             let matchFilter = false;
             switch (statusFilter) {
                 case "failed": {
-                    matchFilter = !test.config.skip && test.results.some((r) => !r.pass);
+                    matchFilter =
+                        !test.config.skip && test.results.some((r) => !r.pass);
                     break;
                 }
                 case "passed": {
                     matchFilter =
-                        !test.config.todo && !test.config.skip && test.results.some((r) => r.pass);
+                        !test.config.todo &&
+                        !test.config.skip &&
+                        test.results.some((r) => r.pass);
                     break;
                 }
                 case "skipped": {
@@ -299,7 +302,8 @@ export class HootReporting extends Component {
                     break;
                 }
                 default: {
-                    matchFilter = Boolean(selectedSuiteId) || test.results.some((r) => !r.pass);
+                    matchFilter =
+                        Boolean(selectedSuiteId) || test.results.some((r) => !r.pass);
                     break;
                 }
             }
@@ -325,7 +329,7 @@ export class HootReporting extends Component {
         }
 
         return results.sort(
-            sortResults === "asc" ? sortByDurationAscending : sortByDurationDescending
+            sortResults === "asc" ? sortByDurationAscending : sortByDurationDescending,
         );
     }
 
@@ -350,7 +354,8 @@ export class HootReporting extends Component {
             statusFilter,
             statusFilterClassName: COLORS[statusFilter],
             filter: this.config.filter,
-            selectedSuiteName: selectedSuiteId && this.env.runner.suites.get(selectedSuiteId).name,
+            selectedSuiteName:
+                selectedSuiteId && this.env.runner.suites.get(selectedSuiteId).name,
         };
     }
 

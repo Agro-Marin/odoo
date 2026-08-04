@@ -83,7 +83,7 @@ const makeIframe = (document, root) =>
         (root || document.body).appendChild(iframe);
     });
 
-const FULL_HTML_TEMPLATE =   `
+const FULL_HTML_TEMPLATE = `
     <header>
         <h1 class="title">Title</h1>
     </header>
@@ -143,7 +143,7 @@ customElements.define(
 
             shadow.append(p, input);
         }
-    }
+    },
 );
 
 describe.tags("ui");
@@ -152,31 +152,31 @@ describe(parseUrl(import.meta.url), () => {
         expect(formatXml("")).toBe("");
         expect(formatXml("<input />")).toBe("<input/>");
         expect(
-            formatXml(  `
+            formatXml(`
             <div>
                 A
             </div>
-        `)
+        `),
         ).toBe(`<div>\n    A\n</div>`);
-        expect(formatXml(  `<div>A</div>`)).toBe(`<div>\n    A\n</div>`);
+        expect(formatXml(`<div>A</div>`)).toBe(`<div>\n    A\n</div>`);
 
         expect(
             formatXml(
-                  `
+                `
             <div>
                 A
             </div>
         `,
-                { keepInlineTextNodes: true }
-            )
+                { keepInlineTextNodes: true },
+            ),
         ).toBe(`<div>\n    A\n</div>`);
-        expect(formatXml(  `<div>A</div>`, { keepInlineTextNodes: true })).toBe(
-            `<div>A</div>`
+        expect(formatXml(`<div>A</div>`, { keepInlineTextNodes: true })).toBe(
+            `<div>A</div>`,
         );
     });
 
     test("getActiveElement", async () => {
-        await mountForTest(  `<iframe srcdoc="&lt;input &gt;"></iframe>`);
+        await mountForTest(`<iframe srcdoc="&lt;input &gt;"></iframe>`);
 
         expect(":iframe input").not.toBeFocused();
 
@@ -188,7 +188,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("getActiveElement: shadow dom", async () => {
-        await mountForTest(  `<hoot-test-shadow-root />`);
+        await mountForTest(`<hoot-test-shadow-root />`);
 
         expect("hoot-test-shadow-root:shadow input").not.toBeFocused();
 
@@ -200,7 +200,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("getFocusableElements", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <input class="input" />
             <div class="div" tabindex="0">aaa</div>
             <span class="span" tabindex="-1">aaa</span>
@@ -215,15 +215,13 @@ describe(parseUrl(import.meta.url), () => {
             "div",
         ]);
 
-        expect(getFocusableElements({ tabbable: true }).map((el) => el.className)).toEqual([
-            "button",
-            "input",
-            "div",
-        ]);
+        expect(
+            getFocusableElements({ tabbable: true }).map((el) => el.className),
+        ).toEqual(["button", "input", "div"]);
     });
 
     test("getNextFocusableElement", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <input class="input" />
             <div class="div" tabindex="0">aaa</div>
             <button class="disabled-button" disabled="disabled">Disabled button</button>
@@ -236,7 +234,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("getParentFrame", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <div class="root"></div>
         `);
 
@@ -252,7 +250,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("getPreviousFocusableElement", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <input class="input" />
             <div class="div" tabindex="0">aaa</div>
             <button class="disabled-button" disabled="disabled">Disabled button</button>
@@ -346,7 +344,9 @@ describe(parseUrl(import.meta.url), () => {
         expect(matchMedia("(prefers-color-scheme : dark)").matches).toBe(false);
         expect(matchMedia("not (prefers-color-scheme: dark)").matches).toBe(true);
         expect(matchMedia("(prefers-reduced-motion: reduce)").matches).toBe(true);
-        expect(matchMedia("(prefers-reduced-motion: no-preference)").matches).toBe(false);
+        expect(matchMedia("(prefers-reduced-motion: no-preference)").matches).toBe(
+            false,
+        );
 
         expect(window.matchMedia("(pointer: coarse)").matches).toBe(false);
         expect(window.ontouchstart).toBe(undefined);
@@ -374,7 +374,7 @@ describe(parseUrl(import.meta.url), () => {
 
     test("waitFor: rejects", async () => {
         await expect(waitFor("never", { timeout: 1 })).rejects.toThrow(
-            `expected at least 1 element after 1ms and found 0 elements: 0 matching "never"`
+            `expected at least 1 element after 1ms and found 0 elements: 0 matching "never"`,
         );
     });
 
@@ -470,7 +470,9 @@ describe(parseUrl(import.meta.url), () => {
             expectSelector(".text:text(item)").toEqualNodes("");
             expectSelector(".text:text(first item)").toEqualNodes("li:first-of-type");
 
-            expectSelector("input:value(john)").toEqualNodes("[name=name],[name=email]");
+            expectSelector("input:value(john)").toEqualNodes(
+                "[name=name],[name=email]",
+            );
             expectSelector("input:value(john doe)").toEqualNodes("[name=name]");
             expectSelector("input:value('John Doe (JOD)')").toEqualNodes("[name=name]");
             expectSelector(`input:value("(JOD)")`).toEqualNodes("[name=name]");
@@ -479,14 +481,17 @@ describe(parseUrl(import.meta.url), () => {
             expectSelector("select:value(unknown value)").toEqualNodes("");
 
             expectSelector("option:selected").toEqualNodes(
-                "select[name=title] option[value=mr],select[name=job] option:first-child"
+                "select[name=title] option[value=mr],select[name=job] option:first-child",
             );
 
             expectSelector("iframe p:contains(iframe text content)").toEqualNodes("");
             expectSelector("div:iframe p").toEqualNodes("");
-            expectSelector(":iframe p:contains(iframe text content)").toEqualNodes("p", {
-                root: "iframe",
-            });
+            expectSelector(":iframe p:contains(iframe text content)").toEqualNodes(
+                "p",
+                {
+                    root: "iframe",
+                },
+            );
         });
 
         test("query options", async () => {
@@ -503,16 +508,18 @@ describe(parseUrl(import.meta.url), () => {
         test("advanced use cases", async () => {
             await mountForTest(FULL_HTML_TEMPLATE);
 
-            expectSelector(":has(form:contains('Form title')),p:contains(ipsum)").toEqualNodes(
-                "p,main"
-            );
+            expectSelector(
+                ":has(form:contains('Form title')),p:contains(ipsum)",
+            ).toEqualNodes("p,main");
 
-            expectSelector(`select:has(:contains(Employer))`).toEqualNodes("select[name=job]");
+            expectSelector(`select:has(:contains(Employer))`).toEqualNodes(
+                "select[name=job]",
+            );
             expectSelector(`select:not(:has(:contains(Employer)))`).toEqualNodes(
-                "select[name=title]"
+                "select[name=title]",
             );
             expectSelector(
-                `main:first-of-type:not(:has(:contains(This text does not exist))):contains('List header') > form:has([name="name"]):contains("Form title"):nth-child(6).overflow-auto:visible select[name=job] option:selected`
+                `main:first-of-type:not(:has(:contains(This text does not exist))):contains('List header') > form:has([name="name"]):contains("Form title"):nth-child(6).overflow-auto:visible select[name=job] option:selected`,
             ).toEqualNodes("select[name=job] option:first-child");
 
             expectSelector(`p:contains(velit,)`).toEqualNodes("p");
@@ -522,7 +529,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("comma-separated long selector: no match", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="o_we_customize_panel">
                     <we-customizeblock-option class="snippet-option-ImageTools">
                         <div class="o_we_so_color_palette o_we_widget_opened">
@@ -536,12 +543,12 @@ describe(parseUrl(import.meta.url), () => {
             `);
             expectSelector(
                 `.o_we_customize_panel:not(:has(.o_we_so_color_palette.o_we_widget_opened)) we-customizeblock-option[class='snippet-option-ImageTools'] we-select[data-name="shape_img_opt"] we-toggler`,
-                `.o_we_customize_panel:not(:has(.o_we_so_color_palette.o_we_widget_opened)) we-customizeblock-option[class='snippet-option-ImageTools'] [title='we-select[data-name="shape_img_opt"] we-toggler']`
+                `.o_we_customize_panel:not(:has(.o_we_so_color_palette.o_we_widget_opened)) we-customizeblock-option[class='snippet-option-ImageTools'] [title='we-select[data-name="shape_img_opt"] we-toggler']`,
             ).toEqualNodes("");
         });
 
         test("comma-separated long selector: match first", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="o_we_customize_panel">
                     <we-customizeblock-option class="snippet-option-ImageTools">
                         <we-select data-name="shape_img_opt">
@@ -552,12 +559,12 @@ describe(parseUrl(import.meta.url), () => {
             `);
             expectSelector(
                 `.o_we_customize_panel:not(:has(.o_we_so_color_palette.o_we_widget_opened)) we-customizeblock-option[class='snippet-option-ImageTools'] we-select[data-name="shape_img_opt"] we-toggler`,
-                `.o_we_customize_panel:not(:has(.o_we_so_color_palette.o_we_widget_opened)) we-customizeblock-option[class='snippet-option-ImageTools'] [title='we-select[data-name="shape_img_opt"] we-toggler']`
+                `.o_we_customize_panel:not(:has(.o_we_so_color_palette.o_we_widget_opened)) we-customizeblock-option[class='snippet-option-ImageTools'] [title='we-select[data-name="shape_img_opt"] we-toggler']`,
             ).toEqualNodes("we-toggler");
         });
 
         test("comma-separated long selector: match second", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="o_we_customize_panel">
                     <we-customizeblock-option class="snippet-option-ImageTools">
                         <div title='we-select[data-name="shape_img_opt"] we-toggler'>
@@ -568,12 +575,12 @@ describe(parseUrl(import.meta.url), () => {
             `);
             expectSelector(
                 `.o_we_customize_panel:not(:has(.o_we_so_color_palette.o_we_widget_opened)) we-customizeblock-option[class='snippet-option-ImageTools'] we-select[data-name="shape_img_opt"] we-toggler`,
-                `.o_we_customize_panel:not(:has(.o_we_so_color_palette.o_we_widget_opened)) we-customizeblock-option[class='snippet-option-ImageTools'] [title='we-select[data-name="shape_img_opt"] we-toggler']`
+                `.o_we_customize_panel:not(:has(.o_we_so_color_palette.o_we_widget_opened)) we-customizeblock-option[class='snippet-option-ImageTools'] [title='we-select[data-name="shape_img_opt"] we-toggler']`,
             ).toEqualNodes("div[title]");
         });
 
         test("comma-separated :contains", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="o_menu_sections">
                     <a class="dropdown-item">Products</a>
                 </div>
@@ -586,24 +593,24 @@ describe(parseUrl(import.meta.url), () => {
                 </nav>
             `);
             expectSelector(
-                `.o_menu_sections .dropdown-item:contains('Products'), nav.o_burger_menu_content li[data-menu-xmlid='sale.menu_product_template_action']`
+                `.o_menu_sections .dropdown-item:contains('Products'), nav.o_burger_menu_content li[data-menu-xmlid='sale.menu_product_template_action']`,
             ).toEqualNodes(".dropdown-item,li");
         });
 
         test(":contains with line return", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <span>
                     <div>Matrix (PAV11, PAV22, PAV31)</div>
                     <div>PA4: PAV41</div>
                 </span>
             `);
-            expectSelector(`span:contains("Matrix (PAV11, PAV22, PAV31) PA4: PAV41")`).toEqualNodes(
-                "span"
-            );
+            expectSelector(
+                `span:contains("Matrix (PAV11, PAV22, PAV31) PA4: PAV41")`,
+            ).toEqualNodes("span");
         });
 
         test(":has(...):first", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <a href="/web/event/1"></a>
                 <a target="" href="/web/event/2">
                     <span>Conference for Architects TEST</span>
@@ -611,15 +618,15 @@ describe(parseUrl(import.meta.url), () => {
             `);
 
             expectSelector(
-                `a[href*="/event"]:contains("Conference for Architects TEST")`
+                `a[href*="/event"]:contains("Conference for Architects TEST")`,
             ).toEqualNodes("[target]");
             expectSelector(
-                `a[href*="/event"]:contains("Conference for Architects TEST"):first`
+                `a[href*="/event"]:contains("Conference for Architects TEST"):first`,
             ).toEqualNodes("[target]");
         });
 
         test(":eq", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <ul>
                     <li>a</li>
                     <li>b</li>
@@ -634,7 +641,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test(":empty", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <input class="empty" />
                 <input class="value" value="value" />
             `);
@@ -644,7 +651,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("regular :contains", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="website_links_click_chart">
                     <div class="title">
                         0 clicks
@@ -658,13 +665,13 @@ describe(parseUrl(import.meta.url), () => {
                 </div>
             `);
 
-            expectSelector(`.website_links_click_chart .title:contains("1 clicks")`).toEqualNodes(
-                ".title:nth-child(2)"
-            );
+            expectSelector(
+                `.website_links_click_chart .title:contains("1 clicks")`,
+            ).toEqualNodes(".title:nth-child(2)");
         });
 
         test("other regular :contains", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <ul
                     class="o-autocomplete--dropdown-menu ui-widget show dropdown-menu ui-autocomplete"
                     style="position: fixed; top: 283.75px; left: 168.938px"
@@ -693,13 +700,13 @@ describe(parseUrl(import.meta.url), () => {
                 </ul>
             `);
 
-            expectSelector(`.ui-menu-item a:contains("Account Tax Group Partner")`).toEqualNodes(
-                "ul li:first-child a"
-            );
+            expectSelector(
+                `.ui-menu-item a:contains("Account Tax Group Partner")`,
+            ).toEqualNodes("ul li:first-child a");
         });
 
         test(":iframe", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <iframe srcdoc="&lt;p&gt;Iframe text content&lt;/p&gt;"></iframe>
             `);
 
@@ -709,7 +716,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test(":contains with brackets", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="o_content">
                     <div class="o_field_widget" name="messages">
                         <table class="o_list_view table table-sm table-hover table-striped o_list_view_ungrouped">
@@ -731,12 +738,12 @@ describe(parseUrl(import.meta.url), () => {
             `);
 
             expectSelector(
-                `.o_content:has(.o_field_widget[name=messages]):has(td:text(bbb)):has(td:contains(/^\\[test_trigger\\] Mitchell Admin/))`
+                `.o_content:has(.o_field_widget[name=messages]):has(td:text(bbb)):has(td:contains(/^\\[test_trigger\\] Mitchell Admin/))`,
             ).toEqualNodes(".o_content");
         });
 
         test(":eq in the middle of a selector", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <ul>
                     <li class="oe_overlay o_draggable"></li>
                     <li class="oe_overlay o_draggable"></li>
@@ -745,12 +752,12 @@ describe(parseUrl(import.meta.url), () => {
                 </ul>
             `);
             expectSelector(`.oe_overlay.o_draggable:eq(2).oe_active`).toEqualNodes(
-                "li:nth-child(3)"
+                "li:nth-child(3)",
             );
         });
 
         test("combinator +", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <form class="js_attributes">
                     <input type="checkbox" />
                     <label>Steel - Test</label>
@@ -758,12 +765,12 @@ describe(parseUrl(import.meta.url), () => {
             `);
 
             expectSelector(
-                `form.js_attributes input:not(:checked) + label:contains(Steel - Test)`
+                `form.js_attributes input:not(:checked) + label:contains(Steel - Test)`,
             ).toEqualNodes("label");
         });
 
         test("multiple + combinators", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="s_cover">
                     <span class="o_text_highlight">
                         <span class="o_text_highlight_item">
@@ -787,7 +794,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test(":last", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="o_field_widget" name="messages">
                     <table class="o_list_view table table-sm table-hover table-striped o_list_view_ungrouped">
                         <tbody>
@@ -806,22 +813,26 @@ describe(parseUrl(import.meta.url), () => {
                 </div>
             `);
             expectSelector(
-                `.o_field_widget[name=messages] .o_data_row td.o_list_record_remove button:visible:last`
+                `.o_field_widget[name=messages] .o_data_row td.o_list_record_remove button:visible:last`,
             ).toEqualNodes(".o_data_row:last-child button");
         });
 
         test("select :contains & :value", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <select class="configurator_select form-select form-select-lg">
                     <option value="217" selected="">Metal</option>
                     <option value="218">Wood</option>
                 </select>
             `);
-            expectSelector(`.configurator_select:has(option:contains(Metal))`).toEqualNodes(
-                "select"
+            expectSelector(
+                `.configurator_select:has(option:contains(Metal))`,
+            ).toEqualNodes("select");
+            expectSelector(`.configurator_select:has(option:value(217))`).toEqualNodes(
+                "select",
             );
-            expectSelector(`.configurator_select:has(option:value(217))`).toEqualNodes("select");
-            expectSelector(`.configurator_select:has(option:value(218))`).toEqualNodes("select");
+            expectSelector(`.configurator_select:has(option:value(218))`).toEqualNodes(
+                "select",
+            );
             expectSelector(`.configurator_select:value(217)`).toEqualNodes("select");
             expectSelector(`.configurator_select:value(218)`).toEqualNodes("");
             expectSelector(`.configurator_select:value(Metal)`).toEqualNodes("");
@@ -834,39 +845,51 @@ describe(parseUrl(import.meta.url), () => {
             expect(() => $$`[href=/]`).toThrow();
             expect(
                 () =>
-                    $$`_o_wblog_posts_loop:has(span:has(i.fa-calendar-o):has(a[href="/blog?search=a"])):has(span:has(i.fa-search):has(a[href^="/blog?date_begin"]))`
+                    $$`_o_wblog_posts_loop:has(span:has(i.fa-calendar-o):has(a[href="/blog?search=a"])):has(span:has(i.fa-search):has(a[href^="/blog?date_begin"]))`,
             ).toThrow();
         });
 
         test("queryAllRects", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div style="width: 40px; height: 60px;" />
                 <div style="width: 20px; height: 10px;" />
             `);
 
-            expect(queryAllRects("div")).toEqual($$("div").map((el) => el.getBoundingClientRect()));
-            expect(queryAllRects("div:first")).toEqual([new DOMRect({ width: 40, height: 60 })]);
-            expect(queryAllRects("div:last")).toEqual([new DOMRect({ width: 20, height: 10 })]);
+            expect(queryAllRects("div")).toEqual(
+                $$("div").map((el) => el.getBoundingClientRect()),
+            );
+            expect(queryAllRects("div:first")).toEqual([
+                new DOMRect({ width: 40, height: 60 }),
+            ]);
+            expect(queryAllRects("div:last")).toEqual([
+                new DOMRect({ width: 20, height: 10 }),
+            ]);
         });
 
         test("queryAllTexts", async () => {
             await mountForTest(FULL_HTML_TEMPLATE);
 
-            expect(queryAllTexts(".title")).toEqual(["Title", "List header", "Form title"]);
+            expect(queryAllTexts(".title")).toEqual([
+                "Title",
+                "List header",
+                "Form title",
+            ]);
             expect(queryAllTexts("footer")).toEqual(["FooterBack to top"]);
         });
 
         test("queryOne", async () => {
             await mountForTest(FULL_HTML_TEMPLATE);
 
-            expect($1(".title:first")).toBe(getFixture().querySelector("header .title"));
+            expect($1(".title:first")).toBe(
+                getFixture().querySelector("header .title"),
+            );
 
             expect(() => $1(".title")).toThrow();
             expect(() => $1(".title", { count: 2 })).toThrow();
         });
 
         test("queryRect", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="container">
                     <div class="rect" style="width: 40px; height: 60px;" />
                 </div>
@@ -879,7 +902,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("queryRect with trimPadding", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div style="width: 50px; height: 70px; padding: 5px; margin: 6px" />
             `);
 
@@ -888,7 +911,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("not found messages", async () => {
-            await mountForTest(  `
+            await mountForTest(`
                 <div class="tralalero">
                     Tralala
                 </div>
@@ -898,13 +921,19 @@ describe(parseUrl(import.meta.url), () => {
             expect($`.modal:visible:contains('Tung Tung Tung Sahur')`).toBe(null);
 
             expect(() => $1()).toThrow(`found 0 elements instead of 1`);
-            expect(() => $$([], { count: 18 })).toThrow(`found 0 elements instead of 18`);
-            expect(() => $1("")).toThrow(`found 0 elements instead of 1: 0 matching ""`);
-            expect(() => $$(".tralalero", { count: -20 })).toThrow(
-                `invalid 'count' option: should be a positive integer`
+            expect(() => $$([], { count: 18 })).toThrow(
+                `found 0 elements instead of 18`,
             );
-            expect(() => $1`.tralalero:contains(Tralala):visible:scrollable:first`).toThrow(
-                `found 0 elements instead of 1: 0 matching ".tralalero:contains(Tralala):visible:scrollable:first" (1 element with text "Tralala" > 1 visible element > 0 scrollable elements)`
+            expect(() => $1("")).toThrow(
+                `found 0 elements instead of 1: 0 matching ""`,
+            );
+            expect(() => $$(".tralalero", { count: -20 })).toThrow(
+                `invalid 'count' option: should be a positive integer`,
+            );
+            expect(
+                () => $1`.tralalero:contains(Tralala):visible:scrollable:first`,
+            ).toThrow(
+                `found 0 elements instead of 1: 0 matching ".tralalero:contains(Tralala):visible:scrollable:first" (1 element with text "Tralala" > 1 visible element > 0 scrollable elements)`,
             );
             expect(() =>
                 $1(".tralalero", {
@@ -912,9 +941,9 @@ describe(parseUrl(import.meta.url), () => {
                     visible: true,
                     scrollable: true,
                     first: true,
-                })
+                }),
             ).toThrow(
-                `found 0 elements instead of 1: 1 matching ".tralalero", including 1 element with text "Tralala", including 1 visible element, including 0 scrollable elements`
+                `found 0 elements instead of 1: 1 matching ".tralalero", including 1 element with text "Tralala", including 1 visible element, including 0 scrollable elements`,
             );
         });
     });

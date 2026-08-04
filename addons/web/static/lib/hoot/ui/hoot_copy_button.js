@@ -41,7 +41,8 @@ export class HootCopyButton extends Component {
      * @param {PointerEvent} ev
      */
     async onClick(ev) {
-        const text = ev.altKey && this.props.altText ? this.props.altText : this.props.text;
+        const text =
+            ev.altKey && this.props.altText ? this.props.altText : this.props.text;
         await copy(text);
         this.state.copied = true;
     }

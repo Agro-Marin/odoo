@@ -1,6 +1,10 @@
 /** @odoo-module */
 
-import { getTimeOffset, isTimeFrozen, resetTimeOffset } from "@odoo/hoot-dom-helpers-time";
+import {
+    getTimeOffset,
+    isTimeFrozen,
+    resetTimeOffset,
+} from "@odoo/hoot-dom-helpers-time";
 import { createMock, HootError, isNil } from "../hoot_utils.js";
 import { ensureTest } from "../main_runner.js";
 
@@ -23,8 +27,12 @@ const { DateTimeFormat, Locale } = Intl;
  * @param {Date} baseDate
  */
 function computeTimeZoneOffset(baseDate) {
-    const utcDate = new Date(baseDate.toLocaleString(DEFAULT_LOCALE, { timeZone: "UTC" }));
-    const tzDate = new Date(baseDate.toLocaleString(DEFAULT_LOCALE, { timeZone: timeZoneName }));
+    const utcDate = new Date(
+        baseDate.toLocaleString(DEFAULT_LOCALE, { timeZone: "UTC" }),
+    );
+    const tzDate = new Date(
+        baseDate.toLocaleString(DEFAULT_LOCALE, { timeZone: timeZoneName }),
+    );
     return (utcDate - tzDate) / 60000;
 }
 
@@ -32,7 +40,10 @@ function computeTimeZoneOffset(baseDate) {
  * @param {number} id
  */
 function getDateParams() {
-    return [...dateParams.slice(0, -1), dateParams.at(-1) + getTimeStampDiff() + getTimeOffset()];
+    return [
+        ...dateParams.slice(0, -1),
+        dateParams.at(-1) + getTimeStampDiff() + getTimeOffset(),
+    ];
 }
 
 function getTimeStampDiff() {
@@ -45,7 +56,9 @@ function getTimeStampDiff() {
 function parseDateParams(dateSpecs) {
     /** @type {DateSpecs} */
     const specs =
-        (typeof dateSpecs === "string" ? dateSpecs.match(DATE_REGEX)?.groups : dateSpecs) || {};
+        (typeof dateSpecs === "string"
+            ? dateSpecs.match(DATE_REGEX)?.groups
+            : dateSpecs) || {};
     return [
         specs.year ?? DEFAULT_DATE[0],
         (specs.month ?? DEFAULT_DATE[1]) - 1,
@@ -73,7 +86,9 @@ function setDateParams(newDateParams) {
 function setTimeZone(tz) {
     if (typeof tz === "string") {
         if (!tz.includes("/")) {
-            throw new HootError(`invalid time zone: must be in the format <Country/...Location>`);
+            throw new HootError(
+                `invalid time zone: must be in the format <Country/...Location>`,
+            );
         }
 
         timeZoneName = tz;

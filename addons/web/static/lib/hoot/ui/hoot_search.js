@@ -80,7 +80,7 @@ function removeRegExp(query) {
  *
  * @param {string} tagName
  */
-const templateIncludeWidget = (tagName) =>   `
+const templateIncludeWidget = (tagName) => `
     <t t-set="type" t-value="category === 'tag' ? category : 'id'" />
     <t t-set="includeStatus" t-value="runnerState.includeSpecs[type][job.id] or 0" />
     <t t-set="readonly" t-value="isReadonly(includeStatus)" />
@@ -192,7 +192,7 @@ const EMPTY_SUITE = new Suite(null, "…", []);
 const SECRET_SEQUENCE = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65];
 const RESULT_LIMIT = 5;
 
-const TEMPLATE_FILTERS_AND_CATEGORIES =   `
+const TEMPLATE_FILTERS_AND_CATEGORIES = `
     <div class="flex mb-2">
         <t t-if="trimmedQuery">
             <button
@@ -243,7 +243,7 @@ const TEMPLATE_FILTERS_AND_CATEGORIES =   `
     </t>
 `;
 
-const TEMPLATE_SEARCH_DASHBOARD =   `
+const TEMPLATE_SEARCH_DASHBOARD = `
     <div class="flex flex-col gap-4 sm:grid sm:grid-cols-3 sm:gap-0">
         <div class="flex flex-col sm:px-4">
             <h4 class="text-primary font-bold flex items-center mb-2">
@@ -448,7 +448,7 @@ export class HootSearch extends Component {
                     this.state.showDropdown = shouldOpen;
                 }
             },
-            { capture: true }
+            { capture: true },
         );
 
         this.keepSelection = useKeepSelection(this.searchInputRef);
@@ -511,7 +511,9 @@ export class HootSearch extends Component {
         for (const category of this.categories) {
             const include = [];
             const exclude = [];
-            for (const [id, value] of $entries(includeSpecs[categoryToType(category)])) {
+            for (const [id, value] of $entries(
+                includeSpecs[categoryToType(category)],
+            )) {
                 if (
                     (category === "suite" && !suites.has(id)) ||
                     (category === "test" && !tests.has(id))
@@ -532,7 +534,12 @@ export class HootSearch extends Component {
                 }
             }
             if (include.length || exclude.length) {
-                counts.push({ category, tip: `Remove all ${category}`, include, exclude });
+                counts.push({
+                    category,
+                    tip: `Remove all ${category}`,
+                    include,
+                    exclude,
+                });
             }
         }
         return counts;
@@ -540,7 +547,7 @@ export class HootSearch extends Component {
 
     getHasIncludeValue() {
         return $values(this.runnerState.includeSpecs).some((values) =>
-            $values(values).some((value) => value > 0)
+            $values(values).some((value) => value > 0),
         );
     }
 
@@ -580,7 +587,7 @@ export class HootSearch extends Component {
         return !(
             this.trimmedQuery ||
             $values(this.runnerState.includeSpecs).some((values) =>
-                $values(values).some((value) => $abs(value) === INCLUDE_LEVEL.url)
+                $values(values).some((value) => $abs(value) === INCLUDE_LEVEL.url),
             )
         );
     }
@@ -638,7 +645,7 @@ export class HootSearch extends Component {
             this.setInclude(
                 type,
                 id,
-                value === "include" ? +INCLUDE_LEVEL.url : -INCLUDE_LEVEL.url
+                value === "include" ? +INCLUDE_LEVEL.url : -INCLUDE_LEVEL.url,
             );
         } else {
             this.setInclude(type, id, 0);
@@ -704,7 +711,10 @@ export class HootSearch extends Component {
     onSearchInputKeyDown(ev) {
         switch (ev.key) {
             case "Backspace": {
-                if (ev.currentTarget.selectionStart === 0 && ev.currentTarget.selectionEnd === 0) {
+                if (
+                    ev.currentTarget.selectionStart === 0 &&
+                    ev.currentTarget.selectionEnd === 0
+                ) {
                     this.uncheckLastCategory();
                 }
                 break;

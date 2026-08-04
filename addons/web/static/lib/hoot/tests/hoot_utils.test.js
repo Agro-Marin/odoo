@@ -32,7 +32,9 @@ describe(parseUrl(import.meta.url), () => {
         expect(deepCopy({ a: 1, b: 2 })).toEqual({ a: 1, b: 2 });
         expect(deepCopy({ o: { a: [{ b: 1 }] } })).toEqual({ o: { a: [{ b: 1 }] } });
         expect(deepCopy(Symbol.for("a"))).toEqual(Symbol.for("a"));
-        expect(deepCopy(document.createElement("div"))).toEqual(document.createElement("div"));
+        expect(deepCopy(document.createElement("div"))).toEqual(
+            document.createElement("div"),
+        );
         expect(deepCopy([1, 2, 3])).toEqual([1, 2, 3]);
     });
 
@@ -96,7 +98,9 @@ describe(parseUrl(import.meta.url), () => {
         ];
 
         expect.assertions(
-            TRUTHY_CASES.length + FALSY_CASES.length + TRUTHY_IF_UNORDERED_CASES.length * 2
+            TRUTHY_CASES.length +
+                FALSY_CASES.length +
+                TRUTHY_IF_UNORDERED_CASES.length * 2,
         );
 
         for (const [a, b] of TRUTHY_CASES) {
@@ -122,14 +126,18 @@ describe(parseUrl(import.meta.url), () => {
     test("formatHumanReadable", () => {
         expect(formatHumanReadable("abc")).toBe(`"abc"`);
         expect(formatHumanReadable("a".repeat(300))).toBe(`"${"a".repeat(80)}…"`);
-        expect(formatHumanReadable(`with "double quotes"`)).toBe(`'with "double quotes"'`);
+        expect(formatHumanReadable(`with "double quotes"`)).toBe(
+            `'with "double quotes"'`,
+        );
         expect(formatHumanReadable(`with "double quotes" and 'single quote'`)).toBe(
-            `\`with "double quotes" and 'single quote'\``
+            `\`with "double quotes" and 'single quote'\``,
         );
         expect(formatHumanReadable(1)).toBe(`1`);
         expect(formatHumanReadable(true)).toBe(`true`);
         expect(formatHumanReadable(null)).toBe(`null`);
-        expect(formatHumanReadable(async function oui() {})).toBe(`async function oui() { … }`);
+        expect(formatHumanReadable(async function oui() {})).toBe(
+            `async function oui() { … }`,
+        );
         expect(formatHumanReadable(class Oui {})).toBe(`class Oui { … }`);
         expect(formatHumanReadable([1, 2, 3])).toBe(`[1, 2, 3]`);
         expect(formatHumanReadable(new Set([1, 2, 3]))).toBe(`Set [1, 2, 3]`);
@@ -138,12 +146,12 @@ describe(parseUrl(import.meta.url), () => {
                 new Map([
                     ["a", 1],
                     ["b", 2],
-                ])
-            )
+                ]),
+            ),
         ).toBe(`Map [["a", 1], ["b", 2]]`);
         expect(formatHumanReadable(/ab(c)d/gi)).toBe(`/ab(c)d/gi`);
         expect(formatHumanReadable(new Date("1997-01-09T12:30:00.000Z"))).toBe(
-            `1997-01-09T12:30:00.000Z`
+            `1997-01-09T12:30:00.000Z`,
         );
         expect(formatHumanReadable({})).toBe(`{  }`);
         expect(formatHumanReadable({ a: { b: 1 } })).toBe(`{ a: { b: 1 } }`);
@@ -156,9 +164,9 @@ describe(parseUrl(import.meta.url), () => {
                             throw new Error("Cannot access!");
                         },
                     },
-                    {}
-                )
-            )
+                    {},
+                ),
+            ),
         ).toBe(`{ allowed: true }`);
         expect(formatHumanReadable(window)).toBe(`Window {  }`);
         expect(formatHumanReadable(document.createElement("div"))).toBe("<div>");
@@ -172,20 +180,20 @@ describe(parseUrl(import.meta.url), () => {
                 b: 2,
                 [Symbol("s")]: "value",
                 a: true,
-            })
+            }),
         ).toBe(
             `{
   a: true,
   b: 2,
   Symbol(s): "value",
-}`.trim()
+}`.trim(),
         );
 
         expect(formatTechnical(["a", "b"])).toBe(
             `[
   "a",
   "b",
-]`.trim()
+]`.trim(),
         );
 
         class List extends Array {}
@@ -194,7 +202,7 @@ describe(parseUrl(import.meta.url), () => {
             `List [
   "a",
   "b",
-]`.trim()
+]`.trim(),
         );
 
         function toArguments() {
@@ -205,7 +213,7 @@ describe(parseUrl(import.meta.url), () => {
             `Arguments [
   "a",
   "b",
-]`.trim()
+]`.trim(),
         );
     });
 
@@ -218,7 +226,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("isInstanceOf", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <iframe srcdoc="" />
         `);
 
@@ -285,7 +293,7 @@ describe(parseUrl(import.meta.url), () => {
                 toEqual: (expected) =>
                     expect(result).toEqual(
                         expected.map((item) => ({ [property]: item })),
-                        { message: `query ${query} should match ${expected}` }
+                        { message: `query ${query} should match ${expected}` },
                     ),
             };
         };
@@ -306,17 +314,34 @@ describe(parseUrl(import.meta.url), () => {
         expect(() => lookup(parseQuery("a"))).toThrow();
 
         expectQuery("", []).toEqual([]);
-        expectQuery("", ["bababa", "baaab", "cccbccb"]).toEqual(["bababa", "baaab", "cccbccb"]);
+        expectQuery("", ["bababa", "baaab", "cccbccb"]).toEqual([
+            "bababa",
+            "baaab",
+            "cccbccb",
+        ]);
         expectQuery("aaa", []).toEqual([]);
 
         expectQuery(`/.b$/`, ["bababa", "baaab", "cccbccB"]).toEqual(["baaab"]);
-        expectQuery(`/.b$/i`, ["bababa", "baaab", "cccbccB"]).toEqual(["baaab", "cccbccB"]);
+        expectQuery(`/.b$/i`, ["bababa", "baaab", "cccbccB"]).toEqual([
+            "baaab",
+            "cccbccB",
+        ]);
 
         expectQuery(`"aaa"`, ["bababa", "baaab", "cccbccb"]).toEqual(["baaab"]);
         expectQuery(`"sam"`, list).toEqual([]);
-        expectQuery(`"Sam"`, list).toEqual(["Sam", "Frodo Sam", "Frodo Sam Merry Pippin"]);
-        expectQuery(`"Sam" "Frodo"`, list).toEqual(["Frodo Sam", "Frodo Sam Merry Pippin"]);
-        expectQuery(`"Frodo Sam"`, list).toEqual(["Frodo Sam", "Frodo Sam Merry Pippin"]);
+        expectQuery(`"Sam"`, list).toEqual([
+            "Sam",
+            "Frodo Sam",
+            "Frodo Sam Merry Pippin",
+        ]);
+        expectQuery(`"Sam" "Frodo"`, list).toEqual([
+            "Frodo Sam",
+            "Frodo Sam Merry Pippin",
+        ]);
+        expectQuery(`"Frodo Sam"`, list).toEqual([
+            "Frodo Sam",
+            "Frodo Sam Merry Pippin",
+        ]);
         expectQuery(`"FrodoSam"`, list).toEqual([]);
         expectQuery(`"Frodo  Sam"`, list).toEqual([]);
         expectQuery(`"Sam" -"Frodo"`, list).toEqual(["Sam"]);

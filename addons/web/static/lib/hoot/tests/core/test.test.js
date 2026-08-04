@@ -61,7 +61,7 @@ test("${testName}", () => {
     // Synchronous
     expect(1).toBe(1);
 });
-`.trim()
+`.trim(),
         );
         expect(t.formatted).toBe(true);
 

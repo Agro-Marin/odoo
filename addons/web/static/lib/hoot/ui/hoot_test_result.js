@@ -65,11 +65,11 @@ function filterResults(results, statusFilter) {
  */
 function stackTemplate(label, owner) {
     const preContent =
-          `<t t-foreach="parseStack(${owner}.stack)" t-as="part" t-key="part_index">` +
-          `<t t-if="typeof part === 'string'" t-esc="part" />` +
-          `<span t-else="" t-att-class="part.className" t-esc="part.value" />` +
-          `</t>`;
-    return   `
+        `<t t-foreach="parseStack(${owner}.stack)" t-as="part" t-key="part_index">` +
+        `<t t-if="typeof part === 'string'" t-esc="part" />` +
+        `<span t-else="" t-att-class="part.className" t-esc="part.value" />` +
+        `</t>`;
+    return `
         <t t-if="${owner}?.stack">
             <div class="flex col-span-2 gap-x-2 px-2 mt-1">
                 <span class="text-rose">
@@ -83,7 +83,7 @@ function stackTemplate(label, owner) {
 
 const DOC_URL = `https://www.odoo.com/documentation/18.0/developer/reference/frontend/unit_testing/hoot.html#`;
 
-const ERROR_TEMPLATE =   `
+const ERROR_TEMPLATE = `
     <div class="text-rose flex items-center gap-1 px-2 truncate">
         <i class="fa-solid fa-exclamation" />
         <strong t-esc="event.label" />
@@ -97,7 +97,7 @@ const ERROR_TEMPLATE =   `
     ${stackTemplate("Cause", "event.cause")}
 `;
 
-const EVENT_TEMPLATE =   `
+const EVENT_TEMPLATE = `
     <div
         t-attf-class="text-{{ eventColor }} flex items-center gap-1 px-2 truncate"
     >
@@ -190,7 +190,7 @@ const EVENT_TEMPLATE =   `
 `;
 
 const CASE_EVENT_TYPES_INVERSE = $fromEntries(
-    $entries(CASE_EVENT_TYPES).map(([k, v]) => [v.value, k])
+    $entries(CASE_EVENT_TYPES).map(([k, v]) => [v.value, k]),
 );
 
 const R_STACK_LINE_START = isFirefox()
@@ -382,7 +382,7 @@ export class HootTestResult extends Component {
             if (match) {
                 result.push(
                     { className: "text-rose", value: match.groups.prefix },
-                    match.groups.rest + "\n"
+                    match.groups.rest + "\n",
                 );
             } else {
                 result.push(line + "\n");

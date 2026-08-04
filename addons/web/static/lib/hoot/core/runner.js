@@ -4,13 +4,11 @@ import { on, setFrameRate } from "@odoo/hoot-dom";
 import { markRaw, reactive, toRaw } from "@odoo/owl";
 import { cleanupDOM, defineRootNode } from "@odoo/hoot-dom-helpers-dom";
 import { cleanupEvents, enableEventLogs } from "@odoo/hoot-dom-helpers-events";
-import {
-    cleanupTime,
-    setupTime,
-} from "@odoo/hoot-dom-helpers-time";
+import { cleanupTime, setupTime } from "@odoo/hoot-dom-helpers-time";
 
 const __nativeTimers = globalThis.odoo?.__nativeTimers ?? globalThis;
-const { setTimeout: nativeSetTimeout, clearTimeout: nativeClearTimeout } = __nativeTimers;
+const { setTimeout: nativeSetTimeout, clearTimeout: nativeClearTimeout } =
+    __nativeTimers;
 import { exposeHelpers, isInstanceOf, isIterable } from "@odoo/hoot-dom-utils";
 import {
     CASE_EVENT_TYPES,
@@ -168,8 +166,16 @@ function formatIncludes(values) {
  */
 function formatAssertions(assertions) {
     const lines = [];
-    for (const { additionalMessage, failedDetails, label, message, number } of assertions) {
-        const formattedMessage = message.map((part) => (isLabel(part) ? part[0] : String(part)));
+    for (const {
+        additionalMessage,
+        failedDetails,
+        label,
+        message,
+        number,
+    } of assertions) {
+        const formattedMessage = message.map((part) =>
+            isLabel(part) ? part[0] : String(part),
+        );
         if (additionalMessage) {
             formattedMessage.push(`(${additionalMessage})`);
         }
@@ -178,7 +184,7 @@ function formatAssertions(assertions) {
             for (const detail of failedDetails) {
                 if (Markup.isMarkup(detail, "group")) {
                     lines.push(
-                        `${number}.${detail.groupIndex}. (${formatHumanReadable(detail.content)})`
+                        `${number}.${detail.groupIndex}. (${formatHumanReadable(detail.content)})`,
                     );
                     continue;
                 }
@@ -229,7 +235,7 @@ function handleConsoleIssues(test, shouldSuppress) {
         if (isInstanceOf(globalThis.console, EventTarget)) {
             cleanups.push(
                 on(globalThis.console, "error", () => test.logs.error++),
-                on(globalThis.console, "warn", () => test.logs.warn++)
+                on(globalThis.console, "warn", () => test.logs.warn++),
             );
         }
 
@@ -251,7 +257,7 @@ function warnUserEvent(ev) {
 
     logger.global.warn(
         `User event detected: "${ev.type}"\n\n`,
-        `This kind of interaction can interfere with the current test and should be avoided.`
+        `This kind of interaction can interfere with the current test and should be avoided.`,
     );
 
     removeEventListener(ev.type, warnUserEvent);
@@ -262,7 +268,8 @@ const WARNINGS = {
     tagNames:
         "The following tag names are very similar to each other and may be confusing for other developers:",
 };
-const RESIZE_OBSERVER_MESSAGE = "ResizeObserver loop completed with undelivered notifications";
+const RESIZE_OBSERVER_MESSAGE =
+    "ResizeObserver loop completed with undelivered notifications";
 const handledErrors = new WeakSet();
 /** @type {string | null} */
 let lastPresetWarn = null;
@@ -391,7 +398,9 @@ export class Runner {
      * @param {typeof DEFAULT_CONFIG} [config]
      */
     constructor(config) {
-        this.describe = this._addConfigurators(this.addSuite, () => this.suiteStack.at(-1));
+        this.describe = this._addConfigurators(this.addSuite, () =>
+            this.suiteStack.at(-1),
+        );
         this.fixture = makeFixtureManager(this);
         this.test = this._addConfigurators(this.addTest, false);
 
@@ -408,12 +417,14 @@ export class Runner {
                         $entries(this.config).map(([key, value]) => [
                             key,
                             deepEqual(value, DEFAULT_CONFIG[key]) ? null : value,
-                        ])
-                    )
+                        ]),
+                    ),
                 );
             });
 
-            [this._pushTest, this._pushPendingTest] = batch((test) => this.state.done.add(test));
+            [this._pushTest, this._pushPendingTest] = batch((test) =>
+                this.state.done.add(test),
+            );
         }
 
         [this.expect, this.expectHooks] = makeExpect({ headless: this.headless });
@@ -437,15 +448,25 @@ export class Runner {
         }
 
         if (this.config.id?.length) {
-            this._include(this.state.includeSpecs.id, this.config.id, INCLUDE_LEVEL.url);
+            this._include(
+                this.state.includeSpecs.id,
+                this.config.id,
+                INCLUDE_LEVEL.url,
+            );
         }
 
         if (this.config.tag?.length) {
-            this._include(this.state.includeSpecs.tag, this.config.tag, INCLUDE_LEVEL.url);
+            this._include(
+                this.state.includeSpecs.tag,
+                this.config.tag,
+                INCLUDE_LEVEL.url,
+            );
         }
 
         if (this.config.networkDelay) {
-            const values = this.config.networkDelay.split("-").map((val) => $parseFloat(val) || 0);
+            const values = this.config.networkDelay
+                .split("-")
+                .map((val) => $parseFloat(val) || 0);
             throttleNetwork(...values);
         }
 
@@ -468,7 +489,9 @@ export class Runner {
                 level: "critical",
             });
         }
-        const names = ensureArray(name).flatMap((n) => normalize(n).split("/").filter(Boolean));
+        const names = ensureArray(name).flatMap((n) =>
+            normalize(n).split("/").filter(Boolean),
+        );
         const [suiteName, ...otherNames] = names;
         if (names.length > 1) {
             let targetSuite;
@@ -481,13 +504,13 @@ export class Runner {
         if (typeof fn !== "function") {
             throw suiteError(
                 { name: suiteName, parent: parentSuite },
-                `expected second argument to be a function and got ${String(fn)}`
+                `expected second argument to be a function and got ${String(fn)}`,
             );
         }
         if (this.state.status === "running") {
             throw suiteError(
                 { name: suiteName, parent: parentSuite },
-                `cannot add a suite after the test runner started`
+                `cannot add a suite after the test runner started`,
             );
         }
         let suite = markRaw(new Suite(parentSuite, suiteName, config));
@@ -547,18 +570,21 @@ export class Runner {
         }
         const parentSuite = this.suiteStack.at(-1);
         if (!parentSuite) {
-            throw testError({ name, parent: null }, `cannot register a test outside of a suite.`);
+            throw testError(
+                { name, parent: null },
+                `cannot register a test outside of a suite.`,
+            );
         }
         if (typeof fn !== "function") {
             throw testError(
                 { name, parent: parentSuite },
-                `expected second argument to be a function and got ${String(fn)}`
+                `expected second argument to be a function and got ${String(fn)}`,
             );
         }
         if (this.state.status === "running") {
             throw testError(
                 { name, parent: parentSuite },
-                `cannot add a test after the test runner started.`
+                `cannot add a test after the test runner started.`,
             );
         }
         const runFn = this.dry ? null : fn;
@@ -569,8 +595,8 @@ export class Runner {
                 throw testError(
                     test,
                     `a test with that name already exists in the suite ${stringify(
-                        parentSuite.name
-                    )}`
+                        parentSuite.name,
+                    )}`,
                 );
             }
             test = originalTest;
@@ -744,7 +770,7 @@ export class Runner {
                     innerWidth,
                     "x",
                     innerHeight,
-                    `\n\nHint: you can use the "device toolbar" in your devtools to manually set the size of your viewport`
+                    `\n\nHint: you can use the "device toolbar" in your devtools to manually set the size of your viewport`,
                 );
             }
             lastPresetWarn = presetId;
@@ -771,9 +797,12 @@ export class Runner {
             });
         }
         if (this._prepared) {
-            throw new HootError("cannot run a dry run: runner has already been prepared", {
-                level: "global",
-            });
+            throw new HootError(
+                "cannot run a dry run: runner has already been prepared",
+                {
+                    level: "global",
+                },
+            );
         }
 
         this.dry = true;
@@ -885,9 +914,12 @@ export class Runner {
             this._prepareRunner();
             await this._setupStart();
         } else if (!jobs.length) {
-            throw new HootError("cannot start test runner: runner has already started", {
-                level: "global",
-            });
+            throw new HootError(
+                "cannot start test runner: runner has already started",
+                {
+                    level: "global",
+                },
+            );
         }
 
         if (this.state.status === "done") {
@@ -911,7 +943,6 @@ export class Runner {
         while (job && this.state.status === "running") {
             const callbackChain = this._getCallbackChain(job);
             if (job instanceof Suite) {
-
                 /** @type {Suite} */
                 const suite = job;
                 if (!suite.config.skip && suite.currentJobs.length) {
@@ -926,8 +957,16 @@ export class Runner {
                         this.suiteStack.pop();
 
                         await this._execAfterCallback(async () => {
-                            await suite.callbacks.call("after-suite", suite, handleError);
-                            await this._callbacks.call("after-suite", suite, handleError);
+                            await suite.callbacks.call(
+                                "after-suite",
+                                suite,
+                                handleError,
+                            );
+                            await this._callbacks.call(
+                                "after-suite",
+                                suite,
+                                handleError,
+                            );
                         });
                         suite.after();
 
@@ -974,7 +1013,7 @@ export class Runner {
                     }
                 })(),
                 new Promise((_, reject) =>
-                    nativeSetTimeout(() => reject("before-test timeout"), 5_000)
+                    nativeSetTimeout(() => reject("before-test timeout"), 5_000),
                 ),
             ]).catch(() => {});
 
@@ -988,7 +1027,7 @@ export class Runner {
                 if (timeout && !this.debug) {
                     timeoutId = nativeSetTimeout(() => {
                         const msg = `test ${stringify(
-                            test.name
+                            test.name,
                         )} timed out after ${timeout} milliseconds`;
                         reject(new HootError(msg, { level: "global" }));
                     }, timeout);
@@ -1022,7 +1061,7 @@ export class Runner {
                     }
                 }),
                 new Promise((_, reject) =>
-                    nativeSetTimeout(() => reject("after-test timeout"), 5_000)
+                    nativeSetTimeout(() => reject("after-test timeout"), 5_000),
                 ),
             ]).catch(() => {});
             test.after();
@@ -1042,13 +1081,14 @@ export class Runner {
 
                 const failReasons = [];
                 const failedAssertions = lastResults.events.filter(
-                    (event) => event.type & CASE_EVENT_TYPES.assertion.value && !event.pass
+                    (event) =>
+                        event.type & CASE_EVENT_TYPES.assertion.value && !event.pass,
                 );
                 if (failedAssertions.length) {
                     const s = failedAssertions.length === 1 ? "" : "s";
                     failReasons.push(
                         `\nFailed assertion${s}:`,
-                        ...formatAssertions(failedAssertions)
+                        ...formatAssertions(failedAssertions),
                     );
                 }
                 if (lastResults.currentErrors.length) {
@@ -1066,11 +1106,13 @@ export class Runner {
                                 cause = cause.cause;
                             }
                             return msg;
-                        })
+                        }),
                     );
                 }
                 logger.global.error(
-                    [`Test ${stringify(test.fullName)} failed:`, ...failReasons].join("\n")
+                    [`Test ${stringify(test.fullName)} failed:`, ...failReasons].join(
+                        "\n",
+                    ),
                 );
 
                 if (!this.aborted) {
@@ -1165,15 +1207,17 @@ export class Runner {
                 errorMessage.push(`Failed tests link: ${link.toString()}`);
             }
             logger.logGlobal(
-                `Failed ${failed} tests (${passed} passed, total time: ${this.totalTime})`
+                `Failed ${failed} tests (${passed} passed, total time: ${this.totalTime})`,
             );
             $error(errorMessage.join("\n"));
         } else if (this.headless && passed === 0) {
             logger.logGlobal(`no tests matched the current filters`);
-            $error("Test suite matched no tests: failing closed (check the suite id filters)");
+            $error(
+                "Test suite matched no tests: failing closed (check the suite id filters)",
+            );
         } else {
             logger.logGlobal(
-                `Passed ${passed} tests (${assertions} assertions, total time: ${this.totalTime})`
+                `Passed ${passed} tests (${assertions} assertions, total time: ${this.totalTime})`,
             );
             logger.logRun("Test suite succeeded");
         }
@@ -1215,7 +1259,8 @@ export class Runner {
          */
 
         /** @type {Configurators["current"]} */
-        const current = getCurrent && (() => this._createCurrentConfigurators(getCurrent));
+        const current =
+            getCurrent && (() => this._createCurrentConfigurators(getCurrent));
 
         /** @type {Configurators["debug"]} */
         function debug() {
@@ -1335,7 +1380,7 @@ export class Runner {
                     if (typeof this.debug !== "boolean" && this.debug !== job) {
                         throw new HootError(
                             `cannot set multiple tests or suites as "debug" at the same time`,
-                            { level: "critical" }
+                            { level: "critical" },
                         );
                     }
                     this.debug = job;
@@ -1343,11 +1388,15 @@ export class Runner {
                     if (!this.dry) {
                         logger.global.warn(
                             `${stringify(job.fullName)} is marked as ${stringify(
-                                tag.name
-                            )}. This is not suitable for CI`
+                                tag.name,
+                            )}. This is not suitable for CI`,
                         );
                     }
-                    this._include(this.state.includeSpecs.id, [job.id], INCLUDE_LEVEL.tag);
+                    this._include(
+                        this.state.includeSpecs.id,
+                        [job.id],
+                        INCLUDE_LEVEL.tag,
+                    );
                     ignoreSkip = true;
                     break;
                 case Tag.SKIP:
@@ -1363,8 +1412,8 @@ export class Runner {
             if (ignoreSkip) {
                 logger.global.warn(
                     `${stringify(
-                        job.fullName
-                    )} is marked as skipped but explicitly included: "skip" modifier has been ignored`
+                        job.fullName,
+                    )} is marked as skipped but explicitly included: "skip" modifier has been ignored`,
                 );
             } else {
                 job.config.skip = true;
@@ -1543,7 +1592,10 @@ export class Runner {
             }
         }
 
-        if (this.queryExclude.length && this.queryExclude.some((qp) => qp.matchValue(job.key))) {
+        if (
+            this.queryExclude.length &&
+            this.queryExclude.some((qp) => qp.matchValue(job.key))
+        ) {
             return true;
         }
 
@@ -1561,7 +1613,10 @@ export class Runner {
             }
         }
 
-        if (this.queryInclude.length && this.queryInclude.every((qp) => qp.matchValue(job.key))) {
+        if (
+            this.queryInclude.length &&
+            this.queryInclude.every((qp) => qp.matchValue(job.key))
+        ) {
             return true;
         }
 
@@ -1602,7 +1657,7 @@ export class Runner {
             while (debugTest instanceof Suite) {
                 if (debugTest.jobs.length > 1) {
                     logger.global.warn(
-                        `debugging a suite with ${debugTest.jobs.length} jobs: only the first one will be run`
+                        `debugging a suite with ${debugTest.jobs.length} jobs: only the first one will be run`,
                     );
                 }
                 debugTest = debugTest.jobs[0];
@@ -1624,7 +1679,8 @@ export class Runner {
         }
 
         const filteredJobs = jobs.filter((job) => {
-            const [explicitInclude, explicitExclude] = this._getExplicitIncludeStatus(job);
+            const [explicitInclude, explicitExclude] =
+                this._getExplicitIncludeStatus(job);
             if (explicitExclude) {
                 return false;
             }
@@ -1633,7 +1689,8 @@ export class Runner {
                 return false;
             }
 
-            let included = explicitInclude || implicitInclude || this._isImplicitlyIncluded(job);
+            let included =
+                explicitInclude || implicitInclude || this._isImplicitlyIncluded(job);
             if (job instanceof Suite) {
                 job.setCurrentJobs(this._prepareJobs(job.jobs, included));
                 included = Boolean(job.currentJobs.length);
@@ -1674,7 +1731,11 @@ export class Runner {
                 });
             }
             if (preset.tags?.length) {
-                this._include(this.state.includeSpecs.tag, preset.tags, INCLUDE_LEVEL.preset);
+                this._include(
+                    this.state.includeSpecs.tag,
+                    preset.tags,
+                    INCLUDE_LEVEL.preset,
+                );
             }
             if (typeof preset.touch === "boolean") {
                 this.beforeEach(() => mockTouch(preset.touch));
@@ -1697,7 +1758,8 @@ export class Runner {
         const similarities = getTagSimilarities();
         if (similarities.length) {
             this._handleGlobalWarning(
-                WARNINGS.tagNames + similarities.map((s) => `\n- ${s.map(stringify).join(" / ")}`)
+                WARNINGS.tagNames +
+                    similarities.map((s) => `\n- ${s.map(stringify).join(" / ")}`),
             );
             logger.global.warn(WARNINGS.tagNames, similarities);
         }
@@ -1863,11 +1925,11 @@ export class Runner {
 
         if (this.debug) {
             const activeSingleTests = this.state.tests.filter(
-                (test) => !test.config.skip && !test.config.multi
+                (test) => !test.config.skip && !test.config.multi,
             );
             if (activeSingleTests.length !== 1) {
                 logger.global.warn(
-                    `Disabling debug mode: ${activeSingleTests.length} tests will be run`
+                    `Disabling debug mode: ${activeSingleTests.length} tests will be run`,
                 );
                 this.config.debugTest = false;
                 this.debug = false;
@@ -1885,11 +1947,11 @@ export class Runner {
                         __debug__: this,
                         destroy,
                         getFixture: this.fixture.get,
-                    }
+                    },
                 );
                 logger.setLogLevel("debug");
                 logger.logDebug(
-                    `Debug mode is active: Hoot helpers available from \`window.${nameSpace}\``
+                    `Debug mode is active: Hoot helpers available from \`window.${nameSpace}\``,
                 );
             }
         }
@@ -1898,7 +1960,7 @@ export class Runner {
         this.afterAll(
             !this.debug && on(window, "pointermove", warnUserEvent),
             !this.debug && on(window, "pointerdown", warnUserEvent),
-            !this.debug && on(window, "keydown", warnUserEvent)
+            !this.debug && on(window, "keydown", warnUserEvent),
         );
         this.beforeEach(this.fixture.setup, setupWindow, setupTime);
         this.afterEach(
@@ -1910,7 +1972,7 @@ export class Runner {
             cleanupEvents,
             cleanupDOM,
             cleanupDate,
-            cleanupTime
+            cleanupTime,
         );
 
         enableEventLogs(logger.canLog("debug"));
@@ -1949,11 +2011,11 @@ export class Runner {
                     unresolved.push(id);
                     if (couldRemove) {
                         logger.warn(
-                            `Test runner did not find job with ID "${id}": it has been removed from the URL`
+                            `Test runner did not find job with ID "${id}": it has been removed from the URL`,
                         );
                     } else {
                         logger.warn(
-                            `Test runner did not find job with ID "${id}": it has been ignored from the current run`
+                            `Test runner did not find job with ID "${id}": it has been ignored from the current run`,
                         );
                     }
                 }
@@ -1963,7 +2025,11 @@ export class Runner {
                 continue;
             }
             const siblingIds = item.parent.jobs.map((job) => job.id);
-            if (siblingIds.every((siblingId) => idSpecs[siblingId] === INCLUDE_LEVEL.url)) {
+            if (
+                siblingIds.every(
+                    (siblingId) => idSpecs[siblingId] === INCLUDE_LEVEL.url,
+                )
+            ) {
                 remaining = remaining.filter((id) => !siblingIds.includes(id));
                 this._include(idSpecs, [item.parent.id], INCLUDE_LEVEL.url, true);
                 this._include(idSpecs, siblingIds, 0, true);
@@ -1975,7 +2041,7 @@ export class Runner {
                 `no suite or test matches ${unresolved.length > 1 ? "ids" : "id"} ${unresolved
                     .map(stringify)
                     .join(", ")}: refusing to fall back to running every test`,
-                { level: "critical" }
+                { level: "critical" },
             );
         }
         return hasChanged;

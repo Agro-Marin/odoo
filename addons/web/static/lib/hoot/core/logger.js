@@ -16,7 +16,10 @@ const {
         trace: $trace,
         warn: $warn,
     },
-    Object: { entries: $entries, getOwnPropertyDescriptors: $getOwnPropertyDescriptors },
+    Object: {
+        entries: $entries,
+        getOwnPropertyDescriptors: $getOwnPropertyDescriptors,
+    },
 } = globalThis;
 
 /**
@@ -60,7 +63,9 @@ class Logger {
         this.logLevel = logLevel;
         this.issueLevel = issueLevel;
 
-        for (const [key, desc] of $entries($getOwnPropertyDescriptors(Logger.prototype))) {
+        for (const [key, desc] of $entries(
+            $getOwnPropertyDescriptors(Logger.prototype),
+        )) {
             if (key !== "constructor" && typeof desc.value === "function") {
                 this[key] = this[key].bind(this);
             }
@@ -178,7 +183,7 @@ class Logger {
                 ...withArgs,
                 "time:",
                 suite.reporting.duration,
-                "ms)"
+                "ms)",
             );
         }
         $log(...styledArguments(args));
@@ -198,7 +203,7 @@ class Logger {
                 `/ time:`,
                 lastResults.duration,
                 `ms)`,
-            ])
+            ]),
         );
     }
     /**
@@ -267,7 +272,9 @@ let nextNetworkLogId = 1;
 export function makeNetworkLogger(prefix, title) {
     const id = nextNetworkLogId++;
     const slicedTitle =
-        title.length > 128 ? title.slice(0, 128) + " (click to show full input)" : title;
+        title.length > 128
+            ? title.slice(0, 128) + " (click to show full input)"
+            : title;
     return {
         /**
          * Request logger: blue lotus.
@@ -378,5 +385,5 @@ export const LOG_LEVELS = {
 
 export const logger = new Logger(
     urlParams.loglevel ?? LOG_LEVELS.runner,
-    ISSUE_LEVELS.critical
+    ISSUE_LEVELS.critical,
 );

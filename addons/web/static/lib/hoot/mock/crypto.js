@@ -27,15 +27,17 @@ function getRandomValues(array) {
 function importKey(format, keyData, algorithm, extractable, keyUsages) {
     if (arguments.length < 5) {
         throw new TypeError(
-            `Failed to execute 'importKey' on 'SubtleCrypto': 5 arguments required, but only ${arguments.length} present.`
+            `Failed to execute 'importKey' on 'SubtleCrypto': 5 arguments required, but only ${arguments.length} present.`,
         );
     }
     if (!keyData || keyData.length === 0) {
         throw new TypeError(
-            `Failed to execute 'importKey' on 'SubtleCrypto': The provided value cannot be converted to a sequence.`
+            `Failed to execute 'importKey' on 'SubtleCrypto': The provided value cannot be converted to a sequence.`,
         );
     }
-    const key = Symbol([algorithm, String(extractable), "secret", ...keyUsages].join("/"));
+    const key = Symbol(
+        [algorithm, String(extractable), "secret", ...keyUsages].join("/"),
+    );
     return Promise.resolve(key);
 }
 

@@ -287,7 +287,10 @@ export class HootStatusPanel extends Component {
     }
 
     nextPage() {
-        this.uiState.resultsPage = $min(this.uiState.resultsPage + 1, this.getLastPage());
+        this.uiState.resultsPage = $min(
+            this.uiState.resultsPage + 1,
+            this.getLastPage(),
+        );
     }
 
     onColorSchemeChange() {
@@ -305,7 +308,8 @@ export class HootStatusPanel extends Component {
         this.currentTestStart = $now();
         this.intervalId = setInterval(() => {
             this.state.timer =
-                $floor(($now() - this.currentTestStart) / TIMER_PRECISION) * TIMER_PRECISION;
+                $floor(($now() - this.currentTestStart) / TIMER_PRECISION) *
+                TIMER_PRECISION;
         }, TIMER_PRECISION);
     }
 

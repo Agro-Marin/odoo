@@ -249,7 +249,7 @@ export class HootTechnicalValue extends Component {
             (reason) => {
                 this.state.promiseState = ["rejected", reason];
                 throw reason;
-            }
+            },
         );
     }
 }

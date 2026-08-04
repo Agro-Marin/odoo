@@ -35,7 +35,13 @@ describe(parseUrl(import.meta.url), () => {
 
         await advanceTime(10_000);
 
-        expect.verifySteps(["animation", "timeout", "interval", "interval", "interval"]);
+        expect.verifySteps([
+            "animation",
+            "timeout",
+            "interval",
+            "interval",
+            "interval",
+        ]);
 
         await advanceTime(10_000);
 

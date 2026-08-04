@@ -36,7 +36,7 @@ function getSchemaKeys(schema) {
  * @returns {(valueIfEmpty: T) => (values: string[]) => T}
  */
 function makeParser(parse) {
-    return (valueIfEmpty) => (values) => values.length ? parse(values) : valueIfEmpty;
+    return (valueIfEmpty) => (values) => (values.length ? parse(values) : valueIfEmpty);
 }
 
 const parseBoolean = makeParser(([value]) => value === "true");

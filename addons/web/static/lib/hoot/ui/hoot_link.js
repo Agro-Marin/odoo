@@ -84,9 +84,12 @@ export class HootLink extends Component {
                 if (!(type in FILTER_SCHEMA)) {
                     continue;
                 }
-                const targetValue = options?.ignore ? -INCLUDE_LEVEL.url : +INCLUDE_LEVEL.url;
+                const targetValue = options?.ignore
+                    ? -INCLUDE_LEVEL.url
+                    : +INCLUDE_LEVEL.url;
                 for (const id of ensureArray(idOrIds)) {
-                    const finalValue = includeSpecs[type][id] === targetValue ? 0 : targetValue;
+                    const finalValue =
+                        includeSpecs[type][id] === targetValue ? 0 : targetValue;
                     this.env.runner.include(type, id, finalValue);
                     appliedFilter = true;
                 }

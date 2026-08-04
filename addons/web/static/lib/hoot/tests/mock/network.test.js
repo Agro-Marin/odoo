@@ -34,7 +34,9 @@ describe(parseUrl(import.meta.url), () => {
         });
         const blobUrl = createObjectURL(blob);
         const blobResponse = await fetch(blobUrl).then((res) => res.json());
-        const dataResponse = await fetch("data:text/html,<body></body>").then((res) => res.text());
+        const dataResponse = await fetch("data:text/html,<body></body>").then((res) =>
+            res.text(),
+        );
 
         expect(blobResponse).toEqual({ name: "coucou" });
         expect(dataResponse).toBe("<body></body>");
@@ -47,13 +49,19 @@ describe(parseUrl(import.meta.url), () => {
 
         const external = await fetch("http://some.url").then((res) => res.text());
         const internal = await fetch("/odoo").then((res) => res.text());
-        const data = await fetch("data:text/html,<body></body>").then((res) => res.text());
+        const data = await fetch("data:text/html,<body></body>").then((res) =>
+            res.text(),
+        );
 
         expect(external).toBe("null");
         expect(internal).toBe("null");
         expect(data).toBe("<body></body>");
 
-        expect.verifySteps(["http://some.url", "/odoo", "data:text/html,<body></body>"]);
+        expect.verifySteps([
+            "http://some.url",
+            "/odoo",
+            "data:text/html,<body></body>",
+        ]);
     });
 
     test("fetch JSON with blob URLs", async () => {
@@ -95,7 +103,10 @@ describe(parseUrl(import.meta.url), () => {
     test("mock response with nested blobs", async () => {
         mockFetch(
             () =>
-                new Blob(["some blob", new Blob([" with nested content"], { type: "text/plain" })])
+                new Blob([
+                    "some blob",
+                    new Blob([" with nested content"], { type: "text/plain" }),
+                ]),
         );
 
         const response = await fetch("/nestedBlob");
