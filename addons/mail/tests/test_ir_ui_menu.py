@@ -18,20 +18,8 @@ class TestMenuRootLookupByModel(MailCommon):
 
     @classmethod
     def setUpClass(cls):
-        """Setup data for the tests, especially this menu hierarchy:
-        - Contacts
-            - Contacts (res.partner)
-        - Invoicing
-            - Customers
-                - Customers (res.partner)
-            - Companies (res.company)
-        - Sales
-            - Orders
-                - Customers (res.partner)
-        - Settings
-            - Users & Companies
-                - Companies (res.company)
-        """
+        """Setup data for the tests, especially a menu hierarchy holding several
+        res.partner and res.company actions."""
         super().setUpClass()
         Menu = cls.env["ir.ui.menu"]
         Action = cls.env["ir.actions.act_window"]

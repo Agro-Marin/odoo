@@ -128,7 +128,7 @@ class TestFetchmail(TransactionCase):
 
     def test_fetchmail_rotation_order(self):
         """The cron processes servers by priority asc then date asc, so the
-        servers rotate across runs (C1c, upstream e02c26b6/c06428d6)."""
+        servers rotate across runs."""
         Server = self.env["fetchmail.server"]
         Server.search([]).action_archive()
         Server.create(

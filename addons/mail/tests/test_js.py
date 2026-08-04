@@ -1,25 +1,17 @@
 """CI entry point for the ``mail`` addon's HOOT (JS unit) suites.
 
-The ``mail`` JS test files (``static/tests/**/*.test.js`` — 100+ files, the
-largest JS test tree outside ``web``) were bundled into
-``web.assets_unit_tests`` but **no** ``test_js.py`` ever selected them, so
-``@mail/...`` suites never ran as a gated CI check. This class wires them in,
-mirroring ``web/tests/test_js.py::WebSuite``: the mail tree is fanned out across
+Mirrors ``web/tests/test_js.py``: the ``static/tests`` tree is fanned out across
 several ``test_*`` methods (so a single failing area is isolated and the run can
 be sharded) and a coverage walk fails the build the moment a new
-``static/tests`` directory is added without being selected by a method.
+``static/tests`` directory is added without being selected by a method. The
+runner machinery (hash, ``&id=`` filter, ``_run_hoot`` warm navigation) comes
+from ``web``'s ``HOOTCommon``.
 
-The runner machinery (hash, ``&id=`` filter, ``_run_hoot`` warm navigation) is
-reused from ``web`` via ``HOOTCommon``, imported through the module object
-(``web_test_js.HOOTCommon``) rather than a bare ``from ... import`` so Odoo's
-unittest loader does not collect ``web``'s base meta-tests a second time under
-``mail``.
-
-Both presets are wired: ``MailSuite`` (desktop, the validated baseline) and
-``MobileMailSuite`` (375x667 touch viewport), mirroring ``web``'s
-``WebSuite`` / ``MobileWebSuite`` pair. HOOT skips ``desktop``-tagged tests
-under the mobile preset, so the mobile pass runs the ``mobile``-tagged files
-plus every preset-agnostic test against the small-screen layout.
+Both presets are wired: ``MailSuite`` (desktop) and ``MobileMailSuite`` (375x667
+touch viewport), mirroring ``web``'s ``WebSuite`` / ``MobileWebSuite`` pair.
+HOOT skips ``desktop``-tagged tests under the mobile preset, so the mobile pass
+runs the ``mobile``-tagged files plus every preset-agnostic test against the
+small-screen layout.
 
 Fast local runs use the warm-server runner instead:
 ``tooling/hoot/hoot --db hoot_bus_mail '@mail/discuss'`` (any
@@ -119,10 +111,9 @@ class MailSuite(web_test_js.HOOTCommon):
     def test_suite_filters_cover_every_test_file(self):
         """Every ``static/tests/**/*.test.js`` must be selected by at least one
         method's suite prefix. HOOT ``&id=`` hash filters resolve against suite
-        names, so a tests directory no method names simply never runs — this
-        walk fails the build the moment one is added or renamed without updating
-        the suite lists at the top of this file (the lesson web/tests/test_js.py
-        learned after 13 files were silently lost)."""
+        names, so a tests directory no method names simply never runs; this walk
+        fails the build the moment one is added or renamed without updating the
+        suite lists at the top of this file."""
         tests_root = Path(file_path("mail/static/tests"))
         uncovered = []
         for test_file in sorted(tests_root.rglob("*.test.js")):
@@ -143,15 +134,11 @@ class MailSuite(web_test_js.HOOTCommon):
 @odoo.tests.tagged("post_install", "-at_install", "mail_js")
 class MobileMailSuite(web_test_js.HOOTCommon):
     """The ``mobile`` preset of the mail hoot suites — the counterpart to
-    ``web``'s ``MobileWebSuite``. HOOT skips ``desktop``-tagged tests under
-    the mobile preset, so this runs the ``mobile``-tagged files
-    (mobile.test.js, plus the mobile branches of translation,
-    search_messages_panel and the web call view) and every preset-agnostic
-    test against a 375x667 touch viewport — the mobile chat-window /
-    messaging-menu / discuss layout that the desktop preset never exercises.
-    ``-headless`` excludes the DB-free headless suites (they don't depend on
-    the viewport). The desktop MailSuite's coverage walk already guarantees
-    every file is selected by some prefix; this reuses the same prefixes.
+    ``web``'s ``MobileWebSuite``. HOOT skips ``desktop``-tagged tests under the
+    mobile preset, so this runs the ``mobile``-tagged files and every
+    preset-agnostic test against a 375x667 touch viewport. ``-headless``
+    excludes the DB-free headless suites (they don't depend on the viewport),
+    and the prefixes are the ones the desktop coverage walk already guarantees.
     """
 
     browser_size = "375x667"
