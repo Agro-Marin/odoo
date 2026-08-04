@@ -37,7 +37,7 @@ class TestMailMessage(common.MailCommon):
             inexisting_message.browse().has_access("read"),
             "Should not crash (can read void)",
         )
-        # TDE to check: cache pollution / inexisting not correctly tracked, ok-ish for stable
+        # TODO: cache pollution, inexisting records are not correctly tracked
         # with self.assertRaises(exceptions.AccessError):
         #     inexisting_message.check_access_rule('read')
 
