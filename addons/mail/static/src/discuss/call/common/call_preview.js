@@ -47,12 +47,9 @@ export class CallPreview extends Component {
         });
         this.audioRef = useRef("audio");
         this.videoRef = useRef("video");
-        // Single source of truth for stream -> media-element binding: the <audio>/<video>
-        // elements always mirror current stream state, in both directions (bind on enable,
-        // clear on disable, swap on blur). Because this is the *only* place srcObject is
-        // touched, enable*/disable*/blur mutate reactive state alone and never depend on a
-        // ref being mounted -- so the parent-notification contract can never again be gated
-        // behind a not-yet-rendered element (the guest-joins-camera-off bug).
+        // Single source of truth for stream -> media-element binding: the only
+        // place srcObject is touched, so enable*/disable*/blur mutate reactive
+        // state alone and never depend on a ref being mounted.
         useEffect(
             (videoEl, audioEl, audioStream, videoStream, blurStream) => {
                 if (audioEl && audioEl.srcObject !== audioStream) {
@@ -125,9 +122,8 @@ export class CallPreview extends Component {
                 closeStream(this.state.audioStream);
                 closeStream(this.state.videoStream);
                 // The BlurManager owns a Web Worker, a SelfieSegmentation
-                // instance and a canvas.captureStream(); without closing it (and
-                // its output stream) here, dismissing the preview with blur on
-                // leaks a live worker + capture stream for the tab's lifetime.
+                // instance and a canvas.captureStream(): closing the preview
+                // with blur on would otherwise leak all three.
                 closeStream(this.state.blurStream);
                 this.state.blurManager?.close();
             });
@@ -212,12 +208,10 @@ export class CallPreview extends Component {
     }
 
     /**
-     * Acquire a local media stream and publish it. Single acquire routine shared by the
-     * microphone and camera paths so the two can never diverge (the divergence is what let the
-     * camera path grow a DOM-gated notification the mic path never had). Order is invariant:
-     * permission -> getUserMedia -> destroyed guard -> commit state -> notify parent. DOM binding
-     * is left entirely to the reactive effect, so the parent is notified regardless of render
-     * timing.
+     * Acquire a local media stream and publish it. Shared by the microphone and
+     * camera paths so the two cannot diverge. The order is invariant:
+     * permission -> getUserMedia -> destroyed guard -> commit state -> notify
+     * parent; DOM binding is left to the reactive effect.
      *
      * @param {Object} media
      * @param {"audio"|"video"} media.kind getUserMedia constraint key
@@ -240,10 +234,8 @@ export class CallPreview extends Component {
                 [kind]: constraints,
             });
         } catch {
-            // permission may be "granted" while the device is unusable:
-            // claimed by another app (NotReadableError) or unplugged since
-            // the grant (NotFoundError) — without this it escaped as an
-            // unhandled rejection and left the preview state inconsistent
+            // permission may be "granted" while the device is unusable: claimed
+            // by another app (NotReadableError) or unplugged (NotFoundError)
             this.rtc.showMediaUnavailableWarning({
                 microphone: kind === "audio",
                 camera: kind === "video",

@@ -42,7 +42,7 @@ export const PING_INTERVAL = 30_000;
 export class CrossTabSync {
     /** @type {BroadcastChannel|undefined} */
     _broadcastChannel;
-    /** @type {number} timeout after which a silent host is considered gone */
+    /** @type {number} id of the watchdog timeout for a silent host */
     _crossTabTimeoutId;
 
     /**
@@ -188,10 +188,8 @@ export class CrossTabSync {
                 this.hooks.onRemoteUpdate(changes);
                 return;
             case CROSS_TAB_HOST_MESSAGE.CLOSE: {
-                // a host owns its call: it must never obey a CLOSE. Without
-                // this guard, a remote tab broadcasting CLOSE (its
-                // remoteSessionId is the host's session id) tears down the
-                // host's live call with no server leave.
+                // a host owns its call and must never obey a CLOSE: a remote
+                // tab broadcasts the host's own session id
                 if (
                     this.hooks.isHost() ||
                     this.state.remoteSessionId !== hostedSessionId
@@ -209,10 +207,9 @@ export class CrossTabSync {
                 return;
             }
             case CROSS_TAB_HOST_MESSAGE.PING: {
-                // only a remote mirroring THIS host is kept alive by its
-                // pings: a host tab or an idle one must never arm the "host
-                // is gone" watchdog on another call's heartbeat (its firing
-                // clear()s the tab's own live call)
+                // only a remote mirroring THIS host is kept alive by its pings:
+                // arming the watchdog on another call's heartbeat would clear()
+                // this tab's own live call when it fires
                 if (!this.isRemote || this.state.remoteSessionId !== hostedSessionId) {
                     return;
                 }

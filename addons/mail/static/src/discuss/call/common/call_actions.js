@@ -387,7 +387,7 @@ export class CallAction extends Action {
 
     /**
      * @param {Object} param0
-     * @param {Thread|() => Thread} thread
+     * @param {Thread|() => Thread} param0.thread
      */
     constructor({ thread }) {
         super(...arguments);
@@ -409,7 +409,7 @@ class UseCallActions extends UseActions {
 
 /**
  * @param {Object} [params0={}]
- * @param {Thread|() => Thread} thread
+ * @param {Thread|() => Thread} params0.thread
  */
 export function useCallActions({ thread } = {}) {
     const component = useComponent();

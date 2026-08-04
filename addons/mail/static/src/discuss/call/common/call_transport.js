@@ -23,13 +23,9 @@ const loadSfuAssets = memoize(async () => await loadBundle("mail.assets_odoo_sfu
 
 /**
  * Default SfuClient factory: loads the (lazy) SFU asset bundle and returns a
- * fresh client together with the state enum of the loaded module. Injectable
- * on `CallTransport` so tests can substitute a mock client without the
- * network/bundle round trip.
- *
- * The caller is responsible for the returned client (assigning it to
- * `transport.sfuClient` after checking it is still the latest connection
- * attempt, disconnecting it otherwise).
+ * fresh client with the state enum of the loaded module. Injectable on
+ * `CallTransport` for tests. The caller owns the returned client (keep it only
+ * if it is still the latest connection attempt, disconnect it otherwise).
  *
  * @returns {Promise<{ sfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: Object }>}
  */
@@ -90,7 +86,7 @@ export class Network {
     p2p;
     /** @type {import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient} */
     sfu;
-    /** @type {[{ name: string, f: EventListener }]} */
+    /** @type {Array<{ name: string, f: EventListener }>} */
     _listeners = [];
     /**
      * @param {import("@mail/discuss/call/common/peer_to_peer").PeerToPeer} p2p
@@ -156,7 +152,6 @@ export class Network {
     /**
      * @param {string} name
      * @param {function} f
-     * @override
      */
     addEventListener(name, f) {
         this._listeners.push({ name, f });
@@ -287,14 +282,10 @@ export class CallTransport {
     }
 
     /**
-     * (Re)establishes the network of the call: always connects p2p (we may
-     * need to receive peer-to-peer connections from users who failed to
-     * connect to the SFU), and adds a SFU client when `serverInfo` is set.
-     *
-     * Reentrancy guard (`joinCall` racing an `sfu_hot_swap`, or the call
-     * ending during the multi-second SFU load): a run that is no longer
-     * the latest aborts after each await, so handlers are never
-     * registered twice and a fresh SfuClient cannot clobber a newer one.
+     * (Re)establishes the network of the call: always connects p2p (peers who
+     * failed to reach the SFU still connect that way), and adds a SFU client
+     * when `serverInfo` is set. A run that is no longer the latest (`epoch`)
+     * aborts after each await.
      *
      * @param {Object} param0
      * @param {number} param0.sessionId id of the local rtc session
@@ -311,12 +302,10 @@ export class CallTransport {
             iceServers: this.hooks.getIceServers(),
         });
         this.network = new Network(this.p2p);
-        // register BEFORE any await: a p2p-fallback participant can react to
-        // our session insert immediately and complete its handshake while the
-        // SFU bundle is still loading — TRACK/BROADCAST events emitted with no
-        // listener are dropped for good (the connection is healthy, so no
-        // recovery path ever replays them). addSfu() forwards these listeners
-        // to the SFU client once it is ready.
+        // register BEFORE any await: a p2p-fallback participant can complete
+        // its handshake while the SFU bundle loads, and TRACK/BROADCAST events
+        // emitted with no listener are dropped for good. addSfu() forwards
+        // these listeners to the SFU client once it is ready.
         this.network.addEventListener("stateChange", this._handleSfuStateChange);
         this.network.addEventListener("update", this.hooks.onNetworkUpdate);
         this.network.addEventListener("log", this.hooks.onNetworkLog);

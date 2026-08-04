@@ -50,10 +50,8 @@ const StorePatch = {
         this.rtc.start();
     },
     /**
-     * Moved here from core/common: every dependency (createGroupChat from
-     * the discuss layer, this.rtc / discuss.rtc from the call layer) lives
-     * above core — in a bundle without the call layer the method could only
-     * crash.
+     * Lives in the call layer because every dependency does: `createGroupChat`
+     * comes from discuss and `discuss.rtc` from the call layer.
      */
     async startMeeting() {
         const thread = await this.createGroupChat({
@@ -71,10 +69,8 @@ const StorePatch = {
         const m1HasRtc = Boolean(m1.rtcSession);
         const m2HasRtc = Boolean(m2.rtcSession);
         if (m1HasRtc === m2HasRtc) {
-            /**
-             * If raisingHand is falsy, it gets an Infinity value so that when
-             * we sort by [oldest/lowest-value]-first, falsy values end up last.
-             */
+            // falsy raisingHand becomes Infinity so it sorts last in this
+            // oldest-first comparison
             const m1RaisingValue = m1.rtcSession?.raisingHand || Infinity;
             const m2RaisingValue = m2.rtcSession?.raisingHand || Infinity;
             if (m1HasRtc && m1RaisingValue !== m2RaisingValue) {

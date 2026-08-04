@@ -321,10 +321,9 @@ export class CallParticipantCard extends Component {
     }
 
     onFullScreenChange() {
-        // Reset the drag offset. Assigning a string like "left:''; top:''" is an
-        // invalid CSS declaration (the position reset silently never happens),
-        // and this fires for every mounted card on any fullscreen change, so
-        // guard the possibly-unmounted ref too.
+        // Reset the drag offset: a string like "left:''; top:''" is an invalid
+        // CSS declaration, and the ref may be unmounted (this fires for every
+        // card on any fullscreen change).
         if (this.root.el) {
             this.root.el.style.left = "";
             this.root.el.style.top = "";

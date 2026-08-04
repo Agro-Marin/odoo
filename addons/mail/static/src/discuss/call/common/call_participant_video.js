@@ -36,10 +36,9 @@ export class CallParticipantVideo extends Component {
         const stream = this.props.session?.getStream(this.props.type);
         const srcObject = stream ?? null;
         if (this.root.el.srcObject === srcObject) {
-            // onPatched runs on EVERY parent re-render (talking indicators,
-            // overlay toggles): reassigning the same stream and calling
-            // load() restarts the media pipeline — decode reset and a
-            // black-frame flicker per render during the call
+            // onPatched runs on every parent re-render: reassigning the same
+            // stream and calling load() restarts the media pipeline, flickering
+            // a black frame per render
             return;
         }
         this.root.el.srcObject = srcObject;

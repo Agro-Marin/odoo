@@ -220,21 +220,16 @@ export class Call extends Component {
         }
         const aspectRatio = this.minimized ? 1 : 16 / 9;
         const tileCount = this.grid.el.children.length;
-        // onPatched fires on every render during a call (talking indicators,
-        // overlays, raised hands) and calls this without `remeasure`. Container
-        // *size* changes arrive separately through the ResizeObserver (which
-        // passes remeasure=true), so when neither the tile count nor the aspect
-        // ratio changed there is nothing to recompute -- return before touching
-        // getBoundingClientRect(), which otherwise forces a synchronous layout
-        // on every render even though the memo below would discard the result.
+        // onPatched calls this without `remeasure` on every render of the call;
+        // size changes come separately from the ResizeObserver. Bail out before
+        // getBoundingClientRect(), which forces a synchronous layout.
         const cheapKey = `${aspectRatio},${tileCount}`;
         if (!remeasure && cheapKey === this._lastCheapKey) {
             return;
         }
         this._lastCheapKey = cheapKey;
-        // measure BEFORE writing: zeroing --width/--height first forced two
-        // layouts per call to compute the same numbers (the grid size does
-        // not depend on the tile custom properties)
+        // measure BEFORE writing: the grid size does not depend on the tile
+        // custom properties, so writing first only costs an extra layout
         const { width, height } = this.grid.el.getBoundingClientRect();
         const inputsKey = `${width},${height},${aspectRatio},${tileCount}`;
         if (inputsKey === this._lastTileInputsKey) {
