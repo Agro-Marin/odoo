@@ -17,7 +17,7 @@ export class HtmlMailField extends HtmlField {
             cssRulesByElement.set(editor.editable, getCSSRules(editor.document));
         }
         const cssRules = cssRulesByElement.get(editor.editable);
-        // Insert the cloned element inside an DOM so we can get its computed style.
+        // Insert the cloned element in the live DOM so we can get its computed style.
         editor.editable.after(el);
         el.classList.remove("odoo-editor-editable");
         try {

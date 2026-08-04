@@ -43,9 +43,8 @@ export class KanbanRottingField extends Component {
     static template = "mail.KanbanRottingField";
 
     // getters, not setup() fields: the widget instance is reused across data
-    // updates (OWL calls onWillUpdateProps, not a fresh setup), so a cached
-    // value showed the stale rotting_days after an inline stage/step edit
-    // recomputed it server-side.
+    // updates (OWL calls onWillUpdateProps, not a fresh setup), so a cached value
+    // would keep a stale rotting_days after the server recomputed it.
     get dayCount() {
         return _t("%(numberOfDays)sd", {
             numberOfDays: this.props.record.data.rotting_days,

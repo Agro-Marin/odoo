@@ -25,12 +25,10 @@ patch(FormController.prototype, {
     },
     onWillLoadRoot(nextConfiguration) {
         super.onWillLoadRoot(...arguments);
-        // Both mechanisms are load-bearing despite fetching messages twice on
-        // a same-record save: the flags cover renders that follow the reload,
-        // while the bus event reaches the already-mounted Thread regardless
-        // of render timing. Suppressing either breaks post-save refresh in
-        // real flows (e.g. tracking messages posted BY the save) — see the
-        // tracking_value suite.
+        // Both mechanisms are load-bearing despite fetching messages twice on a
+        // same-record save: the flags cover renders that follow the reload, while
+        // the bus event reaches the already-mounted Thread whatever the render
+        // timing (e.g. for tracking messages posted BY the save).
         this.env.chatter.fetchThreadData = true;
         this.env.chatter.fetchMessages = true;
         const isSameThread =

@@ -19,15 +19,11 @@ export class ActivityModel extends RelationalModel {
     }
 
     async fetchActivityData(params) {
-        // token guard (not KeepLast, which would resolve in a separate
-        // microtask and split the load into an extra render): super.load()'s
-        // record fetch is KeepLast-guarded, so without matching the two
-        // overlapping loads (fast filter/pager change with RPCs reordering)
-        // could leave activityData from one load and root.records from
-        // another — the renderer then maps one load's resIds over the other's
-        // records. A stale response is discarded instead of committed.
-        // Stored on the RAW model: the model is a reactive proxy, so writing
-        // the token through it would fire a spurious notification/render.
+        // Token guard rather than KeepLast (which resolves in a separate microtask
+        // and splits the load into an extra render): a stale response is discarded so
+        // activityData and the KeepLast-guarded root.records come from the same load.
+        // Kept on the RAW model, as writing through the reactive proxy would fire a
+        // spurious notification/render.
         const raw = toRaw(this);
         const token = (raw._activityDataToken = (raw._activityDataToken ?? 0) + 1);
         const activityData = await this.orm.call(

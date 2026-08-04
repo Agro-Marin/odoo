@@ -42,12 +42,10 @@ export class ActivityRenderer extends Component {
             resIds: new Set(Object.keys(this.props.groupedActivities)),
         });
         onWillUpdateProps((nextProps) => {
-            // the renderer instance persists across reloads (mark-as-done
-            // from a cell popover re-renders with new groupedActivities). An
-            // active column filter's resIds was computed once and went stale
-            // — a record no longer matching the filter kept its highlight and
-            // cell classification. Recompute against the fresh data, but ONLY
-            // when a filter is active: resIds is unused otherwise, and
+            // the renderer instance persists across reloads (mark-as-done from a
+            // cell popover re-renders with new groupedActivities), so an active
+            // column filter's resIds must be recomputed against the fresh data —
+            // but ONLY when a filter is active: resIds is unused otherwise, and
             // rewriting it every update would trigger a spurious re-render.
             if (this.activeFilter.activityTypeId !== null) {
                 const typeId = this.activeFilter.activityTypeId;

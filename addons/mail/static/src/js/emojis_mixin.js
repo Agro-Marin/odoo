@@ -9,7 +9,6 @@ import { htmlReplace, htmlReplaceAll } from "@web/core/utils/dom/html";
  * such as 👩🏿 = 👩 + 🏿 [dark skin tone character] from being separated.
  *
  * This will only match characters that have a different presentation from normal text, unlike ®
- * For alternatives, see: https://www.unicode.org/reports/tr51/#Emoji_Properties_and_Data_Files
  *
  * @param {string|ReturnType<markup>} message a text message to format
  * @returns {ReturnType<markup>}

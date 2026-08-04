@@ -207,7 +207,7 @@ export class WebChatter extends Chatter {
         }
         // Hack: Make the useRecordObserver subscribe to the record changes
         Object.keys(record.data).forEach((field) => record.data[field]);
-        const partnerIds = []; // Ensure that we don't have duplicates
+        const partnerIds = [];
         let email;
         this.mailImpactingFields.recordFields.forEach((field) => {
             const value = record._changes[field];
@@ -230,11 +230,10 @@ export class WebChatter extends Chatter {
             return;
         }
         const thread = this.state.thread;
-        // The record observer fires updateRecipients on *every* field change, and
-        // a recipient field stays in _changes until save, so unrelated edits (e.g.
-        // typing the body) otherwise re-issued this RPC with identical inputs.
-        // Skip when the (thread, partnerIds, email) inputs are unchanged. Keyed on
-        // thread so a record switch still fetches.
+        // The record observer fires updateRecipients on *every* field change and a
+        // recipient field stays in _changes until save, so skip the RPC when the
+        // (thread, partnerIds, email) inputs are unchanged. Keyed on thread so a
+        // record switch still fetches.
         const queryKey = JSON.stringify({
             threadId: thread?.localId,
             partnerIds: [...partnerIds].sort((a, b) => a - b),
@@ -387,13 +386,10 @@ export class WebChatter extends Chatter {
                 : [],
             recordFields: this.state.thread.partner_fields || [],
         };
-        // super.load() re-fetched `suggestedRecipients`, which replaces the
-        // field wholesale with the server's view of the *saved* record and so
-        // drops recipients derived from unsaved fields. Re-overlaying them is
-        // exactly what the updateRecipients call below is for -- but its dedup
-        // cache keys only on (thread, partnerIds, email), which are unchanged
-        // here, so it early-returned and the unsaved recipient silently
-        // vanished (and the message sent without them). Invalidate the cache so
+        // super.load() replaced `suggestedRecipients` with the server's view of the
+        // *saved* record, dropping the recipients derived from unsaved fields; the
+        // updateRecipients call below re-overlays them, but its dedup cache keys on
+        // (thread, partnerIds, email), all unchanged here. Invalidate the cache so
         // the overlay is always recomputed after a fetch.
         this._lastRecipientsQueryKey = undefined;
         this.updateRecipients(this.props.record);
@@ -489,16 +485,11 @@ export class WebChatter extends Chatter {
             this.uploadHandlers.set(threadLocalId, async function handleUpload(data) {
                 try {
                     // Upload against the thread this handler was created for, NOT
-                    // whatever `state.thread` happens to be once the file finishes
-                    // being read: the browser's file read is async, so a pager
-                    // navigation in that window would silently re-target the
-                    // upload at the record now on screen.
-                    // The one case the captured thread is wrong is the transient
-                    // record: onClickAttachFile may have just saved it, so the
-                    // thread captured at render is still the id-less one and
-                    // uploading against it would send thread_id=false and make the
-                    // files vanish. Only then fall back to the record's freshly
-                    // assigned resId. Mirror the onDrop id fallback.
+                    // whatever `state.thread` happens to be once the async file read
+                    // ends (a pager navigation would re-target the upload).
+                    // Exception, mirroring the onDrop fallback: a transient record
+                    // just saved by onClickAttachFile still has its id-less thread
+                    // captured here, and uploading against it sends thread_id=false.
                     const uploadThread =
                         thread.id || !self.props.record.resId
                             ? thread

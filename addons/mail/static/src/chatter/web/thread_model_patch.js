@@ -23,10 +23,9 @@ const threadPatch = {
         try {
             await super.fetchThreadData(requestList);
         } catch (error) {
-            // Only the server payload used to clear this flag, so any rejection
-            // (network blip, ConnectionLostError, access error) left it stuck on
-            // the shared Thread record and the chatter spinner span forever. The
-            // sibling fetchMoreAttachments already guards this way.
+            // Clear the flag on rejection too (network blip, access error): it lives
+            // on the shared Thread record, so leaving it set spins the chatter
+            // forever. The sibling fetchMoreAttachments guards the same way.
             if (loadsAttachments) {
                 this.isLoadingAttachments = false;
             }
