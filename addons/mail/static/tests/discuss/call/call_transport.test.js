@@ -249,9 +249,8 @@ test("p2p events during the SFU bundle load are not dropped", async () => {
     transport.serverInfo = SERVER_INFO;
     const run = transport.initConnection({ sessionId: 1, channelId: 5 });
     await Promise.resolve(); // initConnection is awaiting the SFU bundle
-    // a p2p-fallback participant reacts to our session insert immediately and
-    // completes its handshake while the bundle is still loading: its events
-    // must reach the transport listeners (nothing ever replays them)
+    // a peer handshaking while the bundle loads must reach the transport
+    // listeners: nothing ever replays those events
     p2p.dispatchEvent(new CustomEvent("update", { detail: { name: "track" } }));
     expect(steps.networkUpdates).toEqual([{ name: "track" }]);
     load.resolve({ sfuClient: sfu, SFU_CLIENT_STATE: MOCK_SFU_CLIENT_STATE });

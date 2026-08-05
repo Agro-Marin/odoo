@@ -58,9 +58,8 @@ test("a host ignores CLOSE broadcast by one of its remote tabs", async () => {
     const remote = makeSync(wire);
     host.sync.updateRemoteTabs(1, 42, {});
     expect(remote.state.remoteSessionId).toBe(42);
-    // the remote tab runs the generic end-call path (e.g. it rejected an
-    // unrelated call invitation) and broadcasts CLOSE with the host's session
-    // id: the host owns the call and must survive
+    // the remote broadcasts CLOSE with the host's session id (generic end-call
+    // path): the host owns the call and must survive
     remote.sync.endHost();
     expect(host.steps.hostClosed).toBe(0);
     // a genuine CLOSE from the host still reaches the remotes
@@ -80,9 +79,8 @@ test("PING only feeds the watchdog of remotes mirroring that host", async () => 
     // created after the update: a tab mirroring nothing, only seeing pings
     const idle = makeSync(wire);
     hostA.sync.ping(42);
-    // hostA's pings stop (it left silently): only its own remote may treat
-    // the host as gone — a host of another call or an idle tab arming the
-    // watchdog would clear() its own live state when it fires
+    // hostA's pings stop: only its own remote may treat the host as gone, since
+    // another host or an idle tab arming the watchdog would clear() live state
     await advanceTime(PING_INTERVAL + 10_001);
     expect(remote.steps.hostClosed).toBe(1);
     expect(hostB.steps.hostClosed).toBe(0);
