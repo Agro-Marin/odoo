@@ -152,7 +152,7 @@ class MrpRoutingWorkcenter(models.Model):
             # When recomputing the expected duration, the capacity is used again to divide the qty to produce
             # so that if we need 50 with capacity 2, it will compute the expected of 25 which is 00:10
             total_duration = 0  # Can be 0 since it's not an invalid duration for BoM
-            cycle_number = 0  # Never 0 unless infinite item['workcenter_id'].capacity
+            cycle_number = 0  # stays 0 without data, hence the guard below
             for item in data:
                 total_duration += item["duration"]
                 (capacity, _setup, _cleanup) = item["workcenter_id"]._get_capacity(
