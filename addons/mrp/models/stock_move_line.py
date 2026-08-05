@@ -106,14 +106,15 @@ class StockMoveLine(models.Model):
         return aggregated_properties
 
     def _get_aggregated_product_quantities(self, **kwargs):
-        """Returns dictionary of products and corresponding values of interest grouped by optional kit_name
+        """Returns dictionary of products and corresponding values of interest grouped by
+        optional kit_name.
 
-        Removes descriptions where description == kit_name. kit_name is expected to be passed as a
-        kwargs value because this is not directly stored in move_line_ids. Unfortunately because we
-        are working with aggregated data, we have to loop through the aggregation to do this removal.
+        Removes descriptions where description == kit_name. Being aggregated data, the
+        removal needs a pass over the aggregation.
 
-        arguments: kit_name (optional): string value of a kit name passed as a kwarg
-        returns: dictionary {same_key_as_super: {same_values_as_super, ...}
+        :param str kit_name: optional kit name, passed as a kwarg since it is not stored
+            on move_line_ids
+        :return: same keys and values as super's
         """
         aggregated_move_lines = super()._get_aggregated_product_quantities(**kwargs)
         kit_name = kwargs.get("kit_name")
@@ -146,7 +147,7 @@ class StockMoveLine(models.Model):
         return move_vals
 
     def _get_linkable_moves(self):
-        """Don't linke move lines with kit products to moves with dissimilar locations so that
+        """Don't link move lines with kit products to moves with dissimilar locations so that
         post `action_explode()` move lines will have accurate location data.
         """
         self.ensure_one()

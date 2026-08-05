@@ -232,9 +232,7 @@ class StockPicking(models.Model):
         )
 
         def _keys_in_groupby(move):
-            """group by picking and the responsible for the product the
-            move.
-            """
+            """Group by the move's manufacturing order and the product's responsible."""
             return (move.raw_material_production_id, move.product_id.responsible_id)
 
         production_documents = self._log_activity_get_documents(

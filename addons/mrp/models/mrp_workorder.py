@@ -221,7 +221,7 @@ class MrpWorkorder(models.Model):
         compute="_compute_working_users",
     )
     costs_hour = fields.Float(string="Cost per hour", default=0.0, aggregator="avg")
-    # Technical field to store the hourly cost of workcenter at time of work order completion (i.e. to keep a consistent cost).',
+    # Technical field to store the hourly cost of workcenter at time of work order completion (i.e. to keep a consistent cost).
     cost_mode = fields.Selection(
         [("actual", "Actual"), ("estimated", "Estimated")], default="actual"
     )
@@ -967,7 +967,10 @@ class MrpWorkorder(models.Model):
         self.write(vals)
 
     def _cal_cost(self, date=False):
-        """Returns total cost of time spent on workorder.
+        """Returns the total labour cost of the workorder.
+
+        Workorders costed as estimated use the expected duration rather than the time
+        actually spent, in which case `date` has no effect.
 
         :param datetime date: Only calculate for time_ids that ended before this date
         """
@@ -1094,11 +1097,9 @@ class MrpWorkorder(models.Model):
         return True
 
     def end_previous(self, doall=False):
+        """:param doall: close every open time line on the open work orders; when
+            False, only the current user's
         """
-        @param: doall:  This will close all open time lines on the open work orders when doall = True, otherwise
-        only the one of the current user
-        """
-        # TDE CLEANME
         domain = [("workorder_id", "in", self.ids), ("date_end", "=", False)]
         if not doall:
             domain.append(("user_id", "=", self.env.user.id))
@@ -1126,8 +1127,7 @@ class MrpWorkorder(models.Model):
     def action_replan(self):
         """Replan a work order.
 
-        It actually replans every  "ready" or "blocked"
-        work orders of the linked manufacturing orders.
+        Replans every "ready" or "blocked" work order of the linked manufacturing orders.
         """
         for production in self.production_id:
             production._plan_workorders(replan=True)
@@ -1270,7 +1270,7 @@ class MrpWorkorder(models.Model):
         )
 
     def _get_conflicted_workorder_ids(self):
-        """Get conlicted workorder(s) with self.
+        """Get conflicted workorder(s) with self.
 
         Conflict means having two workorders in the same time in the same workcenter.
 
@@ -1338,7 +1338,7 @@ class MrpWorkorder(models.Model):
             "loss_id": loss_id[0].id,
             "date_start": date_start.replace(microsecond=0),
             "date_end": date_end.replace(microsecond=0) if date_end else date_end,
-            "user_id": self.env.user.id,  # FIXME sle: can be inconsistent with company_id
+            "user_id": self.env.user.id,  # FIXME: can be inconsistent with company_id
             "company_id": self.company_id.id,
         }
 
