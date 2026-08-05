@@ -8,6 +8,7 @@ import {
     mockVibrate,
     test,
 } from "@odoo/hoot";
+
 import { parseUrl } from "../local_helpers.js";
 
 /**

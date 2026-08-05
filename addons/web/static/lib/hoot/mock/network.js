@@ -5,6 +5,7 @@ import {
     mockedCancelAnimationFrame,
     mockedRequestAnimationFrame,
 } from "@odoo/hoot-dom-helpers-time";
+
 import { isInstanceOf } from "../../hoot-dom/hoot_dom_utils.js";
 import { makeNetworkLogger } from "../core/logger.js";
 import {
@@ -221,7 +222,6 @@ const HEADER = {
     contentLength: "Content-Length",
     contentType: "Content-Type",
 };
-const R_EQUAL = /\s*=\s*/;
 const R_INTERNAL_URL = /^(blob|data):/;
 const R_SEMICOLON = /\s*;\s*/;
 

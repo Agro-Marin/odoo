@@ -5,6 +5,7 @@ import {
     isTimeFrozen,
     resetTimeOffset,
 } from "@odoo/hoot-dom-helpers-time";
+
 import { createMock, HootError, isNil } from "../hoot_utils.js";
 import { ensureTest } from "../main_runner.js";
 

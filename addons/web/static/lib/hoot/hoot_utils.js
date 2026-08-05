@@ -1,7 +1,6 @@
 /** @odoo-module */
 
 import { on, queryAll } from "@odoo/hoot-dom";
-import { reactive, useComponent, useEffect, useExternalListener } from "@odoo/owl";
 import { isNode } from "@odoo/hoot-dom-helpers-dom";
 import {
     isInstanceOf,
@@ -10,6 +9,8 @@ import {
     R_WHITE_SPACE,
     toSelector,
 } from "@odoo/hoot-dom-utils";
+import { reactive, useComponent, useEffect, useExternalListener } from "@odoo/owl";
+
 import { getRunner } from "./main_runner.js";
 
 /**

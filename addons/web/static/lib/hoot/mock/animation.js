@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { on } from "@odoo/hoot-dom";
+
 import { MockEventTarget } from "../hoot_utils.js";
 import { ensureTest } from "../main_runner.js";
 

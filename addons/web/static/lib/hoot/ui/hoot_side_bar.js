@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, onWillRender, useEffect, useRef, useState, xml } from "@odoo/owl";
+
 import { Suite } from "../core/suite.js";
 import { createUrlFromId } from "../core/url.js";
 import { lookup, parseQuery } from "../hoot_utils.js";

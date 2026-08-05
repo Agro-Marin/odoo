@@ -1,23 +1,21 @@
 /** @odoo-module */
 
 import { on, setFrameRate } from "@odoo/hoot-dom";
-import { markRaw, reactive, toRaw } from "@odoo/owl";
 import { cleanupDOM, defineRootNode } from "@odoo/hoot-dom-helpers-dom";
 import { cleanupEvents, enableEventLogs } from "@odoo/hoot-dom-helpers-events";
 import { cleanupTime, setupTime } from "@odoo/hoot-dom-helpers-time";
+import { markRaw, reactive, toRaw } from "@odoo/owl";
 
 const __nativeTimers = globalThis.odoo?.__nativeTimers ?? globalThis;
 const { setTimeout: nativeSetTimeout, clearTimeout: nativeClearTimeout } =
     __nativeTimers;
+import * as _hootDom from "@odoo/hoot-dom";
 import { exposeHelpers, isInstanceOf, isIterable } from "@odoo/hoot-dom-utils";
+
 import {
-    CASE_EVENT_TYPES,
-    Callbacks,
-    HootError,
-    INCLUDE_LEVEL,
-    Markup,
-    STORAGE,
     batch,
+    Callbacks,
+    CASE_EVENT_TYPES,
     createReporting,
     deepEqual,
     ensureArray,
@@ -25,18 +23,28 @@ import {
     formatHumanReadable,
     formatTechnical,
     formatTime,
+    HootError,
+    INCLUDE_LEVEL,
     isLabel,
+    Markup,
     normalize,
     parseQuery,
+    STORAGE,
     storageGet,
     storageSet,
     stringify,
 } from "../hoot_utils.js";
 import { cleanupAnimations } from "../mock/animation.js";
+import * as _animation from "../mock/animation.js";
 import { cleanupDate } from "../mock/date.js";
+import * as _date from "../mock/date.js";
 import { internalRandom } from "../mock/math.js";
+import * as _math from "../mock/math.js";
 import { cleanupNavigator } from "../mock/navigator.js";
+import * as _navigator from "../mock/navigator.js";
 import { cleanupNetwork, throttleNetwork } from "../mock/network.js";
+import * as _network from "../mock/network.js";
+import * as _notification from "../mock/notification.js";
 import {
     cleanupWindow,
     getViewPortHeight,
@@ -44,23 +52,15 @@ import {
     mockTouch,
     setupWindow,
 } from "../mock/window.js";
+import * as _window from "../mock/window.js";
 import { DEFAULT_CONFIG, FILTER_KEYS } from "./config.js";
 import { makeExpect } from "./expect.js";
 import { destroy, makeFixtureManager } from "./fixture.js";
 import { logger } from "./logger.js";
 import { Suite, suiteError } from "./suite.js";
-import { Tag, getTagSimilarities, getTags } from "./tag.js";
+import { getTags, getTagSimilarities, Tag } from "./tag.js";
 import { Test, testError } from "./test.js";
-import { EXCLUDE_PREFIX, createUrlFromId, setParams } from "./url.js";
-
-import * as _hootDom from "@odoo/hoot-dom";
-import * as _animation from "../mock/animation.js";
-import * as _date from "../mock/date.js";
-import * as _math from "../mock/math.js";
-import * as _navigator from "../mock/navigator.js";
-import * as _network from "../mock/network.js";
-import * as _notification from "../mock/notification.js";
-import * as _window from "../mock/window.js";
+import { createUrlFromId, EXCLUDE_PREFIX, setParams } from "./url.js";
 
 const { isPrevented, mockPreventDefault } = _window;
 
@@ -114,7 +114,6 @@ const { isPrevented, mockPreventDefault } = _window;
  */
 
 const {
-    clearTimeout,
     console: { error: $error },
     EventTarget,
     Map,
@@ -133,7 +132,6 @@ const {
     Promise,
     removeEventListener,
     Set,
-    setTimeout,
     window,
 } = globalThis;
 /** @type {Performance["now"]} */
@@ -1384,6 +1382,9 @@ export class Runner {
                         );
                     }
                     this.debug = job;
+                // A debug job is also an "only" job: it must be included and
+                // reported as unsuitable for CI just the same.
+                // falls through
                 case Tag.ONLY:
                     if (!this.dry) {
                         logger.global.warn(

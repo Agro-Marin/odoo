@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
+
 import { CONFIG_KEYS } from "../core/config.js";
 import { LOG_LEVELS } from "../core/logger.js";
 import { refresh } from "../core/url.js";

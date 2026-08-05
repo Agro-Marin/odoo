@@ -1,5 +1,3 @@
-import { isHootReady, start } from "@odoo/hoot";
-
 import "./core/expect.test.js";
 import "./core/runner.test.js";
 import "./core/suite.test.js";
@@ -13,5 +11,7 @@ import "./mock/network.test.js";
 import "./mock/window.test.js";
 import "./ui/hoot_technical_value.test.js";
 import "./ui/hoot_test_result.test.js";
+
+import { isHootReady, start } from "@odoo/hoot";
 
 isHootReady.then(start);

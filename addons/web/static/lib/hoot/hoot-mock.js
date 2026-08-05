@@ -1,6 +1,7 @@
 /** @odoo-module alias=@odoo/hoot-mock default=false */
 
 import * as _hootDom from "@odoo/hoot-dom";
+
 import * as _animation from "./mock/animation.js";
 import * as _date from "./mock/date.js";
 import * as _math from "./mock/math.js";

@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, onWillRender, useState, xml } from "@odoo/owl";
+
 import { isFirefox } from "../../hoot-dom/hoot_dom_utils.js";
 import { Tag } from "../core/tag.js";
 import { Test } from "../core/test.js";

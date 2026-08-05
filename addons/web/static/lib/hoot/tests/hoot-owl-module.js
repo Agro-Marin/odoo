@@ -1,11 +1,10 @@
 /** @odoo-module native */
 export {
+    __info__,
     App,
+    blockDom,
     Component,
     EventBus,
-    OwlError,
-    __info__,
-    blockDom,
     loadFile,
     markRaw,
     markup,
@@ -20,6 +19,7 @@ export {
     onWillStart,
     onWillUnmount,
     onWillUpdateProps,
+    OwlError,
     reactive,
     status,
     toRaw,

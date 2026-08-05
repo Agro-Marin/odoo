@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { reactive, useState } from "@odoo/owl";
+
 import {
     getAllColors,
     getPreferredColorScheme,

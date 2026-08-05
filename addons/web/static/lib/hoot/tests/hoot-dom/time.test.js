@@ -1,9 +1,9 @@
 /** @odoo-module */
 
 import {
-    Deferred,
     advanceTime,
     animationFrame,
+    Deferred,
     describe,
     expect,
     microTick,
@@ -12,6 +12,7 @@ import {
     tick,
     waitUntil,
 } from "@odoo/hoot";
+
 import { parseUrl } from "../local_helpers.js";
 
 describe.timeout(1_000);

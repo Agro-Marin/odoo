@@ -3,6 +3,7 @@
 import { after, describe, expect, test, watchListeners } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { EventBus } from "@odoo/owl";
+
 import { mountForTest, parseUrl } from "../local_helpers.js";
 
 describe(parseUrl(import.meta.url), () => {

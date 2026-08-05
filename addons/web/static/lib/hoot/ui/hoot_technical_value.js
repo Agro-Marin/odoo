@@ -1,15 +1,16 @@
 /** @odoo-module */
 
+import { isNode, toSelector } from "@odoo/hoot-dom-helpers-dom";
+import { isInstanceOf, isIterable } from "@odoo/hoot-dom-utils";
 import {
     Component,
     onWillRender,
     onWillUpdateProps,
-    xml as owlXml,
     toRaw,
     useState,
+    xml as owlXml,
 } from "@odoo/owl";
-import { isNode, toSelector } from "@odoo/hoot-dom-helpers-dom";
-import { isInstanceOf, isIterable } from "@odoo/hoot-dom-utils";
+
 import { logger } from "../core/logger.js";
 import {
     getTypeOf,

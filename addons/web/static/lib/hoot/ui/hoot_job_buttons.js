@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, xml } from "@odoo/owl";
+
 import { Job } from "../core/job.js";
 import { Test } from "../core/test.js";
 import { HootLink } from "./hoot_link.js";

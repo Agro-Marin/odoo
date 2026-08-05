@@ -1,14 +1,14 @@
 /** @odoo-module */
 
 import { describe, expect, makeExpect, test } from "@odoo/hoot";
-import { mountForTest, parseUrl } from "../local_helpers.js";
-
 import { animationFrame, click } from "@odoo/hoot-dom";
 import { Component, xml } from "@odoo/owl";
+
 import { Runner } from "../../core/runner.js";
 import { Test } from "../../core/test.js";
 import { HootTestResult } from "../../ui/hoot_test_result.js";
 import { makeUiState } from "../../ui/setup_hoot_ui.js";
+import { mountForTest, parseUrl } from "../local_helpers.js";
 
 /**
  * @param {(mockExpect: typeof expect) => any} callback

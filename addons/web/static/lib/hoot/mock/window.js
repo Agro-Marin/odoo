@@ -1,6 +1,5 @@
 /** @odoo-module */
 
-import { EventBus } from "@odoo/owl";
 import {
     getCurrentDimensions,
     getDocument,
@@ -14,6 +13,8 @@ import {
     mockedSetInterval,
     mockedSetTimeout,
 } from "@odoo/hoot-dom-helpers-time";
+import { EventBus } from "@odoo/owl";
+
 import { interactor } from "../../hoot-dom/hoot_dom_utils.js";
 import { MockEventTarget, strictEqual, waitForDocument } from "../hoot_utils.js";
 import { ensureTest, getRunner } from "../main_runner.js";
@@ -35,6 +36,10 @@ import { MockClipboardItem, mockNavigator } from "./navigator.js";
 import {
     MockBlob,
     MockBroadcastChannel,
+    mockCookie,
+    mockedFetch,
+    mockHistory,
+    mockLocation,
     MockMessageChannel,
     MockMessagePort,
     MockRequest,
@@ -45,10 +50,6 @@ import {
     MockWorker,
     MockXMLHttpRequest,
     MockXMLHttpRequestUpload,
-    mockCookie,
-    mockHistory,
-    mockLocation,
-    mockedFetch,
 } from "./network.js";
 import { MockNotification } from "./notification.js";
 import { MockStorage } from "./storage.js";

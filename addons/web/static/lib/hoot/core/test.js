@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { markup, reactive } from "@odoo/owl";
+
 import { HootError, stringify } from "../hoot_utils.js";
 import { Job } from "./job.js";
 import { Tag } from "./tag.js";

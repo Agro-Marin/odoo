@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { mount, reactive } from "@odoo/owl";
+
 import { HootFixtureElement } from "../core/fixture.js";
 import { waitForDocument } from "../hoot_utils.js";
 import { getRunner } from "../main_runner.js";

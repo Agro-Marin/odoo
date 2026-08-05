@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, onWillRender, useState, xml } from "@odoo/owl";
+
 import { Test } from "../core/test.js";
 import { formatTime, parseQuery } from "../hoot_utils.js";
 import { HootJobButtons } from "./hoot_job_buttons.js";
@@ -279,7 +280,7 @@ export class HootReporting extends Component {
 
         const results = [];
         for (const test of this.runnerState.done) {
-            let matchFilter = false;
+            let matchFilter;
             switch (statusFilter) {
                 case "failed": {
                     matchFilter =

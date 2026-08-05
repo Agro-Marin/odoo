@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, onWillRender, useEffect, useRef, useState, xml } from "@odoo/owl";
+
 import { getColorHex } from "../../hoot-dom/hoot_dom_utils.js";
 import { Test } from "../core/test.js";
 import { formatTime } from "../hoot_utils.js";

@@ -3,6 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { isInstanceOf, isIterable } from "@odoo/hoot-dom-utils";
+
 import {
     deepCopy,
     deepEqual,

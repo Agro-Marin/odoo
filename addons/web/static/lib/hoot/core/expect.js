@@ -1,6 +1,5 @@
 /** @odoo-module */
 
-import { markRaw } from "@odoo/owl";
 import {
     formatXml,
     getActiveElement,
@@ -24,6 +23,8 @@ import {
     isIterable,
     R_WHITE_SPACE,
 } from "@odoo/hoot-dom-utils";
+import { markRaw } from "@odoo/owl";
+
 import {
     CASE_EVENT_TYPES,
     deepCopy,

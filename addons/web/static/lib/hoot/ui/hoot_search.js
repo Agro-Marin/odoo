@@ -1,8 +1,9 @@
 /** @odoo-module */
 
-import { Component, onPatched, onWillPatch, useRef, useState, xml } from "@odoo/owl";
 import { getActiveElement } from "@odoo/hoot-dom-helpers-dom";
 import { R_REGEX, REGEX_MARKER } from "@odoo/hoot-dom-utils";
+import { Component, onPatched, onWillPatch, useRef, useState, xml } from "@odoo/owl";
+
 import { Suite } from "../core/suite.js";
 import { Tag } from "../core/tag.js";
 import { Test } from "../core/test.js";
