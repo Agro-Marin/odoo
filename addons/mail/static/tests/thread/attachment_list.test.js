@@ -230,15 +230,8 @@ test("close attachment viewer", async () => {
 });
 
 test("[technical] does not crash when the viewer is closed before image load", async () => {
-    /**
-     * When images are displayed using "src" attribute for the 1st time, it fetches the resource.
-     * In this case, images are actually displayed (fully fetched and rendered on screen) when
-     * "<image>" intercepts "load" event.
-     *
-     * Current code needs to be aware of load state of image, to display spinner when loading
-     * and actual image when loaded. This test asserts no crash from mishandling image becoming
-     * loaded from being viewed for 1st time, but viewer being closed while image is loading.
-     */
+    // the viewer swaps its spinner for the image on the "load" event: that event
+    // must not crash when it lands after the viewer was closed
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "channel",

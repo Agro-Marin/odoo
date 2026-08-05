@@ -323,9 +323,8 @@ test("mark channel as fetched when a new message is loaded", async () => {
     setupChatHub({ opened: [channelId] });
     listenStoreFetch(["init_messaging", "discuss.channel"]);
     await start();
-    // chat hub restore fetches its channels at store-service start, before
-    // the WebClient mount triggers init_messaging (fields are always eager:
-    // store.chatHub no longer waits for a first read to come alive)
+    // chat hub restore fetches its channels at store-service start, before the
+    // WebClient mount triggers init_messaging (fields are always eager)
     await waitStoreFetch(["discuss.channel", "init_messaging"]);
     await contains(".o_menu_systray i[aria-label='Messages']");
     // send after init_messaging because bus subscription is done after init_messaging
@@ -661,10 +660,8 @@ test("basic rendering of canceled notification", async () => {
 });
 
 test("first unseen message should be directly preceded by the new message separator if there is a transient message just before it while composer is not focused", async () => {
-    // The goal of removing the focus is to ensure the thread is not marked as seen automatically.
-    // Indeed that would trigger set_last_seen_message no matter what, which is already covered by other tests.
-    // The goal of this test is to cover the conditions specific to transient messages,
-    // and the conditions from focus would otherwise shadow them.
+    // the blur keeps the thread from being marked as seen: `_set_last_seen_message`
+    // would otherwise shadow the transient-message conditions under test
     const pyEnv = await startServer();
     // Needed partner & user to allow simulation of message reception
     const partnerId = pyEnv["res.partner"].create({ name: "Foreigner partner" });
