@@ -400,10 +400,9 @@ test("can mention all group chat members inside its sub-thread", async () => {
     const groupSubChannelId = pyEnv["discuss.channel"].create({
         name: "New Thread",
         // sub-channels always share their parent's channel_type: the server
-        // enforces it (_check_sub_channel constraint) and _create_sub_channel
-        // copies it. The previous data (default "channel" type under a group
-        // parent) is impossible on a real server and only worked because the
-        // mock over-emitted a default group_public_id.
+        // enforces it (_constraint_parent_channel_id) and _create_sub_channel
+        // copies it, so a default "channel" type under a group parent cannot
+        // exist on a real server.
         channel_type: "group",
         parent_channel_id: groupChannelId,
         channel_member_ids: [Command.create({ partner_id: serverState.partnerId })],
