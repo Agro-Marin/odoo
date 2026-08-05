@@ -187,10 +187,8 @@ test("rendering with PWA installation request", async () => {
             asyncStep("show prompt");
         },
     });
-    // This event must be triggered to initialize the pwa service properly
-    // as if it was run by a browser supporting PWA (never triggered in a test otherwise).
-    // The state is read once at service start and re-read on the
-    // beforeinstallprompt event (a boot-time snapshot could be stale).
+    // Fire what a PWA-capable browser would (never triggered in a test): the pwa
+    // service reads the state at start and re-reads it here, hence 2 getItems.
     browser.dispatchEvent(new CustomEvent("beforeinstallprompt"));
     await waitForSteps([
         "getItem pwaService.installationState",
@@ -239,10 +237,8 @@ test("installation of the PWA request can be dismissed", async () => {
             asyncStep("show prompt should not be triggered");
         },
     });
-    // This event must be triggered to initialize the pwa service properly
-    // as if it was run by a browser supporting PWA (never triggered in a test otherwise).
-    // The state is read once at service start and re-read on the
-    // beforeinstallprompt event (a boot-time snapshot could be stale).
+    // Fire what a PWA-capable browser would (never triggered in a test): the pwa
+    // service reads the state at start and re-reads it here, hence 2 getItems.
     browser.dispatchEvent(new CustomEvent("beforeinstallprompt"));
     await waitForSteps([
         "getItem pwaService.installationState",
@@ -273,10 +269,8 @@ test("rendering with PWA installation request (dismissed)", async () => {
         },
     });
     await start();
-    // This event must be triggered to initialize the pwa service properly
-    // as if it was run by a browser supporting PWA (never triggered in a test otherwise).
-    // The state is read once at service start and re-read on the
-    // beforeinstallprompt event (a boot-time snapshot could be stale).
+    // Fire what a PWA-capable browser would (never triggered in a test): the pwa
+    // service reads the state at start and re-reads it here, hence 2 getItems.
     browser.dispatchEvent(new CustomEvent("beforeinstallprompt"));
     await waitForSteps([
         "getItem pwaService.installationState",
@@ -296,7 +290,7 @@ test("rendering with PWA installation request (already running as PWA)", async (
         getItem(key) {
             if (key === "pwaService.installationState") {
                 asyncStep("getItem " + key);
-                // in this test, we remove any value that could contain localStorage so the service would be allowed to prompt
+                // no stored state, so the service would be allowed to prompt
                 return null;
             }
             return super.getItem(key);
@@ -1007,11 +1001,8 @@ test("Attachment-only message preview shows file type icon", async () => {
             ],
             author_id: partners[i],
             body: "",
-            // Distinct, decreasing dates so the messaging menu's recency order
-            // is deterministic (Channel1 newest -> first). Without this, every
-            // message shares the mock's fixed default date, the recency
-            // comparators all tie, and the menu falls back to a localId
-            // tiebreak — leaving the :eq(0..4) positions below undefined.
+            // Distinct decreasing dates: the mock's fixed default date makes the
+            // recency comparators tie and the :eq(0..4) positions undefined.
             date: `2024-01-0${5 - i} 12:00:00`,
             model: "discuss.channel",
             res_id: channelIds[i],
