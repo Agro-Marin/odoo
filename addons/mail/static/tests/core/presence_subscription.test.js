@@ -27,13 +27,9 @@ function trackChannelClaims() {
 }
 
 test("a presence channel is never released unless it was claimed (res.partner)", async () => {
-    // Regression: `_triggerPresenceSubscription.onUpdate` recorded
-    // `presenceChannel` into `previousPresencechannel` even on the branch where
-    // it did NOT subscribe, so the next update released a claim this record
-    // never took. bus_service refuses the release and logs
-    // "deleteChannel(...) without a matching addChannel" -- and when another
-    // consumer legitimately holds that same channel, the bogus release
-    // decrements *its* refcount and silently unsubscribes it.
+    // `_triggerPresenceSubscription.onUpdate` may only record
+    // `previousPresencechannel` on the branch that actually subscribes: an
+    // unmatched release decrements another consumer's refcount.
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "Ghost" });
     await start();

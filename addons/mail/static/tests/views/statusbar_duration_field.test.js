@@ -29,7 +29,6 @@ test("status bar duration field used in form view", async () => {
     const partnerId = pyEnv["res.partner"].create({
         name: "John Doe",
         stage_id: stageIds[2].id,
-        // 7 days, 30 minutes - 3 hours - 2 days, 5 hours
         duration_tracking: {
             [stageIds[0]]: 7 * 24 * 60 * 60 + 30 * 60,
             [stageIds[1]]: 3 * 60 * 60,

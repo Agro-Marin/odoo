@@ -24,21 +24,16 @@ defineMailModels();
 preloadBundle("web.assets_emoji");
 
 test("emoji picker correctly handles translations with special characters", async () => {
-    // patchTranslations (not defineParams) so the terms are applied
-    // synchronously: the localization service keeps an IndexedDB cache warm
-    // across tests, so server-provided translations may only land after the
-    // emoji data was already parsed.
+    // patchTranslations (not defineParams) applies synchronously: the warm
+    // IndexedDB cache can land server terms after the emoji data was parsed
     patchTranslations({
         web: {
             "Japanese “here” button": `Bouton "ici" japonais`,
             "heavy dollar sign": `Symbole du dollar\nlourd`,
         },
     });
-    // The emoji data translates its terms when first parsed and caches the
-    // result for the whole browser session: drop the cache so this test's
-    // translations are applied even when another test parsed the data first.
-    // Reset through the PICKER's module instance (bundling may duplicate
-    // emoji_data; only the instance the picker resolves to matters).
+    // emoji terms are translated once per browser session, so drop that cache —
+    // through the picker's own module instance, the only one it resolves to
     const pickerModule =
         odoo.loader.modules.get("@web/components/emoji_picker/emoji_picker") ??
         (await import("@web/components/emoji_picker/emoji_picker"));

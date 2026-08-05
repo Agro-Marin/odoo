@@ -155,9 +155,8 @@ test("Opening a category sends the updated user setting to the server.", async (
 });
 
 test("receiving a category broadcast does NOT re-issue the settings RPC", async () => {
-    // regression: the receiving tab ran the full `open` setter on the
-    // broadcast, firing one identical set_res_users_settings per listening
-    // tab. Drive the actual receiver path (the service's message listener).
+    // running the full `open` setter on the broadcast fires one identical
+    // set_res_users_settings per listening tab; drive the receiver path itself
     let settingsRpcCount = 0;
     onRpc("res.users.settings", "set_res_users_settings", () => {
         settingsRpcCount++;
