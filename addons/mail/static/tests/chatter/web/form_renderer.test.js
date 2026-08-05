@@ -62,9 +62,6 @@ test.skip("Form view not scrolled when switching record", async () => {
 });
 
 test("Attachments that have been unlinked from server should be visually unlinked from record", async () => {
-    // Attachments that have been fetched from a record at certain time and then
-    // removed from the server should be reflected on the UI when the current
-    // partner accesses this record again.
     const pyEnv = await startServer();
     const [partnerId_1, partnerId_2] = pyEnv["res.partner"].create([
         { display_name: "Partner1" },
@@ -141,14 +138,8 @@ test("ellipsis button is not duplicated when switching from read to edit mode", 
 });
 
 test("[TECHNICAL] unfolded ellipsis button should not fold on message click besides that button", async () => {
-    // message click triggers a re-render. Before writing of this test, the
-    // insertion of ellipsis button were done during render. This meant
-    // any re-render would re-insert the ellipsis button. If some buttons
-    // were unfolded, any re-render would fold them again.
-    //
-    // This previous behavior is undesirable, and results to bothersome UX
-    // such as inability to copy/paste unfolded message content due to click
-    // from text selection automatically folding all ellipsis buttons.
+    // a message click re-renders: re-inserting the ellipsis buttons there would
+    // re-fold them, e.g. when the click comes from selecting text to copy
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ display_name: "Someone" });
     pyEnv["mail.message"].create({
@@ -238,7 +229,7 @@ test("read more/less should appear only once for the signature", async () => {
         },
     });
 
-    // Yes you can get this kind of signature by playing with the html editor
+    // the html editor can produce this kind of quote-marked signature
     pyEnv["res.users"].write(serverState.userId, {
         signature: `
             <div>

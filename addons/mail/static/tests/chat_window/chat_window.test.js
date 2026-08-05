@@ -134,7 +134,7 @@ test("chat window: basic rendering", async () => {
 });
 
 test.skip("Fold state of chat window is sync among browser tabs", async () => {
-    // AKU TODO: fix crosstab
+    // TODO: fix crosstab
     const pyEnv = await startServer();
     pyEnv["discuss.channel"].create({ name: "General" });
     const env1 = await start({ asTab: true });

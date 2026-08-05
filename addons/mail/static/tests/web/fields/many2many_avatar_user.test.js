@@ -303,9 +303,8 @@ test("avatar_user widget displays the appropriate user image in kanban view", as
             </kanban>
         `,
     });
-    // NOTE: upstream calls start() a second time here; that mounts a second
-    // WebClient which re-renders the same kanban action (restored from the
-    // router state) and makes the expected avatar count race-dependent.
+    // deliberately no second start(): a second WebClient re-renders the same
+    // kanban action (restored from the router) and races the avatar count
     await contains(
         `.o_m2o_avatar > img[data-src="/web/image/res.users/${userId}/avatar_128"]`,
     );

@@ -114,10 +114,8 @@ test("can post a message on a record thread", async () => {
 });
 
 test("composer stays usable after a failed message post (not bricked)", async () => {
-    // Regression: processMessage disabled the composer before awaiting the post
-    // RPC; on a record thread that RPC rethrows on failure, so without a
-    // try/finally the composer stayed disabled forever. After a failure the
-    // send button must re-enable and the draft must be preserved.
+    // `processMessage` disables the composer around the post RPC, which
+    // rethrows on a record thread: the re-enable must happen in a finally.
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
     onRpc("/mail/message/post", () => {
@@ -129,8 +127,7 @@ test("composer stays usable after a failed message post (not bricked)", async ()
     await insertText(".o-mail-Composer-input", "hey");
     expect.errors(1);
     await click(".o-mail-Composer button[aria-label='Send']:enabled");
-    // the failed post must re-enable the composer and keep the draft (before
-    // the fix the button stayed disabled forever and every later send no-oped)
+    // the failed post must re-enable the composer and keep the draft
     await contains(".o-mail-Composer button[aria-label='Send']:enabled");
     await contains(".o-mail-Composer-input", { value: "hey" });
     // `waitForErrors`, not `animationFrame()` + `verifyErrors`: the rejection
@@ -721,7 +718,7 @@ test("Mentions in composer should still work when using pager", async () => {
     await click("button", { text: "Log note" });
     await click(".o_pager_next");
     await insertText(".o-mail-Composer-input", "@");
-    // all records in DB: Mitchell Admin | Hermit | Public user except OdooBot
+    // the default partners (Mitchell Admin, Hermit, Public user), minus OdooBot
     await contains(".o-mail-Composer-suggestion", { count: 3 });
 });
 
@@ -801,10 +798,8 @@ test("Update primary email in recipient without saving", async () => {
 });
 
 test("form view mounts WebChatter; base Chatter statics stay portal-clean", async () => {
-    // The unit-test harness loads the whole backend bundle, so per-bundle
-    // selection cannot be exercised directly: assert the wiring instead.
-    // Portal bundles ship only the base Chatter — it must not be mutated by
-    // the web layer (WebChatter subclasses it rather than patching statics).
+    // per-bundle selection is not exercisable (the harness loads the whole
+    // backend bundle): assert instead that the web layer leaves Chatter clean
     expect(Object.getPrototypeOf(WebChatter)).toBe(Chatter);
     expect(Chatter.props.includes("record?")).toBe(false);
     expect("Activity" in Chatter.components).toBe(false);
@@ -812,11 +807,8 @@ test("form view mounts WebChatter; base Chatter statics stay portal-clean", asyn
     expect(WebChatter.props.includes("record?")).toBe(true);
     expect("Activity" in WebChatter.components).toBe(true);
     expect(WebChatter.defaultProps.isInFormSheetBg).toBe(true);
-    // The backend form view integration must instantiate WebChatter, never
-    // the bare base Chatter. Assert on classes, not instance counts: the
-    // form renderer may legitimately re-instantiate the chatter while
-    // mounting (a reactive write during render — FormRenderer.hasFile() —
-    // can cancel the first render pass and create a fresh instance).
+    // the form view must instantiate WebChatter; assert on classes, not counts:
+    // FormRenderer.hasFile() writes reactive state and can cancel a render pass
     const setupClasses = new Set();
     patchWithCleanup(Chatter.prototype, {
         setup() {

@@ -59,10 +59,8 @@ test("Basic jump to present when scrolling to outdated messages", async () => {
 });
 
 test("thread scrolling recovers when a smooth scroll never emits scrollend", async () => {
-    // A smooth scroll for which "scrollend" never fires (e.g. the target
-    // position needs no movement, or the animation is interrupted) must not
-    // wedge the thread's smooth-scrolling state forever: scroll applications
-    // and loadOlder/loadNewer await `smoothScrollingDeferred`.
+    // scroll applications and loadOlder/loadNewer await
+    // `smoothScrollingDeferred`: a missing "scrollend" must not wedge it.
     let threadComponent;
     patchWithCleanup(Thread.prototype, {
         setup() {
@@ -185,12 +183,8 @@ test("Jump to old reply should prompt jump to present", async () => {
             body: "<p>Non Empty Body</p>".repeat(100),
             message_type: "comment",
             model: "discuss.channel",
-            /**
-             * The first message following the oldest message should have it as its parent message
-             * so that the oldest message is inserted through the parent field during "load around"
-             * to have the coverage of this part of the code (in particular having parent message
-             * body being inserted with markup).
-             */
+            // parent the first loop message on the oldest one so that "load
+            // around" inserts the oldest through the parent field, with markup
             parent_id: i === 0 ? oldestMessageId : undefined,
             res_id: channelId,
         });
@@ -234,12 +228,8 @@ test("Jump to old reply should prompt jump to present (RPC small delay)", async 
             body: "<p>Non Empty Body</p>".repeat(100),
             message_type: "comment",
             model: "discuss.channel",
-            /**
-             * The first message following the oldest message should have it as its parent message
-             * so that the oldest message is inserted through the parent field during "load around"
-             * to have the coverage of this part of the code (in particular having parent message
-             * body being inserted with markup).
-             */
+            // parent the first loop message on the oldest one so that "load
+            // around" inserts the oldest through the parent field, with markup
             parent_id: i === 0 ? oldestMessageId : undefined,
             res_id: channelId,
         });
@@ -280,12 +270,8 @@ test("Post message when seeing old message should jump to present", async () => 
             body: "<p>Non Empty Body</p>".repeat(100),
             message_type: "comment",
             model: "discuss.channel",
-            /**
-             * The first message following the oldest message should have it as its parent message
-             * so that the oldest message is inserted through the parent field during "load around"
-             * to have the coverage of this part of the code (in particular having parent message
-             * body being inserted with markup).
-             */
+            // parent the first loop message on the oldest one so that "load
+            // around" inserts the oldest through the parent field, with markup
             parent_id: i === 0 ? oldestMessageId : undefined,
             res_id: channelId,
         });

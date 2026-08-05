@@ -27,7 +27,7 @@ test("draft save/restore round-trip keeps content and metadata", () => {
         emailAddSignature: false,
         replyToMessageId: 7,
     });
-    // stored payload keeps the historical key and shape
+    // the stored key is `fromFullComposer`, not the record's `restoredFrom…`
     expect(JSON.parse(browser.localStorage.getItem(composer.localId))).toEqual({
         emailAddSignature: false,
         replyToMessageId: 7,
