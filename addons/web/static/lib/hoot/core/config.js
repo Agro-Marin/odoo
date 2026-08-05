@@ -114,6 +114,22 @@ export const CONFIG_SCHEMA = {
         parse: parseBoolean(true),
     },
     /**
+     * Duration (in milliseconds) at the end of which the "before-test" or
+     * "after-test" hooks of a test are considered stuck. The test body is then
+     * skipped rather than run against a half-initialized environment, so the
+     * test fails on "no assertions ran" while the run itself reports the
+     * HootError naming the hook — a HootError bypasses the per-test result (see
+     * `_handleError`), so the hook is named in the run, not in the result.
+     *
+     * Separate from `timeout`, which only covers the test body. Configurable so
+     * a test can exercise the threshold without waiting for the real default.
+     * @default 5_000
+     */
+    hookTimeout: {
+        default: 5_000,
+        parse: parseNumber(5_000),
+    },
+    /**
      * Log level used by the test runner. The higher the level, the more logs will
      * be displayed.
      */

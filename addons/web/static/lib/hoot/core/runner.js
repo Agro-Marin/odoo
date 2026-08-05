@@ -1004,20 +1004,26 @@ export class Runner {
             this.state.currentTest = test;
             this.expectHooks.before(test);
             test.before();
-            await Promise.race([
-                (async () => {
+            const beforeTestError = await this._raceHookTimeout(
+                "before-test",
+                test,
+                async () => {
                     for (const callbackRegistry of [...callbackChain].reverse()) {
                         await callbackRegistry.call("before-test", test, handleError);
                     }
-                })(),
-                new Promise((_, reject) =>
-                    nativeSetTimeout(() => reject("before-test timeout"), 5_000),
-                ),
-            ]).catch(() => {});
+                },
+            );
+            if (beforeTestError) {
+                handleError(beforeTestError);
+            }
 
             let timeoutId = 0;
 
-            const testPromise = Promise.resolve(test.run());
+            // Skipped when the hooks did not complete: the body would run without
+            // the environment they were still building.
+            const testPromise = beforeTestError
+                ? Promise.resolve()
+                : Promise.resolve(test.run());
             const timeout = $floor(test.config.timeout || this.config.timeout);
             const timeoutPromise = new Promise((resolve, reject) => {
                 this._resolveCurrent = resolve;
@@ -1052,16 +1058,16 @@ export class Runner {
                 });
 
             const { lastResults } = test;
-            await Promise.race([
+            const afterTestError = await this._raceHookTimeout("after-test", test, () =>
                 this._execAfterCallback(async () => {
                     for (const callbackRegistry of callbackChain) {
                         await callbackRegistry.call("after-test", test, handleError);
                     }
                 }),
-                new Promise((_, reject) =>
-                    nativeSetTimeout(() => reject("after-test timeout"), 5_000),
-                ),
-            ]).catch(() => {});
+            );
+            if (afterTestError) {
+                handleError(afterTestError);
+            }
             test.after();
 
             restoreConsole();
@@ -1498,6 +1504,47 @@ export class Runner {
         } else {
             await callback();
         }
+    }
+
+    /**
+     * Runs one hook phase of a test against the configured hook timeout, and
+     * returns the error it failed with (`null` when it completed in time).
+     *
+     * A timeout is returned as an error rather than discarded: `Promise.race`
+     * cannot cancel the losing branch, so a stuck hook keeps running orphaned,
+     * and treating that as success let the test body run against an environment
+     * the hooks were still building — surfacing the failure inside the body
+     * instead of naming the hook in the run. The caller skips the body on a
+     * non-null return; the test itself then fails on "no assertions ran", since
+     * a HootError bypasses the per-test result (see `_handleError`).
+     *
+     * @param {"before-test" | "after-test"} phase
+     * @param {Test} test
+     * @param {() => Promise<void>} runHooks
+     * @returns {Promise<Error | null>}
+     */
+    async _raceHookTimeout(phase, test, runHooks) {
+        const hookTimeout = $floor(this.config.hookTimeout);
+        let error = null;
+        await Promise.race([
+            runHooks(),
+            new Promise((_, reject) =>
+                nativeSetTimeout(
+                    () =>
+                        reject(
+                            new HootError(
+                                `${stringify(phase)} hooks of test ${stringify(
+                                    test.name,
+                                )} timed out after ${hookTimeout} milliseconds`,
+                            ),
+                        ),
+                    hookTimeout,
+                ),
+            ),
+        ]).catch((reason) => {
+            error = reason;
+        });
+        return error;
     }
 
     /**

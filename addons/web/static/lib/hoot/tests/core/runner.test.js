@@ -171,4 +171,57 @@ describe(parseUrl(import.meta.url), () => {
         expect(() => runner._prepareRunner()).not.toThrow();
         expect(runner.hasFilter).toBe(false);
     });
+
+    // Hook timeout. Exercised through `_raceHookTimeout` rather than by starting a
+    // nested Runner: nothing in this suite starts one, and a started Runner
+    // installs its own global "error"/"unhandledrejection" listeners, which would
+    // race with the listeners of the Runner executing these very tests.
+    //
+    // `config.hookTimeout` is what makes this deterministic AND fast: the timer is
+    // the native setTimeout captured before any mock, so a few milliseconds are
+    // enough and no clock has to be faked.
+
+    const neverSettles = () => new Promise(() => {});
+
+    test("a before-test hook that outlives the timeout is reported, not discarded", async () => {
+        const runner = makeTestRunner();
+        runner.config.hookTimeout = 10;
+
+        const error = await runner._raceHookTimeout(
+            "before-test",
+            { name: "stuck test" },
+            neverSettles,
+        );
+
+        // The caller skips the test body on a non-null return, so the body never
+        // runs against the half-built environment.
+        expect(error).not.toBe(null);
+        expect(error.message).toInclude("before-test");
+        expect(error.message).toInclude("stuck test");
+        expect(error.message).toInclude("10 milliseconds");
+    });
+
+    test("the hook timeout comes from the config, not a hardcoded value", async () => {
+        const runner = makeTestRunner();
+        const slowHook = () => new Promise((resolve) => setTimeout(resolve, 40));
+
+        runner.config.hookTimeout = 5;
+        expect(
+            await runner._raceHookTimeout("before-test", { name: "t" }, slowHook),
+        ).not.toBe(null);
+
+        runner.config.hookTimeout = 500;
+        expect(
+            await runner._raceHookTimeout("before-test", { name: "t" }, slowHook),
+        ).toBe(null);
+    });
+
+    test("a hook that settles in time reports no error", async () => {
+        const runner = makeTestRunner();
+        runner.config.hookTimeout = 500;
+
+        expect(
+            await runner._raceHookTimeout("after-test", { name: "t" }, async () => {}),
+        ).toBe(null);
+    });
 });
