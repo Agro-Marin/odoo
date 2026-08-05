@@ -5,13 +5,9 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
 import { effect } from "@web/core/utils/reactive";
 
-// Resolve the live product-module instance from the loader registry, and only
-// inside the tour step (i.e. when it runs on a discuss-capable page). A static
-// import would be eagerly resolved on EVERY page loading web.assets_tests —
-// including frontend/portal pages where the discuss bundle (and this
-// specifier) does not exist, killing all tours at pre-boot — and would bind a
-// second, unshared module instance anyway (test files load via the import map
-// only, not registerNativeModules).
+// Resolved from the loader inside the tour step: a static import would be
+// eagerly resolved on every page loading web.assets_tests — killing all tours
+// where the discuss bundle is absent — and would bind a second, unshared instance.
 const getSubChannelList = () =>
     odoo.loader.modules.get("@mail/discuss/core/public_web/sub_channel_list")
         .SubChannelList;
@@ -153,12 +149,9 @@ registry.category("web_tour.tours").add("create_thread_for_attachment_without_bo
             run: "click",
         },
         {
-            // Wait for the channel to actually be displayed before dropping.
-            // The dropzone is registered per Composer instance on the (shared)
-            // Discuss content root, so dropping before the composer has been
-            // re-keyed to the new thread hands the file to the *outgoing*
-            // channel's composer -- the file uploads fine, just onto the
-            // previously open conversation.
+            // The dropzone is registered per Composer instance on the shared
+            // Discuss content root: dropping earlier uploads the file onto the
+            // outgoing channel's composer.
             content: "Wait for the general channel to be displayed",
             trigger: ".o-mail-DiscussContent-threadName[title='general']",
         },

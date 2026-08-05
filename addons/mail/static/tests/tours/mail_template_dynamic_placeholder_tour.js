@@ -54,9 +54,8 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
             content: "Wait for the drop down to disappear",
             trigger: 'div[name="model_id"] .o-autocomplete:not(:has(.ui-autocomplete))',
             run: async () => {
-                // Ensure the system has registered a correct model value before
-                // we try to open the DPH.
-                // It seems that the autocomplete validation can be very slow.
+                // The autocomplete validation can be very slow; ensure the model
+                // value is registered before opening the DPH.
                 await delay(200);
             },
         },
@@ -101,12 +100,8 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
             trigger: 'div[name="subject"] input[type="text"]',
             run() {
                 const subjectValue = this.anchor.value;
-                // ` ||| ` (spaced) is the canonical default-value separator:
-                // it is what `useDynamicPlaceholder` inserts and what
+                // ` ||| ` (spaced) is what `useDynamicPlaceholder` inserts and what
                 // `mail.render.mixin._build_expression` writes server-side.
-                // `tools.rendering_tools.INLINE_TEMPLATE_REGEX` accepts either
-                // spacing, which is why the unspaced expectation this assertion
-                // used to carry went unnoticed until the tour was run.
                 const correctValue =
                     "yes_model_id {{object.company_name ||| defValue}}";
                 if (subjectValue !== correctValue) {
