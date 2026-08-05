@@ -4,35 +4,18 @@ import { describe, expect, test } from "@odoo/hoot";
 describe.current.tags("headless");
 
 /**
- * F13 — bundle glob order is an undeclared dependency system: when two
- * modules patch the same method of the same target, which `super` runs
- * first is decided by asset-bundle file order, and nothing asserts it.
- * Import-edge detection between patch modules is impractical (patches are
- * import side effects; the ESM graph does not express "must apply after"),
- * so this test enforces the simpler invariant instead: every double-patched
- * `(target, method)` pair on the mail surface must be consciously
- * allowlisted here.
- *
- * If this test fails: you (or a bundle you loaded) added a second patch to
- * a method that is already patched elsewhere. That is sometimes fine — but
- * it makes behavior depend on bundle order. Check who else patches the
- * method (`patchInfo()` / `getDoublePatchedPairs()` in the console), make
- * sure your patch is `super`-transparent or explicitly ordered, then add
- * the pair below with a normal code review.
- *
- * Labels come from `patchTargetLabel()`: same-named classes share a label
- * (e.g. the `Thread` model and `Thread` component both read
- * "Thread.prototype").
- *
- * A pair counts as double-patched only when two extensions declare the same
- * method, which is exactly their own keys: `patch()` keeps its `super`-chain
- * skeletons off the extension objects, so own-key inspection is exact.
- * The allowlist is seeded from an AST scan of every `patch()` call across
- * the community *and* enterprise checkouts, since enterprise addons
- * (whatsapp, knowledge, ai, documents, voip, ...) patch these same targets
- * and may be present in the bundle; entries for patches that are not loaded
- * in the current bundle are harmless (subset assertion).
+ * Bundle glob order is an undeclared dependency system: when two modules patch
+ * the same method of the same target, which `super` runs first is decided by
+ * asset-bundle file order and nothing asserts it. Every live double-patched
+ * `(target, method)` pair must therefore be consciously allowlisted here.
  */
+
+// On failure: check who else patches the method (`getDoublePatchedPairs()` in
+// the console), make the patch `super`-transparent or explicitly ordered, then
+// allowlist the pair. Labels come from `patchTargetLabel()`, so same-named
+// classes share one ("Thread.prototype" covers both the model and the
+// component). Entries whose second patcher is in a bundle not loaded here are
+// harmless: the assertion is a subset check.
 const KNOWN_DOUBLE_PATCHES = new Set([
     "Activity.prototype :: markAsDone",
     "Activity.prototype :: setup",
@@ -154,12 +137,9 @@ const KNOWN_DOUBLE_PATCHES = new Set([
 
 test("every live double-patch is consciously allowlisted", () => {
     const live = new Set(getDoublePatchedPairs());
-    // Exhaustive gate (t23783 defect a): audit EVERY live double-patched pair,
-    // not just those on a curated target allowlist. A previous version filtered
-    // `found` by a hard-coded set of mail-surface targets, so a new double-patch
-    // on any unlisted target (a web service, a field, a component we had not
-    // pre-listed) passed silently even though bundle order still decided its
-    // `super` chain. Any pair not explicitly allowlisted below now fails.
+    // Exhaustive gate: audit EVERY live pair, not only those on a curated set
+    // of mail-surface targets — bundle order decides the `super` chain of a
+    // double-patched web service or field just the same.
     const unknown = [...live].filter((pair) => !KNOWN_DOUBLE_PATCHES.has(pair));
     expect(unknown).toEqual([], {
         message:
@@ -168,14 +148,10 @@ test("every live double-patch is consciously allowlisted", () => {
             " (patch_order_audit.test.js)",
     });
 
-    // Rot report (t23783 defect b): surface allowlist entries that are no longer
-    // double-patched so the list can be pruned. This is intentionally NOT a hard
-    // failure: an entry can be dormant simply because its second patcher lives in
-    // a bundle not loaded by this suite (e.g. enterprise whatsapp/voip/knowledge
-    // absent from the community bundle), and asserting on those would be a false
-    // positive. Definitive stale detection needs a bundle that loads every
-    // patcher — runtime knowledge this headless suite does not have — so here we
-    // only warn, leaving the prune/keep decision to a human review.
+    // Rot report: surface allowlist entries that are no longer double-patched so
+    // the list can be pruned. Deliberately a warning, not a failure: an entry is
+    // also dormant when its second patcher lives in a bundle this suite does not
+    // load (enterprise whatsapp/voip/knowledge), so the prune/keep call is human.
     const staleCandidates = [...KNOWN_DOUBLE_PATCHES].filter((pair) => !live.has(pair));
     if (staleCandidates.length) {
         console.warn(

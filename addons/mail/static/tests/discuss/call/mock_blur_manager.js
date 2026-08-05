@@ -52,7 +52,7 @@ export class MockBlurManager {
 
 /**
  * Route every BlurManager construction (both `rtc.applyBlurEffect` and
- * `LocalMediaController`'s internal `_updateLocalVideo` use funnel through
+ * `LocalMediaController`'s internal `_setVideo` funnel through
  * `LocalMediaController.applyBlurEffect`) through a `MockBlurManager`, so blur
  * can be exercised in tests without MediaPipe.
  *

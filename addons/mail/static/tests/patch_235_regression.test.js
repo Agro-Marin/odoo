@@ -18,35 +18,16 @@ import {
 } from "@web/../tests/web_test_helpers";
 
 /**
- * Regression coverage for PR #235 (mail behavior sweep), task t23781.
- *
- * PR #235 landed ~40 behavior fixes with zero regression tests. This file
- * seeds coverage for the highest-impact, most-testable of them: the
- * "stuck failure-path flag" family from commit bd882ff4 ("make async flows
- * exception-safe, unstick failure-path flags"). Each defect has the same
- * shape — a flag/promise set before an `await` and reset only on the success
- * path, so one transient failure wedges the feature until reload.
- *
- * REVERT CONSTRAINT (t23781, defect: FIX->REF not individually revertible).
- * The mail series in PR #235 must be reverted AS A BLOCK, not per commit:
- * the RTC lifecycle FIX (fa668ab0) is followed, in the SAME PR, by a REF
- * (8a13dedd) that decomposes and moves the very files fa668ab0 touched
- * (rtc_service.js -> call_transport.js / cross_tab_sync.js /
- * local_media_controller.js). `git revert fa668ab0` alone will not apply
- * cleanly against the post-REF tip. To undo any RTC behavior from this PR,
- * revert the whole `[FIX]..[REF]` mail range together.
- *
- * The markingAsRead case is a live test. The rest are structured skeletons:
- * each documents the exact scenario/mock/assertion for the fix it guards, to be
- * fleshed out and confirmed against a local hoot run. Confirm any skeleton you
- * activate actually passes first — the gif-picker one was documented as ready
- * and was not.
- *
- * NOTE: this file was originally selected by no suite prefix in test_js.py, so
- * it never ran at all — and its cases were `test.todo` skeletons that throw, so
- * the coverage was doubly absent. It is now listed in MISC_SUITES; keep it
- * there (test_suite_filters_cover_every_test_file enforces this).
+ * Regression coverage for the "stuck failure-path flag" family: a flag or
+ * promise set before an `await` and reset only on the success path, so one
+ * transient failure wedges the feature until reload.
  */
+
+// Only the markingAsRead case is live; the rest are skeletons documenting the
+// scenario, mock and assertion for the fix they guard. Confirm a skeleton
+// passes locally before activating it.
+// Keep this file listed in mail/tests/test_js.py MISC_SUITES, or it runs under
+// no suite prefix at all (test_suite_filters_cover_every_test_file enforces it).
 
 describe.current.tags("desktop");
 defineMailModels();
