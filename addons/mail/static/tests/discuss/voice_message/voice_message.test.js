@@ -70,20 +70,9 @@ test("make voice message in chat", async () => {
     mockDate("2023-07-31 13:00:00");
     await click(".dropdown-item:contains('Voice Message')");
     await contains(".o-mail-VoiceRecorder", { text: "00 : 00" });
-    /**
-     * Simulate 10 sec elapsed.
-     * `patchDate` does not freeze the time, it merely changes the value of "now" at the time it was
-     * called. The code of click following the first `patchDate` doesn't actually happen at the time
-     * that was specified, but few miliseconds later (8 ms on my machine).
-     * The process following the next `patchDate` is intended to be between 10s and 11s later than
-     * the click, because the test wants to assert a 10 sec counter, and the two dates are
-     * substracted and then rounded down in the code (it means absolute values are irrelevant here).
-     * The problem with aiming too close to a 10s difference is that if the click is longer than
-     * the following process, it will round down to 9s.
-     * The problem with aiming too close to a 11s difference is that if the click is shorter than
-     * the following process, it will round down to 11s.
-     * The best bet is therefore to use 10s + 500ms difference.
-     */
+    // Simulate 10 sec elapsed. mockDate does not freeze time, so the counter
+    // sees a few extra ms; aim 500ms past 10s so the floored difference cannot
+    // round to 9s or 11s.
     mockDate("2023-07-31 13:00:10.500");
     // simulate some microphone data
     resources.audioProcessor.process([[new Float32Array(128)]]);
