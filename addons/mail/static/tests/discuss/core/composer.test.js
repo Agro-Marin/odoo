@@ -152,7 +152,7 @@ test("html composer: trim boundary empty formatting on send", async () => {
     triggerHotkey("shift+Enter");
     await click(".o-mail-Composer button[title='Send']:enabled");
     await expect.waitForSteps(["/mail/message/post"]);
-    // Expected editor shape before trimming: '<div><br></div><div">Hello World<br/></div>'
+    // the leading empty div and the trailing <br> are trimmed before posting
     expect(body).toBe("<div>Hello World</div>");
     await contains(".o-mail-Message[data-persistent]:contains(Hello)");
 });

@@ -59,10 +59,9 @@ test("no channel refetch on message deletion once channels are fetched", async (
     await animationFrame();
     // the deletion itself is processed...
     expect(store["mail.message"].get(messageId)).toBe(undefined);
-    // ...but with the channel list already fetched, thread state derives
-    // from Thread records which the bus-fenced counter delta keeps current:
-    // the cached channel data must NOT be refetched (one deletion in a busy
-    // database would otherwise refetch every client's whole channel list)
+    // ...but the cached channel data must NOT be refetched: the bus-fenced
+    // counter delta keeps the Thread records current, and a refetch here would
+    // reload every client's whole channel list on any deletion
     expect(channelFetchCount).toBe(fetchesBeforeDelete);
     expect(store.channels.status).toBe("fetched");
 });

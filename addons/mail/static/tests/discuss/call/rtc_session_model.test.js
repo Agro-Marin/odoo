@@ -49,10 +49,8 @@ test("getWhenReady's 120s fallback timer is cleared when the session arrives, so
     let secondResult;
     RtcSession.getWhenReady(303).then((session) => (secondResult = session));
 
-    // Advance to t=120s — exactly when the FIRST await's fallback timer was due.
-    // If that timer had not been cleared, its callback would delete the fresh
-    // deferred from `awaitedRecords`; the session arriving next would then not
-    // resolve it, hanging the caller until its own (much later) fallback fires.
+    // Advance to when the FIRST await's fallback timer was due: uncleared, it
+    // would drop the fresh deferred from `awaitedRecords` and hang the caller.
     await advanceTime(60_000);
     RtcSession.insert({ id: 303 });
     await tick();
