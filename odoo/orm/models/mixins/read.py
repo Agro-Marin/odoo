@@ -228,8 +228,20 @@ class ReadMixin(_ModelStubs):
                     except MissingError:
                         vals.clear()
 
+                # `load` speaks for many2one fields only. Its contract is "do
+                # not resolve the display name of m2o fields", and a caller
+                # that passes it can always name those targets itself later.
+                # A name buried inside a properties blob is not recoverable
+                # that way -- the blob is opaque to the field specification --
+                # so properties always convert with their names attached.
+                # `web_read` is the case that makes this load-bearing: it reads
+                # with `load=None` precisely because it resolves real relational
+                # fields itself, and honouring that for properties hands the
+                # web client bare ids where it expects `{id, name}`.
                 multi_results = field.convert_to_read_multi(
-                    values_list, self.browse(records), use_display_name
+                    values_list,
+                    self.browse(records),
+                    use_display_name or field.type == "properties",
                 )
                 for (_, vals), convert_result in zip(
                     valid_data, multi_results, strict=True

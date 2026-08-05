@@ -89,6 +89,7 @@ SEED_WEIGHTS = {
     "@web/views/view_buttons": 8, "@web/views/view_button_hook": 6,
     "@web/views/view_service": 8, "@web/views/view": 20,
     "@web/views/view_utils": 8, "@web/views/module_views": 6,
+    "@web/views/settings": 6,
     "@web/search": 40, "@web/webclient": 90, "@web/public": 20, "@web/env": 5,
     "@web/reactivity": 5, "@web/t_custom_click": 4, "@web/helpers": 6,
     "@web/interactions": 15, "@web/l10n": 8, "@web/mock_server": 10,

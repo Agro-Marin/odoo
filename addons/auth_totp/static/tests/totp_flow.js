@@ -98,11 +98,18 @@ registry.category("web_tour.tours").add('totp_tour_setup', {
     content: "Check the wizard has opened",
     trigger: '.modal:contains("Two-Factor Authentication Activation")',
 }, {
-    content: "Get secret from collapsed div",
-    trigger: `.modal a:contains("Cannot scan it?")`,
+    content: "Get secret from the disclosure widget",
+    // The secret lives behind a native <details>/<summary> disclosure. It used
+    // to be a Bootstrap collapse driven by <a data-bs-toggle="collapse">, and
+    // this trigger still looked for that anchor after 9251982dca8 retired
+    // Bootstrap's JS from the backend bundle -- so it matched nothing and every
+    // TOTP tour died here on a 10s timeout. Anchor on <summary>, and scope the
+    // lookup to the <details> that owns it rather than to the nearest <div>,
+    // which was only ever the wrapper the old markup happened to provide.
+    trigger: `.modal details > summary:contains("Cannot scan it?")`,
     async run(helpers) {
         const secret = this.anchor
-            .closest("div")
+            .closest("details")
             .querySelector("[name=secret] span:first-child");
         const copyBtn = secret.querySelector("button");
         if (copyBtn) {

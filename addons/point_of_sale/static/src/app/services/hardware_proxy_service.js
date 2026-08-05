@@ -112,9 +112,18 @@ export class HardwareProxy extends EventBus {
                 return;
             }
             const always = () => this.keptalive && setTimeout(status, 5000);
-            const xhr = new browser.XMLHttpRequest();
-            xhr.timeout = 2500;
-            rpc(`${this.host}/hw_proxy/status_json`, {}, { silent: true, xhr })
+            // `{ xhr }` stopped being honoured when rpc moved to fetch()
+            // (34d4d0640a6) and became a hard throw once settings were
+            // validated (8e7a2fc2e8e) -- so every keep-alive poll raised
+            // `Invalid RPC setting(s): "xhr"` and the proxy read as
+            // permanently disconnected. The only thing that handle carried was
+            // `xhr.timeout = 2500`, and rpc has a first-class `timeout`
+            // setting in the same unit (ms), so the intent survives intact.
+            rpc(
+                `${this.host}/hw_proxy/status_json`,
+                {},
+                { silent: true, timeout: 2500 },
+            )
                 .then(
                     (drivers) =>
                         this.setConnectionInfo({ status: "connected", drivers }),

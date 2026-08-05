@@ -89,6 +89,15 @@ _REVALIDATE_ON_CHANGE = frozenset({"mode", "model", "priority", "type"})
 # Everything _check_xml raises when a tree cannot be combined or validated.
 _COMBINATION_ERRORS = (ValidationError, ValueError, etree.ParseError, TypeError)
 
+# The arch vocabulary for elements the view layer must leave alone. The
+# canonical definition is `@web/views/self_handled`, which the compiler reads;
+# these mirror the half of it that _migrate_self_handled_arch writes.
+_SELF_HANDLED_ATTR = "data-self-handled"
+# Only these two Bootstrap constructs are ours. `data-bs-toggle` also drives
+# collapse, tab, offcanvas and tooltip, which Bootstrap still owns and still
+# ships to the frontend, so renaming it there would silently unhook them.
+_SELF_HANDLED_CONSTRUCTS = frozenset({"dropdown", "modal"})
+
 # Prefetchable columns the inheritance CTE deliberately leaves behind: no step
 # of combining a tree reads them, and arch_prev alone is a second full copy of
 # arch_db.
@@ -483,6 +492,81 @@ class IrUiView(models.Model):
             view.with_context(no_save_prev=True, lang=None).write(write_dict)
             reset += view
         return reset
+
+    @api.model
+    def _migrate_self_handled_arch(self) -> Self:
+        """Rewrite Bootstrap's data-api spelling in stored arch to this fork's
+        own, and return the views actually changed.
+
+        The view layer accepts both spellings today (``SELF_HANDLED_ATTRS`` in
+        ``@web/views/self_handled``) only because databases carry arch written
+        before the fork had one of its own. This is the migration that lets that
+        list drop its Bootstrap entry: once it has run everywhere, arch no
+        longer speaks Bootstrap and the compiler can stop accepting it.
+
+        Idempotent, and safe to run repeatedly: it only ever consumes
+        ``data-bs-*``, so a second pass finds nothing to do.
+        """
+        views = self.with_context(lang=None).search(
+            [("type", "!=", "qweb"), ("arch_db", "like", "data-bs-")]
+        )
+        migrated = self.browse()
+        for view in views:
+            arch = view.arch_db
+            if not arch:
+                continue
+            try:
+                tree = etree.fromstring(arch)
+            except etree.XMLSyntaxError:
+                # A view too malformed to parse is also too malformed to
+                # migrate. _check_xml owns that complaint; skipping keeps a
+                # bulk migration from dying on one bad row.
+                _logger.warning(
+                    "Skipping self-handled arch migration for view %s: "
+                    "arch does not parse",
+                    view.id,
+                )
+                continue
+            if not self._rewrite_self_handled_nodes(tree):
+                continue
+            # no_save_prev: a mechanical respelling is not an edit anyone wants
+            # to undo, and arch_prev is a single slot -- spending it here would
+            # discard the user's actual previous arch.
+            view.with_context(no_save_prev=True).write(
+                {"arch_db": etree.tostring(tree, encoding="unicode")}
+            )
+            migrated += view
+        return migrated
+
+    def _rewrite_self_handled_nodes(self, tree: _Element) -> bool:
+        """Respell one parsed arch in place; return whether anything changed.
+
+        Split from :meth:`_migrate_self_handled_arch` so the rewrite rules can
+        be exercised on a tree, with no view, database or search behind them.
+
+        ``data-bs-target`` follows only a *modal* control, because it also
+        addresses collapse and tab panes that Bootstrap still drives.
+        ``data-bs-dismiss`` moves only when it dismisses a modal -- alerts have
+        their own Bootstrap-driven service (``dismiss_alert_service``).
+        """
+        changed = False
+        for node in tree.xpath("//*[@data-bs-toggle]"):
+            construct = node.get("data-bs-toggle")
+            if construct not in _SELF_HANDLED_CONSTRUCTS:
+                continue
+            del node.attrib["data-bs-toggle"]
+            node.set(_SELF_HANDLED_ATTR, construct)
+            if construct == "modal" and "data-bs-target" in node.attrib:
+                node.set("data-modal-target", node.get("data-bs-target"))
+                del node.attrib["data-bs-target"]
+            changed = True
+        for node in tree.xpath('//*[@data-bs-dismiss="modal"]'):
+            del node.attrib["data-bs-dismiss"]
+            # Presence is the whole signal -- the attribute names the construct
+            # -- so "1", the flag value the compiler itself writes.
+            node.set("data-modal-dismiss", "1")
+            changed = True
+        return changed
 
     def _get_ir_model_data_rows(self) -> dict[int, list[dict[str, Any]]]:
         """Return the ir.model.data rows pointing at the views in ``self``,

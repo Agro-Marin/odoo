@@ -21,6 +21,13 @@ RE_FORBIDDEN_STATEMENTS = re.compile(r"test.*\.(only|debug)\(")
 # lists or its tests silently never run in CI — 13 files (~183 tests) were
 # lost that way once. Keep new tests-directory names in sync here.
 
+# Despite the name, this is the catch-all for every ``@web/views/*`` suite that
+# does not warrant a test method of its own — graph and pivot are 2 of the 16.
+# ``test_graph_pivot`` runs the whole tuple on both presets, so a new
+# ``static/tests/views/<x>/`` directory belongs HERE (the name is kept because
+# the method it feeds is referenced by tooling/hoot's docs and --test-tags
+# recipes). ``@web/views/settings`` was added after
+# ``test_suite_filters_cover_every_test_file`` caught it running nowhere.
 GRAPH_PIVOT_SUITES = (
     "@web/views/graph",
     "@web/views/pivot",
@@ -37,6 +44,7 @@ GRAPH_PIVOT_SUITES = (
     "@web/views/view",
     "@web/views/view_utils",
     "@web/views/module_views",
+    "@web/views/settings",
 )
 MISC_SUITES = (
     "@web/env",
@@ -129,6 +137,32 @@ def runner_suite_prefixes(path):
     return prefixes
 
 
+#: ``test(...)`` and ``test.tags(...)(...)`` register a runnable test;
+#: ``test.skip`` / ``test.todo`` do not.
+RE_RUNNABLE_TEST = re.compile(r"\btest\s*\(|\btest\.tags\s*\(")
+
+
+def has_runnable_tests(test_file):
+    """Whether ``test_file`` registers a test a run can actually select.
+
+    A file whose tests are ALL ``test.skip`` / ``test.todo`` still exists on
+    disk, but its ``&id=`` hash matches no job — and the runner is hardened to
+    fail rather than fall back to running everything, so generating a suite for
+    it produces ``HootError: no suite or test matches id "..."`` and a red
+    build. That is what ``AddonSuite.test_web_gantt`` was: ``gantt_view_manual``
+    is a hand-run benchmark (10k-record renders) carrying
+    ``describe.current.tags("manual testing")`` with all three tests skipped.
+
+    Only *per-file* suites are exposed to this. A directory suite such as
+    ``@web/modules`` resolves through its siblings, which is why
+    ``web/static/tests/modules/dependencies.test.js`` (also fully skipped)
+    never broke anything.
+    """
+    with suppress(OSError):
+        return bool(RE_RUNNABLE_TEST.search(test_file.read_text(encoding="utf-8")))
+    return False
+
+
 def addons_bundling_unit_tests():
     """``{addon: [suite, ...]}`` for every addon that bundles ``*.test.js``."""
     bundled = {}
@@ -142,6 +176,7 @@ def addons_bundling_unit_tests():
                 f"@{addon.name}/"
                 + test_file.relative_to(tests_root).as_posix()[: -len(".test.js")]
                 for test_file in sorted(tests_root.rglob("*.test.js"))
+                if has_runnable_tests(test_file)
             ]
             if suites:
                 bundled.setdefault(addon.name, []).extend(suites)
