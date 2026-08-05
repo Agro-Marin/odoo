@@ -19,15 +19,9 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                 if (!window.location.pathname.startsWith("/discuss/channel")) {
                     console.error("Channel secret token is still present in URL.");
                 }
-                // The pre-2026 AMD loader exposed `findErrors()` to report
-                // modules that failed dependency resolution. The fork-wide ESM
-                // migration removed that surface (see web/static/src/module_loader.js):
-                // native module-load failures now surface via the pre/post-boot
-                // error beacon (/web/observability/js_error), which the browser
-                // test harness already fails on. Calling the removed method here
-                // threw ("odoo.loader.findErrors is not a function"), breaking
-                // this step before it could flag the page as booted. Reaching
-                // this step at all means the app booted, so just record it.
+                // Reaching this step means the app booted: module-load failures
+                // now surface via the /web/observability/js_error beacon, which
+                // the browser test harness already fails on.
                 document.body.classList.add("o_discuss_channel_public_modules_loaded");
                 if (
                     !document.title.includes(
@@ -106,7 +100,8 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                                 if (attachment.raw_access_token) {
                                     resolve();
                                 } else {
-                                    void proxy.raw_access_token; // keep observing until a value is received
+                                    // Keep observing until a value is received.
+                                    void proxy.raw_access_token;
                                 }
                             });
                             void proxy.raw_access_token; // start observing
@@ -122,9 +117,8 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                 }
             },
         },
-        // The upload steps target the "Attach Files" item but feed the hidden input directly,
-        // so the "More Actions" menu is left open. Close it before sending to avoid clicking
-        // Send while the menu is still dismissing.
+        // The upload steps feed the hidden input directly, leaving the "More
+        // Actions" menu open; close it before clicking Send.
         { trigger: ".o-mail-Composer-input", run: "click" },
         { trigger: "body:not(:has(.o-discuss-dropdownMenu))" },
         { trigger: ".o-mail-Composer button[title='Send']:enabled", run: "click" },

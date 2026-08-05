@@ -2,9 +2,8 @@ import { contains } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 
 /**
- * This tour depends on data created by python test in charge of launching it.
- * It is not intended to work when launched from interface. It is needed to test
- * an action (action manager) which is not possible to test with QUnit.
+ * Depends on data created by the python test in charge of launching it; not
+ * intended to work when launched from the interface.
  * @see mail/tests/test_mail_composer.py
  */
 registry
@@ -59,26 +58,9 @@ registry
                 trigger: ".o_mail_composer_message strong:contains(Hello)",
             },
             {
-                // Place a COLLAPSED caret first, and only select the word in a
-                // later step (below). Both actions go through a real DOM Range
-                // because a tour `click`/`dblclick` dispatches *synthetic* mouse
-                // events, which browsers do not honour for caret placement or
-                // word selection -- the document selection would stay in the
-                // chatter composer and the toolbar steps would then silently
-                // format the WRONG editor.
-                //
-                // Splitting caret-then-select is not cosmetic. Moving the
-                // selection here closes the chatter composer's toolbar overlay,
-                // and selecting a word opens this composer's one. Doing both at
-                // once makes the overlay list go [chatterToolbar, dialog] ->
-                // [dialog, fullToolbar] in a SINGLE render, and OWL's keyed-list
-                // diff answers that shape by re-inserting the surviving dialog
-                // node (its "node moved left" branch) instead of just dropping
-                // the head. Re-inserting the dialog's subtree blurs whatever is
-                // focused inside it, so the selection we just made is wiped and
-                // the toolbar anchors to an empty range. Closing the old overlay
-                // first makes the second patch a pure append, which OWL handles
-                // without touching the dialog.
+                // Caret now, selection later, both via real DOM Ranges: synthetic
+                // mouse events don't move it, and doing both at once makes OWL
+                // re-insert the dialog overlay and blur it.
                 content: "Place the caret in the full composer",
                 trigger:
                     ".o_mail_composer_message .odoo-editor-editable strong:contains(Hello)",
