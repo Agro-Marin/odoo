@@ -2,9 +2,8 @@ import { contains, dragenterFiles, dropFiles, inputFiles } from "@web/../tests/u
 import { registry } from "@web/core/registry";
 
 /**
- * This tour depends on data created by python test in charge of launching it.
- * It is not intended to work when launched from interface. It is needed to test
- * an action (action manager) which is not possible to test with QUnit.
+ * Depends on data created by the python test in charge of launching it; not
+ * intended to work when launched from the interface.
  * @see mail/tests/test_mail_composer.py
  */
 registry
@@ -100,11 +99,8 @@ registry
                             `Full composer should contain mention link from small composer ("@Not A Demo User") in body input)`,
                         );
                     }
-                    /** When opening the full composer for the first time, the system
-                     * should add the user's signature to the end of the message so
-                     * that the user can edit it. After adding the signature to
-                     * the editor, the server shouldn't automatically add the
-                     * signature to the message (see: Python tests). */
+                    // On first open the signature is appended to the editor so the
+                    // user can edit it; the server must then not re-add it.
                     if ((bodyContent.match(/--\nErnest/g) || []).length !== 1) {
                         console.error(
                             "Full composer should contain the user's signature once.",
@@ -141,10 +137,8 @@ registry
                     '.o_field_html[name="body"] .o_channel_redirect:contains(general)',
             },
             {
-                // The mention popover is the UI *active element* while open, and
-                // `useCustomDropzone` only shows a dropzone whose target is
-                // inside the active element. Dropping before the popover has
-                // closed therefore silently does nothing -- wait for it.
+                // `useCustomDropzone` only shows a dropzone inside the UI active
+                // element, which is the mention popover while it is open.
                 content: "Wait for the mention popover to close",
                 trigger: "body:not(:has(.o-mail-MentionPlugin-overlay))",
             },
@@ -241,9 +235,7 @@ registry
                     const bodyContent = document.querySelector(
                         '.o_field_html[name="body"]',
                     ).textContent;
-                    /** When opening the full composer, the system should add the
-                     * user's signature, as this is a new message and the signature
-                     * has not yet been added to it. */
+                    // New message: the signature has not been added yet.
                     if ((bodyContent.match(/--\nErnest/g) || []).length !== 1) {
                         console.log(
                             "Full composer should contain the user's signature once.",
@@ -293,10 +285,8 @@ registry
                     const bodyContent = document.querySelector(
                         '.o_field_html[name="body"]',
                     ).textContent;
-                    /** When re-opening the full composer, the system shouldn't re-add
-                     * the user's signature to the message. As the user deleted the
-                     * signature in the previous steps (see: `editor keep the content`),
-                     * the editor shouldn't contain any signature. */
+                    // Re-opening must not re-add the signature, and the earlier
+                    // `editor keep the content` replaced the whole body.
                     if ((bodyContent.match(/--\nErnest/g) || []).length !== 0) {
                         console.error(
                             "The composer should not contain the user's signature.",

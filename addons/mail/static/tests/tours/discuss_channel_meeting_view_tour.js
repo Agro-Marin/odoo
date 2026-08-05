@@ -50,7 +50,7 @@ function getMeetingViewTourSteps({ inWelcomePage = false } = {}) {
                     new File(["hi there"], "file2.txt", { type: "text/plain" }),
                 ];
                 await dragenterFiles(".o-mail-Meeting .o-mail-ActionPanel", files);
-                // Ensure other dropzones such as discuss or chat window dropzones are not active in meeting view.
+                // Discuss/chat-window dropzones must not be active in meeting view.
                 await waitFor(".o-Dropzone", { only: true });
             },
         },
@@ -75,21 +75,14 @@ registry
     .category("web_tour.tours")
     .add("discuss.meeting_view_tour", {
         steps: () => {
-            // Avoid starting with mic/camera to prevent an unhandleable browser permission popup.
+            // Start muted and without camera: a tour cannot handle the browser
+            // permission popup.
             browser.localStorage.setItem("discuss_call_preview_join_mute", "true");
             browser.localStorage.setItem("discuss_call_preview_join_video", "false");
             const steps = getMeetingViewTourSteps();
-            // Post the message from the meeting view's own composer, which is
-            // focused as soon as the view is up -- hence right AFTER the
-            // readiness step and before the invite-panel steps, which replace
-            // the side panel and leave no focused composer to type into.
-            // Located by marker rather than by a literal index because the
-            // welcome-page variant unshifts an extra step at the front.
-            //
-            // This used to be `steps.find(...)`, which returns the step OBJECT;
-            // `splice` coerced it to NaN -> 0, injecting these steps ahead of
-            // everything -- so the tour typed into a composer before anything
-            // had waited for the meeting view to exist.
+            // Post from the meeting view's own composer, focused only right after
+            // the readiness step (the invite panel replaces the side panel).
+            // Located by marker: the welcome-page variant unshifts a step.
             const meetingReadyIndex = steps.findIndex(
                 (step) => step.content === MEETING_READY_STEP,
             );

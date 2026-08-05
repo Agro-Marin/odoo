@@ -1,13 +1,9 @@
 import { patchWithCleanup } from "@web/../tests/helpers/utils";
 import { registry } from "@web/core/registry";
 
-// Resolve the live product-module instance from the loader registry, and only
-// inside steps() (i.e. when the tour actually runs on a discuss-capable page).
-// A static import would be eagerly resolved on EVERY page loading
-// web.assets_tests — including frontend/portal pages where the discuss bundle
-// (and this specifier) does not exist, killing all tours at pre-boot — and
-// would bind a second, unshared module instance anyway (test files load via
-// the import map only, not registerNativeModules).
+// Resolved from the loader inside steps(): a static import would be eagerly
+// resolved on every page loading web.assets_tests — killing all tours where the
+// discuss bundle is absent — and would bind a second, unshared instance.
 const getChannelMember = () =>
     odoo.loader.modules.get("@mail/discuss/core/common/channel_member_model")
         .ChannelMember;
