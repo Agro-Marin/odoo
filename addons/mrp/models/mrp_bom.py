@@ -224,10 +224,11 @@ class MrpBom(models.Model):
         subcomponents_dict = {}
 
         def _check_cycle(components, finished_products):
-            """
-            Check whether the components are part of the finished products (-> cycle). Then, if
-            these components have a BoM, repeat the operation with the subcomponents (recursion).
-            The method will return the list of product variants that creates the cycle
+            """Raise if the components are part of the finished products (-> cycle).
+
+            Components that have a BoM are recursed into with their subcomponents.
+
+            :raises ValidationError: naming the product variants forming the cycle
             """
             products_to_find = self.env["product.product"]
 
@@ -650,10 +651,12 @@ class MrpBom(models.Model):
     def explode(
         self, product, quantity, picking_type=False, never_attribute_values=False
     ):
-        """
-        Explodes the BoM and creates two lists with all the information you need: bom_done and line_done
-        Quantity describes the number of times you need the BoM: so the quantity divided by the number created by the BoM
-        and converted into its UoM
+        """Explode the BoM, expanding phantom (kit) sub-BoMs recursively.
+
+        :param quantity: the number of times the BoM is needed, i.e. the quantity
+            divided by the number the BoM creates and converted into its UoM
+        :return: (boms_done, lines_done), each a list of (record, values) tuples
+        :rtype: tuple(list, list)
         """
         self = self.with_context(
             bom_cost_share_cache=self.env.context.get("bom_cost_share_cache") or {}
@@ -688,13 +691,11 @@ class MrpBom(models.Model):
         bom_lines = []
         for bom_line in self.bom_line_ids:
             product_id = bom_line.product_id
-            # The 5th tuple element tracks the products whose phantom BoM has
-            # already been expanded on the path leading to this line (seeded with
-            # the finished product). It is the runtime cycle guard for phantom
-            # explosion: _check_bom_cycle resolves BoMs without the
-            # phantom/company/picking_type parameters explode() uses, so a
-            # phantom-specific cycle can slip past the constraint and would loop
-            # here forever.
+            # The 5th tuple element is the runtime cycle guard: the products whose phantom
+            # BoM was already expanded on the path to this line (seeded with the finished
+            # product). _check_bom_cycle resolves BoMs without the phantom/company/
+            # picking_type parameters explode() uses, so a phantom-only cycle slips past
+            # it and would loop here forever.
             bom_lines.append(
                 (bom_line, product, quantity, False, frozenset((product.id,)))
             )
@@ -929,14 +930,12 @@ class MrpBom(models.Model):
     def _skip_for_no_variant(
         self, product, bom_attribule_values, never_attribute_values=False
     ):
-        """Controls if a Component/Operation/Byproduct line should be skipped based on the 'no_variant' attributes
-        Cases:
-            - no_variant:
-                1. attribute present on the line
-                    => need to be at least one attribute value matching between the one passed as args and the ones one the line
-                2. attribute not present on the line
-                    => valid if the line has no attribute value selected for that attribute
-            - always and dynamic: match_all_variant_values()
+        """Controls if a Component/Operation/Byproduct line should be skipped based on
+        the 'no_variant' attributes.
+
+        A 'no_variant' attribute on the line needs at least one value in common with
+        `never_attribute_values`; 'always' and 'dynamic' ones go through
+        `product._match_all_variant_values`. The branches below take the cases in turn.
         """
         no_variant_bom_attributes = bom_attribule_values.filtered(
             lambda av: av.attribute_id.create_variant == "no_variant"
@@ -951,14 +950,14 @@ class MrpBom(models.Model):
         if not no_variant_bom_attributes:
             return not other_attribute_valid
 
-        # Or if there are never attribute on the line values but no value is passed => impossible to match
+        # Or if the line has no_variant attributes but no value is passed => cannot match
         if not never_attribute_values:
             return True
 
         bom_values_by_attribute = no_variant_bom_attributes.grouped("attribute_id")
         never_values_by_attribute = never_attribute_values.grouped("attribute_id")
 
-        # Or if there is no overlap between given line values attributes and the ones on on the bom
+        # Or if there is no overlap between the given values' attributes and the BoM's
         if not any(
             never_att_id in no_variant_bom_attributes.attribute_id.ids
             for never_att_id in never_attribute_values.attribute_id.ids
@@ -1164,7 +1163,7 @@ class MrpBomLine(models.Model):
 
     @api.depends("child_bom_id")
     def _compute_child_line_ids(self):
-        """If the BOM line refers to a BOM, return the ids of the child BOM lines"""
+        """Set the child BoM's lines on the line, when it refers to a BoM."""
         for line in self:
             line.child_line_ids = line.child_bom_id.bom_line_ids.ids or False
 
@@ -1211,13 +1210,8 @@ class MrpBomLine(models.Model):
 
     def _skip_bom_line(self, product, never_attribute_values=False):
         """Control if a BoM line should be produced, can be inherited to add custom control.
-        cases:
-            - no_variant:
-                1. attribute present on the line
-                    => need to be at least one attribute value matching between the one passed as args and the ones one the line
-                2. attribute not present on the line
-                    => valid if the line has no attribute value selected for that attribute
-            - always and dynamic: match_all_variant_values()
+
+        The attribute matching rules live in `mrp.bom._skip_for_no_variant`.
         """
         self.ensure_one()
         if not product or product._name == "product.template":

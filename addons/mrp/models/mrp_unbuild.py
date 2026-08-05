@@ -308,7 +308,8 @@ class MrpUnbuild(models.Model):
                 )
                 self.env["stock.move.line"].create(finished_move_line_vals)
 
-        # TODO: Will fail if user do more than one unbuild with lot on the same MO. Need to check what other unbuild has aready took
+        # TODO: will fail if the user does more than one unbuild with lot on the same MO.
+        # Need to check what the other unbuilds already took.
         qty_already_used = defaultdict(float)
         for move in produce_moves | consume_moves:
             if (

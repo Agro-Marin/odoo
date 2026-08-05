@@ -188,16 +188,12 @@ class MrpWorkcenter(models.Model):
             wc.kanban_dashboard_graph = json.dumps(load_graph_data[wc.id])
 
     def _get_week_range_and_first_last_days(self):
-        """We calculate the delta between today and the previous monday,
-        then add it to the delta between monday and the previous first day
-        of the week as configured in the language settings.
-        We use the result to calculate the modulo of 7 to make sure that
-        we do not take the previous first day of the week from 2 weeks ago.
+        """We calculate the delta between today and the previous monday, then add it to
+        the delta between monday and the previous first day of the week as configured in
+        the language settings, modulo 7 so we do not land on the first day of the week
+        from 2 weeks ago.
 
-        E.g. today is Thursday, the first of a week is a Tuesday.
-        The delta between today and Monday is 3 days.
-        The delta between Monday and the previous Tuesday is 6 days.
-        (3 + 6) % 7 = 2, so from today, the first day of the current week is 2 days ago.
+        E.g. today Thursday, weeks starting Tuesday: (3 + 6) % 7 = 2 days ago.
         """
         week_range = {}
         locale = get_lang(self.env).code
@@ -394,7 +390,7 @@ class MrpWorkcenter(models.Model):
                 workcenter.working_state = "blocked"
 
     def _compute_blocked_time(self):
-        # TDE FIXME: productivity loss type should be only losses, probably count other time logs differently ??
+        # FIXME: productivity loss type should be only losses, probably count other time logs differently
         data = self.env["mrp.workcenter.productivity"]._read_group(
             [
                 (
@@ -416,7 +412,7 @@ class MrpWorkcenter(models.Model):
             workcenter.blocked_time = count_data.get(workcenter.id, 0.0) / 60.0
 
     def _compute_productive_time(self):
-        # TDE FIXME: productivity loss type should be only losses, probably count other time logs differently
+        # FIXME: productivity loss type should be only losses, probably count other time logs differently
         data = self.env["mrp.workcenter.productivity"]._read_group(
             [
                 (
@@ -522,8 +518,7 @@ class MrpWorkcenter(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # resource_type is 'human' by default. As we are not living in
-        # /r/latestagecapitalism, workcenters are 'material'
+        # resource_type is 'human' by default; workcenters are 'material'
         return super(
             MrpWorkcenter, self.with_context(default_resource_type="material")
         ).create(vals_list)
@@ -583,12 +578,13 @@ class MrpWorkcenter(models.Model):
 
         The available interval is disjoint with all other reservations on this
         workcenter, but can overlap the time-off of the related calendar.
-        Return the first available interval (start datetime, end datetime) or,
-        if there is none before 700 days, a tuple error (False, 'error message').
+        Return the first available interval (start datetime, end datetime) or, if there
+        is none within the planning horizon, a tuple error (False, 'error message'). The
+        horizon is `mrp.workcenter_max_planning_iterations` fortnights, 700 days by default.
 
-        :param duration: minutes needed to make the workorder (float)
+        :param float duration: minutes needed to make the workorder
         :param start_datetime: begin the search at this datetime
-        :param forward: forward scheduling (search from start_datetime to 700 days after), or backward (from start_datetime to now)
+        :param forward: forward scheduling (search from start_datetime up to the horizon), or backward (from start_datetime to now)
         :param reservations_to_ignore: reservations to exclude when re-planning
         :param extra_leaves_slots: extra time slots (start, stop) to consider
         :rtype: tuple
@@ -627,7 +623,7 @@ class MrpWorkcenter(models.Model):
         now = localized(fields.Datetime.now())
         delta = timedelta(days=14)
         start_interval, stop_interval = None, None
-        for n in range(max_planning_iterations):  # 50 * 14 = 700 days in advance
+        for n in range(max_planning_iterations):  # 14 days each, 50 default = 700 days
             if forward:
                 date_start = start_datetime + delta * n
                 date_stop = date_start + delta
@@ -811,10 +807,7 @@ class MrpWorkcenterProductivityLossType(models.Model):
     _rec_name = "loss_type"
 
     def _compute_display_name(self):
-        """As 'category' field in form view is a Many2one, its value will be in
-        lower case. In order to display its value capitalized 'display_name' is
-        overrided.
-        """
+        """Capitalize the loss type for display, `loss_type` values being lower case."""
         for rec in self:
             rec.display_name = rec.loss_type.title()
 

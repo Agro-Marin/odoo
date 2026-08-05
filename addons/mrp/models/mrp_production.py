@@ -224,7 +224,7 @@ class MrpProduction(models.Model):
         domain="[('usage','=','internal')]",
         help="Location where the system will look for components.",
     )
-    # this field was added to be passed a default in view for manual raw moves
+    # passed as a default in the view for manually added raw moves
     warehouse_id = fields.Many2one(related="location_src_id.warehouse_id")
     location_dest_id = fields.Many2one(
         "stock.location",
@@ -926,7 +926,7 @@ class MrpProduction(models.Model):
                 }
             )
 
-    @api.depends("state")  # To get SAM moves after validation
+    @api.depends("state")  # to pick up the moves created during validation
     def _compute_picking_ids(self):
         move_per_production_group = self.env["stock.move"]._read_group(
             [("production_group_id", "in", self.production_group_id.ids)],
@@ -1004,7 +1004,7 @@ class MrpProduction(models.Model):
         picking, but has been adapted to support having no moves. This adaption
         includes some state changes outside of this compute.
 
-        There exist 3 extra steps for production:
+        There exist 2 extra steps for production:
         - progress: At least one item is produced or consumed.
         - to_close: The quantity produced is greater than the quantity to
         produce and all work orders has been finished.
@@ -1442,13 +1442,12 @@ class MrpProduction(models.Model):
             production.date_end = date_end
 
     def _calculate_expected_finished_date(self, date_start):
-        """
-        Return the expected completion date of production based on workcenter
+        """Return the expected completion date of production based on workcenter
         availability.
 
-        If at least one workorder has an unavailable workcenter, returns False.
-
-        :param date_start: begin the computation at this datetime (datetime)
+        :param datetime date_start: begin the computation at this datetime
+        :return: the completion datetime, or False when there are no workorders or
+            a workcenter has no calendar or no available slot
         """
         if not isinstance(date_start, datetime.datetime) or not self.workorder_ids:
             return False
@@ -1936,8 +1935,7 @@ class MrpProduction(models.Model):
             # Remove from `move_finished_ids` the by-product moves and then move `move_byproduct_ids`
             # into `move_finished_ids` to avoid duplicate and inconsistency.
             if vals.get("move_finished_ids") and vals.get("move_byproduct_ids"):
-                # Guard against non-CREATE commands (e.g. LINK/SET, whose [2]
-                # is not a values dict), which the old raw indexing assumed.
+                # Only CREATE commands carry a values dict at [2]; LINK/SET must pass through.
                 main_product_id = vals.get("product_id")
                 if main_product_id:
                     # Keep only the finished move for the MO's product;
@@ -1949,13 +1947,11 @@ class MrpProduction(models.Model):
                         or command[2].get("product_id") == main_product_id
                     ]
                 else:
-                    # No product_id (precomputed product): the main finished
-                    # move cannot be singled out, so instead drop the
-                    # by-product subset already present in move_finished_ids —
-                    # appending move_byproduct_ids on top of it would silently
-                    # duplicate every by-product move. A CREATE without
-                    # product_id identifies nothing and must never match (it
-                    # could be the main move itself), hence the truthy filter.
+                    # No product_id (precomputed product): the main finished move cannot
+                    # be singled out, so drop the by-product subset already present in
+                    # move_finished_ids — appending move_byproduct_ids on top would
+                    # duplicate every by-product move. The truthy filter keeps a CREATE
+                    # without product_id from matching anything.
                     byproduct_product_ids = {
                         command[2].get("product_id")
                         for command in vals["move_byproduct_ids"]
@@ -2046,8 +2042,7 @@ class MrpProduction(models.Model):
                 # if no value is specified, do take the workorder duration (etc) into account
                 rec.move_finished_ids.write({"date": rec.date_end})
         if reference_vals_list:
-            # References are system-managed plumbing: manufacturing users have
-            # no create rights on stock.reference.
+            # Only stock users can create stock.reference; the MO creator may not be one.
             self.env["stock.reference"].sudo().create(reference_vals_list)
         return res
 
@@ -2169,7 +2164,7 @@ class MrpProduction(models.Model):
         """Returns the BoM lines, by-products and operations values needed to
         create a new BoM from this Manufacturing Order.
         :return: A tuple containing the BoM lines, by-products and operations values, in this order
-        :rtype: tuple(dict, dict, dict)
+        :rtype: tuple(list, list, list)
         """
         self.ensure_one()
 
@@ -2512,7 +2507,7 @@ class MrpProduction(models.Model):
             old_qty = move.product_uom_qty
             new_qty = move.product_uom_id.round(old_qty * factor, rounding_method="UP")
             if new_qty > 0:
-                # procurement and assigning is now run in write
+                # procurement and assigning are run in write
                 move.write({"product_uom_qty": new_qty})
                 update_info.append((move, old_qty, new_qty))
             if move.reference_ids != self.reference_ids:
@@ -2532,7 +2527,7 @@ class MrpProduction(models.Model):
 
     def _get_ready_to_produce_state(self):
         """returns 'assigned' if enough components are reserved in order to complete
-        the first operation of the bom. If not returns 'waiting'
+        the first operation of the bom. If not returns 'confirmed'
         """
         self.ensure_one()
         operations = self.workorder_ids.operation_id
@@ -2829,7 +2824,7 @@ class MrpProduction(models.Model):
         return True
 
     def button_plan(self):
-        """Create work orders. And probably do stuff, like things."""
+        """Confirm the draft productions and plan their workorders."""
         orders_to_plan = self.filtered(lambda order: not order.is_planned)
         orders_to_confirm = orders_to_plan.filtered(lambda mo: mo.state == "draft")
         orders_to_confirm.action_confirm()
@@ -3101,15 +3096,10 @@ class MrpProduction(models.Model):
                 filtered_documents[(parent, responsible)] = rendering_context
             production._log_manufacture_exception(filtered_documents, cancel=True)
 
-        # In case of a flexible BOM, we don't know from the state of the moves if the MO should
-        # remain in progress or done. Indeed, if all moves are done/cancel but the quantity produced
-        # is lower than expected, it might mean:
-        # - we have used all components but we still want to produce the quantity expected
-        # - we have used all components and we won't be able to produce the last units
-        #
-        # However, if the user clicks on 'Cancel', it is expected that the MO is either done or
-        # canceled. If the MO is still in progress at this point, it means that the move raws
-        # are either all done or a mix of done / canceled => the MO should be done.
+        # With a flexible BoM the move states cannot tell whether the MO should stay in
+        # progress or be done: every move may be done/cancel while less than expected was
+        # produced. An explicit Cancel must leave the MO done or cancelled, and raw moves
+        # that are all done or a done/cancel mix mean done.
         mos_to_mark_as_done = self.filtered(
             lambda p: (
                 p.state not in ["done", "cancel"] and p.bom_id.consumption == "flexible"
@@ -3260,8 +3250,8 @@ class MrpProduction(models.Model):
         an additional backorder, e.g. having product_qty=5 if mrp.production(1,) product_qty was 10.
         :param bool set_consumed_qty: whether to set quantity on move lines to the reserved quantity
         or the initial demand if no reservation, except for the remaining backorder.
-        :return: mrp.production records in order of [orig_prod_1, backorder_prod_1,
-        backorder_prod_2, orig_prod_2, backorder_prod_2, etc.]
+        :return: mrp.production records in `self` order, each production immediately
+        followed by its own backorders
         """
 
         amounts, has_backorder_to_ignore = self._get_split_amounts(
@@ -3399,7 +3389,7 @@ class MrpProduction(models.Model):
         new_moves_vals = []
         split_moves = []
         move_to_backorder_moves = {}
-        # unlink all unregistered move lines linked a move containing an effictive registration
+        # drop the unpicked move lines of moves that already have a picked quantity
         (self.move_raw_ids | self.move_finished_ids).filtered(
             lambda m: m.picked and not m.additional
         ).move_line_ids.filtered(lambda ml: not ml.picked).unlink()
@@ -3695,8 +3685,8 @@ class MrpProduction(models.Model):
                 }
             )
 
-        # It is prudent to reserve any quantity that has become available to the backorder
-        # production's move_raw_ids after the production which spawned them has been marked done.
+        # Reserve whatever became available to the backorders' move_raw_ids now that the
+        # production which spawned them is done.
         backorders_to_assign = backorders.filtered(
             lambda order: order.picking_type_id.reservation_method == "at_confirm"
         )
@@ -3832,20 +3822,22 @@ class MrpProduction(models.Model):
 
         quantity_issues = self._get_quantity_produced_issues()
         if quantity_issues:
-            mo_ids_always = []  # we need to pass the mo.ids in a context, so collect them to avoid looping through the list twice
-            mos_ask = []  # we need to pass a list of mo records to the backorder wizard, so collect records
+            mo_ids_always = []  # ids: passed through the context
+            mos_ask = []  # records: passed to the backorder wizard
             for mo in quantity_issues:
                 if mo.picking_type_id.create_backorder == "always":
                     mo_ids_always.append(mo.id)
                 elif mo.picking_type_id.create_backorder == "ask":
                     mos_ask.append(mo)
             if mos_ask:
-                # any "never" MOs will be passed to the wizard, but not considered for being backorder-able, always backorder mos are hack forced via context
+                # "never" MOs reach the wizard but are not backorder-able; the "always"
+                # ones are forced through the context instead.
                 return self.with_context(
                     always_backorder_mo_ids=mo_ids_always
                 )._action_generate_backorder_wizard(mos_ask)
             elif mo_ids_always:
-                # we have to pass all the MOs that the nevers/no issue MOs are also passed to be "mark done" without a backorder
+                # pass every MO so the "never"/issue-free ones are marked done without
+                # a backorder.
                 res = self.with_context(
                     skip_backorder=True, mo_ids_to_backorder=mo_ids_always
                 ).button_mark_done()
@@ -3944,9 +3936,7 @@ class MrpProduction(models.Model):
     def _log_downside_manufactured_quantity(self, moves_modification, cancel=False):
 
         def _keys_in_groupby(move):
-            """group by picking and the responsible for the product the
-            move.
-            """
+            """Group by the move's picking and the product's responsible."""
             return (move.picking_id, move.product_id.responsible_id)
 
         def _render_note_exception_quantity_mo(rendering_context):
@@ -4431,7 +4421,7 @@ class MrpProduction(models.Model):
         return bom_qty / self.product_uom_qty
 
     def _check_sn_uniqueness(self):
-        """Alert the user if the serial number as already been consumed/produced"""
+        """Raise if a serial number has already been consumed or produced."""
         self.ensure_one()
         if self.product_tracking == "serial" and self.lot_producing_ids:
             lots_to_check = self.lot_producing_ids.filtered(
