@@ -892,8 +892,6 @@ test("attr that are default [] should be isolated per record", async () => {
 });
 
 test("record.toData() is JSON stringified and can be reinserted as record", async () => {
-    // If the default value is stored and reused for all records,
-    // this could lead to mistakenly sharing the default value among records
     (class Person extends Record {
         static id = "id";
         id;
@@ -1245,13 +1243,10 @@ test("Can assign new record on Many field with One inverse", async () => {
 
 test("Deleted records are not returned by 'Model.records' nor 'Model.get()'", async () => {
     /**
-     * Record has a 2-step record deletion:
-     * - "soft" deletion, where the record is flagged for deletion but object is not removed from the store system structurally
-     * - "hard" deletion, where the object is fully removed from store system structurally
-     * The soft "deletion" is useful for stuffs like onDelete() hooks that tell which record has been removed from a relation,
-     * with object reference, even when the record will be hard-deleted as a consequence.
-     * `Model.records` and `Model.get()` are intended for business-code uses, therefore they should make sure to not return
-     * records that are soft-deleted, as this could lead to critical section where business code is using a deleted record.
+     * Deletion is 2-step: "soft" flags the record while keeping the object in
+     * the store (so onDelete() hooks still get the reference), "hard" removes
+     * it structurally. `Model.records` and `Model.get()` are for business code
+     * and must never hand out a soft-deleted record.
      */
     function assertExists(store) {
         const msg = store.Message.get("msg-1");
@@ -1315,15 +1310,8 @@ test("Deleted records are not returned by 'Model.records' nor 'Model.get()'", as
 });
 
 test("Delete record with side-effect compute to insert it should have resulting record with only insert data (old data is removed)'", async () => {
-    /**
-     * Record has a 2-step record deletion:
-     * - "soft" deletion, where the record is flagged for deletion but object is not removed from the store system structurally
-     * - "hard" deletion, where the object is fully removed from store system structurally
-     * The soft "deletion" is useful for stuffs like onDelete() hooks that tell which record has been removed from a relation,
-     * with object reference, even when the record will be hard-deleted as a consequence.
-     * `Model.records` and `Model.get()` are intended for business-code uses, therefore they should make sure to not return
-     * records that are soft-deleted, as this could lead to critical section where business code is using a deleted record.
-     */
+    // The onDelete() hook re-inserts the state while the old one is only
+    // soft-deleted: the re-inserted record must carry the insert data alone.
     (class DiscussApp extends Record {
         static id;
         state = fields.One("DiscussAppState", {
@@ -1896,17 +1884,14 @@ test("RecordUses reference-counts membership and empties on removal", async () =
     const thread = store.Thread.insert("General");
     const message = store.Message.insert(1);
     const uses = toRaw(message)._raw._.uses;
-    // assign() does not dedupe within a payload path, but add() does: one
-    // membership => one use entry with count 1
+    // one membership => one use entry with count 1
     thread.messages.add(message);
     expect(uses.data.get(toRaw(thread)._raw).get("messages")).toBe(1);
-    // the same record in a SECOND relation of the same owner counts separately
     (class Thread2 extends Record {
         static id = "name";
         name;
         pinned = fields.Many("Message");
     }).register(localRegistry);
-    // second relation on the same thread: add message to a distinct field
     thread.messages.add(message); // already a member: no double count
     expect(uses.data.get(toRaw(thread)._raw).get("messages")).toBe(1);
     // removing the membership drops the field entry, and with no fields left

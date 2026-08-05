@@ -999,10 +999,8 @@ test('mark a single message as read should only move this message to "History" m
 });
 
 test("failed mark-as-read rolls back so the message stays in Inbox", async () => {
-    // Regression: setDone optimistically removed the message and decremented
-    // the counter before the RPC; on failure no correcting bus event arrives,
-    // so without a rollback the inbox and its counter stayed wrong until a
-    // reload. The message must be restored on failure.
+    // setDone() removes the message and decrements the counter before the RPC;
+    // no correcting bus event arrives on failure, so it must roll back itself.
     const pyEnv = await startServer();
     pyEnv["res.users"].write(serverState.userId, { notification_type: "inbox" });
     const messageId = pyEnv["mail.message"].create({
@@ -1028,8 +1026,7 @@ test("failed mark-as-read rolls back so the message stays in Inbox", async () =>
     });
     // the mark-as-read RPC was attempted and failed...
     await waitForSteps(["set_message_done"]);
-    // ...and the optimistic removal was rolled back: the message is still in
-    // the inbox (before the fix it was dropped with no correcting bus event).
+    // ...and the optimistic removal was rolled back: still in the inbox
     await contains(".o-mail-Message", { text: "needy" });
 });
 
@@ -2128,9 +2125,8 @@ test("failure on loading messages should prompt retry button", async () => {
 });
 
 test("failure on loading more messages should display error and prompt retry button", async () => {
-    // first call needs to be successful as it is the initial loading of messages
-    // second call comes from load more and needs to fail in order to show the error alert
-    // any later call should work so that retry button and load more clicks would now work
+    // the first call is the initial loading and must succeed; the second one
+    // comes from "Load More" and must fail to raise the error alert
     let messageFetchShouldFail = false;
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
@@ -2169,11 +2165,10 @@ test("failure on loading more messages should display error and prompt retry but
 });
 
 test("Retry loading more messages on failed load more messages should load more messages", async () => {
-    // The initial load and the retry/success loads use the real handler; only the
-    // "load more" that must fail goes through messageFetchDeferred. It is rejected
-    // only once the fetch is in flight (waitForSteps), so that while it is pending a
-    // duplicate IntersectionObserver fire no-ops on status "loading" and cannot leave
-    // an orphaned fetch racing the retry click.
+    // Only the "load more" that must fail goes through messageFetchDeferred; it
+    // is rejected once the fetch is in flight (waitForSteps), so a duplicate
+    // IntersectionObserver fire no-ops on status "loading" instead of leaving an
+    // orphaned fetch racing the retry click.
     let messageFetchDeferred;
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
