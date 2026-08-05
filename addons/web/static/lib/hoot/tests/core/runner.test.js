@@ -224,4 +224,32 @@ describe(parseUrl(import.meta.url), () => {
             await runner._raceHookTimeout("after-test", { name: "t" }, async () => {}),
         ).toBe(null);
     });
+    test("what the orphaned hooks throw after the timeout is dropped", async () => {
+        // The orphan resolves once the test is over and its environment torn
+        // down, so reporting its fallout would fail a second, unrelated test on
+        // top of the one that timed out.
+        const runner = makeTestRunner();
+        runner.config.hookTimeout = 10;
+        // The instance is throwaway (see makeTestRunner), so no cleanup needed.
+        const reported = [];
+        runner._handleError = (error) => reported.push(error);
+
+        let lateOnError;
+        const error = await runner._raceHookTimeout(
+            "before-test",
+            { name: "stuck test" },
+            (onError) => {
+                lateOnError = onError;
+                onError(new Error("while the hooks still owned the test"));
+                return new Promise(() => {});
+            },
+        );
+
+        expect(error).not.toBe(null);
+        // Raised before the timeout: the hooks still owned the test, so it stands.
+        expect(reported).toHaveLength(1);
+
+        lateOnError(new Error("after the timeout, from the orphan"));
+        expect(reported).toHaveLength(1);
+    });
 });

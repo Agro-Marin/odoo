@@ -1007,9 +1007,9 @@ export class Runner {
             const beforeTestError = await this._raceHookTimeout(
                 "before-test",
                 test,
-                async () => {
+                async (onError) => {
                     for (const callbackRegistry of [...callbackChain].reverse()) {
-                        await callbackRegistry.call("before-test", test, handleError);
+                        await callbackRegistry.call("before-test", test, onError);
                     }
                 },
             );
@@ -1058,12 +1058,15 @@ export class Runner {
                 });
 
             const { lastResults } = test;
-            const afterTestError = await this._raceHookTimeout("after-test", test, () =>
-                this._execAfterCallback(async () => {
-                    for (const callbackRegistry of callbackChain) {
-                        await callbackRegistry.call("after-test", test, handleError);
-                    }
-                }),
+            const afterTestError = await this._raceHookTimeout(
+                "after-test",
+                test,
+                (onError) =>
+                    this._execAfterCallback(async () => {
+                        for (const callbackRegistry of callbackChain) {
+                            await callbackRegistry.call("after-test", test, onError);
+                        }
+                    }),
             );
             if (afterTestError) {
                 handleError(afterTestError);
@@ -1518,16 +1521,30 @@ export class Runner {
      * non-null return; the test itself then fails on "no assertions ran", since
      * a HootError bypasses the per-test result (see `_handleError`).
      *
+     * Because that branch cannot be cancelled, `runHooks` receives its error
+     * handler from here rather than closing over the runner's: once the timeout
+     * has won, anything the orphan goes on to throw is dropped. It resolves
+     * after the test is over, when the environment it was building is already
+     * torn down, so its errors would land on whichever test is current by
+     * then — failing a second, unrelated test on top of the one that actually
+     * timed out. The timeout itself was already reported; the orphan's fallout
+     * adds no information.
+     *
      * @param {"before-test" | "after-test"} phase
      * @param {Test} test
-     * @param {() => Promise<void>} runHooks
+     * @param {(onError: Runner["_handleError"]) => Promise<void>} runHooks
      * @returns {Promise<Error | null>}
      */
     async _raceHookTimeout(phase, test, runHooks) {
         const hookTimeout = $floor(this.config.hookTimeout);
         let error = null;
+        const onHookError = (reason) => {
+            if (!error) {
+                return this._handleError(reason);
+            }
+        };
         await Promise.race([
-            runHooks(),
+            runHooks(onHookError),
             new Promise((_, reject) =>
                 nativeSetTimeout(
                     () =>
