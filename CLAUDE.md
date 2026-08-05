@@ -1,8 +1,14 @@
-# AgroMarin Odoo 19 — Core Framework Fork (`addons/odoo`)
+# AgroMarin Odoo 19 — Core Framework Fork
 
 This repository is **a fork of Odoo Community 19.0**
 (`github.com/Agro-Marin/odoo`): the Odoo framework plus its bundled base addons.
 
+> This repo is deployed as one checkout inside a larger workspace. Environment
+> setup, launch commands, addons_path priority, and concurrent-session rules
+> live in that workspace's root `CLAUDE.md` — wherever the checkouts are
+> assembled. This file covers only what is specific to the `odoo` checkout,
+> wherever it is cloned.
+>
 > Throughout this file, **"repo root"** means the directory that contains this
 > file — the `odoo` checkout itself.
 
@@ -62,8 +68,8 @@ carries is a coding standard, not a recipe: `doc/coding_guidelines.rst` §6.7.
 source** for AgroMarin coding standards — built on Odoo 19.0 + OCA conventions,
 and authoritative where it speaks; where it is silent, follow upstream Odoo 19 /
 OCA. It supersedes any other `coding_guidelines` file inside a code repo and is
-canonical for **all** AgroMarin repos in the workspace (`odoo`, `enterprise`,
-`agromarin`, `design-themes`, `knowledge`), which defer to it. Each rule names the
+canonical for **all** AgroMarin Odoo-code repos — sibling checkouts defer to
+it. Each rule names the
 gate that catches it — `[ruff CODE]`, `[test_lint CODE]`, `[fixer NAME]` or
 `[review]`; see *How rules are enforced* at the top of the guide.
 
@@ -83,7 +89,8 @@ Related:
   `odoo/` only). The ratchet runs in `exact` mode, so **lowering** the count fails
   the build too — commit the new floor with
   `python tooling/ratchet/ratchet.py ruff --count <N> --update` in the same PR.
-  See *The ratchets* in the guide.
+  Ruff is one of several ratcheted gates (`mypy`, `tsc`, `eslint`, JS
+  size/privacy checks — see the baselines dir). See *The ratchets* in the guide.
 - `odoo/addons/test_lint/` — the fork's own AST checkers and registry gates. Not
   wired into CI; run it yourself with
   `odoo-bin -d <db> -i test_lint --test-enable --stop-after-init`.
