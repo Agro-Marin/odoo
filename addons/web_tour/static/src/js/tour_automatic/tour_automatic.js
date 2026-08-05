@@ -80,6 +80,31 @@ export class TourAutomatic {
                             }, 20000);
                         }
                         await step.doAction();
+                        if (!this.allowUnload) {
+                            // Let the DOM catch up before the next step looks at
+                            // it. `Macro.advance` chains straight into
+                            // `waitForTrigger`, whose predicate runs SYNCHRONOUSLY
+                            // on its first call -- so the next step was inspecting
+                            // the page in the same task as the action that had just
+                            // changed it, before OWL had rendered anything.
+                            //
+                            // That is a correctness problem, not a speed one: a
+                            // step's guards are decided against a stale DOM. It is
+                            // what made `tour_check_modal` pass -- the step clicked
+                            // a button behind a dialog because `elementIsInModal`
+                            // ran before the dialog it was supposed to notice
+                            // existed. One frame is the right amount: OWL schedules
+                            // its render with `requestAnimationFrame` during the
+                            // action, so a frame requested *after* it is guaranteed
+                            // to run once that render has landed.
+                            //
+                            // Skipped when the step declared `expectUnloadPage`:
+                            // the page is navigating away and there is no next
+                            // step here to protect.
+                            await new Promise((resolve) =>
+                                browser.requestAnimationFrame(resolve),
+                            );
+                        }
                         if (this.debugMode) {
                             console.log(trigger);
                             if (step.skipped) {

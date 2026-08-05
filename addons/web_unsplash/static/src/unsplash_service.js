@@ -34,25 +34,26 @@ export const unsplashService = {
                         };
                     }
 
-                    const xhr = new XMLHttpRequest();
-                    xhr.upload.addEventListener("progress", (ev) => {
-                        const rpcComplete = (ev.loaded / ev.total) * 100;
-                        file.progress = rpcComplete;
+                    // No upload progress to report, and there never really was.
+                    // This posts a small JSON of image URLs; the server is what
+                    // downloads the images, so the old XMLHttpRequest
+                    // `upload.progress` listener was measuring the request body
+                    // and reached 100% immediately. That listener was passed to
+                    // `rpc()` as an `{ xhr }` setting, which stopped being
+                    // honoured when rpc moved to `fetch()` (34d4d0640a6) and
+                    // became a hard error once settings were validated
+                    // (8e7a2fc2e8e) -- so every Unsplash upload threw
+                    // `Invalid RPC setting(s): "xhr"` before sending anything.
+                    // fetch() cannot report request-body progress, and there is
+                    // nothing meaningful to report here anyway: mark the request
+                    // as sent and let `uploaded` signal the real completion.
+                    file.progress = 100;
+                    const attachments = await rpc("/web_unsplash/attachment/add", {
+                        res_id: resId,
+                        res_model: resModel,
+                        unsplashurls: urls,
+                        query: records[0].query,
                     });
-                    xhr.upload.addEventListener("load", function () {
-                        // Don't show yet success as backend code only starts now
-                        file.progress = 100;
-                    });
-                    const attachments = await rpc(
-                        "/web_unsplash/attachment/add",
-                        {
-                            res_id: resId,
-                            res_model: resModel,
-                            unsplashurls: urls,
-                            query: records[0].query,
-                        },
-                        { xhr }
-                    );
 
                     if (attachments.error) {
                         file.hasError = true;

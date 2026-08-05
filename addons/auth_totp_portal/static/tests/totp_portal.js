@@ -22,8 +22,14 @@ registry.category("web_tour.tours").add('totportal_tour_setup', {
     content: "Check the wizard has opened",
     trigger: '.o_auth_totp_enable_2FA',
 }, {
-    content: "Get secret from collapsed div",
-    trigger: 'a:contains("Cannot scan it?")',
+    content: "Get secret from the disclosure widget",
+    // This portal page renders auth_totp.view_totp_wizard's combined arch, so it
+    // inherited the <details>/<summary> conversion from 9251982dca8 along with
+    // the wizard. The anchor this looked for stopped existing then; the failure
+    // stayed latent because auth_totp_portal is not installed by a base-only
+    // test run. The next step's `span[name=secret]:hidden` still holds: a closed
+    // <details> hides its content exactly as the old `.collapse` did.
+    trigger: 'details > summary:contains("Cannot scan it?")',
 },
 {
     trigger: `span[name="secret"]:hidden`,

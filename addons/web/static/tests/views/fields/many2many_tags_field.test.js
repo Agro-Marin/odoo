@@ -2094,6 +2094,15 @@ test("removing a tag, restoring it, and removing it again still reaches the serv
     expect(MockServer.env["partner"].browse(1)[0].timmy).toEqual([]);
 });
 
+// Desktop-only, like the two other tests in this file that read
+// `.o-autocomplete--dropdown-item`: on mobile the widget opens a kanban
+// select-create dialog (`.o_kanban_record`) instead of the autocomplete list,
+// so `offersCreate()` matched nothing there. That made the mobile run fail its
+// two positive assertions and pass the negative one VACUOUSLY -- it was proving
+// nothing about the domain on mobile while still gating the build. The logic
+// under test (useActiveActions recomputing off stale props) is platform
+// independent and stays covered by the desktop run.
+test.tags("desktop");
 test("create-domain follows the record the pager lands on", async () => {
     // `useActiveActions` recomputes from onWillUpdateProps, where `this.props`
     // still points at the record being left -- so a hook reading it answered

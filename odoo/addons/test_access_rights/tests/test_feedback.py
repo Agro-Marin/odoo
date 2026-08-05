@@ -638,17 +638,41 @@ Groups: allowed for groups 'Role / Portal', 'Test Group'"""
             self.inherits_record.search([("forbidden3", "=", 58)])
 
     @mute_logger("odoo.models")
-    def test_check_field_access_rights_order(self):
+    def test_check_field_access_rights_order_drops_unreadable_terms(self):
+        """An ORDER BY term the user may not read is dropped, not refused.
+
+        This asserted ``AccessError`` until the ordering path stopped raising.
+        Refusing is not an option there: ``_order_to_sql`` also runs for the
+        model's own ``_order`` on a model-level (empty) recordset, and
+        ``_has_field_access`` can be record-sensitive -- ``res.users`` grants
+        ``SELF_READABLE_FIELDS`` only when ``self._origin == self.env.user`` --
+        so an empty recordset fails closed and users could no longer sort, or
+        open the preferences form for, their own record.
+
+        Dropping still leaks nothing, which is the half worth pinning: the
+        term must not reach the SQL, because sequencing rows on a value the
+        caller cannot see exposes it as relative order, and ``limit``/``offset``
+        walks that order out record by record.
+        """
         self.record.search([], order="val")
 
-        with self.assertRaises(AccessError):
-            self.record.search([], order="forbidden3 DESC")
+        # Dropped, not refused.
+        self.record.search([], order="forbidden3 DESC")
+        self.record.search([], order="forbidden3")
+        self.record.search([], order="val DESC,    forbidden3       DESC")
 
-        with self.assertRaises(AccessError):
-            self.record.search([], order="forbidden3")
+        # ...and genuinely dropped: the column never reaches the query, in any
+        # spelling. Asserting only "did not raise" would also pass if the term
+        # were quietly honoured, which is the leak this behaviour exists to
+        # prevent.
+        for order in ("forbidden3", "forbidden3 DESC", "val DESC, forbidden3 DESC"):
+            query = self.record._search([], order=order)
+            self.assertNotIn("forbidden3", str(query.select()), f"order={order!r}")
 
-        with self.assertRaises(AccessError):
-            self.record.search([], order="val DESC,    forbidden3       DESC")
+        # A readable term in the same clause still orders the query -- dropping
+        # is per-term, not "give up on the whole ORDER BY".
+        query = self.record._search([], order="val DESC, forbidden3 DESC")
+        self.assertIn("val", str(query.select()))
 
     @mute_logger("odoo.models")
     def test_check_field_access_rights_read_group(self):
