@@ -18,7 +18,7 @@
 | `boot/` | misc | 2 | `main.js` / `start.js` — backend entry points that build the env and mount `WebClient` |
 | `components/` | features | 12 | Module faces for the component directories below (barcode, datetime, dropdown, dropzone, file_upload, file_viewer, model_field_selector, record_selectors, signature, tree_editor) |
 | `components/action_swiper/` | features | 1 | Touch swipe component that triggers actions on left/right swipe gestures |
-| `components/autocomplete/` | features | 1 | Generic autocomplete dropdown with multi-source results and keyboard navigation |
+| `components/autocomplete/` | features | 2 | Generic autocomplete dropdown with multi-source results and keyboard navigation, plus the shared quick-search core (`name_search.js`) both record autocompletes consume |
 | `components/barcode/` | features | 4 | Camera barcode scanning: video scanner, its dialog, a draggable crop overlay, and a ZXing `BarcodeDetector` polyfill |
 | `components/checkbox/` | features | 1 | Accessible checkbox component with label slot and hotkey support |
 | `components/code_editor/` | features | 1 | Ace-based code editor component with syntax highlighting and theme support |
@@ -190,7 +190,7 @@
 | `ui/popover/` | shared | 4 | `popover` service, the component, its hook, and the detached-target watcher |
 | `ui/pwa/` | shared | 2 | `pwa` service (install prompt) and the Safari install-instructions dialog |
 | `ui/tooltip/` | shared | 2 | `tooltip` service driven by `data-tooltip` attributes, and its component |
-| `views/` | widgets | 25 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, and the per-view faces (form, list, kanban, calendar, graph, pivot) |
+| `views/` | widgets | 27 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, the shared multi-record renderer layer (`multi_record_selection.js`, `multi_record_group.js`), and the per-view faces (form, list, kanban, calendar, graph, pivot) |
 | `views/calendar/` | widgets | 8 | Calendar view: arch parser, model, controller, renderer, record wrapper, date-range and utility helpers |
 | `views/calendar/calendar_common/` | widgets | 3 | Day/week/month renderer and its event popover |
 | `views/calendar/calendar_filter_section/` | widgets | 1 | Collapsible sidebar filter section for one calendar filter field |
@@ -208,7 +208,7 @@
 | `views/form/setting/` | widgets | 1 | Individual setting row with label, help text, company-dependent icon |
 | `views/form/status_bar_buttons/` | widgets | 1 | Status-bar action buttons with overflow dropdown |
 | `views/graph/` | widgets | 8 | Graph view: arch parser, model, controller, renderer (lazy `loadChartJS`), chart config, search model |
-| `views/kanban/` | widgets | 19 | Kanban view: arch parser, compiler, model wiring, renderer, record and header components, quick creates, progress-bar hook with local drag-move reconcile, sortable/selection/keyboard hooks |
+| `views/kanban/` | widgets | 18 | Kanban view: arch parser, compiler, model wiring, renderer, record and header components, quick creates, progress-bar hook with local drag-move reconcile, sortable/keyboard hooks (selection now via the shared multi-record layer) |
 | `views/list/` | widgets | 22 | List view: arch parser, controller, renderer, per-row `ListRecordRow`, column widths and utilities, aggregates, grouping, sorting, selection, virtualization, keyboard nav/edit, focus geometry, styling |
 | `views/list/export_all/` | widgets | 1 | Cog-menu item triggering direct XLSX export of all records |
 | `views/pivot/` | widgets | 12 | Pivot view: arch parser, model, controller, renderer, group tree, aggregation, measurements, value utilities, XLSX export trigger |
@@ -229,7 +229,7 @@
 | `views/widgets/signature/` | widgets | 1 | Opens a signature dialog and writes the captured image to a field |
 | `views/widgets/week_days/` | widgets | 1 | Seven day-of-week checkboxes respecting the locale's week start |
 | `webclient/` | pages | 7 | App shell root: `WebClient`, the `currency` / `reloadCompany` / `lazy_session` / `service_worker` services, swipe navigation, and the `actions` face |
-| `webclient/actions/` | pages | 23 | Action manager: the `action` service, dispatch and loading, button executor, container and controller components, breadcrumb manager/cache, URL and storage state, cache invalidation |
+| `webclient/actions/` | pages | 24 | Action manager: the `action` service, the navigation clock (`navigation_token.js`), dispatch and loading, button executor, container and controller components, breadcrumb manager/cache, URL and storage state, cache invalidation |
 | `webclient/actions/action_executors/` | pages | 5 | One executor per action type: `act_url`, `act_window`, `client`, `close`, `server` |
 | `webclient/actions/reports/` | pages | 4 | Report client action: HTML report in an iframe, its executor and hook |
 | `webclient/actions/reports/layout_assets/` | pages | 0 | Report layout SCSS assets |
