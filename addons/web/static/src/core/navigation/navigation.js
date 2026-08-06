@@ -104,15 +104,32 @@ class NavigationItem {
         }
 
         const onFocus = () => this.setActive(false);
-        const onMouseMove = () => this._onMouseMove();
-
         this.target.addEventListener("focus", onFocus);
-        this.target.addEventListener("mousemove", onMouseMove);
 
-        this._removeListeners = () => {
-            this.target.removeEventListener("focus", onFocus);
-            this.target.removeEventListener("mousemove", onMouseMove);
-        };
+        if (this._options.mouseActivation === "armed") {
+            // Armed hover: the pointer only speaks once it has moved since the
+            // last keyboard action (see Navigator._rearmMouse). Activation
+            // rides mouseenter/mouseleave on the hover surface, which may be a
+            // larger element than the item itself -- a list row around the
+            // anchor that carries the item's identity.
+            const hoverTarget = this._options.getHoverTarget?.(el) ?? this.target;
+            const onMouseEnter = () => this._onArmedMouseEnter();
+            const onMouseLeave = () => this._onArmedMouseLeave();
+            hoverTarget.addEventListener("mouseenter", onMouseEnter);
+            hoverTarget.addEventListener("mouseleave", onMouseLeave);
+            this._removeListeners = () => {
+                this.target.removeEventListener("focus", onFocus);
+                hoverTarget.removeEventListener("mouseenter", onMouseEnter);
+                hoverTarget.removeEventListener("mouseleave", onMouseLeave);
+            };
+        } else {
+            const onMouseMove = () => this._onMouseMove();
+            this.target.addEventListener("mousemove", onMouseMove);
+            this._removeListeners = () => {
+                this.target.removeEventListener("focus", onFocus);
+                this.target.removeEventListener("mousemove", onMouseMove);
+            };
+        }
     }
 
     select() {
@@ -123,7 +140,7 @@ class NavigationItem {
     setActive(focus = true) {
         scrollTo(this.target);
         this._navigator._setActiveItem(this.index);
-        this.target.classList.add(ACTIVE_ELEMENT_CLASS);
+        this.target.classList.add(this._options.activeClass);
         this._setAriaSelected("true");
 
         if (focus && !this._options.virtualFocus) {
@@ -133,7 +150,7 @@ class NavigationItem {
     }
 
     setInactive(blur = true) {
-        this.target.classList.remove(ACTIVE_ELEMENT_CLASS);
+        this.target.classList.remove(this._options.activeClass);
         this._setAriaSelected("false");
         if (blur && !this._options.virtualFocus) {
             this.target.blur();
@@ -160,6 +177,34 @@ class NavigationItem {
         ) {
             this.setActive(false);
             this._options.onMouseEnter?.(this);
+        }
+    }
+
+    /**
+     * @private
+     */
+    _onArmedMouseEnter() {
+        if (
+            this._navigator.isMouseArmed &&
+            this._navigator.activeItem !== this &&
+            this._navigator._isNavigationAvailable(this.target)
+        ) {
+            this.setActive(false);
+            this._options.onMouseEnter?.(this);
+        }
+    }
+
+    /**
+     * The pointer walking off an item withdraws the highlight; a mouseleave
+     * the pointer did not cause -- the list re-rendering or moving under a
+     * still cursor -- must not, which is exactly what the arming gate keeps
+     * out.
+     *
+     * @private
+     */
+    _onArmedMouseLeave() {
+        if (this._navigator.isMouseArmed) {
+            this._navigator.clearActiveItem();
         }
     }
 }
@@ -201,6 +246,18 @@ export class Navigator {
         /** @private */
         this._options = mergeNavigationOptions(this._makeDefaultOptions(), options);
 
+        /**
+         * @private
+         * @type {boolean}
+         */
+        this._mouseArmed = false;
+        /**
+         * @private
+         * @type {(() => void) | null}
+         */
+        this._disarmMouse = null;
+        this._rearmMouse();
+
         if (this._options.shouldRegisterHotkeys) {
             this.registerHotkeys();
         }
@@ -235,13 +292,16 @@ export class Navigator {
                     this._options.getContainer?.()?.contains(target),
                 );
             },
+            activeClass: ACTIVE_ELEMENT_CLASS,
+            mouseActivation: "movement",
             shouldFocusChildInput: true,
             shouldFocusFirstItem: false,
             shouldRegisterHotkeys: true,
             virtualFocus: false,
+            wrap: true,
             hotkeys: {
-                home: () => this.items[0]?.setActive(),
-                end: () => this.items.at(-1)?.setActive(),
+                home: () => this.activateFirst(),
+                end: () => this.activateLast(),
                 tab: {
                     callback: () => this.next(),
                     bypassEditableProtection: true,
@@ -302,23 +362,85 @@ export class Navigator {
         return this.items.some((item) => item.target.contains(document.activeElement));
     }
 
+    /**
+     * @type {boolean} whether hover activation is currently armed; always
+     *  false outside `mouseActivation: "armed"`. See `_rearmMouse`.
+     */
+    get isMouseArmed() {
+        return this._mouseArmed;
+    }
+
     next() {
-        const hasActive = this.hasActiveItem;
-        if (!hasActive) {
+        this._rearmMouse();
+        if (!this.hasActiveItem) {
             this.items[0]?.setActive();
+        } else if (
+            this.activeItemIndex + 1 >= this.items.length &&
+            !this._options.wrap
+        ) {
+            // Stepping past the end clears the cursor; the next step in the
+            // same direction re-enters from the opposite end (the no-active
+            // branch above).
+            this.clearActiveItem();
         } else {
             this.items[(this.activeItemIndex + 1) % this.items.length]?.setActive();
         }
     }
 
     previous() {
+        this._rearmMouse();
         const hasActive = this.hasActiveItem;
         const index = this.activeItemIndex - 1;
-        if (!hasActive || index < 0) {
+        if (!hasActive) {
             this.items.at(-1)?.setActive();
+        } else if (index < 0) {
+            if (this._options.wrap) {
+                this.items.at(-1)?.setActive();
+            } else {
+                // Symmetric to next(): past the start the cursor clears, and
+                // another step back re-enters from the last item.
+                this.clearActiveItem();
+            }
         } else {
             this.items[index]?.setActive();
         }
+    }
+
+    /**
+     * Activates the first item -- the entry point a consumer uses when a
+     * freshly (re)built list should present its first choice. With no items
+     * the active cursor is cleared instead. Re-arms hover activation like a
+     * keyboard step does: entering a list is a navigation act.
+     */
+    activateFirst() {
+        this._rearmMouse();
+        if (this.items.length) {
+            this.items[0].setActive();
+        } else {
+            this.clearActiveItem();
+        }
+    }
+
+    /**
+     * Symmetric to `activateFirst`: enter the list from its far end, e.g. when
+     * an ArrowUp is what opened it.
+     */
+    activateLast() {
+        this._rearmMouse();
+        if (this.items.length) {
+            this.items.at(-1).setActive();
+        } else {
+            this.clearActiveItem();
+        }
+    }
+
+    /**
+     * Leaves no item active. The real focus is left where it is: with
+     * `virtualFocus` there is nothing to blur, and without it the caller is
+     * saying "no current choice", not "drop the keyboard".
+     */
+    clearActiveItem() {
+        this._setActiveItem(-1);
     }
 
     update() {
@@ -433,8 +555,40 @@ export class Navigator {
         this._hotkeyRemoves = [];
     }
 
+    /**
+     * Arms hover activation only once the pointer has actually moved again.
+     *
+     * In `mouseActivation: "armed"` a mouseenter or mouseleave may activate or
+     * clear an item only if a real mousemove happened since the last keyboard
+     * action -- otherwise a list rendered or repositioned under a still cursor
+     * would steal the highlight from the keyboard. Every navigation act
+     * (next/previous/activateFirst/activateLast) disarms and waits for the
+     * next window-level mousemove. A no-op in the default "movement" mode,
+     * where activation is keyed on the item's own mousemove and needs no
+     * memory.
+     *
+     * @private
+     */
+    _rearmMouse() {
+        if (this._options.mouseActivation !== "armed") {
+            return;
+        }
+        this._mouseArmed = false;
+        this._disarmMouse?.();
+        const arm = () => {
+            this._mouseArmed = true;
+            this._disarmMouse = null;
+        };
+        browser.addEventListener("mousemove", arm, { capture: true, once: true });
+        this._disarmMouse = () =>
+            browser.removeEventListener("mousemove", arm, { capture: true });
+    }
+
     _destroy() {
         this._throttledFocus.cancel();
+        this._disarmMouse?.();
+        this._disarmMouse = null;
+        this._mouseArmed = false;
         for (const item of this.items) {
             item._removeListeners();
         }
@@ -553,10 +707,28 @@ export class Navigator {
  * @property {Function} [onUpdated]
  * @property {Function} [onItemActivated]
  * @property {Function} [onMouseEnter]
+ * @property {string} [activeClass] class carried by the active item's target
+ *  (default: `"focus"`). A component whose stylesheet already speaks another
+ *  dialect -- e.g. jQuery-UI's `ui-state-active` -- names it here instead of
+ *  mirroring the cursor into its own state.
+ * @property {"movement" | "armed"} [mouseActivation] how the pointer takes the
+ *  cursor (default: `"movement"`). `"movement"`: any mousemove over an item
+ *  activates it. `"armed"`: mouseenter activates and mouseleave clears, but
+ *  only once the pointer has really moved since the last keyboard action --
+ *  the combobox convention, where a list opening under a still cursor must
+ *  not steal the highlight the keyboard just placed.
+ * @property {(el: HTMLElement) => HTMLElement} [getHoverTarget] the element
+ *  whose enter/leave events speak for an item in `"armed"` mode, when that
+ *  surface is larger than the item element itself (e.g. the list row around
+ *  the anchor). Defaults to the item's own target.
  * @property {boolean} [virtualFocus]
  * @property {boolean} [shouldFocusChildInput]
  * @property {boolean} [shouldFocusFirstItem]
  * @property {boolean} [shouldRegisterHotkeys]
+ * @property {boolean} [wrap] whether next() on the last item and previous() on
+ *  the first wrap around (default: true). With `wrap: false` stepping past
+ *  either end clears the active item, and the following step in the same
+ *  direction re-enters the list from the opposite end.
  */
 
 /**

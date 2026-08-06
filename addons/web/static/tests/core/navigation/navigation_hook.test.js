@@ -232,6 +232,140 @@ test("virtualFocus navigates by keyboard without a custom availability predicate
     expect(".one").not.toHaveClass("focus");
 });
 
+test("wrap: false clears past either end and re-enters from the opposite one", async () => {
+    class Parent extends Component {
+        static props = [];
+        static template = xml`
+            <div class="container" t-ref="containerRef">
+                <input class="search" t-ref="autofocus"/>
+                <button class="o-navigable one">one</button>
+                <button class="o-navigable two">two</button>
+                <button class="o-navigable three">three</button>
+            </div>`;
+        setup() {
+            useAutofocus();
+            this.navigation = useNavigation("containerRef", {
+                virtualFocus: true,
+                wrap: false,
+            });
+        }
+    }
+    const component = await mountWithCleanup(Parent);
+    expect(".search").toBeFocused();
+    expect(component.navigation.activeItem).toBe(null);
+
+    // Entering from nothing lands on the end the arrow points away from.
+    await press("arrowdown");
+    expect(".one").toHaveClass("focus");
+
+    await press("arrowdown");
+    await press("arrowdown");
+    expect(".three").toHaveClass("focus");
+
+    // Past the end: the cursor clears instead of wrapping...
+    await press("arrowdown");
+    expect(component.navigation.activeItem).toBe(null);
+    expect(".one").not.toHaveClass("focus");
+    expect(".three").not.toHaveClass("focus");
+
+    // ...and the next step in the same direction re-enters from the top.
+    await press("arrowdown");
+    expect(".one").toHaveClass("focus");
+
+    // Symmetric on the way up.
+    await press("arrowup");
+    expect(component.navigation.activeItem).toBe(null);
+    await press("arrowup");
+    expect(".three").toHaveClass("focus");
+});
+
+test("activateFirst, activateLast and clearActiveItem drive the cursor directly", async () => {
+    class Parent extends BasicHookParent {}
+    const component = await mountWithCleanup(Parent);
+    expect(".one").toBeFocused();
+
+    component.navigation.activateLast();
+    await animationFrame();
+    expect(".five button").toHaveClass("focus");
+
+    component.navigation.activateFirst();
+    await animationFrame();
+    expect(".one").toHaveClass("focus");
+
+    component.navigation.clearActiveItem();
+    await animationFrame();
+    expect(component.navigation.activeItem).toBe(null);
+    expect(".one").not.toHaveClass("focus");
+    // clearActiveItem states "no current choice"; it does not move the focus.
+    expect(".one").toBeFocused();
+});
+
+test("activeClass replaces the default focus class", async () => {
+    class Parent extends BasicHookParent {
+        navOptions = { activeClass: "o-my-active" };
+    }
+    await mountWithCleanup(Parent);
+    expect(".one").toBeFocused();
+    expect(".one").toHaveClass("o-my-active");
+    expect(".one").not.toHaveClass("focus");
+
+    await press("arrowdown");
+    await animationFrame();
+    expect(".two").toHaveClass("o-my-active");
+    expect(".two").not.toHaveClass("focus");
+    expect(".one").not.toHaveClass("o-my-active");
+});
+
+test("armed mouse activation ignores enter/leave the pointer did not cause", async () => {
+    class Parent extends Component {
+        static props = [];
+        static template = xml`
+            <div class="container" t-ref="containerRef">
+                <div class="row r1"><button class="o-navigable one">one</button></div>
+                <div class="row r2"><button class="o-navigable two">two</button></div>
+                <div class="row r3"><button class="o-navigable three">three</button></div>
+            </div>`;
+        setup() {
+            this.navigation = useNavigation("containerRef", {
+                mouseActivation: "armed",
+                getHoverTarget: (el) => el.closest(".row"),
+            });
+        }
+    }
+    const component = await mountWithCleanup(Parent);
+
+    // Clicking focuses and activates; its implicit hover also arms (the
+    // pointer really moved).
+    await click(".one");
+    expect(".one").toHaveClass("focus");
+    expect(component.navigation.isMouseArmed).toBe(true);
+
+    // Hovering the row -- not the item itself -- takes the cursor.
+    await hover(".r2");
+    expect(".two").toHaveClass("focus");
+    expect(".one").not.toHaveClass("focus");
+
+    // A keyboard step takes it back and disarms the pointer.
+    await press("arrowdown");
+    expect(".three").toHaveClass("focus");
+    expect(component.navigation.isMouseArmed).toBe(false);
+
+    // Synthetic enter/leave without any real movement -- a list re-rendering
+    // under a still cursor -- neither steals nor clears the highlight.
+    manuallyDispatchProgrammaticEvent(queryOne(".r3"), "mouseleave");
+    await animationFrame();
+    expect(".three").toHaveClass("focus");
+    manuallyDispatchProgrammaticEvent(queryOne(".r1"), "mouseenter");
+    await animationFrame();
+    expect(".three").toHaveClass("focus");
+    expect(".one").not.toHaveClass("focus");
+
+    // Real movement re-arms, and hover speaks again.
+    await hover(".r1");
+    expect(".one").toHaveClass("focus");
+    expect(".three").not.toHaveClass("focus");
+});
+
 test("hovering an item makes it active but doesn't focus", async () => {
     await mountWithCleanup(BasicHookParent);
 
