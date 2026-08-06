@@ -153,10 +153,6 @@ class TestDepthCounterFailsSafe(unittest.TestCase):
         self.assertTrue(any("RELEASE SAVEPOINT" in q for q in cr.sql))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestRestoresOrmStateIsDeclaredOnTheBase(unittest.TestCase):
     """The savepoint seam's guard must report a seam failure, not an AttributeError.
 
@@ -172,3 +168,7 @@ class TestRestoresOrmStateIsDeclaredOnTheBase(unittest.TestCase):
 
     def test_flushing_savepoint_inherits_the_same_default(self):
         self.assertFalse(_FlushingSavepoint._restores_orm_state)
+
+
+if __name__ == "__main__":
+    unittest.main()

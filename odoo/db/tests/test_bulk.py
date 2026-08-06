@@ -102,10 +102,6 @@ class TestTypeOidConstants(unittest.TestCase):
         self.assertEqual(_NUMERIC_OID, 1700)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestTableIdentifier(unittest.TestCase):
     """One resolution of the caller's table name, for every consumer of it.
 
@@ -179,3 +175,7 @@ class TestBinaryPaysOff(unittest.TestCase):
                 return False
 
         self.assertFalse(_NoDumper()._binary_pays_off([_TEXT_OID] * 20))
+
+
+if __name__ == "__main__":
+    unittest.main()
