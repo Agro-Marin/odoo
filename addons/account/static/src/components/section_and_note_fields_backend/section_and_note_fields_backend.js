@@ -68,25 +68,85 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         return SHOW_ALL_ITEMS_TOOLTIP;
     }
 
+    /**
+     * The section/note members the row template calls (see ListRowApi).
+     * Rendering reads keep the row's own record so the reads subscribe the
+     * row; the section actions resolve it back to this renderer's context.
+     *
+     * @override
+     */
+    buildRowApi() {
+        const rec = (record) => this.resolveRowRecord(record);
+        return {
+            ...super.buildRowApi(),
+            isSection: (record) => this.isSection(record),
+            isSectionInPage: (record) => this.isSectionInPage(record),
+            isTopSection: (record) => this.isTopSection(record),
+            isPriceCollapsed: (record) => this.isPriceCollapsed(record),
+            isCompositionCollapsed: (record) => this.isCompositionCollapsed(record),
+            disablePricesButton: (record) => this.disablePricesButton(record),
+            disableCompositionButton: (record) => this.disableCompositionButton(record),
+            hasNextSection: (record) => this.hasNextSection(record),
+            hasPreviousSection: (record) => this.hasPreviousSection(record),
+            isNextSectionInPage: (record) => this.isNextSectionInPage(record),
+            getDisabledMoveDownItemTooltip: () => this.disabledMoveDownItemTooltip,
+            getShowAllItemsTooltip: () => this.showAllItemsTooltip,
+            addRowInSection: (record, addSubSection) =>
+                this.addRowInSection(rec(record), addSubSection),
+            addNoteInSection: (record) => this.addNoteInSection(rec(record)),
+            toggleCollapse: (record, fieldName) =>
+                this.toggleCollapse(rec(record), fieldName),
+            moveSectionUp: (record) => this.moveSectionUp(rec(record)),
+            moveSectionDown: (record) => this.moveSectionDown(rec(record)),
+            duplicateSection: (record) => this.duplicateSection(rec(record)),
+            deleteSection: (record) => this.deleteSection(rec(record)),
+            expandPager: () => this.expandPager(),
+        };
+    }
+
+    /**
+     * The section feature flags the row template reads from `props`, plus the
+     * per-row collapse derivations. The derivations depend on the record's
+     * PARENT section, which the row itself never reads — computing them here
+     * subscribes the renderer to the parent's collapse fields and prop-flips
+     * exactly the member rows whose muting changed.
+     *
+     * @override
+     */
+    getRowProps(record, group, groupId) {
+        return {
+            ...super.getRowProps(record, group, groupId),
+            readonly: this.props.readonly,
+            subsections: this.props.subsections,
+            hidePrices: this.props.hidePrices,
+            hideComposition: this.props.hideComposition,
+            mutedPrices:
+                this.props.hidePrices && this.shouldCollapse(record, "collapse_prices"),
+            mutedComposition:
+                this.props.hideComposition &&
+                this.shouldCollapse(record, "collapse_composition"),
+        };
+    }
+
     // Current row's collapse state (distinct from the props.hidePrices /
     // props.hideComposition feature flags that gate the toggle buttons).
-    get isPriceCollapsed() {
-        return this.record.data.collapse_prices;
+    isPriceCollapsed(record) {
+        return record.data.collapse_prices;
     }
 
-    get isCompositionCollapsed() {
-        return this.record.data.collapse_composition;
+    isCompositionCollapsed(record) {
+        return record.data.collapse_composition;
     }
 
-    get disablePricesButton() {
+    disablePricesButton(record) {
         return (
-            this.shouldCollapse(this.record, "collapse_prices") ||
-            this.disableCompositionButton
+            this.shouldCollapse(record, "collapse_prices") ||
+            this.disableCompositionButton(record)
         );
     }
 
-    get disableCompositionButton() {
-        return this.shouldCollapse(this.record, "collapse_composition");
+    disableCompositionButton(record) {
+        return this.shouldCollapse(record, "collapse_composition");
     }
 
     buildParentSectionMap() {
@@ -98,12 +158,12 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             if (record.data.display_type === DISPLAY_TYPES.SECTION) {
                 lastSection = record;
                 lastSubSection = null;
-                this.parentSectionMap.set(record, null);
+                this.parentSectionMap.set(record.id, null);
             } else if (record.data.display_type === DISPLAY_TYPES.SUBSECTION) {
                 lastSubSection = record;
-                this.parentSectionMap.set(record, lastSection);
+                this.parentSectionMap.set(record.id, lastSection);
             } else {
-                this.parentSectionMap.set(record, lastSubSection ?? lastSection);
+                this.parentSectionMap.set(record.id, lastSubSection ?? lastSection);
             }
         }
     }
@@ -127,8 +187,9 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             return;
         }
 
+        const records = this.props.list.records;
         const index =
-            this.props.list.records.indexOf(record) +
+            records.findIndex((r) => r.id === record.id) +
             getSectionRecords(this.props.list, record, true).length -
             1;
         const context = {
@@ -143,8 +204,9 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             return;
         }
 
+        const records = this.props.list.records;
         const index =
-            this.props.list.records.indexOf(record) +
+            records.findIndex((r) => r.id === record.id) +
             getSectionRecords(this.props.list, record, !addSubSection).length -
             1;
         const context = this.getInsertLineContext(record, addSubSection);
@@ -252,7 +314,9 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             return true;
         }
         const sectionRecords = getSectionRecords(this.props.list, record);
-        const index = this.props.list.records.indexOf(record) + sectionRecords.length;
+        const index =
+            this.props.list.records.findIndex((r) => r.id === record.id) +
+            sectionRecords.length;
         if (index >= this.props.list.limit) {
             return false;
         }
@@ -265,12 +329,12 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         return sectionIndex < this.props.list.limit;
     }
 
-    isSectionOrNote(record = null) {
-        return isSectionOrNoteType(record || this.record);
+    isSectionOrNote(record) {
+        return isSectionOrNoteType(record);
     }
 
-    isSection(record = null) {
-        return isSectionType(record || this.record);
+    isSection(record) {
+        return isSectionType(record);
     }
 
     isSectionInPage(record) {
@@ -305,7 +369,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
      * @returns {boolean}
      */
     shouldCollapse(record, fieldName, checkSection = false) {
-        const parentSection = this.parentSectionMap.get(record);
+        const parentSection = this.parentSectionMap.get(record.id);
 
         if (this.isSection(record) && checkSection) {
             if (this.isTopSection(record)) {
@@ -327,7 +391,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         }
 
         if (this.isSubSection(parentSection)) {
-            const grandParent = this.parentSectionMap.get(parentSection);
+            const grandParent = this.parentSectionMap.get(parentSection.id);
             return parentSection.data[fieldName] || grandParent?.data[fieldName];
         }
 
@@ -420,7 +484,9 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         }
 
         const sectionRecords = getSectionRecords(this.props.list, record);
-        const index = this.props.list.records.indexOf(record) + sectionRecords.length;
+        const index =
+            this.props.list.records.findIndex((r) => r.id === record.id) +
+            sectionRecords.length;
         const nextSectionRecords = getSectionRecords(
             this.props.list,
             this.props.list.records[index],
@@ -476,7 +542,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         await super.sortDrop(dataRowId, dataGroupId, options);
 
         const record = this.props.list.records.find((r) => r.id === dataRowId);
-        const parentSection = this.parentSectionMap.get(record);
+        const parentSection = this.parentSectionMap.get(record.id);
         const commands = [];
 
         if (this.resetOnResequence(record, parentSection)) {

@@ -15,13 +15,15 @@ import { useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { CharField } from "@web/fields/basic/char/char_field";
 
+const indexOfRecord = (records, record) => records.findIndex((r) => r.id === record.id);
+
 export function getComboRecords(listRecords, record) {
     const comboRecords = [];
 
     if (record.data.product_type === "combo") {
         // if currernt record is combo then we move forward util we find non combo line
         comboRecords.push(record);
-        let index = listRecords.indexOf(record) + 1;
+        let index = indexOfRecord(listRecords, record) + 1;
 
         while (index < listRecords.length) {
             const r = listRecords[index];
@@ -38,7 +40,7 @@ export function getComboRecords(listRecords, record) {
     } else if (record.data.combo_item_id?.id) {
         // if current record is combo item then we move backward util we find associated combo line
         // Here we assume that the record we get is the last item of the combo
-        let index = listRecords.indexOf(record);
+        let index = indexOfRecord(listRecords, record);
         while (index >= 0) {
             const r = listRecords[index];
             comboRecords.unshift(r);
@@ -67,6 +69,24 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         useSubEnv({
             shouldCollapse: this.shouldCollapse.bind(this),
         });
+    }
+
+    /**
+     * The combo members the row template calls (see ListRowApi).
+     *
+     * @override
+     */
+    buildRowApi() {
+        const rec = (record) => this.resolveRowRecord(record);
+        return {
+            ...super.buildRowApi(),
+            isCombo: (record) => this.isCombo(record),
+            getComboColumns: () => this.comboColumns,
+            getPreviousRecords: (record) => this.getPreviousRecords(record),
+            getNextRecords: (record) => this.getNextRecords(record),
+            moveCombo: (record, direction) => this.moveCombo(rec(record), direction),
+            onDeleteRecord: (record) => this.onDeleteRecord(rec(record)),
+        };
     }
 
     /**
@@ -167,7 +187,7 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
 
     getPreviousRecords(record) {
         const { records } = this.props.list;
-        const previousRecord = records[records.indexOf(record) - 1];
+        const previousRecord = records[indexOfRecord(records, record) - 1];
 
         if (previousRecord?.data.combo_item_id?.id) {
             return getComboRecords(records, previousRecord);
@@ -179,7 +199,8 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         const { records } = this.props.list;
         const comboRecords = getComboRecords(records, record);
 
-        const nextRecord = records[records.indexOf(record) + comboRecords.length];
+        const nextRecord =
+            records[indexOfRecord(records, record) + comboRecords.length];
         if (nextRecord?.data.product_type === "combo") {
             return getComboRecords(records, nextRecord);
         }
