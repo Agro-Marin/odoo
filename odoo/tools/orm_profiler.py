@@ -22,7 +22,7 @@ See Also
 - ``odoo.tools.nplusone`` — N+1 CRUD detection (repeated single-record calls)
 - ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
 - ``odoo.tests.benchmark`` — Micro-benchmark statistics
-- ``.claude/rules/profiling.md`` — Decision tree: which tool to use when
+- ``doc/coding_guidelines.rst`` §11 (Performance) — when to reach for which tool
 """
 
 import logging

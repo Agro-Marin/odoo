@@ -16,10 +16,13 @@ trusted to be importable without dragging in the framework.
 
 Introduce `odoo/libs/` as the home for **dependency-free** utilities — code that
 does not import `odoo.*` — and keep `odoo/tools/` for **Odoo-coupled**
-utilities. Code moved from `tools/` to `libs/` leaves behind a thin
-re-export/deprecation shim in `tools/` (e.g. `tools/intervals.py` is a
-`DeprecationWarning` shim over `libs/intervals.py`; `tools/template_inheritance.py`
-is a thin Odoo-error-handling wrapper over `libs/xml/template_inheritance.py`).
+utilities. Code moved from `tools/` to `libs/` is migrated by relocating the
+implementation and updating callers; where the historical `tools.*` import path
+must keep working, a thin re-export or wrapper is left in `tools/` — e.g.
+`tools/float_utils.py` re-exports `libs/numbers`, and
+`tools/template_inheritance.py` is a thin Odoo-error-handling wrapper over
+`libs/xml/template_inheritance.py`. These are plain re-exports/wrappers, not
+`DeprecationWarning` shims.
 
 Rule of thumb for new code:
 
@@ -29,11 +32,13 @@ Rule of thumb for new code:
 ## Consequences
 
 - `libs/` is reusable and testable on its own; the dependency direction is
-  one-way (`tools/` may use `libs/`, never the reverse).
-- The shims keep existing import paths working while callers migrate.
-- The cost: an ongoing migration. Several modules still need to move (see the
-  known exception), and callers should be moved off the deprecated `tools.*`
-  re-exports over time.
+  one-way (`tools/` may use `libs/`, never the reverse) and is enforced by
+  `layer_check.py`'s `libs-is-dependency-free` contract and `libs_facade_check.py`.
+- The re-exports/wrappers keep existing `tools.*` import paths working.
+- The cost: an ongoing migration. Some framework-free helpers still live under
+  `tools/` (e.g. `hashing`, `query`, `nplusone`) and could move to `libs/` by
+  this ADR's own rule; the boundary the gates enforce is "no `libs/` → `odoo.*`
+  edge", not "every framework-free helper already lives in `libs/`".
 
 ### Asset pipeline relocation (resolved 2026-06)
 
