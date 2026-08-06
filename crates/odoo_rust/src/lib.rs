@@ -1,8 +1,11 @@
 //! Rust-accelerated hot paths for the Odoo ORM.
 //!
 //! Each submodule targets a specific Python function that was benchmarked
-//! and identified as a bottleneck.  The Python wrapper imports from this
-//! extension with a fallback to the pure-Python originals.
+//! and identified as a bottleneck.  This extension is a **hard requirement** of
+//! the fork — `odoo.init` raises `ImportError` when it is not importable — so
+//! there is no runtime fallback. The pure-Python originals are kept as the test
+//! oracle and, in a couple of hit-path cases, as a deliberately-chosen faster
+//! variant (see `odoo/libs/_field_access/_fallback.py`), not as a fallback.
 //!
 //! Submodules:
 //! - `clone`: Fast deep-clone for JSON-like data (replaces copy.deepcopy)

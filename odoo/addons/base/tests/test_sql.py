@@ -279,3 +279,42 @@ class TestSqlTools(TransactionCase):
         )
         self.assertIn("WHERE", db_definition)
         self.assertEqual(db_comment, comment)
+
+
+class TestEnvExecuteQuery(TransactionCase):
+    """``Environment.execute_query`` swallows a "no result to fetch" cursor
+    state (``ProgrammingError`` with ``sqlstate is None``) but must NOT swallow
+    a real database error. The discrimination was unpinned; these observe both
+    halves against a real cursor.
+    """
+
+    def test_select_returns_rows(self):
+        self.assertEqual(self.env.execute_query(SQL("SELECT 1")), [(1,)])
+
+    def test_a_non_returning_statement_yields_an_empty_list(self):
+        # A statement with no result set makes fetchall() raise a
+        # ProgrammingError whose sqlstate is None; execute_query returns [].
+        with self.env.cr.savepoint():
+            self.env.cr.execute("CREATE TEMP TABLE _eq_probe (id int) ON COMMIT DROP")
+            self.assertEqual(
+                self.env.execute_query(SQL("INSERT INTO _eq_probe VALUES (1)")),
+                [],
+            )
+
+    def test_a_real_sql_error_is_not_swallowed(self):
+        # An undefined column is a genuine error (sqlstate 42703); it must
+        # propagate rather than being turned into an empty result.
+        with (
+            self.assertRaises(Exception),
+            mute_logger("odoo.db"),
+            self.env.cr.savepoint(),
+        ):
+            self.env.execute_query(SQL("SELECT no_such_column FROM res_users"))
+
+    def test_execute_query_dict_maps_columns(self):
+        rows = self.env.execute_query_dict(SQL("SELECT 1 AS a, 'x' AS b"))
+        self.assertEqual(rows, [{"a": 1, "b": "x"}])
+
+    def test_execute_query_rejects_a_non_sql_argument(self):
+        with self.assertRaises(TypeError):
+            self.env.execute_query("SELECT 1")  # a str, not a SQL object
