@@ -3,18 +3,11 @@
 
 /** @module @web/views/kanban/kanban_record */
 
-import {
-    Component,
-    onWillDestroy,
-    onWillStart,
-    onWillUpdateProps,
-    useRef,
-} from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps, useRef } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useAction } from "@web/core/action_port";
-import { browser } from "@web/core/browser/browser";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { luxon } from "@web/core/l10n/luxon";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
@@ -24,6 +17,7 @@ import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { Field } from "@web/fields/field";
 import { fileTypeMagicWordMap } from "@web/fields/media/image/image_field";
+import { useLongTouchSelection } from "@web/views/multi_record_selection";
 import { SELF_HANDLED_SELECTOR } from "@web/views/self_handled";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { useViewCompiler } from "@web/views/view_compiler";
@@ -260,9 +254,10 @@ export class KanbanRecord extends Component {
         this.rootRef = useRef("root");
         this.hasTouch = hasTouch();
 
-        this.longTouchTimer = null;
-        this.touchStartMs = 0;
-        onWillDestroy(() => this.resetLongTouchTimer());
+        this.longTouch = useLongTouchSelection({
+            getLongTouchThreshold: () => this.LONG_TOUCH_THRESHOLD,
+            onLongTouch: () => this.props.record.toggleSelection(true),
+        });
     }
 
     get record() {
@@ -365,29 +360,17 @@ export class KanbanRecord extends Component {
     }
 
     resetLongTouchTimer() {
-        if (this.longTouchTimer) {
-            browser.clearTimeout(this.longTouchTimer);
-            this.longTouchTimer = null;
-        }
+        this.longTouch.resetLongTouchTimer();
     }
 
     onTouchStart() {
-        this.touchStartMs = Date.now();
-        if (this.longTouchTimer === null) {
-            this.longTouchTimer = browser.setTimeout(() => {
-                this.props.record.toggleSelection(true);
-                this.resetLongTouchTimer();
-            }, this.LONG_TOUCH_THRESHOLD);
-        }
+        this.longTouch.onTouchStart();
     }
     onTouchEnd() {
-        const elapsedTime = Date.now() - this.touchStartMs;
-        if (elapsedTime < this.LONG_TOUCH_THRESHOLD) {
-            this.resetLongTouchTimer();
-        }
+        this.longTouch.onTouchEnd();
     }
     onTouchMoveOrCancel() {
-        this.resetLongTouchTimer();
+        this.longTouch.onTouchMove();
     }
 
     /**
