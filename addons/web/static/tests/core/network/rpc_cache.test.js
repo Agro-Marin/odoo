@@ -2051,19 +2051,21 @@ test("piggyback refcount: the last caller out cancels the fetch and evicts the p
     /** @type {AbortSignal[]} */
     const signals = [];
     patchWithCleanup(browser, {
-        fetch: (/** @type {string} */ _url, /** @type {RequestInit} */ { signal }) => {
-            signals.push(/** @type {AbortSignal} */ (signal));
-            expect.step(`fetch ${signals.length}`);
-            if (signals.length === 1) {
-                return hung;
+        fetch: /** @type {any} */ (
+            (/** @type {string} */ _url, /** @type {RequestInit} */ { signal }) => {
+                signals.push(/** @type {AbortSignal} */ (signal));
+                expect.step(`fetch ${signals.length}`);
+                if (signals.length === 1) {
+                    return hung;
+                }
+                return Promise.resolve(
+                    new Response(JSON.stringify({ result: { fresh: true } }), {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                    }),
+                );
             }
-            return Promise.resolve(
-                new Response(JSON.stringify({ result: { fresh: true } }), {
-                    status: 200,
-                    headers: { "Content-Type": "application/json" },
-                }),
-            );
-        },
+        ),
     });
 
     const first = rpc("/test/", {}, { cache: true });

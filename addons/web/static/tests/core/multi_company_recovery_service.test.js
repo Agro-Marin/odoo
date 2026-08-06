@@ -28,16 +28,16 @@ test("recoverFromLifecycleError no-ops when the suggested company is already act
         get activeCompanies() {
             return [{ id: 1 }, { id: 2 }];
         },
-        activateCompanies() {
+        async activateCompanies() {
             expect.step("activateCompanies");
         },
     });
     const service = getService("multi_company_recovery");
 
     const recovered = service.recoverFromLifecycleError(accessError(2), {
-        env: {
+        env: /** @type {any} */ ({
             pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
-        },
+        }),
     });
 
     expect(recovered).toBe(false);
@@ -58,9 +58,9 @@ test("recoverFromLifecycleError activates and reloads for a genuinely new compan
     const service = getService("multi_company_recovery");
 
     const recovered = service.recoverFromLifecycleError(accessError(2), {
-        env: {
+        env: /** @type {any} */ ({
             pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
-        },
+        }),
     });
 
     expect(recovered).toBe(true);
@@ -74,16 +74,16 @@ test("recoverFromLifecycleError refuses a suggested company outside the allowed 
         get activeCompanies() {
             return [{ id: 1 }];
         },
-        activateCompanies() {
+        async activateCompanies() {
             expect.step("activateCompanies");
         },
     });
     const service = getService("multi_company_recovery");
 
     const recovered = service.recoverFromLifecycleError(accessError(2), {
-        env: {
+        env: /** @type {any} */ ({
             pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
-        },
+        }),
     });
 
     expect(recovered).toBe(false);
@@ -97,7 +97,7 @@ test("recoverFromSaveError refuses a suggested company outside the allowed set",
         get activeCompanies() {
             return [{ id: 1 }];
         },
-        activateCompanies() {
+        async activateCompanies() {
             expect.step("activateCompanies");
         },
     });

@@ -123,8 +123,9 @@ test("the synthesized ConnectionLostError carries the original failure", async (
     expect.errors(1);
     const original = new TypeError("Failed to fetch");
     onError((ev) => {
-        expect(ev.reason).toBeInstanceOf(ConnectionLostError);
-        expect(ev.reason.cause).toBe(original, {
+        const reason = /** @type {PromiseRejectionEvent} */ (ev).reason;
+        expect(reason).toBeInstanceOf(ConnectionLostError);
+        expect(reason.cause).toBe(original, {
             message: "the original TypeError survives as the cause",
         });
     });

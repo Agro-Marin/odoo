@@ -701,7 +701,9 @@ test("newWindow is forwarded to the default embedded action", async () => {
         },
     });
     patchWithCleanup(browser, {
-        open: (url) => expect.step("open: " + url),
+        open: /** @type {any} */ (
+            (/** @type {string} */ url) => expect.step("open: " + url)
+        ),
     });
     await mountWithCleanup(WebClient);
     await getService("action").doActionButton(
