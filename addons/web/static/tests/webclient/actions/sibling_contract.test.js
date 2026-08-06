@@ -42,6 +42,9 @@ const SANCTIONED = [
     "switchView",
     "restore",
     "pushState",
+    // `ActionDispatch.commit()` settles the manager's pending-dispatch slot
+    // the moment it publishes its stack (see f12faec6fff).
+    "settlePendingDispatch",
     // internal helpers
     "_updateUI",
     "_makeController",
@@ -95,6 +98,7 @@ const INTERNAL = [
     "_prepareControllerConfig",
     "_dispatchTargetNew",
     "_dispatchInline",
+    "_warnDroppedOnClose",
     "_openURL",
     "_openActionInNewWindow",
 ];
