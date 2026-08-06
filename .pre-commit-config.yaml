@@ -59,11 +59,19 @@ repos:
   # agromarin-addons, design-themes) still imports at runtime — the split-repo
   # break from t23778. pre-push stage → run once against the pushed range, not
   # per-file. Requires per-clon: pre-commit install --hook-type pre-push
+  #
+  # `python3.14`, not `python3`: `language: system` resolves the interpreter from
+  # PATH, and the checker itself is written in this fork's Python (it uses PEP 758
+  # bracketless `except A, B:`, which ruff enforces here). On any box whose
+  # `python3` is older — 3.12 on the loop-runner — the hook died with a
+  # SyntaxError before reading a line, so EVERY push to core was refused by a
+  # gate that had not run. The fork requires 3.14 (see CLAUDE.md), so naming the
+  # version is also what the rest of the toolchain already assumes.
   - repo: local
     hooks:
       - id: cross-repo-coherence
         name: cross-repo symbol coherence (core -> consumers)
-        entry: python3 tooling/architecture/cross_repo_coherence.py --check
+        entry: python3.14 tooling/architecture/cross_repo_coherence.py --check
         language: system
         stages: [pre-push]
         pass_filenames: false
