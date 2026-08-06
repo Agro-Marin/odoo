@@ -60,6 +60,18 @@ export class ActionDispatch {
             controller.getGlobalState = getGlobalState;
             controller.getLocalState = getLocalState;
             am.controllerStack = nextStack;
+            // The dispatch is over the moment its stack is published. Kept
+            // pending, `_effectiveStack` would keep answering with the base
+            // stack while the `UI-UPDATED` listeners below run, so anyone
+            // reading `currentController` inside that event would see the
+            // controller this dispatch just replaced — web_studio's
+            // `inStudio` flag never saw the studio action land and every
+            // later `leave()` threw "leave when not in studio???".
+            // (`_updateUI`'s `finally` re-clears; the `===` check makes both
+            // no-ops after the first.)
+            if (am._pendingDispatch === this) {
+                am._pendingDispatch = null;
+            }
             am.pushState();
 
             am.env.services.title.setParts({ action: controller.displayName });
