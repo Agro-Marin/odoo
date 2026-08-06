@@ -671,25 +671,30 @@ When refactoring a widget:
     header, the client drops the stored hash and the next boot fetches the
     full payload — degraded, not broken.
 
-15. **`ListRecordRow` renders each list row as a component with a renderer-
-    delegation compatibility contract** — `views/list/list_record_row.js`.
-    As a component with referentially stable props, OWL's `arePropsDifferent`
-    skips unchanged rows — a `t-call` inside `ListRenderer` would instead
-    re-evaluate every cell of every row on ANY reactive change. The
-    extraction is deliberately invisible to the ~15 addons that customize
-    rows: (a) the row body stays at t-name `web.ListRenderer.RecordRow` and
-    subclasses keep overriding `static recordRowTemplate` on their
-    `ListRenderer`; (b) `this.X` / bare names in row templates still resolve
-    against the RENDERER — every renderer member is lazily delegated through
-    prototype accessors, methods run with `this` bound to a proxy over the
-    renderer that also resolves `record`/`group`/`groupId` to the row's
-    values, and writes land on the renderer instance; (c) the template
-    exposes the renderer's reactive proxies for `record`/`group` (identity
-    matters for `editedRecord` comparisons etc.) while the row subscribes
-    itself via `_touchRecordDependencies()` so only the changed row
-    re-renders. When adding renderer state read from row templates, nothing
-    special is needed — but never store row-identity state keyed by the
-    row-wrapped prop proxy.
+15. **`ListRecordRow` renders each list row as a component with an EXPLICIT
+    row context** — `views/list/list_record_row.js`. As a component with
+    referentially stable props, OWL's `arePropsDifferent` skips unchanged
+    rows — a `t-call` inside `ListRenderer` would instead re-evaluate every
+    cell of every row on ANY reactive change. The row's props ARE the
+    contract: `record`/`group`/`groupId` (the row's own reactive — template
+    reads define the row's re-render subscriptions), `api` (bound callbacks
+    routing through the renderer instance so subclass overrides catch;
+    built once by `ListRenderer.buildRowApi()`), `flags` (one stable
+    reactive with the cross-row booleans; reading a flag subscribes that
+    row to that key only), plus per-render invalidation keys (`columns`,
+    `rowIndex`, `isEdited`, `canResequence`, ...). The row body stays at
+    t-name `web.ListRenderer.RecordRow` and subclasses keep overriding
+    `static recordRowTemplate`. To expose MORE to a subclass row template:
+    extend `buildRowApi()` for methods (template: `api.x(...)`) and
+    `getRowProps()` for state and derivations (template: `props.x`). Two
+    rules with teeth: action callbacks must resolve record/group arguments
+    back to the renderer's context (`resolveRowRecord`/`resolveRowGroup`) —
+    the row holds a DIFFERENT reactive over the same record, so object
+    identity (and Map keys, `indexOf`) against renderer-side records fails;
+    and a per-row derivation whose inputs live outside the row's own record
+    (a parent section's collapse state, say) belongs in `getRowProps`, so
+    the renderer subscribes to the foreign inputs and prop-flips exactly
+    the affected rows.
 
 16. **Kanban progress bars reconcile drag-and-drop moves locally** —
     `views/kanban/progress_bar_hook.js`. A drag between groups registers the
