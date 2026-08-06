@@ -10,7 +10,10 @@ import { DateTime } from "@web/core/l10n/luxon";
 import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
 
-import { SearchArchParser } from "./search_arch_parser.js";
+import {
+    DEFAULT_VIEWS_WITH_SEARCH_PANEL,
+    SearchArchParser,
+} from "./search_arch_parser.js";
 import { computeSearchContext, computeSearchItemContext } from "./search_context.js";
 import {
     computeCategoryDomain,
@@ -738,6 +741,20 @@ export class SearchModel extends SearchQueryMixin(
      */
     _importState(state) {
         execute(arrayToMap, state, this);
+        if (!this.searchPanelInfo) {
+            // `exportState()` always includes `searchPanelInfo`, but imported
+            // states are not always our own exports: `doAction` accepts an
+            // arbitrary `globalState.searchModel`, and serialized states from
+            // before `searchPanelInfo` joined the export schema lack the key.
+            // Fall back to the arch parser's defaults, unloaded so `load()`
+            // fetches the sections it cannot get from the state.
+            this.searchPanelInfo = {
+                className: "",
+                viewTypes: [...DEFAULT_VIEWS_WITH_SEARCH_PANEL],
+                loaded: false,
+                shouldReload: false,
+            };
+        }
     }
 
     /**
