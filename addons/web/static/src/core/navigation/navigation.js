@@ -195,11 +195,46 @@ export class Navigator {
             itemsRevision: 0,
         });
 
-        const defaultOptions = {
+        // An option declared as an accessor keeps answering for this
+        // navigator's life; `mergeNavigationOptions` is the only combinator
+        // that does not flatten it into the value it happened to hold.
+        /** @private */
+        this._options = mergeNavigationOptions(this._makeDefaultOptions(), options);
+
+        if (this._options.shouldRegisterHotkeys) {
+            this.registerHotkeys();
+        }
+    }
+
+    /**
+     * @private
+     * @returns {NavigationOptions}
+     */
+    _makeDefaultOptions() {
+        return {
+            // Two callers share this predicate and hand it different targets.
+            // On the hotkey path `target` is the *focused* element; with a
+            // virtual focus the real focus never sits on an item -- that is
+            // the whole point of the mode -- so `contains(target)` can only
+            // ever say no there, and the old `contains && (isFocused ||
+            // virtualFocus)` shape made the `virtualFocus` disjunct
+            // unreachable for the keyboard. On the mouse-move path `target`
+            // is the hovered item itself, where `contains` is the right
+            // question. Hence the split: an item target follows the focused
+            // rule, and a virtual-focus navigator additionally answers yes
+            // while the real focus is anywhere in its container -- the
+            // element its virtual cursor works on behalf of.
             isNavigationAvailable: (
                 /** @type {{ navigator: Navigator, target: HTMLElement }} */ { target },
-            ) =>
-                this.contains(target) && (this.isFocused || this._options.virtualFocus),
+            ) => {
+                if (this.contains(target)) {
+                    return this.isFocused || this._options.virtualFocus;
+                }
+                return Boolean(
+                    this._options.virtualFocus &&
+                    this._options.getContainer?.()?.contains(target),
+                );
+            },
             shouldFocusChildInput: true,
             shouldFocusFirstItem: false,
             shouldRegisterHotkeys: true,
@@ -237,15 +272,6 @@ export class Navigator {
                 },
             },
         };
-        // An option declared as an accessor keeps answering for this
-        // navigator's life; `mergeNavigationOptions` is the only combinator
-        // that does not flatten it into the value it happened to hold.
-        /** @private */
-        this._options = mergeNavigationOptions(defaultOptions, options);
-
-        if (this._options.shouldRegisterHotkeys) {
-            this.registerHotkeys();
-        }
     }
 
     /** @type {number} */
