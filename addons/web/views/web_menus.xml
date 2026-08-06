@@ -19,8 +19,7 @@
         views read (controllers/observability.py) and is the umbrella that
         covers performance metrics and client errors alike, so a third beacon
         needs no naming argument. One word also matches the shape of this
-        level, where all but Odoo's own Database Structure / User Interface /
-        Sequences & Identifiers are single words. The narrower "Real User
+        level, where most sections are single words. The narrower "Real User
         Monitoring" stays in the controller, where it accurately describes what
         the beacons are; "Monitoring" alone is taken by api_gateway for
         server-side monitoring, and "Performance" would mis-name JS Errors.
