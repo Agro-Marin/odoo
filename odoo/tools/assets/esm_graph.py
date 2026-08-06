@@ -157,6 +157,65 @@ def _scan_import_specifiers(src: str) -> set[str]:
     return specs
 
 
+def find_escaping_relative_imports(
+    modules: Iterable,
+) -> list[tuple[str, str, str]]:
+    """Relative imports of *modules* that resolve OUTSIDE the member set.
+
+    A bundle served per-file (an ``esm.dynamic_children`` lazy bundle in
+    production) resolves each member's RELATIVE import against the member's
+    static URL — no import map involved.  A relative import that stays inside
+    the bundle lands on another member's URL and is harmless (same URL the map
+    would give, same module instance).  One that crosses the bundle boundary
+    fetches the target's RAW source, bypassing the parent-bridge shim the
+    import map holds for that module: the raw copy's own bare imports are
+    invisible to bridge discovery, so the first one living only inside the
+    parent's compiled bundle fails at runtime with "Failed to resolve module
+    specifier" — and even when every import happens to resolve, the raw copy
+    is a SECOND instance of a module the parent already registered (singleton
+    split).  Canonical instance: ``web_studio``'s home menu importing
+    ``"../../studio_service.js"`` (a ``web.assets_backend`` member) from the
+    lazy ``web_studio.studio_assets`` bundle — raw ``studio_service.js``
+    imports ``@web/core/utils/collections/cache``, which only exists inside
+    the compiled ``web.assets_web``, killing the studio editor on open.
+
+    Import discovery mirrors ``_discover_bridge_specifiers``: the
+    ``es-module-lexer`` worker when available (comment-proof), the
+    ``_TRANSITIVE_IMPORT_RE`` regex as the fallback.
+
+    :param modules: the bundle's native modules (``module_path`` /
+        ``raw_content`` / ``url`` attributes, e.g. ``AssetsBundle.native_modules``)
+    :return: ``[(module_path, relative_specifier, resolved_specifier), …]``,
+        deterministic order; empty when the bundle is self-contained
+    """
+    modules = list(modules)
+    member_specs = {m.module_path for m in modules}
+    member_specs.update(
+        m.module_path + "/index"
+        for m in modules
+        if getattr(m, "url", "").endswith("/index.js")
+    )
+    escapes: list[tuple[str, str, str]] = []
+    for module in modules:
+        src = module.raw_content
+        lexed = lex_module(src)
+        if lexed is not None:
+            specs = {imp["n"] for imp in lexed["imports"]}
+            specs.update(lexed.get("starFrom") or ())
+        else:
+            specs = {
+                match.group("spec") or match.group("side")
+                for match in _TRANSITIVE_IMPORT_RE.finditer(src)
+            }
+        for spec in sorted(specs):
+            if not spec.startswith("."):
+                continue
+            resolved = _resolve_export_specifier(module.module_path, spec)
+            if resolved and resolved not in member_specs:
+                escapes.append((module.module_path, spec, resolved))
+    return escapes
+
+
 def discover_transitive_import_specifiers(
     seed_specifiers: Iterable[str],
     known_specifiers: Collection[str],

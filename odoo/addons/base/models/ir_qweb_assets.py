@@ -24,6 +24,7 @@ from odoo.modules import module as _module
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import (
     discover_transitive_import_specifiers,
+    find_escaping_relative_imports,
 )
 from odoo.tools.assets.esm_registry import esm_registry
 from odoo.tools.misc import file_path, str2bool
@@ -433,6 +434,7 @@ class IrQweb(models.AbstractModel):
             debug_assets=True,
             assets_params=assets_params,
         )
+        self._validate_lazy_bundle_relative_imports(asset_bundle)
         native_data = asset_bundle.get_native_module_data()
         import_map = dict(native_data["import_map"])
         import_map.update(native_data.get("bridge_import_map", {}))
@@ -445,6 +447,43 @@ class IrQweb(models.AbstractModel):
             "import_map": import_map,
             "template_url": template_url,
         }
+
+    def _validate_lazy_bundle_relative_imports(
+        self,
+        asset_bundle: AssetsBundle,
+    ) -> None:
+        """Reject a per-file-served bundle whose members relatively import
+        files OUTSIDE the bundle.
+
+        Such an import resolves against the member's static URL, so the
+        browser fetches the target's RAW source instead of the parent-bridge
+        shim the import map holds for it — bridge discovery never sees the raw
+        copy's own bare imports, and the first one that lives only inside the
+        parent's compiled bundle fails at runtime with a bare
+        "Failed to resolve module specifier" (see
+        :func:`find_escaping_relative_imports`).  Failing the payload build
+        with the file, the import, and the fix beats letting the browser
+        throw a TypeError that names neither.
+
+        Raised unconditionally (not ``_esbuild_fail_closed``-gated): there is
+        no degraded serve for this class — per-file delivery is already the
+        only mode a lazy bundle has, and it is broken exactly as long as the
+        import is.
+        """
+        escapes = find_escaping_relative_imports(asset_bundle.native_modules)
+        if not escapes:
+            return
+        details = "; ".join(
+            f"{module_path} imports {spec!r} (-> {resolved})"
+            for module_path, spec, resolved in escapes
+        )
+        raise EsbuildBundleError(
+            f"ESM bundle {asset_bundle.name!r} is served per-file but has "
+            f"relative imports escaping the bundle: {details}. Use the bare "
+            f"'@addon/...' specifier instead, so the import resolves through "
+            f"the import map (parent-bridge shim) rather than fetching the "
+            f"raw source."
+        )
 
     _loader_shim_cache: tuple[float, str] | None = None
 

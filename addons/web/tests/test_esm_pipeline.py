@@ -2272,3 +2272,132 @@ class TestSecondaryBundleSingletonsBuild(TransactionCase):
             aliased,
             "aliased build must reach browser via the loader singleton",
         )
+
+
+@tagged("web_unit", "web_assets")
+class TestLazyBundleRelativeImports(TransactionCase):
+    """Per-file-served (dynamic child) bundles must not relatively import
+    files outside themselves.
+
+    A relative import resolves against the member's static URL, so an
+    escaping one fetches the target's RAW source instead of the
+    parent-bridge shim in the import map — the raw copy's bare imports are
+    invisible to bridge discovery and the first parent-bundle-only one dies
+    at runtime with "Failed to resolve module specifier" (canonical
+    instance: ``web_studio``'s home menu importing
+    ``"../../studio_service.js"`` from the lazy studio editor bundle).
+    """
+
+    @staticmethod
+    def _module(module_path, raw_content, url=""):
+        return SimpleNamespace(
+            module_path=module_path,
+            raw_content=raw_content,
+            url=url or module_path.replace("@", "/", 1) + ".js",
+        )
+
+    def test_in_bundle_relative_import_passes(self):
+        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+
+        modules = [
+            self._module(
+                "@mod/dir/a",
+                'import { b } from "./b.js";\nimport { c } from "../c";\n',
+            ),
+            self._module("@mod/dir/b", "export const b = 1;\n"),
+            self._module("@mod/c", "export const c = 1;\n"),
+        ]
+        self.assertEqual(find_escaping_relative_imports(modules), [])
+
+    def test_escaping_relative_import_is_reported(self):
+        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+
+        modules = [
+            self._module(
+                "@mod/dir/a",
+                'import { svc } from "../../service.js";\n',
+            ),
+        ]
+        self.assertEqual(
+            find_escaping_relative_imports(modules),
+            [("@mod/dir/a", "../../service.js", "@mod/service")],
+        )
+
+    def test_index_long_form_is_a_member(self):
+        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+
+        modules = [
+            self._module(
+                "@mod/a",
+                'import { x } from "./widget/index.js";\n',
+            ),
+            self._module(
+                "@mod/widget",
+                "export const x = 1;\n",
+                url="/mod/static/src/widget/index.js",
+            ),
+        ]
+        self.assertEqual(find_escaping_relative_imports(modules), [])
+
+    def test_bare_specifiers_are_ignored(self):
+        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+
+        modules = [
+            self._module(
+                "@mod/a",
+                'import { registry } from "@web/core/registry";\n',
+            ),
+        ]
+        self.assertEqual(find_escaping_relative_imports(modules), [])
+
+    def test_payload_guard_raises_with_details(self):
+        """``_esm_bundle_payload_impl``'s guard names bundle, file and import."""
+        from odoo.addons.base.models.ir_qweb_assets import EsbuildBundleError
+
+        fake_bundle = SimpleNamespace(
+            name="mod.lazy_bundle",
+            native_modules=[
+                self._module(
+                    "@mod/dir/a",
+                    'import { svc } from "../../service.js";\n',
+                ),
+            ],
+        )
+        with self.assertRaises(EsbuildBundleError) as caught:
+            self.env["ir.qweb"]._validate_lazy_bundle_relative_imports(fake_bundle)
+        message = str(caught.exception)
+        self.assertIn("mod.lazy_bundle", message)
+        self.assertIn("@mod/dir/a", message)
+        self.assertIn("../../service.js", message)
+        self.assertIn("@mod/service", message)
+
+    def test_every_installed_dynamic_bundle_is_self_contained(self):
+        """Structural gate over the registry: no declared dynamic child on
+        this database's module set may escape itself — the next
+        ``studio_service.js``-style import fails here, at test time, instead
+        of at runtime inside the lazily-loaded editor.
+        """
+        from odoo.tools.assets.esm_graph import find_escaping_relative_imports
+        from odoo.tools.assets.esm_registry import esm_registry
+
+        IrQweb = self.env["ir.qweb"]
+        escapes = []
+        for bundle_name in sorted(esm_registry().dynamic_bundle_names):
+            asset_bundle = IrQweb._get_asset_bundle(
+                bundle_name,
+                js=True,
+                css=False,
+                debug_assets=True,
+                assets_params=None,
+            )
+            escapes.extend(
+                (bundle_name, *escape)
+                for escape in find_escaping_relative_imports(
+                    asset_bundle.native_modules
+                )
+            )
+        self.assertFalse(
+            escapes,
+            "Per-file-served bundles with relative imports escaping the "
+            f"bundle (use the bare '@addon/...' specifier instead): {escapes}",
+        )
