@@ -58,6 +58,7 @@ GATES = {
     "named_export_coherence": ["--check"],
     "layer_check": ["--check"],
     "js_private_access": ["--check"],
+    "xml_reference_coherence": ["--check"],
     # No --check: it prints a count that feeds the shared ratchet. An empty scan
     # would report 0, and the ratchet runs in `exact` mode, so 0 against a floor
     # of 169 fails there instead. It must still refuse rather than print a

@@ -36,3 +36,12 @@ run in three places, each covering what only it can see:
 3. **The pre-push hook** (`cross_repo_coherence.py`, installed by the script
    above) stops a core push that removes a JS module a sibling still imports —
    the one failure CI can only report after the fact.
+
+`xml_reference_coherence.py` extends the same per-scope pattern to the graph
+imports cannot see: the strings view-arch XML resolves in the JS registries
+(`widget=`, `js_class=`, `<widget name>`) and OWL template names
+(`t-call`/`t-inherit` against `t-name`). Each consumer scope is judged only
+when its provider closure (the addons-path dependency direction) is checked
+out, so a repo-alone run judges `odoo` and the full workspace judges all
+four; the pre-existing danglers are pinned in
+`architecture/xml_reference_coherence.txt`, shrink-only per scope.
