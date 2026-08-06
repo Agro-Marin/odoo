@@ -369,8 +369,10 @@ jobs:
         # rather than a failure.
         #
         # CI checks out this repo alone, so the cross-repo half only runs
-        # where sibling checkouts are present — the pre-push hook that drives
-        # cross_repo_coherence.py. Intra-repo drift is fully covered here.
+        # where sibling checkouts are present: the sibling repos' own
+        # architecture workflows (which check out this repo alongside), and
+        # dev clones that ran tooling/install-hooks.sh to get the pre-push
+        # cross_repo_coherence hook. Intra-repo drift is fully covered here.
         run: |
           set +e
           python tooling/architecture/named_export_coherence.py --check \
@@ -539,9 +541,11 @@ jobs:
         # it pins the surface so it can only shrink, which is what has to come
         # first and gets harder every day it waits.
         #
-        # CI checks out this repo alone, so the sibling repos are scanned only
-        # where they are present; the pre-push hook covers those, as it does
-        # for cross_repo_coherence.py.
+        # CI checks out this repo alone, so this run judges the `odoo`
+        # consumer scope of the provenance-tagged pin; the sibling-scoped
+        # entries are validated by the sibling repos' own architecture
+        # workflows, which check out this repo alongside. Regenerating the pin
+        # (--update) requires the full workspace and refuses anything less.
         run: |
           set +e
           python tooling/architecture/js_public_surface.py | tee /tmp/js_surface.log

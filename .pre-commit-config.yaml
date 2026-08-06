@@ -58,7 +58,8 @@ repos:
   # Fails a core push that removes a JS module a sibling repo (enterprise,
   # agromarin-addons, design-themes) still imports at runtime — the split-repo
   # break from t23778. pre-push stage → run once against the pushed range, not
-  # per-file. Requires per-clon: pre-commit install --hook-type pre-push
+  # per-file. Declaring it here installs NOTHING — run tooling/install-hooks.sh
+  # once per clone (it covers all three hook stages), or this gate never runs.
   #
   # `python3.14`, not `python3`: `language: system` resolves the interpreter from
   # PATH, and the checker itself is written in this fork's Python (it uses PEP 758

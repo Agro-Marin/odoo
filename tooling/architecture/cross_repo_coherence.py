@@ -9,7 +9,13 @@ no single-repo gate catches it. This is exactly the incident recorded in
 t23778 (core dropped ``@web/fields/file_handler`` and ``chatter_patch.js``,
 consumed by ``web_studio`` + 7 uploaders + ``web_widget_model_viewer``).
 
-This gate runs as a ``pre-push`` hook on core. For the commits being pushed it:
+This gate runs as a ``pre-push`` hook on core — declared in
+``.pre-commit-config.yaml`` and installed *per clone* by
+``tooling/install-hooks.sh`` (a declaration alone installs nothing; a clone
+that never ran the installer has no hook and this gate simply does not run
+there). The sibling repos' own architecture workflows provide the post-hoc CI
+backstop, but only the hook stops the push itself. For the commits being
+pushed it:
 
   1. Finds ``.js`` module files deleted or renamed away under
      ``addons/<module>/static/src/`` and maps each to its module specifier
@@ -333,6 +339,14 @@ def main(argv: list[str] | None = None) -> int:
         print("Cross-repo symbol-coherence check (core -> consumers)")
         print("=" * 64)
         print(f"Range: {from_ref}..{to_ref}  ({span} commit(s))")
+        if "PRE_COMMIT_FROM_REF" not in os.environ and not args.from_ref:
+            # A standalone run is fine, but it means the hook did not drive
+            # this — and a clone without the hook installed never runs it at
+            # all. Say how to fix that, here, where the person is looking.
+            print(
+                "(standalone run — to gate every push automatically: "
+                "tooling/install-hooks.sh)"
+            )
         print(
             f"Consumer repos: {', '.join(r.name for r in consumer_repos) or '(none)'}"
         )

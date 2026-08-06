@@ -9,9 +9,17 @@ The measurement tests build synthetic consumer trees, so they keep their
 meaning as the real surface shrinks. The two that read the real tree assert
 what a measurement gate silently loses: that it found its inputs, and that the
 pin it is judging against is the tree's own.
+
+The environment-honesty tests simulate both deployments the gate must serve:
+the full workspace (every consumer checkout present) and a repo-alone CI
+checkout (siblings absent), by handing ``drift`` the scopes each environment
+actually has. The audit that motivated provenance verified the failure exactly
+this way: with a membership-only pin, 27+ sibling-only specifiers made the
+repo-alone check unpassable by construction.
 """
 
 import js_public_surface as jps  # sys.path set by conftest.py
+import pytest
 
 
 def _consumer(root, name, body):
@@ -74,17 +82,99 @@ def test_vendored_and_node_modules_are_skipped(tmp_path):
     assert jps.measure((tmp_path,)) == {}
 
 
-# --- the contract ---
+# --- provenance: which consumer checkout imports what ---
 
 
-def test_a_new_specifier_is_growth_and_a_missing_one_is_a_win():
+def test_provenance_records_the_importing_scope_by_name(tmp_path):
+    ent = tmp_path / "enterprise"
+    _consumer(ent, "sale/static/src/a.js", 'import "@web/core/registry";\n')
+    detailed = jps.measure_detailed((("enterprise", ent),))
+    assert detailed == {"@web/core/registry": {"enterprise": (1, 0)}}
+    assert jps.provenance(detailed) == {"@web/core/registry": frozenset({"enterprise"})}
+
+
+def test_a_bare_path_scope_takes_its_directory_name(tmp_path):
+    # Synthetic trees hand in plain paths; the directory name is the scope.
+    root = tmp_path / "agromarin"
+    _consumer(root, "geo/static/src/a.js", 'import "@web/core/registry";\n')
+    assert jps.provenance(jps.measure_detailed((root,))) == {
+        "@web/core/registry": frozenset({"agromarin"})
+    }
+
+
+def test_one_specifier_reached_from_two_scopes_carries_both(tmp_path):
+    a, b = tmp_path / "odoo", tmp_path / "enterprise"
+    _consumer(a, "mail/static/src/a.js", 'import "@web/core/registry";\n')
+    _consumer(b, "sale/static/src/b.js", 'import "@web/core/registry";\n')
+    detailed = jps.measure_detailed((("odoo", a), ("enterprise", b)))
+    assert jps.provenance(detailed) == {
+        "@web/core/registry": frozenset({"odoo", "enterprise"})
+    }
+
+
+def test_an_absent_scope_contributes_nothing_and_is_not_invented(tmp_path):
+    present = tmp_path / "odoo"
+    _consumer(present, "mail/static/src/a.js", 'import "@web/core/registry";\n')
+    detailed = jps.measure_detailed(
+        (("odoo", present), ("enterprise", tmp_path / "not-there"))
+    )
+    assert detailed == {"@web/core/registry": {"odoo": (1, 0)}}
+
+
+# --- the contract, per scope ---
+
+
+def test_growth_and_shrink_fail_per_scope():
     # Both directions matter and they fail for different reasons: growth is new
     # exposure, and a pinned specifier no longer imported is surface that was
     # given up and must be recorded, or it can be re-spent for free.
-    measured = {"@web/a": 1, "@web/b": 1}
-    pinned = {"@web/b", "@web/c"}
-    assert sorted(set(measured) - pinned) == ["@web/a"]
-    assert sorted(pinned - set(measured)) == ["@web/c"]
+    measured = {"@web/a": frozenset({"odoo"}), "@web/b": frozenset({"odoo"})}
+    pinned = {"@web/b": frozenset({"odoo"}), "@web/c": frozenset({"odoo"})}
+    new, gone = jps.drift(measured, pinned, ["odoo"])
+    assert new == {"odoo": ["@web/a"]}
+    assert gone == {"odoo": ["@web/c"]}
+
+
+def test_a_scope_not_present_is_not_judged():
+    # THE environment-honesty property, simulated the way repo-alone CI runs:
+    # `@web/b` is pinned for enterprise only, and enterprise is not checked
+    # out. With a membership-only pin this fired "gone" and the repo-alone
+    # check could not pass at all; with provenance it is simply out of scope.
+    measured = {"@web/a": frozenset({"odoo"})}
+    pinned = {"@web/a": frozenset({"odoo"}), "@web/b": frozenset({"enterprise"})}
+    new, gone = jps.drift(measured, pinned, ["odoo"])
+    assert (new, gone) == ({}, {})
+
+
+def test_the_full_workspace_judges_every_scope():
+    # The same pin, with enterprise present: now the enterprise-scoped entry
+    # IS judged, and its disappearance is a shrink to record.
+    measured = {"@web/a": frozenset({"odoo"})}
+    pinned = {"@web/a": frozenset({"odoo"}), "@web/b": frozenset({"enterprise"})}
+    new, gone = jps.drift(measured, pinned, ["odoo", "enterprise"])
+    assert new == {}
+    assert gone == {"enterprise": ["@web/b"]}
+
+
+def test_an_import_from_a_new_scope_is_growth_there():
+    # Already public to enterprise does not mean public to agromarin: each
+    # scope ratchets on its own, or sibling repos could widen their reach into
+    # web internals invisibly behind another repo's existing pin.
+    measured = {"@web/a": frozenset({"enterprise", "agromarin"})}
+    pinned = {"@web/a": frozenset({"enterprise"})}
+    new, gone = jps.drift(measured, pinned, ["enterprise", "agromarin"])
+    assert new == {"agromarin": ["@web/a"]}
+    assert gone == {}
+
+
+def test_a_legacy_tagless_pin_applies_to_every_scope():
+    # The pre-provenance format pinned bare membership measured over the full
+    # workspace; reading it any narrower would silently drop pins on upgrade.
+    measured = {"@web/a": frozenset({"odoo"})}
+    pinned = {"@web/a": frozenset()}
+    new, gone = jps.drift(measured, pinned, ["odoo", "enterprise"])
+    assert new == {}
+    assert gone == {"enterprise": ["@web/a"]}
 
 
 # --- the pin file ---
@@ -92,40 +182,82 @@ def test_a_new_specifier_is_growth_and_a_missing_one_is_a_win():
 
 def test_comments_and_blanks_are_not_pins(tmp_path, monkeypatch):
     pin = tmp_path / "pin.txt"
-    pin.write_text("# c\n\n@web/core/registry\n")
+    pin.write_text("# c\n\n@web/core/registry  odoo enterprise\n")
     monkeypatch.setattr(jps, "PINNED", pin)
-    assert jps.load_pinned() == {"@web/core/registry"}
+    assert jps.load_pinned() == {
+        "@web/core/registry": frozenset({"odoo", "enterprise"})
+    }
 
 
-def test_update_writes_the_measured_surface_sorted(tmp_path, monkeypatch):
-    # Membership only: nothing this tool can measure decides a tier, so it
-    # records none. A fan-in threshold used to invent per-specifier tiers here
-    # and was retracted: two importers is equally what a niche-but-public
-    # component looks like, so the count cannot decide.
+def test_a_tagless_line_loads_as_pinned_everywhere(tmp_path, monkeypatch):
+    pin = tmp_path / "pin.txt"
+    pin.write_text("@web/core/registry\n")
+    monkeypatch.setattr(jps, "PINNED", pin)
+    assert jps.load_pinned() == {"@web/core/registry": frozenset()}
+
+
+def test_update_writes_the_measured_surface_sorted_with_provenance(
+    tmp_path, monkeypatch
+):
+    # Membership plus measured provenance, nothing more: nothing this tool can
+    # measure decides a tier, so it records none. A fan-in threshold used to
+    # invent per-specifier tiers here and was retracted: two importers is
+    # equally what a niche-but-public component looks like, so the count
+    # cannot decide.
     pin = tmp_path / "pin.txt"
     monkeypatch.setattr(jps, "PINNED", pin)
-    jps.write_pinned({"@web/b": 3, "@web/a": 1})
-    assert jps.load_pinned() == {"@web/a", "@web/b"}
+    jps.write_pinned(
+        {
+            "@web/b": frozenset({"enterprise", "odoo"}),
+            "@web/a": frozenset({"agromarin"}),
+        }
+    )
+    assert jps.load_pinned() == {
+        "@web/a": frozenset({"agromarin"}),
+        "@web/b": frozenset({"odoo", "enterprise"}),
+    }
     body = [
         line
         for line in pin.read_text().splitlines()
         if line and not line.startswith("#")
     ]
-    assert body == ["@web/a", "@web/b"]
+    # Specifiers sorted; scopes in canonical CONSUMER_ROOTS order, so a
+    # regenerated pin diffs cleanly.
+    assert body == ["@web/a  agromarin", "@web/b  odoo enterprise"]
+
+
+def test_update_refuses_a_partial_checkout(tmp_path, monkeypatch):
+    # An update from a checkout missing a sibling could only erase the absent
+    # scopes' provenance — the record of what those consumers are owed — so it
+    # must refuse rather than write a narrower truth.
+    present = tmp_path / "odoo"
+    _consumer(present, "mail/static/src/a.js", 'import "@web/core/registry";\n')
+    monkeypatch.setattr(
+        jps,
+        "CONSUMER_ROOTS",
+        (("odoo", present), ("enterprise", tmp_path / "not-there")),
+    )
+    with pytest.raises(SystemExit) as exc:
+        jps.main(["--update"])
+    assert exc.value.code == 2
 
 
 # --- the gate must actually reach the real tree ---
 
 
 def test_real_surface_is_measured_and_matches_its_pin():
-    measured = jps.measure()
-    assert len(measured) > 100, "expected the real consumer tree to be found"
-    assert "@web/core/registry" in measured, "the most-imported specifier is missing"
+    detailed = jps.measure_detailed()
+    assert len(detailed) > 100, "expected the real consumer tree to be found"
+    assert "@web/core/registry" in detailed, "the most-imported specifier is missing"
     pinned = jps.load_pinned()
     assert pinned, "no pin file — the ratchet would pass against nothing"
-    assert set(measured) == pinned, (
-        f"surface drift: {sorted(set(measured) - pinned)[:5]} new, "
-        f"{sorted(pinned - set(measured))[:5]} gone"
+    present = [name for name, _ in jps._named_roots(jps.CONSUMER_ROOTS)]
+    assert "odoo" in present, "the gate's own checkout must always be a scope"
+    new, gone = jps.drift(jps.provenance(detailed), pinned, present)
+    assert (new, gone) == ({}, {}), (
+        f"surface drift in scopes {sorted(set(new) | set(gone))}: "
+        f"{ {s: v[:5] for s, v in new.items()} } new, "
+        f"{ {s: v[:5] for s, v in gone.items()} } gone"
     )
 
 
