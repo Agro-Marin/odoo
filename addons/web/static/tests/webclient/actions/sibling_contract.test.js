@@ -30,7 +30,7 @@ const SANCTIONED = [
     // read-only, collaborators
     "env",
     "router",
-    "keepLast",
+    "navigation",
     // read-only, state
     "controllerStack",
     "dialog",
@@ -90,8 +90,6 @@ const INTERNAL = [
     "_pendingDispatch",
     "_dispatchDepth",
     "_effectiveStack",
-    "_navGeneration",
-    "_isSupersededNav",
     "_computeStackIndex",
     "_topActionJsId",
     "_previousActionJsId",

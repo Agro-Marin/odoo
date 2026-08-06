@@ -4,13 +4,14 @@ import { after, expect, test } from "@odoo/hoot";
 import { Deferred } from "@odoo/hoot-mock";
 import { EventBus } from "@odoo/owl";
 import { user } from "@web/core/user";
-import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
+import { SupersededError } from "@web/core/utils/concurrency";
 import {
     buildCallButtonArgs,
     executeActionButton,
     filterActionContext,
     InvalidButtonParamsError,
 } from "@web/webclient/actions/action_button_executor";
+import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
 /**
  * Build a fake ActionManager that counts ui.block/unblock calls and lets each
@@ -42,7 +43,7 @@ function makeFakeAm(overrides = {}) {
                 },
             },
         },
-        keepLast: { add: (prom) => prom },
+        navigation: { guard: (prom) => prom },
         _loadAction: async () => ({ type: "ir.actions.act_window" }),
         doAction: async () => {},
         doActionButton: async () => {},
@@ -107,10 +108,10 @@ test("block-ui: overlay is released on the embedded-action early return", async 
 });
 
 test("block-ui: overlay is released when the RPC phase is superseded", async () => {
-    const keepLast = new KeepLast({ rejectSuperseded: true });
+    const navigation = new NavigationTracker();
     const loadDef = new Deferred();
     const am = makeFakeAm({
-        keepLast,
+        navigation,
         _loadAction: () => loadDef,
     });
     const prom = executeActionButton(am, {
@@ -122,7 +123,7 @@ test("block-ui: overlay is released when the RPC phase is superseded", async () 
     expect(am.__ui.blocked).toBe(1);
     expect(am.__ui.count).toBe(1);
 
-    keepLast.add(Promise.resolve());
+    navigation.guard(Promise.resolve());
     loadDef.resolve({ type: "ir.actions.act_window" });
 
     await expect(prom).rejects.toBeInstanceOf(SupersededError);

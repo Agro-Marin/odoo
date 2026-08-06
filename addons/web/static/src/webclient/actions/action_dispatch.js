@@ -35,6 +35,16 @@ export class ActionDispatch {
         this.baseStack = baseStack ?? am.controllerStack;
         this.restoreStackOnError = restoreStackOnError;
         /**
+         * The navigation this dispatch belongs to: the token minted by the
+         * entry point (doAction / switchView / restore / loadState) that led
+         * here, read off the manager's tracker at dispatch creation. Stages
+         * that must ask "has a newer navigation started?" ask this token and
+         * fail with the one documented outcome, `SupersededError`.
+         *
+         * @type {import("./navigation_token.js").NavigationToken}
+         */
+        this.token = am.navigation.snapshot();
+        /**
          * @type {{ current?: Function }}
          */
         this.removeDialogRef = { current: undefined };

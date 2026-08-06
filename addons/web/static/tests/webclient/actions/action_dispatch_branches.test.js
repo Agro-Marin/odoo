@@ -7,6 +7,7 @@ import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { SupersededError } from "@web/core/utils/concurrency";
 import { ActionDispatch } from "@web/webclient/actions/action_dispatch";
+import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
 /**
  * BRANCH COVERAGE for {@link ActionDispatch}, with NO OWL MOUNT.
@@ -25,8 +26,8 @@ import { ActionDispatch } from "@web/webclient/actions/action_dispatch";
  *
  * The fake manager is the sanctioned ``am`` seam (see "THE SIBLING CONTRACT"
  * in ``action_service.js``). ActionDispatch reaches exactly:
- *   controllerStack · dialog · nextDialog · env · pushState · restore ·
- *   settlePendingDispatch · _nextId · _pendingDispatch
+ *   controllerStack · dialog · navigation · nextDialog · env · pushState ·
+ *   restore · settlePendingDispatch · _nextId · _pendingDispatch
  */
 
 describe.current.tags("desktop");
@@ -38,6 +39,7 @@ function makeFakeAm(overrides = {}) {
     const am = {
         controllerStack: [],
         dialog: null,
+        navigation: new NavigationTracker(),
         nextDialog: null,
         env: {
             bus: new EventBus(),
@@ -434,6 +436,9 @@ test("the dispatch reaches only the documented manager members", async () => {
         "controllerStack",
         "dialog",
         "env",
+        // the constructor snapshots the manager's navigation clock so the
+        // dispatch carries the token of the navigation that produced it.
+        "navigation",
         "nextDialog",
         "pushState",
         "restore",

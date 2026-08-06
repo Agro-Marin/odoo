@@ -3,17 +3,18 @@
 import { expect, test } from "@odoo/hoot";
 import { Deferred } from "@odoo/hoot-mock";
 import { makeMockServer, onRpc } from "@web/../tests/web_test_helpers";
-import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
+import { SupersededError } from "@web/core/utils/concurrency";
 import { MAX_ACTION_DEPTH } from "@web/webclient/actions/action_constants";
 import { executeServerAction } from "@web/webclient/actions/action_executors/server";
+import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
 /**
  * Mount-free unit tests for the ``ir.actions.server`` executor.
  *
- * ``server.js`` reaches two ActionManager members — ``keepLast`` and
- * ``doAction`` — plus the module-level ``rpc``. A real ``KeepLast`` is used
- * (it is a small pure utility, and its interaction with the executor is
- * precisely what several of these tests pin); only the manager itself is
+ * ``server.js`` reaches two ActionManager members — ``navigation`` and
+ * ``doAction`` — plus the module-level ``rpc``. A real ``NavigationTracker``
+ * is used (it is a small pure utility, and its interaction with the executor
+ * is precisely what several of these tests pin); only the manager itself is
  * faked. ``server_action.test.js`` covers the same executor end-to-end with a
  * mounted WebClient; these isolate the response-normalisation rules, which are
  * invisible from the outside.
@@ -24,7 +25,7 @@ function makeFakeAm(overrides = {}) {
     /** @type {Record<string, any[]>} */
     const calls = { doAction: [] };
     const am = {
-        keepLast: new KeepLast({ rejectSuperseded: true }),
+        navigation: new NavigationTracker(),
         doAction: async (action, options) => {
             calls.doAction.push({ action, options });
             return "doAction-result";
@@ -119,7 +120,7 @@ test("caller options are forwarded to the follow-up doAction", async () => {
     expect(options.clearBreadcrumbs).toBe(true);
 });
 
-test("keepLast drops a superseded run: only the latest dispatches", async () => {
+test("the navigation guard drops a superseded run: only the latest dispatches", async () => {
     await makeMockServer();
     const first = new Deferred();
     let call = 0;
