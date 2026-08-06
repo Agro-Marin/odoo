@@ -114,6 +114,20 @@ wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
 | `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild; used for test-runner bundles |
 | `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map |
 
+Choosing between the last two, since both silence the "module-syntax file in a
+non-ESM bundle" stub and neither raises when it is the wrong one:
+
+- `import_map_includes` — the child is **never compiled**: `EsbuildCompiler.compile`
+  returns an empty result at `esbuild.py:481` when `_import_map_included` is set
+  (fed from `registry.import_map_included_bundles`, `bundle.py:467`). Its specifiers
+  ride the parent's map and resolve to individual source URLs, which is what a test
+  runner loading files on demand wants.
+- `secondary_import_map_includes` — the child **is** compiled, and this is the only
+  key that populates `secondary_parents`, the mapping that makes esbuild `--alias`
+  the child's shared specifiers onto `odoo.loader.modules` shims (`esbuild.py:535`).
+  Required whenever the satellite must drive the parent's *live* instances, e.g. a
+  tour calling `patchWithCleanup(browser, …)` against an already-running app.
+
 Example:
 
 ```python
