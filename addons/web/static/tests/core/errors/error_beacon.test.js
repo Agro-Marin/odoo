@@ -32,7 +32,9 @@ async function payloadOf(blob) {
 test("reportJsError: an empty message is dropped without touching sendBeacon", () => {
     const { calls } = spyBeacon();
     expect(reportJsError({ message: "" })).toBe(false);
-    expect(reportJsError({})).toBe(false);
+    // Cast: a caller with no `message` at all is what this asserts is dropped,
+    // so the malformed argument is the point of the test, not an oversight.
+    expect(reportJsError(/** @type {any} */ ({}))).toBe(false);
     expect(reportJsError({ message: null })).toBe(false);
     expect(calls).toHaveLength(0);
 });

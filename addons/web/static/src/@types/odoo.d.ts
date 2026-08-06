@@ -50,6 +50,21 @@ class OdooModuleLoader {
 
     /** Reload seam — overridden in tests; reloads only THIS document. */
     _reloadPage(): void;
+
+    /**
+     * Beacon seam — the shim's error-reporting internals, exposed for tests.
+     *
+     * These live in the shim's IIFE closure and the pre-ESM shim cannot
+     * ``export``, so a test has no other way to reach them. ``serializeCause``
+     * and ``hashCode`` are byte-identical copies of the helpers in
+     * ``@web/core/errors/error_beacon``; keep all three in step.
+     */
+    _beacon: {
+        reportError(payload: Record<string, any>): void;
+        seenErrors: Set<string>;
+        serializeCause(cause: unknown): string;
+        hashCode(str: string): string;
+    };
 }
 
 type OdooModule = Record<string, any>;
@@ -65,6 +80,19 @@ declare const odoo: {
     debug: string;
     loader: OdooModuleLoader;
     translationContext?: string;
+    /**
+     * Whether the web client has finished mounting.
+     *
+     * Written by ``boot/start.js:startWebClient`` — ``false`` before the mount,
+     * ``true`` once the app is up — and read by every beacon emitter to decide
+     * `pre_boot` vs `post_boot`, and by ``module_loader.js`` to stand down its
+     * pre-boot error listener once the error service owns reporting.
+     *
+     * Undeclared until now, which is why both writers cast through
+     * ``/** @type {any} *\/`` and every reader through an inline cast: the
+     * property has always existed, only the contract was missing.
+     */
+    isReady?: boolean;
     /**
      * Server info, available after session initialization.
      *
@@ -84,4 +112,3 @@ declare const odoo: {
         [key: string]: any;
     };
 };
-
