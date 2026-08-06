@@ -77,7 +77,6 @@ const INTERNAL = [
     "ControllerComponent",
     "uninstallActionCacheInvalidation",
     "_id",
-    "_skeletonDef",
     "_actionExecutors",
     // The body of `doAction`; `doAction` itself is only the wrapper that
     // announces ACTION_MANAGER:SETTLED once the dispatch is over.
@@ -94,6 +93,7 @@ const INTERNAL = [
     "_prepareControllerConfig",
     "_dispatchTargetNew",
     "_dispatchInline",
+    "_awaitSkeletonMount",
     "_warnDroppedOnClose",
     "_openURL",
     "_openActionInNewWindow",
