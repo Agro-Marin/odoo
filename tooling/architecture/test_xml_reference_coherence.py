@@ -502,7 +502,10 @@ def test_real_tree_is_measured_and_matches_its_pin():
         "web's own templates are missing"
     )
     pinned = xrc.load_pinned()
-    assert pinned, "no pin file — the gate would pass against nothing"
+    # The pin FILE must exist (a gate with no baseline would pass against
+    # nothing); an EMPTY pin is the goal state — every hand-verified dangler
+    # fixed — so emptiness itself is not a failure.
+    assert xrc.PINNED.is_file(), "no pin file — the gate would pass against nothing"
     dangling = xrc.resolve(js_providers, templates, consumers, xrc.judged(present))
     new, gone = xrc.drift(
         xrc.measured_provenance(dangling), pinned, xrc.judged(present)
