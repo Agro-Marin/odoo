@@ -1001,8 +1001,11 @@ test("Attachment-only message preview shows file type icon", async () => {
             ],
             author_id: partners[i],
             body: "",
-            // Distinct decreasing dates: the mock's fixed default date makes the
-            // recency comparators tie and the :eq(0..4) positions undefined.
+            // Distinct decreasing dates, so the menu orders by recency
+            // (Channel1 newest -> first). With equal or absent dates the
+            // recency comparator returns no verdict and the sort falls back to
+            // a localId tiebreak, which does not give the :eq(0..4) positions
+            // asserted below.
             date: `2024-01-0${5 - i} 12:00:00`,
             model: "discuss.channel",
             res_id: channelIds[i],
