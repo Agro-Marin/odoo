@@ -1,10 +1,64 @@
 // @odoo-module ignore
 
-const cacheName = "odoo-sw-cache";
+/**
+ * Cache versioning and the shell/asset invariant
+ * ----------------------------------------------
+ * Two caches, both version-suffixed:
+ *
+ * - `cacheName` (shell cache): the app-shell HTML for `/odoo` (its session
+ *   info split out under `sessionInfoURL`) plus the `/odoo/offline` page.
+ * - `staticCacheName`: content-addressed immutable responses — the
+ *   `/web/assets/<hash>/` bundles and `/web/image?…unique=` images — filled
+ *   lazily by the stale-while-revalidate fetch path.
+ *
+ * INVARIANT (audit U14-3): a service-worker update must never leave a
+ * servable shell whose content-addressed assets are gone. Whenever
+ * `readDataOnCache` can answer a navigation with cached shell HTML, the
+ * `/web/assets/` URLs that HTML references must remain servable from
+ * `staticCacheName`. If the shell itself is dropped, its assets may go with
+ * it: navigation then falls back to the self-contained offline page.
+ *
+ * The previous design broke the invariant: `activate` purged every asset
+ * entry from an unversioned static cache while the shell survived in the
+ * other unversioned cache, so the first offline navigation after ANY worker
+ * update rendered a shell whose scripts and styles all failed, until a later
+ * online visit repopulated them.
+ *
+ * How the invariant is kept now:
+ *
+ * - Same-version update (any byte change to this file without a
+ *   CACHE_VERSION bump — the common case): both cache names are unchanged,
+ *   so activation deletes nothing the current shell references. Superseded
+ *   asset generations are garbage-collected only when provably safe: an
+ *   entry is deleted only if the currently cached shell does not reference
+ *   it AND its cached response is older than ASSET_RETENTION_MS (lazily
+ *   loaded bundles in active use are re-`put` by stale-while-revalidate on
+ *   every online fetch, refreshing their Date header).
+ * - CACHE_VERSION bump (reserved for changes that make previously cached
+ *   entries unreadable by this file's code, e.g. a different session-info
+ *   placeholder scheme): `install` populates the new shell cache while the
+ *   old worker still controls the pages; `activate` migrates
+ *   content-addressed static entries forward (immutable and URL-keyed, so
+ *   safe across versions), then deletes every old-version cache. Shell
+ *   entries are deliberately NOT migrated across a version bump — the bump
+ *   exists because their format changed — except from the legacy
+ *   unversioned cache, whose entry format matches v1.
+ * - `user_logout` still drops the whole static cache and the saved session
+ *   info, and a 401/403 on an image still evicts that image's cache entry
+ *   (shared-machine grant hygiene): semantics unchanged.
+ *
+ * UNTESTED-BY-SUITE: no automated suite exercises this worker. Changes here
+ * are verified by `node --check`, eslint and manual tracing only.
+ */
+const CACHE_VERSION = "v1";
+const CACHE_PREFIX = "odoo-sw-cache";
+const STATIC_CACHE_PREFIX = "odoo-static-cache";
+
+const cacheName = `${CACHE_PREFIX}-${CACHE_VERSION}`;
 const homepageURL = "/odoo";
 const offLineURL = `${homepageURL}/offline`;
 
-const staticCacheName = "odoo-static-cache";
+const staticCacheName = `${STATIC_CACHE_PREFIX}-${CACHE_VERSION}`;
 
 const STATIC_PATH_RE = /^\/web\/assets\/(esm\/)?[0-9a-f]{7,}\//;
 const IMAGE_PATH_RE = /^\/web\/image(\/|$)/;
@@ -33,26 +87,163 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-    event.waitUntil(purgeSupersededStaticEntries());
+    event.waitUntil(activateCaches());
 });
 
 /**
+ * See the "Cache versioning and the shell/asset invariant" block at the top
+ * of this file: migrate what is safe to keep, garbage-collect what is
+ * provably superseded, then delete old-version caches.
+ *
  * @returns {Promise<void>}
  */
-const purgeSupersededStaticEntries = async () => {
+const activateCaches = async () => {
     try {
-        const cache = await caches.open(staticCacheName);
-        for (const request of await cache.keys()) {
-            const { pathname } = new URL(request.url);
-            if (
-                IMAGE_PATH_RE.test(pathname) ||
-                pathname.startsWith("/web/assets/") ||
-                pathname.startsWith("/web/webclient/translations")
-            ) {
-                await cache.delete(request);
-            }
-        }
+        await migrateSupersededCaches();
+        await collectSupersededAssets();
+        await deleteSupersededCaches();
     } catch {}
+};
+
+/**
+ * @param {string} name
+ * @returns {boolean}
+ */
+const isOwnedCacheName = (name) =>
+    name === CACHE_PREFIX ||
+    name === STATIC_CACHE_PREFIX ||
+    name.startsWith(`${CACHE_PREFIX}-`) ||
+    name.startsWith(`${STATIC_CACHE_PREFIX}-`);
+
+/**
+ * @param {URL} url
+ * @returns {boolean}
+ */
+const isShellURL = (url) =>
+    [homepageURL, offLineURL, sessionInfoURL].includes(url.pathname);
+
+/**
+ * Copy `fromName` entries accepted by `shouldKeep` into `toName`, without
+ * overwriting anything the target already has (an entry `install` just
+ * fetched is fresher than what an old cache holds).
+ *
+ * @param {string} fromName
+ * @param {string} toName
+ * @param {(url: URL) => boolean} shouldKeep
+ * @returns {Promise<void>}
+ */
+const copyMissingEntries = async (fromName, toName, shouldKeep) => {
+    const from = await caches.open(fromName);
+    const to = await caches.open(toName);
+    for (const request of await from.keys()) {
+        if (!shouldKeep(new URL(request.url)) || (await to.match(request))) {
+            continue;
+        }
+        const response = await from.match(request);
+        if (response) {
+            await to.put(request, response);
+        }
+    }
+};
+
+/**
+ * Carry forward, from caches this worker's previous versions owned, the
+ * entries the current version can still serve — so a worker update never
+ * costs a user their offline capability.
+ *
+ * @returns {Promise<void>}
+ */
+const migrateSupersededCaches = async () => {
+    for (const name of await caches.keys()) {
+        if (name === cacheName || name === staticCacheName) {
+            continue;
+        }
+        if (name === CACHE_PREFIX) {
+            // Legacy unversioned shell cache: its entry format matches v1.
+            // Do NOT extend this to versioned names — a CACHE_VERSION bump
+            // means the shell entry format changed.
+            await copyMissingEntries(name, cacheName, isShellURL);
+        } else if (
+            name === STATIC_CACHE_PREFIX ||
+            name.startsWith(`${STATIC_CACHE_PREFIX}-`)
+        ) {
+            // Content-addressed entries are immutable and URL-keyed: safe to
+            // carry across any version.
+            await copyMissingEntries(name, staticCacheName, isStaleWhileRevalidateURL);
+        }
+    }
+};
+
+const ASSET_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+const SHELL_ASSET_URL_RE = /\/web\/assets\/(?:esm\/)?[0-9a-f]{7,}\/[^"'\s<>]*/g;
+
+/**
+ * @returns {Promise<Set<string> | null>} pathnames of the `/web/assets/` URLs
+ *  the cached shell pages reference, or `null` when no shell page is cached
+ *  (nothing to validate against — the caller must not delete anything).
+ */
+const getShellReferencedAssetPaths = async () => {
+    const cache = await caches.open(cacheName);
+    const paths = new Set();
+    let hasShell = false;
+    for (const url of [homepageURL, offLineURL]) {
+        const response = await cache.match(url);
+        if (!response) {
+            continue;
+        }
+        hasShell = true;
+        const html = await getTextFromResponse(response);
+        for (const match of html.match(SHELL_ASSET_URL_RE) ?? []) {
+            paths.add(match);
+        }
+    }
+    return hasShell ? paths : null;
+};
+
+/**
+ * Garbage-collect superseded asset generations without ever touching an
+ * entry the cached shell still references. Unreferenced entries are only
+ * deleted once their cached response is older than ASSET_RETENTION_MS:
+ * lazily loaded bundles in active use are re-`put` by stale-while-revalidate
+ * on every online fetch, so their Date header stays recent. Image entries
+ * are governed by the 401/403 eviction and `user_logout`, never by this
+ * sweep.
+ *
+ * @returns {Promise<void>}
+ */
+const collectSupersededAssets = async () => {
+    const referenced = await getShellReferencedAssetPaths();
+    if (!referenced) {
+        return;
+    }
+    const cache = await caches.open(staticCacheName);
+    const now = Date.now();
+    for (const request of await cache.keys()) {
+        const { pathname } = new URL(request.url);
+        if (!STATIC_PATH_RE.test(pathname) || referenced.has(pathname)) {
+            continue;
+        }
+        const response = await cache.match(request);
+        const fetchedAt = Date.parse(response?.headers.get("date") ?? "");
+        if (!Number.isNaN(fetchedAt) && now - fetchedAt > ASSET_RETENTION_MS) {
+            await cache.delete(request);
+        }
+    }
+};
+
+/**
+ * Only runs after migration and collection succeeded: deleting an
+ * old-version cache is the last, irreversible step of activation.
+ *
+ * @returns {Promise<void>}
+ */
+const deleteSupersededCaches = async () => {
+    for (const name of await caches.keys()) {
+        if (name !== cacheName && name !== staticCacheName && isOwnedCacheName(name)) {
+            await caches.delete(name);
+        }
+    }
 };
 
 /**
