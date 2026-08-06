@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from odoo import Command
+from odoo.exceptions import UserError
 from odoo.tests import Form, tagged
 
 from odoo.addons.website_event_sale.tests.common import TestWebsiteEventSaleCommon
@@ -70,3 +71,126 @@ class TestWebsiteEventSaleCart(TestWebsiteEventSaleCommon, TestWebsiteSaleCartAb
             self.send_mail_patched(cart2.id),
             "Abandoned cart email can be sent after increasing seat count",
         )
+
+
+@tagged('post_install', '-at_install')
+class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
+    """Seat availability and event-ticket guards on cart quantity updates."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.partner_admin = cls.env.ref('base.partner_admin')
+
+    def test_cart_add_unknown_ticket_raises(self):
+        """Adding a nonexistent ticket id to the cart raises UserError."""
+        with self.assertRaises(UserError):
+            self.empty_cart._cart_add(
+                self.product_event.id, 1, event_ticket_id=-1,
+            )
+
+    def test_cart_add_unknown_slot_raises(self):
+        """Adding a valid ticket with a nonexistent slot id raises UserError."""
+        with self.assertRaises(UserError):
+            self.empty_cart._cart_add(
+                self.product_event.id, 1,
+                event_ticket_id=self.ticket.id, event_slot_id=-1,
+            )
+
+    def test_cart_add_product_ticket_mismatch_raises(self):
+        """The provided product must match the ticket's product."""
+        other_product = self.env['product.product'].create({
+            'name': 'Not an event product',
+            'type': 'service',
+            'list_price': 10,
+        })
+        with self.assertRaises(UserError):
+            self.empty_cart._cart_add(
+                other_product.id, 1, event_ticket_id=self.ticket.id,
+            )
+
+    def test_cart_add_sold_out_ticket_blocked(self):
+        """No quantity is added and a sold-out warning is returned."""
+        ticket = self.env['event.event.ticket'].create({
+            'event_id': self.event.id,
+            'name': 'Limited',
+            'product_id': self.product_event.id,
+            'price': 100,
+            'seats_max': 1,
+            'seats_limited': True,
+        })
+        self.env['event.registration'].create({
+            'event_id': self.event.id,
+            'event_ticket_id': ticket.id,
+            'partner_id': self.partner_admin.id,
+            'state': 'open',
+        })
+        self.env.flush_all()
+        self.assertEqual(ticket.seats_available, 0)
+
+        res = self.empty_cart._cart_add(
+            self.product_event.id, 1, event_ticket_id=ticket.id,
+        )
+        self.assertEqual(res['quantity'], 0)
+        self.assertIn('sold out', res['warning'])
+
+    def test_cart_add_clamped_to_available_seats(self):
+        """Requested quantity is clamped to the remaining seats."""
+        ticket = self.env['event.event.ticket'].create({
+            'event_id': self.event.id,
+            'name': 'Limited',
+            'product_id': self.product_event.id,
+            'price': 100,
+            'seats_max': 2,
+            'seats_limited': True,
+        })
+        res = self.empty_cart._cart_add(
+            self.product_event.id, 5, event_ticket_id=ticket.id,
+        )
+        self.assertEqual(res['quantity'], 2)
+        self.assertIn('only 2 seats', res['warning'])
+
+    def test_cart_manual_quantity_raise_blocked(self):
+        """Raising an event line quantity without ticket context is refused."""
+        res_add = self.empty_cart._cart_add(
+            self.product_event.id, 1, event_ticket_id=self.ticket.id,
+        )
+        line = self.env['sale.order.line'].browse(res_add['line_id'])
+        self.assertEqual(line.product_uom_qty, 1)
+
+        res = self.empty_cart._cart_update_line_quantity(line.id, 3)
+        self.assertEqual(res['quantity'], 1)
+        self.assertIn('cannot raise manually', res['warning'])
+        self.assertEqual(line.product_uom_qty, 1)
+
+    def test_cart_quantity_decrease_cancels_registrations(self):
+        """Decreasing an event line quantity cancels the newest registrations."""
+        res_add = self.empty_cart._cart_add(
+            self.product_event.id, 2, event_ticket_id=self.ticket.id,
+        )
+        line = self.env['sale.order.line'].browse(res_add['line_id'])
+        reg_first, reg_second = self.env['event.registration'].create([
+            {
+                'event_id': self.event.id,
+                'event_ticket_id': self.ticket.id,
+                'partner_id': self.partner_admin.id,
+                'sale_order_id': self.empty_cart.id,
+                'state': 'open',
+            }
+            for _dummy in range(2)
+        ])
+        # Both rows share the transaction timestamp; the cleanup in
+        # _cart_update_order_line orders by create_date, so force distinct
+        # dates to make "newest registration" deterministic.
+        self.env.cr.execute(
+            "UPDATE event_registration SET create_date = create_date - interval '1 second'"
+            " WHERE id = %s",
+            (reg_first.id,),
+        )
+        self.env['event.registration'].invalidate_model(['create_date'])
+
+        self.empty_cart._cart_update_line_quantity(line.id, 1)
+
+        self.assertEqual(line.product_uom_qty, 1)
+        self.assertNotEqual(reg_first.state, 'cancel')
+        self.assertEqual(reg_second.state, 'cancel')
