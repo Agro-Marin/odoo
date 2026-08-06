@@ -91,6 +91,20 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         return classes;
     }
 
+    /**
+     * The right panel's focus state is reactive renderer state the row
+     * template renders from; passing it as a prop re-targets it per row, so
+     * a focus change re-renders the rows whose ``focused`` attribute flips.
+     *
+     * @override
+     */
+    getRowProps(record, group, groupId) {
+        return {
+            ...super.getRowProps(record, group, groupId),
+            rightPanelState: this.rightPanelState,
+        };
+    }
+
     getDocumentsAttachmentViewerProps() {
         return { previewStore: this.props.previewStore };
     }

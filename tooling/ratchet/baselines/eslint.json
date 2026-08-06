@@ -1,4 +1,4 @@
 {
-  "count": 24128,
-  "note": "24129 -> 24128 (-1): formatters.test.js was unparsable since 19201d2679d -- the architecture refactor rewired the old @web/services/currency import to @web/core/currency AND added the same import in sorted position, so eslint reported the duplicate declaration as a parsing error (one error for the whole file) and every scoped unit-test page warned 'Identifier currencies has already been declared' at import time. Dropping the duplicate import returns the file to the lintable set. Command: npx eslint . --format=json --output-file=/tmp/eslint.json && jq '[.[].errorCount] | add // 0' /tmp/eslint.json"
+  "count": 24124,
+  "note": "U5 proposal 5 stage 2: migrating the section_and_note / combo / alt-PO row templates onto the explicit row api re-indented their renderers' touched regions; per-file A/B: sale_management order-line -1, purchase_requisition alternatives widget -3, all other touched files unchanged (account & sale stay at 0). Measured per file against the pre-change tree because concurrent sessions hold unrelated working-tree drift."
 }

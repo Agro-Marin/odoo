@@ -25,7 +25,7 @@
     <t t-name="documents.DocumentsListRenderer.RecordRow" t-inherit="web.ListRenderer.RecordRow" t-inherit-mode="primary">
         <xpath expr="//tr[hasclass('o_data_row')]" position="attributes">
             <attribute name="t-att-data-value-id">record.data.id</attribute>
-            <attribute name="t-att-focused">record === this.rightPanelState.focusedRecord</attribute>
+            <attribute name="t-att-focused">record.id === props.rightPanelState.focusedRecord?.id</attribute>
         </xpath>
     </t>
 </templates>

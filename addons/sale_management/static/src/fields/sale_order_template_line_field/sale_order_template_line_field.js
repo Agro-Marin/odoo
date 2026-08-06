@@ -17,8 +17,35 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         this.copyFields.push('is_optional');
     }
 
-    get disableOptionalButton() {
-        return this.shouldCollapse(this.record, 'is_optional');
+    disableOptionalButton(record) {
+        return this.shouldCollapse(record, 'is_optional');
+    }
+
+    /**
+     * The optional-section members the row template calls (see ListRowApi).
+     *
+     * @override
+     */
+    buildRowApi() {
+        return {
+            ...super.buildRowApi(),
+            disableOptionalButton: (record) => this.disableOptionalButton(record),
+            toggleIsOptional: (record) =>
+                this.toggleIsOptional(this.resolveRowRecord(record)),
+        };
+    }
+
+    /**
+     * Per-row optional-muting derivation (see the sale_management order line
+     * patch for the rationale).
+     *
+     * @override
+     */
+    getRowProps(record, group, groupId) {
+        return {
+            ...super.getRowProps(record, group, groupId),
+            mutedOptional: this.shouldCollapse(record, "is_optional", true),
+        };
     }
 
     get isCurrentSectionOptional() {
@@ -135,7 +162,9 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         const optionalStateMap = new Map();
 
         if (this.isSection(record)) { // If a section or subsection is moved
-            let currentIndex = this.props.list.records.indexOf(record);
+            let currentIndex = this.props.list.records.findIndex(
+                (r) => r.id === record.id,
+            );
             let targetIndex = this.props.list.records.findIndex(r => r.id === targetId);
             if (currentIndex > targetIndex) {
                 //When moving up, recompute:

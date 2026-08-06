@@ -6,9 +6,17 @@ import { ListRenderer } from "@web/views/list";
 
 
 export class FieldMany2ManyAltPOsRenderer extends ListRenderer {
-   isCurrentRecord(record) {
-      return record.resId === this.props.list.model.root.resId;
-  }
+    isCurrentRecord(record) {
+        return record.resId === this.props.list.model.root.resId;
+    }
+
+    /** @override */
+    buildRowApi() {
+        return {
+            ...super.buildRowApi(),
+            isCurrentRecord: (record) => this.isCurrentRecord(record),
+        };
+    }
 }
 
 FieldMany2ManyAltPOsRenderer.recordRowTemplate = "purchase_requisition.AltPOsListRenderer.RecordRow";

@@ -34,6 +34,14 @@ export class ResumeListRenderer extends CommonSkillsListRenderer {
         return formatDate(date);
     }
 
+    /** @override */
+    buildRowApi() {
+        return {
+            ...super.buildRowApi(),
+            formatDate: (date) => this.formatDate(date),
+        };
+    }
+
     _setLinksToOpenInNewTab() {
         const resumeLines = this.linkRef.el;
 

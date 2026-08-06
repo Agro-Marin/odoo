@@ -16,17 +16,17 @@ patch(SaleOrderLineListRenderer.prototype, {
      * Disable "Hide Composition" and "Hide Prices" buttons for optional sections and their
      * subsections.
      */
-    get disableCompositionButton() {
+    disableCompositionButton(record) {
         return (
-            super.disableCompositionButton
-            || this.shouldCollapse(this.record, 'is_optional', true)
+            super.disableCompositionButton(record)
+            || this.shouldCollapse(record, 'is_optional', true)
         );
     },
 
-    get disablePricesButton() {
+    disablePricesButton(record) {
         return (
-            super.disablePricesButton
-            || this.shouldCollapse(this.record, 'is_optional', true)
+            super.disablePricesButton(record)
+            || this.shouldCollapse(record, 'is_optional', true)
         );
     },
 
@@ -36,12 +36,40 @@ patch(SaleOrderLineListRenderer.prototype, {
      *  - Parent section hides prices or composition
      *  - Section itself hides prices or composition
      */
-    get disableOptionalButton() {
+    disableOptionalButton(record) {
         return (
-            this.shouldCollapse(this.record, 'is_optional')
-            || this.shouldCollapse(this.record, 'collapse_prices', true)
-            || this.shouldCollapse(this.record, 'collapse_composition', true)
+            this.shouldCollapse(record, 'is_optional')
+            || this.shouldCollapse(record, 'collapse_prices', true)
+            || this.shouldCollapse(record, 'collapse_composition', true)
         );
+    },
+
+    /**
+     * The optional-section members the row template calls (see ListRowApi).
+     *
+     * @override
+     */
+    buildRowApi() {
+        return {
+            ...super.buildRowApi(),
+            disableOptionalButton: (record) => this.disableOptionalButton(record),
+            toggleIsOptional: (record) =>
+                this.toggleIsOptional(this.resolveRowRecord(record)),
+        };
+    },
+
+    /**
+     * Per-row optional-muting derivation: it depends on the parent section's
+     * `is_optional`, which the row never reads itself — computing it here
+     * subscribes the renderer and prop-flips exactly the affected rows.
+     *
+     * @override
+     */
+    getRowProps(record, group, groupId) {
+        return {
+            ...super.getRowProps(record, group, groupId),
+            mutedOptional: this.shouldCollapse(record, "is_optional", true),
+        };
     },
 
     get isCurrentSectionOptional() {
@@ -197,7 +225,9 @@ patch(SaleOrderLineListRenderer.prototype, {
         const optionalStateMap = new Map();
 
         if (this.isSection(record)) { // If a section or subsection is moved
-            let currentIndex = this.props.list.records.indexOf(record);
+            let currentIndex = this.props.list.records.findIndex(
+                (r) => r.id === record.id,
+            );
             let targetIndex = this.props.list.records.findIndex(r => r.id === targetId);
             if (currentIndex > targetIndex) {
                 //When moving up, recompute:
