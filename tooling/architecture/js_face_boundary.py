@@ -63,8 +63,12 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 WEB = ROOT / "addons" / "web"
 WEB_SRC = WEB / "static" / "src"
 
-# Repos scanned for consumers. Siblings are absent from a CI checkout; the
-# pre-push hook covers those, exactly as cross_repo_coherence.py does.
+# Repos scanned for consumers. Siblings absent from a repo-alone CI checkout
+# are simply not scanned here — their imports are validated by their OWN
+# architecture workflows (e.g. enterprise/.github/workflows/architecture.yml),
+# which check out this repo alongside and re-run this gate with both trees
+# present. This gate only flags violations it can see, so a partial checkout
+# under-reports rather than mis-reports; nothing about it needs a pin.
 CONSUMER_ROOTS = (
     ROOT,
     ROOT.parent / "enterprise",
