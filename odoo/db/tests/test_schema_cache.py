@@ -56,10 +56,6 @@ class TestTransactionSchemaCache(unittest.TestCase):
         self.assertIsNone(other.get_column_types("t", ["a"]))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestClearSeparatesTwoLifetimes(unittest.TestCase):
     """Catalog facts and the lock ledger expire on different events.
 
@@ -91,3 +87,7 @@ class TestClearSeparatesTwoLifetimes(unittest.TestCase):
             repr(self.cache),
             "TransactionSchemaCache(sequences=1, column_types=1, locked=1)",
         )
+
+
+if __name__ == "__main__":
+    unittest.main()

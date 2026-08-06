@@ -337,10 +337,6 @@ class TestCursorSatisfiesItsMixinContracts(unittest.TestCase):
         self.assertEqual(sorted(required - provided), [])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestEveryCheckoutIsTracked(unittest.TestCase):
     """ "What is left in the tracker is by definition still out."
 
@@ -442,3 +438,7 @@ class TestBudgetBelongsToAServer(unittest.TestCase):
             hasattr(package, "_budget"),
             "the single process-wide budget was replaced by a per-endpoint map",
         )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -475,10 +475,6 @@ class TestConnectionBudgetSharing(unittest.TestCase):
         self.assertIsInstance(getattr(p, _LAST_BORROW_ATTR), float)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestReachabilityProof(unittest.TestCase):
     """The pre-flight probe must not re-ask a question already answered.
 
@@ -557,3 +553,7 @@ class TestReachabilityProof(unittest.TestCase):
         with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
             pool._get_or_create_pool(new, {"dbname": "d", "password": "new"})
         self.assertFalse(pool._is_proven_reachable(old))
+
+
+if __name__ == "__main__":
+    unittest.main()

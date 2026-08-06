@@ -308,10 +308,6 @@ class TestMetricsMixin(unittest.TestCase):
         self.assertIn("(1,)", out)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestBeforeStatementSeam(unittest.TestCase):
     """Every statement entry point announces itself through one hook.
 
@@ -357,3 +353,7 @@ def _marks_statements() -> set:
         and getattr(getattr(Cursor, name), "__code__", None) is not None
         and "_before_statement" in getattr(Cursor, name).__code__.co_names
     }
+
+
+if __name__ == "__main__":
+    unittest.main()
