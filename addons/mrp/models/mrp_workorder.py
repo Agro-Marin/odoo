@@ -1223,7 +1223,7 @@ class MrpWorkorder(models.Model):
         """Close the open time lines of these work orders.
 
         :param doall: close every open time line on the open work orders; when
-            False, only the current user's
+            False, only the current user's most recent one
         """
         domain = [("workorder_id", "in", self.ids), ("date_end", "=", False)]
         if not doall:
