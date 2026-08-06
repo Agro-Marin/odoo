@@ -885,14 +885,14 @@ else
     # whenever an addon gains or loses a bundled suite — exactly the number a
     # hand-maintained doc gets wrong. It was 159 in the doc against 158 real.
     for spec in \
-        "web_unit:291" \
+        "web_unit:297" \
         "web_http:100" \
         "web_tour:5" \
         "web_js:37" \
         "web_perf:26" \
         "web_benchmark:8" \
         "click_all:2" \
-        "addon_js:158"; do
+        "addon_js:159"; do
         tag="${spec%:*}"
         expected="${spec##*:}"
         actual=$(count_tag_tests "$tag")
