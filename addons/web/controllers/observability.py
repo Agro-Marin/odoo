@@ -2,7 +2,7 @@
 
 Receives Core Web Vitals beacons from ``services/web_vitals/web_vitals_service.js``
 and persists them to ``web.cwv.metric`` for dashboards (list/pivot/graph views
-under Settings → Technical → Performance → Core Web Vitals).  A short ``[cwv]``
+under Settings → Technical → Observability → Core Web Vitals).  A short ``[cwv]``
 INFO log line is also emitted per beacon as an ops-debug signal that does not
 require a DB query to inspect.
 
@@ -224,8 +224,8 @@ class Observability(Controller):
         self-heal reload fired or the once-a-minute guard suppressed it).
 
         Logs each beacon as ``[js_error]`` at WARNING and persists it to
-        ``web.js.error`` (list/form under Settings → Technical → Real User
-        Monitoring → JS Errors).
+        ``web.js.error`` (list/form under Settings → Technical → Observability
+        → JS Errors).
         The log line stays because it needs no DB query to inspect and
         survives even when the write fails; the model is what makes a
         post-deploy regression greppable by kind, phase and cause instead of
