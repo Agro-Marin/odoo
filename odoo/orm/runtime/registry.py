@@ -51,12 +51,20 @@ REGISTRY_CACHES = {
     "routing.rewrites": 8192,
     "templates.cached_values": 2048,
     "groups": 64,
+    # Variant lookups keyed by template + attribute-value combination
+    # (`product.template._get_variant_id_for_combination` /
+    # `_get_first_possible_variant_id`). They live in their own bucket because
+    # product churn invalidates them constantly -- every variant create, archive
+    # or combination change -- and a bare `clear_cache()` would otherwise evict
+    # the whole "default" group (record-rule domains, ACL checks, xmlid lookups)
+    # in every worker each time a product is touched.
+    "product_variants": 8192,
 }
 
 CACHES_BY_KEY = {
-    "default": ("default", "templates.cached_values"),
+    "default": ("default", "templates.cached_values", "product_variants"),
     "assets": ("assets", "assets.links", "templates.cached_values"),
-    "stable": ("stable", "default", "templates.cached_values"),
+    "stable": ("stable", "default", "templates.cached_values", "product_variants"),
     "templates": ("templates", "templates.cached_values"),
     "routing": ("routing", "routing.rewrites", "templates.cached_values"),
     "groups": (
@@ -64,6 +72,7 @@ CACHES_BY_KEY = {
         "templates",
         "templates.cached_values",
     ),
+    "product_variants": ("product_variants",),
 }
 
 _REPLICA_RETRY_TIME = 20 * 60

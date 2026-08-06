@@ -12,9 +12,6 @@ class ResConfigSettings(models.TransientModel):
         string="Variants",
         implied_group="product.group_product_variant",
     )
-    module_loyalty = fields.Boolean(
-        string="Promotions, Coupons, Gift Card & Loyalty Program",
-    )
     group_product_pricelist = fields.Boolean(
         string="Pricelists",
         implied_group="product.group_product_pricelist",
@@ -36,6 +33,9 @@ class ResConfigSettings(models.TransientModel):
         string="Volume unit of measure",
         default="0",
         config_parameter="product.volume_in_cubic_feet",
+    )
+    module_loyalty = fields.Boolean(
+        string="Promotions, Coupons, Gift Card & Loyalty Program",
     )
 
     @api.onchange("group_product_pricelist")
@@ -65,5 +65,13 @@ class ResConfigSettings(models.TransientModel):
 
         if self.group_product_pricelist and not had_group_pl:
             self.env["res.company"]._activate_or_create_pricelists()
-        elif not self.group_product_pricelist:
-            self.env["product.pricelist"].sudo().search([]).action_archive()
+        elif had_group_pl and not self.group_product_pricelist:
+            # Only on the enabled -> disabled *transition*. Archiving on every
+            # save while the feature is already off (the previous behaviour)
+            # silently re-archived pricelists an admin had deliberately
+            # reactivated, and did so for every company in the database on any
+            # unrelated settings change. The scope stays global because
+            # `group_product_pricelist` is itself a global group.
+            self.env["product.pricelist"].sudo().search(
+                [("active", "=", True)]
+            ).action_archive()

@@ -17,7 +17,13 @@ class ProductCatalogController(Controller):
             env[res_model], env.registry["product.catalog.mixin"]
         ):
             raise UserError(_("The product catalog cannot be used on this model."))
-        order = env[res_model].browse(int(order_id)).exists()
+        try:
+            order_id = int(order_id)
+        except ValueError, TypeError:
+            # Client-provided: a non-numeric id must not surface as a bare
+            # ValueError traceback (HTTP 500) but as a normal user error.
+            raise UserError(_("The requested record does not exist.")) from None
+        order = env[res_model].browse(order_id).exists()
         if not order:
             raise UserError(_("The requested record does not exist."))
         return order

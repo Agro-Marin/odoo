@@ -33,9 +33,19 @@ class ProductCategory(models.Model):
         inverse_name="parent_id",
         string="Child Categories",
     )
+    # Technical inverse of `product.template.categ_id`: no column, it exists so
+    # `product_count` can declare a dependency on the templates it counts.
+    product_tmpl_ids = fields.One2many(
+        comodel_name="product.template",
+        inverse_name="categ_id",
+        string="Products",
+    )
     product_count = fields.Integer(
         string="# Products",
         compute="_compute_product_count",
+        # Counts products `child_of` this category, so it depends on its own
+        # value on child categories (see `_compute_product_count`).
+        recursive=True,
         help="The number of products under this category and its children.",
     )
     product_properties_definition = fields.PropertiesDefinition("Product Properties")
@@ -51,7 +61,14 @@ class ProductCategory(models.Model):
             else:
                 category.complete_name = category.name
 
+    @api.depends("product_tmpl_ids", "child_id.product_count")
     def _compute_product_count(self):
+        # Both dependencies are needed: `product_tmpl_ids` invalidates the
+        # category a product moves in or out of, `child_id.product_count`
+        # propagates that up the tree (the count is `child_of`, so an ancestor's
+        # value changes when a descendant's does). Without them this non-stored
+        # compute stayed cached for the whole transaction and reported the
+        # pre-move counts.
         read_group_res = self.env["product.template"]._read_group(
             [("categ_id", "child_of", self.ids)], ["categ_id"], ["__count"]
         )
@@ -60,7 +77,11 @@ class ProductCategory(models.Model):
         self_ids = set(self.ids)
         count_by_categ = {}
         for categ, count in read_group_res:
-            for ancestor_id in map(int, categ.parent_path.split("/")[:-1]):
+            # `parent_path` is unset for categories created in the same
+            # transaction before `_parent_store` flushes: fall back to the
+            # record itself so the count is attributed rather than crashing.
+            parent_path = categ.parent_path or f"{categ.id}/"
+            for ancestor_id in map(int, parent_path.split("/")[:-1]):
                 if ancestor_id in self_ids:
                     count_by_categ[ancestor_id] = (
                         count_by_categ.get(ancestor_id, 0) + count

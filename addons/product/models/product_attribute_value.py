@@ -125,6 +125,23 @@ class ProductAttributeValue(models.Model):
                 # If product attribute value found on non-active product variants
                 # archive PAV instead of deleting
                 pavs_to_archive |= pav
+        # A value still referenced by an attribute line cannot be deleted:
+        # `product_attribute_value_product_template_attribute_line_rel` is a
+        # restrict FK. `_unlink_except_used_on_product` only looks at lines of
+        # *active* templates, so a value used solely on an archived template
+        # passed every Python guard and surfaced as a raw RestrictViolation
+        # traceback. Archive it instead, consistently with the archived-variant
+        # case handled above.
+        remaining = self - pavs_to_archive
+        if remaining:
+            # Only for values whose *sole* remaining usage is on archived
+            # templates: a value still used on an active product must keep
+            # raising the explanatory UserError from
+            # `_unlink_except_used_on_product` rather than being archived.
+            still_referenced = remaining.with_context(active_test=False).filtered(
+                lambda pav: pav.pav_attribute_line_ids and not pav.is_used_on_products
+            )
+            pavs_to_archive |= still_referenced.with_env(self.env)
         if pavs_to_archive:
             pavs_to_archive.action_archive()
         return super(ProductAttributeValue, self - pavs_to_archive).unlink()

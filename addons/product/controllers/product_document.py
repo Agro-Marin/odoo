@@ -30,24 +30,39 @@ class ProductDocumentController(Controller):
             )
 
         files = request.httprequest.files.getlist("ufile")
-        result = {"success": _("All files uploaded")}
+        failed = []
         for file in files:
+            # One savepoint per file. Without it a database-level failure (FK
+            # violation, constraint, size limit) aborts the whole request
+            # transaction, so every *later* file dies with InFailedSqlTransaction
+            # and the already-created documents are rolled back -- while the
+            # response still reported success.
             try:
-                request.env["product.document"].create(
-                    {
-                        "name": file.filename,
-                        "res_model": record._name,
-                        "res_id": record.id,
-                        "company_id": record.company_id.id,
-                        "mimetype": file.content_type,
-                        "raw": file.read(),
-                        **self.get_additional_create_params(**kwargs),
-                    }
-                )
-            except Exception as e:
+                with request.env.cr.savepoint():
+                    request.env["product.document"].create(
+                        {
+                            "name": file.filename,
+                            "res_model": record._name,
+                            "res_id": record.id,
+                            "company_id": record.company_id.id,
+                            "mimetype": file.content_type,
+                            "raw": file.read(),
+                            **self.get_additional_create_params(**kwargs),
+                        }
+                    )
+            except Exception:
+                # The exception text can carry SQL, table/column names and paths:
+                # log it, but only name the offending file to the client.
                 logger.exception("Failed to upload document %s", file.filename)
-                result = self._error_result(str(e))
-        return json.dumps(result)
+                failed.append(file.filename or _("unnamed file"))
+
+        if failed:
+            if len(failed) == len(files):
+                message = _("No file could be uploaded.")
+            else:
+                message = _("Some files could not be uploaded: %s", ", ".join(failed))
+            return json.dumps(self._error_result(message))
+        return json.dumps({"success": _("All files uploaded")})
 
     @staticmethod
     def _error_result(message):

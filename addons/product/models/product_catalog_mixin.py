@@ -25,7 +25,21 @@ class ProductCatalogMixin(models.AbstractModel):
             "views": [(kanban_view_id, "kanban"), (False, "form")],
             "search_view_id": [search_view_id, "search"],
             "domain": self._get_product_catalog_domain(),
-            "context": {**self.env.context, **additional_context},
+            "context": {**self._get_catalog_action_context(), **additional_context},
+        }
+
+    def _get_catalog_action_context(self):
+        """Context forwarded to the catalog action.
+
+        The caller is an order form, so its context carries `default_*` keys for
+        *its own* model (partner, company, order name...). Forwarding them
+        wholesale meant a product created from the catalog inherited defaults
+        that belong to a sale/purchase order. Drop them and keep the rest.
+        """
+        return {
+            key: value
+            for key, value in self.env.context.items()
+            if not key.startswith("default_")
         }
 
     def _default_order_line_values(self, child_field=False):

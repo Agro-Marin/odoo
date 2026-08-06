@@ -11,6 +11,7 @@ class ReportProductReport_Pricelist(models.AbstractModel):
     _description = "Pricelist Report"
 
     MAX_QUANTITIES = 100
+    MAX_PRODUCTS = 1000
 
     def _get_report_values(self, docids, data):
         return self._get_report_data(data, "pdf")
@@ -43,14 +44,25 @@ class ReportProductReport_Pricelist(models.AbstractModel):
             active_ids = [int(id_) for id_ in data.get("active_ids") or []]
         except ValueError, TypeError:
             raise UserError(_("Invalid product ids.")) from None
+        # `active_ids` is client-provided and each product costs one price
+        # computation per quantity column (plus one per variant): bound it the
+        # same way `quantities` is bounded, or a single request can pin a worker.
+        if len(active_ids) > self.MAX_PRODUCTS:
+            raise UserError(
+                _(
+                    "At most %s products can be printed on the pricelist report.",
+                    self.MAX_PRODUCTS,
+                )
+            )
         is_product_tmpl = active_model == "product.template"
         ProductClass = self.env[active_model]
 
-        products = ProductClass.browse(active_ids).exists() if active_ids else []
-        products_data = [
-            self._get_product_data(is_product_tmpl, product, pricelist, quantities)
-            for product in products
-        ]
+        products = (
+            ProductClass.browse(active_ids).exists() if active_ids else ProductClass
+        )
+        products_data = self._get_products_data(
+            is_product_tmpl, products, pricelist, quantities
+        )
 
         return {
             "is_html_type": report_type == "html",
@@ -96,20 +108,66 @@ class ReportProductReport_Pricelist(models.AbstractModel):
             raise UserError(_("Quantities must be positive."))
         return quantities
 
-    def _get_product_data(self, is_product_tmpl, product, pricelist, quantities):
-        data = {
-            "id": product.id,
-            "name": (is_product_tmpl and product.name) or product.display_name,
-            "price": dict.fromkeys(quantities, 0.0),
-            "uom": product.uom_id.name,
-        }
+    def _get_products_data(self, is_product_tmpl, products, pricelist, quantities):
+        """Build the report rows for ``products``, batching the price computation.
+
+        Pricing one product at a time runs a full rule search per (product,
+        quantity) pair -- and again per variant. `_get_products_price` resolves
+        the rules once for the whole recordset, so the number of queries becomes
+        proportional to the quantity columns instead of to
+        products x quantities x variants.
+
+        :param bool is_product_tmpl: whether ``products`` are templates
+        :param products: recordset of `product.template` / `product.product`
+        :param pricelist: the `product.pricelist` to price against
+        :param list quantities: the quantity columns
+        :rtype: list[dict]
+        """
+        if not products:
+            return []
+
+        # Variants of multi-variant templates get their own sub-rows; price them
+        # in the same batch as their templates rather than per template.
+        variants_by_tmpl = {}
+        if is_product_tmpl:
+            for product in products:
+                if product.product_variant_count > 1:
+                    variants_by_tmpl[product.id] = product.product_variant_ids
+        all_variants = self.env["product.product"].union(*variants_by_tmpl.values())
+
+        prices_by_qty = {}
+        variant_prices_by_qty = {}
         for qty in quantities:
-            data["price"][qty] = pricelist._get_product_price(product, qty)
+            prices_by_qty[qty] = pricelist._get_products_price(products, qty)
+            if all_variants:
+                variant_prices_by_qty[qty] = pricelist._get_products_price(
+                    all_variants, qty
+                )
 
-        if is_product_tmpl and product.product_variant_count > 1:
-            data["variants"] = [
-                self._get_product_data(False, variant, pricelist, quantities)
-                for variant in product.product_variant_ids
-            ]
+        def build(product, prices, tmpl_row):
+            return {
+                "id": product.id,
+                "name": (tmpl_row and product.name) or product.display_name,
+                "price": {qty: prices[qty].get(product.id, 0.0) for qty in quantities},
+                "uom": product.uom_id.name,
+            }
 
-        return data
+        products_data = []
+        for product in products:
+            data = build(product, prices_by_qty, is_product_tmpl)
+            variants = variants_by_tmpl.get(product.id)
+            if variants:
+                data["variants"] = [
+                    build(variant, variant_prices_by_qty, False) for variant in variants
+                ]
+            products_data.append(data)
+        return products_data
+
+    def _get_product_data(self, is_product_tmpl, product, pricelist, quantities):
+        """Single-product row. Kept as an extension point for modules overriding
+        the per-product shape; the report itself batches via
+        :meth:`_get_products_data`.
+        """
+        return self._get_products_data(is_product_tmpl, product, pricelist, quantities)[
+            0
+        ]

@@ -44,6 +44,13 @@ class ProductTemplateAttributeLine(models.Model):
         string="Product Attribute Values",
     )
 
+    # NB: a template may deliberately carry the *same* attribute on several
+    # lines (e.g. a two-tone product with a primary and a secondary colour).
+    # The combination engine supports it and both
+    # `test_product_attribute_value_config.test_get_first_possible_combination`
+    # and `test_variants.test_dynamic_variants_unarchive` assert that behaviour,
+    # so there is intentionally no uniqueness on (product_tmpl_id, attribute_id).
+
     @api.depends("value_ids")
     def _compute_value_count(self):
         for record in self:

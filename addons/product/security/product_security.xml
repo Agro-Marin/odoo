@@ -68,5 +68,39 @@
         </field>
     </record>
 
+    <!-- `product.combo.item` stores its own `company_id` (related to the combo,
+         stored) and is readable by base.group_user. Unlike `product.product` it
+         does not delegate to a rule-protected parent via `_inherits`, so without
+         this rule the composition of another company's combos is readable by
+         querying the item model directly. -->
+    <record model="ir.rule" id="product_combo_item_comp_rule">
+        <field name="name">Product combo item multi-company rule</field>
+        <field name="model_id" ref="model_product_combo_item"/>
+        <field name="domain_force">
+            ['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]
+        </field>
+    </record>
+
+    <!-- Same reasoning for `product.uom`: it carries a real `company_id` and is
+         readable by every employee, so packaging barcodes would otherwise leak
+         across companies. -->
+    <record model="ir.rule" id="product_uom_comp_rule">
+        <field name="name">Product packaging multi-company rule</field>
+        <field name="model_id" ref="model_product_uom"/>
+        <field name="domain_force">
+            ['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]
+        </field>
+    </record>
+
+    <!-- Transient models get no implicit per-user isolation, and the label
+         layout wizard is reachable by id from the report `data` payload. Without
+         this rule any employee can read (or overwrite) another user's in-flight
+         wizard. `create_uid` is the only ownership marker a TransientModel has. -->
+    <record model="ir.rule" id="product_label_layout_own_rule">
+        <field name="name">Product label layout: own wizards only</field>
+        <field name="model_id" ref="model_product_label_layout"/>
+        <field name="domain_force">[('create_uid', '=', user.id)]</field>
+    </record>
+
 </data>
 </odoo>
