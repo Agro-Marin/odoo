@@ -16,7 +16,7 @@
 | `@types/models/` | misc | 0 | Model-layer ambient types (`_runtime.d.ts`) |
 | `@types/registries/` | misc | 0 | Registry ambient types (fields, services, views, command, debug, view_widgets) |
 | `boot/` | misc | 2 | `main.js` / `start.js` — backend entry points that build the env and mount `WebClient` |
-| `components/` | features | 10 | Module faces for the component directories below (barcode, datetime, dropdown, dropzone, file_upload, file_viewer, model_field_selector, record_selectors, signature, tree_editor) |
+| `components/` | features | 12 | Module faces for the component directories below (barcode, datetime, dropdown, dropzone, file_upload, file_viewer, model_field_selector, record_selectors, signature, tree_editor) |
 | `components/action_swiper/` | features | 1 | Touch swipe component that triggers actions on left/right swipe gestures |
 | `components/autocomplete/` | features | 1 | Generic autocomplete dropdown with multi-source results and keyboard navigation |
 | `components/barcode/` | features | 4 | Camera barcode scanning: video scanner, its dialog, a draggable crop overlay, and a ZXing `BarcodeDetector` polyfill |
@@ -52,13 +52,13 @@
 | `components/time_picker/` | features | 1 | Time input with dropdown hour/minute selection and configurable rounding |
 | `components/tree_editor/` | features | 5 | UI-layer tree editor components. Data-only tree manipulation lives in `core/tree/` |
 | `components/user_switch/` | features | 1 | Login-page component for switching between recently connected accounts |
-| `core/` | shared | 29 | Namespace-root primitives: registry, domain, context, parsers/formatters, templates, events, asset loading, translation, feature flags, user, currency, and the `field` / `name` / `allowed_qweb_expressions` / `multi_company_recovery` services |
+| `core/` | shared | 31 | Namespace-root primitives: registry, domain, context, parsers/formatters, templates, events, asset loading, translation, feature flags, user, currency, and the `field` / `name` / `allowed_qweb_expressions` / `multi_company_recovery` services |
 | `core/avatar/` | shared | 0 | Avatar component styles (SCSS only) |
 | `core/badge/` | shared | 1 | Badge colour helpers plus component styles |
 | `core/browser/` | shared | 8 | Browser abstraction: the `browser` indirection object, cookies, storage, router, hotkey key normalisation, anchor-scroll suppression, feature detection, and the `title` service |
 | `core/colors/` | shared | 1 | Predefined colour palettes for charts and graph visualisations |
 | `core/debug/` | shared | 2 | Debug context manager merging `debug` registry items by category, plus its utilities |
-| `core/errors/` | shared | 5 | The `error` service, uncaught-error handlers, traceback formatting, native stack-frame parsing, and the `/web/observability/js_error` beacon |
+| `core/errors/` | shared | 6 | The `error` service, uncaught-error handlers, traceback formatting, native stack-frame parsing, and the `/web/observability/js_error` beacon |
 | `core/file_upload/` | shared | 2 | `FileHandler` component and the `file_upload` service (XHR upload with progress) |
 | `core/hotkeys/` | shared | 2 | The `hotkey` service and the `useHotkey` registration hook |
 | `core/l10n/` | shared | 8 | Luxon-based date/datetime parsing, formatting, serialization, and the `localization` service |
@@ -158,7 +158,7 @@
 | `libs/fontawesome7/css/` | misc | 0 | FontAwesome 7 stylesheets |
 | `libs/fontawesome7/webfonts/` | misc | 0 | FontAwesome 7 webfont files |
 | `model/` | entities | 9 | `Model` base + `useReactiveModel`, the sample-data server/generators/coordinator, search-param schema, shared model types |
-| `model/relational_model/` | entities | 41 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership, x2many command serialization |
+| `model/relational_model/` | entities | 42 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership, x2many command serialization |
 | `public/` | pages | 15 | Public (anonymous) page runtime: the `public.interactions` service, `Interaction`/`Colibri`, frontend boot (`public_boot.js`, `public_boot_instance.js`), early-boot `lazyloader.js` / `minimal_dom.js`, login-page interactions, database manager |
 | `scss/` | misc | 0 | Shared SCSS base (variables, mixins, backend styles) — 32 `.scss`, no JS |
 | `search/` | widgets | 16 | Search model and its mixins (domain, group-by, favorites, properties, query, split-domain), search facets/state/context, arch parser, layout, pager hook |
@@ -190,7 +190,7 @@
 | `ui/popover/` | shared | 4 | `popover` service, the component, its hook, and the detached-target watcher |
 | `ui/pwa/` | shared | 2 | `pwa` service (install prompt) and the Safari install-instructions dialog |
 | `ui/tooltip/` | shared | 2 | `tooltip` service driven by `data-tooltip` attributes, and its component |
-| `views/` | widgets | 24 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, and the per-view faces (form, list, kanban, calendar, graph, pivot) |
+| `views/` | widgets | 25 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, and the per-view faces (form, list, kanban, calendar, graph, pivot) |
 | `views/calendar/` | widgets | 8 | Calendar view: arch parser, model, controller, renderer, record wrapper, date-range and utility helpers |
 | `views/calendar/calendar_common/` | widgets | 3 | Day/week/month renderer and its event popover |
 | `views/calendar/calendar_filter_section/` | widgets | 1 | Collapsible sidebar filter section for one calendar filter field |
@@ -207,7 +207,7 @@
 | `views/form/form_status_indicator/` | widgets | 1 | Save/discard indicator reading `FormSaveCoordinator.status` and the dirty signal |
 | `views/form/setting/` | widgets | 1 | Individual setting row with label, help text, company-dependent icon |
 | `views/form/status_bar_buttons/` | widgets | 1 | Status-bar action buttons with overflow dropdown |
-| `views/graph/` | widgets | 7 | Graph view: arch parser, model, controller, renderer (lazy `loadChartJS`), chart config, search model |
+| `views/graph/` | widgets | 8 | Graph view: arch parser, model, controller, renderer (lazy `loadChartJS`), chart config, search model |
 | `views/kanban/` | widgets | 19 | Kanban view: arch parser, compiler, model wiring, renderer, record and header components, quick creates, progress-bar hook with local drag-move reconcile, sortable/selection/keyboard hooks |
 | `views/list/` | widgets | 22 | List view: arch parser, controller, renderer, per-row `ListRecordRow`, column widths and utilities, aggregates, grouping, sorting, selection, virtualization, keyboard nav/edit, focus geometry, styling |
 | `views/list/export_all/` | widgets | 1 | Cog-menu item triggering direct XLSX export of all records |

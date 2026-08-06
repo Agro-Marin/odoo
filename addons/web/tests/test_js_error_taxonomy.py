@@ -6,7 +6,7 @@ from odoo.tests.common import TransactionCase, tagged
 from ..controllers.observability import _JS_ERROR_KINDS, _JS_ERROR_PHASES
 
 
-@tagged("post_install", "-at_install")
+@tagged("post_install", "-at_install", "web_js_error")
 class TestJsErrorTaxonomy(TransactionCase):
     """The js_error beacon emitters and the server whitelist must agree.
 
@@ -26,6 +26,10 @@ class TestJsErrorTaxonomy(TransactionCase):
             src / "module_loader.js",
             src / "core" / "errors" / "error_beacon.js",
             src / "core" / "errors" / "boot_failure_overlay.js",
+            # Reports services that threw in `start()` as `service_start`; it
+            # builds the payload itself rather than going through one of the
+            # three above, so leaving it out left the gate blind to it.
+            src / "env.js",
         ]
         kinds, phases = set(), set()
         for path in emitters:

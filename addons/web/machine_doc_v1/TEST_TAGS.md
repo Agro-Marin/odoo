@@ -10,7 +10,7 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
 | `web_unit` | TransactionCase (pure Python, + 1 stray HttpCase) | 291 tests | ~45s |
-| `web_http` | HttpCase (url_open, no browser) | 87 tests | ~5 min |
+| `web_http` | HttpCase (url_open, no browser) | 100 tests | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 5 tests | ~2 min |
 | `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr † |
 | `addon_js` | HOOT suites of addons with no runner of their own | 158 tests | depends on the DB's module set |
@@ -228,6 +228,7 @@ mobile-only suite as a silent zero — see `tooling/hoot/README.md`.
 | `web_perf` | test_perf_load_menu, test_web_bundle_size, test_web_perf_regression | Query-count and byte-size regression gates |
 | `asset_scope` | test_ir_asset_scope | `&module_scope=` bundle narrowing (see below) |
 | `web_cwv` | test_web_cwv_metric | Core Web Vitals beacon model, clamping, retention cron |
+| `web_js_error` | test_web_js_error, test_js_error_taxonomy | JS error beacon endpoint + `web.js.error` model, retention cron, and the client/server kind-phase taxonomy agreement |
 | `web_feature_flags` | test_feature_flags | Feature flag resolution cascade |
 | `web_typed_services` | test_typed_services_consistency | `@types/registries/services.d.ts` ↔ runtime registry consistency |
 | `assets_bundle` | test_assets | Bundle generation timings and asset cursors (sub-tag alongside `web_assets`) |
