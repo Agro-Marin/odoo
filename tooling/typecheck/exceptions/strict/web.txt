@@ -387,7 +387,6 @@ addons/web/static/tests/views/list/list_controller.test.js
 addons/web/static/tests/views/list/list_footer_alignment.test.js
 addons/web/static/tests/views/list/list_grid_state.test.js
 addons/web/static/tests/views/list/list_group_layout.test.js
-addons/web/static/tests/views/list/list_record_row.test.js
 addons/web/static/tests/views/list/list_section_col_index.test.js
 addons/web/static/tests/views/list/list_view.test.js
 addons/web/static/tests/views/list/list_view_performance.test.js

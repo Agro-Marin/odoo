@@ -172,7 +172,6 @@ addons/web/static/src/views/list/list_group_rendering.js
 addons/web/static/src/views/list/list_keyboard_edit.js
 addons/web/static/src/views/list/list_keyboard_nav.js
 addons/web/static/src/views/list/list_optional_fields.js
-addons/web/static/src/views/list/list_record_row.js
 addons/web/static/src/views/list/list_renderer.js
 addons/web/static/src/views/list/list_selection.js
 addons/web/static/src/views/list/list_sorting.js
@@ -506,7 +505,6 @@ addons/web/static/tests/views/list/list_controller.test.js
 addons/web/static/tests/views/list/list_footer_alignment.test.js
 addons/web/static/tests/views/list/list_grid_state.test.js
 addons/web/static/tests/views/list/list_group_layout.test.js
-addons/web/static/tests/views/list/list_record_row.test.js
 addons/web/static/tests/views/list/list_section_col_index.test.js
 addons/web/static/tests/views/list/list_view.test.js
 addons/web/static/tests/views/list/list_view_performance.test.js

@@ -244,8 +244,6 @@ export class ListRenderer extends Component {
     _stableColumns;
     /** @type {any} */
     _defaultActiveActions;
-    /** @type {any} */
-    _rendererInstance;
     /** @type {() => void} */
     _displaySaveNotification;
     /** @type {import("./list_renderer").ListRowFlags} */
@@ -255,7 +253,6 @@ export class ListRenderer extends Component {
 
     setup() {
         useRenderCounter("list.ListRenderer");
-        this._rendererInstance = this;
         this._displaySaveNotification = this.displaySaveNotification.bind(this);
         this.actionService = useAction();
         this.uiService = useService("ui");
@@ -689,13 +686,11 @@ export class ListRenderer extends Component {
 
     /**
      * The record rows' props: the explicit row context (see the class
-     * comment on `ListRecordRow`). Values are identity-stable across renders
-     * unless the row's output changed, so the `t-props` diff skips untouched
-     * rows; the cross-row flips travel through the stable `flags` reactive
-     * instead of per-row props.
-     *
-     * TRANSITIONAL: `...this.props` and `renderer` feed the legacy dynamic
-     * delegation still used by not-yet-migrated subclass row templates.
+     * comment on `ListRecordRow`, including the subclass extension recipe).
+     * Values are identity-stable across renders unless the row's output
+     * changed, so the `t-props` diff skips untouched rows; the cross-row
+     * flips travel through the stable `flags` reactive instead of per-row
+     * props.
      *
      * @param {RelationalRecord} record
      * @param {Group | undefined} group
@@ -703,11 +698,13 @@ export class ListRenderer extends Component {
      */
     getRowProps(record, group, groupId) {
         return {
-            ...this.props,
-            renderer: this._rendererInstance,
             record,
             group,
             groupId,
+            list: this.props.list,
+            archInfo: this.props.archInfo,
+            readonly: this.props.readonly,
+            onOpenFormView: this.props.onOpenFormView,
             api: this.rowApi,
             flags: this.rowFlags,
             recordRowTemplate: /** @type {any} */ (this.constructor).recordRowTemplate,

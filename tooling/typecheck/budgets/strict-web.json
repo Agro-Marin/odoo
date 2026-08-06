@@ -1,7 +1,7 @@
 {
   "gate": "strict",
   "module": "web",
-  "total": 6060,
+  "total": 6050,
   "note": "Seeded 2026-08-02. Per-file ceilings for the files strict excepts; membership still comes from exceptions/strict/web.txt.",
   "budgets": {
     "addons/web/static/src/components/action_swiper/action_swiper.js": 43,
@@ -386,7 +386,6 @@
     "addons/web/static/tests/views/list/list_footer_alignment.test.js": 1,
     "addons/web/static/tests/views/list/list_grid_state.test.js": 16,
     "addons/web/static/tests/views/list/list_group_layout.test.js": 10,
-    "addons/web/static/tests/views/list/list_record_row.test.js": 10,
     "addons/web/static/tests/views/list/list_section_col_index.test.js": 6,
     "addons/web/static/tests/views/list/list_view.test.js": 139,
     "addons/web/static/tests/views/list/list_view_performance.test.js": 2,
