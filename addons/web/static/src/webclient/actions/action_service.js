@@ -10,7 +10,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { actionLog } from "@web/core/utils/asset_log";
 import { omit } from "@web/core/utils/collections/objects";
-import { Deferred, KeepLast, SupersededError } from "@web/core/utils/concurrency";
+import { Deferred, SupersededError } from "@web/core/utils/concurrency";
 import { View, ViewNotFoundError } from "@web/views/view";
 
 import { executeActionButton } from "./action_button_executor.js";
@@ -40,6 +40,7 @@ import { BreadcrumbCache } from "./breadcrumb_cache.js";
 import { buildBreadcrumbs, controllersFromState } from "./breadcrumb_manager.js";
 import { makeControllerComponent } from "./controller_component.js";
 import { loadState } from "./load_state.js";
+import { NavigationTracker } from "./navigation_token.js";
 import { executeReportAction } from "./reports/report_executor.js";
 import { SkeletonView } from "./skeleton_view.js";
 
@@ -224,7 +225,7 @@ export class ActionManager {
         this.env = env;
         this.router = router;
         this.breadcrumbCache = new BreadcrumbCache();
-        this.keepLast = new KeepLast({ rejectSuperseded: true });
+        this.navigation = new NavigationTracker();
         this._id = 0;
         this.controllerStack = [];
         /**
@@ -338,28 +339,13 @@ export class ActionManager {
     }
 
     /**
-     * @returns {number}
-     */
-    _navGeneration() {
-        return this.keepLast.generation;
-    }
-
-    /**
-     * @param {number} generation
-     * @returns {boolean}
-     */
-    _isSupersededNav(generation) {
-        return this.keepLast.generation !== generation;
-    }
-
-    /**
      * @param {{ forceLeave?: boolean }} [options]
      * @returns {Promise<boolean>}
      */
     async _confirmLeave(options = {}) {
-        const navGeneration = this._navGeneration();
+        const token = this.navigation.snapshot();
         const canProceed = await clearUncommittedChanges(this.env, options);
-        return canProceed && !this._isSupersededNav(navGeneration);
+        return canProceed && token.isCurrent();
     }
 
     async _loadAction(actionRequest, context = {}) {
@@ -788,7 +774,7 @@ export class ActionManager {
         actionLog("doAction", actionRequest, options);
         options = { ...options };
         const actionProm = this._loadAction(actionRequest, options.additionalContext);
-        let action = await this.keepLast.add(actionProm);
+        let action = await this.navigation.guard(actionProm);
         action = this._preprocessAction(action, options.additionalContext);
         options.clearBreadcrumbs = action.target === "main" || options.clearBreadcrumbs;
 
@@ -830,7 +816,7 @@ export class ActionManager {
      * @returns {Promise<any>}
      */
     async switchView(viewType, props = {}, { newWindow } = {}) {
-        await this.keepLast.add(Promise.resolve());
+        await this.navigation.guard(Promise.resolve());
         // A dispatch carrying its own `newStack` is landing on a stack that
         // need not contain the action the user is looking at, so switching one
         // of ITS views has nothing to mean: the switch would splice a view of
@@ -892,7 +878,7 @@ export class ActionManager {
      * @param {string} jsId
      */
     async restore(jsId) {
-        await this.keepLast.add(Promise.resolve());
+        await this.navigation.guard(Promise.resolve());
         let index;
         if (!jsId) {
             index = this.controllerStack.length - 2;

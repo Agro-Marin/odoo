@@ -23,7 +23,7 @@ export async function executeServerAction(action, options, am) {
         action_id: action.id,
         context: makeContext([user.context, action.context]),
     });
-    let nextAction = await am.keepLast.add(runProm);
+    let nextAction = await am.navigation.guard(runProm);
     nextAction = nextAction || { type: "ir.actions.act_window_close" };
     if (nextAction.help) {
         nextAction.help = markup(nextAction.help);

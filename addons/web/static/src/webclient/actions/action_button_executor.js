@@ -106,7 +106,7 @@ export async function executeActionButton(
                     model: params.resModel,
                 },
             );
-            action = await am.keepLast.add(callProm);
+            action = await am.navigation.guard(callProm);
             action =
                 action && typeof action === "object"
                     ? action
@@ -118,7 +118,7 @@ export async function executeActionButton(
             context.active_id = params.resId ?? null;
             context.active_ids = params.resIds;
             context.active_model = params.resModel;
-            action = await am.keepLast.add(am._loadAction(params.name, context));
+            action = await am.navigation.guard(am._loadAction(params.name, context));
         } else {
             throw new InvalidButtonParamsError(
                 "Missing type for doActionButton request",
