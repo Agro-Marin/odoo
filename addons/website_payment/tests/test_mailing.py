@@ -28,3 +28,11 @@ class TestMailing(PaymentCommon, MockEmail):
                 'email_from': self.env.company.email_formatted,
             },
         )
+
+    @users("admin")
+    def test_post_process_ignores_non_donations(self):
+        """A plain done transaction does not trigger the donation mailing."""
+        tx = self._create_transaction('direct', state='done')
+        with self.mock_mail_gateway():
+            tx._post_process()
+        self.assertNotSentEmail()
