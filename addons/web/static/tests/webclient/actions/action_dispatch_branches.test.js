@@ -25,7 +25,8 @@ import { ActionDispatch } from "@web/webclient/actions/action_dispatch";
  *
  * The fake manager is the sanctioned ``am`` seam (see "THE SIBLING CONTRACT"
  * in ``action_service.js``). ActionDispatch reaches exactly:
- *   controllerStack · dialog · nextDialog · env · pushState · restore · _nextId
+ *   controllerStack · dialog · nextDialog · env · pushState · restore ·
+ *   _nextId · _pendingDispatch
  */
 
 describe.current.tags("desktop");
@@ -131,6 +132,37 @@ test("commit emits UI_UPDATED only after the stack is committed", async () => {
     });
     dispatch.commit(EXPORTERS);
     expect(stackAtEvent).toBe(dispatch.nextStack);
+});
+
+test("commit clears the manager's pending dispatch before UI_UPDATED listeners run", async () => {
+    // A dispatch riding a foreign stack (loadState) marks itself pending so
+    // `_effectiveStack` answers with the still-displayed base stack while it
+    // is in flight. Once `commit()` publishes `nextStack`, keeping it pending
+    // would make every `UI-UPDATED` listener that reads `currentController`
+    // see the controller this dispatch just replaced (web_studio's `inStudio`
+    // flag missed the studio action landing this way).
+    const am = makeFakeAm();
+    const dispatch = makeDispatch(am);
+    am._pendingDispatch = dispatch;
+    let pendingAtEvent = "unset";
+    am.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UI_UPDATED, () => {
+        pendingAtEvent = am._pendingDispatch;
+    });
+
+    dispatch.commit(EXPORTERS);
+
+    expect(pendingAtEvent).toBe(null);
+    expect(am._pendingDispatch).toBe(null);
+});
+
+test("commit leaves another dispatch's pending marker alone", async () => {
+    const am = makeFakeAm();
+    const other = makeDispatch(am, { controller: { jsId: "other" } });
+    am._pendingDispatch = other;
+
+    makeDispatch(am).commit(EXPORTERS);
+
+    expect(am._pendingDispatch).toBe(other);
 });
 
 test("commit (target=new) promotes the pending dialog and never touches the stack", async () => {
@@ -388,6 +420,11 @@ test("the dispatch reaches only the documented manager members", async () => {
 
     expect([...reached].sort()).toEqual([
         "_nextId",
+        // `commit()` clears the manager's pending dispatch the moment it
+        // publishes the stack, so `UI-UPDATED` listeners reading
+        // `currentController` see the controller that just landed, not the
+        // one it replaced.
+        "_pendingDispatch",
         "controllerStack",
         "dialog",
         "env",
