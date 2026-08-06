@@ -153,12 +153,18 @@ test("create favorite filter", async () => {
                 </form>`,
     });
 
+    // The save/remove icons are toggled by a post-render effect
+    // (_updateFilterIcons), so their state lands one frame after mount.
+    await animationFrame();
     queryFirst(".o_field_mailing_filter input").autocomplete = "widget";
     expect(".o_mass_mailing_remove_filter").not.toBeVisible();
     expect(".o_mass_mailing_save_filter_container").toBeVisible();
 
     await contains(".o_field_mailing_filter input").click();
-    expect(".o_field_mailing_filter .dropdown li.ui-menu-item").toHaveCount(2);
+    // 1 favorite filter and no "Search more..." row: it is only offered when
+    // the search overflows the dropdown (see @web many2x_autocomplete,
+    // "no Search more... when all matching records fit in the dropdown").
+    expect(".o_field_mailing_filter .dropdown li.ui-menu-item").toHaveCount(1);
 
     await contains(".o_mass_mailing_add_filter").click();
     await contains(".o_mass_mailing_filter_name").edit("event promo - new users", {
@@ -170,7 +176,7 @@ test("create favorite filter", async () => {
     expect(".o_mass_mailing_remove_filter").toBeVisible();
     expect(".o_mass_mailing_save_filter_container").not.toBeVisible();
     await contains(".o_field_mailing_filter input").click();
-    expect(".o_field_mailing_filter .dropdown li.ui-menu-item").toHaveCount(3);
+    expect(".o_field_mailing_filter .dropdown li.ui-menu-item").toHaveCount(2);
     await clickSave();
 });
 
@@ -204,6 +210,8 @@ test("unlink favorite filter", async () => {
                 </form>`,
     });
 
+    // One frame for the post-render effect toggling the save/remove icons.
+    await animationFrame();
     expect(".o_field_mailing_filter input").toHaveValue("Belgian Events");
     expect(".o_mass_mailing_remove_filter").toBeVisible();
     expect(".o_mass_mailing_save_filter_container").not.toBeVisible();
@@ -338,6 +346,8 @@ test("filter drop-down and filter icons visibility toggles properly based on fil
             </form>`,
     });
 
+    // One frame for the post-render effect toggling the save/remove icons.
+    await animationFrame();
     expect(".o_field_mailing_filter .o_input_dropdown").not.toBeVisible();
     expect(".o_mass_mailing_no_filter").toBeVisible();
     expect(".o_mass_mailing_save_filter_container").toBeVisible();
@@ -382,6 +392,8 @@ test("filter widget does not raise traceback when losing focus with unexpected d
             </form>`,
     });
 
+    // One frame for the post-render effect toggling the save/remove icons.
+    await animationFrame();
     expect(".o_mass_mailing_save_filter_container").toBeVisible();
     expect(".o_mass_mailing_remove_filter").not.toBeVisible();
 

@@ -133,7 +133,15 @@ export class MassMailingHtmlField extends HtmlField {
         return iframeLoaded === this.iframeLoaded ? iframeInfo : undefined;
     }
 
-    onIframeLoad(iframeLoaded) {
+    onIframeLoad(key, iframeLoaded) {
+        if (key !== this.state.key) {
+            // Notification from a MassMailingIframe generation that has been
+            // replaced (`state.key` changed): its setup raced the re-render
+            // and finished between `resetIframe()` and its own destruction.
+            // Resolving here would permanently stamp the fresh deferred with
+            // the torn-down generation's iframe and bundle controls.
+            return;
+        }
         this.iframeLoaded.resolve(iframeLoaded);
     }
 
@@ -186,7 +194,7 @@ export class MassMailingHtmlField extends HtmlField {
             iframeRef: this.iframeRef,
             onBlur: this.onBlur.bind(this),
             onEditorLoad: this.onEditorLoad.bind(this),
-            onIframeLoad: this.onIframeLoad.bind(this),
+            onIframeLoad: this.onIframeLoad.bind(this, this.state.key),
             readonly: this.props.readonly,
             showThemeSelector: this.state.showThemeSelector,
             showCodeView: this.state.showCodeView,
@@ -339,35 +347,39 @@ export class MassMailingHtmlField extends HtmlField {
         if (!iframeInfo) {
             return;
         }
-        const { bundleControls } = iframeInfo;
+        // Work on the iframe the resolved info belongs to: `this.iframeRef.el`
+        // is re-pointed (and transiently nulled) when the MassMailingIframe is
+        // re-keyed, and `toInline` below awaits, so reading the ref again
+        // after it would crash if the generation changed mid-computation.
+        const { bundleControls, iframe } = iframeInfo;
         this.lastValue = normalizeHTML(value, this.clearElementToCompare.bind(this));
         this.isDirty = false;
-        const shouldRestoreDisplayNone = this.iframeRef.el.classList.contains("d-none");
+        const shouldRestoreDisplayNone = iframe.classList.contains("d-none");
         // d-none must be removed for style computation.
-        this.iframeRef.el.classList.remove("d-none");
+        iframe.classList.remove("d-none");
         // The browser resets the size of the `iframe` inside `toInline`
         // if we just set `width`. So as a workaround we set both `min-width`
         // and `max-width` to force the size of the `iframe` for a proper
         // inline conversion.
-        this.iframeRef.el.style.setProperty("min-width", "1320px", "important");
-        this.iframeRef.el.style.setProperty("max-width", "1320px", "important");
-        const processingEl = this.iframeRef.el.contentDocument.createElement("DIV");
-        processingEl.append(parseHTML(this.iframeRef.el.contentDocument, value));
-        const processingContainer = this.iframeRef.el.contentDocument.querySelector(
+        iframe.style.setProperty("min-width", "1320px", "important");
+        iframe.style.setProperty("max-width", "1320px", "important");
+        const processingEl = iframe.contentDocument.createElement("DIV");
+        processingEl.append(parseHTML(iframe.contentDocument, value));
+        const processingContainer = iframe.contentDocument.querySelector(
             ".o_mass_mailing_processing_container",
         );
         bundleControls["mass_mailing.assets_inside_builder_iframe"]?.toggle(false);
         processingContainer.append(processingEl);
         this.preprocessFilterDomains(processingEl);
-        const cssRules = getCSSRules(this.iframeRef.el.contentDocument);
+        const cssRules = getCSSRules(iframe.contentDocument);
         await toInline(processingEl, cssRules);
         const inlineValue = processingEl.innerHTML;
         processingEl.remove();
         bundleControls["mass_mailing.assets_inside_builder_iframe"]?.toggle(true);
-        this.iframeRef.el.style.minWidth = "";
-        this.iframeRef.el.style.maxWidth = "";
+        iframe.style.minWidth = "";
+        iframe.style.maxWidth = "";
         if (shouldRestoreDisplayNone) {
-            this.iframeRef.el.classList.add("d-none");
+            iframe.classList.add("d-none");
         }
         await this.props.record
             .update({

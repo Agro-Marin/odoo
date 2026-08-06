@@ -167,6 +167,7 @@
         ],
         "web.assets_unit_tests": [
             ("include", "mass_mailing.assets_builder"),
+            "mass_mailing/static/tests/customize_mailing_variables.test.js",
             "mass_mailing/static/tests/mass_mailing_favourite_filter.test.js",
             "mass_mailing/static/tests/mass_mailing_html_field.test.js",
         ],
