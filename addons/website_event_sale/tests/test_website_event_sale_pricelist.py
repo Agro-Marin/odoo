@@ -32,7 +32,7 @@ class TestWebsiteEventPriceList(TestWebsiteEventSaleCommon):
             'product_id': self.ticket.product_id.id,
             'product_uom_qty': 1,
         })
-        self.assertEqual(so_line.price_reduce_taxexcl, 100)
+        self.assertEqual(so_line.price_unit_discounted_taxexc, 100)
 
         # set pricelist to 10% - without discount
         pl2 = self.pricelist.copy({
@@ -48,4 +48,4 @@ class TestWebsiteEventPriceList(TestWebsiteEventSaleCommon):
         with MockRequest(self.env, website=self.website, sale_order_id=self.empty_cart.id) as req:
             self.assertEqual(req.pricelist, self.pricelist)
             self.WebsiteSaleController.pricelist_change(pl2)
-            self.assertEqual(so_line.price_reduce_taxexcl, 900, 'Incorrect amount based on the pricelist and its currency.')
+            self.assertEqual(so_line.price_unit_discounted_taxexc, 900, 'Incorrect amount based on the pricelist and its currency.')
