@@ -85,10 +85,17 @@ test("HtmlMail save inline html", async function () {
         // Note: computed border/padding values (0px widths, currentColor
         // border colors, none styles) are no longer force applied: only the
         // styles set by matching rules are inlined.
+        // The font-size, font-family and letter-spacing values are owned by
+        // web's design-system tokens, not by this module: assert that font
+        // sizing and a font stack are inlined at all, and elide the
+        // theme-dependent literals so a token change cannot break this test.
         expect(
-            args[1].body.replace(/font-size: ?(\d+(\.\d+)?)px/, "font-size: []px"),
+            args[1].body
+                .replace(/font-size: ?(\d+(\.\d+)?)px/, "font-size: []px")
+                .replace(/font-family: ?[^;"]+;/, "font-family:[];")
+                .replace(/letter-spacing: ?[^;"]+;/, ""),
         ).toBe(
-            `<h1 style="margin:0px 0 8px 0;box-sizing:border-box;font-size: []px;color:#111827;line-height:1.2;font-weight:600;font-family:Inter, 'SF Pro Display', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, 'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';">first</h1>`,
+            `<h1 style="margin:0px 0 8px 0;box-sizing:border-box;font-size: []px;color:#111827;line-height:1.2;font-weight:600;font-family:[];">first</h1>`,
         );
         expect.step("web_save");
     });
