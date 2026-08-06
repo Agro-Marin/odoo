@@ -8,7 +8,7 @@ from operator import attrgetter
 from typing import override
 
 from odoo.exceptions import UserError
-from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import SQL, human_size
 from odoo.tools.image import image_process
 

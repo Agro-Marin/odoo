@@ -3,9 +3,8 @@ import typing
 from datetime import UTC, date, datetime, time
 from typing import override
 
-from odoo.libs.datetime import utc
-from odoo.libs.datetime.tz import all_timezones
-from odoo.libs.datetime.tz import timezone as get_timezone
+from odoo.libs.datetime import all_timezones, utc
+from odoo.libs.datetime import timezone as get_timezone
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT as DATE_FORMAT
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT as DATETIME_FORMAT
 from odoo.tools import SQL, date_utils

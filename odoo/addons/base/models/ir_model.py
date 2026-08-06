@@ -417,6 +417,11 @@ class IrModel(models.Model):
         """Reflect the given models."""
         if not model_names:
             return
+        # Snapshot the cache generation before reading the ids we are about to
+        # prime, so a clear that races this reflection drops the stale write
+        # instead of resurrecting an id under the cleared key (see
+        # ormcache.add_value).
+        id_cache_generation = self._get_id.__cache__.generation_of(self)
         rows = [
             self._reflect_model_params(self.env[model_name])
             for model_name in model_names
@@ -439,7 +444,7 @@ class IrModel(models.Model):
 
         add_value = self._get_id.__cache__.add_value
         for name, id_ in model_ids.items():
-            add_value(self, name, cache_value=id_)
+            add_value(self, name, cache_value=id_, generation=id_cache_generation)
 
         module = self.env.context.get("module")
         if not module:

@@ -21,7 +21,7 @@ from operator import attrgetter
 from typing import TYPE_CHECKING
 
 from odoo.db import BaseCursor
-from odoo.libs.collections.misc import Collector
+from odoo.libs.collections import Collector
 from odoo.tools import OrderedSet
 
 from . import decorators as api

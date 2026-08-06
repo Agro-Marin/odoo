@@ -318,7 +318,7 @@ def initialize_db(
                     if country.currency_id:
                         company_values["currency_id"] = country.currency_id.id
                     env["res.company"].browse(1).write(company_values)
-                    from odoo.libs.datetime.tz import country_timezones
+                    from odoo.libs.datetime import country_timezones
 
                     tz_mapping = country_timezones()
                     if len(tz_mapping.get(normalized_country, [])) == 1:

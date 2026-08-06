@@ -18,6 +18,7 @@ from odoo.db.ddl import (
     _ddl_keyword,
     _find_value_markers,
     _inline_ddl_params,
+    _is_rollback_to_savepoint,
 )
 
 
@@ -107,6 +108,40 @@ class TestDdlKeyword(unittest.TestCase):
             self.assertIn(kw, _SCHEMA_CHANGING_DDL)
         for kw in ("COMMENT", "GRANT", "REVOKE"):
             self.assertNotIn(kw, _SCHEMA_CHANGING_DDL)
+
+
+class TestRollbackToSavepointDetection(unittest.TestCase):
+    """``_is_rollback_to_savepoint`` re-arms the catalog-cache hook for raw SQL
+    savepoint rollbacks that bypass ``cr.savepoint()``."""
+
+    def test_rollback_to_savepoint_is_detected(self):
+        for qs in (
+            "ROLLBACK TO SAVEPOINT foo",
+            'ROLLBACK TO SAVEPOINT "foo"',
+            "ROLLBACK TO foo",  # SAVEPOINT keyword is optional in PostgreSQL
+            "rollback to savepoint foo",
+            "  \n ROLLBACK   TO   SAVEPOINT bar",
+            "/* c */ ROLLBACK TO SAVEPOINT baz",
+        ):
+            self.assertTrue(_is_rollback_to_savepoint(qs), qs)
+
+    def test_non_partial_rollbacks_are_not_detected(self):
+        for qs in (
+            "ROLLBACK",  # ends the whole transaction — handled elsewhere
+            "ROLLBACK;",
+            "ROLLBACK WORK",
+            "RELEASE SAVEPOINT foo",  # merges, undoes nothing
+            "SAVEPOINT foo",
+            "SELECT 1",
+            "UPDATE t SET x = 1",
+            "-- ROLLBACK TO SAVEPOINT foo\nSELECT 1",  # commented out
+        ):
+            self.assertFalse(_is_rollback_to_savepoint(qs), qs)
+
+    def test_prefix_gate_short_circuits_non_ro_queries(self):
+        # A deeply indented statement still gets classified (no false negative).
+        self.assertTrue(_is_rollback_to_savepoint(" " * 40 + "ROLLBACK TO SAVEPOINT x"))
+        self.assertFalse(_is_rollback_to_savepoint(" " * 40 + "SELECT 1"))
 
 
 class TestDDLKeywordPrefixGate(unittest.TestCase):

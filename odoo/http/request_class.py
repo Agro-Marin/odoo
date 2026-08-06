@@ -1,7 +1,6 @@
 import contextlib
 import functools
 import logging
-import threading
 import time
 from collections.abc import Iterable
 from typing import Any
@@ -433,29 +432,44 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         can_rotate = not sess.uid or (env is not None and not env.cr.closed)
 
-        if sess.should_rotate and can_rotate:
-            root.session_store.rotate(sess, env)
-            written = True
-        elif sess.should_rotate:
-            sess["_rotate_pending"] = True
-            root.session_store.save(sess)
-            written = True
-        elif (
-            can_rotate
-            and sess.uid
-            and time.time() >= sess["create_time"] + SESSION_ROTATION_INTERVAL
-            and self.httprequest.path not in SESSION_ROTATION_EXCLUDED_PATHS
-        ):
-            root.session_store.rotate(sess, env, True)
-            written = True
-        elif content_changed:
-            root.session_store.save(sess)
-            written = True
-        elif modified:
-            root.session_store.keep_alive(sess)
-            written = True
-        else:
-            written = False
+        try:
+            if sess.should_rotate and can_rotate:
+                root.session_store.rotate(sess, env)
+                written = True
+            elif sess.should_rotate:
+                sess["_rotate_pending"] = True
+                root.session_store.save(sess)
+                written = True
+            elif (
+                can_rotate
+                and sess.uid
+                and time.time() >= sess["create_time"] + SESSION_ROTATION_INTERVAL
+                and self.httprequest.path not in SESSION_ROTATION_EXCLUDED_PATHS
+            ):
+                root.session_store.rotate(sess, env, True)
+                written = True
+            elif content_changed:
+                root.session_store.save(sess)
+                written = True
+            elif modified:
+                root.session_store.keep_alive(sess)
+                written = True
+            else:
+                written = False
+        except OSError:
+            # Persisting the session failed (disk full, EACCES). The business
+            # response already succeeded, so degrade rather than 500: leave the
+            # client's *current* cookie in place instead of advancing it to a sid
+            # with no file behind it. The old session file is intact — save()
+            # now re-raises instead of half-writing, and hard rotation writes the
+            # new file before removing the old — so the current cookie keeps
+            # working and no silent logout follows (B4/B3).
+            _logger.warning(
+                "Could not persist session %r; keeping the current cookie",
+                sess.sid,
+                exc_info=True,
+            )
+            return
 
         on_disk = written or not sess.is_new
 

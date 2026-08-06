@@ -119,17 +119,39 @@ class CircuitBreaker:
             self.failures = 0
 
     def record_failure(self) -> None:
-        """Report the endpoint failing: open, or widen an already-open window."""
+        """Report the endpoint failing: open, or widen a *probed* open window.
+
+        The window doubles once per **probe cycle**, not once per failure — the
+        distinction the module docstring draws ("each probe doubles the wait").
+        They differ only on the initial trip: every request that passed
+        :meth:`allow` while the breaker was still closed is in flight against a
+        replica that then goes down, and each fails (after up to
+        ``db_borrow_timeout``) and lands here. Doubling on every one of those
+        turned a single blip with N concurrent requests into N doublings — a
+        2-second outage could open a 20-minute window. Once the breaker is open,
+        :meth:`allow` hands a probe to exactly one caller, so a widening failure
+        is one that reports back against an outstanding probe (``_probing_since``
+        set); a failure with no probe outstanding is a pile-on straggler and is
+        counted but does not move the window.
+        """
         with self._lock:
             self.failures += 1
             if not self._open:
+                # First failure from the closed state: trip the breaker.
                 self._open = True
                 self._cooldown = self.initial_cooldown
+                self._opened_at = monotonic()
+                self._probing_since = 0.0
                 self.trips += 1
-            else:
+                return
+            if self._probing_since:
+                # A granted probe failed again: a genuine new cycle — widen.
                 self._cooldown = min(self._cooldown * 2, self.max_cooldown)
-            self._opened_at = monotonic()
-            self._probing_since = 0.0
+                self._opened_at = monotonic()
+                self._probing_since = 0.0
+            # else: a pile-on straggler (a request that passed allow() before
+            # the trip, or arrived after a probe already reported). Counted
+            # above, but it must not widen or slide the window.
 
     def snapshot(self) -> dict:
         """State for ``pool_health()`` and logs."""

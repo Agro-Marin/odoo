@@ -84,9 +84,11 @@ def scratch_db():
 def run_psql(scratch_db):
     """Run ``psql -f <file>`` against the scratch DB the way ``restore_db`` does.
 
-    Same flags as the real restore path (``-q -v ON_ERROR_STOP=1 -f``), because
-    a differential test that used different flags would be measuring a different
-    program than the one shipped.
+    Same flags as the real restore path (``-X -q -v ON_ERROR_STOP=1 -f``),
+    because a differential test that used different flags would be measuring a
+    different program than the one shipped — including ``-X``, without which a
+    host ``psqlrc`` could flip ``ON_ERROR_STOP`` in both the fixture and
+    production identically and hide the very defect the suite exists to catch.
     """
 
     def _run(sql_path):
@@ -95,6 +97,7 @@ def run_psql(scratch_db):
                 psql_path(),
                 "-d",
                 scratch_db,
+                "-X",
                 "-q",
                 "-v",
                 "ON_ERROR_STOP=1",

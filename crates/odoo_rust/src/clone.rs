@@ -24,6 +24,18 @@ unsafe extern "C" {
     fn _PyDict_NewPresized(minused: ffi::Py_ssize_t) -> *mut ffi::PyObject;
 }
 
+/// Maximum container nesting `clone_inner` will follow before refusing.
+///
+/// Unlike `copy.deepcopy`, this clone keeps no `memo`, so a *cyclic* structure
+/// (a dict that contains itself — reachable because Json/Properties field
+/// values come from addon-writable data) would recurse until the native stack
+/// overflows and the interpreter **segfaults**, not raises. A finite cap turns
+/// that into a `RecursionError`. 500 is far deeper than any legitimate JSON /
+/// Properties blob (which nest a handful of levels) yet well below the frame
+/// count that would exhaust an 8 MB stack, so it fails safe on both cycles and
+/// pathologically deep input without rejecting real data.
+const MAX_CLONE_DEPTH: usize = 500;
+
 /// Deep-clone a JSON-like Python object (dict/list/tuple of scalars).
 ///
 /// Dicts, lists, and tuples are recursively copied.  All other values
@@ -31,7 +43,7 @@ unsafe extern "C" {
 #[pyfunction]
 pub fn fast_clone<'py>(obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let py = obj.py();
-    unsafe { Ok(Bound::from_owned_ptr(py, clone_inner(py, obj.as_ptr())?)) }
+    unsafe { Ok(Bound::from_owned_ptr(py, clone_inner(py, obj.as_ptr(), 0)?)) }
 }
 
 /// Recursive deep-clone using raw CPython C-API.
@@ -39,7 +51,16 @@ pub fn fast_clone<'py>(obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
 /// SAFETY: `obj` must be a valid Python object with the GIL held.
 /// Returns a new (owned) reference.  On error, all partially-constructed
 /// containers are cleaned up before returning.
-unsafe fn clone_inner(py: Python<'_>, obj: *mut ffi::PyObject) -> PyResult<*mut ffi::PyObject> {
+unsafe fn clone_inner(
+    py: Python<'_>,
+    obj: *mut ffi::PyObject,
+    depth: usize,
+) -> PyResult<*mut ffi::PyObject> {
+    if depth >= MAX_CLONE_DEPTH {
+        return Err(pyo3::exceptions::PyRecursionError::new_err(
+            "fast_clone: maximum nesting depth exceeded (cyclic or too-deep structure)",
+        ));
+    }
     unsafe {
         // Dict — most common container in Odoo JSON blobs.
         // CheckExact skips subclass traversal; JSON dicts are always plain dict.
@@ -57,7 +78,7 @@ unsafe fn clone_inner(py: Python<'_>, obj: *mut ffi::PyObject) -> PyResult<*mut 
             let mut val: *mut ffi::PyObject = std::ptr::null_mut();
 
             while ffi::PyDict_Next(obj, &mut pos, &mut key, &mut val) != 0 {
-                let cloned_val = match clone_inner(py, val) {
+                let cloned_val = match clone_inner(py, val, depth + 1) {
                     Ok(v) => v,
                     Err(e) => {
                         ffi::Py_DECREF(new_dict);
@@ -87,7 +108,7 @@ unsafe fn clone_inner(py: Python<'_>, obj: *mut ffi::PyObject) -> PyResult<*mut 
 
             for i in 0..n {
                 let item = ffi::PyList_GET_ITEM(obj, i);
-                let cloned = match clone_inner(py, item) {
+                let cloned = match clone_inner(py, item, depth + 1) {
                     Ok(v) => v,
                     Err(e) => {
                         // Slots 0..i owned, i..n NULL — Py_DECREF handles it
@@ -112,7 +133,7 @@ unsafe fn clone_inner(py: Python<'_>, obj: *mut ffi::PyObject) -> PyResult<*mut 
 
             for i in 0..n {
                 let item = ffi::PyTuple_GET_ITEM(obj, i);
-                let cloned = match clone_inner(py, item) {
+                let cloned = match clone_inner(py, item, depth + 1) {
                     Ok(v) => v,
                     Err(e) => {
                         ffi::Py_DECREF(new_tuple);

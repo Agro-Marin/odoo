@@ -26,7 +26,7 @@ import threading
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
-from odoo.libs.collections.misc import Collector
+from odoo.libs.collections import Collector
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Iterator

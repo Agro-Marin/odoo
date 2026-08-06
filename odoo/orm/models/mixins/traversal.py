@@ -126,7 +126,12 @@ class TraversalMixin(_ModelStubs):
                 return getter(records)
             if not records:
                 return []
-            field.ensure_access(records[:1])
+            # Check access on the WHOLE recordset, not records[:1]: a
+            # record-sensitive override (res.users._has_field_access grants a
+            # field on the current user's own record) would otherwise pass on
+            # the first record and let the batch cache-read below serve other
+            # records' restricted values unchecked. Matches ReadMixin._read_format.
+            field.ensure_access(records)
             field.ensure_computed(records)
             field_cache = field._get_cache(records.env)
             _SENTINEL = SENTINEL
@@ -197,7 +202,8 @@ class TraversalMixin(_ModelStubs):
             if not can_scan_truthy(field):
                 _field_get = field.__get__
                 return self.browse(rec._ids[0] for rec in self if _field_get(rec))
-            field.ensure_access(self[0:1])
+            # Full recordset, not self[0:1] — see MappedMixin note above.
+            field.ensure_access(self)
             field.ensure_computed(self)
             field_cache = field._get_cache(self.env)
             passing_ids, miss_indices = _batch_cache_filter(
@@ -248,7 +254,8 @@ class TraversalMixin(_ModelStubs):
         if isinstance(key, str):
             field = self._fields[key]
             if not field.relational:
-                field.ensure_access(self[:1])
+                # Full recordset, not self[:1] — see MappedMixin note above.
+                field.ensure_access(self)
                 field.ensure_computed(self)
                 field_cache = field._get_cache(self.env)
                 _SENTINEL = SENTINEL
@@ -389,13 +396,13 @@ class TraversalMixin(_ModelStubs):
         extraction can bypass ``__get__`` and read the cache directly.
         """
         _fields = self._fields
-        first = self[:1]
         for part in order.split(","):
             match = regex_order.match(part)
             if match:
                 field = _fields.get(match["field"])
                 if field is not None:
-                    field.ensure_access(first)
+                    # Full recordset, not self[:1] — see MappedMixin note above.
+                    field.ensure_access(self)
                     field.ensure_computed(self)
 
     def _sorted_by_ids(self, order: str, reverse: bool) -> tuple | None:

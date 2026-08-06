@@ -408,7 +408,14 @@ def _duplicate_database(
                         database_identifier(cr, db_original_name),
                     )
                 )
-            except psycopg.errors.DuplicateDatabase as exc:
+            except (
+                psycopg.errors.DuplicateDatabase,
+                # A racing loser of concurrent database-creating DDL can get
+                # 23505 instead of 42P04 (pinned by
+                # tests/contract/test_pg_create_database_race.py), exactly as
+                # in _create_empty_database above.
+                psycopg.errors.UniqueViolation,
+            ) as exc:
                 raise DatabaseExists(f"database {db_name!r} already exists!") from exc
 
         _retry_terminate_then_ddl(
@@ -553,7 +560,28 @@ def _extract_members_bounded(
     return written
 
 
-def _unpack_budget(dump_file: str) -> int:
+def _source_size(dump_file: str | os.PathLike | IO[bytes]) -> int:
+    """Compressed size of ``dump_file``, whether it is a path or an open file.
+
+    ``restore_db`` accepts both — the database-manager UI hands it a temp-file
+    *path*, while ``odoo db load <url>`` streams the download into a
+    ``SpooledTemporaryFile`` and passes the *object* (``cli/db.py``). A file
+    object has no path for ``Path(...).stat()``, so its size is taken with
+    ``seek``/``tell`` and the position restored, leaving it ready for the
+    ``zipfile`` read that follows.
+    """
+    if isinstance(dump_file, (str, os.PathLike)):
+        return Path(dump_file).stat().st_size
+    # an open binary file object
+    pos = dump_file.tell()
+    try:
+        dump_file.seek(0, os.SEEK_END)
+        return dump_file.tell()
+    finally:
+        dump_file.seek(pos)
+
+
+def _unpack_budget(dump_file: str | os.PathLike | IO[bytes]) -> int:
     """Bytes ``restore_db`` will let an archive expand to (see the constants)."""
     ratio = env_int(
         "ODOO_RESTORE_MAX_EXPANSION_RATIO",
@@ -561,7 +589,7 @@ def _unpack_budget(dump_file: str) -> int:
         minimum=1,
         logger=_logger,
     )
-    return max(Path(dump_file).stat().st_size * ratio, _RESTORE_MIN_UNPACKED_BYTES)
+    return max(_source_size(dump_file) * ratio, _RESTORE_MIN_UNPACKED_BYTES)
 
 
 def _pg_dump_total_timeout() -> float:
@@ -1029,11 +1057,16 @@ def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
 @check_db_management_enabled
 def restore_db(
     db: str,
-    dump_file: str,
+    dump_file: str | os.PathLike | IO[bytes],
     copy: bool = False,
     neutralize_database: bool = False,
 ) -> None:
-    """Restore a database from a file on disk.
+    """Restore a database from a file.
+
+    ``dump_file`` may be a filesystem path (the database-manager UI) or an open
+    binary file object (``odoo db load <url>`` streams a download into a
+    ``SpooledTemporaryFile``); ``zipfile`` and the expansion-budget sizing both
+    accept either.
 
     Handles the v8+ zip format (SQL + filestore + manifest) and the raw pg_dump
     custom format.  On any failure after the empty DB is created,
@@ -1098,6 +1131,12 @@ def restore_db(
 
                 pg_cmd = "psql"
                 pg_args = [
+                    # -X: ignore ~/.psqlrc and the system psqlrc. Those files run
+                    # AFTER option processing, so a stray `\set ON_ERROR_STOP off`
+                    # (or `\set AUTOCOMMIT`, `\connect`) on the host would silently
+                    # override the invariant the whole restore — and the dump
+                    # scanner's under-detection-is-loud argument — depends on.
+                    "-X",
                     "-q",
                     "-v",
                     "ON_ERROR_STOP=1",
@@ -1106,8 +1145,17 @@ def restore_db(
                 ]
 
             else:
+                # ``pg_restore`` reads a file *path*; unlike the zip branch it
+                # cannot take an open file object. The CLI only ever routes a
+                # file object (a streamed download) to the zip branch, so this
+                # is a real precondition, enforced rather than assumed.
+                if not isinstance(dump_file, (str, os.PathLike)):
+                    raise TypeError(
+                        "a raw (non-zip) restore needs a file path, not an open "
+                        "file object"
+                    )
                 pg_cmd = "pg_restore"
-                pg_args = ["--no-owner", "--exit-on-error", dump_file]
+                pg_args = ["--no-owner", "--exit-on-error", os.fspath(dump_file)]
 
             _timeout = _pg_restore_total_timeout()
             try:
@@ -1209,7 +1257,11 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                         database_identifier(cr, new_name),
                     )
                 )
-            except psycopg.errors.DuplicateDatabase as exc:
+            except (
+                psycopg.errors.DuplicateDatabase,
+                # Same 23505-instead-of-42P04 race as in _duplicate_database.
+                psycopg.errors.UniqueViolation,
+            ) as exc:
                 raise DatabaseExists(f"database {new_name!r} already exists!") from exc
             except psycopg.errors.ObjectInUse:
                 raise

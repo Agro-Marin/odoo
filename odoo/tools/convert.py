@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 from .config import config
 from .files import file_open, file_path
 from .misc import SKIPPED_ELEMENT_TYPES
-from .safe_eval import pytz, safe_eval, time
+from .safe_eval import _UNSAFE_ATTRIBUTES, pytz, safe_eval, time
 
 _logger = logging.getLogger(__name__)
 
@@ -181,11 +181,21 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
                 raise ValueError(f"Unknown type {t!r}")
 
     elif node.tag == "function":
+        # ``<function>`` resolves an arbitrary attribute name on the model, and
+        # data files are not always authored by the operator: an admin-uploaded
+        # module (base_import_module) reaches here.  Dunders and the frame /
+        # code internals in _UNSAFE_ATTRIBUTES are what turn attribute lookup
+        # into sandbox escape, so they are refused, as in safe_eval itself.
+        # Checked before anything is imported or resolved: the name alone
+        # decides it, so the refusal needs no model, no env and no registry.
+        method_name = node.get("name") or ""
+        if "__" in method_name or method_name in _UNSAFE_ATTRIBUTES:
+            raise NameError(f"Access to forbidden name {method_name!r}")
+
         from odoo.models import BaseModel
 
         model_str = node.get("model")
         model = env[model_str]
-        method_name = node.get("name")
         args = []
         kwargs = {}
 
