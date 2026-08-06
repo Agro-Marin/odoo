@@ -88,7 +88,7 @@ export class StaticList extends DataPoint {
         this._loadingStubIds = new Set();
         /**
          * A tracked command replay rejected: some rows may be left as `{id}`
-         * stubs with no display data. Read by `_healFailedReplay` after the
+         * stubs with no display data. Read by `healFailedReplay` after the
          * next successful save. @type {boolean}
          */
         this._replayFailed = false;
@@ -765,7 +765,7 @@ export class StaticList extends DataPoint {
             );
             // The failed load may have left `{id}` stubs on the page. Do not
             // block anything here (a save must still proceed); just remember,
-            // so `_healFailedReplay` re-fetches them once the server answers
+            // so `healFailedReplay` re-fetches them once the server answers
             // a save again.
             this._replayFailed = true;
             reportUncaught(error);
@@ -957,7 +957,7 @@ export class StaticList extends DataPoint {
      * answering again — to re-fetch those rows so the display converges with
      * what was saved. The load is tracked, so a subsequent save waits on it.
      */
-    _healFailedReplay() {
+    healFailedReplay() {
         if (!this._replayFailed) {
             return;
         }

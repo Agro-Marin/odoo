@@ -520,9 +520,22 @@ export class ActionManager {
         try {
             return await this._dispatchInline(dispatch, options);
         } finally {
-            if (this._pendingDispatch === dispatch) {
-                this._pendingDispatch = null;
-            }
+            this.settlePendingDispatch(dispatch);
+        }
+    }
+
+    /**
+     * Stop treating *dispatch* as the pending one, if it still is. Called by
+     * `ActionDispatch.commit()` the moment it publishes its stack (so
+     * `_effectiveStack` answers with the new stack while `UI-UPDATED`
+     * listeners run) and re-called by `_updateUI`'s `finally`; the `===`
+     * guard makes every call after the first a no-op.
+     *
+     * @param {ActionDispatch} dispatch
+     */
+    settlePendingDispatch(dispatch) {
+        if (this._pendingDispatch === dispatch) {
+            this._pendingDispatch = null;
         }
     }
 
@@ -624,12 +637,13 @@ export class ActionManager {
     }
 
     /**
-     * @param {ActionDispatch} dispatch
+     * `onClose` only fires for dialog dispatches; callers passing it to an
+     * inline one usually expected a dialog — say so in debug.
+     *
+     * @param {any} action
      * @param {Object} options
-     * @returns {Promise<void>}
      */
-    async _dispatchInline(dispatch, options) {
-        const { controller, action } = dispatch;
+    _warnDroppedOnClose(action, options) {
         if (odoo.debug && options.onClose) {
             console.warn(
                 `[action] "onClose" is ignored for inline dispatches: ` +
@@ -637,6 +651,16 @@ export class ActionManager {
                     `does not open a dialog.`,
             );
         }
+    }
+
+    /**
+     * @param {ActionDispatch} dispatch
+     * @param {Object} options
+     * @returns {Promise<void>}
+     */
+    async _dispatchInline(dispatch, options) {
+        const { controller, action } = dispatch;
+        this._warnDroppedOnClose(action, options);
         if (this._skeletonDef) {
             this._skeletonDef.reject(new SupersededError());
             this._skeletonDef = null;

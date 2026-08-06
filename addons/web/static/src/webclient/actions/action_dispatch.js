@@ -67,11 +67,9 @@ export class ActionDispatch {
             // controller this dispatch just replaced — web_studio's
             // `inStudio` flag never saw the studio action land and every
             // later `leave()` threw "leave when not in studio???".
-            // (`_updateUI`'s `finally` re-clears; the `===` check makes both
-            // no-ops after the first.)
-            if (am._pendingDispatch === this) {
-                am._pendingDispatch = null;
-            }
+            // (`_updateUI`'s `finally` re-settles; the `===` guard inside
+            // makes both no-ops after the first.)
+            am.settlePendingDispatch(this);
             am.pushState();
 
             am.env.services.title.setParts({ action: controller.displayName });

@@ -26,7 +26,7 @@ import { ActionDispatch } from "@web/webclient/actions/action_dispatch";
  * The fake manager is the sanctioned ``am`` seam (see "THE SIBLING CONTRACT"
  * in ``action_service.js``). ActionDispatch reaches exactly:
  *   controllerStack · dialog · nextDialog · env · pushState · restore ·
- *   _nextId · _pendingDispatch
+ *   settlePendingDispatch · _nextId · _pendingDispatch
  */
 
 describe.current.tags("desktop");
@@ -49,6 +49,11 @@ function makeFakeAm(overrides = {}) {
         restore: (jsId) => {
             calls.restore.push(jsId);
             return "restore-result";
+        },
+        settlePendingDispatch(dispatch) {
+            if (this._pendingDispatch === dispatch) {
+                this._pendingDispatch = null;
+            }
         },
         _nextId: () => ++id,
         ...overrides,
@@ -420,10 +425,11 @@ test("the dispatch reaches only the documented manager members", async () => {
 
     expect([...reached].sort()).toEqual([
         "_nextId",
-        // `commit()` clears the manager's pending dispatch the moment it
-        // publishes the stack, so `UI-UPDATED` listeners reading
-        // `currentController` see the controller that just landed, not the
-        // one it replaced.
+        // read through `settlePendingDispatch` (the fake's implementation
+        // trips the proxy): `commit()` settles the manager's pending dispatch
+        // the moment it publishes the stack, so `UI-UPDATED` listeners
+        // reading `currentController` see the controller that just landed,
+        // not the one it replaced.
         "_pendingDispatch",
         "controllerStack",
         "dialog",
@@ -431,6 +437,7 @@ test("the dispatch reaches only the documented manager members", async () => {
         "nextDialog",
         "pushState",
         "restore",
+        "settlePendingDispatch",
     ]);
     await expect.waitForErrors([/child/]);
 });
