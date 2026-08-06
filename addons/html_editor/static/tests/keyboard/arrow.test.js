@@ -643,7 +643,7 @@ describe("Around invisible chars in RTL languages", () => {
     describe("ZWS", () => {
         const content =
             "<p>" + "الرجال" + '<span class="a">\u200B</span>' + "هؤلاء" + "</p>";
-        // Displayed as " هؤلاء<span class="a">\u200B</span>الرجال" in the editor:
+        // Displayed as "هؤلاء<span class="a">\u200B</span>الرجال" in the editor:
         //                third +               span +      first
         test("should move past the zws (ArrowLeft)", async () => {
             const { editor, el } = await setupEditor(content, {
