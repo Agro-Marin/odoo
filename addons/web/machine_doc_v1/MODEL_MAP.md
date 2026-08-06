@@ -328,18 +328,41 @@ Producers of the beacons this stores:
 - `static/src/core/errors/error_beacon.js` — the canonical ESM beacon.
 - `static/src/env.js` — services that never started (`kind` `service_start`).
 
-**Fields:**
+**Fields:** (13 — the beacon payload, one column per field the client sends,
+plus arrival time and the reporting session)
 
+- `recorded_at` (Datetime, required, indexed) — beacon arrival, standing in for
+  `create_date` since `_log_access = False`.
+- `user_id` (Many2one `res.users`, `ondelete="set null"`, `btree_not_null`) —
+  session that emitted the beacon; null for anonymous frontend traffic.
+- `phase` (Selection `pre_boot`/`post_boot`/`unknown`) — whether the module
+  system had finished booting. A `pre_boot` failure means the loader itself
+  never came up, so nothing else in the client is trustworthy at that point.
+- `kind` (Selection, indexed) — `error`, `unhandledrejection`, `service_start`,
+  `asset_load_error`, `module_rebind`. Kept in step with `_JS_ERROR_KINDS` in
+  `controllers/observability.py` by `TestJsErrorTaxonomy`, which scans the
+  emitters listed above so a newly-emitted kind cannot silently degrade to
+  `error`.
+- `message` (Char, required, `size=4096`) — the error message.
 - `cause` (Text) — flattened `error.cause` chain, one `Caused by:` segment per
   level, depth-capped at 8 and cycle-guarded. This is the field an OWL lifecycle
   error points at: its own message says to read `cause`, and without it the
   report names a failure without saying why.
+- `stack` (Text) — the reported stack.
+- `filename` (Char, `size=500`), `line` (Integer), `col` (Integer) — the
+  position the browser attributed the failure to; `0`/empty when it gave none.
+- `url` (Char, `size=500`) — the failing page. Deliberately unindexed: the
+  search view reaches it through `ilike` and `group_by`, neither of which a
+  btree serves, so an index would only add a tuple write per INSERT on a
+  write-only table.
+- `user_agent` (Char, `size=500`) — reporting browser.
 - `reloaded` (Selection `reloaded`/`suppressed`, nullable) — set only for
   `asset_load_error`: whether the loader's one-per-minute self-heal reload fired
   or the guard suppressed it. **Null means not applicable**, not "suppressed" — a
   Boolean here would claim a reload was withheld when none was attempted.
-- `message` is `Char(size=4096)`; `cause` and `stack` are `Text` with explicit
-  `CHECK(char_length(...) <= 4096)` constraints, since Text carries no length.
+
+`message` is `Char(size=4096)`; `cause` and `stack` are `Text` with explicit
+`CHECK(char_length(...) <= 4096)` constraints, since Text carries no length.
 
 **Key Methods:**
 

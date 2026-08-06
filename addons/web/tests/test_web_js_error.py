@@ -78,11 +78,13 @@ class TestWebJsErrorBeacon(HttpCase):
             with self.assertLogs(
                 "odoo.addons.web.controllers.observability", level="WARNING"
             ) as capture:
-                self._beacon({
-                            "message": "bundle gone",
-                            "kind": "asset_load_error",
-                            "reloaded": sent,
-                        })
+                self._beacon(
+                    {
+                        "message": "bundle gone",
+                        "kind": "asset_load_error",
+                        "reloaded": sent,
+                    }
+                )
             self.assertTrue(
                 any(expected in line for line in capture.output),
                 f"expected {expected} in the log line",
@@ -101,14 +103,16 @@ class TestWebJsErrorBeacon(HttpCase):
         )
 
     def test_js_error_persists_a_row(self):
-        self._beacon({
-                    "message": "persisted probe",
-                    "kind": "service_start",
-                    "phase": "pre_boot",
-                    "cause": "Caused by: TypeError: boom",
-                    "stack": "at svc (svc.js:1:1)",
-                    "url": "http://localhost/web/login",
-                })
+        self._beacon(
+            {
+                "message": "persisted probe",
+                "kind": "service_start",
+                "phase": "pre_boot",
+                "cause": "Caused by: TypeError: boom",
+                "stack": "at svc (svc.js:1:1)",
+                "url": "http://localhost/web/login",
+            }
+        )
         row = self.env["web.js.error"].search(
             [("message", "=", "persisted probe")], limit=1
         )
@@ -123,11 +127,13 @@ class TestWebJsErrorBeacon(HttpCase):
         applicable' stays distinguishable from 'the reload was suppressed'."""
         for sent, expected in ((True, "reloaded"), (False, "suppressed")):
             message = f"reload probe {sent}"
-            self._beacon({
-                        "message": message,
-                        "kind": "asset_load_error",
-                        "reloaded": sent,
-                    })
+            self._beacon(
+                {
+                    "message": message,
+                    "kind": "asset_load_error",
+                    "reloaded": sent,
+                }
+            )
             row = self.env["web.js.error"].search([("message", "=", message)], limit=1)
             self.assertEqual(row.reloaded, expected)
 
@@ -145,8 +151,7 @@ class TestWebJsErrorBeacon(HttpCase):
         before = Model.search_count([])
         with patch.object(observability, "_RATE_LIMIT_MAX", 2):
             statuses = [
-                self._beacon({"message": f"rl probe {i}"}).status_code
-                for i in range(4)
+                self._beacon({"message": f"rl probe {i}"}).status_code for i in range(4)
             ]
 
         self.assertEqual(statuses, [204, 204, 429, 429])

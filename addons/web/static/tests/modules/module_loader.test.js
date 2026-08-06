@@ -236,7 +236,9 @@ describe("beacon (inlined copy)", () => {
     test("hashCode: stable per input, and distinct across inputs", () => {
         const { hashCode } = odoo.loader._beacon;
         expect(hashCode("at foo (foo.js:1:1)")).toBe(hashCode("at foo (foo.js:1:1)"));
-        expect(hashCode("at foo (foo.js:1:1)")).not.toBe(hashCode("at bar (bar.js:2:2)"));
+        expect(hashCode("at foo (foo.js:1:1)")).not.toBe(
+            hashCode("at bar (bar.js:2:2)"),
+        );
         expect(hashCode("")).toHaveLength(8);
     });
 

@@ -283,9 +283,13 @@ class Observability(Controller):
         if not message:
             return Response("", status=204)
 
-        kind = payload.get("kind") if payload.get("kind") in _JS_ERROR_KINDS else "error"
+        kind = (
+            payload.get("kind") if payload.get("kind") in _JS_ERROR_KINDS else "error"
+        )
         phase = (
-            payload.get("phase") if payload.get("phase") in _JS_ERROR_PHASES else "unknown"
+            payload.get("phase")
+            if payload.get("phase") in _JS_ERROR_PHASES
+            else "unknown"
         )
         filename = _str_field(payload.get("filename"), _MAX_ERROR_FILENAME_LEN)
         url = _str_field(payload.get("url"), _MAX_URL_LEN)

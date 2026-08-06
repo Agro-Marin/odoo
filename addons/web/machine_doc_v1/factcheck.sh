@@ -19,11 +19,46 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB="$(dirname "$SCRIPT_DIR")"                 # <repo>/addons/web
 REPO="$(cd "$WEB/../.." && pwd)"               # <repo>  (the odoo fork)
-ADDONS="$(dirname "$REPO")"                    # <workspace>/addons
-WORKSPACE="$(dirname "$ADDONS")"               # <workspace>
-VENV_PY="${VENV_PY:-$WORKSPACE/venv/p314o19marin/bin/python}"
-[ -x "$VENV_PY" ] || VENV_PY="$(command -v python3)"
-ODOO_CONF="${ODOO_CONF:-$WORKSPACE/config/p314o19marin.conf}"
+ADDONS="$(dirname "$REPO")"                    # <workspace> — holds the sibling
+                                               # checkouts (odoo/, enterprise/,
+                                               # agromarin/, design-themes/)
+WORKSPACE="$ADDONS"                            # same directory: this fork keeps
+                                               # the venv and <env>.conf here too
+
+# The interpreter and config are DISCOVERED, not assumed. `WORKSPACE` used to be
+# `dirname "$ADDONS"` — one level above the checkouts — which named a layout this
+# workspace does not use: the `<ws>/venv/<env>/bin/python` probe missed, `python3`
+# took over as the fallback, `parse_config` was handed a path that does not
+# exist, and all eight make_suite counts reported LOADER_FAILED. A gate reduced
+# to noise by a path guess is the same failure mode the roots above were written
+# to avoid.
+#
+# Convention (workspace CLAUDE.md): one `<env>.conf` per environment at the
+# workspace root, each paired with a venv directory of the same name —
+# `<workspace>/p314o19marin.conf` + `<workspace>/p314o19marin/bin/python`.
+# Pair them BY NAME so a workspace holding several environments cannot run one
+# environment's config under another's interpreter.
+_discover_env() {
+    # $1 = directory holding <env>.conf; $2 = directory holding <env>/bin/python
+    local conf_dir="$1" venv_dir="$2" conf env_name py
+    for conf in "$conf_dir"/*.conf; do
+        [ -f "$conf" ] || continue
+        env_name="$(basename "$conf" .conf)"
+        py="$venv_dir/$env_name/bin/python"
+        [ -x "$py" ] || continue
+        printf '%s\n%s\n' "$py" "$conf"
+        return 0
+    done
+    return 1
+}
+# This workspace's layout first, then the nested one, so a checkout using
+# either is validated rather than silently degraded.
+_env_found="$(_discover_env "$WORKSPACE" "$WORKSPACE" \
+    || _discover_env "$(dirname "$WORKSPACE")/config" "$(dirname "$WORKSPACE")/venv" \
+    || true)"
+VENV_PY="${VENV_PY:-$(printf '%s' "$_env_found" | sed -n 1p)}"
+ODOO_CONF="${ODOO_CONF:-$(printf '%s' "$_env_found" | sed -n 2p)}"
+[ -n "$VENV_PY" ] && [ -x "$VENV_PY" ] || VENV_PY="$(command -v python3)"
 DOC="$WEB/machine_doc_v1"
 PASS=0
 FAIL=0
@@ -185,9 +220,16 @@ assert_eq "MODEL_MAP.md documents no method that does not exist" "${mm_badmethod
 assert_eq "MODEL_MAP.md inp row documents the P100 running max" \
     "$(grep -c 'worst-observed interaction duration' "$WEB/machine_doc_v1/MODEL_MAP.md")" "1"
 
-# navigator.sendBeacon() call sites (5 files).
+# navigator.sendBeacon() call sites (4 files). This counts hand-rolled beacon
+# copies, not beacon senders: `boot/start.js` was the fifth until its
+# boot-mount-failure report moved to `core/errors/boot_failure_overlay.js` and
+# started going through `reportJsError` instead of its own sendBeacon. That is a
+# copy retired, so the number ratchets DOWN and stays there — raising it again
+# means someone hand-rolled a fourth copy of the payload contract rather than
+# importing `error_beacon`. `module_loader.js` is the one permitted duplicate:
+# the pre-ESM shim cannot import.
 sendbeacon_files=$(grep -rlE "sendBeacon[?.]*\\(" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)
-assert_eq "sendBeacon call sites (start + module_loader + web_vitals + record_save + error_beacon)" "$sendbeacon_files" "5"
+assert_eq "sendBeacon call sites (module_loader + web_vitals + record_save + error_beacon)" "$sendbeacon_files" "4"
 
 # Verify the observability controller is wired in.
 observability_controller=$([ -f "$WEB/controllers/observability.py" ] && echo 1 || echo 0)
@@ -595,7 +637,13 @@ dead_refs=$("$VENV_PY" - "$DOC" "$WORKSPACE" "$REPO" "$WEB" <<'PYEOF' 2>/dev/nul
 import re, pathlib, sys, collections, os
 doc_dir, ws, repo, web = (pathlib.Path(a) for a in sys.argv[1:5])
 index = collections.defaultdict(list)
-for base in ("addons/odoo", "addons/enterprise", "addons/agromarin", "addons/design-themes"):
+# The sibling checkouts are direct children of the workspace root -- <ws>/odoo,
+# <ws>/enterprise, ... -- not nested under an `addons/` directory. Looking under
+# `addons/` built an EMPTY index, and an empty index makes every backticked path
+# in every doc unresolvable: the sweep reported 557 dead references, none of
+# which were dead. A gate that fails on everything is read as broken and
+# ignored, which costs exactly as much as one that passes on everything.
+for base in ("odoo", "enterprise", "agromarin", "design-themes"):
     b = ws / base
     if not b.is_dir():
         continue
@@ -806,8 +854,12 @@ assert_eq "rpc.js is the CLEAR_CACHES listener" \
 count_tag_tests() {
     # $1 = topic tag; emits the number of tests make_suite() collects for it.
     # No database required — collection only.
+    #
+    # stderr is kept, not discarded: swallowing it is what turned a wrong
+    # ODOO_CONF path into eight identical LOADER_FAILED lines that named
+    # neither the cause nor the file. The caller reports the last line.
     local tag="$1"
-    (cd "$(dirname "$(dirname "$WEB")")" && "$VENV_PY" - "$tag" "$ODOO_CONF" <<'PY' 2>/dev/null
+    (cd "$REPO" && "$VENV_PY" - "$tag" "$ODOO_CONF" <<'PY' 2>"$LOADER_ERR"
 import sys
 tag, conf = sys.argv[1], sys.argv[2]
 from odoo.tools import config
@@ -818,7 +870,14 @@ print(len(list(make_suite(["web"], tag))))
 PY
     )
 }
-if ! (cd "$REPO" && "$VENV_PY" -c "import odoo" >/dev/null 2>&1); then
+LOADER_ERR="$(mktemp)"
+trap 'rm -f "$LOADER_ERR"' EXIT
+if [ -z "${ODOO_CONF:-}" ] || [ ! -f "$ODOO_CONF" ]; then
+    echo "SKIP: TEST_TAGS make_suite counts — no Odoo config found" \
+         "(looked for <env>.conf beside a matching venv under $WORKSPACE;" \
+         "set ODOO_CONF/VENV_PY to override)"
+    SKIP=$((SKIP+16))
+elif ! (cd "$REPO" && "$VENV_PY" -c "import odoo" >/dev/null 2>&1); then
     echo "SKIP: TEST_TAGS make_suite counts — odoo not importable with $VENV_PY"
     SKIP=$((SKIP+16))
 else
@@ -827,7 +886,7 @@ else
     # hand-maintained doc gets wrong. It was 159 in the doc against 158 real.
     for spec in \
         "web_unit:291" \
-        "web_http:87" \
+        "web_http:100" \
         "web_tour:5" \
         "web_js:37" \
         "web_perf:26" \
@@ -837,7 +896,10 @@ else
         tag="${spec%:*}"
         expected="${spec##*:}"
         actual=$(count_tag_tests "$tag")
-        assert_eq "TEST_TAGS $tag test count (make_suite)" "${actual:-LOADER_FAILED}" "$expected"
+        if [ -z "$actual" ]; then
+            actual="LOADER_FAILED: $(tail -n 1 "$LOADER_ERR")"
+        fi
+        assert_eq "TEST_TAGS $tag test count (make_suite)" "$actual" "$expected"
         # And the doc must cite the matching number.
         assert_eq "TEST_TAGS.md cites $expected for $tag" \
             "$(grep -cE "\`$tag\`.*\| $expected tests" "$WEB/machine_doc_v1/TEST_TAGS.md")" "1"
@@ -1129,7 +1191,7 @@ assert_eq "MODEL_MAP Fields lists name every field on those models" \
 # reads as nothing missing. Pin the section count so a heading rename that
 # silently drops a model out of scope fails instead of passing.
 assert_eq "MODEL_MAP field gate actually scanned its models" \
-    "${field_scanned:-PARSE_FAILED}" "5"
+    "${field_scanned:-PARSE_FAILED}" "6"
 
 # 35. Module faces. The count is a filesystem property (a directory with a
 #     sibling <name>.js), so derive it; the doc said 38 against a real 39,
