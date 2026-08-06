@@ -91,7 +91,6 @@ describe("range collapsed, remove by popover unlink button", () => {
             stepFunction: unlinkFromPopover,
             contentAfter: "<p>a[]bcde</p>",
         });
-        // With fontawesome at the start of the link.
     });
 
     test("should remove the link if collapsed range at the start of a link (2)", async () => {
@@ -132,7 +131,6 @@ describe("range collapsed, remove by popover unlink button", () => {
             contentAfter:
                 '<p><a href="http://test.test/">a</a>bc[]de<a href="http://test.test/">f</a></p>',
         });
-        // With fontawesome at the start of the link.
     });
 
     test("should remove only the current link if collapsed range in the middle of a link (2)", async () => {
@@ -386,10 +384,10 @@ describe("range not collapsed", () => {
             await testEditor({
                 contentBefore:
                     '<p>a<a class="oe_unremovable" href="http://test.test">[b</a>c<a href="http://test.test">d</a>e<a class="oe_unremovable" href="http://test.test">f]</a></p>',
-                /** @param {import("@html_editor/plugin").Editor} editor */
+                /** @param {import("@html_editor/editor").Editor} editor */
                 stepFunction: (editor) => {
                     const selection = editor.shared.selection.getEditableSelection();
-                    // extends selection to contain the feffs
+                    // Extend the selection to include the FEFF characters.
                     editor.shared.selection.setSelection({
                         anchorNode: selection.anchorNode.previousSibling,
                         anchorOffset: 0,

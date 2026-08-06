@@ -134,7 +134,7 @@ describe("documentSelectionIsInEditable", () => {
         let selectionData = editor.shared.selection.getSelectionData();
         expect(selectionData.documentSelectionIsInEditable).toBe(true);
         selection.setPosition(document.body);
-        // value is updated directly !
+        // The value is updated directly.
         selectionData = editor.shared.selection.getSelectionData();
         expect(selectionData.documentSelectionIsInEditable).toBe(false);
     });
@@ -146,9 +146,8 @@ test("getSelectionData should validate the offsets of activeSelection", async ()
     expect(selection.startOffset).toBe(1);
     expect(selection.endOffset).toBe(2);
 
-    // We simulate getSelection() returning null while activeSelection has an
-    // offset pointing to a deleted element. This is an edge case that occurs in
-    // Chrome (see commit message).
+    // Simulate getSelection() returning null while activeSelection holds an
+    // offset beyond the node length (an edge case observed in Chrome).
     patchWithCleanup(document, {
         getSelection: () => null,
     });
@@ -219,8 +218,8 @@ test("active selection shouldn't change when document selection is inconsistent 
     expect(selection.startOffset).toBe(0);
     expect(selection.endOffset).toBe(0);
 
-    // Simulate a very broken DOM selection with inconsistent anchor/focus nodes
-    // comparing its range.
+    // Simulate a broken DOM selection whose anchor/focus nodes are inconsistent
+    // with its range.
     patchWithCleanup(document, {
         getSelection: () => ({
             ...selection,
@@ -360,26 +359,16 @@ test("restore a selection when you are not in the editable shouldn't move the fo
     await animationFrame();
     expect("input.test").toBeFocused();
 
-    // Something trigger restore
+    // Something triggers a restore.
     const cursors = editor.shared.selection.preserveSelection();
     cursors.restore();
     expect("input.test").toBeFocused();
 });
 
 test("preserveSelection's restore should always set the selection, even if it's the same as the current one", async () => {
-    /**
-     * There seems to be a bug in Chrome that renders the selection in a
-     * different position than the one returned by document.getSelection().
-     * Setting the selection (even if it's the same as the current one) seems to
-     * solve the issue.
-     *
-     * A concrete example:
-     * <p>abc <a href="#">some link</a> def[]</p>
-     *     press shift + enter
-     * The selection (in Chrome) is rendered at the following position if
-     * setBaseAndExtent is skipped when setting the selection after a restore:
-     * <p>abc <a href="#">some link</a>[] def<br><br></p>
-     */
+    // Chrome may render the selection at a different position than the one
+    // returned by document.getSelection(); setting it again, even to the same
+    // value, works around it.
     const { editor } = await setupEditor("<p>ab[]cd</p>");
     patchWithCleanup(editor.document.getSelection(), {
         setBaseAndExtent: () => {
@@ -671,7 +660,7 @@ describe("getTargetedNodes", () => {
                     "<p>abcd[</p><p>]<br></p>",
                 );
                 const p1 = editable.childNodes[0]; // The selection crossed `</p>` -> include it.
-                // "ab" isn't included because no part of it is selected.
+                // "abcd" isn't included because no part of it is selected.
                 const p2 = p1.nextSibling; // The selection crossed `<p>` -> include it.
                 // The BR is not included because the selection ended at (p2,
                 // 0), not in the BR.
@@ -888,8 +877,6 @@ describe("getTargetedNodes", () => {
                 const td2 = td1.nextSibling; // The selection crossed `<td>` -> include it.
                 const fg = td2.firstChild;
                 const result = editor.shared.selection.getTargetedNodes();
-                // The special table selection makes it so that both TDs are
-                // shown as fully selection.
                 expect(result).toEqual([td1, abcd, br1, br2, e, td2, fg]);
             });
         });
@@ -1414,7 +1401,7 @@ test("should not autoscroll if selection is partially visible in viewport", asyn
     const lastParagraph = editable.lastElementChild;
     const fifthLastParagraph = editable.children[45];
 
-    // Select the last five paragraphs in backward.
+    // Select the last five paragraphs backwards.
     setSelection({
         anchorNode: lastParagraph,
         anchorOffset: 1,
