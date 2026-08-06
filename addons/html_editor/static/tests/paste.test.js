@@ -285,7 +285,7 @@ describe("Simple text", () => {
         // instead of linebreaks but that would be an opinionated choice.
         test("should paste text and understand \\n newlines", async () => {
             await testEditor({
-                // @phoenix content adapted to make it valid html
+                // content adapted to make it valid html
                 contentBefore: "<p>[]<br></p>",
                 stepFunction: async (editor) => {
                     pasteText(editor, "a\nb\nc\nd");
@@ -297,7 +297,7 @@ describe("Simple text", () => {
 
         test("should paste text and understand \\r\\n newlines", async () => {
             await testEditor({
-                // @phoenix content adapted to make it valid html
+                // content adapted to make it valid html
                 contentBefore: "<p>[]<br></p>",
                 stepFunction: async (editor) => {
                     pasteText(editor, "a\r\nb\r\nc\r\nd");
@@ -1756,9 +1756,8 @@ describe("Complex html p", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                // FIXME: Bringing `e` and `f` into the `<p>` is a tradeOff
-                // Should we change it ? How ? Might warrant a discussion.
-                // possible alt contentAfter : <div>1a<p>b12</p>34[]<span>e</span>f</div>
+                // FIXME: bringing `e` and `f` into the `<p>` is a tradeoff;
+                // possible alternative: <div>1a<p>b12</p>34[]<span>e</span>f</div>
                 contentAfter:
                     '<div>1a<p>b12</p><p>34[]<span class="a">e</span>f</p></div>',
             });
@@ -3703,7 +3702,7 @@ describe("images", () => {
 
             // paste text (to have a history step recorded)
             pasteText(editor, "abxxxcd");
-            // select xxx in "<p>ab[xxx]cd</p>""
+            // select xxx in "<p>ab[xxx]cd</p>"
             const p = editor.editable.querySelector("p");
             const selection = {
                 anchorNode: p.childNodes[0],
@@ -3803,7 +3802,7 @@ describe("youtube video", () => {
                 { config },
             );
             pasteText(editor, "https://youtu.be/dQw4w9WgXcQ");
-            // Ensure the powerbox is active
+            // Ensure the powerbox did not open
             const powerbox = plugins.get("powerbox");
             expect(powerbox.overlay.isOpen).not.toBe(true);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3887,7 +3886,7 @@ describe("youtube video", () => {
                 { config },
             );
             pasteText(editor, videoUrl);
-            // Ensure the powerbox is active
+            // Ensure the powerbox did not open
             const powerbox = plugins.get("powerbox");
             expect(powerbox.overlay.isOpen).not.toBe(true);
             expect(cleanLinkArtifacts(getContent(el))).toBe(

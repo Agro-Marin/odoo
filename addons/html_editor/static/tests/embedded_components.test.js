@@ -11,10 +11,10 @@ import {
     savedCounter,
 } from "@html_editor/../tests/_helpers/embedded_component";
 // Must use the bare "@html_editor/..." specifier (not a relative "../src/..."
-// path): the import map routes it through the single-instance bridge so this is
-// the SAME class the editor helper checks in `config.Plugins.includes(...)`. A
-// relative import bypasses the import map and yields a second, distinct class
-// object, breaking the identity check (see editor.js `preparePlugins`).
+// path): the import map keeps this the SAME class object the test helper
+// compares against in `config.Plugins.includes(...)` (see _helpers/editor.js,
+// `TestEditor.setup`); a relative import yields a distinct class and the check
+// fails.
 import { EmbeddedComponentPlugin } from "@html_editor/others/embedded_component_plugin";
 import {
     getEditableDescendants,
@@ -605,10 +605,10 @@ describe("Selection after embedded component insertion", () => {
             parseHTML(editor.document, `<div data-embedded="counter"></div>`),
         );
         editor.shared.history.addStep();
-        // Insertion triggers selectionchange & addStep creates selection
-        // placeholder.fixSelectionInsideEditableRoot moves selection into it,
-        // trigger another selectionchange that removes selection placeholder.
-        // So we must wait for the o-we-hint.
+        // Insertion triggers selectionchange & addStep creates a selection
+        // placeholder. fixSelectionOnEditableRoot moves the selection into it,
+        // triggering another selectionchange that removes the placeholder, so
+        // we must wait for the o-we-hint.
         await waitFor(".o-we-hint");
         cleanHints(editor);
         expect(getContent(el)).toBe(
@@ -626,10 +626,10 @@ describe("Selection after embedded component insertion", () => {
             parseHTML(editor.document, `<div data-embedded="counter"></div>`),
         );
         editor.shared.history.addStep();
-        // Insertion triggers selectionchange & addStep creates selection
-        // placeholder.fixSelectionInsideEditableRoot moves selection into it,
-        // trigger another selectionchange that removes selection placeholder.
-        // So we must wait for the o-we-hint.
+        // Insertion triggers selectionchange & addStep creates a selection
+        // placeholder. fixSelectionOnEditableRoot moves the selection into it,
+        // triggering another selectionchange that removes the placeholder, so
+        // we must wait for the o-we-hint.
         await waitFor(".o-we-hint");
         cleanHints(editor);
         expect(getContent(el)).toBe(
