@@ -5,7 +5,24 @@
 
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 
+/** @import { DomainListRepr } from "@web/core/domain" */
+
 export const SPECIAL = Symbol("special");
+
+/**
+ * The version written into every exported state. Bump it when a key is added,
+ * removed or reshaped, and teach `SearchModel._importState` the transition.
+ *
+ * History:
+ * - (absent): the pre-versioning shape — `SearchModelState` minus `version`,
+ *   `searchDomain` and `propertySearchViewFields`. Still importable: those
+ *   keys are optional, and their absence reproduces the old behavior.
+ * - 2: added `version`, `searchDomain` (restore no longer refetches search
+ *   panel sections whose domain did not change) and
+ *   `propertySearchViewFields` (property search items resolve their fields
+ *   again after a restore).
+ */
+export const SEARCH_MODEL_STATE_VERSION = 2;
 
 export const FAVORITE_PRIVATE_GROUP = 1;
 export const FAVORITE_SHARED_GROUP = 2;
@@ -68,51 +85,169 @@ export function arrayToMap(array) {
 }
 
 /**
- * @param {Function} op
+ * @typedef {Object} SearchModelState
+ * The serialized form of a `SearchModel`, as produced by `exportState()` and
+ * consumed by `_importState()`. The whole object must survive a JSON
+ * round-trip: `WithSearch` stores it with `JSON.stringify` in the action's
+ * `globalState`, and `knowledge` persists that string in a database field —
+ * exported states outlive the build that wrote them.
+ *
+ * Three serialization strategies coexist, one per kind of data — do not unify
+ * them:
+ * - **JSON round-trip** (`query`, `searchItems`, `searchDomain`,
+ *   `propertySearchViewFields`): deep-copies while proving the data is
+ *   JSON-safe at export time, where a failure is attributable, rather than at
+ *   `JSON.stringify` time in a consumer.
+ * - **structuredClone** (`searchPanelInfo`): a small flat holder that needs a
+ *   decoupled copy but no JSON guarantee of its own — it contains only
+ *   booleans, strings and arrays thereof.
+ * - **Map↔Array** (`sections`): section/group values live in `Map`s, which
+ *   JSON cannot represent; they are flattened to `[key, value]` entry arrays
+ *   on export and rebuilt on import, where group values are re-aliased onto
+ *   the section's value objects so a checkbox toggle stays visible through
+ *   both paths.
+ *
+ * @property {number} [version] `SEARCH_MODEL_STATE_VERSION` at export time;
+ *  absent on states exported before versioning (imported as the legacy shape).
+ * @property {Object[]} query the active query elements (JSON round-trip).
+ * @property {string|false} orderByCount
+ * @property {boolean} [defaultGroupByRemoved]
+ * @property {Object<number, Object>} searchItems by id (JSON round-trip).
+ * @property {number} nextId
+ * @property {number} nextGroupId
+ * @property {number} nextGroupNumber
+ * @property {Object} [searchPanelInfo] structuredClone; optional because
+ *  foreign states (an arbitrary `doAction` `globalState.searchModel`, or
+ *  states serialized before the key existed) may lack it — `_importState`
+ *  falls back to the arch parser's defaults.
+ * @property {[number, Object][]} sections search panel sections (Map↔Array).
+ * @property {DomainListRepr} [searchDomain] the domain the section data was
+ *  last fetched against. Restoring it lets `_reloadSections`' `deepEqual`
+ *  recognize an unchanged domain and skip refetching. Absent when the source
+ *  model never computed one (no search panel) and on legacy states, where the
+ *  first reload after a restore refetches, as it always did.
+ * @property {Object<string, Object>} [propertySearchViewFields] the
+ *  `searchViewFields` entries derived from property definitions (JSON
+ *  round-trip). They are created at runtime by `fillSearchViewItemsProperty`,
+ *  so the search view description reloaded on restore does not contain them —
+ *  without this key, restored property search items no longer resolve their
+ *  fields. Absent on legacy states.
+ */
+
+/**
+ * Query concern: what the user asked for.
+ *
  * @param {Object} source
+ * @returns {Partial<SearchModelState>}
+ */
+export function queryToState(source) {
+    return {
+        query: JSON.parse(JSON.stringify(source.query)),
+        orderByCount: source.orderByCount,
+        defaultGroupByRemoved: source.defaultGroupByRemoved,
+    };
+}
+
+/**
+ * @param {Partial<SearchModelState>} state
  * @param {Object} target
  */
-export function execute(op, source, target) {
-    const {
-        query,
-        nextId,
-        nextGroupId,
-        nextGroupNumber,
-        searchItems,
-        searchPanelInfo,
-        sections,
-        orderByCount,
-        defaultGroupByRemoved,
-    } = source;
+export function queryFromState(state, target) {
+    target.query = JSON.parse(JSON.stringify(state.query));
+    target.orderByCount = state.orderByCount;
+    target.defaultGroupByRemoved = state.defaultGroupByRemoved;
+}
 
-    target.nextGroupId = nextGroupId;
-    target.nextGroupNumber = nextGroupNumber;
-    target.nextId = nextId;
+/**
+ * Items concern: the search items the query indexes into, and the id counters
+ * that keep newly created items from colliding with restored ones.
+ *
+ * @param {Object} source
+ * @returns {Partial<SearchModelState>}
+ */
+export function itemsToState(source) {
+    return {
+        searchItems: JSON.parse(JSON.stringify(source.searchItems)),
+        nextId: source.nextId,
+        nextGroupId: source.nextGroupId,
+        nextGroupNumber: source.nextGroupNumber,
+    };
+}
 
-    target.defaultGroupByRemoved = defaultGroupByRemoved;
+/**
+ * @param {Partial<SearchModelState>} state
+ * @param {Object} target
+ */
+export function itemsFromState(state, target) {
+    target.searchItems = JSON.parse(JSON.stringify(state.searchItems));
+    target.nextId = state.nextId;
+    target.nextGroupId = state.nextGroupId;
+    target.nextGroupNumber = state.nextGroupNumber;
+}
 
-    target.query = JSON.parse(JSON.stringify(query));
-    target.searchItems = JSON.parse(JSON.stringify(searchItems));
-    target.orderByCount = orderByCount;
+/**
+ * Panel concern: the search panel's sections, its display metadata, and the
+ * domain its data was last fetched against.
+ *
+ * @param {Object} source
+ * @returns {Partial<SearchModelState>}
+ */
+export function panelToState(source) {
+    /** @type {Partial<SearchModelState>} */
+    const state = {
+        searchPanelInfo: structuredClone(source.searchPanelInfo),
+        sections: sectionsToState(source.sections),
+    };
+    if (source.searchDomain !== undefined) {
+        state.searchDomain = JSON.parse(JSON.stringify(source.searchDomain));
+    }
+    return state;
+}
 
-    target.searchPanelInfo = structuredClone(searchPanelInfo);
+/**
+ * @param {Partial<SearchModelState>} state
+ * @param {Object} target
+ */
+export function panelFromState(state, target) {
+    target.searchPanelInfo = structuredClone(state.searchPanelInfo);
+    target.sections = sectionsFromState(
+        /** @type {[number, Object][]} */ (state.sections),
+    );
+    if (state.searchDomain !== undefined) {
+        target.searchDomain = JSON.parse(JSON.stringify(state.searchDomain));
+    }
+}
 
-    target.sections = op(sections);
-    for (const [, section] of target.sections) {
-        section.values = op(section.values);
+/**
+ * @param {Map<number, Object>} sections
+ * @returns {[number, Object][]}
+ */
+function sectionsToState(sections) {
+    const result = /** @type {[number, Object][]} */ (mapToArray(sections));
+    for (const [, section] of result) {
+        section.values = mapToArray(section.values);
         if (section.groups) {
-            section.groups = op(section.groups);
+            section.groups = mapToArray(section.groups);
             for (const [, group] of section.groups) {
-                group.values = op(group.values);
+                group.values = mapToArray(group.values);
             }
         }
     }
-    if (op === arrayToMap) {
-        for (const [, section] of target.sections) {
-            if (!section.groups) {
-                continue;
-            }
+    return result;
+}
+
+/**
+ * @param {[number, Object][]} sections
+ * @returns {Map<number, Object>}
+ */
+function sectionsFromState(sections) {
+    const result = arrayToMap(sections);
+    for (const [, section] of result) {
+        section.values = arrayToMap(section.values);
+        if (section.groups) {
+            section.groups = arrayToMap(section.groups);
             for (const [, group] of section.groups) {
+                group.values = arrayToMap(group.values);
                 for (const valueId of group.values.keys()) {
                     const value = section.values.get(valueId);
                     if (value) {
@@ -121,6 +256,55 @@ export function execute(op, source, target) {
                 }
             }
         }
+    }
+    return result;
+}
+
+/**
+ * Properties concern: the `searchViewFields` entries derived from property
+ * definitions. Unlike the other concerns this one exports a *subset* of a
+ * model property — the arch-derived entries of `searchViewFields` are reloaded
+ * from the view description and must not be overwritten by stale copies.
+ *
+ * @param {Object} source
+ * @returns {Partial<SearchModelState>}
+ */
+export function propertiesToState(source) {
+    /** @type {Object<string, Object>} */
+    const propertySearchViewFields = {};
+    for (const [name, field] of Object.entries(source.searchViewFields || {})) {
+        if (field.relatedPropertyField) {
+            propertySearchViewFields[name] = JSON.parse(JSON.stringify(field));
+        }
+    }
+    return { propertySearchViewFields };
+}
+
+/**
+ * @param {Partial<SearchModelState>} state
+ * @param {Object} target
+ */
+export function propertiesFromState(state, target) {
+    if (!state.propertySearchViewFields) {
+        // Legacy state: the entries were not exported. The restored property
+        // search items resolve their fields again once a properties fetch
+        // refills them, as before versioning.
+        return;
+    }
+    target.searchViewFields ||= {};
+    for (const [name, field] of Object.entries(state.propertySearchViewFields)) {
+        if (name in target.searchViewFields) {
+            continue;
+        }
+        const copy = JSON.parse(JSON.stringify(field));
+        // Re-alias the parent reference onto the live parent field when the
+        // reloaded view description provides it (same move as the group-value
+        // re-aliasing in `sectionsFromState`).
+        const parent = target.searchViewFields[copy.relatedPropertyField?.name];
+        if (parent) {
+            copy.relatedPropertyField = parent;
+        }
+        target.searchViewFields[name] = copy;
     }
 }
 

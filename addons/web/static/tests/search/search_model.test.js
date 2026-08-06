@@ -13,6 +13,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { SearchModelEvent } from "@web/core/events";
 import { SearchModel } from "@web/search/search_model";
+import { SEARCH_MODEL_STATE_VERSION } from "@web/search/search_state";
 
 describe.current.tags("headless");
 
@@ -1218,6 +1219,117 @@ test("exportState returns a snapshot decoupled from the live model", async () =>
     expect(someId).not.toBe(undefined);
     model.searchItems[someId].__probe = "MUTATED";
     expect(state.searchItems[someId].__probe).toBe(undefined);
+});
+
+test("exportState stamps the schema version", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `<search/>`,
+    });
+    expect(model.exportState().version).toBe(SEARCH_MODEL_STATE_VERSION);
+});
+
+test("a versionless legacy state imports identically to today's shape", async () => {
+    const searchViewArch = `
+        <search>
+            <filter name="filter_1" string="Filter 1" domain="[['foo', '=', 'a']]"/>
+        </search>
+    `;
+    const model = await createSearchModel({
+        searchViewArch,
+        context: { search_default_filter_1: true },
+    });
+
+    // What a pre-versioning build serialized: the same state minus the keys
+    // that joined the schema with the version field.
+    const legacy = JSON.parse(JSON.stringify(model.exportState()));
+    delete legacy.version;
+    delete legacy.searchDomain;
+    delete legacy.propertySearchViewFields;
+
+    const restored = await createSearchModel({
+        searchViewArch,
+        globalState: { searchModel: JSON.stringify(legacy) },
+    });
+    expect(restored.query).toEqual(model.query);
+    expect(JSON.parse(JSON.stringify(restored.searchItems))).toEqual(
+        JSON.parse(JSON.stringify(model.searchItems)),
+    );
+    expect(restored.domain).toEqual([["foo", "=", "a"]]);
+});
+
+test("a state of an unknown future version warns and imports best-effort", async () => {
+    patchWithCleanup(console, {
+        warn: (msg) => {
+            if (String(msg).startsWith("[search] importing a search state")) {
+                expect.step("warn");
+            }
+        },
+    });
+    const searchViewArch = `
+        <search>
+            <filter name="filter_1" string="Filter 1" domain="[['foo', '=', 'a']]"/>
+        </search>
+    `;
+    const model = await createSearchModel({
+        searchViewArch,
+        context: { search_default_filter_1: true },
+    });
+    const state = model.exportState();
+    state.version = SEARCH_MODEL_STATE_VERSION + 1;
+    state.keyFromTheFuture = { anything: true };
+
+    const restored = await createSearchModel({
+        searchViewArch,
+        globalState: { searchModel: JSON.stringify(state) },
+    });
+    expect.verifySteps(["warn"]);
+    // The known keys still land: refusing the import would throw away the
+    // user's search on every cross-build restore.
+    expect(restored.query).toEqual(model.query);
+});
+
+test("property-derived searchViewFields entries survive an export/import cycle", async () => {
+    const searchViewArch = `
+        <search>
+            <field name="properties"/>
+        </search>
+    `;
+    const definitions = [{ name: "my_char", string: "My Char", type: "char" }];
+    patchWithCleanup(SearchModel.prototype, {
+        async _fetchPropertiesDefinition() {
+            return [
+                {
+                    definitionRecordId: 1,
+                    definitionRecordName: "Parent",
+                    definitions,
+                },
+            ];
+        },
+    });
+    const model = await createSearchModel({ searchViewArch });
+    await model.fillSearchViewItemsProperty();
+    const item = Object.values(model.searchItems).find(
+        (i) => i.fieldName === "properties.my_char",
+    );
+    expect(item).not.toBe(undefined);
+    model.toggleSearchItem(item.id);
+    expect(model.groupBy).toEqual(["properties.my_char"]);
+
+    const restored = await createSearchModel({
+        searchViewArch,
+        globalState: { searchModel: JSON.stringify(model.exportState()) },
+    });
+
+    // The group-by item survived the restore AND resolves its field again:
+    // the property-derived entry is not part of the reloaded view description,
+    // so without the state carrying it the item pointed at nothing.
+    expect(restored.groupBy).toEqual(["properties.my_char"]);
+    const restoredField = restored.searchViewFields["properties.my_char"];
+    expect(restoredField.string).toBe("My Char");
+    // The parent reference is re-aliased onto the live parent field.
+    expect(restoredField.relatedPropertyField).toBe(
+        restored.searchViewFields.properties,
+    );
 });
 
 test("fillSearchViewItemsProperty refetches definitions on each sequential call", async () => {

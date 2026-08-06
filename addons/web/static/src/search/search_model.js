@@ -40,11 +40,17 @@ import { SearchPropertiesMixin } from "./search_properties_mixin.js";
 import { SearchQueryMixin } from "./search_query_mixin.js";
 import { SearchSplitDomainMixin } from "./search_split_domain_mixin.js";
 import {
-    arrayToMap,
-    execute,
     extractSearchDefaults,
     isInvisible,
-    mapToArray,
+    itemsFromState,
+    itemsToState,
+    panelFromState,
+    panelToState,
+    propertiesFromState,
+    propertiesToState,
+    queryFromState,
+    queryToState,
+    SEARCH_MODEL_STATE_VERSION,
 } from "./search_state.js";
 import { getIntervalOptions } from "./utils/dates.js";
 
@@ -453,12 +459,16 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @returns {Object}
+     * @returns {import("./search_state").SearchModelState}
      */
     exportState() {
-        const state = {};
-        execute(mapToArray, this, state);
-        return state;
+        return /** @type {import("./search_state").SearchModelState} */ ({
+            version: SEARCH_MODEL_STATE_VERSION,
+            ...queryToState(this),
+            ...itemsToState(this),
+            ...panelToState(this),
+            ...propertiesToState(this),
+        });
     }
 
     /**
@@ -737,10 +747,28 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @param {Object} state
+     * @param {import("./search_state").SearchModelState} state
      */
     _importState(state) {
-        execute(arrayToMap, state, this);
+        if (
+            state.version !== undefined &&
+            state.version !== SEARCH_MODEL_STATE_VERSION
+        ) {
+            // Unknown version: a state serialized by a build ahead of (or
+            // unknown to) this one. Import the keys we know on a best-effort
+            // basis rather than refuse — the alternative throws away the
+            // user's search on every cross-build restore, and this model
+            // already tolerates foreign states (see the fallback below).
+            console.warn(
+                `[search] importing a search state of unknown version ${state.version} ` +
+                    `(this build writes ${SEARCH_MODEL_STATE_VERSION}); ` +
+                    "importing the known keys on a best-effort basis",
+            );
+        }
+        queryFromState(state, this);
+        itemsFromState(state, this);
+        panelFromState(state, this);
+        propertiesFromState(state, this);
         if (!this.searchPanelInfo) {
             // `exportState()` always includes `searchPanelInfo`, but imported
             // states are not always our own exports: `doAction` accepts an
