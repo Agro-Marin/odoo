@@ -145,12 +145,18 @@ export function handleBeforeUnload(
         }
         return;
     }
-    return urgentSave().then((ok) => {
-        if (!ok) {
+    return urgentSave()
+        .then((ok) => {
+            if (!ok) {
+                ev.preventDefault();
+                ev.returnValue = "Unsaved changes";
+            }
+        })
+        .catch(() => {
+            // The save couldn't be confirmed: conservatively prompt the user.
             ev.preventDefault();
             ev.returnValue = "Unsaved changes";
-        }
-    });
+        });
 }
 
 /**

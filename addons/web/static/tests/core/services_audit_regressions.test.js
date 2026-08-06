@@ -113,6 +113,7 @@ describe("multi_company_recovery", () => {
         // 3 must keep it even though it is absent from the user's companies.
         await makeMockEnv();
         patchWithCleanup(user, {
+            allowedCompanies: [{ id: 1 }, { id: 2 }],
             get activeCompanies() {
                 return [{ id: 1 }];
             },

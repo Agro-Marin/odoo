@@ -132,13 +132,23 @@ export class NavBar extends Component {
             .getEntries()
             .filter(([key]) => !this.failedSystrayKeys.has(key))
             .map(([key, value]) => ({ key, ...value }))
-            .filter((item) =>
-                "isDisplayed" in item
-                    ? item.isDisplayed(
-                          /** @type {import("@web/env").OdooEnv} */ (this.env),
-                      )
-                    : true,
-            )
+            .filter((item) => {
+                if (!("isDisplayed" in item)) {
+                    return true;
+                }
+                try {
+                    return item.isDisplayed(
+                        /** @type {import("@web/env").OdooEnv} */ (this.env),
+                    );
+                } catch (error) {
+                    // One broken predicate must not take down the whole navbar.
+                    console.error(
+                        `Error in "isDisplayed" of systray item "${item.key}":`,
+                        error,
+                    );
+                    return false;
+                }
+            })
             .reverse();
     }
 

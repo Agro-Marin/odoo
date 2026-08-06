@@ -19,7 +19,7 @@ const isSeparator = (property) => property.type === "separator";
  * @param {PropertyDefinition} separator
  * @returns {boolean}
  */
-export function isSeparatorFolded(separator) {
+function isSeparatorFolded(separator) {
     return separator.value ?? separator.fold_by_default;
 }
 

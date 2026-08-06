@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { computeAggregatedValue } from "@web/views/view_measurements";
-import { computeArchiveEnabled } from "@web/views/view_utils";
+import { computeArchiveEnabled, handleBeforeUnload } from "@web/views/view_utils";
 
 describe.current.tags("headless");
 
@@ -91,5 +91,56 @@ describe("computeArchiveEnabled", () => {
 
     test("a field present only in presentIn does not throw", () => {
         expect(computeArchiveEnabled({}, { presentIn: { active: {} } })).toBe(false);
+    });
+});
+
+describe("handleBeforeUnload", () => {
+    const makeEvent = () => {
+        const ev = {
+            prevented: false,
+            returnValue: "",
+            preventDefault() {
+                this.prevented = true;
+            },
+        };
+        return /** @type {BeforeUnloadEvent & { prevented: boolean }} */ (
+            /** @type {unknown} */ (ev)
+        );
+    };
+    const record = /** @type {any} */ ({ resId: 1, dirty: true });
+
+    test("beacon branch: successful urgent save does not prompt", async () => {
+        const ev = makeEvent();
+        await handleBeforeUnload(ev, {
+            record,
+            inDialog: false,
+            useSendBeacon: true,
+            urgentSave: () => Promise.resolve(true),
+        });
+        expect(ev.prevented).toBe(false);
+    });
+
+    test("beacon branch: unconfirmed urgent save prompts", async () => {
+        const ev = makeEvent();
+        await handleBeforeUnload(ev, {
+            record,
+            inDialog: false,
+            useSendBeacon: true,
+            urgentSave: () => Promise.resolve(false),
+        });
+        expect(ev.prevented).toBe(true);
+        expect(ev.returnValue).toBe("Unsaved changes");
+    });
+
+    test("beacon branch: rejected urgent save prompts", async () => {
+        const ev = makeEvent();
+        await handleBeforeUnload(ev, {
+            record,
+            inDialog: false,
+            useSendBeacon: true,
+            urgentSave: () => Promise.reject(new Error("boom")),
+        });
+        expect(ev.prevented).toBe(true);
+        expect(ev.returnValue).toBe("Unsaved changes");
     });
 });

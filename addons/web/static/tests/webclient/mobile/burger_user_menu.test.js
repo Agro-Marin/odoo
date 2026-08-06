@@ -1,5 +1,7 @@
 // @ts-check
 
+import "@web/webclient/user_menu/user_menu_items";
+
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { click, queryAll, queryAllTexts } from "@odoo/hoot-dom";
 import { markup } from "@odoo/owl";
@@ -11,9 +13,11 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { BurgerUserMenu } from "@web/webclient/burger_menu/burger_user_menu/burger_user_menu";
-import { preferencesItem } from "@web/webclient/user_menu/user_menu_items";
 
 const userMenuRegistry = registry.category("user_menuitems");
+// Captured from the real registration before each test clears the registry:
+// the item is exercised exactly as production registers it.
+const preferencesItem = userMenuRegistry.get("preferences");
 
 beforeEach(() => clearRegistry(userMenuRegistry));
 

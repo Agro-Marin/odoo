@@ -10,19 +10,35 @@ import { ModelEvent } from "@web/core/events";
  * @typedef {{ id: symbol, isDirty: boolean }} FieldDirtyPayload
  */
 
-const LEGACY_OWNER = Symbol("legacy-field-dirty-emitter");
-
 /**
+ * Fold one `FIELD_IS_DIRTY` event into the per-owner dirty set.
+ *
+ * The detail must be an owned payload (`{ id, isDirty }`), i.e. come from
+ * `useFieldDirtySignal`. Raw boolean details used to be aliased onto one
+ * shared legacy owner, which made every unconverted emitter speak for every
+ * other one: two such fields on a form clobbered each other's dirty state,
+ * and one destroyed while dirty wedged the owner set forever. That aliasing
+ * is gone — a non-payload detail is a bug in the emitter, so it throws in
+ * debug mode and is warn-ignored in production.
+ *
  * @param {Set<symbol>} owners
  * @param {boolean | FieldDirtyPayload} detail
  * @returns {Set<symbol>}
  */
 export function applyFieldDirtyPayload(owners, detail) {
-    const isPayload = detail !== null && typeof detail === "object";
-    const id = isPayload ? /** @type {FieldDirtyPayload} */ (detail).id : LEGACY_OWNER;
-    const isDirty = isPayload
-        ? /** @type {FieldDirtyPayload} */ (detail).isDirty
-        : Boolean(detail);
+    if (detail === null || typeof detail !== "object") {
+        const message =
+            "FIELD_IS_DIRTY was triggered with a raw boolean detail; emit an " +
+            "owned payload through useFieldDirtySignal() instead. The legacy " +
+            "boolean form shared one owner across all such emitters and " +
+            "corrupted the aggregate dirty state, so it is no longer applied.";
+        if (/** @type {any} */ (globalThis).odoo?.debug) {
+            throw new Error(message);
+        }
+        console.warn(message);
+        return owners;
+    }
+    const { id, isDirty } = /** @type {FieldDirtyPayload} */ (detail);
     if (isDirty) {
         owners.add(id);
     } else {

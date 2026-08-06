@@ -27,6 +27,29 @@ function cacheVersion() {
     return `${session.registry_hash}:${user.userId}`;
 }
 
+/**
+ * Whether the stored version token was written by ANOTHER user. The two
+ * components of a version mismatch are not equal: a stale `registry_hash` only
+ * means the payload may be outdated, and the last-resort fallback may still
+ * serve it to the same user, but a different user id means the payload belongs
+ * to someone else and must never be served at all. A token without a user
+ * component (legacy format) cannot prove foreign ownership and is treated as
+ * same-user.
+ *
+ * @param {string | null} storedVersion
+ * @returns {boolean}
+ */
+function isForeignUserVersion(storedVersion) {
+    const separatorIndex = (storedVersion || "").lastIndexOf(":");
+    if (separatorIndex === -1) {
+        return false;
+    }
+    return (
+        /** @type {string} */ (storedVersion).slice(separatorIndex + 1) !==
+        String(user.userId)
+    );
+}
+
 /** @param {string} key */
 function removeKey(key) {
     try {
@@ -54,6 +77,11 @@ export const menuStorage = {
             return { menus: null, raw: null, hash: undefined };
         }
         if (!raw || storedVersion !== cacheVersion()) {
+            if (raw && isForeignUserVersion(storedVersion)) {
+                // Another user's payload: not even the last-resort fallback
+                // may see it.
+                return { menus: null, raw: null, hash: undefined };
+            }
             return { menus: null, raw, hash };
         }
         return { menus: this.parse(raw), raw, hash };

@@ -157,16 +157,36 @@ export function copyRecordData(record, copyFields = []) {
  * commands. A count mismatch means the mapping is not derivable — callers must
  * not guess.
  *
+ * Equal counts alone are NOT identity: a `create()` override may drop our row
+ * and insert one of its own, and the zip would then graft our edited datapoint
+ * onto a record we never created (every later update writing to the wrong
+ * server row). When the caller can say where its rows sit, pass `positions`:
+ * each virtual id's index in `clientIds` must equal its paired new id's index
+ * in `serverIds`, or the mapping is refused — same fail-closed null as the
+ * count mismatch, so callers drop the virtual row and heal from the server.
+ *
  * @param {(number|string)[]} createVirtualIds
  * @param {number[]} newResIds
+ * @param {{ clientIds: (number|string)[], serverIds: number[] }} [positions]
+ *   the full ordered memberships: `clientIds` as the client last knew them
+ *   (virtual ids included), `serverIds` as the server reported them post-save
  * @returns {Map<number|string, number> | null}
  */
-export function pairCreatedRows(createVirtualIds, newResIds) {
+export function pairCreatedRows(createVirtualIds, newResIds, positions) {
     if (newResIds.length !== createVirtualIds.length) {
         return null;
     }
     const ranked = [...newResIds].sort((x, y) => x - y);
-    return new Map(
+    const pairs = new Map(
         createVirtualIds.map((virtualId, index) => [virtualId, ranked[index]]),
     );
+    if (positions) {
+        const { clientIds, serverIds } = positions;
+        for (const [virtualId, resId] of pairs) {
+            if (clientIds.indexOf(virtualId) !== serverIds.indexOf(resId)) {
+                return null;
+            }
+        }
+    }
+    return pairs;
 }

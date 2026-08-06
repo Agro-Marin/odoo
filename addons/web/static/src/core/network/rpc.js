@@ -61,8 +61,16 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
 
 /**
  * @typedef {{
+ *  subscribers: number;
+ *  lastOut: () => void;
+ * }} InflightEntry
+ */
+
+/**
+ * @typedef {{
  *  rpcBus: EventBus,
- *  inflightDedup: Map<string, { shared: any, subscribers: number }>,
+ *  inflightDedup: Map<string, InflightEntry & { shared: any }>,
+ *  inflightCacheJoin: Map<string, InflightEntry>,
  *  rpcCache: RPCCache | null | undefined,
  *  busListenersAttached: boolean,
  *  rpcId: number,
@@ -83,6 +91,7 @@ const _rpcState = globalSingleton(
         /** @type {RpcState} */ ({
             rpcBus: new EventBus(),
             inflightDedup: new Map(),
+            inflightCacheJoin: new Map(),
             rpcCache: undefined,
             busListenersAttached: false,
             rpcId: 0,
@@ -400,9 +409,74 @@ function isRetryable(err) {
  * cancelled when the last subscriber leaves. Handing the shared promise out
  * directly made one caller's ``abort()`` reject every other caller.
  *
- * @type {Map<string, { shared: any, subscribers: number }>}
+ * @type {Map<string, InflightEntry & { shared: any }>}
  */
 const inflightDedup = _rpcState.inflightDedup;
+
+/**
+ * In-flight requests shared by ``cache`` callers.
+ *
+ * When a cached read misses, the caller that started the fetch and every
+ * later caller piggybacked on it by the cache (``hasPendingRequest``) share
+ * one underlying request; this map holds its refcount so each of them gets
+ * an independent ``abort`` -- same contract as ``inflightDedup``. Keyed by
+ * the cache's own ``table/key`` request key.
+ *
+ * @type {Map<string, InflightEntry>}
+ */
+const inflightCacheJoin = _rpcState.inflightCacheJoin;
+
+/**
+ * Attach one caller to a refcounted shared in-flight request.
+ *
+ * The caller gets its own promise over ``follow`` and its own ``abort``,
+ * which detaches that caller only: ``abort(false)`` leaves the caller's
+ * promise pending forever (silent, like every other ``abort(false)`` path)
+ * and ``abort(true)`` rejects it with a ``ConnectionAbortedError``. The
+ * shared request itself is only torn down -- via ``entry.lastOut`` -- when
+ * the last subscriber leaves.
+ *
+ * ``follow`` is passed per caller rather than read off the entry because
+ * cached reads settle each subscriber through its own ``shape`` (immutable
+ * callers get the frozen value, mutable callers their own clone).
+ *
+ * @param {InflightEntry} entry
+ * @param {Promise<any>} follow carries this caller's settlement
+ * @param {string} url
+ * @param {() => void} [onDetach] runs first when this caller aborts
+ * @returns {RpcPromise<any>}
+ */
+function joinInflight(entry, follow, url, onDetach) {
+    entry.subscribers++;
+    let detached = false;
+    const { promise, resolve, reject } = Promise.withResolvers();
+    follow.then(
+        (/** @type {any} */ result) => {
+            if (!detached) {
+                resolve(result);
+            }
+        },
+        (/** @type {any} */ error) => {
+            if (!detached) {
+                reject(error);
+            }
+        },
+    );
+    /** @type {any} */ (promise).abort = function (rejectError = true) {
+        if (detached) {
+            return;
+        }
+        detached = true;
+        onDetach?.();
+        if (--entry.subscribers === 0) {
+            entry.lastOut();
+        }
+        if (rejectError) {
+            reject(new ConnectionAbortedError(url));
+        }
+    };
+    return /** @type {RpcPromise<any>} */ (promise);
+}
 
 /**
  * @param {{[key: string]: any}} settings
@@ -451,49 +525,29 @@ rpc._rpc = function (url, params, settings) {
             const shared = /** @type {any} */ (
                 rpc._rpc(url, params, omit(settings, "dedup"))
             );
-            entry = { shared, subscribers: 0 };
+            const created = {
+                shared,
+                subscribers: 0,
+                lastOut: () => {
+                    if (inflightDedup.get(key) === created) {
+                        inflightDedup.delete(key);
+                    }
+                    shared.abort?.(false);
+                },
+            };
             const onSettle = () => {
-                if (inflightDedup.get(key) === entry) {
+                if (inflightDedup.get(key) === created) {
                     inflightDedup.delete(key);
                 }
             };
             shared.then(onSettle, onSettle);
-            inflightDedup.set(key, entry);
+            inflightDedup.set(key, created);
+            entry = created;
         }
-        const joined = entry;
-        joined.subscribers++;
-        let detached = false;
-        const { promise, resolve, reject } = Promise.withResolvers();
-        joined.shared.then(
-            (/** @type {any} */ result) => {
-                if (!detached) {
-                    resolve(result);
-                }
-            },
-            (/** @type {any} */ error) => {
-                if (!detached) {
-                    reject(error);
-                }
-            },
-        );
-        /** @type {any} */ (promise).abort = function (rejectError = true) {
-            if (detached) {
-                return;
-            }
-            detached = true;
-            if (--joined.subscribers === 0) {
-                if (inflightDedup.get(key) === joined) {
-                    inflightDedup.delete(key);
-                }
-                joined.shared.abort?.(false);
-            }
-            if (rejectError) {
-                reject(new ConnectionAbortedError(url));
-            }
-        };
-        return promise;
+        return joinInflight(entry, entry.shared, url);
     }
     if (settings.cache && _rpcState.rpcCache) {
+        const rpcCache = _rpcState.rpcCache;
         const cacheSettings =
             typeof settings.cache === "boolean" ? {} : { ...settings.cache };
         if (params?.model && cacheSettings.model === undefined) {
@@ -511,6 +565,8 @@ rpc._rpc = function (url, params, settings) {
         }
         /** @type {((rejectError?: boolean) => void) | null} */
         let innerAbort = null;
+        /** @type {Promise<any> | null} */
+        let innerProm = null;
         /** @type {object | null} */
         let ownRequest = null;
         const fallback = (/** @type {object} */ request) => {
@@ -518,6 +574,7 @@ rpc._rpc = function (url, params, settings) {
             const inner = /** @type {any} */ (
                 rpc._rpc(url, params, omit(settings, "cache"))
             );
+            innerProm = inner;
             if (typeof inner.abort === "function") {
                 innerAbort = inner.abort.bind(inner);
             }
@@ -525,22 +582,48 @@ rpc._rpc = function (url, params, settings) {
         };
         const cacheTable = params?.method || url;
         const cacheKey = buildKey(url, params);
+        const requestKey = `${cacheTable}/${cacheKey}`;
         const cacheProm = _rpcState.rpcCache.read(
             cacheTable,
             cacheKey,
             fallback,
             cacheSettings,
         );
-        if (innerAbort) {
-            /** @type {any} */ (cacheProm).abort = function (rejectError = true) {
-                callerAborted = true;
-                if (!rejectError) {
-                    _rpcState.rpcCache?.abortPending(cacheTable, cacheKey, ownRequest);
-                }
-                innerAbort?.(rejectError);
+        const onDetach = () => {
+            callerAborted = true;
+        };
+        if (innerProm) {
+            // This caller's read started the shared request: register a
+            // refcounted entry so the callers the cache piggybacks on it
+            // each get their own abort. Only when the last one leaves is
+            // the request cancelled and the pending cache entry evicted --
+            // synchronously, so the next read re-fetches fresh.
+            const entry = {
+                subscribers: 0,
+                lastOut: () => {
+                    if (inflightCacheJoin.get(requestKey) === entry) {
+                        inflightCacheJoin.delete(requestKey);
+                    }
+                    rpcCache.abortPending(cacheTable, cacheKey, ownRequest);
+                    innerAbort?.(false);
+                },
             };
-            return cacheProm;
+            const onSettle = () => {
+                if (inflightCacheJoin.get(requestKey) === entry) {
+                    inflightCacheJoin.delete(requestKey);
+                }
+            };
+            innerProm.then(onSettle, onSettle);
+            inflightCacheJoin.set(requestKey, entry);
+            return joinInflight(entry, cacheProm, url, onDetach);
         }
+        const joined = inflightCacheJoin.get(requestKey);
+        if (joined) {
+            // The cache piggybacked this caller on the request in flight.
+            return joinInflight(joined, cacheProm, url, onDetach);
+        }
+        // Plain cache hit: no request in flight, nothing to detach from
+        // beyond this caller's own promise.
         /** @type {(reason?: any) => void} */
         let abortReject = () => {};
         const joinerProm = new Promise((resolve, reject) => {

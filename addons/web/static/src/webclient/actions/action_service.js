@@ -630,6 +630,13 @@ export class ActionManager {
      */
     async _dispatchInline(dispatch, options) {
         const { controller, action } = dispatch;
+        if (odoo.debug && options.onClose) {
+            console.warn(
+                `[action] "onClose" is ignored for inline dispatches: ` +
+                    `action "${action.id || action.tag || action.type}" ` +
+                    `does not open a dialog.`,
+            );
+        }
         if (this._skeletonDef) {
             this._skeletonDef.reject(new SupersededError());
             this._skeletonDef = null;

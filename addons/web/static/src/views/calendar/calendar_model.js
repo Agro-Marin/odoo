@@ -392,10 +392,6 @@ export class CalendarModel extends Model {
                 info.writeResModel &&
                 info.filterFieldName
             ) {
-                const userFilter = filters.find((f) => f.type === "user");
-                if (userFilter) {
-                    userFilter.active = active;
-                }
                 const filterIds = filters
                     .filter((f) => f.type === "record")
                     .map((f) => f.recordId);

@@ -148,6 +148,9 @@ const getTextFromResponse = async (response) => {
         }
         result += decoder.decode(value, { stream: true });
     }
+    // Flush the decoder: a stream ending mid-codepoint would otherwise drop
+    // the pending bytes silently and yield mangled HTML.
+    result += decoder.decode();
     reader.releaseLock();
     return result;
 };
@@ -162,11 +165,9 @@ const storeDataOnCache = async (url, response) => {
     const isOffline = url.endsWith(offLineURL);
     const extracted = extractSessionInfo(htmlBody);
     if (!isOffline && !extracted) {
-        console.warn(
-            "[sw] could not extract session info from the app shell; " +
-                "not caching it (offline mode disabled for this page).",
-        );
-        await saveSessionInfo(null);
+        // Not the app shell (no session info marker): skip caching and leave
+        // the previously saved session info -- and thus offline capability --
+        // untouched.
         return;
     }
     await saveSessionInfo(extracted);
@@ -232,6 +233,13 @@ const staleWhileRevalidate = async (event) => {
         .then(async (response) => {
             if (response.ok) {
                 await cache.put(request, response.clone()).catch(() => {});
+            } else if (
+                (response.status === 401 || response.status === 403) &&
+                IMAGE_PATH_RE.test(new URL(request.url).pathname)
+            ) {
+                // The grant this image was cached under is gone: evict it so
+                // it cannot keep being served from cache on a shared machine.
+                await cache.delete(request).catch(() => {});
             }
             return response;
         })
@@ -280,6 +288,8 @@ const navigateOrDisplayOfflinePage = async (event) => {
     }
 };
 
+const SHARE_TARGET_TIMEOUT_MS = 30000;
+
 /**
  * @param {FetchEvent} event
  * @returns {void}
@@ -288,7 +298,17 @@ const serveShareTarget = (event) => {
     event.respondWith(Response.redirect("/odoo?share_target=trigger"));
     event.waitUntil(
         (async () => {
-            await waitingMessage("odoo_share_target");
+            // Bounded wait: a page that never sends the message would
+            // otherwise pin the service worker alive through `waitUntil`.
+            const messaged = await Promise.race([
+                waitingMessage("odoo_share_target").then(() => true),
+                new Promise((resolve) =>
+                    setTimeout(() => resolve(false), SHARE_TARGET_TIMEOUT_MS),
+                ),
+            ]);
+            if (!messaged) {
+                return;
+            }
             const client = await /** @type {any} */ (self).clients.get(
                 event.resultingClientId || event.clientId,
             );
@@ -319,9 +339,10 @@ self.addEventListener("fetch", (event) => {
         return;
     }
     if (
-        (event.request.mode === "navigate" &&
-            event.request.destination === "document") ||
-        event.request.headers.get("accept")?.includes("text/html")
+        event.request.method === "GET" &&
+        event.request.mode === "navigate" &&
+        (event.request.destination === "document" ||
+            event.request.headers.get("accept")?.includes("text/html"))
     ) {
         event.respondWith(navigateOrDisplayOfflinePage(event));
     }

@@ -313,16 +313,6 @@ describe("FormSaveCoordinator — saveOverride", () => {
     });
 });
 
-describe("FormSaveCoordinator — dirty surface", () => {
-    test("reflects record.dirty (uncommitted user edits) independent of status", async () => {
-        const { coordinator, record } = makeContext({ dirty: true });
-        expect(coordinator.status).toBe("clean");
-        expect(coordinator.dirty).toBe(true);
-        record.dirty = false;
-        expect(coordinator.dirty).toBe(false);
-    });
-});
-
 describe("FormSaveCoordinator — requestUrgentSave", () => {
     test("calls record.urgentSave and returns its result", async () => {
         let urgentCalls = 0;
@@ -686,14 +676,15 @@ describe("FormSaveCoordinator — concurrent saves", () => {
 });
 
 describe("FormSaveCoordinator — lastError lifecycle", () => {
-    test("a discard-resolved save settles 'ok' but KEEPS lastError", async () => {
+    test("a discard-resolved save settles 'ok' and clears lastError", async () => {
         const handled = Object.assign(new Error("server said no"), {
             data: { message: "server said no" },
         });
         // Mirrors record_save.js: `save` RETURNS the onError result, and the
         // dialog hook resolves truthy when the user picks "Discard changes".
-        // Nothing was written, so the queued action must not proceed — the
-        // retained lastError is what tells shouldExecuteAction that.
+        // Discarding resolves the save (the record is clean again), so the
+        // queued action must proceed: a retained lastError would make
+        // shouldExecuteAction silently drop it.
         const { coordinator } = makeContext({
             save: (opts) => opts.onError(handled, { discard() {}, retry() {} }),
         });
@@ -702,7 +693,7 @@ describe("FormSaveCoordinator — lastError lifecycle", () => {
 
         expect(saved).toBe(true);
         expect(coordinator.status).toBe("clean");
-        expect(coordinator.lastError).toBe(handled);
+        expect(coordinator.lastError).toBe(null);
     });
 
     test("an unresolved failure leaves lastError set", async () => {

@@ -13,6 +13,7 @@ import {
     models,
     mountWithCleanup,
     onRpc,
+    patchWithCleanup,
     toggleMenuItem,
     toggleSearchBarMenu,
     webModels,
@@ -688,6 +689,28 @@ test("User should be redirected to the first embedded action set in user setting
     expect(".o_list_renderer .btn-link").toHaveCount(3, {
         message:
             "The button should be displayed since `display_button` is true in the context of the embedded action 2",
+    });
+});
+
+test("newWindow is forwarded to the default embedded action", async () => {
+    user.updateUserSettings("embedded_actions_config_ids", {
+        "1+": {
+            embedded_actions_visibility: [102],
+            embedded_visibility: false,
+            embedded_actions_order: [102, false, 103],
+        },
+    });
+    patchWithCleanup(browser, {
+        open: (url) => expect.step("open: " + url),
+    });
+    await mountWithCleanup(WebClient);
+    await getService("action").doActionButton(
+        { name: 1, type: "action" },
+        { newWindow: true },
+    );
+    expect.verifySteps(["open: /odoo/action-3"]);
+    expect(".o_list_view").toHaveCount(0, {
+        message: "the embedded action must not load in the current window",
     });
 });
 

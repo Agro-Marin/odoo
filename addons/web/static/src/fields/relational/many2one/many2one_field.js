@@ -91,7 +91,7 @@ export const m2oSupportedOptions = [
     },
 ];
 /** @type {import("registries").FieldsRegistryItemShape["supportedTypes"]} */
-export const m2oSupportedTypes = ["many2one"];
+const m2oSupportedTypes = ["many2one"];
 
 /**
  * @param {import("@odoo/owl").ComponentConstructor} component

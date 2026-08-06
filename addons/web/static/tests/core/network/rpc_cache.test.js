@@ -1,16 +1,20 @@
 // @ts-check
 
-import { Deferred, describe, expect, microTick, test, tick } from "@odoo/hoot";
+import { after, Deferred, describe, expect, microTick, test, tick } from "@odoo/hoot";
+import { mockFetch } from "@odoo/hoot-mock";
 import { mockIndexedDBForTests } from "@web/../tests/_framework/mock_indexed_db.hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
 import {
     ConnectionAbortedError,
     ConnectionLostError,
     InvalidResponseError,
+    rpc,
     rpcBus,
 } from "@web/core/network/rpc";
 import { RAM_CACHE_MAX_ENTRIES, RPCCache } from "@web/core/network/rpc_cache";
+import { buildKey } from "@web/core/network/rpc_dedup";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 
 mockIndexedDBForTests();
@@ -1976,4 +1980,119 @@ test("RamCache: eviction keeps the model reverse index consistent", () => {
     expect(rc.keyModel.t.victim).toBe(undefined);
     rc.invalidateByModel(["t"], "res.partner");
     expect(rc.lru.size).toBe(RAM_CACHE_MAX_ENTRIES);
+});
+
+test("piggyback refcount: abort(false) on the initiator leaves the piggybacked caller to settle", async () => {
+    // Regression: the caller that started the fetch and the callers the cache
+    // piggybacked on it shared ONE in-flight request with no refcounting, so
+    // the initiator's silent abort evicted the pending entry and cancelled
+    // the fetch -- the piggybacked caller's promise then stayed pending
+    // FOREVER.
+    rpc.setCache(new RPCCache("mockRpc", 1, RAM_SECRET));
+    after(() => rpc.setCache(undefined));
+    const fetchDef = new Deferred();
+    let fetchCount = 0;
+    mockFetch(() => {
+        fetchCount++;
+        return fetchDef;
+    });
+
+    const initiator = rpc("/test/", {}, { cache: true });
+    const piggybacked = rpc("/test/", {}, { cache: true });
+    let initiatorState = "pending";
+    initiator.then(
+        () => (initiatorState = "resolved"),
+        () => (initiatorState = "rejected"),
+    );
+    await tick();
+    expect(fetchCount).toBe(1);
+
+    initiator.abort(false);
+    await tick();
+
+    fetchDef.resolve({ result: { ok: 1 } });
+    expect(await piggybacked).toEqual({ ok: 1 });
+    expect(initiatorState).toBe("pending"); // abort(false) stays silent
+    // the fetched value completed into the cache: no re-fetch
+    expect(await rpc("/test/", {}, { cache: true })).toEqual({ ok: 1 });
+    expect(fetchCount).toBe(1);
+});
+
+test("piggyback refcount: abort(true) on the initiator rejects only that caller", async () => {
+    // Regression: abort(true) rejected the shared request, so EVERY
+    // piggybacked caller rejected along with the one that aborted.
+    rpc.setCache(new RPCCache("mockRpc", 1, RAM_SECRET));
+    after(() => rpc.setCache(undefined));
+    const fetchDef = new Deferred();
+    mockFetch(() => fetchDef);
+
+    const initiator = rpc("/test/", {}, { cache: true });
+    const piggybacked = rpc("/test/", {}, { cache: true });
+    let piggybackedState = "pending";
+    piggybacked.then(
+        () => (piggybackedState = "resolved"),
+        (/** @type {Error} */ e) => (piggybackedState = e.constructor.name),
+    );
+    await tick();
+
+    initiator.abort(true);
+    await expect(initiator).rejects.toThrow(ConnectionAbortedError);
+    expect(piggybackedState).toBe("pending");
+
+    fetchDef.resolve({ result: { ok: 2 } });
+    expect(await piggybacked).toEqual({ ok: 2 });
+});
+
+test("piggyback refcount: the last caller out cancels the fetch and evicts the pending entry", async () => {
+    const rpcCache = new RPCCache("mockRpc", 1, RAM_SECRET);
+    rpc.setCache(rpcCache);
+    after(() => rpc.setCache(undefined));
+    const hung = new Deferred();
+    /** @type {AbortSignal[]} */
+    const signals = [];
+    patchWithCleanup(browser, {
+        fetch: (/** @type {string} */ _url, /** @type {RequestInit} */ { signal }) => {
+            signals.push(/** @type {AbortSignal} */ (signal));
+            expect.step(`fetch ${signals.length}`);
+            if (signals.length === 1) {
+                return hung;
+            }
+            return Promise.resolve(
+                new Response(JSON.stringify({ result: { fresh: true } }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" },
+                }),
+            );
+        },
+    });
+
+    const first = rpc("/test/", {}, { cache: true });
+    const second = rpc("/test/", {}, { cache: true });
+    await tick();
+    expect.verifySteps(["fetch 1"]);
+    expect(Object.keys(rpcCache.pendingRequests)).toHaveLength(1);
+
+    first.abort(false);
+    // `second` still subscribes: the fetch and the pending entry survive
+    expect(signals[0].aborted).toBe(false);
+    expect(Object.keys(rpcCache.pendingRequests)).toHaveLength(1);
+
+    second.abort(true);
+    await expect(second).rejects.toThrow(ConnectionAbortedError);
+    expect(signals[0].aborted).toBe(true);
+    expect(Object.keys(rpcCache.pendingRequests)).toHaveLength(0);
+
+    // the dangling response must not complete into the (evicted) cache entry
+    hung.resolve(
+        new Response(JSON.stringify({ result: { stale: true } }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        }),
+    );
+    await tick();
+    await tick();
+    expect(rpcCache.ramCache.read("/test/", buildKey("/test/", {}))).toBe(undefined);
+
+    expect(await rpc("/test/", {}, { cache: true })).toEqual({ fresh: true });
+    expect.verifySteps(["fetch 2"]);
 });

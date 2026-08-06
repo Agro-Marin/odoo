@@ -120,11 +120,15 @@ export class Registry extends EventBus {
         }
         if (!force && key in this.content) {
             if (this.content[key][1] !== value) {
+                const msg =
+                    `Duplicate add for key "${key}" in "${this.name || "(root)"}" registry with a different value (first registration wins). ` +
+                    `This may indicate either a cross-bundle inline (harmless) or an addon collision (bug).`;
                 if (odoo.debug) {
-                    console.warn(
-                        `[registry] Duplicate add for key "${key}" in "${this.name || "(root)"}" registry with a different value (first registration wins). ` +
-                            `This may indicate either a cross-bundle inline (harmless) or an addon collision (bug).`,
-                    );
+                    console.warn(`[registry] ${msg}`);
+                } else {
+                    // Same contract as validation failures: a silently-dropped
+                    // registration must stay observable in production.
+                    reportRegistryAnomaly(msg);
                 }
                 return this;
             }

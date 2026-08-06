@@ -303,7 +303,9 @@ export class FormCompiler extends ViewCompiler {
                     append(form, compiled);
                     /** @type {Element} */ (compiled).prepend(...compiledList);
                     compiledList = [];
-                } else if (compiled) {
+                } else if (compiled && compiled.nodeName !== "ButtonBox") {
+                    // Compiled and dropped, as in the no-sheet branch above:
+                    // `form_controller` compiles the box again on its own.
                     compiledList.push(compiled);
                 }
             }

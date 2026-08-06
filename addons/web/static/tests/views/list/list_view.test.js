@@ -88,6 +88,7 @@ import { user } from "@web/core/user";
 import { omit } from "@web/core/utils/collections/objects";
 import { useBus } from "@web/core/utils/hooks";
 import { floatField } from "@web/fields/basic/float/float_field";
+import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
@@ -12401,6 +12402,7 @@ test(`discard has to wait for changes in each field in multi edit`, async () => 
 
         setup() {
             this.input = useRef("input");
+            this.setFieldDirty = useFieldDirtySignal();
             useBus(this.props.record.model.bus, "NEED_LOCAL_CHANGES", ({ detail }) =>
                 detail.proms.push(this.updateValue()),
             );
@@ -12427,7 +12429,7 @@ test(`discard has to wait for changes in each field in multi edit`, async () => 
 
         onInput() {
             this.isDirty = true;
-            this.props.record.model.bus.trigger("FIELD_IS_DIRTY", true);
+            this.setFieldDirty(true);
         }
     }
     registry.category("fields").add("custom", { component: CustomField });

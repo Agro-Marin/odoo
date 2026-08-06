@@ -130,7 +130,7 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
     return { domain, description };
 }
 
-export function constructDateRange(params) {
+function constructDateRange(params) {
     const { referenceMoment, fieldName, fieldType, granularity, plusParam } = params;
     const setParam = { ...params.setParam };
     if ("quarter" in setParam) {
@@ -177,7 +177,7 @@ export function getIntervalOptions() {
  * @param {object} OPTIONS
  * @returns {object[]}
  */
-export function getOptionsWithDescriptions(OPTIONS) {
+function getOptionsWithDescriptions(OPTIONS) {
     const options = [];
     for (const option of Object.values(OPTIONS)) {
         options.push({
@@ -291,7 +291,7 @@ function getCustomPeriodOptions(optionsParams) {
     }));
 }
 
-export function getSelectedOptions(referenceMoment, searchItem, selectedOptionIds) {
+function getSelectedOptions(referenceMoment, searchItem, selectedOptionIds) {
     const selectedOptions = { year: [] };
     const periodOptions = getPeriodOptions(referenceMoment, searchItem.optionsParams);
     for (const optionId of selectedOptionIds) {
@@ -313,7 +313,7 @@ export function getSelectedOptions(referenceMoment, searchItem, selectedOptionId
     return selectedOptions;
 }
 
-export function getSetParam(periodOption, referenceMoment) {
+function getSetParam(periodOption, referenceMoment) {
     if (periodOption.granularity === "quarter") {
         return periodOption.setParam;
     }
@@ -331,7 +331,7 @@ export function rankInterval(intervalOptionId) {
     return Object.keys(BACKEND_INTERVAL_OPTIONS).indexOf(intervalOptionId);
 }
 
-export function sortPeriodOptions(options) {
+function sortPeriodOptions(options) {
     options.sort((o1, o2) => {
         const granularity1 = o1.granularity;
         const granularity2 = o2.granularity;

@@ -70,7 +70,7 @@ export function openViewItem({ env }) {
  * @param {{ env: Object }} params
  * @returns {Object}
  */
-export function inspectFieldWidgetsItem({ env }) {
+function inspectFieldWidgetsItem({ env }) {
     return {
         type: "item",
         description: _t("Inspect Field Widgets"),

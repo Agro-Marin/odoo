@@ -69,6 +69,7 @@ import { redirect } from "@web/core/utils/urls";
 import { CharField } from "@web/fields/basic/char/char_field";
 import { IntegerField } from "@web/fields/basic/integer/integer_field";
 import { Field } from "@web/fields/field";
+import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -5051,6 +5052,7 @@ test(`discard has to wait for changes in each field`, async () => {
 
         setup() {
             this.input = useRef("input");
+            this.setFieldDirty = useFieldDirtySignal();
             useBus(this.props.record.model.bus, "NEED_LOCAL_CHANGES", ({ detail }) =>
                 detail.proms.push(this.updateValue()),
             );
@@ -5073,7 +5075,7 @@ test(`discard has to wait for changes in each field`, async () => {
         }
 
         onInput() {
-            this.props.record.model.bus.trigger("FIELD_IS_DIRTY", true);
+            this.setFieldDirty(true);
         }
     }
     fieldsRegistry.add("custom", { component: CustomField });
@@ -9109,6 +9111,34 @@ test(`form view is not broken if save operation fails`, async () => {
     await contains(`.o_field_widget[name=foo] input`).edit("correct value");
     await contains(`.o_form_button_save`).click();
     expect.verifySteps(["web_save"]);
+});
+
+test(`cog-menu action executes after discarding a failed save`, async () => {
+    onRpc("web_save", () => {
+        expect.step("web_save");
+        throw makeServerError();
+    });
+    onRpc("copy", () => expect.step("copy"));
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `<form><field name="foo"/></form>`,
+        resId: 1,
+        actionMenus: {},
+    });
+
+    await contains(`.o_field_widget[name=foo] input`).edit("incorrect value");
+    await toggleActionMenu();
+    await toggleMenuItem("Duplicate");
+    await animationFrame();
+    expect(`.o_dialog`).toHaveCount(1);
+    expect.verifySteps(["web_save"]);
+
+    // "Discard changes" resolves the save: the queued Duplicate must run.
+    await contains(`.o_dialog .modal-footer .btn-secondary`).click();
+    await animationFrame();
+    expect(`.o_dialog`).toHaveCount(0);
+    expect.verifySteps(["copy"]);
 });
 
 test(`form view is not broken if save operation fails with redirect warning`, async () => {

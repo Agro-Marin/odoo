@@ -28,6 +28,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
@@ -97,6 +98,10 @@ export class HtmlField extends Component {
         this.ormService = useService("orm");
 
         this.isDirty = false;
+        // Owned dirty-signal emitter: this field's dirty state is tracked
+        // under its own owner symbol (and cleared on destroy), so it cannot
+        // clobber another field's announcement on the shared model bus.
+        this.setFieldDirty = useFieldDirtySignal();
         // Monotonic counter bumped by every `onChange`. `_commitChanges` reads
         // it before awaiting the (async) content capture so it can tell whether
         // the user kept editing while the capture was in flight -- in which
@@ -192,7 +197,7 @@ export class HtmlField extends Component {
         await this.props.record.update({ [this.props.name]: value }).catch(() => {
             this.isDirty = true;
         });
-        this.props.record.model.bus.trigger("FIELD_IS_DIRTY", this.isDirty);
+        this.setFieldDirty(this.isDirty);
     }
 
     async getEditorContent() {
@@ -271,7 +276,7 @@ export class HtmlField extends Component {
     onChange() {
         this.isDirty = true;
         this.changeSeq++;
-        this.props.record.model.bus.trigger("FIELD_IS_DIRTY", true);
+        this.setFieldDirty(true);
     }
 
     onBlur() {

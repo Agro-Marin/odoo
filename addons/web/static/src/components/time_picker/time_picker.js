@@ -17,12 +17,14 @@ const MINUTES = [...Array(60)].map((_, i) => i);
 
 /**
  * @typedef TimePickerProps
- * @property {string} [class=""]
- * @property {string|Time} [value]
+ * @property {string|Array|Object} [cssClass={}]
+ * @property {string|Array|Object} [inputCssClass={}]
+ * @property {string|Time|false|null} [value="00:00"]
  * @property {(value: Time) => any} [onChange]
  * @property {() => {}} [onInvalid]
  * @property {boolean} [showSeconds=false]
  * @property {number} [minutesRounding=5]
+ * @property {string} [placeholder]
  */
 
 export class TimePicker extends Component {

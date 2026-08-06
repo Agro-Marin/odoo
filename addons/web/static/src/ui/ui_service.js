@@ -233,6 +233,9 @@ export class UiService {
         this.activeElement = this.activeElements.current;
         this.blockCount = 0;
         this.isBlocked = false;
+        // Symmetric with setup(): the getter closes over this (now dead)
+        // service; leaving it would keep serving its last size forever.
+        delete this.env.isSmall;
     }
 }
 

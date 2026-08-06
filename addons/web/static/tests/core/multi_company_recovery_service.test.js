@@ -47,6 +47,7 @@ test("recoverFromLifecycleError no-ops when the suggested company is already act
 test("recoverFromLifecycleError activates and reloads for a genuinely new company", async () => {
     await makeMockEnv();
     patchWithCleanup(user, {
+        allowedCompanies: [{ id: 1 }, { id: 2 }],
         get activeCompanies() {
             return [{ id: 1 }];
         },
@@ -66,9 +67,54 @@ test("recoverFromLifecycleError activates and reloads for a genuinely new compan
     expect.verifySteps(["pushStateBeforeReload", "activate:1,2"]);
 });
 
+test("recoverFromLifecycleError refuses a suggested company outside the allowed set", async () => {
+    await makeMockEnv();
+    patchWithCleanup(user, {
+        allowedCompanies: [{ id: 1 }],
+        get activeCompanies() {
+            return [{ id: 1 }];
+        },
+        activateCompanies() {
+            expect.step("activateCompanies");
+        },
+    });
+    const service = getService("multi_company_recovery");
+
+    const recovered = service.recoverFromLifecycleError(accessError(2), {
+        env: {
+            pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
+        },
+    });
+
+    expect(recovered).toBe(false);
+    expect.verifySteps([]);
+});
+
+test("recoverFromSaveError refuses a suggested company outside the allowed set", async () => {
+    await makeMockEnv();
+    patchWithCleanup(user, {
+        allowedCompanies: [{ id: 1 }],
+        get activeCompanies() {
+            return [{ id: 1 }];
+        },
+        activateCompanies() {
+            expect.step("activateCompanies");
+        },
+    });
+    const service = getService("multi_company_recovery");
+    const model = { config: { context: { allowed_company_ids: [1] } } };
+
+    const recovered = service.recoverFromSaveError(accessError(2), model);
+
+    expect(recovered).toBe(false);
+    expect(model.config.context.allowed_company_ids).toEqual([1]);
+    expect.verifySteps([]);
+});
+
 test("recoverFromSaveError tolerates a missing allowed_company_ids context", async () => {
     await makeMockEnv();
     patchWithCleanup(user, {
+        allowedCompanies: [{ id: 1 }, { id: 2 }],
         get activeCompanies() {
             return [{ id: 1 }];
         },
@@ -89,6 +135,7 @@ test("recoverFromSaveError tolerates a missing allowed_company_ids context", asy
 test("recoverFromSaveError extends an existing allowed_company_ids context", async () => {
     await makeMockEnv();
     patchWithCleanup(user, {
+        allowedCompanies: [{ id: 1 }, { id: 2 }, { id: 3 }],
         get activeCompanies() {
             return [{ id: 1 }];
         },

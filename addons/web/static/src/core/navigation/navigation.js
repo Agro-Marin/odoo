@@ -3,7 +3,7 @@
 
 /** @module @web/core/navigation/navigation */
 
-import { onWillDestroy, reactive, useEffect, useRef, useState } from "@odoo/owl";
+import { onWillDestroy, reactive, useEffect, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { deepMerge } from "@web/core/utils/collections/objects";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
@@ -478,14 +478,6 @@ export class Navigator {
     }
 
     /**
-     * @param {HTMLElement | undefined | null} el
-     * @returns {boolean}
-     */
-    isActiveEl(el) {
-        return Boolean(el) && this.state.activeItemEl === el;
-    }
-
-    /**
      * @private
      * @param {number} index
      * @param {boolean} [mayFocus=true]
@@ -524,8 +516,8 @@ export class Navigator {
  * A plain value in this object is read once, when the navigator is built. An
  * option that has to follow something that moves is declared as a getter
  * instead, and stays live for the navigator's whole life -- see
- * `keepLiveOptions`, which is what carries the accessors across the copy and
- * the merge that would otherwise flatten them into values.
+ * `mergeNavigationOptions`, which is what carries the accessors across the
+ * merge that would otherwise flatten them into values.
  *
  * @typedef {Object} NavigationOptions
  * @property {() => HTMLElement[]} [getItems]
@@ -555,33 +547,15 @@ export class Navigator {
  */
 
 /**
- * Copying an object -- by spread, by `deepMerge`, by anything that reads a key
- * and writes its value -- turns a getter into whatever it returned at that
- * moment. Restoring the accessors afterwards is what lets an option follow
- * something that moves rather than freezing at setup.
- *
- * @template {Object} T
- * @param {T} copy the flattened result
- * @param {NavigationOptions} source the object the accessors were declared on
- * @returns {T} `copy`
- */
-export function keepLiveOptions(copy, source) {
-    for (const key of Reflect.ownKeys(source)) {
-        const descriptor = Object.getOwnPropertyDescriptor(source, key);
-        if (descriptor?.get) {
-            Object.defineProperty(copy, key, descriptor);
-        }
-    }
-    return copy;
-}
-
-/**
  * Combine option sources, later winning over earlier, **without flattening
  * accessors**.
  *
- * This exists because `keepLiveOptions` alone could not hold the invariant. It
- * has to be applied at *every* place options are copied, and the rule lived in
- * a comment rather than in the API — so `Dropdown`, the component that actually
+ * Copying an object -- by spread, by `deepMerge`, by anything that reads a key
+ * and writes its value -- turns a getter into whatever it returned at that
+ * moment. Restoring the accessors afterwards is what lets an option follow
+ * something that moves rather than freezing at setup, and it has to happen at
+ * *every* place options are copied. When that rule lived in a comment rather
+ * than in the API, `Dropdown`, the component that actually
  * assembles options out of its props, merged them with a bare
  * `{...deepMerge(nesting, props)}` and froze every accessor its caller had
  * declared. `SelectMenu`'s `get virtualFocus()` was read once at setup, while
@@ -693,26 +667,4 @@ export function useNavigation(containerRef, options = {}) {
     onWillDestroy(() => navigator._destroy());
 
     return navigator;
-}
-
-/**
- * @param {Navigator | undefined} navigator
- * @param {() => HTMLElement | null | undefined} elGetter
- * @returns {{ readonly isActive: boolean }}
- */
-export function useNavigatorActive(navigator, elGetter) {
-    if (!navigator) {
-        return { isActive: false };
-    }
-    const state = useState(navigator.state);
-    return {
-        get isActive() {
-            void state.itemsRevision;
-            const activeEl = state.activeItemEl;
-            if (activeEl === null || activeEl === undefined) {
-                return false;
-            }
-            return activeEl === elGetter();
-        },
-    };
 }

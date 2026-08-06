@@ -62,3 +62,54 @@ describe("pairCreatedRows", () => {
         expect([pairs.get("a"), pairs.get("b"), pairs.get("c")]).toEqual([9, 20, 100]);
     });
 });
+
+describe("pairCreatedRows positional identity", () => {
+    test("a bottom create pairs when the new id sits where the row was", () => {
+        const pairs = pairCreatedRows(["virtual_1"], [90], {
+            clientIds: [2, 3, "virtual_1"],
+            serverIds: [2, 3, 90],
+        });
+
+        expect(pairs).not.toBe(null);
+        expect(pairs.get("virtual_1")).toBe(90);
+    });
+
+    test("a multi-row create pairs each row at its own position", () => {
+        const pairs = pairCreatedRows(["virtual_1", "virtual_2"], [91, 90], {
+            clientIds: [2, "virtual_1", "virtual_2"],
+            serverIds: [2, 90, 91],
+        });
+
+        expect(pairs).not.toBe(null);
+        expect(pairs.get("virtual_1")).toBe(90);
+        expect(pairs.get("virtual_2")).toBe(91);
+    });
+
+    test("a foreign new id at a different position is refused", () => {
+        // The server dropped our created row and inserted one of its own: the
+        // counts agree (one create, one new id), but the new id does not sit
+        // where our row was. Zipping here would graft our edited datapoint
+        // onto a record we never created.
+        const pairs = pairCreatedRows(["virtual_1"], [999], {
+            clientIds: [2, "virtual_1", 3],
+            serverIds: [2, 3, 999],
+        });
+
+        expect(pairs).toBe(null);
+    });
+
+    test("a virtual id absent from the client membership is refused", () => {
+        const pairs = pairCreatedRows(["virtual_1"], [90], {
+            clientIds: [2, 3],
+            serverIds: [2, 3, 90],
+        });
+
+        expect(pairs).toBe(null);
+    });
+
+    test("without positions the rank-order zip is unchanged", () => {
+        const pairs = pairedOrThrow(["virtual_1"], [999]);
+
+        expect(pairs.get("virtual_1")).toBe(999);
+    });
+});

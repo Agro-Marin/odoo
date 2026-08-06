@@ -106,3 +106,37 @@ describe("visible-button budget per ui.size", () => {
         expect(`.o-form-buttonbox .o_button_more`).toHaveCount(0);
     });
 });
+
+describe("single rendering", () => {
+    // form_controller compiles the button box on its own: every compileForm
+    // branch must compile-and-drop the one found in the arch.
+    test("button box outside the sheet renders once", async () => {
+        await mountView({
+            resModel: "partner",
+            type: "form",
+            arch: `<form>
+                <div name="button_box">
+                    <button class="oe_stat_button" id="btn0">B0</button>
+                </div>
+                <sheet><field name="name"/></sheet>
+            </form>`,
+            resId: 1,
+        });
+        expect(`.o-form-buttonbox`).toHaveCount(1);
+    });
+
+    test("button box inside the sheet renders once", async () => {
+        await mountView({
+            resModel: "partner",
+            type: "form",
+            arch: `<form><sheet>
+                <div name="button_box">
+                    <button class="oe_stat_button" id="btn0">B0</button>
+                </div>
+                <field name="name"/>
+            </sheet></form>`,
+            resId: 1,
+        });
+        expect(`.o-form-buttonbox`).toHaveCount(1);
+    });
+});

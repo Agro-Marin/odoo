@@ -364,6 +364,26 @@ test(`cold boot: falls back to stored menus when preload is null and refetch fai
     ).toEqual(["StoredApp"]);
 });
 
+test.tags("desktop");
+test(`cold boot: another user's stored menus are never served, even as a last resort`, async () => {
+    // Same double-fetch failure as above, but the cached payload was written
+    // by a DIFFERENT user (version token user component 99, current user 7):
+    // the last-resort fallback must yield empty menus, not the other user's
+    // access-filtered tree.
+    browser.localStorage.webclient_menus_version = `${CURRENT_REGISTRY_HASH}:99`;
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [], name: "OtherUserApp", id: 1, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1] },
+    });
+    patchWithCleanup(odoo, { loadMenusPromise: Promise.resolve(null) });
+    onRpc("/web/webclient/load_menus", () => {
+        throw new Error("load_menus unavailable");
+    });
+    await makeMockEnv();
+    expect(getService("menu").getApps()).toEqual([]);
+    expect(getService("menu").getMenu("root").children).toEqual([]);
+});
+
 test("getAppIdByAction prefers the given app when several share the action", async () => {
     defineMenus([
         { id: 0 },

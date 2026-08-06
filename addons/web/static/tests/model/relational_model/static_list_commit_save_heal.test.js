@@ -52,7 +52,7 @@ class Partner extends models.Model {
 class Turtle extends models.Model {
     name = fields.Char();
     turtle_trululu = fields.Many2one({ relation: "partner" });
-    _records = [2, 3, 90, 91].map((id) => ({ id, name: `t${id}` }));
+    _records = [2, 3, 90, 91, 999].map((id) => ({ id, name: `t${id}` }));
 }
 
 defineModels([Partner, Turtle]);
@@ -140,6 +140,38 @@ describe("a save whose server ids outnumber the staged CREATEs", () => {
         expect(list.records.length).toBe(3);
         expect(list._currentIds).toEqual([2, 3, 90]);
         expect(rpcCount).toBe(0);
+    });
+});
+
+describe("a save whose new id is not where the created row was", () => {
+    test("the pairing is refused: no rekey, the foreign row is loaded fresh", async () => {
+        // Counts agree — one CREATE, one new id — but the server dropped our
+        // row and inserted 999 of its own, at a different position. The old
+        // rank-order zip grafted our edited datapoint onto resId 999, so every
+        // later update wrote to a row we never created.
+        const box = captureModel();
+        onRpc("partner", "web_save", () => [{ id: 1, turtles: [2, 999, 3] }]);
+        await mountView({ type: "form", resModel: "partner", resId: 1, arch: ARCH });
+        const record = box.model.root;
+        const list = record.data.turtles;
+        await record.update({ turtles: [[0, false, { name: "user line" }]] });
+        await settle();
+        const virtualId = list.records.at(-1)._virtualId;
+        expect(virtualId).not.toBe(false);
+
+        await record.save({ reload: false });
+        await list._commandsPromise;
+        await settle();
+
+        // membership adopted from the server, nothing grafted
+        expect(list._currentIds).toEqual([2, 3, 999]);
+        expect(list._currentIds.every((id) => typeof id === "number")).toBe(true);
+        expect(virtualId in list._cache).toBe(false);
+        // the foreign row shows the SERVER's data, not our edited datapoint
+        const foreign = list._cache[999];
+        expect(foreign.data.name).toBe("t999");
+        expect(foreign._virtualId).toBe(false);
+        expect(list.records.map((r) => r.data.name)).toEqual(["t2", "t3", "t999"]);
     });
 });
 

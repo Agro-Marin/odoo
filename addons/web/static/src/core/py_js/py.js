@@ -53,6 +53,10 @@ function deepFreeze(node) {
 export function parseExpr(expr) {
     let ast = _astCache.get(expr);
     if (ast) {
+        // LRU refresh: re-insert so eviction targets the least recently used
+        // entry, not merely the oldest-inserted one.
+        _astCache.delete(expr);
+        _astCache.set(expr, ast);
         return ast;
     }
     const tokens = tokenize(expr);

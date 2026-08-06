@@ -64,7 +64,6 @@ const COMPARATORS = new Set([
     "<=",
     ">",
     ">=",
-    "<>",
     "==",
     "!=",
 ]);

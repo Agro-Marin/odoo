@@ -24,8 +24,12 @@ export const SearchQueryMixin = (Base) =>
                     this.searchItems[item.searchItemId].type,
                 ),
             );
+            // `computeGroupBy` falls back on the config-level group-by
+            // (`globalGroupBy`) before `defaultGroupBy`, so grouping -- and
+            // with it a meaningful count order -- survives an empty query.
+            const hasGlobalGroupBy = Boolean(this.globalGroupBy?.length);
             const hasDefaultGroupBy = Boolean(this.defaultGroupBy?.length);
-            if (!hasQueryGroupBy && !hasDefaultGroupBy) {
+            if (!hasQueryGroupBy && !hasGlobalGroupBy && !hasDefaultGroupBy) {
                 this.orderByCount = false;
             }
         }

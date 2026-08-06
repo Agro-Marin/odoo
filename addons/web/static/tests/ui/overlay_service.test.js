@@ -8,6 +8,7 @@ import {
     getService,
     makeMockEnv,
     mountWithCleanup,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
@@ -130,6 +131,47 @@ test("a second close joins the removal already in flight", async () => {
     await animationFrame();
     expect(settled).toBe(true);
     expect(".joined").toHaveCount(0);
+});
+
+// The joining caller gets the first removal's answer, and its own
+// `removeParams` never reach `onRemove`. Silent by design in production; in
+// debug, dropping defined params is worth a warning.
+test("joining a pending removal with removeParams warns in debug", async () => {
+    patchWithCleanup(odoo, { debug: "1" });
+    patchWithCleanup(console, {
+        warn: (message) => expect.step(message),
+    });
+    await mountWithCleanup(MainComponentsContainer);
+    class MyComp extends Component {
+        static template = xml``;
+        static props = ["*"];
+    }
+
+    /** @type {() => void} */
+    let release = () => {};
+    const remove = getService("overlay").add(
+        MyComp,
+        {},
+        {
+            onRemove: () =>
+                new Promise((resolve) => (release = () => resolve(undefined))),
+        },
+    );
+    await animationFrame();
+
+    remove({ kept: true });
+    remove();
+    expect.verifySteps([], {
+        message: "joining without params is the ordinary double close: silent",
+    });
+    remove({ dropped: true });
+    expect.verifySteps([
+        `[overlay] closing overlay 1 again while its removal is in flight: ` +
+            `the provided removeParams are ignored.`,
+    ]);
+
+    release();
+    await animationFrame();
 });
 
 test("multiple overlays", async () => {

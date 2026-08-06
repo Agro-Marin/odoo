@@ -1,5 +1,7 @@
 // @ts-check
 
+import "@web/webclient/user_menu/user_menu_items";
+
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     click,
@@ -24,12 +26,12 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { getOrigin } from "@web/core/utils/urls";
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
-import {
-    odooAccountItem,
-    preferencesItem,
-} from "@web/webclient/user_menu/user_menu_items";
 
 const userMenuRegistry = registry.category("user_menuitems");
+// Captured from the real registrations before each test clears the registry:
+// the items are exercised exactly as production registers them.
+const preferencesItem = userMenuRegistry.get("preferences");
+const odooAccountItem = userMenuRegistry.get("odoo_account");
 
 describe.current.tags("desktop");
 

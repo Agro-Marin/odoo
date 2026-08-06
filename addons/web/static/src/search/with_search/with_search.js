@@ -63,7 +63,6 @@ export class WithSearch extends Component {
                 orm: useService("orm"),
                 view: useService("view"),
                 field: useService("field"),
-                name: useService("name"),
                 dialog: useService("dialog"),
                 treeProcessor: useService("tree_processor"),
                 DomainSelectorDialog,

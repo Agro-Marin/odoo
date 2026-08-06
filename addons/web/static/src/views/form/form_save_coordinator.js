@@ -84,13 +84,6 @@ export class FormSaveCoordinator extends SignalStore {
     }
 
     /**
-     * @returns {boolean}
-     */
-    get dirty() {
-        return Boolean(this.model.root?.dirty);
-    }
-
-    /**
      * @param {FormSaveEvent} event
      */
     _transition(event) {
@@ -110,6 +103,12 @@ export class FormSaveCoordinator extends SignalStore {
             return;
         }
         this._transition(event);
+        if (event === "ok") {
+            // A save that ends up ok (e.g. the error dialog's "Discard" choice)
+            // must not leave a stale error behind: consumers such as
+            // shouldExecuteAction read lastError to decide whether to proceed.
+            this.lastError = null;
+        }
     }
 
     /**

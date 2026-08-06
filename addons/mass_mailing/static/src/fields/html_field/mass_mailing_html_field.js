@@ -375,7 +375,8 @@ export class MassMailingHtmlField extends HtmlField {
                 [this.props.inlineField]: inlineValue,
             })
             .catch(() => (this.isDirty = true));
-        this.props.record.model.bus.trigger("FIELD_IS_DIRTY", this.isDirty);
+        // Owned emitter inherited from HtmlField.setup (useFieldDirtySignal).
+        this.setFieldDirty(this.isDirty);
     }
     /**
      * Processes the data-filter-domain to be converted to a t-if that will be interpreted on send
