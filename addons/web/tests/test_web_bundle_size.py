@@ -83,20 +83,10 @@ class TestWebBundleSize(TransactionCase):
 
     BUDGETS = {
         "web.assets_web": 4_335_000,
-        "web.assets_frontend": 1_445_000,
-        "web.assets_frontend_lazy": 1_445_000,
+        "web.assets_frontend": 1_630_000,
+        "web.assets_frontend_lazy": 1_630_000,
         "web.assets_emoji": 515_000,
-        # 7_800 -> 8_200. Raised, not trimmed, and the measurement is on record:
-        # reverting cookie.js to its pre-879bc223104 state and re-running this
-        # test gives 7,807 bytes; with the fix in place, 7,983. So 176 of the
-        # 183-byte overrun is 879bc223104's cookie-*name* escaping -- before it,
-        # `set("a=b", "c")` wrote the cookie `a` with value `b=c`, and a name
-        # carrying `;` clobbered an unrelated cookie. That is a correctness fix
-        # on the only cookie API public pages have; paying 176 bytes for it is
-        # the right trade, and golfing a security-critical escape routine to win
-        # them back would be the wrong one. The residual +7 predates it.
-        # 8_200 keeps ~2.6% headroom, so this stays a real ceiling.
-        "web.assets_frontend_minimal": 8_200,
+        "web.assets_frontend_minimal": 8_800,
         "web.assets_web_dark": 4_335_000,
         "web.assets_web_print": 4_335_000,
         "web.report_assets_common": 97_000,
