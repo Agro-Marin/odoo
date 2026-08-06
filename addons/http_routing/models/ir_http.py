@@ -167,6 +167,11 @@ class IrHttp(models.AbstractModel):
         not root-relative comes back untouched, and a path that cannot be
         rebuilt degrades to the one given. ``canonical_domain``, if set, is
         joined onto the result, which then carries no query string.
+
+        :param prefetch_langs: set ``prefetch_langs`` on the ``<model(...)>``
+                               records matched in the URL.
+        :param force_default_lang: prefix the URL even when the target language
+                                   is the default one.
         """
         # Guard non-local URLs, mirroring :meth:`_url_lang`: an absolute,
         # protocol-relative ("//cdn/x.png") or non-http ("mailto:", "#anchor")

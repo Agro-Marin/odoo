@@ -98,63 +98,61 @@ def _email_part_get_content_safe(part):
         return payload.decode("utf-8", errors="replace")
 
 
+# Public methods are prefixed with ``message_`` to avoid colliding with the
+# inheriting model's own methods. No method has to be implemented, but
+# ``message_new`` and ``message_update`` are commonly overridden (calling
+# ``super``) to add model-specific behavior when incoming emails create or
+# update a thread.
+#
+# MailThread class options:
+#
+#  - _mail_flat_thread: if set to True, all messages without parent_id
+#    are automatically attached to the first message posted on the
+#    resource. If set to False, threads are supported and no parent is forced.
+#  - _mail_post_access: required document access when posting on the document.
+#    Equivalent to: 'create' rights on mail.message depends notably on
+#    document rights, which can be controller using this attribute. Defaults
+#    to 'write' as writing is considered as editing. A common customization
+#    is to set it to 'read', allowing people with read access to discuss.
+#  - _mail_thread_customer: if set to True, consider this model has a strong
+#    tie with the customer (found using '_mail_get_customer'). It currently
+#    automatically subscribes customer if found in any post recipients.
+#
+# MailThread features can be somewhat controlled through context keys:
+#
+# Tracking and logging
+#  - ``mail_create_nosubscribe``: at create, do not subscribe uid to the
+#    record thread. False by default, as creating = following;
+#  - ``mail_create_nolog``: at create, do not log the automatic '<Document>
+#    created' message
+#  - ``mail_notrack``: at create and write, do not perform the value tracking
+#    creating messages;
+#  - ``tracking_disable``: at create and write, perform no MailThread features
+#    (auto subscription, tracking, post, ...);
+# Posting process
+#  - ``mail_notify_force_send``: if fewer than mail.mail.force.send.limit
+#    (default 100) email notifications to send, send them directly instead of
+#    using the queue i.e. controls 'force_send'
+#    parameter of '_notify_thread_by_email'. True by default as it is
+#    the desired behavior;
+#  - ``mail_notify_author``: notify author if they are in potential notified
+#    partners (e.g. following a document on which they post) i.e. controls
+#    'notify_author' parameter of '_notify_get_recipients'. False by default
+#    as people should not be notified of what they typed;
+#  - ``mail_notify_author_mention``: notify author if they are in direct
+#    recipients ('partner_ids') i.e. controls 'notify_author_mention'. Used
+#    in flows involving auto replies where author could be used to contact
+#    themselves. False by default;
+# Post side effects
+#  - ``mail_auto_subscribe_no_notify``: skip notifications linked to auto
+#    subscription. False by default, notifications are intended;
+#  - ``mail_post_autofollow``: subscribe specific recipients ('partner_ids')
+#    during message_post. False by default;
+#  - ``mail_post_autofollow_author_skip``: do not subscribe author of a message
+#    post. False by default, as we consider authors should receive answers;
 class MailThread(models.AbstractModel):
     """Mixin turning a model into a discussion topic: messages, followers and
-    communication history.
-
-    Public methods are prefixed with ``message_`` to avoid colliding with the
-    inheriting model's own methods. No method has to be implemented, but
-    ``message_new`` and ``message_update`` are commonly overridden (calling
-    ``super``) to add model-specific behavior when incoming emails create or
-    update a thread.
-
-    MailThread class options:
-
-     - _mail_flat_thread: if set to True, all messages without parent_id
-       are automatically attached to the first message posted on the
-       resource. If set to False, threads are supported and no parent is forced.
-     - _mail_post_access: required document access when posting on the document.
-       Equivalent to: 'create' rights on mail.message depends notably on
-       document rights, which can be controller using this attribute. Defaults
-       to 'write' as writing is considered as editing. A common customization
-       is to set it to 'read', allowing people with read access to discuss.
-     - _mail_thread_customer: if set to True, consider this model has a strong
-       tie with the customer (found using '_mail_get_customer'). It currently
-       automatically subscribes customer if found in any post recipients.
-
-    MailThread features can be somewhat controlled through context keys :
-
-    # Tracking and logging
-     - ``mail_create_nosubscribe``: at create, do not subscribe uid to the
-       record thread. False by default, as creating = following;
-     - ``mail_create_nolog``: at create, do not log the automatic '<Document>
-       created' message
-     - ``mail_notrack``: at create and write, do not perform the value tracking
-       creating messages;
-     - ``tracking_disable``: at create and write, perform no MailThread features
-       (auto subscription, tracking, post, ...);
-    # Posting process
-     - ``mail_notify_force_send``: if fewer than mail.mail.force.send.limit
-       (default 100) email notifications to send, send them directly instead of
-       using the queue i.e. controls 'force_send'
-       parameter of '_notify_thread_by_email'. True by default as it is
-       the desired behavior;
-     - ``mail_notify_author``: notify author if they are in potential notified
-       partners (e.g. following a document on which they post) i.e. controls
-       'notify_author' parameter of '_notify_get_recipients'. False by default
-       as people should not be notified of what they typed;
-     - ``mail_notify_author_mention``: notify author if they are in direct
-       recipients ('partner_ids') i.e. controls 'notify_author_mention'. Used
-       in flows involving auto replies where author could be used to contact
-       themselves. False by default;
-    # Post side effects
-     - ``mail_auto_subscribe_no_notify``: skip notifications linked to auto
-       subscription. False by default, notifications are intended;
-     - ``mail_post_autofollow``: subscribe specific recipients ('partner_ids') during
-        message_post. False by default;
-     - ``mail_post_autofollow_author_skip``: do not subscribe author of a message
-        post. False by default, as we consider authors should receive answers;
-    """
+    communication history."""
 
     _name = "mail.thread"
     _description = "Email Thread"

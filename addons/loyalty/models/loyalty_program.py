@@ -457,7 +457,10 @@ class LoyaltyProgram(models.Model):
             program.portal_point_name = program.currency_id.symbol or ''
 
     def _get_valid_products(self, products):
-        """Return a dict mapping each rule of the program to the products it matches."""
+        """Return a dict mapping the program rules to the products they match.
+
+        A gift card rule with no product constraint is left out.
+        """
         rule_products = {}
         for rule in self.rule_ids:
             domain = rule._get_valid_product_domain()

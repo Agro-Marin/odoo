@@ -21,8 +21,9 @@ class TestMailHardeningV8(MailCommon):
     def test_get_mail_batch_size_rejects_negative(self):
         """A negative ICP is as malformed as a garbage/zero one -> default.
 
-        A negative value is truthy, so ``batch_size or default`` lets it through
-        and ``itertools.batched`` then aborts every mass-send loop.
+        A negative value is truthy, so without the guard zeroing it
+        ``batch_size or default`` would let it through and ``itertools.batched``
+        would then abort every mass-send loop.
         """
         template = self.env["mail.template"]
         icp = self.env["ir.config_parameter"].sudo()

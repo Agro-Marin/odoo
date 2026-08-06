@@ -9,8 +9,8 @@ export class MailGuest extends models.ServerModel {
     }
 
     /**
-     * @param {number[]} ids
-     * @returns {Record<string, ModelRecord>}
+     * @param {Object} store
+     * @param {Array} fields
      */
     _to_store(store, fields) {
         const kwargs = getKwArgs(arguments, "store", "fields");

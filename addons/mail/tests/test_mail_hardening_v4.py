@@ -270,7 +270,7 @@ class TestProcessEmailQueueExplicitIds(MailCommon):
         mails = self.env["mail.mail"].create(
             [{"state": "outgoing", "subject": f"m{i}"} for i in range(12)]
         )
-        target = mails[0]  # lowest id: what a capped newest-first search drops
+        target = mails[0]  # lowest id: first out of the FIFO-by-id queue
 
         captured = []
 

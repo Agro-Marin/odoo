@@ -378,8 +378,9 @@ describe("wrapInlinesInBlocks", () => {
             ),
         );
         editor.shared.history.addStep();
-        // Debatable: the emptied paragraph-related element is kept, while the
-        // inserted inline flow content goes in a div instead.
+        // Selection placeholders surround the non-editable blocks, and the
+        // inserted inline flow content is wrapped in a div, not in a
+        // paragraph-related element.
         expect(getContent(el)).toBe(
             unformat(`
                 <p data-selection-placeholder=""><br></p>

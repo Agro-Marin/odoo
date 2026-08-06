@@ -246,7 +246,7 @@ export const mailPopoutService = {
                 /**
                  * Creates a popup window and mounts the component
                  * @param component - The component to be mounted.
-                 * @param {Props} props - The props of the component.
+                 * @param {Object} props - The props of the component.
                  * @returns {Window} The external window
                  */
                 popout(component, props) {

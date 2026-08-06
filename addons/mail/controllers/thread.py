@@ -312,8 +312,9 @@ class ThreadController(http.Controller):
         """Build the message values for a post (``from_create=True``) or an edit.
 
         ``from_create`` is declared explicitly rather than read out of
-        ``**kwargs`` so a caller-side typo raises instead of degrading to
-        "not a create": ``portal`` keys anonymous author attribution on it.
+        ``**kwargs`` because ``portal`` keys anonymous author attribution on
+        it. A misspelled keyword is still absorbed by ``**kwargs`` and leaves
+        the default in place.
         """
         res = {
             key: value

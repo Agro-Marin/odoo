@@ -3,15 +3,13 @@ from odoo import _, api, fields, models, tools
 from .mail_render_mixin import BYPASS_RESTRICTED_RENDERING
 
 
+# The mixin hides the details of subject and body computation and rendering
+# from a mail.template, and gives the base tools controlling who is allowed to
+# edit the body, notably when dealing with a templating language like
+# inline_template or qweb.
 class MailComposerMixin(models.AbstractModel):
     """Mixin used to edit and render some fields used when sending emails or
-    notifications based on a mail template.
-
-    It hides the details of subject and body computation and rendering from a
-    mail.template, and gives the base tools controlling who is allowed to edit the
-    body, notably when dealing with a templating language like inline_template or
-    qweb.
-    """
+    notifications based on a mail template."""
 
     _name = "mail.composer.mixin"
     _inherit = ["mail.render.mixin"]

@@ -659,10 +659,13 @@ export class Composer extends Component {
     /**
      * @typedef postData
      * @property {import("models").Attachment[]} attachments
+     * @property {boolean} emailAddSignature
      * @property {boolean} isNote
      * @property {number} parentId
      * @property {import("models").Thread[]} mentionedChannels
      * @property {import("models").ResPartner[]} mentionedPartners
+     * @property {import("models").ResRole[]} mentionedRoles
+     * @property {number[]} cannedResponseIds
      */
 
     /**

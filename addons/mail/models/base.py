@@ -876,7 +876,7 @@ class Base(models.AbstractModel):
                             dict.fromkeys(left_ids, company.catchall_email)
                         )
 
-        # compute name of reply-to ("Company Document" <alias@domain>)
+        # compute name of reply-to ("Author Name" <alias@domain>)
         reply_to_formatted = dict(defaults)
         for res_id, record_reply_to in reply_to_email.items():
             reply_to_formatted[res_id] = self._notify_get_reply_to_formatted_email(
@@ -911,7 +911,7 @@ class Base(models.AbstractModel):
         else:
             author_name = self.env.user.name
 
-        # try user.name alone, then company.name alone
+        # try the author name, then the current user's name, then no name
         formatted_email = tools.formataddr((author_name, record_email))
         if len(formatted_email) > length_limit:
             formatted_email = tools.formataddr((self.env.user.name, record_email))
