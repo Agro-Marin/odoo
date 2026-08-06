@@ -15,6 +15,8 @@ import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { MOVABLE_RECORD_TYPES } from "@web/model/relational_model/dynamic_group_list";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { ActionHelper } from "@web/views/action_helper";
+import { useGroupManagement } from "@web/views/multi_record_group";
+import { useRecordSelection } from "@web/views/multi_record_selection";
 import { useBounceButton } from "@web/views/view_hook";
 import { isNull } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
@@ -26,7 +28,6 @@ import { KanbanHeader } from "./kanban_header.js";
 import { useKanbanKeyboardNavigation } from "./kanban_keyboard_nav.js";
 import { KanbanRecord } from "./kanban_record.js";
 import { KanbanRecordQuickCreate } from "./kanban_record_quick_create.js";
-import { useKanbanSelection } from "./kanban_selection_hook.js";
 import { useKanbanSortable } from "./kanban_sortable_hook.js";
 
 const DRAGGABLE_GROUP_TYPES = ["many2one"];
@@ -93,8 +94,10 @@ export class KanbanRenderer extends Component {
     dialog;
     /** @type {any} */
     exampleData;
-    /** @type {any} */
-    lastCheckedRecord;
+    /** @type {ReturnType<typeof useRecordSelection>} */
+    sel;
+    /** @type {ReturnType<typeof useGroupManagement>} */
+    groupOps;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
     /** @type {any} */
@@ -119,8 +122,27 @@ export class KanbanRenderer extends Component {
         if (this.exampleData) {
             validateColumnQuickCreateExamples(this.exampleData);
         }
-        this.lastCheckedRecord = null;
         this.rootRef = useRef("root");
+
+        this.sel = useRecordSelection({
+            getRecords: () => this.props.list.records,
+            // Through the prototype so subclass overrides keep catching the
+            // range call (e.g. documents' rendered-order range).
+            rangeToggle: (record) => this.toggleRangeSelection(record),
+            onSelectionModifier: (available) => {
+                this.state.selectionAvailable = available;
+            },
+        });
+
+        this.groupOps = useGroupManagement({
+            getList: () => this.props.list,
+            getArchInfo: () => this.props.archInfo,
+            onGroupDeleted: () => {
+                if (!this.props.list.groups.length) {
+                    this.state.columnQuickCreateIsFolded = false;
+                }
+            },
+        });
 
         useKanbanSortable({
             rootRef: this.rootRef,
@@ -184,8 +206,6 @@ export class KanbanRenderer extends Component {
                 this.focusNextCard(area, direction) ?? false,
             searchModel: this.env.searchModel,
         });
-
-        useKanbanSelection(this.state);
 
         onPatched(() => {
             if (this.lastOpenedGroupId) {
@@ -377,12 +397,7 @@ export class KanbanRenderer extends Component {
     }
 
     canCreateGroup() {
-        const { activeActions, defaultGroupBy } = this.props.archInfo;
-        return (
-            activeActions.createGroup &&
-            this.props.list.groupByField?.type === "many2one" &&
-            this.props.list.groupByField?.name === defaultGroupBy?.[0]
-        );
+        return this.groupOps.canCreateGroup();
     }
 
     async archiveRecord(record, active) {
@@ -414,14 +429,11 @@ export class KanbanRenderer extends Component {
     }
 
     async deleteGroup(group) {
-        await this.props.list.deleteGroups([group]);
-        if (!this.props.list.groups.length) {
-            this.state.columnQuickCreateIsFolded = false;
-        }
+        await this.groupOps.deleteGroup(group);
     }
 
     toggleGroup(group) {
-        return group.toggle();
+        return this.groupOps.toggleGroup(group);
     }
 
     loadMore(group) {
@@ -444,30 +456,25 @@ export class KanbanRenderer extends Component {
         }
     }
 
+    /**
+     * The range anchor, owned by the shared selection hook. Kept as a
+     * renderer property because subclasses (e.g. documents) read it in their
+     * own `toggleRangeSelection` overrides.
+     */
+    get lastCheckedRecord() {
+        return this.sel.lastCheckedRecord;
+    }
+
+    set lastCheckedRecord(record) {
+        this.sel.lastCheckedRecord = record;
+    }
+
     toggleSelection(record, isRange = false) {
-        const isAnchorPresent =
-            this.lastCheckedRecord &&
-            this.props.list.records.some((e) => e.id === this.lastCheckedRecord.id);
-        if (isRange && isAnchorPresent) {
-            this.toggleRangeSelection(record);
-        } else {
-            record.toggleSelection();
-        }
-        this.lastCheckedRecord = record;
+        this.sel.toggleSelection(record, isRange);
     }
 
     toggleRangeSelection(record) {
-        const { records } = this.props.list;
-        const recordIndex = records.findIndex((e) => e.id === record.id);
-        const lastCheckedRecordIndex = records.findIndex(
-            (e) => e.id === this.lastCheckedRecord.id,
-        );
-        const start = Math.min(recordIndex, lastCheckedRecordIndex);
-        const end = Math.max(recordIndex, lastCheckedRecordIndex);
-        const selected = !record.selected;
-        for (let i = start; i <= end; i++) {
-            records[i].toggleSelection(selected);
-        }
+        this.sel.toggleRangeSelection(record);
     }
 
     async onGroupClick(group, ev) {

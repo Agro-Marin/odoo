@@ -6,12 +6,12 @@
 import { Component, useRef } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { utils } from "@web/ui/viewport";
+import { useGroupManagement } from "@web/views/multi_record_group";
 import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
 
 import { ColumnProgress } from "./column_progress.js";
@@ -59,6 +59,15 @@ export class KanbanHeader extends Component {
         this.rootRef = useRef("root");
         this.popover = usePopover(KanbanHeaderTooltip);
         this.onTitleMouseEnter = useDebounced(this.onTitleMouseEnter, 400);
+        this.groupOps = useGroupManagement({
+            getList: () => this.props.list,
+            getMenuActiveActions: () => this.props.activeActions,
+            getDialogClose: () => this.props.dialogClose,
+            getExtraConfigItems: () => this.extraConfigItems,
+            // Through the renderer's prop so its (overridable) delete flow
+            // stays in charge.
+            deleteGroup: (group) => this.props.deleteGroup(group),
+        });
     }
 
     /**
@@ -84,31 +93,32 @@ export class KanbanHeader extends Component {
         this.popover.close();
     }
 
+    /**
+     * Config items the kanban prepends to the registry-provided ones.
+     *
+     * @returns {Array<[string, Object]>}
+     */
+    get extraConfigItems() {
+        return [
+            [
+                "toggle_group",
+                {
+                    label: _t("Fold"),
+                    method: () => this.group.toggle(),
+                    isVisible: () => !utils.isSmall(),
+                    class: () => ({
+                        o_kanban_toggle_fold: true,
+                        disabled: this.props.list.model.useSampleModel,
+                    }),
+                    icon: "fa-compress",
+                },
+            ],
+        ];
+    }
+
     /** @returns {Object} */
     get configMenuProps() {
-        return {
-            activeActions: this.props.activeActions,
-            configItems: [
-                [
-                    "toggle_group",
-                    {
-                        label: _t("Fold"),
-                        method: () => this.group.toggle(),
-                        isVisible: () => !utils.isSmall(),
-                        class: () => ({
-                            o_kanban_toggle_fold: true,
-                            disabled: this.props.list.model.useSampleModel,
-                        }),
-                        icon: "fa-compress",
-                    },
-                ],
-                ...registry.category("group_config_items").getEntries(),
-            ],
-            deleteGroup: this.props.deleteGroup,
-            dialogClose: this.props.dialogClose,
-            group: this.props.group,
-            list: this.props.list,
-        };
+        return this.groupOps.getGroupConfigMenuProps(this.props.group);
     }
 
     /** @returns {Object | undefined} */
