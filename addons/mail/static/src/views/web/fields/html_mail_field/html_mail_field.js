@@ -31,7 +31,18 @@ export class HtmlMailField extends HtmlField {
 
     async getEditorContent() {
         const el = await super.getEditorContent();
-        await HtmlMailField.getInlinedEditorContent(cssRulesByElement, this.editor, el);
+        // Mirror the base method's own `editor.editable` guard: the urgent
+        // save path fires this capture in the background ("finish pending
+        // image uploads"), and the editor can be destroyed -- its `editable`
+        // nulled -- before the capture settles. There is nothing to inline
+        // against then (the WeakMap key and the DOM insertion point are gone).
+        if (this.editor.editable) {
+            await HtmlMailField.getInlinedEditorContent(
+                cssRulesByElement,
+                this.editor,
+                el,
+            );
+        }
         return el;
     }
 
