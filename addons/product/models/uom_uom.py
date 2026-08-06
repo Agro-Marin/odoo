@@ -5,20 +5,20 @@ from odoo.fields import Domain
 class UomUom(models.Model):
     _inherit = "uom.uom"
 
-    def _domain_product_uoms(self):
+    product_uom_ids = fields.One2many(
+        comodel_name="product.uom",
+        inverse_name="uom_id",
+        string="Barcodes",
+        domain=lambda self: self._domain_product_uom_ids(),
+    )
+
+    def _domain_product_uom_ids(self):
         domain = []
         if self.env.context.get("product_id"):
             domain.append(Domain("product_id", "=", self.env.context["product_id"]))
         if self.env.context.get("product_ids"):
             domain.append(Domain("product_id", "in", self.env.context["product_ids"]))
         return Domain.OR(domain) if domain else Domain.TRUE
-
-    product_uom_ids = fields.One2many(
-        comodel_name="product.uom",
-        inverse_name="uom_id",
-        string="Barcodes",
-        domain=_domain_product_uoms,
-    )
 
     def action_open_packaging_barcodes(self):
         self.ensure_one()

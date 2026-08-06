@@ -10,7 +10,6 @@ class UpdateProductAttributeValue(models.TransientModel):
         comodel_name="product.attribute.value",
         required=True,
     )
-
     mode = fields.Selection(
         selection=[
             ("add", "Add to existing products"),
