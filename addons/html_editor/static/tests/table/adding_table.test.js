@@ -385,7 +385,7 @@ test("should not navigate table cells when powerbox is open", async () => {
     // Cursor is in second td.
     const secondTd = el.querySelectorAll("td")[1];
 
-    // Selection starts in first cell
+    // Selection starts in the second cell
     let selectedTd = findInSelection(
         editor.shared.selection.getEditableSelection(),
         "td",

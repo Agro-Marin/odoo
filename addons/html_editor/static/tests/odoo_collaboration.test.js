@@ -210,10 +210,9 @@ class Wysiwygs extends Component {
                             delete this.peersInfos[peerId];
                         },
                         notifyAllPeers(...args) {
-                            // This is not needed because the opening of the
-                            // dataChannel is done through `openDataChannel` and we
-                            // do not want to simulate the events that thrigger the
-                            // openning of the dataChannel.
+                            // Not needed: the dataChannel is opened through
+                            // `openDataChannel`, so the events triggering its
+                            // opening are not simulated.
                             if (args[0] === "ptp_join") {
                                 return;
                             }
@@ -427,7 +426,7 @@ describe("Stale detection & recovery", () => {
 
             await peers.p3.focus();
             await peers.p1.openDataChannel(peers.p3);
-            // This timeout is necessary for the selection to be set
+            // This tick is necessary for the selection to be set
             await tick();
 
             expect(peers.p3.plugins.collaborationOdoo.isDocumentStale).toBe(false, {
@@ -812,10 +811,9 @@ describe("Stale detection & recovery", () => {
                     message: "p2 resetFromPeer should not have been called",
                 });
 
-                // Because we do not wait for the end of the
-                // p2.setOnline promise, p3 will not be able to reset
-                // from p2 wich allow us to test that p3 reset from the
-                // server as a fallback.
+                // The p2.setOnline promise is not awaited, so p3 cannot
+                // reset from p2: this checks that p3 falls back to
+                // resetting from the server.
                 peers.p2.setOnline();
                 await peers.p3.setOnline();
 
@@ -993,11 +991,9 @@ describe("Stale detection & recovery", () => {
                 expect(p2Spies.onRecoveryPeerTimeout.callCount).toBe(1, {
                     message: "p2 onRecoveryPeerTimeout should have been called once",
                 });
-                // p1 and p3 are considered offline but not
-                // disconnected. It means that p2 will try to recover
-                // from p1 and p3 even if they are currently
-                // unavailable. This test is usefull to check that the
-                // code path to resetFromPeer is properly taken.
+                // p1 and p3 are offline but not disconnected, so p2 tries
+                // to recover from both even though they are unavailable:
+                // this checks that the resetFromPeer code path is taken.
                 expect(p2Spies.resetFromPeer.callCount).toBe(2, {
                     message: "p2 resetFromPeer should have been called twice",
                 });
@@ -1046,9 +1042,8 @@ describe("Disconnect & reconnect", () => {
         peers.p1.setOnline();
         peers.p2.setOnline();
 
-        // todo: p1PromiseForMissingStep and p2PromiseForMissingStep
-        // should be removed when the fix of undetected missing step
-        // will be merged. (task-3208277)
+        // TODO: p1PromiseForMissingStep and p2PromiseForMissingStep should be
+        // removed once undetected missing steps are fixed.
         const p1PromiseForMissingStep = new Promise((resolve) => {
             patch(peers.p2.plugins.collaborationOdoo, {
                 async processMissingSteps() {

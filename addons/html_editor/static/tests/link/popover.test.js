@@ -119,7 +119,7 @@ describe("should open a popover", () => {
         );
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover").toHaveCount(1);
-        // click on an uneditable element
+        // Move the selection into the uneditable link
         const nodeEl = queryOne("a[contenteditable='false']");
         setSelection({ anchorNode: nodeEl, anchorOffset: 0 });
         await waitForNone(".o-we-linkpopover", { timeout: 1500 });
@@ -1138,7 +1138,7 @@ describe("Link formatting in the popover", () => {
         await animationFrame();
         await waitForNone(".o-we-linkpopover"); // Popover should be closed.
         await animationFrame();
-        await waitFor(".o-we-toolbar"); // Toolbar should re open.
+        await waitFor(".o-we-toolbar"); // Toolbar should reopen.
     });
     test("when no label input, the link should have the content of the url", async () => {
         const { el, editor } = await setupEditor("<p>ab[]</p>");
@@ -1228,8 +1228,8 @@ describe("shortcut", () => {
         // Tab through all focusable elements
         await press("Tab");
         await animationFrame();
-        // The URL field is followed by the "upload a file" button, which is a
-        // real control and belongs in the trap's cycle.
+        // The URL field is followed by the "upload a file" button, which is
+        // part of the focus trap cycle.
         expect("button:has(i.fa-upload)").toBeFocused();
         await press("Tab");
         await animationFrame();
@@ -1246,7 +1246,7 @@ describe("shortcut", () => {
         await animationFrame();
         expect(".o_we_label_link").toBeFocused();
 
-        // Shift+Tab should wrap to Last element
+        // Shift+Tab should wrap to the last element
         await press(["Shift", "Tab"]);
         await animationFrame();
         expect(".o_we_discard_link").toBeFocused();
@@ -1658,7 +1658,7 @@ describe("readonly mode", () => {
         // Edit button should not be available.
         expect(".o-we-linkpopover .o_we_edit_link").toHaveCount(0);
     });
-    // TODO: need to check with AGE
+    // TODO: confirm the expected behaviour for a non-editable image.
     test.todo("popover should not open for not editable image", async () => {
         await setupEditor(
             `<a href="#"><img src="${base64Img}" contenteditable="false"></a>`,
@@ -1677,7 +1677,7 @@ describe("link in contenteditable=false", () => {
         await waitFor(".o-we-linkpopover");
         // Edit link button should be available
         expect(".o-we-linkpopover .o_we_edit_link").toHaveCount(1);
-        // Unlink buttons should not be available
+        // Remove link button should not be available
         expect(".o-we-linkpopover .o_we_remove_link").toHaveCount(0);
     });
     test("toolbar should not display unlink button if link is in a contenteditable=false", async () => {
@@ -1701,16 +1701,16 @@ describe("upload file via link popover", () => {
         });
         execCommand(editor, "openLinkTools");
         await waitFor(".o-we-linkpopover");
-        // Upload button should be visible
+        // Upload button should be present
         expect("button i[class='fa-solid fa-upload']").toHaveCount(1);
         await click(".o_we_href_input_link");
         await press("a");
         await animationFrame();
-        // Upload button should NOT be visible
+        // Upload button should NOT be present
         expect("button i[class='fa-solid fa-upload']").toHaveCount(0);
         await press("Backspace");
         await animationFrame();
-        // Upload button should be visible again
+        // Upload button should be present again
         expect("button i[class='fa-solid fa-upload']").toHaveCount(1);
     });
     const patchUpload = (editor) => {
@@ -1736,7 +1736,7 @@ describe("upload file via link popover", () => {
         await click("button i[class='fa-solid fa-upload']");
         await mockedUpload;
         await animationFrame();
-        // URL input gets filled with the attachments's URL
+        // URL input gets filled with the attachment's URL
         const expectedUrl = "/web/content/1?unique=123&download=true";
         expect(".o_we_href_input_link").toHaveValue(expectedUrl);
         // Label input gets filled with the file's name

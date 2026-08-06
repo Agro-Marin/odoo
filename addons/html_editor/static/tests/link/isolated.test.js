@@ -296,7 +296,7 @@ describe("should zwnbsp-pad simple text link", () => {
                 const a = editor.editable.querySelector("a");
                 // Insert an extra character as a text node so we can set
                 // the selection between the characters while still
-                // targetting their parent.
+                // targeting their parent.
                 a.appendChild(editor.document.createTextNode("c"));
                 removeZwnbsp(editor);
                 // set the selection via the parent
