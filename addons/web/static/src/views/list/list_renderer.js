@@ -32,6 +32,7 @@ import { Field } from "@web/fields/field";
 import { getTooltipInfo } from "@web/fields/field_tooltip";
 import { MOVABLE_RECORD_TYPES } from "@web/model/relational_model/dynamic_group_list";
 import { ActionHelper } from "@web/views/action_helper";
+import { useGroupManagement } from "@web/views/multi_record_group";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
 import { useBounceButton } from "@web/views/view_hook";
@@ -165,6 +166,8 @@ export class ListRenderer extends Component {
     tableRef;
     /** @type {any} */
     sel;
+    /** @type {ReturnType<typeof useGroupManagement>} */
+    groupOps;
     /** @type {any} */
     nav;
     /** @type {any[]} */
@@ -264,6 +267,14 @@ export class ListRenderer extends Component {
         this.sel = useListSelection(this.gridContext, {
             longTouchThreshold: /** @type {any} */ (this.constructor)
                 .LONG_TOUCH_THRESHOLD,
+        });
+
+        this.groupOps = useGroupManagement({
+            getList: () => this.props.list,
+            getArchInfo: () => this.props.archInfo,
+            isReadonly: () => this.props.readonly,
+            getMenuActiveActions: () => this.props.activeActions,
+            getDialogClose: () => this.dialogClose,
         });
 
         this.controls = this.props.archInfo.controls.length
@@ -1026,15 +1037,7 @@ export class ListRenderer extends Component {
         if (!this.canSelectRecord) {
             return;
         }
-        const isRecordPresent = this.props.list.records.includes(
-            this.sel.lastCheckedRecord,
-        );
-        if (this.sel.shiftKeyMode && isRecordPresent) {
-            this.sel.toggleRangeSelection(record);
-        } else {
-            record.toggleSelection();
-        }
-        this.sel.lastCheckedRecord = record;
+        this.sel.toggleSelection(record, this.sel.shiftKeyMode);
     }
 
     /**

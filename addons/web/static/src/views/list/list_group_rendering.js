@@ -3,8 +3,6 @@
 
 /** @module @web/views/list/list_group_rendering */
 
-import { registry } from "@web/core/registry";
-
 import {
     countRecordsInGroup,
     getAggregateColumns as getAggregateColumnsUtil,
@@ -14,14 +12,7 @@ import {
 
 export const listGroupRenderingMixin = {
     get canCreateGroup() {
-        const { archInfo, list, readonly } = this.props;
-        const { activeActions, defaultGroupBy } = archInfo;
-        return (
-            !readonly &&
-            activeActions.createGroup &&
-            list.groupByField?.type === "many2one" &&
-            list.groupByField.name === defaultGroupBy?.[0]
-        );
+        return this.groupOps.canCreateGroup();
     },
 
     /**
@@ -60,14 +51,7 @@ export const listGroupRenderingMixin = {
      * @param {Object} group
      */
     getGroupConfigMenuProps(group) {
-        return {
-            activeActions: this.props.activeActions,
-            configItems: registry.category("group_config_items").getEntries(),
-            deleteGroup: async () => await this.props.list.deleteGroups([group]),
-            dialogClose: this.dialogClose,
-            group,
-            list: this.props.list,
-        };
+        return this.groupOps.getGroupConfigMenuProps(group);
     },
 
     /**
@@ -162,7 +146,7 @@ export const listGroupRenderingMixin = {
      * @param {Object} group
      */
     toggleGroup(group) {
-        group.toggle();
+        this.groupOps.toggleGroup(group);
     },
 
     /**
@@ -170,8 +154,6 @@ export const listGroupRenderingMixin = {
      */
     addNewGroup(value) {
         this.state.showGroupInput = false;
-        if (value) {
-            this.props.list.createGroup(value);
-        }
+        this.groupOps.createGroup(value);
     },
 };
