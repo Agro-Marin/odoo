@@ -13,7 +13,7 @@ import { DEFAULT_INTERVAL, toGeneratorId } from "@web/search/utils/dates";
 
 const ALL = _t("All");
 const DEFAULT_LIMIT = 200;
-const DEFAULT_VIEWS_WITH_SEARCH_PANEL = ["kanban", "list"];
+export const DEFAULT_VIEWS_WITH_SEARCH_PANEL = ["kanban", "list"];
 
 /**
  * @param {string | null | undefined} iconClass
