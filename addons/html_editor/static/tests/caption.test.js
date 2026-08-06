@@ -429,7 +429,7 @@ test("undo in a caption undoes the last caption action then returns to regular e
                             inputType: "historyUndo",
                         },
                     );
-                    // --> Here the editor should do its own UNDO.
+                    // Here the editor should do its own undo.
                     if (beforeInput.defaultPrevented) {
                         return;
                     }
@@ -807,7 +807,7 @@ test("add a link then a caption to an image surrounded by text", async () => {
             await animationFrame();
             await toggleCaption("Hello");
             // Blur the input to commit the caption.
-            await click("p"); // Blur the input.
+            await click("p");
             await animationFrame(); // Wait for the focus event to trigger a step.
             editor.shared.selection.setCursorStart(
                 editor.document.querySelectorAll("p")[1],
@@ -939,7 +939,7 @@ test("previewing an image with a caption shows the caption as title", async () =
     await toggleCaption("Hello");
     await waitForNone(".o-we-toolbar button[name='image_caption']");
 
-    // Preview with a caption show the caption.
+    // Preview with a caption shows the caption.
     await click("img");
     await waitFor(".o-we-toolbar button[name='image_preview']");
     await click(".o-we-toolbar button[name='image_preview']");
@@ -1023,7 +1023,7 @@ test("should drag and drop image with its caption(1)", async () => {
         "text/html",
         `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Img}">`,
     );
-    // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
+    // Simulate the application/vnd.odoo.odoo-editor data the browser would set.
     dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
     await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", {
         dataTransfer: dropData,
@@ -1079,7 +1079,7 @@ test("should drag and drop image with its caption(2)", async () => {
         "text/html",
         `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Img}">`,
     );
-    // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
+    // Simulate the application/vnd.odoo.odoo-editor data the browser would set.
     dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
     await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", {
         dataTransfer: dropData,
@@ -1134,7 +1134,7 @@ test("should drag and drop image with caption along with selected text", async (
     const textHtml = dragdata.getData("text/html");
     const dropData = new DataTransfer();
     dropData.setData("text/html", textHtml);
-    // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
+    // Simulate the application/vnd.odoo.odoo-editor data the browser would set.
     dropData.setData("application/vnd.odoo.odoo-editor", odooEditorData);
     await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", {
         dataTransfer: dropData,

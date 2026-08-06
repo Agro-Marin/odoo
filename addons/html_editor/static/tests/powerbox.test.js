@@ -536,7 +536,7 @@ test("should execute command and remove term and hot character on Tab", async ()
 test.todo(
     "should close the powerbox if keyup event is called on other block",
     async () => {
-        // ged: not sure i understand the goal of this test
+        // TODO: the purpose of this test is unclear.
         const { editor } = await setupEditor("<p>ab</p><p>c[]d</p>");
         await insertText(editor, "/");
         await animationFrame();
@@ -666,7 +666,7 @@ test("should discard /command insertion from history when command is executed", 
     expect(getContent(el)).toBe(
         `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
     );
-    // @todo @phoenix: remove this once we manage inputs.
+    // TODO: remove this once we manage inputs.
     // Simulate <br> removal by contenteditable when something is inserted
     el.querySelector("p > br").remove();
     await insertText(editor, "abc/heading1");
@@ -782,8 +782,8 @@ test.tags("desktop");
 test("select command with 'mouseenter'", async () => {
     const { editor, el } = await setupEditor("<p>ab[]</p>");
 
-    // Hoot don't trigger a mousemove event at the start of an hover, if we don't hover
-    // another element before. So we need to do a first hover to set a previous element.
+    // Hoot doesn't trigger a mousemove at the start of a hover unless another
+    // element was hovered before, hence this first hover.
     await hover(".odoo-editor-editable");
 
     await insertText(editor, "/head");
@@ -803,8 +803,8 @@ test.tags("desktop");
 test("select command with 'mouseenter' after scroll -- doc in iframe", async () => {
     const { editor } = await setupEditor("<p>ab[]</p>", { props: { iframe: true } });
 
-    // Hoot don't trigger a mousemove event at the start of an hover, if we don't hover
-    // another element before. So we need to do a first hover to set a previous element.
+    // Hoot doesn't trigger a mousemove at the start of a hover unless another
+    // element was hovered before, hence this first hover.
     await hover(document.body); // Hover on main document's body
 
     await insertText(editor, "/");
@@ -833,7 +833,7 @@ test("click on a command", async () => {
 
 test("create a new <p> with press 'Enter' then apply a powerbox command", async () => {
     const { editor, el } = await setupEditor("<p>ab[]cd</p>");
-    // Event trigger when you press "Enter" => create a new paragraph
+    // Event triggered when pressing "Enter": creates a new paragraph
     await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
         inputType: "insertParagraph",
     });
@@ -843,7 +843,7 @@ test("create a new <p> with press 'Enter' then apply a powerbox command", async 
     expect(getContent(el)).toBe("<p>ab</p><h1>[]cd</h1>");
 });
 
-// @todo @phoenix Need a fix in hoot duplicate error are throw
+// TODO: needs a fix in hoot: duplicate errors are thrown.
 test.todo("add plugins with the same powerboxCategory should crash", async () => {
     expect.errors(1);
     patchWithCleanup(console, {
