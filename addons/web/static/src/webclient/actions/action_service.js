@@ -234,7 +234,6 @@ export class ActionManager {
         this._pendingDispatch = null;
         this.dialog = null;
         this.nextDialog = null;
-        this._skeletonDef = null;
         this._dispatchDepth = 0;
 
         router.hideKeyFromUrl("globalState");
@@ -622,6 +621,56 @@ export class ActionManager {
     }
 
     /**
+     * Post the empty-transition skeleton and wait for it to take the
+     * container. Resolves `true` once the skeleton mounted; `false` when a
+     * newer `ACTION_MANAGER:UPDATE` claimed the container first — the
+     * mount-stage supersession sensor (the same one that, one stage later,
+     * destroys a superseded controller into `ActionDispatch.discard()`),
+     * reported internally with the same `SupersededError`. The sensor is the
+     * event, not the skeleton's own lifecycle: a newer dispatch posted in the
+     * same tick replaces the container's proposal before OWL ever
+     * instantiates this skeleton, so none of its lifecycle hooks can be
+     * relied on to fire. A dialog navigation opening above the skeleton posts
+     * no UPDATE — it takes no container — so this dispatch rightly keeps
+     * waiting and lands beneath it.
+     *
+     * @param {Controller} controller
+     * @param {Action} action
+     * @returns {Promise<boolean>} whether the dispatch may proceed
+     */
+    async _awaitSkeletonMount(controller, action) {
+        const def = new Deferred();
+        const isActWindow = action.type === "ir.actions.act_window";
+        this.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, {
+            id: this._nextId(),
+            Component: SkeletonView,
+            componentProps: {
+                onMounted: () => def.resolve(),
+                viewType: isActWindow ? controller.props.type : undefined,
+                withControlPanel: isActWindow,
+            },
+        });
+        const onNewerUpdate = () => def.reject(new SupersededError());
+        this.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UPDATE, onNewerUpdate, {
+            once: true,
+        });
+        try {
+            await def;
+            return true;
+        } catch (error) {
+            if (!(error instanceof SupersededError)) {
+                throw error;
+            }
+            return false;
+        } finally {
+            this.env.bus.removeEventListener(
+                AppEvent.ACTION_MANAGER_UPDATE,
+                onNewerUpdate,
+            );
+        }
+    }
+
+    /**
      * `onClose` only fires for dialog dispatches; callers passing it to an
      * inline one usually expected a dialog — say so in debug.
      *
@@ -646,10 +695,6 @@ export class ActionManager {
     async _dispatchInline(dispatch, options) {
         const { controller, action } = dispatch;
         this._warnDroppedOnClose(action, options);
-        if (this._skeletonDef) {
-            this._skeletonDef.reject(new SupersededError());
-            this._skeletonDef = null;
-        }
         const currentController = this._getCurrentController();
         if (currentController?.getLocalState) {
             currentController.exportedState = currentController.getLocalState();
@@ -682,28 +727,8 @@ export class ActionManager {
         }
 
         if (options.clearBreadcrumbs && !options.noEmptyTransition) {
-            const def = (this._skeletonDef = new Deferred());
-            const isActWindow = action.type === "ir.actions.act_window";
-            this.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, {
-                id: this._nextId(),
-                Component: SkeletonView,
-                componentProps: {
-                    onMounted: () => def.resolve(),
-                    viewType: isActWindow ? controller.props.type : undefined,
-                    withControlPanel: isActWindow,
-                },
-            });
-            try {
-                await def;
-            } catch (error) {
-                if (!(error instanceof SupersededError)) {
-                    throw error;
-                }
+            if (!(await this._awaitSkeletonMount(controller, action))) {
                 return;
-            } finally {
-                if (this._skeletonDef === def) {
-                    this._skeletonDef = null;
-                }
             }
         }
         if (options.onActionReady) {

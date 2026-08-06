@@ -1005,6 +1005,15 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     await mountWithCleanup(WebClient);
     const action = getService("action");
 
+    // The skeleton proposal is observable on the container's own event; the
+    // internal deferred deliberately is not.
+    let skeletonsPosted = 0;
+    action.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UPDATE, (ev) => {
+        if (ev.detail?.Component?.name === "SkeletonView") {
+            skeletonsPosted++;
+        }
+    });
+
     let aSettled = false;
     let aError = null;
     action.doAction("clientA", { clearBreadcrumbs: true }).then(
@@ -1016,10 +1025,12 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
             aError = err;
         },
     );
-    for (let i = 0; i < 50 && !action._skeletonDef; i++) {
+    for (let i = 0; i < 50 && !skeletonsPosted; i++) {
         await microTick();
     }
-    expect(Boolean(action._skeletonDef)).toBe(true);
+    expect(skeletonsPosted).toBe(1, {
+        message: "A is parked on its skeleton wait, nothing mounted yet",
+    });
 
     action.doAction("clientB", { clearBreadcrumbs: true });
     for (let i = 0; i < 50 && !aSettled; i++) {
@@ -1032,6 +1043,6 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     await animationFrame();
     expect(".client-b").toHaveCount(1);
     expect(".client-a").toHaveCount(0);
-    expect(action._skeletonDef).toBe(null);
+    expect(".o_skeleton_view").toHaveCount(0);
     expect.verifySteps([]);
 });
