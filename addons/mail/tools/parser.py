@@ -11,8 +11,7 @@ def parse_res_ids(res_ids, env):
 
     :param str|tuple|list res_ids: a list of ids, tuple or list;
     :raises ValidationError: if res_ids has an incorrect type or invalid format
-    :return: list of ids
-    :rtype: list
+    :return: a list/tuple of ids, or the void value received unchanged
     """
     if is_list_of(res_ids, int) or not res_ids:
         return res_ids

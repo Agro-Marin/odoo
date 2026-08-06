@@ -93,8 +93,9 @@ export class DiscussChannelRtcSession extends models.ServerModel {
     }
 
     /**
-     * @param {number} id
-     * @param {{ extra?: boolean }} options
+     * @param {mailDataHelpers.Store} store
+     * @param {Array} fields
+     * @param {boolean} [extra]
      */
     _to_store(store, fields, extra) {
         const kwargs = getKwArgs(arguments, "store", "fields", "extra");

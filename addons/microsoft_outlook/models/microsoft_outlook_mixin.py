@@ -204,8 +204,8 @@ class MicrosoftOutlookMixin(models.AbstractModel):
 
         IAP relays the request to the Outlook API and returns its result.
 
-        :return:
-            refresh_token, access_token, id_token, access_token_expiration
+        :return: the JSON payload answered by IAP, relayed as-is
+        :rtype: dict
         """
         outlook_iap_endpoint = self.env['ir.config_parameter'].sudo().get_param(
             'mail.server.outlook.iap.endpoint',

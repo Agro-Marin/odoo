@@ -10,14 +10,11 @@ from odoo.tools import SQL, partition
 _logger = logging.getLogger(__name__)
 
 
+# Context keys controlling the mixin behavior, useful e.g. on import:
+#  * ``mail_activity_automation_skip``: skip activities automation, so no
+#    automated activity is generated, updated or unlinked;
 class MailActivityMixin(models.AbstractModel):
-    """Add activity management to a model, with fields giving a global status.
-
-    Context keys controlling the mixin behavior, useful e.g. on import:
-
-     * ``mail_activity_automation_skip``: skip activities automation, so no
-       automated activity is generated, updated or unlinked;
-    """
+    """Add activity management to a model, with fields giving a global status."""
 
     _name = "mail.activity.mixin"
     _description = "Activity Mixin"

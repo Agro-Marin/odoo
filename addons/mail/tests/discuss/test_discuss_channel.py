@@ -115,9 +115,10 @@ class TestChannelInternals(MailCommon, HttpCase):
                                         "date": "2020-03-22 10:42:06",
                                         "default_subject": "Group",
                                         "id": message.id,
-                                        # the envelope (from/to/cc) ships only to
-                                        # internal targets; a 'group' channel is
-                                        # not one, so email_from is absent too
+                                        # the envelope (from/to/cc) ships to
+                                        # internal targets or for authorless
+                                        # messages; this is neither, so
+                                        # email_from is absent too
                                         "message_link_preview_ids": [],
                                         "message_type": "notification",
                                         "model": "discuss.channel",

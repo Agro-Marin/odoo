@@ -4,8 +4,10 @@ Each test pins one finding so a refactor cannot silently reintroduce it:
 mail.message write ACL and search symmetry, mail.notification forgery, the
 mail.mail SMTP-outage state guard and error taxonomy, the mail.template
 unsafe-expression scan scope, the mail.link.preview create race and per-record
-bus notify, alias sanitization, push-device rotation and scheduled-message
-pagination.
+bus notify, alias sanitization, push-device rotation, scheduled-message
+pagination, the notification-status store build under lost record access, the
+message_attachment_count onchange on a new record and the discuss.channel
+avatar cache key.
 """
 
 from unittest.mock import patch

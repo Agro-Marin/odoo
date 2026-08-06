@@ -37,8 +37,8 @@ class IapAccount(models.Model):
     )
     company_ids = fields.Many2many('res.company')
 
-    # Set from the IAP server when the view loads, except warning_user_ids, which is
-    # local and pushed to IAP on write
+    # Set from the IAP server when the view loads, except warning_user_ids, which
+    # is local; both warning fields are pushed to IAP on write
     balance = fields.Char(readonly=True)
     warning_threshold = fields.Float("Email Alert Threshold")
     warning_user_ids = fields.Many2many('res.users', string="Email Alert Recipients")

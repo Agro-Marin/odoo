@@ -34,7 +34,7 @@ export const ACTION_TAGS = Object.freeze({
  * @property {string|(params: ActionParams) => string} [btnClass]
  * @property {Component} [component]
  * @property {boolean|(params: ActionParams) => boolean} [componentCondition=true]
- * @property {(params: ActionParams) => Component<Props, Env>} [componentProps]
+ * @property {(params: ActionParams) => Object} [componentProps]
  * @property {boolean|(params: ActionParams) => boolean} [disabledCondition]
  * @property {boolean} [dropdown]
  * @property {Component|(params: ActionParams) => Component} [dropdownComponent]

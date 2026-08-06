@@ -1655,8 +1655,8 @@ class MailMessage(models.Model):
                     follower.partner_id,
                 ): follower
                 # 'mail.followers.res_model' carries no integrity check by
-                # design (see the model docstring), so skip rows naming a model
-                # that is gone rather than raising mid-serialization.
+                # design (see the note on that field), so skip rows naming a
+                # model that is gone rather than raising mid-serialization.
                 for follower in followers
                 if follower.res_model in self.env
             }
