@@ -5,6 +5,16 @@
 
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import {
+    normalizeSelectedIds,
+    quickSearchFilter,
+    SEARCH_LIMIT,
+    SEARCH_MORE_LIMIT,
+    searchMoreLabel,
+    searchMoreTitle,
+    splitOverflow,
+    webNameSearch,
+} from "@web/components/autocomplete/name_search";
 import { makeContext } from "@web/core/context";
 import { RPCError } from "@web/core/network/rpc";
 import { getFormViewDialog, getSelectCreateDialog } from "@web/core/record_dialog_port";
@@ -106,10 +116,10 @@ export class Many2XAutocomplete extends Component {
         nameCreateField: "name",
         otherSources: [],
         quickCreate: null,
-        searchLimit: 7,
+        searchLimit: SEARCH_LIMIT,
         searchMemoization: "exact",
         searchThreshold: 0,
-        searchMoreLimit: 320,
+        searchMoreLimit: SEARCH_MORE_LIMIT,
         setInputFloats: () => {},
         specification: {},
         value: "",
@@ -184,8 +194,7 @@ export class Many2XAutocomplete extends Component {
             activeActions,
             isToMany,
             onSelected: (resId) => {
-                const resIds = Array.isArray(resId) ? resId : [resId];
-                const values = resIds.map((id) => ({ id }));
+                const values = normalizeSelectedIds(resId).map((id) => ({ id }));
                 return this.update(values);
             },
             onCreateEdit: ({ context }) => this.openMany2X({ context }),
@@ -275,9 +284,8 @@ export class Many2XAutocomplete extends Component {
      * @returns {Promise<Array<Object>>}
      */
     nameSearch({ name, limit, domain, context, specification }) {
-        return this.orm.call(this.props.resModel, "web_name_search", [], {
+        return webNameSearch(this.orm, this.props.resModel, {
             name,
-            operator: "ilike",
             domain,
             limit,
             context,
@@ -422,10 +430,10 @@ export class Many2XAutocomplete extends Component {
             }
         } else {
             records = await lock(this.search(request));
-            if (records && records.length > this.props.searchLimit) {
-                hasMore = true;
-                records = records.slice(0, this.props.searchLimit);
-            }
+            ({ records, hasMore } = splitOverflow(
+                records ?? [],
+                this.props.searchLimit,
+            ));
             if (records?.length) {
                 for (const record of records) {
                     suggestions.push(this.buildRecordSuggestion(request, record));
@@ -594,7 +602,7 @@ export class Many2XAutocomplete extends Component {
 
     /** @returns {string} */
     get searchMoreButtonLabel() {
-        return this.props.searchMoreLabel ?? _t("Search more...");
+        return this.props.searchMoreLabel ?? searchMoreLabel();
     }
 
     async onBarcodeSearch() {
@@ -623,22 +631,18 @@ export class Many2XAutocomplete extends Component {
             });
 
             dynamicFilters = [
-                {
-                    description: _t("Quick search: %s", request),
-                    domain: [["id", "in", records.map((record) => record.id)]],
-                },
+                quickSearchFilter(
+                    request,
+                    records.map((record) => record.id),
+                ),
             ];
         }
 
-        let title = _t("Search");
-        if (fieldString && fieldString.trim()) {
-            title = _t("Search: %s", fieldString);
-        }
         this.selectCreate({
             domain,
             context,
             filters: dynamicFilters,
-            title,
+            title: searchMoreTitle(fieldString),
         });
     }
 

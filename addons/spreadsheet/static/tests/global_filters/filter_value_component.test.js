@@ -181,8 +181,8 @@ test("text filter cannot have the same value twice", async function () {
 });
 
 test("relational filter with domain", async function () {
-    onRpc("partner", "name_search", ({ kwargs }) => {
-        expect.step("name_search");
+    onRpc("partner", "web_name_search", ({ kwargs }) => {
+        expect.step("web_name_search");
         expect(kwargs.domain).toEqual(["&", ["display_name", "=", "Bob"], "!", ["id", "in", []]]);
     });
     const env = await makeMockEnv();
@@ -197,7 +197,7 @@ test("relational filter with domain", async function () {
     await mountFilterValueComponent({ model, filter: model.getters.getGlobalFilter("42") });
     await click(".o_multi_record_selector input");
     await animationFrame();
-    expect.verifySteps(["name_search"]);
+    expect.verifySteps(["web_name_search"]);
 });
 
 test("Filter with showClear should display the clear icon", async function () {
@@ -234,8 +234,8 @@ test("Filter without showClear should not display the clear icon", async functio
 });
 
 test("relational filter with a contextual domain", async function () {
-    onRpc("partner", "name_search", ({ kwargs }) => {
-        expect.step("name_search");
+    onRpc("partner", "web_name_search", ({ kwargs }) => {
+        expect.step("web_name_search");
         expect(kwargs.domain).toEqual([
             "&",
             ["user_ids", "in", [user.userId]],
@@ -255,7 +255,7 @@ test("relational filter with a contextual domain", async function () {
     await mountFilterValueComponent({ model, filter: model.getters.getGlobalFilter("42") });
     await click(".o_multi_record_selector input");
     await animationFrame();
-    expect.verifySteps(["name_search"]);
+    expect.verifySteps(["web_name_search"]);
 });
 
 test("selection filter", async function () {

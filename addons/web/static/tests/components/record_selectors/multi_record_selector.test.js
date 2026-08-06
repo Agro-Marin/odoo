@@ -193,8 +193,8 @@ test("A superseded display-name load does not overwrite the current selection", 
 
 test("Can give domain and context props for the name search", async () => {
     expect.assertions(4);
-    onRpc("partner", "name_search", ({ kwargs }) => {
-        expect.step("name_search");
+    onRpc("partner", "web_name_search", ({ kwargs }) => {
+        expect.step("web_name_search");
         expect(kwargs.domain).toEqual([
             "&",
             ["display_name", "=", "Bob"],
@@ -214,7 +214,7 @@ test("Can give domain and context props for the name search", async () => {
     expect.verifySteps([]);
     await click(".o_multi_record_selector input");
     await animationFrame();
-    expect.verifySteps(["name_search"]);
+    expect.verifySteps(["web_name_search"]);
 });
 
 test("Support placeholder", async () => {

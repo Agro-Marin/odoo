@@ -5,14 +5,31 @@
 
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import {
+    normalizeSelectedIds,
+    quickSearchFilter,
+    SEARCH_LIMIT,
+    SEARCH_MORE_LIMIT,
+    searchMoreLabel,
+    searchMoreTitle,
+    splitOverflow,
+    webNameSearch,
+} from "@web/components/autocomplete/name_search";
 import { Domain } from "@web/core/domain";
 import { ConnectionAbortedError } from "@web/core/network/rpc";
 import { getSelectCreateDialog } from "@web/core/record_dialog_port";
 import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-const SEARCH_LIMIT = 7;
-const SEARCH_MORE_LIMIT = 320;
 
+/**
+ * The plain quick-search autocomplete behind `RecordSelector` and
+ * `MultiRecordSelector`. It shares its search core — call shape, limits,
+ * overflow rule, "Search more..." dialog helpers — with `Many2XAutocomplete`
+ * (see `@web/components/autocomplete/name_search`), and deliberately stays
+ * simple otherwise: no create actions, no empty-search memoization (its
+ * hosts are short-lived editors, and stale in-flight searches are aborted
+ * instead).
+ */
 export class RecordAutocomplete extends Component {
     static props = {
         resModel: String,
@@ -51,10 +68,15 @@ export class RecordAutocomplete extends Component {
     }
 
     /**
-     * @param {Array<[number, any]>} options
+     * Feed the display names we already fetched to the name service, so the
+     * host selectors render the new selection without a second round-trip.
+     *
+     * @param {Array<{ id: number, display_name: any }>} records
      */
-    addNames(options) {
-        const displayNames = Object.fromEntries(options);
+    addNames(records) {
+        const displayNames = Object.fromEntries(
+            records.map(({ id, display_name }) => [id, display_name]),
+        );
         this.nameService.addDisplayNames(this.props.resModel, displayNames);
     }
 
@@ -68,35 +90,27 @@ export class RecordAutocomplete extends Component {
     async loadOptionsSource(name) {
         /** @type {any} */ (this.lastProm)?.abort(true);
         const prom = (this.lastProm = this.search(name, SEARCH_LIMIT + 1));
-        let records;
+        let fetched;
         try {
-            records = await prom;
+            fetched = this.cleanRecords(await prom);
         } catch (error) {
             if (error instanceof ConnectionAbortedError) {
                 return [];
             }
             throw error;
         }
-        const nameGets = records.map(
-            ([id, label]) =>
-                /** @type {[number, any]} */ ([
-                    id,
-                    label ? label.split("\n")[0] : _t("Unnamed"),
-                ]),
-        );
-        this.addNames(nameGets);
+        this.addNames(fetched);
+        const { records, hasMore } = splitOverflow(fetched, SEARCH_LIMIT);
         /** @type {Array<Record<string, any>>} */
-        const options = nameGets.slice(0, SEARCH_LIMIT).map(([id, label]) => ({
-            data: {
-                record: { id, display_name: label },
-            },
-            label,
-            onSelect: () => this.props.update([id]),
+        const options = records.map((record) => ({
+            data: { record },
+            label: record.display_name,
+            onSelect: () => this.props.update([record.id]),
         }));
-        if (SEARCH_LIMIT < nameGets.length) {
+        if (hasMore) {
             options.push({
-                cssClass: "o_m2o_dropdown_option",
-                label: _t("Search More..."),
+                cssClass: "o_m2o_dropdown_option o_m2o_dropdown_option_search_more",
+                label: searchMoreLabel(),
                 onSelect: this.onSearchMore.bind(this, name),
             });
         }
@@ -114,29 +128,22 @@ export class RecordAutocomplete extends Component {
         let operator;
         const ids = [];
         if (name) {
-            const nameGets = await this.search(name, SEARCH_MORE_LIMIT);
-            this.addNames(nameGets);
+            const records = this.cleanRecords(
+                await this.search(name, SEARCH_MORE_LIMIT),
+            );
+            this.addNames(records);
             operator = "in";
-            ids.push(...nameGets.map((nameGet) => nameGet[0]));
+            ids.push(...records.map((record) => record.id));
         } else {
             operator = "not in";
             ids.push(...this.getIds());
         }
         const dynamicFilters = ids.length
-            ? [
-                  {
-                      description: _t("Quick search: %s", name),
-                      domain: [["id", operator, ids]],
-                  },
-              ]
+            ? [quickSearchFilter(name, ids, operator)]
             : undefined;
         const SelectCreateDialog = getSelectCreateDialog();
-        let title = _t("Search");
-        if (fieldString && fieldString.trim()) {
-            title = _t("Search: %s", fieldString);
-        }
         this.addDialog(SelectCreateDialog, {
-            title,
+            title: searchMoreTitle(fieldString),
             dynamicFilters,
             domain: this.getDomain(),
             resModel,
@@ -144,8 +151,7 @@ export class RecordAutocomplete extends Component {
             multiSelect,
             context: this.props.context || {},
             onSelected: (/** @type {number|number[]} */ resId) => {
-                const resIds = Array.isArray(resId) ? resId : [resId];
-                this.props.update([...resIds]);
+                this.props.update(normalizeSelectedIds(resId));
             },
         });
     }
@@ -161,16 +167,30 @@ export class RecordAutocomplete extends Component {
     /**
      * @param {string} name
      * @param {number} limit
-     * @returns {Promise<Array<[number, string]>>} the server's (id, display_name) pairs
+     * @returns {Promise<Array<Record<string, any>>>} the server's matches;
+     *  the promise keeps the ORM's `abort()`
      */
     search(name, limit) {
-        const domain = this.getDomain();
-        return this.orm.call(this.props.resModel, "name_search", [], {
+        return webNameSearch(this.orm, this.props.resModel, {
             name,
-            domain: domain,
+            domain: this.getDomain(),
             limit,
             context: this.props.context || {},
         });
+    }
+
+    /**
+     * Multi-line display names are cut to their first line, nameless records
+     * labelled.
+     *
+     * @param {Array<Record<string, any>>} records
+     * @returns {Array<{ id: number, display_name: any }>}
+     */
+    cleanRecords(records) {
+        return records.map(({ id, display_name }) => ({
+            id,
+            display_name: display_name ? display_name.split("\n")[0] : _t("Unnamed"),
+        }));
     }
 
     /**
