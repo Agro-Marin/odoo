@@ -9,6 +9,7 @@ import { user } from "@web/core/user";
 import { SupersededError } from "@web/core/utils/concurrency";
 import { actionStorage } from "@web/webclient/actions/action_storage";
 import { loadState } from "@web/webclient/actions/load_state";
+import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
 /**
  * BRANCH COVERAGE for ``load_state.js``, with NO OWL MOUNT.
@@ -21,9 +22,10 @@ import { loadState } from "@web/webclient/actions/load_state";
  * MissingActionError unwinding each need a specific server failure staged
  * behind a full boot.
  *
- * ``load_state`` reaches six manager members — ``router``,
- * ``_loadStateGeneration``, ``_controllersFromState``, ``_getActionParams``,
- * ``doAction`` and ``env`` — so a literal covers it. The module-level
+ * ``load_state`` reaches six manager members — ``router``, ``navigation``,
+ * ``_controllersFromState``, ``_getActionParams``, ``doAction`` and ``env`` —
+ * so a literal covers it (``navigation`` is a real tracker: it is the very
+ * clock under test, and small enough to not be worth faking). The module-level
  * collaborators it uses directly (``actionStorage``, ``user``) are real: both
  * are cheap and asserting against the actual sessionStorage keys is the point
  * of two of these tests.
@@ -35,7 +37,7 @@ function makeFakeAm(overrides = {}) {
     const calls = { doAction: [], controllersFromState: [], busEvents: [] };
     const am = {
         router: { current: { action: 7, actionStack: [{ action: 7 }] } },
-        _loadStateGeneration: 0,
+        navigation: new NavigationTracker(),
         env: { bus: new EventBus() },
         _controllersFromState: async (state) => {
             calls.controllersFromState.push(state);
@@ -77,11 +79,12 @@ test("an explicit state is used verbatim", async () => {
     expect(am.__calls.controllersFromState[0]).toBe(state);
 });
 
-test("every entry bumps the navigation-intent counter", async () => {
+test("every entry mints a navigation of its own on the shared clock", async () => {
     const am = makeFakeAm();
+    const before = am.navigation.epoch;
     await loadState(am);
     await loadState(am);
-    expect(am._loadStateGeneration).toBe(2);
+    expect(am.navigation.epoch).toBe(before + 2);
 });
 
 test("a stored lang different from the user's drops the restore cache", async () => {
@@ -125,10 +128,10 @@ test("a failed reconstruction still loads the leaf action, without ancestry", as
     expect(warnings[0]).toMatch(/without breadcrumbs/);
 });
 
-test("a newer loadState started mid-reconstruction supersedes this one", async () => {
+test("a newer navigation started mid-reconstruction supersedes this one", async () => {
     const am = makeFakeAm({
         _controllersFromState: async () => {
-            am._loadStateGeneration++;
+            am.navigation.mint();
             return [];
         },
     });
@@ -141,7 +144,7 @@ test("the guard also fires when the reconstruction failed", async () => {
     patchWithCleanup(console, { warn: () => {} });
     const am = makeFakeAm({
         _controllersFromState: async () => {
-            am._loadStateGeneration++;
+            am.navigation.mint();
             throw new Error("both at once");
         },
     });

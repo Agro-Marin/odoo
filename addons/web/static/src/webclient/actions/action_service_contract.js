@@ -69,12 +69,12 @@ export const ACTION_MANAGER_SURFACE = [
  * The same surface as a type, for executors declaring what they ask of the
  * manager rather than taking the whole class.
  *
- * `_loadStateGeneration` is deliberately absent: it is a counter
- * `load_state.js` reads to detect a superseded navigation, which is state
- * rather than an operation, and the one place it is stubbed is testing exactly
- * that supersession. It stays undeclared so it keeps showing up as debt — the
- * question "should navigation generation be `load_state`'s own?" has not been
- * answered, and declaring it would retire the question rather than settle it.
+ * An earlier revision kept `_loadStateGeneration` deliberately absent so the
+ * question "should navigation generation be `load_state`'s own?" stayed open.
+ * It is now answered: the generation was never `load_state`'s — it is the
+ * whole pipeline's, and it lives in `navigation` (a `NavigationTracker`),
+ * declared above. `load_state` mints on that clock like every other
+ * navigation entry point, and the counter it used to read is gone.
  *
  * `ACTION_MANAGER_SURFACE` and this typedef must name the same members;
  * `tooling/architecture/test_record_contract_agreement.py` checks that.

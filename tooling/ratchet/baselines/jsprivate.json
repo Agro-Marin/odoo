@@ -1,4 +1,4 @@
 {
-  "count": 253,
-  "note": "253: restored by publishing StaticList.markReordered() so the sort helper no longer writes list._needsReordering directly (one of the three cross-module writes the gate flags 'clear first'). The remaining two (command_engine writing list._commands / list._currentIds in commitBatch) are intertwined with the batch interpreter and belong to the larger static_list command-path unification (audit F-U05-9), not a setter wrapper. PRIOR: 257 -> 253 via the applyCommands decomposition."
+  "count": 251,
+  "note": "253 -> 251 (-2). Audit U3 proposal 4 step 2: loadState migrated onto the shared NavigationTracker clock. load_state.js's read+increment of the foreign private am._loadStateGeneration (the one access the action-service contract deliberately left counted as debt) is deleted with the counter itself; loadState now mints on am.navigation like every other navigation entry point. Command: python tooling/architecture/js_private_access.py --count"
 }

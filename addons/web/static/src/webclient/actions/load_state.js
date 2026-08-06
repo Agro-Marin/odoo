@@ -5,7 +5,6 @@
 
 import { AppEvent } from "@web/core/events";
 import { user } from "@web/core/user";
-import { SupersededError } from "@web/core/utils/concurrency";
 
 import { actionStorage } from "./action_storage.js";
 
@@ -45,7 +44,10 @@ function crumbsBelowDispatched(controllers, state, popped) {
  */
 export async function loadState(am, state) {
     const routeState = state ?? am.router.current;
-    const generation = ++am._loadStateGeneration;
+    // A loadState is a navigation like any other: minting on the shared clock
+    // is what lets a newer navigation supersede the reconstruction below, and
+    // what cancels an in-flight load the user just navigated away from.
+    const token = am.navigation.mint();
     const lang = actionStorage.getLang();
     if (lang && lang !== user.lang) {
         actionStorage.clearRestoreCache();
@@ -62,9 +64,7 @@ export async function loadState(am, state) {
         );
         newStack = [];
     }
-    if (am._loadStateGeneration !== generation) {
-        throw new SupersededError();
-    }
+    token.throwIfSuperseded();
     const actionParams = am._getActionParams(routeState);
     if (actionParams) {
         const { actionRequest, options } = actionParams;

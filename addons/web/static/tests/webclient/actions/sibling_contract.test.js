@@ -59,8 +59,6 @@ const SANCTIONED = [
     "_controllersFromState",
     "_removeDialog",
     "_executeCloseAction",
-    // mutable counters
-    "_loadStateGeneration",
 ];
 
 /**

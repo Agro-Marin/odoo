@@ -11,10 +11,11 @@
  * per-instance state (`env`, `router`, `controllerStack`, `dialog`), which the
  * prototype does not carry, so it is checked against a constructed manager.
  *
- * The last test is the one with teeth. `_loadStateGeneration` is left OUT of the
- * contract on purpose, so that `load_state.js` reading it keeps counting as
- * debt; without a test, "deliberately omitted" and "forgotten" look identical
- * the day someone adds it to quiet the gate.
+ * A previous revision also pinned that `_loadStateGeneration` stayed OUT of
+ * the contract, keeping "should that counter be load_state's own?" open as
+ * counted debt. The question was answered by deleting the counter: loadState
+ * now mints on the manager's `navigation` clock (declared in the surface)
+ * like every other navigation entry point, so there is nothing left to omit.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -55,15 +56,12 @@ describe("the ActionManager contract and the class agree", () => {
         expect(PUBLIC.length).toBeGreaterThan(8);
     });
 
-    test("`_loadStateGeneration` is omitted on purpose, and stays omitted", () => {
-        // It is a navigation counter `load_state.js` reads to detect a
-        // superseded load -- state, not an operation. Leaving it out keeps the
-        // question "should that generation be load_state's own?" open and
-        // counted. Declaring it would retire the question rather than answer it.
-        expect(ACTION_MANAGER_SURFACE).not.toInclude("_loadStateGeneration", {
-            message:
-                "if this is now genuinely part of the interface, delete this " +
-                "test in the same commit -- do not let it drift in silently",
-        });
+    test("the retired `_loadStateGeneration` counter must not come back", async () => {
+        // Its job moved onto the shared `navigation` clock; a manager that
+        // grows the counter again has re-forked the supersession authority.
+        const env = await makeMockEnv();
+        const manager = new ActionManager(/** @type {any} */ (env));
+        expect("_loadStateGeneration" in manager).toBe(false);
+        expect(ACTION_MANAGER_SURFACE).not.toInclude("_loadStateGeneration");
     });
 });
