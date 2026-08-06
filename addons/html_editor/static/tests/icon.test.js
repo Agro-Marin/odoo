@@ -17,9 +17,9 @@ test("icon toolbar is displayed", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -40,9 +40,9 @@ test("icon toolbar is displayed (2)", async () => {
     expect(getContent(el)).toBe(
         `<p>abc\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeffdef</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 2,
@@ -63,9 +63,9 @@ test("icon toolbar is displayed (3)", async () => {
     expect(getContent(el)).toBe(
         `<p>abc\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeffdef</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 2,
@@ -86,9 +86,9 @@ test("icon toolbar is not displayed on rating stars", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -131,9 +131,9 @@ test("Can resize an icon", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -167,9 +167,9 @@ test("Can spin an icon", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -210,9 +210,9 @@ test("Can undo to 1x size after applying 2x size", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -238,9 +238,9 @@ test("Can replace icon using toolbar", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fa-solid fa-heart" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -276,9 +276,9 @@ test("Styles should be preserved when replacing icon", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fa-solid fa-heart fa-3x" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -301,9 +301,9 @@ test("Can replace a odoo icon", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="oi oi-plus" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -328,9 +328,9 @@ test("Can replace a font awesome brand icon", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fab fa-opera" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -355,9 +355,9 @@ test("Can replace a font awesome duotone icon", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fad fa-bus-alt" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -382,9 +382,9 @@ test("Can replace a font awesome regular icon", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="far fa-money-bill-alt" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
@@ -409,9 +409,9 @@ test("Should be able to undo after adding spin effect to an icon", async () => {
     expect(getContent(el)).toBe(
         `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`,
     );
-    // Selection normalization include U+FEFF, moving the cursor outside the
+    // Selection normalization includes U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
-    // U+FEFF from selection.
+    // U+FEFF from the selection.
     setSelection({
         anchorNode: el.firstChild,
         anchorOffset: 1,
