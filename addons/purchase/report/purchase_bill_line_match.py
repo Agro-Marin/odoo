@@ -199,6 +199,50 @@ class PurchaseBillLineMatch(models.Model):
         bill._add_purchase_order_lines(po_lines)
         return bill._get_records_action()
 
+    def _assert_match_uom_convertible(self, bill_lines, order_line):
+        """Matching-boundary guard for a bill-line/order-line pairing.
+
+        ``action_match_lines`` links an *existing* bill line to an *existing*
+        order line through a bare ``Command.link``, so it never reaches
+        ``_assert_invoiced_uom_convertible``: that guard takes order lines as
+        ``self`` and inspects ``_get_posted_invoice_lines()``, which filters to
+        posted lines, while the bill line matched here may still be draft.
+        Compare the two units directly instead, before the link is written — an
+        incompatible pair makes ``qty_invoiced`` degrade to an unconverted
+        quantity for the rest of the order line's life.
+
+        :param bill_lines: ``account.move.line`` records about to be linked
+        :param order_line: the ``purchase.order.line`` they are linked to
+        :raises UserError: when a bill-line UoM shares no reference with the
+            order-line UoM.
+        """
+        # `display_type` is NOT the order-line field of the same name: on
+        # `account.move.line` an ordinary line is `"product"` (the falsy value
+        # means nothing here), so select it positively.  Empty UoM and zero
+        # quantity are skipped because `_compute_quantity` returns early on
+        # both, so raising there would be stricter than the conversion this
+        # guard protects.
+        target_uom = order_line.product_uom_id
+        if not target_uom:
+            return
+        for bill_line in bill_lines.filtered(lambda l: l.display_type == "product"):
+            source_uom = bill_line.product_uom_id
+            if not source_uom or not bill_line.quantity:
+                continue
+            if not source_uom._has_common_reference(target_uom):
+                raise UserError(
+                    _(
+                        "Cannot match “%(bill_line)s” with “%(order_line)s”: "
+                        "the bill line is recorded in %(source)s, which cannot "
+                        "be converted into %(target)s. Align the units of "
+                        "measure on both lines, then try again.",
+                        bill_line=bill_line.display_name,
+                        order_line=order_line.display_name,
+                        source=source_uom.display_name,
+                        target=target_uom.display_name,
+                    )
+                )
+
     def action_match_lines(self):
         if not self.pol_id:  # we need POL(s) to either match or create bill
             raise UserError(
@@ -225,6 +269,7 @@ class PurchaseBillLineMatch(models.Model):
             if len(po_lines) <= 1:
                 # Single PO line for this product: link all matching bill lines to it
                 po_line = po_lines[0]
+                self._assert_match_uom_convertible(matching_bill_lines, po_line)
                 matching_bill_lines.purchase_line_ids = [Command.link(po_line.id)]
                 residual_purchase_order_lines -= po_line
                 residual_account_move_lines -= matching_bill_lines
@@ -248,6 +293,7 @@ class PurchaseBillLineMatch(models.Model):
                             currency.compare_amounts(aml.price_unit, pol.price_unit)
                             == 0
                         ):
+                            self._assert_match_uom_convertible(aml, pol)
                             aml.purchase_line_ids = [Command.link(pol.id)]
                             residual_purchase_order_lines -= pol
                             residual_account_move_lines -= aml
@@ -259,6 +305,7 @@ class PurchaseBillLineMatch(models.Model):
                 for pol, aml in zip(
                     list(remaining_po), list(remaining_aml), strict=False
                 ):
+                    self._assert_match_uom_convertible(aml, pol)
                     aml.purchase_line_ids = [Command.link(pol.id)]
                     residual_purchase_order_lines -= pol
                     residual_account_move_lines -= aml
