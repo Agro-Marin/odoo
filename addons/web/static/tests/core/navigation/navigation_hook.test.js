@@ -181,6 +181,57 @@ test("navigation with virtual focus", async () => {
     expect.verifySteps([2]);
 });
 
+test("virtualFocus navigates by keyboard without a custom availability predicate", async () => {
+    // The regression this pins: the default availability predicate was
+    // `contains(target) && (isFocused || virtualFocus)`, and on the keydown
+    // path the target is the focused element itself -- which a virtual-focus
+    // navigator never holds inside its items. The `virtualFocus` disjunct was
+    // therefore unreachable for the keyboard and every virtual-focus consumer
+    // had to hand-roll its own predicate. A new consumer must not have to:
+    // keeping the real focus anywhere in the container is enough.
+    class Parent extends Component {
+        static props = [];
+        static template = xml`
+            <button class="outside">outside</button>
+            <div class="container" t-ref="containerRef">
+                <input class="search" t-ref="autofocus"/>
+                <button class="o-navigable one" t-on-click="() => this.onClick(1)">one</button>
+                <button class="o-navigable two" t-on-click="() => this.onClick(2)">two</button>
+            </div>`;
+        setup() {
+            useAutofocus();
+            this.navigation = useNavigation("containerRef", { virtualFocus: true });
+        }
+        onClick(id) {
+            expect.step(id);
+        }
+    }
+    await mountWithCleanup(Parent);
+    expect(".search").toBeFocused();
+
+    await press("arrowdown");
+    await animationFrame();
+    expect(".one").toHaveClass("focus");
+    expect(".search").toBeFocused();
+
+    await press("arrowdown");
+    await animationFrame();
+    expect(".two").toHaveClass("focus");
+    expect(".search").toBeFocused();
+
+    await press("enter");
+    await animationFrame();
+    expect.verifySteps([2]);
+
+    // The container boundary still gates the keyboard: with the real focus
+    // outside of it the navigator stays quiet.
+    await click(".outside");
+    await press("arrowdown");
+    await animationFrame();
+    expect(".two").not.toHaveClass("focus");
+    expect(".one").not.toHaveClass("focus");
+});
+
 test("hovering an item makes it active but doesn't focus", async () => {
     await mountWithCleanup(BasicHookParent);
 
