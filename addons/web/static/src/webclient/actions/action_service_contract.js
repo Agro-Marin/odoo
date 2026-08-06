@@ -66,6 +66,26 @@ export const ACTION_MANAGER_SURFACE = [
 ];
 
 /**
+ * SUPERSESSION, for executors: there is ONE navigation clock — `navigation`,
+ * a `NavigationTracker` (see `navigation_token.js`). Every navigation entry
+ * point (`doAction` / `switchView` / `restore` / `loadState`) mints an epoch
+ * on it; an executor awaiting something on a navigation's behalf goes through
+ * `navigation.guard(promise)` (or a token's `settle`) and a stage checking
+ * "has a newer navigation started?" asks a token's `isCurrent()` /
+ * `throwIfSuperseded()`. The one cancellation outcome, at every stage, is
+ * `SupersededError`. Two waits deliberately sit on a different SENSOR while
+ * speaking that same error, because their question is "was my container
+ * taken?" rather than "was a newer navigation minted?" (a dialog navigation
+ * mints but takes no container): the skeleton wait
+ * (`ActionManager._awaitSkeletonMount`, cancelled by the next
+ * ACTION_MANAGER:UPDATE) and the controller mount
+ * (`ActionDispatch.discard()`, cancelled by the container destroying the
+ * superseded component). Historical racers are pinned in
+ * `navigation_supersession.test.js`; do not add a stage-local counter,
+ * generation, or KeepLast — extend the token instead.
+ */
+
+/**
  * The same surface as a type, for executors declaring what they ask of the
  * manager rather than taking the whole class.
  *
