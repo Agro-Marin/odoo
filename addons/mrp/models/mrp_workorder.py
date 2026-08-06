@@ -1097,7 +1097,9 @@ class MrpWorkorder(models.Model):
         return True
 
     def end_previous(self, doall=False):
-        """:param doall: close every open time line on the open work orders; when
+        """Close the open time lines of these work orders.
+
+        :param doall: close every open time line on the open work orders; when
             False, only the current user's
         """
         domain = [("workorder_id", "in", self.ids), ("date_end", "=", False)]

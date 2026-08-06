@@ -10,12 +10,13 @@ describe.current.tags("headless");
  * `(target, method)` pair must therefore be consciously allowlisted here.
  */
 
-// On failure: check who else patches the method (`getDoublePatchedPairs()` in
-// the console), make the patch `super`-transparent or explicitly ordered, then
-// allowlist the pair. Labels come from `patchTargetLabel()`, so same-named
-// classes share one ("Thread.prototype" covers both the model and the
-// component). Entries whose second patcher is in a bundle not loaded here are
-// harmless: the assertion is a subset check.
+// On failure: `getDoublePatchedPairs()` in the console lists the colliding
+// pairs and `patchInfo(target).extensions` names their patchers; make the patch
+// `super`-transparent or explicitly ordered, then allowlist the pair. Labels
+// come from `patchTargetLabel()`, so same-named classes share one
+// ("Thread.prototype" covers both the model and the component). Entries whose
+// second patcher is in a bundle not loaded here are harmless: the assertion is
+// a subset check.
 const KNOWN_DOUBLE_PATCHES = new Set([
     "Activity.prototype :: markAsDone",
     "Activity.prototype :: setup",
