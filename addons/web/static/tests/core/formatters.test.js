@@ -24,7 +24,6 @@ import {
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
 import { humanSize } from "@web/core/utils/format/binary";
-import { currencies } from "@web/core/currency";
 
 const { DateTime } = luxon;
 
