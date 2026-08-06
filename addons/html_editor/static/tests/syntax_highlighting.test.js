@@ -78,8 +78,8 @@ test("starting edition with a pre activates syntax highlighting", async () => {
 test("starting edition with a pre activates syntax highlighting (with dataset values)", async () => {
     await testEditorWithHighlightedContent({
         contentBefore: `<pre data-language-id="javascript">Hello world!</pre>`,
-        // The DIV should now be filled with a highlighted pre and a textarea,
-        // the respective values of which match the dataset.
+        // The pre is replaced by a wrapper holding a highlighted pre and a
+        // textarea, the pre's value and language matching the dataset.
         contentBeforeEdit:
             '<p data-selection-placeholder=""><br></p>' +
             highlightedPre({ value: "Hello world!", language: "javascript" }) +
@@ -432,7 +432,7 @@ test("shift+tab in selection in code block outdents each selected line", async (
         stepFunction: async (editor) => {
             await click("textarea");
             const textarea = queryOne("textarea");
-            textarea.setSelectionRange(5, 19); // "a[\nb c\n ]d"
+            textarea.setSelectionRange(5, 19); // "    a[\n    b c\n     ]d"
             await pressAndWait(["shift", "tab"]);
             await compareHighlightedContent(
                 getContent(editor.editable),
@@ -789,9 +789,6 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         config: configWithEmbeddings,
     });
 
-    // Perform a series of actions to undo later.
-    // ------------------------------------------
-
     const actions = [];
     const listActions = (...actionNumbers) =>
         actionNumbers
@@ -817,7 +814,7 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         listActions(1, 2),
         editor,
     );
-    // Change the language -> code gets highlighted.
+    // Change the language -> code gets re-highlighted as javascript.
     actions.push("language: change the language to javascript and highlight the code");
     const textarea = queryOne("textarea");
     await changeLanguage(textarea, "Plain Text", "Javascript"); // <wrapper><highlight><pre>some code</pre></highlight></wrapper><p>hello!</p>
