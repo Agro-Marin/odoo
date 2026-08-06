@@ -3401,3 +3401,41 @@ class TestExpDropGate:
             ):
                 with pytest.raises(AccessDenied):
                     call()
+
+
+class TestUnpackBudgetAcceptsFileObjects:
+    """``_unpack_budget`` sizes both a path and an open file object.
+
+    ``odoo db load <url>`` streams a download into a ``SpooledTemporaryFile``
+    and passes the object (not a path) to ``restore_db``; ``zipfile`` accepts
+    it, but the expansion-budget sizing used ``Path(dump_file).stat()`` and
+    raised ``TypeError`` on a file object, so the URL restore created the empty
+    DB and then always failed and rolled it back.
+    """
+
+    def test_path_sizing_unchanged(self, db_mod, zip_dump):
+        expected = pathlib.Path(zip_dump).stat().st_size
+        assert db_mod._source_size(zip_dump) == expected
+
+    def test_spooled_temporary_file_is_sized_without_a_path(self, db_mod):
+        import io as _io
+
+        buf = _io.BytesIO(b"0123456789")
+        assert db_mod._source_size(buf) == 10
+        # position is restored so the following zipfile read starts at 0
+        assert buf.tell() == 0
+
+    def test_spooled_temporary_file_position_is_preserved(self, db_mod):
+        sp = tempfile.SpooledTemporaryFile(max_size=1024)
+        sp.write(b"abc" * 100)
+        sp.seek(7)
+        assert db_mod._source_size(sp) == 300
+        assert sp.tell() == 7
+
+    def test_unpack_budget_does_not_raise_on_a_file_object(self, db_mod):
+        """The exact failure B1 reproduced: previously a TypeError here."""
+        sp = tempfile.SpooledTemporaryFile(max_size=1024)
+        sp.write(b"x" * 2048)
+        sp.seek(0)
+        budget = db_mod._unpack_budget(sp)
+        assert isinstance(budget, int) and budget > 0

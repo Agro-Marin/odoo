@@ -66,6 +66,16 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                     os.utime(path)
         return session
 
+    def _delete_sid(self, sid: str) -> None:
+        """Delete one session file by sid.
+
+        Used to drop the pre-rotation file *after* the new one is written (see
+        :meth:`rotate`); unlike :meth:`delete` it takes a sid rather than the
+        live session, whose ``sid`` has already advanced to the new value.
+        """
+        with contextlib.suppress(OSError, ValueError):
+            Path(self.get_session_filename(sid)).unlink()
+
     def keep_alive(self, session: Session) -> None:
         """Refresh the session file's mtime without rewriting its contents.
 
@@ -136,6 +146,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 env["res.users"].browse(session.uid)._compute_session_token(next_sid)
             )
 
+        old_sid_to_delete = None
         if soft:
             session["next_sid"] = next_sid
             session["deletion_time"] = time.time() + SESSION_DELETION_TIMER
@@ -145,14 +156,23 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             del session["deletion_time"]
             del session["next_sid"]
         else:
-            self.delete(session)
+            # Hard rotation: switch to the new sid but KEEP the old file until
+            # the new one is safely written (below). Deleting it first meant a
+            # crash or a failed save destroyed the session outright, and a
+            # concurrent request still carrying the old cookie fell through to
+            # ``renew_missing`` and clobbered the fresh cookie (B3).
+            old_sid_to_delete = session.sid
             session.sid = next_sid
 
         if new_token:
             session.session_token = new_token
         session.should_rotate = False
         session["create_time"] = time.time()
-        self.save(session)
+        self.save(session)  # writes the NEW file; raises on failure (B4)
+
+        if old_sid_to_delete is not None:
+            # Only now that the new file exists is it safe to drop the old one.
+            self._delete_sid(old_sid_to_delete)
 
     def vacuum(self, max_lifetime: int = SESSION_LIFETIME) -> None:
         threshold = time.time() - max_lifetime

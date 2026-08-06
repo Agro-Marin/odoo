@@ -72,6 +72,42 @@ def _ddl_keyword(qs: str) -> str | None:
     return m.group(1).upper() if m is not None else None
 
 
+_RE_ROLLBACK_TO_SAVEPOINT = _re.compile(
+    r"^\s*(?:(?:--[^\n]*\n|/\*.*?\*/)\s*)*" r"ROLLBACK\s+TO\b",
+    _re.IGNORECASE | _re.DOTALL,
+)
+
+
+def _is_rollback_to_savepoint(qs: str) -> bool:
+    """True when *qs*'s leading statement is a ``ROLLBACK TO [SAVEPOINT] name``.
+
+    A partial rollback undoes DDL executed since the savepoint, so a cursor that
+    memoised post-DDL catalog facts must drop them — the same reason
+    :class:`~odoo.db.savepoint.Savepoint` fires ``_on_rollback_to_savepoint``.
+    Code that opens savepoints through :meth:`Cursor.savepoint` gets that hook
+    for free; code that issues the raw SQL (some addons still do) bypassed it,
+    leaving ``schema_cache`` describing a schema that no longer exists — the
+    exact stale-OID hazard binary ``COPY`` then encodes against. Detecting it
+    here re-arms the hook for both paths.
+
+    The ``SAVEPOINT`` keyword is optional in PostgreSQL (``ROLLBACK TO name``
+    works), so it is not required. A bare ``ROLLBACK`` (no ``TO``) ends the
+    whole transaction and is handled elsewhere; ``RELEASE SAVEPOINT`` merges
+    without undoing state, so neither needs this.
+
+    Gated on the ``RO`` 2-char prefix like :func:`_ddl_keyword`, so ordinary
+    SELECT/INSERT/UPDATE/DELETE queries never reach the regex.
+    """
+    head = qs[:32].lstrip()
+    if len(head) < 2 and len(qs) > 32:
+        head = qs.lstrip()
+    # ``RO`` for ROLLBACK, plus the comment prefixes the regex skips over (a
+    # ``ROLLBACK`` may sit behind a leading ``--``/``/*`` comment).
+    if head[:2].upper() not in ("RO", *_COMMENT_PREFIXES):
+        return False
+    return _RE_ROLLBACK_TO_SAVEPOINT.match(qs) is not None
+
+
 def _changes_schema(qs: str, leading: str | None) -> bool:
     """True when ANY statement in *qs* changes a relation's shape.
 

@@ -187,5 +187,37 @@ class TestBudgetIdentity(_BudgetCase):
                 self.assertIsInstance(D._budget_for(readonly), ConnectionBudget)
 
 
+class TestBudgetAcquireTimeout(unittest.TestCase):
+    """``acquire`` must accept a non-finite timeout — the deadline-less direct
+    borrow path hands it ``float("inf")``, and ``BoundedSemaphore.acquire``
+    raises ``OverflowError`` on it as soon as the semaphore has to wait, i.e.
+    exactly and only when the budget is saturated."""
+
+    def test_inf_timeout_waits_instead_of_overflowing(self):
+        import threading
+
+        budget = ConnectionBudget(1)
+        self.assertTrue(budget.acquire(0))
+        releaser = threading.Timer(0.05, budget.release)
+        releaser.start()
+        try:
+            # Saturated, so this must actually wait: before the fix this
+            # raised OverflowError out of the semaphore's deadline arithmetic.
+            self.assertTrue(budget.acquire(float("inf")))
+        finally:
+            releaser.cancel()
+            budget.release()
+        self.assertEqual(budget.exhausted, 0)
+
+    def test_finite_timeout_still_expires(self):
+        budget = ConnectionBudget(1)
+        self.assertTrue(budget.acquire(0))
+        try:
+            self.assertFalse(budget.acquire(0.01))
+        finally:
+            budget.release()
+        self.assertEqual(budget.exhausted, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

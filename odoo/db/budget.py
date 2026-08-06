@@ -50,8 +50,19 @@ class ConnectionBudget:
         self.exhausted = 0
 
     def acquire(self, timeout: float) -> bool:
-        """Take one permit, waiting at most *timeout* seconds."""
-        got = self._sem.acquire(timeout=max(0.0, timeout))
+        """Take one permit, waiting at most *timeout* seconds.
+
+        A non-finite *timeout* (``float("inf")``, from a caller with no
+        deadline, e.g. ``ConnectionPool._borrow_direct(deadline=None)``) waits
+        indefinitely: it must not reach ``BoundedSemaphore.acquire``, whose
+        deadline arithmetic raises ``OverflowError`` the moment the semaphore
+        actually has to wait — a saturation-only crash that no fast path ever
+        exercises.
+        """
+        if timeout == float("inf"):
+            got = self._sem.acquire()
+        else:
+            got = self._sem.acquire(timeout=max(0.0, timeout))
         if not got:
             self.exhausted += 1
         return got

@@ -14,8 +14,8 @@ from psycopg import ProgrammingError
 
 from odoo.db import BaseCursor
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.datetime import utc
-from odoo.libs.datetime.tz import timezone as get_timezone
 from odoo.tools import (
     SQL,
     OrderedSet,

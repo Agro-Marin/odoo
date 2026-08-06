@@ -111,18 +111,40 @@ class TestSandboxEscapesNeedingContext(unittest.TestCase):
                 safe_eval(expr, ns)
 
     def test_str_format_legitimate_uses_allowed(self):
-        self.assertEqual(safe_eval('"{0.real}".format(x)', {"x": 5}), "5")
         self.assertEqual(
             safe_eval('"hello {}".format(n)', {"n": "world"}), "hello world"
         )
         self.assertEqual(safe_eval('"{a}-{b}".format(a=1, b=2)', {}), "1-2")
+        self.assertEqual(safe_eval('"{:,.2f}".format(x)', {"x": 1234.5}), "1,234.50")
+        self.assertEqual(safe_eval('"{0[0]}-{0[1]}".format(p)', {"p": [7, 8]}), "7-8")
 
+        # A model's own ``format`` method (res.currency / res.lang) is not
+        # ``str.format`` and is left untouched.
         class FakeCurrency:
             def format(self, amount):
                 return f"${amount}"
 
         self.assertEqual(safe_eval("c.format(v)", {"c": FakeCurrency(), "v": 9}), "$9")
         self.assertEqual(safe_eval('f"{a}-{b}"', {"a": 1, "b": 2}), "1-2")
+
+    def test_str_format_attribute_navigation_is_forbidden(self):
+        """Attribute access inside a ``str.format`` field is refused outright.
+
+        ``"{0.real}".format(x)`` used to be allowed, but attribute navigation in
+        a format field is exactly the pivot the reflection escape rides
+        (``{0.__globals__}``, and — through ordinary public attributes —
+        ``{0.env.cr.dbname}`` on a recordset). The two are indistinguishable
+        statically, no eval-reachable code in the tree uses attribute
+        navigation in a format field, so it is closed rather than sniffed.
+        Index access, positional/keyword fields and format specs are unaffected
+        (see :meth:`test_str_format_legitimate_uses_allowed`).
+        """
+        for expr, ns in (
+            ('"{0.real}".format(x)', {"x": 5}),
+            ('"{0.env}".format(r)', {"r": object()}),
+        ):
+            with self.subTest(expr=expr), self.assertRaises(Exception):
+                safe_eval(expr, ns)
 
     def test_time_sleep_not_exposed(self):
         from odoo.tools.safe_eval import time as safe_time

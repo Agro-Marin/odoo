@@ -176,8 +176,8 @@ class TranslationMixin(_ModelStubs):
                 if _translations
             }
 
-            old_source_lang_value = old_values[
-                next(
+            source_key = next(
+                (
                     lang
                     for lang in [
                         f"_{source_lang}",
@@ -186,8 +186,17 @@ class TranslationMixin(_ModelStubs):
                         "en_US",
                     ]
                     if lang in old_values
-                )
-            ]
+                ),
+                None,
+            )
+            if source_key is not None:
+                old_source_lang_value = old_values[source_key]
+            else:
+                # A row can hold no source-language key at all (partial
+                # migration, direct SQL import): fall back to any stored
+                # value, as _mark_dirty_model_term_translation does, instead
+                # of letting the bare next() raise StopIteration.
+                old_source_lang_value = next(iter(old_values.values()))
             old_values_to_translate = {
                 lang: value
                 for lang, value in old_values.items()

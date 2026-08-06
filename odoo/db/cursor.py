@@ -20,7 +20,12 @@ from odoo.tools import SQL
 from odoo.tools.misc import Callbacks, real_time
 
 from .bulk import _BulkAccessMixin
-from .ddl import _changes_schema, _ddl_keyword, _inline_ddl_params
+from .ddl import (
+    _changes_schema,
+    _ddl_keyword,
+    _inline_ddl_params,
+    _is_rollback_to_savepoint,
+)
 from .errors import _log_sql_error
 from .metrics import _MetricsMixin
 from .pool import ConnectionPool
@@ -513,6 +518,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
         if _changes_schema(qs, ddl_kw):
             self._invalidate_caches_after_ddl()
+        elif ddl_kw is None and _is_rollback_to_savepoint(qs):
+            # A raw ``ROLLBACK TO SAVEPOINT`` (issued as SQL rather than through
+            # cr.savepoint()) undoes DDL since the savepoint; re-arm the hook the
+            # Savepoint class would have fired, so transaction-scoped catalog
+            # facts do not outlive the schema they describe.
+            self._on_rollback_to_savepoint()
 
         self._record_metrics(
             delay, query=query, params=params, start=start, hooks=hooks

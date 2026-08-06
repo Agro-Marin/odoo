@@ -10,9 +10,8 @@ import typing
 import babel
 import babel.dates
 
-from odoo.libs.datetime import utc
-from odoo.libs.datetime.tz import all_timezones
-from odoo.libs.datetime.tz import timezone as get_timezone
+from odoo.libs.datetime import all_timezones, utc
+from odoo.libs.datetime import timezone as get_timezone
 from odoo.tools import (
     DEFAULT_SERVER_DATE_FORMAT,
     DEFAULT_SERVER_DATETIME_FORMAT,

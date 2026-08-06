@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import functools
 import logging
-import threading
 from typing import Any
 
 import psycopg
@@ -181,6 +180,16 @@ class _RequestServeMixin(RequestState):
             err.db_absent = db_absent
             err.transient = not isinstance(e, psycopg.ProgrammingError)
             raise err from e
+        except BaseException:
+            # Any error the typed handler above did not expect — an
+            # InternalError/DataError from check_signaling, a bug in a
+            # signaling override, a KeyboardInterrupt — must still not leak the
+            # read-only cursor: _serve_db's own ``finally`` cannot close it,
+            # because its local ``cr`` was never assigned (this call raised
+            # instead of returning). Close and re-raise unchanged.
+            if cr is not None:
+                cr.close()
+            raise
 
     def _serve_db(self) -> Response:
         """Load the ORM and use it to process the request."""

@@ -182,6 +182,13 @@ class FilesystemSessionStore(SessionStore):
                 os.fsync(f.fileno())
             pathlib.Path(tmp).replace(fn)
         except OSError:
+            # Persisting failed (disk full, EACCES, …). Clean up the temp file,
+            # then RE-RAISE rather than returning as if it had worked: a caller
+            # that swallowed this went on to rotate the session id and set a
+            # cookie naming a sid with no file behind it, so the next request
+            # saw ``renew_missing`` — a silent, fleet-wide logout under disk
+            # pressure, explained only by a warning in the log. Callers that can
+            # tolerate a missed save must now do so explicitly.
             _logger.warning(
                 "Failed to persist session %r to %r", session.sid, fn, exc_info=True
             )
@@ -189,6 +196,7 @@ class FilesystemSessionStore(SessionStore):
                 pathlib.Path(tmp).unlink()
             except OSError:
                 pass
+            raise
 
     def delete(self, session):
         fn = self.get_session_filename(session.sid)

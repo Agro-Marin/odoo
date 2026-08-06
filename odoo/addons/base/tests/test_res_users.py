@@ -1528,3 +1528,102 @@ class TestSelfServiceEscalation(TransactionCase):
             Users._escapes_own_record({"tz": "Europe/Brussels"}),
             "scalars never escape the row",
         )
+
+
+class TestSelfFieldBatchAccessLeak(UsersCommonCase):
+    """The batch fast paths must field-check the WHOLE recordset, not records[:1].
+
+    ``mapped``/``filtered``/``grouped``/``sorted`` read the field cache for every
+    record after a single ``ensure_access`` check. When that check ran on
+    ``records[:1]`` only, a record-sensitive grant on the first record
+    (``res.users._has_field_access`` grants a self-accessible field on the
+    current user's *own* record) let the batch serve every *other* record's
+    value from cache unchecked — a real disclosure, closed by checking the full
+    recordset like ``read()`` does. Regression for audit B7.
+
+    Verified two ways. The end-to-end leak is demonstrable but its reproduction
+    depends on cache-warming order (a warm miss falls back to the safe
+    per-record path), which makes a value-based assertion flaky as a *guard*
+    against reintroduction. So the reintroduction guard is deterministic: it
+    spies on ``Field.ensure_access`` and asserts each fast path hands it the
+    whole recordset. ``test_end_to_end_disclosure_is_blocked`` additionally
+    pins the observable security outcome.
+    """
+
+    def _spy_ensure_access(self):
+        """Record the size of the recordset each ``ensure_access`` receives."""
+        from odoo.fields import Field
+
+        seen = []
+        original = Field.ensure_access
+
+        def spy(field, record):
+            seen.append(len(record))
+            return original(field, record)
+
+        patcher = patch.object(Field, "ensure_access", spy)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return seen
+
+    def test_mapped_checks_the_whole_recordset(self):
+        pair = self.user_internal | self.user_portal_1
+        seen = self._spy_ensure_access()
+        pair.mapped("login")  # identity-scannable char field
+        self.assertIn(
+            2,
+            seen,
+            "mapped must ensure_access on the full recordset, not records[:1]",
+        )
+        self.assertNotIn(1, seen, "no fast-path ensure_access saw only one record")
+
+    def test_filtered_checks_the_whole_recordset(self):
+        pair = self.user_internal | self.user_portal_1
+        seen = self._spy_ensure_access()
+        pair.filtered("share")  # truthy-scannable boolean field
+        self.assertIn(2, seen)
+        self.assertNotIn(1, seen)
+
+    def test_grouped_checks_the_whole_recordset(self):
+        pair = self.user_internal | self.user_portal_1
+        seen = self._spy_ensure_access()
+        pair.grouped("login")
+        self.assertIn(2, seen)
+        self.assertNotIn(1, seen)
+
+    def test_sorted_checks_the_whole_recordset(self):
+        pair = self.user_internal | self.user_portal_1
+        seen = self._spy_ensure_access()
+        pair.sorted("login")
+        self.assertIn(2, seen)
+        self.assertNotIn(1, seen)
+
+    def test_end_to_end_disclosure_is_blocked(self):
+        """The observable outcome: a mixed recordset cannot read past record 0.
+
+        A self-accessible field made group-restricted is granted on the current
+        user's own record but not another's; ``mapped`` over both must refuse
+        rather than serve the other user's value.
+        """
+        alice = new_test_user(self.env, login="b7_alice", groups="base.group_user")
+        bob = new_test_user(self.env, login="b7_bob", groups="base.group_user")
+        login = self.env["res.users"]._fields["login"]
+        self.assertIn("login", alice._self_accessible_fields()[0])
+        original_groups = login.groups
+        login.groups = "base.group_system"
+        self.addCleanup(setattr, login, "groups", original_groups)
+
+        as_alice = self.env(user=alice)
+        pair = as_alice["res.users"].browse([alice.id, bob.id])
+        pair.sudo().read(["login"])  # warm both values into the shared cache
+        with self.assertRaises(AccessError):
+            pair.mapped("login")
+
+    def test_own_record_still_readable(self):
+        alice = new_test_user(self.env, login="b7_alice2", groups="base.group_user")
+        login = self.env["res.users"]._fields["login"]
+        original_groups = login.groups
+        login.groups = "base.group_system"
+        self.addCleanup(setattr, login, "groups", original_groups)
+        own = self.env(user=alice)["res.users"].browse(alice.id).mapped("login")
+        self.assertEqual(own, ["b7_alice2"])

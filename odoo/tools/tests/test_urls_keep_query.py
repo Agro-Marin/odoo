@@ -21,9 +21,22 @@ from unittest import mock
 if "odoo.http" not in sys.modules:
     _http_stub = types.ModuleType("odoo.http")
     _http_stub.request = None
+    _http_stub.__odoo_test_stub__ = True
     sys.modules["odoo.http"] = _http_stub
 
 from odoo.tools import urls
+
+# Drop the stub as soon as the import that needed it is done.  It used to be
+# left in ``sys.modules`` for the rest of the process: pytest imports every
+# test module during collection, so a later module importing the *real*
+# ``odoo.http`` (``test_hashing.py``, via ``odoo.addons.base``) got this
+# two-attribute stub instead and failed on an unrelated name -- a failure that
+# appears only in the whole-directory run, never in isolation.  ``urls``
+# already holds its own reference to the stubbed ``request``, and the tests
+# rebind that attribute anyway.  Keyed on a marker rather than a flag set
+# above, so the preamble stays import-only (ruff E402).
+if getattr(sys.modules.get("odoo.http"), "__odoo_test_stub__", False):
+    del sys.modules["odoo.http"]
 
 
 class _Args(dict):

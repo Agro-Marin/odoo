@@ -4,6 +4,7 @@ Used to parse Odoo domain strings, conditions and expressions, mostly built on
 locals plus condition/math builtins.
 """
 
+import ast
 import dis
 import functools
 import logging
@@ -347,6 +348,88 @@ def assert_no_dunder_format_field(code_obj: CodeType, expr: str) -> None:
 _FORMAT_METHOD_NAMES = frozenset(("format", "format_map"))
 
 
+class _StrictFormatter(string.Formatter):
+    """A :class:`string.Formatter` that forbids attribute navigation in fields.
+
+    ``str.format`` resolves replacement-field names at *runtime*, so
+    ``"{0.__globals__[k]}".format(x)`` reaches ``x.__globals__`` — and
+    ``"{0.env.cr.dbname}".format(record)`` reaches a live cursor through
+    ordinary public attributes. Neither name appears in ``co_names``, so
+    :func:`assert_no_dunder_name` never sees it, and
+    :func:`assert_no_dunder_format_field` only catches the *constant* literal
+    form.  Forbidding attribute access inside the field closes both — the whole
+    pivot, not just dunders — while leaving index access, positional/keyword
+    fields and format specs (the entire legitimate surface) untouched.
+    """
+
+    def get_field(self, field_name, args, kwargs):
+        _first, rest = string._string.formatter_field_name_split(field_name)
+        for is_attr, key in rest:
+            if is_attr:
+                raise ValueError(
+                    f"attribute access is not allowed in a format field (.{key})"
+                )
+        return super().get_field(field_name, args, kwargs)
+
+
+_STRICT_FORMATTER = _StrictFormatter()
+
+
+class _GuardedStr(str):
+    """A ``str`` whose ``format`` / ``format_map`` go through :data:`_STRICT_FORMATTER`."""
+
+    __slots__ = ()
+
+    def format(self, *args, **kwargs):
+        # ``self`` is the template; ``vformat`` parses it, it never calls
+        # ``self.format`` again, so there is no recursion.
+        return _STRICT_FORMATTER.vformat(self, args, kwargs)
+
+    def format_map(self, mapping):
+        return _STRICT_FORMATTER.vformat(self, (), mapping)
+
+
+def _guard_format(recv: typing.Any) -> typing.Any:
+    """Wrap ``recv`` so a ``str.format`` reached through it cannot navigate attrs.
+
+    A ``str`` *instance* becomes a :class:`_GuardedStr`; the ``str`` *class*
+    itself becomes :class:`_GuardedStr` too, because ``str`` is a safe_eval
+    builtin and ``str.format(template, x)`` would otherwise reach the unguarded
+    C method. Any other receiver — notably a recordset with its own ``format``
+    method (``res.currency``, ``res.lang``) — is returned untouched.
+    """
+    if type(recv) is str:
+        return _GuardedStr(recv)
+    if recv is str:
+        return _GuardedStr
+    return recv
+
+
+#: The name the AST transform binds the guard to; installed as a builtin so a
+#: user expression cannot shadow it with a plain global. Dunder-free (no ``__``
+#: anywhere) so it does not trip ``assert_no_dunder_name``.
+_GUARD_FORMAT_NAME = "_odoo_guarded_format_receiver"
+
+
+class _FormatGuardTransform(ast.NodeTransformer):
+    """Wrap the *receiver* of every ``.format`` / ``.format_map`` access.
+
+    ``x.format(a, b)`` becomes ``_guard(x).format(a, b)`` — the call arguments
+    are left exactly as written, so only which ``format`` runs changes, never
+    what it is called with.
+    """
+
+    def visit_Attribute(self, node: ast.Attribute) -> ast.Attribute:
+        self.generic_visit(node)
+        if node.attr in _FORMAT_METHOD_NAMES:
+            node.value = ast.Call(
+                func=ast.Name(id=_GUARD_FORMAT_NAME, ctx=ast.Load()),
+                args=[node.value],
+                keywords=[],
+            )
+        return node
+
+
 def assert_valid_codeobj(
     allowed_codes: set[int], code_obj: CodeType, expr: str
 ) -> None:
@@ -408,6 +491,7 @@ def compile_codeobj(
     /,
     filename: str = "<unknown>",
     mode: typing.Literal["eval", "exec"] = "eval",
+    guard_format: bool = False,
 ) -> CodeType:
     """Compile ``expr`` into a code object.
 
@@ -416,6 +500,13 @@ def compile_codeobj(
                          displayed for example in traceback frames
     :param str mode: 'eval' if single expression
                      'exec' if sequence of statements
+    :param bool guard_format: route ``str.format`` / ``format_map`` through the
+                         attribute-forbidding :class:`_StrictFormatter` (see
+                         :func:`_guard_format`). Set by :func:`safe_eval`; the
+                         constant evaluators leave it off so they stay
+                         byte-identical. Applied only when ``expr`` mentions
+                         ``format`` at all, so format-free expressions compile
+                         exactly as before.
     :return: compiled code object
     :rtype: types.CodeType
     """
@@ -423,7 +514,13 @@ def compile_codeobj(
     try:
         if mode == "eval":
             expr = expr.strip()
-        code_obj = compile(expr, filename or "", mode)
+        if guard_format and "format" in expr:
+            tree = ast.parse(expr, filename or "", mode)
+            _FormatGuardTransform().visit(tree)
+            ast.fix_missing_locations(tree)
+            code_obj = compile(tree, filename or "", mode)
+        else:
+            code_obj = compile(expr, filename or "", mode)
     except SyntaxError, TypeError, ValueError:
         raise
     except Exception as e:
@@ -555,9 +652,16 @@ def safe_eval(
 
     check_values(context)
 
-    globals_dict = dict(context or {}, __builtins__=dict(_BUILTINS))
+    # The format guard is installed inside ``__builtins__`` rather than at the
+    # top level of ``globals_dict``: LOAD_GLOBAL falls back to builtins, so the
+    # transformed calls still resolve it, but it stays out of the caller's
+    # ``context`` (the ``finally`` below only copies top-level names back) and a
+    # user global cannot shadow it by accident.
+    builtins = dict(_BUILTINS)
+    builtins[_GUARD_FORMAT_NAME] = _guard_format
+    globals_dict = dict(context or {}, __builtins__=builtins)
 
-    c = compile_codeobj(expr, filename=filename, mode=mode)
+    c = compile_codeobj(expr, filename=filename, mode=mode, guard_format=True)
     assert_valid_codeobj(_SAFE_OPCODES, c, expr)
     try:
         return unsafe_eval(c, globals_dict, None)

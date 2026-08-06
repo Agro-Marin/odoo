@@ -241,11 +241,40 @@ class ormcache:
         lookup.__cache__ = self
         return lookup
 
-    def add_value(self, *args: Any, cache_value: Any = None, **kwargs: Any) -> None:
+    def add_value(
+        self,
+        *args: Any,
+        cache_value: Any = None,
+        generation: int | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Prime the cache with a caller-computed ``cache_value``.
+
+        ``generation`` closes the same race the :meth:`__call__` lookup path
+        guards against, for a value the caller computed itself: pass
+        ``self.<method>.__cache__.generation_of(model)`` captured **before**
+        reading the source of truth, and the write is dropped if the cache was
+        cleared in between (a concurrent ``registry.clear_cache`` /
+        cross-worker signaling invalidation).  Without it the stale value would
+        overwrite the cleared slot and be served until the next invalidation.
+
+        Omitting ``generation`` keeps the historical unconditional write, so
+        existing callers are unaffected.
+        """
         model: BaseModel = args[0]
         d: LRU = model.pool.ormcache_lrus[self.cache_name]
         key = self.key(*args, **kwargs)
+        if generation is not None and d.generation != generation:
+            return
         d[key] = cache_value
+
+    def generation_of(self, model: BaseModel) -> int:
+        """Return the current generation of this cache's LRU on ``model``'s pool.
+
+        Capture it before reading the value you intend to :meth:`add_value`, so
+        the write can be gated against a clear that races the read.
+        """
+        return model.pool.ormcache_lrus[self.cache_name].generation
 
     def determine_key(self) -> None:
         """Determine the function that computes a cache key from arguments."""

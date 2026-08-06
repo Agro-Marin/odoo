@@ -39,23 +39,53 @@ class TestOpening(unittest.TestCase):
         self.breaker.record_failure()
         self.assertAlmostEqual(self.breaker.cooldown_remaining, 60, delta=1)
 
-    def test_repeated_failures_double_the_window(self):
-        widths = []
-        for _ in range(5):
-            self.breaker.record_failure()
+    def _fail_a_probe(self, breaker):
+        """Drive one genuine probe *cycle*: let the window elapse, claim the
+        probe, and report it failed — the only thing that widens the window."""
+        breaker._opened_at -= breaker._cooldown + 1
+        assert breaker.allow(), "probe should be admitted once the window elapsed"
+        breaker.record_failure()
+
+    def test_repeated_probe_cycles_double_the_window(self):
+        # The window doubles once per *probe cycle*, not once per failure. The
+        # first failure trips it; each subsequent widening needs a probe to be
+        # admitted and to fail again.
+        widths = [round(self.breaker.cooldown_remaining)]
+        self.breaker.record_failure()
+        widths.append(round(self.breaker.cooldown_remaining))
+        for _ in range(4):
+            self._fail_a_probe(self.breaker)
             widths.append(round(self.breaker.cooldown_remaining))
-        self.assertEqual(widths, [60, 120, 240, 480, 960])
+        self.assertEqual(widths, [0, 60, 120, 240, 480, 960])
 
     def test_the_window_is_capped(self):
+        self.breaker.record_failure()
         for _ in range(20):
-            self.breaker.record_failure()
+            self._fail_a_probe(self.breaker)
         self.assertLessEqual(self.breaker.cooldown_remaining, 1200)
 
     def test_the_cap_is_never_worse_than_the_flat_window_it_replaced(self):
         breaker = CircuitBreaker(max_cooldown=20 * 60)
+        breaker.record_failure()
         for _ in range(50):
-            breaker.record_failure()
+            self._fail_a_probe(breaker)
         self.assertLessEqual(breaker.cooldown_remaining, 20 * 60)
+
+    def test_a_burst_of_concurrent_failures_opens_only_the_initial_window(self):
+        """A single blip with N in-flight requests must not widen N times.
+
+        Every request that passed ``allow()`` while the breaker was closed is
+        already talking to the replica when it goes down; each fails and lands
+        in ``record_failure``. Only the first trips the breaker; the rest are
+        stragglers against no outstanding probe and must leave the window at the
+        initial cooldown — the pile-on that used to turn a 2-second outage into
+        a 20-minute one.
+        """
+        for _ in range(12):  # 12 concurrent failures from one blip
+            self.breaker.record_failure()
+        self.assertEqual(self.breaker.trips, 1)
+        self.assertEqual(self.breaker.failures, 12)
+        self.assertAlmostEqual(self.breaker.cooldown_remaining, 60, delta=1)
 
     def test_trips_counts_open_transitions_not_failures(self):
         for _ in range(4):
@@ -106,6 +136,38 @@ class TestProbing(unittest.TestCase):
         self.assertFalse(breaker.allow(), "second blocked while the probe runs")
         breaker._probing_since -= 61
         self.assertTrue(breaker.allow(), "an abandoned probe must be reclaimable")
+
+
+class TestConcurrentPileOn(unittest.TestCase):
+    """The pile-on reproduced with real threads, GIL-masked races and all.
+
+    ``test_a_burst_...`` drives the failures sequentially; this fires them from
+    N threads at once against the actual ``threading.Lock``, which is how the
+    bug manifests in production (every in-flight readonly request reporting its
+    own failure through ``Registry.cursor``).
+    """
+
+    def test_a_thundering_herd_of_failures_still_opens_one_short_window(self):
+        import threading
+
+        breaker = CircuitBreaker(max_cooldown=1200, initial_cooldown=60)
+        barrier = threading.Barrier(24)
+
+        def fail():
+            barrier.wait()
+            breaker.record_failure()
+
+        threads = [threading.Thread(target=fail) for _ in range(24)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(breaker.trips, 1, "exactly one closed→open transition")
+        self.assertEqual(breaker.failures, 24)
+        # Before the fix this was 60 * 2**23, clamped to 1200 — the 20-minute
+        # window a single blip must never produce.
+        self.assertAlmostEqual(breaker.cooldown_remaining, 60, delta=2)
 
 
 class TestSnapshot(unittest.TestCase):
