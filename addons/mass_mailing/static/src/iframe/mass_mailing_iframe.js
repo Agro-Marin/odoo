@@ -230,8 +230,24 @@ export class MassMailingIframe extends Component {
     }
 
     async setupIframe() {
-        this.iframeRef.el?.contentDocument.head.appendChild(this.renderHeadContent());
-        this.bundleControls = await this.loadIframeAssets();
+        const contentDocument = this.iframeRef.el?.contentDocument;
+        contentDocument?.head.appendChild(this.renderHeadContent());
+        try {
+            this.bundleControls = await this.loadIframeAssets();
+        } catch (error) {
+            if (
+                status(this) === "destroyed" ||
+                !this.iframeRef.el?.isConnected ||
+                this.iframeRef.el.contentDocument !== contentDocument
+            ) {
+                // The iframe was unloaded while its style bundles were still
+                // loading (e.g. the component was destroyed or re-keyed by
+                // the html field): the interrupted loads settle with a
+                // rejection, and there is nothing left to set up.
+                return;
+            }
+            throw error;
+        }
         if (status(this) === "destroyed") {
             return;
         }
