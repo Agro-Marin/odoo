@@ -235,7 +235,6 @@ export class ActionManager {
         this.dialog = null;
         this.nextDialog = null;
         this._skeletonDef = null;
-        this._loadStateGeneration = 0;
         this._dispatchDepth = 0;
 
         router.hideKeyFromUrl("globalState");
