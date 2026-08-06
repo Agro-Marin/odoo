@@ -61,15 +61,22 @@ export { createJobScopedGetter } from "./hoot_utils.js";
 
 export const globals = copyAndBind(globalThis);
 // global API mocks (patchWindow): the integrated Odoo JS runner at
-const _inTestPage = typeof window !== "undefined"
-    && (window.location.pathname.startsWith("/web/tests")
-        || window.location.pathname.startsWith("/web/static/lib/hoot/tests/"));
+const _inTestPage =
+    typeof window !== "undefined" &&
+    (window.location.pathname.startsWith("/web/tests") ||
+        window.location.pathname.startsWith("/web/static/lib/hoot/tests/"));
 export const isHootReady = _inTestPage ? setupHootUI() : Promise.resolve();
 
+export { exposeHelpers } from "../hoot-dom/hoot_dom_utils.js";
 export { disableAnimations, enableTransitions } from "./mock/animation.js";
 export { mockDate, mockLocale, mockTimeZone, onTimeZoneChange } from "./mock/date.js";
 export { makeSeededRandom } from "./mock/math.js";
-export { mockPermission, mockSendBeacon, mockUserAgent, mockVibrate } from "./mock/navigator.js";
+export {
+    mockPermission,
+    mockSendBeacon,
+    mockUserAgent,
+    mockVibrate,
+} from "./mock/navigator.js";
 export {
     mockFetch,
     mockHistory,
@@ -86,7 +93,6 @@ export {
     watchKeys,
     watchListeners,
 } from "./mock/window.js";
-
 export {
     advanceFrame,
     advanceTime,
@@ -157,8 +163,6 @@ export {
     waitForNone,
     waitUntil,
 } from "@odoo/hoot-dom";
-
-export { exposeHelpers } from "../hoot-dom/hoot_dom_utils.js";
 export const __debug__ = runner;
 
 /**

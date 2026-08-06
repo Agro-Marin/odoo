@@ -5,6 +5,7 @@ import {
     mockedCancelAnimationFrame,
     mockedRequestAnimationFrame,
 } from "@odoo/hoot-dom-helpers-time";
+
 import { isInstanceOf } from "../../hoot-dom/hoot_dom_utils.js";
 import { makeNetworkLogger } from "../core/logger.js";
 import {
@@ -221,7 +222,6 @@ const HEADER = {
     contentLength: "Content-Length",
     contentType: "Content-Type",
 };
-const R_EQUAL = /\s*=\s*/;
 const R_INTERNAL_URL = /^(blob|data):/;
 const R_SEMICOLON = /\s*;\s*/;
 
@@ -304,7 +304,7 @@ export async function mockedFetch(input, init) {
             return fetch(input, init);
         }
         throw new Error(
-            `Could not fetch "${strInput}": cannot make a request when fetch is not mocked`
+            `Could not fetch "${strInput}": cannot make a request when fetch is not mocked`,
         );
     }
     const controller = markOpen(new AbortController());
@@ -582,7 +582,7 @@ export class MockDedicatedWorkerGlobalScope {
                 requestanimationframe: mockedRequestAnimationFrame,
                 self: this,
             },
-            worker
+            worker,
         );
         if (!("close" in this)) {
             this.close = worker.terminate.bind(worker);
@@ -821,7 +821,7 @@ export class MockMessagePort extends MockEventTarget {
         }
         if (this._owner._mutex) {
             this._owner._mutex = this._owner._mutex.then(() =>
-                dispatchMessage(this._target, message, transfer)
+                dispatchMessage(this._target, message, transfer),
             );
         } else {
             dispatchMessage(this._target, message, transfer);
@@ -915,10 +915,14 @@ export class MockResponse extends Response {
     _readValue(reader, toStringValue) {
         if (this.bodyUsed) {
             throw new TypeError(
-                `Failed to execute '${reader}' on '${this.constructor.name}': body stream already read`
+                `Failed to execute '${reader}' on '${this.constructor.name}': body stream already read`,
             );
         }
-        $defineProperty(this, "bodyUsed", { value: true, configurable: true, enumerable: true });
+        $defineProperty(this, "bodyUsed", {
+            value: true,
+            configurable: true,
+            enumerable: true,
+        });
         return getSyncValue(this, toStringValue);
     }
 }
@@ -1218,7 +1222,9 @@ export class MockXMLHttpRequest extends MockEventTarget {
                 if (this._response.url.startsWith("blob:")) {
                     this._responseMimeType = MIME_TYPE.blob;
                 } else {
-                    this._responseMimeType = this._response.headers.get(HEADER.contentType);
+                    this._responseMimeType = this._response.headers.get(
+                        HEADER.contentType,
+                    );
                 }
             }
             if (this._response instanceof MockResponse) {

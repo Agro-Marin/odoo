@@ -3,6 +3,7 @@
 import { after, describe, expect, test, watchListeners } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { EventBus } from "@odoo/owl";
+
 import { mountForTest, parseUrl } from "../local_helpers.js";
 
 describe(parseUrl(import.meta.url), () => {
@@ -20,7 +21,7 @@ describe(parseUrl(import.meta.url), () => {
     let testBus;
 
     test("elementFromPoint and elementsFromPoint should be mocked", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <div class="oui" style="position: absolute; left: 10px; top: 10px; width: 250px; height: 250px;">
                 Oui
             </div>
@@ -42,7 +43,10 @@ describe(parseUrl(import.meta.url), () => {
         ]);
 
         expect(document.elementFromPoint(9, 9)).toBe(document.body);
-        expect(document.elementsFromPoint(9, 9)).toEqual([document.body, document.documentElement]);
+        expect(document.elementsFromPoint(9, 9)).toEqual([
+            document.body,
+            document.documentElement,
+        ]);
     });
 
     test("event listeners are properly removed: setup", async () => {

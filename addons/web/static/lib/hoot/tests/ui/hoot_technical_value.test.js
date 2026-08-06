@@ -3,10 +3,10 @@
 import { after, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, Deferred } from "@odoo/hoot-dom";
 import { Component, reactive, useState, xml } from "@odoo/owl";
-import { mountForTest, parseUrl } from "../local_helpers.js";
 
 import { logger } from "../../core/logger.js";
 import { HootTechnicalValue } from "../../ui/hoot_technical_value.js";
+import { mountForTest, parseUrl } from "../local_helpers.js";
 
 const mountTechnicalValue = async (defaultValue) => {
     const updateValue = async (value) => {
@@ -88,7 +88,7 @@ describe(parseUrl(import.meta.url), () => {
         await animationFrame();
 
         expect(".hoot-technical:first").toHaveText(
-            `Object(2){\na\n:\ntrue\n,\nsub\n:\nObject(1)\n}`
+            `Object(2){\na\n:\ntrue\n,\nsub\n:\nObject(1)\n}`,
         );
         expect.verifySteps([]);
 
@@ -96,7 +96,7 @@ describe(parseUrl(import.meta.url), () => {
         await animationFrame();
 
         expect(".hoot-technical:first").toHaveText(
-            `Object(2){\na\n:\ntrue\n,\nsub\n:\nObject(1){\nkey\n:\n"oui"\n,\n}\n}`
+            `Object(2){\na\n:\ntrue\n,\nsub\n:\nObject(1){\nkey\n:\n"oui"\n,\n}\n}`,
         );
         expect.verifySteps([{ key: "oui" }]);
     });

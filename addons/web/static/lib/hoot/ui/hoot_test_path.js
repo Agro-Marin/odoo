@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
+
 import { Test } from "../core/test.js";
 import { HootCopyButton } from "./hoot_copy_button.js";
 import { HootLink } from "./hoot_link.js";

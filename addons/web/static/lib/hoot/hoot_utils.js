@@ -1,7 +1,6 @@
 /** @odoo-module */
 
 import { on, queryAll } from "@odoo/hoot-dom";
-import { reactive, useComponent, useEffect, useExternalListener } from "@odoo/owl";
 import { isNode } from "@odoo/hoot-dom-helpers-dom";
 import {
     isInstanceOf,
@@ -10,6 +9,8 @@ import {
     R_WHITE_SPACE,
     toSelector,
 } from "@odoo/hoot-dom-utils";
+import { reactive, useComponent, useEffect, useExternalListener } from "@odoo/owl";
+
 import { getRunner } from "./main_runner.js";
 
 /**
@@ -244,7 +245,9 @@ function _deepCopy(value, cache) {
                 return S_CIRCULAR;
             }
             cache.add(value);
-            return $fromEntries($ownKeys(value).map((key) => [key, _deepCopy(value[key], cache)]));
+            return $fromEntries(
+                $ownKeys(value).map((key) => [key, _deepCopy(value[key], cache)]),
+            );
         }
     }
     return value;
@@ -320,7 +323,7 @@ function _deepEqual(a, b, ignoreOrder, partial, cache) {
         const comparisonCache = makeObjectCache();
         for (let i = 0; i < a.length; i++) {
             const bi = b.findIndex((bValue) =>
-                _deepEqual(a[i], bValue, ignoreOrder, partial, comparisonCache)
+                _deepEqual(a[i], bValue, ignoreOrder, partial, comparisonCache),
             );
             if (bi < 0) {
                 return false;
@@ -386,15 +389,19 @@ function _formatHumanReadable(value, length, cache) {
             return _formatHumanReadable(values[0], length, cache);
         }
         const constructor = getConstructor(value);
-        const constructorPrefix = constructor.name === "Array" ? "" : `${constructor.name} `;
+        const constructorPrefix =
+            constructor.name === "Array" ? "" : `${constructor.name} `;
         const content = [];
         if (values.length) {
             const bitSize = $max(
                 MIN_HUMAN_READABLE_SIZE,
-                $floor(MAX_HUMAN_READABLE_SIZE / values.length)
+                $floor(MAX_HUMAN_READABLE_SIZE / values.length),
             );
             for (const val of values) {
-                const hVal = truncate(_formatHumanReadable(val, length, cache), bitSize);
+                const hVal = truncate(
+                    _formatHumanReadable(val, length, cache),
+                    bitSize,
+                );
                 content.push(hVal);
                 length += hVal.length;
                 if (length > MAX_HUMAN_READABLE_SIZE) {
@@ -408,12 +415,13 @@ function _formatHumanReadable(value, length, cache) {
 
     const keys = $keys(value);
     const constructor = getConstructor(value);
-    const constructorPrefix = constructor.name === "Object" ? "" : `${constructor.name} `;
+    const constructorPrefix =
+        constructor.name === "Object" ? "" : `${constructor.name} `;
     const content = [];
     if (constructor.name !== "Window" && keys.length) {
         const bitSize = $max(
             MIN_HUMAN_READABLE_SIZE,
-            $floor(MAX_HUMAN_READABLE_SIZE / keys.length)
+            $floor(MAX_HUMAN_READABLE_SIZE / keys.length),
         );
         const descriptors = $getOwnPropertyDescriptors(value);
         for (const key of keys) {
@@ -422,7 +430,7 @@ function _formatHumanReadable(value, length, cache) {
             }
             const hVal = truncate(
                 _formatHumanReadable(descriptors[key].value, length, cache),
-                bitSize
+                bitSize,
             );
             content.push(`${key}: ${hVal}`);
             length += hVal.length;
@@ -483,14 +491,18 @@ function _formatTechnical(value, depth, isObjectValue, cache) {
     if (isIterable(value)) {
         const proto = constructor.name === "Array" ? "" : `${constructor.name} `;
         const content = [...value].map(
-            (val) => `${startIndent}${_formatTechnical(val, depth + 1, true, cache)},\n`
+            (val) =>
+                `${startIndent}${_formatTechnical(val, depth + 1, true, cache)},\n`,
         );
         return `${baseIndent}${proto}[${
             content.length ? `\n${content.join("")}${endIndent}` : ""
         }]`;
     }
 
-    const proto = !constructor.name || constructor.name === "Object" ? "" : `${constructor.name} `;
+    const proto =
+        !constructor.name || constructor.name === "Object"
+            ? ""
+            : `${constructor.name} `;
     const content = $ownKeys(value)
         .sort(stringSort)
         .map(
@@ -499,8 +511,8 @@ function _formatTechnical(value, depth, isObjectValue, cache) {
                     value[key],
                     depth + 1,
                     true,
-                    cache
-                )},\n`
+                    cache,
+                )},\n`,
         );
     return `${baseIndent}${proto}{${content.length ? `\n${content.join("")}${endIndent}` : ""}}`;
 }
@@ -551,7 +563,11 @@ const GENERIC_SERIALIZERS = new Map([
     [Boolean, (v) => v.valueOf()],
     [Date, (v) => v.toISOString()],
     [Error, (v) => v.toString()],
-    [Node, (v) => (v.nodeType === Node.ELEMENT_NODE ? `<${toSelector(v)}>` : toSelector(v))],
+    [
+        Node,
+        (v) =>
+            v.nodeType === Node.ELEMENT_NODE ? `<${toSelector(v)}>` : toSelector(v),
+    ],
     [Number, (v) => v.valueOf()],
     [RegExp, (v) => v.toString()],
     [String, (v) => v.valueOf()],
@@ -648,7 +664,8 @@ export function createJobScopedGetter(instanceGetter, afterCallback) {
             return memoized(...args);
         }
 
-        const currentJob = runner.state.currentTest || runner.suiteStack.at(-1) || runner;
+        const currentJob =
+            runner.state.currentTest || runner.suiteStack.at(-1) || runner;
         if (!instances.has(currentJob)) {
             if (
                 cleanedInstance &&
@@ -832,7 +849,13 @@ export function deepCopy(value) {
  * @returns {boolean}
  */
 export function deepEqual(a, b, options) {
-    return _deepEqual(a, b, !!options?.ignoreOrder, !!options?.partial, makeObjectCache());
+    return _deepEqual(
+        a,
+        b,
+        !!options?.ignoreOrder,
+        !!options?.partial,
+        makeObjectCache(),
+    );
 }
 
 /**
@@ -842,7 +865,7 @@ export function deepEqual(a, b, options) {
 export function ensureArguments(args, ...argumentsDefs) {
     if (args.length > argumentsDefs.length) {
         throw new HootError(
-            `expected a maximum of ${argumentsDefs.length} arguments and got ${args.length}`
+            `expected a maximum of ${argumentsDefs.length} arguments and got ${args.length}`,
         );
     }
     for (let i = 0; i < argumentsDefs.length; i++) {
@@ -853,9 +876,12 @@ export function ensureArguments(args, ...argumentsDefs) {
             const strTypes = types.map(formatHumanReadable);
             const last = strTypes.pop();
             throw new TypeError(
-                `expected ${ordinal(i + 1)} argument to be of type ${[strTypes.join(", "), last]
+                `expected ${ordinal(i + 1)} argument to be of type ${[
+                    strTypes.join(", "),
+                    last,
+                ]
                     .filter(Boolean)
-                    .join(" or ")}, got ${formatHumanReadable(value)}`
+                    .join(" or ")}, got ${formatHumanReadable(value)}`,
             );
         }
     }
@@ -943,7 +969,7 @@ export function formatTime(value, unit) {
     const hours = value / 3_600;
 
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(
-        seconds
+        seconds,
     ).padStart(2, "0")}`;
 }
 
@@ -994,7 +1020,7 @@ export function getConstructor(value) {
                 constructor(...values) {
                     $assign(this, ...values);
                 }
-            }
+            },
         );
     }
     return objectConstructors.get(className);
@@ -1058,7 +1084,9 @@ export function getSyncValue(object, toStringValue) {
     let textResult = "";
     if (isIterable(result)) {
         for (const part of result) {
-            textResult += syncValues.has(part) ? getSyncValue(part, toStringValue) : String(part);
+            textResult += syncValues.has(part)
+                ? getSyncValue(part, toStringValue)
+                : String(part);
         }
     } else {
         textResult += String(result);
@@ -1243,7 +1271,7 @@ export function lookup(parsedQuery, items, property = "key") {
             result.sort(
                 (a, b) =>
                     fuzzyScoreMap[b[property].toLowerCase()] -
-                    fuzzyScoreMap[a[property].toLowerCase()]
+                    fuzzyScoreMap[a[property].toLowerCase()],
             );
         }
         items = result;
@@ -1305,9 +1333,12 @@ export function makeRuntimeHook(name) {
                 valid = true;
             }
             if (!valid) {
-                throw new HootError(`cannot call "${name}" callback outside of a suite`, {
-                    level: "critical",
-                });
+                throw new HootError(
+                    `cannot call "${name}" callback outside of a suite`,
+                    {
+                        level: "critical",
+                    },
+                );
             }
             if (isGlobal && runner.suiteStack.length) {
                 const saved = runner.suiteStack.splice(0);
@@ -1553,7 +1584,7 @@ export function toExplicitString(value) {
     }
     return strValue.replace(
         R_INVISIBLE_CHARACTERS,
-        (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`
+        (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
     );
 }
 
@@ -1620,7 +1651,12 @@ export function useHootKey(keyStroke, callback) {
 
 /** @type {EventTarget["addEventListener"]} */
 export function useWindowListener(type, callback, options) {
-    return useExternalListener(windowTarget, type, (ev) => ev.isTrusted && callback(ev), options);
+    return useExternalListener(
+        windowTarget,
+        type,
+        (ev) => ev.isTrusted && callback(ev),
+        options,
+    );
 }
 
 /**
@@ -1665,7 +1701,7 @@ export class Callbacks {
             callback = (...args) => {
                 this._callbacks.set(
                     type,
-                    this._callbacks.get(type).filter((fn) => fn !== callback)
+                    this._callbacks.get(type).filter((fn) => fn !== callback),
                 );
                 return originalCallback(...args);
             };
@@ -1816,7 +1852,10 @@ export class ElementMap extends Map {
                     groupIndex: groupIndex++,
                     type: "group",
                 }),
-                ...Markup.resolveDetails(mapFn(value, el, this), predicate(value, el, this))
+                ...Markup.resolveDetails(
+                    mapFn(value, el, this),
+                    predicate(value, el, this),
+                ),
             );
         }
         return result;
@@ -1871,7 +1910,10 @@ export class Markup {
             return null;
         }
         const eType = typeof expected;
-        if (eType !== typeof actual || !((expected && eType === "object") || eType === "string")) {
+        if (
+            eType !== typeof actual ||
+            !((expected && eType === "object") || eType === "string")
+        ) {
             return null;
         }
         let hasDiff = false;
@@ -2041,7 +2083,8 @@ export const CASE_EVENT_TYPES = {
         color: "blue",
     },
 };
-export const DEFAULT_EVENT_TYPES = CASE_EVENT_TYPES.assertion.value | CASE_EVENT_TYPES.error.value;
+export const DEFAULT_EVENT_TYPES =
+    CASE_EVENT_TYPES.assertion.value | CASE_EVENT_TYPES.error.value;
 export const EXACT_MARKER = `"`;
 
 export const INCLUDE_LEVEL = {
@@ -2071,5 +2114,5 @@ export const S_NONE = Symbol("no value");
 
 export const R_QUERY_EXACT = new RegExp(
     `(?<exclude>-)?${EXACT_MARKER}(?<content>[^${EXACT_MARKER}]*)${EXACT_MARKER}`,
-    "g"
+    "g",
 );

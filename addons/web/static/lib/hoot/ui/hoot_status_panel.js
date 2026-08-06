@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, onWillRender, useEffect, useRef, useState, xml } from "@odoo/owl";
+
 import { getColorHex } from "../../hoot-dom/hoot_dom_utils.js";
 import { Test } from "../core/test.js";
 import { formatTime } from "../hoot_utils.js";
@@ -287,7 +288,10 @@ export class HootStatusPanel extends Component {
     }
 
     nextPage() {
-        this.uiState.resultsPage = $min(this.uiState.resultsPage + 1, this.getLastPage());
+        this.uiState.resultsPage = $min(
+            this.uiState.resultsPage + 1,
+            this.getLastPage(),
+        );
     }
 
     onColorSchemeChange() {
@@ -305,7 +309,8 @@ export class HootStatusPanel extends Component {
         this.currentTestStart = $now();
         this.intervalId = setInterval(() => {
             this.state.timer =
-                $floor(($now() - this.currentTestStart) / TIMER_PRECISION) * TIMER_PRECISION;
+                $floor(($now() - this.currentTestStart) / TIMER_PRECISION) *
+                TIMER_PRECISION;
         }, TIMER_PRECISION);
     }
 

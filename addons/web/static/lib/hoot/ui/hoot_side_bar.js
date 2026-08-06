@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, onWillRender, useEffect, useRef, useState, xml } from "@odoo/owl";
+
 import { Suite } from "../core/suite.js";
 import { createUrlFromId } from "../core/url.js";
 import { lookup, parseQuery } from "../hoot_utils.js";
@@ -73,7 +74,7 @@ export class HootSideBarSuite extends Component {
                 }
                 wasSelected = selected;
             },
-            () => [this.props.selected]
+            () => [this.props.selected],
         );
     }
 
@@ -225,7 +226,9 @@ export class HootSideBar extends Component {
         });
 
         runner.beforeAll(() => {
-            const singleRootSuite = runner.rootSuites.filter((suite) => suite.currentJobs.length);
+            const singleRootSuite = runner.rootSuites.filter(
+                (suite) => suite.currentJobs.length,
+            );
             if (singleRootSuite.length === 1) {
                 this.unfoldAndSelect(singleRootSuite[0]);
             } else {

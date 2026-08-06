@@ -1,11 +1,11 @@
 /** @odoo-module */
 
 import { animationFrame } from "@odoo/hoot-dom";
-import { App } from "@odoo/owl";
 import { getActiveElement, getCurrentDimensions } from "@odoo/hoot-dom-helpers-dom";
 import { setupEventActions } from "@odoo/hoot-dom-helpers-events";
 import { isInstanceOf } from "@odoo/hoot-dom-utils";
-import { HootError } from "../hoot_utils.js";
+import { App } from "@odoo/owl";
+
 import { subscribeToTransitionChange } from "../mock/animation.js";
 import { getViewPortHeight, getViewPortWidth } from "../mock/window.js";
 
@@ -21,7 +21,8 @@ import { getViewPortHeight, getViewPortWidth } from "../mock/window.js";
  * }} TestRootProps
  */
 
-const { customElements, document, getSelection, HTMLElement, Promise, WeakSet } = globalThis;
+const { customElements, document, getSelection, HTMLElement, Promise, WeakSet } =
+    globalThis;
 
 /**
  * @param {HTMLIFrameElement} iframe
@@ -117,7 +118,7 @@ export class HootFixtureElement extends HTMLElement {
         customElements.define(this.TAG_NAME, this);
 
         this.styleElement.id = "hoot-fixture-style";
-        this.styleElement.textContent =   `
+        this.styleElement.textContent = `
             ${this.TAG_NAME} {
                 position: fixed !important;
                 height: 100vh;
@@ -158,7 +159,10 @@ export class HootFixtureElement extends HTMLElement {
     connectedCallback() {
         setupEventActions(this);
         subscribeToTransitionChange((allowTransitions) =>
-            this.classList.toggle(this.constructor.CLASSES.transitions, allowTransitions)
+            this.classList.toggle(
+                this.constructor.CLASSES.transitions,
+                allowTransitions,
+            ),
         );
 
         this._observer.observe(this, { childList: true, subtree: true });

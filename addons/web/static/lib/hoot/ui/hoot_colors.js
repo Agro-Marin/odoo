@@ -1,7 +1,11 @@
 /** @odoo-module */
 
 import { reactive, useState } from "@odoo/owl";
-import { getAllColors, getPreferredColorScheme } from "../../hoot-dom/hoot_dom_utils.js";
+
+import {
+    getAllColors,
+    getPreferredColorScheme,
+} from "../../hoot-dom/hoot_dom_utils.js";
 import { STORAGE, storageGet, storageSet } from "../hoot_utils.js";
 
 /**
@@ -42,7 +46,7 @@ const current = reactive(
         for (const callback of colorChangedCallbacks) {
             callback(current.scheme);
         }
-    }
+    },
 );
 current.root;
 

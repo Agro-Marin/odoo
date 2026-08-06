@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
+
 import { CONFIG_KEYS } from "../core/config.js";
 import { LOG_LEVELS } from "../core/logger.js";
 import { refresh } from "../core/url.js";
@@ -283,7 +284,7 @@ export class HootConfigMenu extends Component {
 
     doesNotNeedRefresh() {
         return CONFIG_KEYS.every((key) =>
-            strictEqual(this.config[key], this.env.runner.initialConfig[key])
+            strictEqual(this.config[key], this.env.runner.initialConfig[key]),
         );
     }
 
@@ -309,7 +310,9 @@ export class HootConfigMenu extends Component {
      * @param {Event & { currentTarget: HTMLInputElement }} ev
      */
     onLogLevelChange(ev) {
-        this.config.loglevel = ev.currentTarget.checked ? LOG_LEVELS.suites : LOG_LEVELS.runner;
+        this.config.loglevel = ev.currentTarget.checked
+            ? LOG_LEVELS.suites
+            : LOG_LEVELS.runner;
     }
 
     /**
@@ -352,7 +355,10 @@ export class HootConfigMenu extends Component {
             }
         } else {
             if (ev.altKey) {
-                this.config.events = $values(CASE_EVENT_TYPES).reduce((acc, t) => acc + t.value, 0);
+                this.config.events = $values(CASE_EVENT_TYPES).reduce(
+                    (acc, t) => acc + t.value,
+                    0,
+                );
             } else {
                 this.config.events |= nType;
             }

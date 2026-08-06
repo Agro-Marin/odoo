@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
+
 import { refresh, subscribeToURLParams } from "../core/url.js";
 import { STORAGE, storageSet } from "../hoot_utils.js";
 import { HootLink } from "./hoot_link.js";
@@ -161,7 +162,7 @@ export class HootButtons extends Component {
                 this.state.disable = true;
                 this.disableTimeout = setTimeout(
                     () => (this.state.disable = false),
-                    DISABLE_TIMEOUT
+                    DISABLE_TIMEOUT,
                 );
                 break;
             }

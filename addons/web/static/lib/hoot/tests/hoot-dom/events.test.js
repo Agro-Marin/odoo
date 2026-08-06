@@ -35,8 +35,9 @@ import {
     test,
     uncheck,
 } from "@odoo/hoot";
-import { Component, xml } from "@odoo/owl";
 import { EventList } from "@odoo/hoot-dom-helpers-events";
+import { Component, xml } from "@odoo/owl";
+
 import { mountForTest, parseUrl } from "../local_helpers.js";
 
 /**
@@ -44,7 +45,9 @@ import { mountForTest, parseUrl } from "../local_helpers.js";
  */
 const formatEvent = (ev) => {
     const { currentTarget, type } = ev;
-    const id = currentTarget.id ? `#${currentTarget.id}` : currentTarget.tagName.toLowerCase();
+    const id = currentTarget.id
+        ? `#${currentTarget.id}`
+        : currentTarget.tagName.toLowerCase();
     let formatted = "";
 
     if (ev.button >= 0) {
@@ -89,7 +92,7 @@ const monitorEvents = (target, formatStep) => {
                 if (formattedStep) {
                     expect.step(formattedStep);
                 }
-            })
+            }),
         );
 
     formatStep ||= formatEvent;
@@ -113,7 +116,7 @@ const BLACK_LISTED_EVENT_TYPES = ["selectionchange"];
 
 describe(parseUrl(import.meta.url), () => {
     test("clear", async () => {
-        await mountForTest(  `<input type="text" value="Test" />`);
+        await mountForTest(`<input type="text" value="Test" />`);
 
         expect("input").toHaveValue("Test");
         expect.verifySteps([]);
@@ -137,7 +140,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("clear: email", async () => {
-        await mountForTest(  `<input type="email" value="john@doe.com" />`);
+        await mountForTest(`<input type="email" value="john@doe.com" />`);
 
         expect("input").toHaveValue("john@doe.com");
 
@@ -148,7 +151,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("clear: number", async () => {
-        await mountForTest(  `<input type="number" value="421" />`);
+        await mountForTest(`<input type="number" value="421" />`);
 
         expect("input").toHaveValue(421);
 
@@ -159,7 +162,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("clear: files", async () => {
-        await mountForTest(  `<input type="file" />`);
+        await mountForTest(`<input type="file" />`);
         const file = new File([""], "file.txt");
 
         expect("input").not.toHaveValue();
@@ -177,7 +180,7 @@ describe(parseUrl(import.meta.url), () => {
     test("click", async () => {
         mockTouch(false);
 
-        await mountForTest(  `<button autofocus="" type="button">Click me</button>`);
+        await mountForTest(`<button autofocus="" type="button">Click me</button>`);
         monitorEvents("button");
 
         const events = await click("button");
@@ -204,7 +207,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("dblclick", async () => {
-        await mountForTest(  `<button autofocus="" type="button">Click me</button>`);
+        await mountForTest(`<button autofocus="" type="button">Click me</button>`);
         monitorEvents("button");
 
         await dblclick("button");
@@ -233,12 +236,12 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("triple click", async () => {
-        await mountForTest(  `<button autofocus="" type="button">Click me</button>`);
+        await mountForTest(`<button autofocus="" type="button">Click me</button>`);
 
         const allEvents = new EventList(
             await click("button"),
             await click("button"),
-            await click("button")
+            await click("button"),
         );
 
         const clickEvents = allEvents.getAll("click");
@@ -284,7 +287,7 @@ describe(parseUrl(import.meta.url), () => {
     test("auxclick", async () => {
         mockTouch(false);
 
-        await mountForTest(  `<button autofocus="" type="button">Click me</button>`);
+        await mountForTest(`<button autofocus="" type="button">Click me</button>`);
         await hover("button");
 
         monitorEvents("button");
@@ -314,7 +317,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("click on disabled element", async () => {
-        await mountForTest(  `<button type="button" disabled="">Click me</button>`);
+        await mountForTest(`<button type="button" disabled="">Click me</button>`);
 
         monitorEvents("button");
 
@@ -333,7 +336,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("click on element allowing or disallowing pointer events", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <div class="container">
                 <button class="first" style="pointer-events: none">
                     Not allowed
@@ -371,7 +374,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("click on inert element", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <div class="container">
                 <button class="btn">Button</button>
                 <iframe inert="" srcdoc="&lt;button&gt;iframe button&lt;/button&gt;" />
@@ -390,7 +393,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("click on common parent", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <main class="parent">
                 <button class="first">A</button>
                 <div>
@@ -455,7 +458,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("click can be dispatched with pointer events prevented", async () => {
-        await mountForTest(  `<button type="button">Click me</button>`);
+        await mountForTest(`<button type="button">Click me</button>`);
 
         const prevent = (ev) => ev.preventDefault();
 
@@ -469,11 +472,15 @@ describe(parseUrl(import.meta.url), () => {
 
         await click("button");
 
-        expect.verifySteps(["pointerdown:0(1)@button", "pointerup:0@button", "click:0@button"]);
+        expect.verifySteps([
+            "pointerdown:0(1)@button",
+            "pointerup:0@button",
+            "click:0@button",
+        ]);
     });
 
     test("click: iframe", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <button>Click me</button>
             <iframe srcdoc="&lt;button&gt;iframe button&lt;/button&gt;" />
         `);
@@ -493,7 +500,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("drag & drop: draggable items", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <ul>
                 <li id="first-item" draggable="true">Item 1</li>
                 <li id="second-item" draggable="true">Item 2</li>
@@ -642,7 +649,9 @@ describe(parseUrl(import.meta.url), () => {
             "dragend:0@body",
         ]);
 
-        await (await (await drag("#first-item")).moveTo("#second-item")).drop("#third-item");
+        await (
+            await (await drag("#first-item")).moveTo("#second-item")
+        ).drop("#third-item");
 
         expect.verifySteps([
             "pointermove:0@#third-item",
@@ -701,7 +710,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("drag & drop: draggable items with files", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <ul>
                 <li id="first-item" draggable="true">Item 1</li>
                 <li id="second-item" draggable="true">Item 2</li>
@@ -733,7 +742,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("drag & drop: draggable items with dataTransfer items", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <ul>
                 <li id="first-item" draggable="true">Item 1</li>
                 <li id="second-item" draggable="true">Item 2</li>
@@ -772,7 +781,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("drag & drop: non-draggable items", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <ul>
                 <li id="first-item">Item 1</li>
                 <li id="second-item">Item 2</li>
@@ -946,7 +955,9 @@ describe(parseUrl(import.meta.url), () => {
             "dblclick:0@body",
         ]);
 
-        await (await (await drag("#first-item")).moveTo("#second-item")).drop("#third-item");
+        await (
+            await (await drag("#first-item")).moveTo("#second-item")
+        ).drop("#third-item");
 
         expect.verifySteps([
             "pointermove:0@#third-item",
@@ -1024,7 +1035,7 @@ describe(parseUrl(import.meta.url), () => {
     test("drag & drop: touch environment", async () => {
         mockTouch(true);
 
-        await mountForTest(  `
+        await mountForTest(`
             <ul>
                 <li id="first-item">Item 1</li>
                 <li id="second-item">Item 2</li>
@@ -1037,13 +1048,8 @@ describe(parseUrl(import.meta.url), () => {
         const touchEvents = events.getAll((ev) => ev.type.startsWith("touch"));
 
         expect(touchEvents.map((e) => e.target)).toEqual(
-            [
-                firstItem,
-                firstItem,
-                firstItem,
-                firstItem,
-            ],
-            { message: "touch events should all target the same element" }
+            [firstItem, firstItem, firstItem, firstItem],
+            { message: "touch events should all target the same element" },
         );
 
         const [touchStart, touchMove, , touchEnd] = touchEvents;
@@ -1060,7 +1066,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("fill: text", async () => {
-        await mountForTest(  `<input type="text" value="" />`);
+        await mountForTest(`<input type="text" value="" />`);
 
         expect("input").not.toHaveValue();
         expect.verifySteps([]);
@@ -1089,7 +1095,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("fill: text with previous value", async () => {
-        await mountForTest(  `<input type="text" value="Test" />`);
+        await mountForTest(`<input type="text" value="Test" />`);
 
         expect("input").toHaveValue("Test");
 
@@ -1100,7 +1106,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("fill: number", async () => {
-        await mountForTest(  `<input type="number" />`);
+        await mountForTest(`<input type="number" />`);
 
         expect("input").not.toHaveValue();
 
@@ -1111,7 +1117,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("fill: email", async () => {
-        await mountForTest(  `<input type="email" />`);
+        await mountForTest(`<input type="email" />`);
 
         expect("input").not.toHaveValue();
 
@@ -1122,7 +1128,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("edit on empty value", async () => {
-        await mountForTest(  `<input type="text" />`);
+        await mountForTest(`<input type="text" />`);
 
         await click("input");
 
@@ -1158,7 +1164,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("edit on existing value", async () => {
-        await mountForTest(  `<input type="text" value="Test" />`);
+        await mountForTest(`<input type="text" value="Test" />`);
 
         await click("input");
         await animationFrame();
@@ -1189,7 +1195,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("edit with dirty value and blur", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <input type="text" />
             <button>Diversion</button>
         `);
@@ -1228,7 +1234,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("edit with dirty value and confirm with enter", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <input type="text" />
             <button>Diversion</button>
         `);
@@ -1239,11 +1245,15 @@ describe(parseUrl(import.meta.url), () => {
 
         await press("Enter");
 
-        expect.verifySteps(["keydown:Enter@input", "change@input", "keyup:Enter@input"]);
+        expect.verifySteps([
+            "keydown:Enter@input",
+            "change@input",
+            "keyup:Enter@input",
+        ]);
     });
 
     test("edit: iframe", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <input type="text" />
             <iframe srcdoc="&lt;input type='text' /&gt;" />
         `);
@@ -1273,7 +1283,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("setInputFiles: single file", async () => {
-        await mountForTest(  `<input type="file" />`);
+        await mountForTest(`<input type="file" />`);
         const file1 = new File([""], "file1.txt");
         const file2 = new File([""], "file2.txt");
 
@@ -1293,7 +1303,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("setInputFiles: multiple files", async () => {
-        await mountForTest(  `<input type="file" multiple="multiple" />`);
+        await mountForTest(`<input type="file" multiple="multiple" />`);
         const file1 = new File([""], "file1.txt");
         const file2 = new File([""], "file2.txt");
 
@@ -1312,7 +1322,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("setInputFiles: hidden input with label", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <label for="file-input">Label</label>
             <input id="file-input" style="display: none" type="file" />
         `);
@@ -1328,7 +1338,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("setInputFiles: hidden input with programmatic click", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <button>upload</button>
             <input style="display: none" type="file" />
         `);
@@ -1346,7 +1356,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("setInputFiles: shadow root", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <div class="container" />
         `);
 
@@ -1364,7 +1374,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("setInputRange: basic case and events", async () => {
-        await mountForTest(  `<input type="range" min="10" max="40" />`);
+        await mountForTest(`<input type="range" min="10" max="40" />`);
 
         monitorEvents("input");
 
@@ -1391,7 +1401,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("setInputRange: out of min and max values", async () => {
-        await mountForTest(  `<input type="range" min="10" max="40" />`);
+        await mountForTest(`<input type="range" min="10" max="40" />`);
 
         await setInputRange("input", 5);
 
@@ -1403,7 +1413,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("hover", async () => {
-        await mountForTest(  `<button type="button">Click me</button>`);
+        await mountForTest(`<button type="button">Click me</button>`);
         monitorEvents("button");
 
         await hover("button");
@@ -1423,7 +1433,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("leave", async () => {
-        await mountForTest(  `<button type="button">Click me</button>`);
+        await mountForTest(`<button type="button">Click me</button>`);
 
         await hover("button");
 
@@ -1442,7 +1452,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("keyDown", async () => {
-        await mountForTest(  `<input type="text" />`);
+        await mountForTest(`<input type="text" />`);
 
         await click("input");
 
@@ -1461,7 +1471,7 @@ describe(parseUrl(import.meta.url), () => {
     test("multiple keyDown should be flagged as repeated", async () => {
         let events;
 
-        await mountForTest(  `<input type="text" />`);
+        await mountForTest(`<input type="text" />`);
 
         await click("input");
 
@@ -1504,7 +1514,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("pointerDown", async () => {
-        await mountForTest(  `<button type="button">Click me</button>`);
+        await mountForTest(`<button type="button">Click me</button>`);
         monitorEvents("button");
 
         await pointerDown("button");
@@ -1524,11 +1534,15 @@ describe(parseUrl(import.meta.url), () => {
 
         await pointerUp("button");
 
-        expect.verifySteps(["pointerup:0@button", "mouseup:0@button", "click:0@button"]);
+        expect.verifySteps([
+            "pointerup:0@button",
+            "mouseup:0@button",
+            "click:0@button",
+        ]);
     });
 
     test("press key on text input", async () => {
-        await mountForTest(  `<input type="text" />`);
+        await mountForTest(`<input type="text" />`);
 
         await click("input");
 
@@ -1546,7 +1560,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("press key on number input", async () => {
-        await mountForTest(  `<input type="number" />`);
+        await mountForTest(`<input type="number" />`);
 
         expect("input").not.toHaveValue();
 
@@ -1561,7 +1575,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("press arrow keys on input", async () => {
-        await mountForTest(  `<input value="value" />`);
+        await mountForTest(`<input value="value" />`);
 
         await click("input");
 
@@ -1610,7 +1624,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("insert character updates selection", async () => {
-        await mountForTest(  `<input value="abc" />`);
+        await mountForTest(`<input value="abc" />`);
 
         await click("input");
 
@@ -1641,7 +1655,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("press 'Enter' on form input", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <form t-on-submit.prevent="">
                 <input type="text" />
             </form>
@@ -1672,7 +1686,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("press 'Enter' on form button", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <form t-on-submit.prevent="">
                 <button type="button" />
             </form>
@@ -1702,7 +1716,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("press 'Enter' on form submit button", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <form t-on-submit.prevent="">
                 <button type="submit" />
             </form>
@@ -1731,7 +1745,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("form submissions are redirected to mocked fetch", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <form action="/submit/url" method="POST">
                 <input type="hidden" name="csrf_token" value="CSRF_TOKEN_VALUE" />
                 <input type="text" name="name" />
@@ -1744,7 +1758,9 @@ describe(parseUrl(import.meta.url), () => {
             expect.step(new URL(url).pathname);
 
             expect(method).toBe("POST");
-            expect(headers).toEqual(new Headers([["Content-Type", "multipart/form-data"]]));
+            expect(headers).toEqual(
+                new Headers([["Content-Type", "multipart/form-data"]]),
+            );
             expect(body).toBeInstanceOf(FormData);
             expect(body.get("csrf_token")).toBe("CSRF_TOKEN_VALUE");
             expect(body.get("name")).toBe("Pierre");
@@ -1777,7 +1793,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("press 'Space' on checkbox input", async () => {
-        await mountForTest(  `<input type="checkbox" checked="" />`);
+        await mountForTest(`<input type="checkbox" checked="" />`);
 
         expect("input").toHaveProperty("checked", true);
 
@@ -1802,7 +1818,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("press 'Backspace' on number input", async () => {
-        await mountForTest(  `<input type="number" value="421" />`);
+        await mountForTest(`<input type="number" value="421" />`);
 
         expect("input").toHaveValue(421);
 
@@ -1817,7 +1833,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("press 'Enter' on textarea", async () => {
-        await mountForTest(  `<textarea t-att-value="'aaa'" />`);
+        await mountForTest(`<textarea t-att-value="'aaa'" />`);
 
         expect("textarea").toHaveValue("aaa");
 
@@ -1830,7 +1846,7 @@ describe(parseUrl(import.meta.url), () => {
     test("special keys modifiers: Windows", async () => {
         mockUserAgent("windows");
 
-        await mountForTest(  `<input />`);
+        await mountForTest(`<input />`);
 
         await click("input");
 
@@ -1856,7 +1872,7 @@ describe(parseUrl(import.meta.url), () => {
     test("special keys modifiers: Mac", async () => {
         mockUserAgent("mac");
 
-        await mountForTest(  `<input />`);
+        await mountForTest(`<input />`);
 
         await click("input");
 
@@ -1880,7 +1896,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("compose shift, alt and control and a key", async () => {
-        await mountForTest(  `<input />`);
+        await mountForTest(`<input />`);
 
         await click("input");
 
@@ -1919,7 +1935,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("scroll", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <div class="scrollable" style="height: 200px; width: 200px; overflow: auto;">
                 <div style="height: 2000px; width: 2000px;"></div>
             </div>
@@ -1943,7 +1959,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("resize", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <div class="resizable" style="height: 200px; width: 200px; overflow: auto;"/>
         `);
 
@@ -1967,7 +1983,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("select", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <select>
                 <option value="a">A</option>
                 <option value="b">B</option>
@@ -1999,7 +2015,7 @@ describe(parseUrl(import.meta.url), () => {
                 onClick() {
                     expect.step("click");
                 }
-            }
+            },
         );
 
         await click("button");
@@ -2018,7 +2034,7 @@ describe(parseUrl(import.meta.url), () => {
                 onClick() {
                     expect.step("clack");
                 }
-            }
+            },
         );
 
         await click("button");

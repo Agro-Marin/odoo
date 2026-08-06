@@ -1,14 +1,14 @@
 /** @odoo-module */
 
 import { describe, expect, makeExpect, test } from "@odoo/hoot";
-import { mountForTest, parseUrl } from "../local_helpers.js";
-
 import { animationFrame, click } from "@odoo/hoot-dom";
 import { Component, xml } from "@odoo/owl";
+
 import { Runner } from "../../core/runner.js";
 import { Test } from "../../core/test.js";
 import { HootTestResult } from "../../ui/hoot_test_result.js";
 import { makeUiState } from "../../ui/setup_hoot_ui.js";
+import { mountForTest, parseUrl } from "../local_helpers.js";
 
 /**
  * @param {(mockExpect: typeof expect) => any} callback
@@ -57,7 +57,7 @@ describe(parseUrl(import.meta.url), () => {
                 mockExpect(true).toBe(true);
                 mockExpect(true).toBe(false);
             },
-            { open: false }
+            { open: false },
         );
 
         expect(".HootTestResult button:only").toHaveText("Toggle");
@@ -71,12 +71,12 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(`.hoot-result-detail > .${CLS_PASS}`).toHaveText(
             /received value is strictly equal to true/,
-            { inline: true }
+            { inline: true },
         );
 
         expect(`.hoot-result-detail > .${CLS_FAIL}`).toHaveText(
             /expected values to be strictly equal/,
-            { inline: true }
+            { inline: true },
         );
         expect(`.hoot-info .${CLS_PASS}:contains(Expected)`).toHaveCount(1);
         expect(`.hoot-info .${CLS_FAIL}:contains(Received)`).toHaveCount(1);
@@ -91,19 +91,19 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(`.hoot-result-detail > .${CLS_PASS}`).toHaveText(
             /received value is deeply equal to \[1, 2, { a: true }\]/,
-            { inline: true }
+            { inline: true },
         );
 
         expect(`.hoot-result-detail > .${CLS_FAIL}`).toHaveText(
             /expected values to be deeply equal/,
-            { inline: true }
+            { inline: true },
         );
         expect(`.hoot-info .${CLS_PASS}:contains(Expected)`).toHaveCount(1);
         expect(`.hoot-info .${CLS_FAIL}:contains(Received)`).toHaveCount(1);
     });
 
     test("test results: toHaveCount", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <span class="text" >abc</span>
             <span class="text" >bcd</span>
         `);
@@ -116,19 +116,19 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(`.hoot-result-detail > .${CLS_PASS}`).toHaveText(
             /found 2 elements matching ".text"/,
-            { inline: true }
+            { inline: true },
         );
 
         expect(`.hoot-result-detail > .${CLS_FAIL}`).toHaveText(
             /found 2 elements matching ".text"/,
-            { inline: true }
+            { inline: true },
         );
         expect(`.hoot-info .${CLS_PASS}:contains(Expected)`).toHaveCount(1);
         expect(`.hoot-info .${CLS_FAIL}:contains(Received)`).toHaveCount(1);
     });
 
     test("multiple test results: toHaveText", async () => {
-        await mountForTest(  `
+        await mountForTest(`
             <span class="text" >abc</span>
             <span class="text" >bcd</span>
         `);
@@ -142,12 +142,12 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(`.hoot-result-detail > .${CLS_PASS}`).toHaveText(
             /1 element matching ".text:first" has text "abc"/,
-            { inline: true }
+            { inline: true },
         );
 
         expect(`.hoot-result-detail > .${CLS_FAIL}:eq(0)`).toHaveText(
             /expected 2 elements matching ".text" to have the given text/,
-            { inline: true }
+            { inline: true },
         );
         expect(".hoot-info:eq(0) .hoot-html").toHaveCount(2);
         expect(".hoot-info:eq(0) .hoot-html").toHaveText("<span.text/>");
@@ -157,7 +157,7 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(`.hoot-result-detail > .${CLS_FAIL}:eq(1)`).toHaveText(
             /expected 2 elements matching ".text" not to have the given text/,
-            { inline: true }
+            { inline: true },
         );
         expect(".hoot-info:eq(1) .hoot-html").toHaveCount(2);
         expect(".hoot-info:eq(1) .hoot-html").toHaveText("<span.text/>");

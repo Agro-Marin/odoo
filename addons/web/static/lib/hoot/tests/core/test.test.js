@@ -1,10 +1,10 @@
 /** @odoo-module */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { parseUrl } from "../local_helpers.js";
 
 import { Suite } from "../../core/suite.js";
 import { Test } from "../../core/test.js";
+import { parseUrl } from "../local_helpers.js";
 
 function disableHighlighting() {
     if (!window.Prism) {
@@ -61,7 +61,7 @@ test("${testName}", () => {
     // Synchronous
     expect(1).toBe(1);
 });
-`.trim()
+`.trim(),
         );
         expect(t.formatted).toBe(true);
 

@@ -1,6 +1,14 @@
 /** @odoo-module */
 
-import { describe, expect, mockSendBeacon, mockTouch, mockVibrate, test } from "@odoo/hoot";
+import {
+    describe,
+    expect,
+    mockSendBeacon,
+    mockTouch,
+    mockVibrate,
+    test,
+} from "@odoo/hoot";
+
 import { parseUrl } from "../local_helpers.js";
 
 /**
@@ -9,7 +17,9 @@ import { parseUrl } from "../local_helpers.js";
 const ensureResolvesImmediatly = (promise) =>
     Promise.race([
         promise,
-        new Promise((resolve, reject) => reject("failed to resolve in a single micro tick")),
+        new Promise((resolve, reject) =>
+            reject("failed to resolve in a single micro tick"),
+        ),
     ]);
 
 describe(parseUrl(import.meta.url), () => {
@@ -48,7 +58,9 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("sendBeacon", () => {
-        expect(() => navigator.sendBeacon("/route", new Blob([]))).toThrow(/sendBeacon/);
+        expect(() => navigator.sendBeacon("/route", new Blob([]))).toThrow(
+            /sendBeacon/,
+        );
 
         mockSendBeacon(expect.step);
 

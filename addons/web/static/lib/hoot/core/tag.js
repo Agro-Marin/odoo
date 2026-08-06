@@ -1,6 +1,12 @@
 /** @odoo-module */
 
-import { HootError, levenshtein, normalize, stringify, stringToNumber } from "../hoot_utils.js";
+import {
+    HootError,
+    levenshtein,
+    normalize,
+    stringify,
+    stringToNumber,
+} from "../hoot_utils.js";
 
 /**
  * @typedef {import("./job").Job} Job
@@ -85,9 +91,9 @@ export function applyTags(job, tags) {
         if (excluded?.length) {
             throw new HootError(
                 `cannot apply tag ${stringify(tag.name)} on test/suite ${stringify(
-                    job.name
+                    job.name,
                 )} as it explicitly excludes tags ${excluded.map(stringify).join(" & ")}`,
-                { level: "global" }
+                { level: "global" },
             );
         }
         job.tags.push(tag);
@@ -130,7 +136,8 @@ export function defineTags(...definitions) {
 export function getTags(tagNames) {
     return tagNames.map((tagKey, i) => {
         const nKey = normalize(tagKey.toLowerCase());
-        const tag = existingTags[nKey] || defineTags({ key: nKey, name: tagNames[i] })[0];
+        const tag =
+            existingTags[nKey] || defineTags({ key: nKey, name: tagNames[i] })[0];
         return tag;
     });
 }

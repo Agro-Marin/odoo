@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, onWillRender, useEffect, useRef, useState, xml } from "@odoo/owl";
+
 import { Test } from "../core/test.js";
 import { refresh } from "../core/url.js";
 import { formatTime, throttle } from "../hoot_utils.js";
@@ -269,7 +270,7 @@ export class HootDebugToolBar extends Component {
     getInfo() {
         const [status, className] = this.getStatus();
         const [assertPassed, assertFailed] = this.groupAssertions(
-            this.props.test.lastResults?.getEvents("assertion")
+            this.props.test.lastResults?.getEvents("assertion"),
         );
         return {
             className,

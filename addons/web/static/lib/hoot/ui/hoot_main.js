@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
+
 import { createUrl, refresh } from "../core/url.js";
 import { callHootKey, useHootKey, useWindowListener } from "../hoot_utils.js";
 import { HootButtons } from "./hoot_buttons.js";

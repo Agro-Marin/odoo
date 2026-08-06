@@ -1,9 +1,9 @@
 /** @odoo-module */
 
 import {
-    Deferred,
     advanceTime,
     animationFrame,
+    Deferred,
     describe,
     expect,
     microTick,
@@ -12,6 +12,7 @@ import {
     tick,
     waitUntil,
 } from "@odoo/hoot";
+
 import { parseUrl } from "../local_helpers.js";
 
 describe.timeout(1_000);
@@ -35,7 +36,13 @@ describe(parseUrl(import.meta.url), () => {
 
         await advanceTime(10_000);
 
-        expect.verifySteps(["animation", "timeout", "interval", "interval", "interval"]);
+        expect.verifySteps([
+            "animation",
+            "timeout",
+            "interval",
+            "interval",
+            "interval",
+        ]);
 
         await advanceTime(10_000);
 

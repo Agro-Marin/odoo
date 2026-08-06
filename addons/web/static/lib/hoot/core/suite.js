@@ -1,6 +1,6 @@
 /** @odoo-module */
 
-import { Callbacks, HootError, createReporting, stringify } from "../hoot_utils.js";
+import { Callbacks, createReporting, HootError, stringify } from "../hoot_utils.js";
 import { Job } from "./job.js";
 
 /**

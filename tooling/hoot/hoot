@@ -196,6 +196,8 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
     extra = f"&tag={tag}" if tag else ""
     if args.filter:
         extra += f"&filter={args.filter}"
+    if args.hook_timeout is not None:
+        extra += f"&hookTimeout={args.hook_timeout}"
     return H.run_suites(
         suites,
         port=state["port"],
@@ -295,7 +297,12 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=300,
                     help="Wall-clock timeout per run, seconds (default: 300).")
     ap.add_argument("--hoot-timeout", type=int, default=15000,
-                    help="HOOT in-page timeout, ms (default: 15000).")
+                    help="HOOT in-page timeout, ms (default: 15000). Covers the "
+                         "test body only, not its hooks.")
+    ap.add_argument("--hook-timeout", type=int, default=None,
+                    help="HOOT before-test/after-test hook timeout, ms "
+                         "(default: HOOT's own 5000). Lower it to reproduce a "
+                         "hook that outlives the threshold.")
     ap.add_argument("--filter", default="",
                     help="Extra HOOT text filter appended to the URL.")
     ap.add_argument("--tag", default=None,

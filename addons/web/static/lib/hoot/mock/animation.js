@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { on } from "@odoo/hoot-dom";
+
 import { MockEventTarget } from "../hoot_utils.js";
 import { ensureTest } from "../main_runner.js";
 
@@ -159,6 +160,6 @@ export function mockedWindowScrollTo(...args) {
 export function subscribeToTransitionChange(onChange) {
     onChange(allowTransitions);
     animationChangeCleanups.push(
-        on(animationChangeBus, "toggle-transitions", () => onChange(allowTransitions))
+        on(animationChangeBus, "toggle-transitions", () => onChange(allowTransitions)),
     );
 }

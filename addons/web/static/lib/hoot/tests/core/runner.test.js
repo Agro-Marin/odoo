@@ -1,11 +1,11 @@
 /** @odoo-module */
 
 import { after, defineTags, describe, expect, test } from "@odoo/hoot";
-import { parseUrl } from "../local_helpers.js";
 
 import { Runner } from "../../core/runner.js";
 import { Suite } from "../../core/suite.js";
 import { undefineTags } from "../../core/tag.js";
+import { parseUrl } from "../local_helpers.js";
 
 const makeTestRunner = () => {
     const runner = new Runner();
@@ -64,7 +64,7 @@ describe(parseUrl(import.meta.url), () => {
         expect(() =>
             runner.test([], "standalone test", () => {
                 expect(true).toBe(false);
-            })
+            }),
         ).toThrow();
     });
 
@@ -93,7 +93,7 @@ describe(parseUrl(import.meta.url), () => {
             {
                 name: "b",
                 exclude: ["a"],
-            }
+            },
         );
 
         const runner = makeTestRunner();
@@ -105,7 +105,9 @@ describe(parseUrl(import.meta.url), () => {
             runner.test("second test", () => {});
 
             runner.test.tags("a", "b");
-            expect(() => runner.test("third test", () => {})).toThrow(`cannot apply tag "b"`);
+            expect(() => runner.test("third test", () => {})).toThrow(
+                `cannot apply tag "b"`,
+            );
 
             runner.test.tags("a", "c");
             runner.test("fourth test", () => {});
@@ -121,7 +123,9 @@ describe(parseUrl(import.meta.url), () => {
             runner.test("a test", () => {});
         });
 
-        expect(() => runner._prepareRunner()).toThrow(/no suite or test matches id "deadbeef"/);
+        expect(() => runner._prepareRunner()).toThrow(
+            /no suite or test matches id "deadbeef"/,
+        );
     });
 
     test("headless run names every id that matches nothing", () => {
@@ -131,7 +135,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         expect(() => runner._prepareRunner()).toThrow(
-            /no suite or test matches ids "deadbeef", "d15ea5e"/
+            /no suite or test matches ids "deadbeef", "d15ea5e"/,
         );
     });
 
@@ -166,5 +170,86 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(() => runner._prepareRunner()).not.toThrow();
         expect(runner.hasFilter).toBe(false);
+    });
+
+    // Hook timeout. Exercised through `_raceHookTimeout` rather than by starting a
+    // nested Runner: nothing in this suite starts one, and a started Runner
+    // installs its own global "error"/"unhandledrejection" listeners, which would
+    // race with the listeners of the Runner executing these very tests.
+    //
+    // `config.hookTimeout` is what makes this deterministic AND fast: the timer is
+    // the native setTimeout captured before any mock, so a few milliseconds are
+    // enough and no clock has to be faked.
+
+    const neverSettles = () => new Promise(() => {});
+
+    test("a before-test hook that outlives the timeout is reported, not discarded", async () => {
+        const runner = makeTestRunner();
+        runner.config.hookTimeout = 10;
+
+        const error = await runner._raceHookTimeout(
+            "before-test",
+            { name: "stuck test" },
+            neverSettles,
+        );
+
+        // The caller skips the test body on a non-null return, so the body never
+        // runs against the half-built environment.
+        expect(error).not.toBe(null);
+        expect(error.message).toInclude("before-test");
+        expect(error.message).toInclude("stuck test");
+        expect(error.message).toInclude("10 milliseconds");
+    });
+
+    test("the hook timeout comes from the config, not a hardcoded value", async () => {
+        const runner = makeTestRunner();
+        const slowHook = () => new Promise((resolve) => setTimeout(resolve, 40));
+
+        runner.config.hookTimeout = 5;
+        expect(
+            await runner._raceHookTimeout("before-test", { name: "t" }, slowHook),
+        ).not.toBe(null);
+
+        runner.config.hookTimeout = 500;
+        expect(
+            await runner._raceHookTimeout("before-test", { name: "t" }, slowHook),
+        ).toBe(null);
+    });
+
+    test("a hook that settles in time reports no error", async () => {
+        const runner = makeTestRunner();
+        runner.config.hookTimeout = 500;
+
+        expect(
+            await runner._raceHookTimeout("after-test", { name: "t" }, async () => {}),
+        ).toBe(null);
+    });
+    test("what the orphaned hooks throw after the timeout is dropped", async () => {
+        // The orphan resolves once the test is over and its environment torn
+        // down, so reporting its fallout would fail a second, unrelated test on
+        // top of the one that timed out.
+        const runner = makeTestRunner();
+        runner.config.hookTimeout = 10;
+        // The instance is throwaway (see makeTestRunner), so no cleanup needed.
+        const reported = [];
+        runner._handleError = (error) => reported.push(error);
+
+        let lateOnError;
+        const error = await runner._raceHookTimeout(
+            "before-test",
+            { name: "stuck test" },
+            (onError) => {
+                lateOnError = onError;
+                onError(new Error("while the hooks still owned the test"));
+                return new Promise(() => {});
+            },
+        );
+
+        expect(error).not.toBe(null);
+        // Raised before the timeout: the hooks still owned the test, so it stands.
+        expect(reported).toHaveLength(1);
+
+        lateOnError(new Error("after the timeout, from the orphan"));
+        expect(reported).toHaveLength(1);
     });
 });

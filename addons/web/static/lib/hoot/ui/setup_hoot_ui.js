@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { mount, reactive } from "@odoo/owl";
+
 import { HootFixtureElement } from "../core/fixture.js";
 import { waitForDocument } from "../hoot_utils.js";
 import { getRunner } from "../main_runner.js";
@@ -76,7 +77,7 @@ async function loadBundle(bundle) {
                 loadAsset("script", {
                     src,
                     type: "text/javascript",
-                })
+                }),
             );
         }
     }
@@ -165,7 +166,7 @@ export async function setupHootUI() {
             createLinkElement("/web/static/src/libs/fontawesome7/css/regular.css"),
             createLinkElement("/web/static/src/libs/fontawesome7/css/brands.css"),
             prismStyleLink,
-            createLinkElement("/web/static/lib/hoot/ui/hoot_style.css")
+            createLinkElement("/web/static/lib/hoot/ui/hoot_style.css"),
         );
     }
 

@@ -9,7 +9,7 @@ name: ESLint Check
 #   python tooling/ratchet/ratchet.py eslint --count "$N" --update
 #
 # The floor is the fork's own JS only: vendored third-party libraries are
-# excluded structurally by eslint.config.mjs (`**/static/lib/**`) — vendored code
+# excluded structurally by eslint.config.mjs (`**/static/lib/**/*`) — vendored code
 # lives in static/lib by convention, so there is no per-library allowlist to
 # drift. (Floor 2026-06-25: 122843 fork errors; ~46k of that is test files
 # missing test globals — a separate follow-up.)

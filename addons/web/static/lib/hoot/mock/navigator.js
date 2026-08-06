@@ -36,7 +36,9 @@ function getBlobValue(value) {
  * @param {string} type
  */
 function getClipboardValue(value, type) {
-    return getBlobValue(isInstanceOf(value, ClipboardItem) ? value.getType(type) : value);
+    return getBlobValue(
+        isInstanceOf(value, ClipboardItem) ? value.getType(type) : value,
+    );
 }
 
 function getMockValues() {
@@ -224,7 +226,7 @@ export class MockPermissions {
     async query({ name }) {
         if (!(name in currentPermissions)) {
             throw new TypeError(
-                `The provided value '${name}' is not a valid enum value of type PermissionName`
+                `The provided value '${name}' is not a valid enum value of type PermissionName`,
             );
         }
         return new MockPermissionStatus(name);
@@ -287,7 +289,7 @@ export function mockPermission(name, value) {
     ensureTest("mockPermission");
     if (!(name in currentPermissions)) {
         throw new TypeError(
-            `The provided value '${name}' is not a valid enum value of type PermissionName`
+            `The provided value '${name}' is not a valid enum value of type PermissionName`,
         );
     }
 

@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { markup, reactive } from "@odoo/owl";
+
 import { HootError, stringify } from "../hoot_utils.js";
 import { Job } from "./job.js";
 import { Tag } from "./tag.js";
@@ -25,7 +26,7 @@ export function testError({ name, parent }, ...message) {
     const parentString = parent ? ` (in suite ${stringify(parent.name)})` : "";
     return new HootError(
         `error while registering test ${stringify(name)}${parentString}: ${message.join("\n")}`,
-        { level: "critical" }
+        { level: "critical" },
     );
 }
 
@@ -55,7 +56,7 @@ export class Test extends Job {
                 const highlighted = window.Prism.highlight(
                     this.runFnString,
                     Prism.languages.javascript,
-                    "javascript"
+                    "javascript",
                 );
                 this.runFnString = markup(highlighted);
             }

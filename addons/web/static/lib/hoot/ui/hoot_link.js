@@ -1,6 +1,7 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
+
 import { FILTER_SCHEMA } from "../core/config.js";
 import { createUrlFromId } from "../core/url.js";
 import { ensureArray, INCLUDE_LEVEL } from "../hoot_utils.js";
@@ -84,9 +85,12 @@ export class HootLink extends Component {
                 if (!(type in FILTER_SCHEMA)) {
                     continue;
                 }
-                const targetValue = options?.ignore ? -INCLUDE_LEVEL.url : +INCLUDE_LEVEL.url;
+                const targetValue = options?.ignore
+                    ? -INCLUDE_LEVEL.url
+                    : +INCLUDE_LEVEL.url;
                 for (const id of ensureArray(idOrIds)) {
-                    const finalValue = includeSpecs[type][id] === targetValue ? 0 : targetValue;
+                    const finalValue =
+                        includeSpecs[type][id] === targetValue ? 0 : targetValue;
                     this.env.runner.include(type, id, finalValue);
                     appliedFilter = true;
                 }

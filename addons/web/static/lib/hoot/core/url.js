@@ -1,7 +1,8 @@
 /** @odoo-module */
 
-import { onWillRender, reactive, useState } from "@odoo/owl";
 import { isIterable } from "@odoo/hoot-dom-utils";
+import { onWillRender, reactive, useState } from "@odoo/owl";
+
 import { debounce, ensureArray, isNil } from "../hoot_utils.js";
 import { CONFIG_KEYS, CONFIG_SCHEMA, FILTER_KEYS, FILTER_SCHEMA } from "./config.js";
 
@@ -72,7 +73,9 @@ export function createUrl(params) {
 export function createUrlFromId(specs, options) {
     const nextParams = {};
     for (const key of FILTER_KEYS) {
-        nextParams[key] = new Set(ensureArray((options?.ignore && urlParams[key]) || []));
+        nextParams[key] = new Set(
+            ensureArray((options?.ignore && urlParams[key]) || []),
+        );
     }
     for (const [type, id] of $entries(specs)) {
         const ids = ensureArray(id);
@@ -81,7 +84,10 @@ export function createUrlFromId(specs, options) {
                 if (options?.ignore) {
                     for (const id of ids) {
                         const exludedId = EXCLUDE_PREFIX + id;
-                        if (nextParams.id.has(exludedId) || urlParams.id?.includes(exludedId)) {
+                        if (
+                            nextParams.id.has(exludedId) ||
+                            urlParams.id?.includes(exludedId)
+                        ) {
                             nextParams.id.delete(exludedId);
                         } else {
                             nextParams.id.add(exludedId);
@@ -153,7 +159,9 @@ export function setParams(params) {
 export function subscribeToURLParams(...keys) {
     const state = useState(urlParams);
     if (keys.length) {
-        const observedKeys = keys.includes("*") ? [...CONFIG_KEYS, ...FILTER_KEYS] : keys;
+        const observedKeys = keys.includes("*")
+            ? [...CONFIG_KEYS, ...FILTER_KEYS]
+            : keys;
         onWillRender(() => observedKeys.forEach((key) => state[key]));
     }
     return state;

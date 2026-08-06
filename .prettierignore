@@ -19,8 +19,17 @@ odoo/addons/test_assetsbundle/static/**
 
 # Vendored third-party libraries (not our code). By convention vendored code
 # lives under <module>/static/lib and nowhere else.
-**/static/lib/**
-# hoot is first-party despite living under web/static/lib (historical).
+#
+# Written as `/**/*` (files) rather than `/**` (files AND the directory), for the
+# same reason as eslint.config.mjs: a pattern that ignores the directory prunes
+# the walk, and the negation below can then re-include nothing. Ignoring only the
+# files keeps it effective.
+**/static/lib/**/*
+# hoot is first-party despite living under web/static/lib (historical). The
+# directory itself has to be un-ignored too, or its contents cannot be
+# re-included: gitignore semantics refuse to resurrect a file whose parent
+# directory is excluded.
+!addons/web/static/lib/hoot
 !addons/web/static/lib/hoot/**
 # Vendored bundle that predates the convention.
 addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js
