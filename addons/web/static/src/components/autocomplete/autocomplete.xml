@@ -3,6 +3,9 @@
 
     <t t-name="web.AutoComplete">
         <div class="o-autocomplete" t-ref="root" t-att-class="autoCompleteRootClass">
+            <!-- aria-activedescendant is carried by the navigator, which owns
+                 the cursor and writes the attribute on the focused combobox
+                 as the active item moves. -->
             <input
                 type="text"
                 t-att-id="props.id"
@@ -11,7 +14,6 @@
                 t-att-placeholder="props.placeholder"
                 t-att-title="props.title"
                 role="combobox"
-                t-att-aria-activedescendant="activeSourceOptionId"
                 t-attf-aria-controls="{{idPrefix}}_listbox"
                 t-att-aria-expanded="displayOptions ? 'true' : 'false'"
                 aria-autocomplete="list"
@@ -55,12 +57,16 @@
                         </t>
                         <t t-else="">
                             <t t-foreach="source.options" t-as="option" t-key="option.id">
+                                <!-- Hover, the ui-state-active cursor class
+                                     and aria-selected on selectable options
+                                     are carried by the navigator; the
+                                     mouseenter below only covers unselectable
+                                     entries, which are not navigable items. -->
                                 <li
                                     class="o-autocomplete--dropdown-item ui-menu-item d-block"
                                     role="presentation"
                                     t-att-class="option.cssClass"
                                     t-on-mouseenter="() => this.onOptionMouseEnter([source_index, option_index])"
-                                    t-on-mouseleave="() => this.onOptionMouseLeave([source_index, option_index])"
                                     t-on-click="() => this.onOptionClick(option)"
                                     t-on-pointerdown="(ev) => this.onOptionPointerDown(option, ev)"
                                 >
@@ -70,8 +76,7 @@
                                         t-att-role="!option.unselectable and 'option'"
                                         t-att-href="!option.unselectable and '#'"
                                         t-att-tabindex="!option.unselectable and props.dropdown and '-1'"
-                                        t-att-class="{ 'ui-state-active': isActiveSourceOption([source_index, option_index]) }"
-                                        t-att-aria-selected="isActiveSourceOption([source_index, option_index]) ? 'true' : 'false'"
+                                        t-att-aria-selected="option.unselectable ? 'false' : undefined"
                                     >
                                         <t t-slot="{{ source.optionSlot }}" label="option.label" data="option.data">
                                             <t t-if="!option.labelTermOrder" t-out="option.label"/>

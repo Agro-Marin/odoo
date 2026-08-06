@@ -1,4 +1,4 @@
 {
-  "count": 2152,
-  "note": "2166 -> 2152 (-14). The remediation waves had drifted the tree to 2170 (+10 new mock-shape errors in new test code, -6 from typedef fixes: currency rate->toCompanyRate and the formatters duplicate import). All 10 new instances neutralized at the source (async mocks matching the Promise<void> signature where semantically right, explicit any-casts per the file conventions elsewhere), and the casts also covered 8 sibling pre-existing instances of the same shapes (env partials, loadMenusPromise patches, PromiseRejectionEvent.reason). ui_service's delete env.isSmall is runtime-legal (configurable defineProperty) and now cast accordingly. Command: npx tsc --project tsconfig.json --noEmit 2>&1 | grep -c 'error TS'"
+  "count": 2151,
+  "note": "2152 -> 2151 (-1). The AutoComplete keyboard-navigation port (audit U12 proposal 6 pilot) deleted selectablePositions, whose positions.push(...) carried the file's TS2322 (any[][] vs [number, number][]). The replacement navigator-derived cursor and the data-level _firstSelectableOption type cleanly. Command: npx tsc --project tsconfig.json --noEmit 2>&1 | grep -c 'error TS'"
 }

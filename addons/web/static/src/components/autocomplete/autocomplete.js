@@ -14,11 +14,11 @@ import {
 } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { reportUncaught } from "@web/core/errors/error_utils";
+import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
-import { Deferred } from "@web/core/utils/concurrency";
+import { Deferred, KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useClickAway } from "@web/core/utils/dom/click_away";
-import { isScrollableY, scrollTo } from "@web/core/utils/dom/scrolling";
 import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
@@ -86,16 +86,32 @@ export class AutoComplete extends Component {
         this.autoCompleteId = uniqueId("autocomplete_");
         this.nextSourceId = 0;
         this.nextOptionId = 0;
-        this._loadId = 0;
         this.inEdition = false;
-        this.mouseSelectionActive = false;
         this.isOptionSelected = false;
         this.dismissed = false;
 
+        // Tab only commits a suggestion the user actually browsed to. That is
+        // a fact about the open dropdown, so close() resets it. Not state: no
+        // render depends on it.
+        this.navigationRev = 0;
+
+        // One load owns the dropdown at a time; superseding it (a newer load,
+        // or close()) rejects the superseded tail with a SupersededError so
+        // every caller awaiting a load still settles.
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
+
+        /**
+         * A finished load's pending "present the options" step: the entry
+         * activation must land on the freshly rendered list, so it runs on
+         * the navigator update that follows the render (onNavigationUpdated)
+         * and resolves `applied` once it has.
+         *
+         * @type {{ direction: number, applied: Deferred<void> } | null}
+         */
+        this._entry = null;
+
         this.state = useState({
-            navigationRev: 0,
             open: false,
-            activeSourceOption: null,
             value: this.props.value,
             /** @type {any[]} */
             sources: [],
@@ -107,6 +123,26 @@ export class AutoComplete extends Component {
             useAutofocus({ refName: "input" });
         }
         this.root = useRef("root");
+
+        this.navigator = useNavigation(this.root, {
+            virtualFocus: true,
+            wrap: false,
+            activeClass: "ui-state-active",
+            mouseActivation: "armed",
+            shouldFocusChildInput: false,
+            shouldRegisterHotkeys: false,
+            getItems: () =>
+                /** @type {any} */ (
+                    this.root.el?.querySelectorAll(
+                        ":scope .o-autocomplete--dropdown-item > a.ui-menu-item-wrapper",
+                    ) ?? []
+                ),
+            getHoverTarget: (el) =>
+                /** @type {HTMLElement} */ (
+                    el.closest(".o-autocomplete--dropdown-item") ?? el
+                ),
+            onUpdated: () => this.onNavigationUpdated(),
+        });
 
         this.debouncedProcessInput = useDebounced(
             async () => {
@@ -135,12 +171,7 @@ export class AutoComplete extends Component {
         });
         this._onScrollAway = (/** @type {Event} */ ev) =>
             this.externalClose(/** @type {Node} */ (ev.target));
-        this._onMouseMove = () => {
-            this._mouseMoveCleanup = null;
-            this.mouseSelectionActive = true;
-        };
         this._globalCleanups = [];
-        this._mouseMoveCleanup = null;
         onWillDestroy(() => this._removeGlobalListeners());
 
         onWillUpdateProps((nextProps) => {
@@ -187,14 +218,14 @@ export class AutoComplete extends Component {
         return this.props.id || this.autoCompleteId;
     }
 
-    get activeSourceOptionId() {
-        if (!this.isOpened || !this.state.activeSourceOption) {
-            return undefined;
-        }
-        // A loading source contributes no position, so the active option can
-        // never sit in one -- there is no spinner id to name here.
-        const [sourceIndex, optionIndex] = this.state.activeSourceOption;
-        return `${this.idPrefix}_${sourceIndex}_${optionIndex}`;
+    /** @returns {[number, number] | null} the [source, option] indices of the
+     *  navigator's active item, read off the option element's own id -- the
+     *  navigator owns the cursor, the component only translates it back into
+     *  its data space. */
+    get activeSourceOption() {
+        const el = this.navigator.activeItem?.el;
+        const match = el && /_(\d+)_(\d+)$/.exec(el.id);
+        return match ? [Number(match[1]), Number(match[2])] : null;
     }
 
     /** @returns {boolean} */
@@ -239,11 +270,24 @@ export class AutoComplete extends Component {
     }
 
     get activeOption() {
-        if (!this.state.activeSourceOption) {
+        const el = this.navigator.activeItem?.el;
+        return el ? this._optionForElement(el) : null;
+    }
+
+    /**
+     * Translates an option element back into the option it renders, through
+     * the `{idPrefix}_{sourceIndex}_{optionIndex}` id the template stamps on
+     * every option.
+     *
+     * @param {HTMLElement} el
+     * @returns {any | null}
+     */
+    _optionForElement(el) {
+        const match = /_(\d+)_(\d+)$/.exec(el.id);
+        if (!match) {
             return null;
         }
-        const [sourceIndex, optionIndex] = this.state.activeSourceOption;
-        return this.sources[sourceIndex].options[optionIndex];
+        return this.sources[Number(match[1])]?.options[Number(match[2])] ?? null;
     }
 
     /**
@@ -260,16 +304,21 @@ export class AutoComplete extends Component {
 
     close() {
         this.state.open = false;
-        this.state.activeSourceOption = null;
+        this.navigator.clearActiveItem();
         // Tab only commits a suggestion the user actually browsed to. That is a
         // fact about the open dropdown, so it dies with it.
-        this.state.navigationRev = 0;
-        this._loadId++;
+        this.navigationRev = 0;
+        // Abandon any in-flight load: its tail is rejected with a
+        // SupersededError and returns quietly, so its awaiters still settle.
+        this.keepLast.cancel();
+        if (this._entry) {
+            this._entry.applied.resolve();
+            this._entry = null;
+        }
         this.debouncedProcessInput.cancel();
         this.pendingPromise?.resolve();
         this.pendingPromise = null;
         this.loadingPromise = null;
-        this._resetMouseSelection();
         this._removeGlobalListeners();
     }
 
@@ -284,7 +333,6 @@ export class AutoComplete extends Component {
             );
         };
         add(window, "scroll", this._onScrollAway, true);
-        this._armMouseMove();
     }
 
     _removeGlobalListeners() {
@@ -292,29 +340,6 @@ export class AutoComplete extends Component {
             cleanup();
         }
         this._globalCleanups = [];
-        this._mouseMoveCleanup?.();
-        this._mouseMoveCleanup = null;
-    }
-
-    _armMouseMove() {
-        if (this._mouseMoveCleanup) {
-            return;
-        }
-        window.addEventListener("mousemove", this._onMouseMove, {
-            capture: true,
-            once: true,
-        });
-        this._mouseMoveCleanup = () =>
-            window.removeEventListener("mousemove", this._onMouseMove, {
-                capture: true,
-            });
-    }
-
-    _resetMouseSelection() {
-        this.mouseSelectionActive = false;
-        if (this.isOpened) {
-            this._armMouseMove();
-        }
     }
 
     cancel() {
@@ -333,7 +358,6 @@ export class AutoComplete extends Component {
      * @param {number} [entryDirection] @see open
      */
     async loadSources(useInput, entryDirection = 0) {
-        const loadId = ++this._loadId;
         // The text the box held when these options were asked for. Unlike
         // `request` it is recorded even for a load that ignores the input, so
         // it can answer "are these still the suggestions for what is on
@@ -345,7 +369,7 @@ export class AutoComplete extends Component {
         this.state.sources = this.props.sources.map((pSource) =>
             this.makeSource(pSource),
         );
-        this.state.activeSourceOption = null;
+        this.navigator.clearActiveItem();
 
         const proms = [];
         for (const [index, pSource] of this.props.sources.entries()) {
@@ -356,7 +380,7 @@ export class AutoComplete extends Component {
                 proms.push(
                     options.then(
                         (options) => {
-                            if (loadId !== this._loadId) {
+                            if (!this._isSourceCurrent(source)) {
                                 return;
                             }
                             source.options = options.map((option) =>
@@ -365,7 +389,7 @@ export class AutoComplete extends Component {
                             source.isLoading = false;
                         },
                         (error) => {
-                            if (loadId !== this._loadId) {
+                            if (!this._isSourceCurrent(source)) {
                                 return;
                             }
                             source.isLoading = false;
@@ -378,14 +402,91 @@ export class AutoComplete extends Component {
             }
         }
 
-        await Promise.all(proms);
-        if (loadId !== this._loadId) {
-            return;
+        try {
+            await this.keepLast.add(Promise.all(proms));
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                // A newer load (or close()) owns the dropdown now.
+                return;
+            }
+            throw error;
         }
         this._loadedRequest = request;
         this._loadedInputValue = inputValue;
-        this.navigate(entryDirection);
-        this.scroll();
+        await this._enterLoadedOptions(entryDirection);
+    }
+
+    /**
+     * Whether a source object still belongs to the load currently on screen:
+     * a newer load replaces `state.sources` wholesale, detaching the previous
+     * batch. Source ids are unique across loads, so identity is answered in
+     * data space -- no reactivity proxy comparison.
+     *
+     * @param {{ id: number }} source
+     * @returns {boolean}
+     */
+    _isSourceCurrent(source) {
+        return this.sources.some((s) => s.id === source.id);
+    }
+
+    /**
+     * The first option the user could land on, in display order, straight
+     * from the loaded data. Deliberately not the navigator's first item: the
+     * commit-on-blur decision is about what was *loaded*, and must hold even
+     * when the parent closed the dropdown before the list ever rendered.
+     * Sources still loading contribute nothing: they have no options yet.
+     *
+     * @returns {any | null}
+     */
+    _firstSelectableOption() {
+        for (const source of this.sources) {
+            if (source.isLoading) {
+                continue;
+            }
+            const option = source.options.find((option) => !option.unselectable);
+            if (option) {
+                return option;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Presents a finished load: schedules the entry activation to run on the
+     * navigator update that follows the render of the new list, so it lands
+     * on the new DOM. Resolves once it has -- callers awaiting a load (enter,
+     * tab) must observe the cursor it produces. When no update is coming --
+     * the list will not render any navigable item and none is currently in
+     * the DOM -- there is nothing to enter and it resolves immediately.
+     *
+     * @param {number} direction @see open
+     * @returns {Promise<void>}
+     */
+    _enterLoadedOptions(direction) {
+        const willRenderItems =
+            this.displayOptions && Boolean(this._firstSelectableOption());
+        if (!willRenderItems && !this.navigator.items.length) {
+            this.navigator.clearActiveItem();
+            return Promise.resolve();
+        }
+        this._entry?.applied.resolve();
+        const applied = /** @type {Deferred<void>} */ (new Deferred());
+        this._entry = { direction, applied };
+        return applied;
+    }
+
+    onNavigationUpdated() {
+        if (!this._entry) {
+            return;
+        }
+        const { direction, applied } = this._entry;
+        this._entry = null;
+        if (direction < 0) {
+            this.navigator.activateLast();
+        } else {
+            this.navigator.activateFirst();
+        }
+        applied.resolve();
     }
 
     /**
@@ -423,14 +524,6 @@ export class AutoComplete extends Component {
         };
     }
 
-    isActiveSourceOption([sourceIndex, optionIndex]) {
-        return (
-            this.state.activeSourceOption &&
-            this.state.activeSourceOption[0] === sourceIndex &&
-            this.state.activeSourceOption[1] === optionIndex
-        );
-    }
-
     selectOption(option) {
         this.inEdition = false;
         if (!option || option.unselectable) {
@@ -444,61 +537,6 @@ export class AutoComplete extends Component {
         this.forceValFromProp = true;
         option.onSelect();
         this.close();
-    }
-
-    /**
-     * Every option the user can actually land on, in display order. Sources
-     * still loading contribute nothing: they have no options yet.
-     *
-     * @returns {Array<[number, number]>}
-     */
-    get selectablePositions() {
-        const positions = [];
-        for (const [sourceIndex, source] of this.sources.entries()) {
-            if (source.isLoading) {
-                continue;
-            }
-            for (const [optionIndex, option] of source.options.entries()) {
-                if (!option.unselectable) {
-                    positions.push([sourceIndex, optionIndex]);
-                }
-            }
-        }
-        return positions;
-    }
-
-    /**
-     * Moves the active option one selectable step, without wrapping: stepping
-     * off either end clears the selection, and the next step in the same
-     * direction re-enters from the opposite end. A direction of 0 resets to the
-     * first selectable option, which is what a fresh source load wants.
-     *
-     * @param {number} direction
-     */
-    navigate(direction) {
-        this._resetMouseSelection();
-        const positions = this.selectablePositions;
-        const step = Math.sign(direction);
-        if (!step) {
-            this.state.activeSourceOption = positions[0] ?? null;
-            return;
-        }
-        this.state.navigationRev++;
-
-        const active = this.state.activeSourceOption;
-        const activeIndex = active
-            ? positions.findIndex(
-                  ([sourceIndex, optionIndex]) =>
-                      sourceIndex === active[0] && optionIndex === active[1],
-              )
-            : -1;
-        let nextIndex;
-        if (activeIndex === -1) {
-            nextIndex = step > 0 ? 0 : positions.length - 1;
-        } else {
-            nextIndex = activeIndex + step;
-        }
-        this.state.activeSourceOption = positions[nextIndex] ?? null;
     }
 
     onInputBlur() {
@@ -524,9 +562,9 @@ export class AutoComplete extends Component {
             !this.loadingPromise &&
             this._loadedInputValue === this.inputRef.el.value.trim()
         ) {
-            this.state.activeSourceOption = this.selectablePositions[0] ?? null;
-            if (this.activeOption) {
-                this.selectOption(this.activeOption);
+            const option = this._firstSelectableOption();
+            if (option) {
+                this.selectOption(option);
             }
         }
         this.props.onBlur({
@@ -601,7 +639,7 @@ export class AutoComplete extends Component {
 
         switch (hotkey) {
             case "enter":
-                if (!this.isOpened || !this.state.activeSourceOption) {
+                if (!this.isOpened || !this.activeOption) {
                     return;
                 }
                 this.selectOption(this.activeOption);
@@ -620,8 +658,8 @@ export class AutoComplete extends Component {
                 }
                 if (
                     this.props.autoSelect &&
-                    this.state.activeSourceOption &&
-                    (this.state.navigationRev > 0 || this.inputRef.el.value.length)
+                    this.activeOption &&
+                    (this.navigationRev > 0 || this.inputRef.el.value.length)
                 ) {
                     this.selectOption(this.activeOption);
                 }
@@ -631,9 +669,13 @@ export class AutoComplete extends Component {
             case "arrowup":
             case "arrowdown": {
                 const direction = hotkey === "arrowdown" ? +1 : -1;
+                this.navigationRev++;
                 if (this.isOpened) {
-                    this.navigate(direction);
-                    this.scroll();
+                    if (direction > 0) {
+                        this.navigator.next();
+                    } else {
+                        this.navigator.previous();
+                    }
                 } else {
                     // A closed list holds no option to step onto: the arrow has
                     // to enter it from the end it points away from, and that end
@@ -653,23 +695,22 @@ export class AutoComplete extends Component {
         ev.preventDefault();
     }
 
-    onOptionMouseEnter(indices) {
-        if (!this.mouseSelectionActive) {
-            return;
+    /**
+     * The navigator drives hover for selectable options through its own armed
+     * mouseenter/mouseleave listeners. Unselectable options are not navigable
+     * items, but the pointer resting on one must still withdraw the highlight
+     * -- a group header is "none of the choices" -- under the same arming
+     * gate: a list rendered under a still cursor keeps its keyboard cursor.
+     *
+     * @param {[number, number]} indices
+     */
+    onOptionMouseEnter([sourceIndex, optionIndex]) {
+        if (
+            this.navigator.isMouseArmed &&
+            this.sources[sourceIndex].options[optionIndex]?.unselectable
+        ) {
+            this.navigator.clearActiveItem();
         }
-
-        const [sourceIndex, optionIndex] = indices;
-        if (this.sources[sourceIndex].options[optionIndex]?.unselectable) {
-            this.state.activeSourceOption = null;
-        } else {
-            this.state.activeSourceOption = indices;
-        }
-    }
-    onOptionMouseLeave() {
-        if (!this.mouseSelectionActive) {
-            return;
-        }
-        this.state.activeSourceOption = null;
     }
     async onOptionClick(option) {
         const staleOptions =
@@ -697,20 +738,6 @@ export class AutoComplete extends Component {
     externalClose(node) {
         if (this.isOpened && !this.root.el?.contains(node ?? null)) {
             this.cancel();
-        }
-    }
-
-    scroll() {
-        if (!this.activeSourceOptionId) {
-            return;
-        }
-        if (isScrollableY(this.listRef.el)) {
-            const element = this.listRef.el.querySelector(
-                `#${CSS.escape(this.activeSourceOptionId)}`,
-            );
-            if (element) {
-                scrollTo(element);
-            }
         }
     }
 }
