@@ -290,7 +290,7 @@ test.tags("desktop");
 test(`total menu fetch failure falls back to an empty root`, async () => {
     const preload = Promise.reject(new Error("preload failed"));
     preload.catch(() => {});
-    patchWithCleanup(odoo, { loadMenusPromise: preload });
+    patchWithCleanup(odoo, /** @type {any} */ ({ loadMenusPromise: preload }));
     onRpc("/web/webclient/load_menus", () => {
         throw new Error("load_menus unavailable");
     });
@@ -320,7 +320,10 @@ test(`corrupt stored menus are discarded and refetched (no boot brick)`, async (
 
 test.tags("desktop");
 test(`cold boot: a null parse-time preload refetches menus (no blank client)`, async () => {
-    patchWithCleanup(odoo, { loadMenusPromise: Promise.resolve(null) });
+    patchWithCleanup(
+        odoo,
+        /** @type {any} */ ({ loadMenusPromise: Promise.resolve(null) }),
+    );
     await makeMockEnv();
     expect(
         getService("menu")
@@ -334,7 +337,10 @@ test(`a preload of nothing is an opt-out, not a cache miss`, async () => {
     // The PoS UI, the documents portal and project sharing set
     // `odoo.loadMenusPromise = Promise.resolve()` to say the page has no menus.
     // Treating that like the 304 above sent them the very request they declined.
-    patchWithCleanup(odoo, { loadMenusPromise: Promise.resolve() });
+    patchWithCleanup(
+        odoo,
+        /** @type {any} */ ({ loadMenusPromise: Promise.resolve() }),
+    );
     onRpc("/web/webclient/load_menus", () => {
         expect.step("load_menus");
         return { root: { id: "root", name: "root", appID: "root", children: [] } };
@@ -352,7 +358,10 @@ test(`cold boot: falls back to stored menus when preload is null and refetch fai
         1: { appID: 1, children: [], name: "StoredApp", id: 1, actionID: 666 },
         root: { id: "root", name: "root", appID: "root", children: [1] },
     });
-    patchWithCleanup(odoo, { loadMenusPromise: Promise.resolve(null) });
+    patchWithCleanup(
+        odoo,
+        /** @type {any} */ ({ loadMenusPromise: Promise.resolve(null) }),
+    );
     onRpc("/web/webclient/load_menus", () => {
         throw new Error("load_menus unavailable");
     });
@@ -375,7 +384,10 @@ test(`cold boot: another user's stored menus are never served, even as a last re
         1: { appID: 1, children: [], name: "OtherUserApp", id: 1, actionID: 666 },
         root: { id: "root", name: "root", appID: "root", children: [1] },
     });
-    patchWithCleanup(odoo, { loadMenusPromise: Promise.resolve(null) });
+    patchWithCleanup(
+        odoo,
+        /** @type {any} */ ({ loadMenusPromise: Promise.resolve(null) }),
+    );
     onRpc("/web/webclient/load_menus", () => {
         throw new Error("load_menus unavailable");
     });

@@ -310,7 +310,9 @@ test("notification autocloses after a specified delay", async () => {
 
 test("a notification that fails to render does not kill later notifications", async () => {
     expect.errors(1);
-    onError((error) => expect.step(error.reason.message));
+    onError((error) =>
+        expect.step(/** @type {PromiseRejectionEvent} */ (error).reason.message),
+    );
 
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);
@@ -335,7 +337,9 @@ test("a throwing onClose is reported instead of propagating to the closer", asyn
     // The error service closes notifications while it is itself handling an
     // error: a user `onClose` that throws must not unwind into that caller.
     expect.errors(1);
-    onError((error) => expect.step(error.reason.message));
+    onError((error) =>
+        expect.step(/** @type {PromiseRejectionEvent} */ (error).reason.message),
+    );
 
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);
