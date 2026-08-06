@@ -130,8 +130,8 @@ test("Display name is correctly fetched", async () => {
 
 test("Can give domain and context props for the name search", async () => {
     expect.assertions(5);
-    onRpc("res.partner", "name_search", ({ kwargs }) => {
-        expect.step("name_search");
+    onRpc("res.partner", "web_name_search", ({ kwargs }) => {
+        expect.step("web_name_search");
         expect(kwargs.domain).toEqual([
             "&",
             ["display_name", "=", "Bob"],
@@ -151,7 +151,7 @@ test("Can give domain and context props for the name search", async () => {
     expect.verifySteps([]);
     await click(".o_record_selector input");
     await animationFrame();
-    expect.verifySteps(["name_search"]);
+    expect.verifySteps(["web_name_search"]);
 });
 
 test("Support placeholder", async () => {
