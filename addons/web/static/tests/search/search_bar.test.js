@@ -1622,7 +1622,7 @@ test("edit a field", async () => {
 
 test("no rpc for getting display_name for facets if known", async () => {
     onRpc("/web/domain/validate", () => true);
-    onRpc("name_search", ({ kwargs }) => {
+    onRpc("web_name_search", ({ kwargs }) => {
         expect.step(kwargs.domain);
     });
     onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
@@ -1646,7 +1646,7 @@ test("no rpc for getting display_name for facets if known", async () => {
     expect.verifySteps(["fields_get"]);
 
     await contains(".o-autocomplete--input").click();
-    expect.verifySteps(["name_search", ["!", ["id", "in", []]]]);
+    expect.verifySteps(["web_name_search", ["!", ["id", "in", []]]]);
 
     await contains(
         ".o-autocomplete--dropdown-menu .o-autocomplete--dropdown-item",
