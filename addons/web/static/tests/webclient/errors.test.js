@@ -1,6 +1,6 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { describe, expect, onError, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
@@ -64,6 +64,14 @@ test("debug mode and test mode both keep errors visible", () => {
     ).toBe(undefined);
 });
 
+test("a visitor's lost connection is left to the lost-connection handler", () => {
+    // Swallowing it at sequence 0 would beat the reconnect notification at
+    // sequence 98: an offline visitor would get no feedback at all.
+    const env = visitorEnv();
+    const lost = new ConnectionLostError("");
+    expect(swallowAllVisitorErrors(env, new Error("boom"), lost)).toBe(undefined);
+});
+
 test("an RPCError the app has a notification for still reaches the visitor", () => {
     // Otherwise a visitor hitting e.g. a validation error sees nothing at all.
     const env = visitorEnv();
@@ -104,8 +112,45 @@ test("the three fetch failure messages are treated as a lost connection", async 
     }
     await animationFrame();
     expect.verifyErrors(
-        messages.map(() => /Connection couldn't be established or was interrupted/),
+        messages.map(
+            (message) =>
+                `Connection to "${message}" couldn't be established or was interrupted`,
+        ),
     );
+});
+
+test("the synthesized ConnectionLostError carries the original failure", async () => {
+    expect.errors(1);
+    const original = new TypeError("Failed to fetch");
+    onError((ev) => {
+        expect(ev.reason).toBeInstanceOf(ConnectionLostError);
+        expect(ev.reason.cause).toBe(original, {
+            message: "the original TypeError survives as the cause",
+        });
+    });
+    const env = await makeMockEnv();
+    expect(offlineFailToFetchErrorHandler(env, new Error("boom"), original)).toBe(true);
+    await animationFrame();
+    expect.verifyErrors([
+        `Connection to "Failed to fetch" couldn't be established or was interrupted`,
+    ]);
+});
+
+test("a handled sync fetch failure default-prevents its error event", async () => {
+    // Without it, an offline failure claimed here still counted as an
+    // unhandled defect and hit the js_error beacon.
+    expect.errors(1);
+    const env = await makeMockEnv();
+    const error = /** @type {any} */ (new Error("boom"));
+    error.event = { preventDefault: () => expect.step("prevented") };
+    expect(
+        offlineFailToFetchErrorHandler(env, error, new TypeError("Failed to fetch")),
+    ).toBe(true);
+    expect.verifySteps(["prevented"]);
+    await animationFrame();
+    expect.verifyErrors([
+        `Connection to "Failed to fetch" couldn't be established or was interrupted`,
+    ]);
 });
 
 test("an unrelated TypeError is left to the next handler", async () => {

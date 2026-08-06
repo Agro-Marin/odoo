@@ -74,7 +74,7 @@ function separator() {
  * @param {Object} env
  * @returns {Object}
  */
-export function preferencesItem(env) {
+function preferencesItem(env) {
     return {
         type: "item",
         id: "preferences",
@@ -95,7 +95,7 @@ export function preferencesItem(env) {
  * @param {Object} env
  * @returns {Object}
  */
-export function odooAccountItem(env) {
+function odooAccountItem(env) {
     return {
         type: "item",
         id: "account",

@@ -89,6 +89,35 @@ export function collectPendingCommands(record) {
 }
 
 /**
+ * Re-fetch the rows a rejected command replay left as `{id}` stubs, everywhere
+ * under *record*. Invoked after a successful save: the replay failure did not
+ * block the save (by design), but it left display state behind — the server is
+ * reachable again, so each flagged list may now converge.
+ *
+ * @param {RecordContract} record
+ */
+export function healSubtreeReplayFailures(record) {
+    const seen = new Set();
+    /** @param {RecordContract} current */
+    const visit = (current) => {
+        for (const [, list] of allX2manyLists(current)) {
+            if (seen.has(list)) {
+                continue;
+            }
+            seen.add(list);
+            list._healFailedReplay();
+            for (const subRecord of list.cachedRecords) {
+                if (!seen.has(subRecord)) {
+                    seen.add(subRecord);
+                    visit(subRecord);
+                }
+            }
+        }
+    };
+    visit(record);
+}
+
+/**
  * The `web_save` specification for a `reload: false` save: name only the
  * x2many fields whose result actually has to come back, so the round trip does
  * not re-read the whole form.

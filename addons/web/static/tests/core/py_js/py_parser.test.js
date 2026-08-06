@@ -361,6 +361,19 @@ describe("AST cache", () => {
         expect(ast1).not.toBe(ast2);
         expect(ast1).toEqual(ast2);
     });
+
+    test("repeatedly read entry survives eviction pressure (LRU, not FIFO)", () => {
+        clearASTCache();
+        const hot = parseExpr("hot_key + 1");
+        // Insert more distinct expressions than the cache holds (512), touching
+        // the hot entry between inserts: an LRU keeps it, a FIFO evicts it.
+        for (let i = 0; i < 600; i++) {
+            parseExpr(`filler_${i} + 1`);
+            parseExpr("hot_key + 1");
+        }
+        expect(parseExpr("hot_key + 1")).toBe(hot);
+        clearASTCache();
+    });
 });
 
 describe("hardening", () => {

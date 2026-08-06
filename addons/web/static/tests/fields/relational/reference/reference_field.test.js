@@ -615,6 +615,28 @@ test("ReferenceField on char field: editing writes the 'model,id' string", async
     await clickSave();
 });
 
+test("ReferenceField on char field: no quick-create option in the dropdown", async () => {
+    // quickCreate resolves to { id: false }, which the char branch would
+    // persist as the literal string "product,false".
+    Partner._records[0].reference_char = "product,37";
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="reference_char" widget="reference"/>
+            </form>
+        `,
+    });
+
+    queryFirst(".o_field_widget[name=reference_char] input").tabIndex = 0;
+    await click(".o_field_widget[name=reference_char] input");
+    await edit("a brand new product");
+    await runAllTimers();
+    expect(".ui-autocomplete .o_m2o_dropdown_option_create").toHaveCount(0);
+});
+
 test("ReferenceField on char field, reset by onchange", async () => {
     Partner._records[0].foo = "product,37";
     Partner._onChanges.int_field = (obj) => (obj.foo = "product," + obj.int_field);

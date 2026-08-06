@@ -265,10 +265,10 @@ export class SearchArchParser {
         }
         if (node.hasAttribute("string")) {
             preField.description = node.getAttribute("string");
-        } else if (preField.fieldName && this.fields[preField.fieldName]) {
-            preField.description = this.fields[preField.fieldName].string;
         } else {
-            preField.description = "Ω";
+            // `fieldName` is always a known field here: a nameless <field>
+            // throws above, and an unknown name early-returns with a warning.
+            preField.description = this.fields[preField.fieldName].string;
         }
         this.currentGroup.push(preField);
     }

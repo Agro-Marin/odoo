@@ -331,6 +331,33 @@ test("a notification that fails to render does not kill later notifications", as
     expect(".o_notification_content").toHaveText("I still work");
 });
 
+test("a throwing onClose is reported instead of propagating to the closer", async () => {
+    // The error service closes notifications while it is itself handling an
+    // error: a user `onClose` that throws must not unwind into that caller.
+    expect.errors(1);
+    onError((error) => expect.step(error.reason.message));
+
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+
+    const close = getService("notification").add("fragile", {
+        onClose: () => {
+            throw new Error("onClose boom");
+        },
+    });
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+
+    close();
+    expect.step("close returned");
+    await animationFrame();
+    expect(".o_notification").toHaveCount(0, {
+        message: "the notification is gone despite its throwing onClose",
+    });
+    expect.verifySteps(["close returned", "onClose boom"]);
+    expect.verifyErrors(["onClose boom"]);
+});
+
 test("an unrecognised option does not cost the caller their notification", async () => {
     // Every option used to be spread straight into props, so a single unknown
     // key made Owl reject the component and the container dropped the toast --

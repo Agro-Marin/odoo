@@ -252,6 +252,51 @@ describe("save barrier on pending commands", () => {
         expect.verifySteps(["webSave"]);
     });
 
+    test("a failed replay's stub rows are re-fetched after the next successful save", async () => {
+        expect.errors(1);
+        let failLoads = true;
+        const list = makeList({
+            loadRecords: async ({ resIds }) => {
+                if (failLoads) {
+                    throw new Error("replay boom");
+                }
+                return resIds.map((id) => ({ id, display_name: `Rec ${id}` }));
+            },
+        });
+
+        list._trackCommandsPromise(list._applyCommands([[LINK, 42, false]]));
+        await animationFrame();
+        expect.verifyErrors([/replay boom/]);
+
+        // The command itself was staged (the payload below is right), but the
+        // record load it carried rejected: the row is a bare `{id}` stub.
+        expect(list._cache[42].data).toEqual({ id: 42 });
+        expect(list._replayFailed).toBe(true);
+
+        failLoads = false;
+        /** @type {any} */
+        let savedChanges = null;
+        const rec = makeRecord(list, {
+            webSave: async (_model, _ids, changes) => {
+                savedChanges = changes;
+                return [{ id: 1 }];
+            },
+        });
+        // A real record holds its x2many list in `_values`; the double's
+        // `_commitChanges` rebuilds `data` from it, and the post-save heal
+        // walks `data` — so the list must survive the rebuild here too.
+        rec._values = markRaw({ lines: list });
+
+        const result = await save(/** @type {any} */ (rec), { reload: false });
+        await list._commandsPromise;
+
+        expect(result).toBe(true);
+        expect(savedChanges.lines).toEqual([[LINK, 42, false]]);
+        // the save succeeded, so the stub was re-fetched: display converges
+        expect(list._cache[42].data.display_name).toBe("Rec 42");
+        expect(list._replayFailed).toBe(false);
+    });
+
     test("the barrier gives up after a bounded number of iterations", async () => {
         const list = makeList();
         list._applyCommands([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);

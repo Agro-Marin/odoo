@@ -20,7 +20,7 @@ import { utils } from "@web/ui/viewport";
 
 const collator = new Intl.Collator();
 
-export const DEBOUNCED_DELAY = 250;
+const DEBOUNCED_DELAY = 250;
 
 export class SelectMenu extends Component {
     static template = "web.SelectMenu";

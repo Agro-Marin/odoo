@@ -885,6 +885,23 @@ test("a handler registered for a built-in action type is reported as dead", asyn
     ]);
 });
 
+test("an onClose dropped by an inline dispatch is reported in debug", async () => {
+    // `onClose` only ever fires for dialogs; an inline (non-dialog) dispatch
+    // silently ignores it. In debug, say so instead.
+    patchWithCleanup(odoo, { debug: "1" });
+    patchWithCleanup(console, {
+        warn: (message) => expect.step(message),
+    });
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(1, { onClose: () => {} });
+    expect.verifySteps([
+        `[action] "onClose" is ignored for inline dispatches: action "1" does not open a dialog.`,
+    ]);
+    // A dialog dispatch keeps its onClose: no warning.
+    await getService("action").doAction(5, { onClose: () => {} });
+    expect.verifySteps([]);
+});
+
 test("ACTION_MANAGER:SETTLED fires for an action that changes nothing on screen", async () => {
     // The signal exists for exactly this case: a server action returning
     // nothing pushes no UI update, so anything waiting on the visible effect

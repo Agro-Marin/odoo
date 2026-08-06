@@ -36,8 +36,7 @@
                   t-att-aria-selected="selectedCommand === command ? 'true' : 'false'"
                   t-att-class="{ focused: selectedCommand === command }"
                   t-on-click="(event) => this.onCommandClicked(event, commandIndex)"
-                  t-on-mouseenter="() => this.onCommandMouseEnter(commandIndex)"
-                  t-on-close="() => this.props.closeMe()">
+                  t-on-mouseenter="() => this.onCommandMouseEnter(commandIndex)">
                   <a t-att-href="command.href" t-att-class="command.className">
                     <t t-component="command.Component || DefaultCommandItem" name="command.name" searchValue="state.searchValue" t-props="command.props" executeCommand="() => this.executeCommand(command)">
                       <t t-set-slot="name">

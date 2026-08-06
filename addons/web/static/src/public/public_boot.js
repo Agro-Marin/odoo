@@ -110,6 +110,7 @@ export function setupGlobalPageBehaviors() {
  * @returns {Promise<import("@web/env").OdooEnv>}
  */
 export async function startPublicApp() {
+    /** @type {any} */ (odoo).isReady = false;
     await lazyloader.allScriptsLoaded;
     await whenReady();
     const env = makeEnv();
@@ -129,6 +130,9 @@ export async function startPublicApp() {
         const root = await app.mount(document.body);
         // @ts-expect-error -- debug property assigned to odoo global at runtime
         odoo.__WOWL_DEBUG__ = { root };
+        // Hand generic-error beaconing over to the error service: the module
+        // loader's pre-boot safety net stands down once `odoo.isReady`.
+        /** @type {any} */ (odoo).isReady = true;
     } finally {
         const settled = (/** @type {Promise<any>} */ prom) => prom.then(noop, noop);
         settled(env.services["public.interactions"].isReady).then(() =>

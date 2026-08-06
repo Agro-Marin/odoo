@@ -589,7 +589,14 @@ export class FormController extends Component {
         const dirty = await this.model.root.isDirty();
         if ((dirty || this.model.root.isNew) && !item.skipSave) {
             const saved = await this.saveCoordinator.requestSave();
-            return saved !== false && !this.saveCoordinator.lastError;
+            // A record still new after a truthy save means the save was
+            // resolved by the error dialog's "Discard changes": nothing was
+            // persisted, so there is no record to run the action on.
+            return (
+                saved !== false &&
+                !this.saveCoordinator.lastError &&
+                !this.model.root.isNew
+            );
         }
         return true;
     }

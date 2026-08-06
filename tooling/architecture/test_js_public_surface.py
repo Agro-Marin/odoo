@@ -87,51 +87,31 @@ def test_a_new_specifier_is_growth_and_a_missing_one_is_a_win():
     assert sorted(pinned - set(measured)) == ["@web/c"]
 
 
-# --- tiers ---
+# --- the pin file ---
 
 
-def test_an_unmarked_line_is_unclassified(tmp_path, monkeypatch):
+def test_comments_and_blanks_are_not_pins(tmp_path, monkeypatch):
     pin = tmp_path / "pin.txt"
-    pin.write_text("# c\n@web/core/registry\n")
+    pin.write_text("# c\n\n@web/core/registry\n")
     monkeypatch.setattr(jps, "PINNED", pin)
-    assert jps.load_pinned() == {"@web/core/registry": None}
+    assert jps.load_pinned() == {"@web/core/registry"}
 
 
-def test_an_internal_line_carries_its_frozen_count(tmp_path, monkeypatch):
-    pin = tmp_path / "pin.txt"
-    pin.write_text("@web/components/dropzone/dropzone\tinternal:2\n")
-    monkeypatch.setattr(jps, "PINNED", pin)
-    assert jps.load_pinned() == {"@web/components/dropzone/dropzone": 2}
-
-
-def test_update_carries_decisions_forward_and_infers_none(tmp_path, monkeypatch):
-    # The tier column records a judgement, so --update must neither undo one
-    # nor invent one. A fan-in threshold used to invent them here and was
-    # retracted: two importers is equally what a niche-but-public component
-    # looks like, so the count cannot decide.
+def test_update_writes_the_measured_surface_sorted(tmp_path, monkeypatch):
+    # Membership only: nothing this tool can measure decides a tier, so it
+    # records none. A fan-in threshold used to invent per-specifier tiers here
+    # and was retracted: two importers is equally what a niche-but-public
+    # component looks like, so the count cannot decide.
     pin = tmp_path / "pin.txt"
     monkeypatch.setattr(jps, "PINNED", pin)
-    previous = {"@web/judged/internal": 2, "@web/judged/public": None}
-    measured = {
-        "@web/judged/internal": 3,  # count refreshed, mark kept
-        "@web/judged/public": 1,  # stays unclassified despite being tiny
-        "@web/brand/new": 1,  # arrives unclassified, not inferred
-    }
-    jps.write_pinned(measured, previous)
-    assert jps.load_pinned() == {
-        "@web/judged/internal": 3,
-        "@web/judged/public": None,
-        "@web/brand/new": None,
-    }
-
-
-def test_a_frozen_leak_that_moves_in_either_direction_is_drift():
-    # Gaining an importer is the leak widening; losing one is a win that has to
-    # be recorded, or the surface can be re-spent for nothing.
-    pinned = {"@web/a": 2, "@web/b": None}
-    measured = {"@web/a": 3, "@web/b": 99}
-    drift = [s for s in pinned if pinned[s] is not None and pinned[s] != measured[s]]
-    assert drift == ["@web/a"]  # @web/b is unclassified: membership only
+    jps.write_pinned({"@web/b": 3, "@web/a": 1})
+    assert jps.load_pinned() == {"@web/a", "@web/b"}
+    body = [
+        line
+        for line in pin.read_text().splitlines()
+        if line and not line.startswith("#")
+    ]
+    assert body == ["@web/a", "@web/b"]
 
 
 # --- the gate must actually reach the real tree ---
@@ -143,16 +123,10 @@ def test_real_surface_is_measured_and_matches_its_pin():
     assert "@web/core/registry" in measured, "the most-imported specifier is missing"
     pinned = jps.load_pinned()
     assert pinned, "no pin file — the ratchet would pass against nothing"
-    assert set(measured) == set(pinned), (
-        f"surface drift: {sorted(set(measured) - set(pinned))[:5]} new, "
-        f"{sorted(set(pinned) - set(measured))[:5]} gone"
+    assert set(measured) == pinned, (
+        f"surface drift: {sorted(set(measured) - pinned)[:5]} new, "
+        f"{sorted(pinned - set(measured))[:5]} gone"
     )
-    drifted = [
-        (s, pinned[s], measured[s])
-        for s in pinned
-        if pinned[s] is not None and pinned[s] != measured[s]
-    ]
-    assert drifted == [], f"frozen leaks that moved: {drifted[:5]}"
 
 
 def test_the_surface_is_mostly_deep_which_is_why_this_exists():

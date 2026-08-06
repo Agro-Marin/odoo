@@ -221,7 +221,10 @@ test("only one app", async () => {
     const clickEverywhereDef = new Deferred();
     patchWithCleanup(browser.localStorage, {
         removeItem(key) {
-            const savedState = super.getItem(key);
+            const savedState = (super.getItem(key) || "").replace(
+                /"startedAt":\d+/,
+                '"startedAt":<ts>',
+            );
             expect.step("savedState: " + savedState);
             return super.removeItem(key);
         },
@@ -294,7 +297,7 @@ test("only one app", async () => {
         "Successfully tested 0 modals",
         "Successfully tested 4 filters",
         SUCCESS_SIGNAL,
-        'savedState: {"light":false,"studioCount":0,"testedApps":["app1"],"testedMenus":["app1"],"testedFilters":4,"testedModals":0,"appIndex":0,"menuIndex":0,"subMenuIndex":0,"xmlId":"app1","app":"app1"}',
+        'savedState: {"light":false,"startedAt":<ts>,"studioCount":0,"testedApps":["app1"],"testedMenus":["app1"],"testedFilters":4,"testedModals":0,"appIndex":0,"menuIndex":0,"subMenuIndex":0,"xmlId":"app1","app":"app1"}',
     ]);
 });
 
@@ -569,6 +572,7 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
                     "This is a server Error, it should be displayed in an error dialog",
             },
             exceptionName: "odoo.exceptions.Programming error",
+            retryable: false,
             subType: "server",
             message:
                 "This is a server Error, it should be displayed in an error dialog",

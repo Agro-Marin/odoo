@@ -26,10 +26,18 @@ export function offlineFailToFetchErrorHandler(env, error, originalError) {
         originalError instanceof TypeError &&
         fetchErrorMessages.includes(originalError.message)
     ) {
-        if (lostConnectionHandler(env, error, new ConnectionLostError(""))) {
+        const connectionError = new ConnectionLostError(originalError.message, {
+            cause: originalError,
+        });
+        if (lostConnectionHandler(env, error, connectionError)) {
             return true;
         }
-        reportUncaught(new ConnectionLostError(""));
+        // Sync "error" events never reach `lostConnectionHandler` (it only
+        // handles promise rejections): hand the failure to the async path,
+        // and default-prevent the original event so an offline hiccup
+        // handled here does not reach the js_error beacon.
+        error.event?.preventDefault();
+        reportUncaught(connectionError);
         return true;
     }
     return false;

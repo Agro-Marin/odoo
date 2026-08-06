@@ -161,6 +161,33 @@ test("navbar can display systray items", async () => {
     expect("li.my-item").toHaveCount(1);
 });
 
+test("a systray item whose isDisplayed throws does not break the navbar", async () => {
+    class BrokenItem extends Component {
+        static props = ["*"];
+        static template = xml`<li class="my-broken-item">broken item</li>`;
+    }
+    systrayRegistry.add("addon.broken", {
+        Component: BrokenItem,
+        isDisplayed: () => {
+            throw new Error("boom");
+        },
+    });
+    patchWithCleanup(console, {
+        error: (message) => expect.step(message),
+    });
+    await mountWithCleanup(NavBar);
+    expect(".o_menu_systray").toHaveCount(1, {
+        message: "the navbar still renders",
+    });
+    expect("li.my-item").toHaveCount(1, {
+        message: "the healthy item is still displayed",
+    });
+    expect("li.my-broken-item").toHaveCount(0, {
+        message: "the broken item is treated as not displayed",
+    });
+    expect.verifySteps([`Error in "isDisplayed" of systray item "addon.broken":`]);
+});
+
 test("navbar can display systray items ordered based on their sequence", async () => {
     class MyItem1 extends Component {
         static props = ["*"];

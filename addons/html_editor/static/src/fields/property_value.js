@@ -9,11 +9,16 @@ import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
 import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
+import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { PropertyValue } from "@web/fields/specialized/properties";
 
 patch(PropertyValue.prototype, {
     setup() {
         this.htmlUpgradeManager = new HtmlUpgradeManager();
+        // Owned dirty-signal emitter (own owner symbol, cleared on destroy):
+        // a raw boolean trigger would share the legacy owner with every other
+        // unconverted field and clobber their dirty state.
+        this.setFieldDirty = useFieldDirtySignal();
         this.lastHtmlValue = this.propertyValue?.toString();
         onWillStart(async () => {
             this.htmlState.isPortalUser = await user.hasGroup("base.group_portal");
@@ -54,7 +59,7 @@ patch(PropertyValue.prototype, {
         if (!this.editor.editable.contains(document.activeElement)) {
             // The DOM of the Wysiwyg have been changed, while the user is not editing
             // (eg the chatgpt widget), mark the field as dirty
-            this.props.record.model.bus.trigger("FIELD_IS_DIRTY", true);
+            this.setFieldDirty(true);
             this.onEditorBlur();
         }
     },

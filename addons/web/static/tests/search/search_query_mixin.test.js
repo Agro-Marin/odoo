@@ -214,6 +214,31 @@ describe("deactivateGroup", () => {
 
         expect(model.query.length).toBe(1);
     });
+
+    test("without any fallback group-by, removing the last query group-by clears orderByCount", () => {
+        const model = makeSearchModel({ orderByCount: "Desc" });
+        addItem(model, 1, { type: "groupBy", groupId: 1 }, true);
+
+        model.deactivateGroup(1);
+
+        expect(model.query.length).toBe(0);
+        expect(model.orderByCount).toBe(false);
+    });
+
+    test("config-level groupBy keeps orderByCount alive after removing the last query group-by", () => {
+        // `computeGroupBy` falls back on `globalGroupBy` first, so the view
+        // stays grouped and the count order must survive.
+        const model = makeSearchModel({
+            orderByCount: "Desc",
+            globalGroupBy: ["bar"],
+        });
+        addItem(model, 1, { type: "groupBy", groupId: 1 }, true);
+
+        model.deactivateGroup(1);
+
+        expect(model.query.length).toBe(0);
+        expect(model.orderByCount).toBe("Desc");
+    });
 });
 
 describe("toggleSearchItem", () => {

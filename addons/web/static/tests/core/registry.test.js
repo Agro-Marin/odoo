@@ -355,6 +355,31 @@ test("non-debug: a quarantined invalid entry beacons the anomaly (observability)
     expect(payload.filename).toBe("@web/core/registry");
 });
 
+test("non-debug: a duplicate add with a different value beacons the anomaly (observability)", async () => {
+    // First-wins semantics silently drop the second value; outside debug mode
+    // the old code emitted nothing at all, so a real addon collision was
+    // invisible in production. The collision must go through the same js_error
+    // beacon as validation failures.
+    const calls = [];
+    mockSendBeacon((url, blob) => {
+        calls.push({ url, blob });
+        return true;
+    });
+    patchWithCleanup(console, { warn: () => {} });
+
+    const registry = new Registry("registry_collision_probe");
+    registry.add("colliding_key", "first");
+    registry.add("colliding_key", "second");
+
+    expect(registry.get("colliding_key")).toBe("first"); // first-wins kept...
+    expect(calls).toHaveLength(1); // ...and the dropped add is observable
+    const payload = JSON.parse(await calls[0].blob.text());
+    expect(payload.message).toInclude("[registry]");
+    expect(payload.message).toInclude(`Duplicate add for key "colliding_key"`);
+    expect(payload.message).toInclude(`"registry_collision_probe" registry`);
+    expect(payload.filename).toBe("@web/core/registry");
+});
+
 test("non-debug: addValidation retroactively quarantines invalid existing entries", async () => {
     const registry = new Registry();
     registry.add("good", { name: "ok" });

@@ -16,6 +16,7 @@ import {
     buildCommitSpec,
     collectPendingCommands,
     commitSubtree,
+    healSubtreeReplayFailures,
     x2manyLists,
 } from "./x2many_tree.js";
 
@@ -211,6 +212,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
                 "id" in record.activeFields ? { id: records[0].id } : undefined,
             );
         }
+        // The save succeeded, so the server is answering again: give every
+        // list a failed replay left with `{id}` stubs its chance to re-fetch
+        // them (fire-and-forget — the load is tracked on the list's barrier).
+        healSubtreeReplayFailures(record);
     } finally {
         record.saveState.exit();
     }

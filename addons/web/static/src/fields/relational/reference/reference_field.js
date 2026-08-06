@@ -68,7 +68,7 @@ export class ReferenceField extends Component {
     /** @returns {Object} */
     get m2oProps() {
         const value = this.getValue();
-        return {
+        const props = {
             ...computeM2OProps(this.props),
             relation: this.getRelation(),
             value: value && {
@@ -77,6 +77,12 @@ export class ReferenceField extends Component {
             },
             update: this.updateM2O.bind(this),
         };
+        if (this._isCharField(this.props)) {
+            // quickCreate resolves to { id: false }, which the char branch of
+            // updateM2O would persist as the literal string "<model>,false".
+            props.canQuickCreate = false;
+        }
+        return props;
     }
     /** @returns {Array<[string, string]>} */
     get selection() {

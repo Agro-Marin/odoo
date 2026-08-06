@@ -17,7 +17,7 @@ import { actionStorage } from "../action_storage.js";
  */
 export function openURL(url, am) {
     const w = browser.open(url, "_blank");
-    if (!w || w.closed || typeof w.closed === "undefined") {
+    if (!w || w.closed) {
         const msg = _t(
             "A popup window has been blocked. You may need to change your " +
                 "browser settings to allow popup windows for this page.",

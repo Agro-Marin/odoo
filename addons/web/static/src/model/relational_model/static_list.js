@@ -87,6 +87,12 @@ export class StaticList extends DataPoint {
         this._unknownRecordCommands = {};
         this._loadingStubIds = new Set();
         /**
+         * A tracked command replay rejected: some rows may be left as `{id}`
+         * stubs with no display data. Read by `_healFailedReplay` after the
+         * next successful save. @type {boolean}
+         */
+        this._replayFailed = false;
+        /**
          * @type {ListMembership}
          */
         this._membership = new ListMembership(this.resIds);
@@ -757,6 +763,11 @@ export class StaticList extends DataPoint {
             console.error(
                 `Failed to apply x2many commands (resModel: ${this.resModel}, list: ${this.id}): the pending record load rejected`,
             );
+            // The failed load may have left `{id}` stubs on the page. Do not
+            // block anything here (a save must still proceed); just remember,
+            // so `_healFailedReplay` re-fetches them once the server answers
+            // a save again.
+            this._replayFailed = true;
             reportUncaught(error);
         });
         const combined = this._commandsPromise
@@ -914,6 +925,7 @@ export class StaticList extends DataPoint {
         const pairs = pairCreatedRows(
             this._createCommandVirtualIds(),
             serverIds.filter((id) => !previousResIds.has(id)),
+            { clientIds: this._currentIds, serverIds },
         );
         for (const [virtualId, resId] of pairs || []) {
             this._rekeyCreatedRow(virtualId, resId);
@@ -931,6 +943,25 @@ export class StaticList extends DataPoint {
         this._savePoint = undefined;
         this._materializeWindow();
         this._pruneCache();
+        // `_healMissingWindow` re-fetches every under-loaded window row, which
+        // subsumes whatever a failed replay left behind.
+        this._replayFailed = false;
+        this._healMissingWindow();
+    }
+
+    /**
+     * A command replay rejected earlier (see `_trackCommandsPromise`): the
+     * commands themselves were staged, so the save payload was right, but the
+     * record loads they carried never landed and some rows may still be `{id}`
+     * stubs. Called by the save path once a save has succeeded — the server is
+     * answering again — to re-fetch those rows so the display converges with
+     * what was saved. The load is tracked, so a subsequent save waits on it.
+     */
+    _healFailedReplay() {
+        if (!this._replayFailed) {
+            return;
+        }
+        this._replayFailed = false;
         this._healMissingWindow();
     }
 

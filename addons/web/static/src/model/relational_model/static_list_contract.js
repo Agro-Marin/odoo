@@ -53,6 +53,7 @@ export const STATIC_LIST_OWNER_SURFACE = [
     "_clearCommands",
     "_getCommands",
     "_commitSave",
+    "_healFailedReplay",
     // membership the owner changes
     "_addRecord",
     "_abandonRecords",
@@ -142,6 +143,7 @@ export const INTERNAL_COLLABORATORS = [
  *  _clearCommands: () => void,
  *  _getCommands: (options?: { withReadonly?: boolean }) => any[],
  *  _commitSave: (serverValue: any) => void,
+ *  _healFailedReplay: () => void,
  *  _addRecord: (record: any, options?: { position?: string, sort?: boolean }) => Promise<any>,
  *  _abandonRecords: (records?: any[], options?: { force?: boolean }) => void,
  *  _replaceWith: (ids: number[], options?: { reload?: boolean }) => Promise<any>,

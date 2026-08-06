@@ -3,7 +3,7 @@
 
 /** @module @web/webclient/errors/visitor_error_handler */
 
-import { RPCError } from "@web/core/network/rpc";
+import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { session } from "@web/session";
@@ -21,6 +21,12 @@ export function swallowAllVisitorErrors(env, error, originalError) {
     // import-time branch made the module's behaviour depend on load order and
     // could only be exercised by reloading it.
     if (user.isInternalUser !== false || env.debug || session.test_mode) {
+        return;
+    }
+    // A lost connection is not a defect to hide: `lostConnectionHandler`
+    // (sequence 98) owns the reconnect notification, for visitors too.
+    // Covers subclasses (e.g. ServerOverloadError) through instanceof.
+    if (originalError instanceof ConnectionLostError) {
         return;
     }
     if (

@@ -80,7 +80,6 @@ export class NameAndSignature extends Component {
                 this.props.mode ||
                 (this.props.noInputName && !this.defaultName ? "draw" : "auto"),
             showSignatureArea: !!(this.props.noInputName || this.defaultName),
-            showFontList: false,
             /** @type {boolean|undefined} */
             loadIsInvalid: undefined,
         });
@@ -245,10 +244,6 @@ export class NameAndSignature extends Component {
 
         const result = await getDataURLFromFile(file);
         await this.printImage(result);
-    }
-
-    onClickSignAutoSelectStyle() {
-        this.state.showFontList = true;
     }
 
     onClickSignDrawClear() {

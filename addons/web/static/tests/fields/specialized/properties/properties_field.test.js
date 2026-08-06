@@ -1536,6 +1536,51 @@ test("properties: kanban view", async () => {
     expect(".o_kanban_record:nth-child(1) .o_card_property_field").toHaveCount(2);
 });
 
+test("properties: kanban view renders a monetary property with its currency symbol", async () => {
+    Partner._fields.currency_id = fields.Many2one({
+        relation: "res.currency",
+        default: 1,
+    });
+    Partner._records.push({
+        id: 40,
+        display_name: "fifth partner",
+        properties: {
+            property_monetary: 1500,
+        },
+        company_id: 37,
+        currency_id: 1,
+    });
+    ResCompany._records[0].definitions = [
+        {
+            name: "property_monetary",
+            string: "My Monetary",
+            type: "monetary",
+            currency_field: "currency_id",
+            view_in_cards: true,
+        },
+    ];
+
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="currency_id" invisible="1"/>
+                        <field name="company_id"/> <hr/>
+                        <field name="display_name"/> <hr/>
+                        <field name="properties" widget="properties"/>
+                    </t>
+                </templates>
+            </kanban>`,
+    });
+
+    expect(
+        ".o_kanban_record:nth-child(5) .o_card_property_field:nth-child(1) span",
+    ).toHaveText("$ 1,500.00");
+});
+
 test("properties: kanban view with date and datetime property fields", async () => {
     Partner._records.push({
         id: 40,

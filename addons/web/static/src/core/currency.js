@@ -25,7 +25,7 @@ export function getCurrency(id) {
 }
 
 /**
- * @type {Record<number, {rate: number, date: import("@web/core/l10n/dates").NullableDateTime}>}
+ * @type {Record<number, {toCompanyRate: number, date: import("@web/core/l10n/dates").NullableDateTime}>}
  */
 const rates = reactive({});
 /**
@@ -100,7 +100,7 @@ userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
 });
 
 /**
- * @returns {Promise<Record<number, {rate: number, date: import("@web/core/l10n/dates").NullableDateTime}>>}
+ * @returns {Promise<Record<number, {toCompanyRate: number, date: import("@web/core/l10n/dates").NullableDateTime}>>}
  */
 export async function getCurrencyRates() {
     if (!ratesPromise) {

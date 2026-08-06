@@ -31,6 +31,19 @@ function _suggestedCompany(error) {
     return _errorData(error)?.context?.suggested_company;
 }
 
+/**
+ * Whether the user is actually allowed to activate the given company. The
+ * backend suggestion is advisory: activating a company outside the allowed
+ * set would be silently filtered out by the user service, causing an endless
+ * error -> reload loop.
+ *
+ * @param {{ id: number }} suggestedCompany
+ * @returns {boolean}
+ */
+function _isAllowedCompany(suggestedCompany) {
+    return user.allowedCompanies.some((c) => c.id === suggestedCompany.id);
+}
+
 export const multiCompanyRecoveryService = {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -57,6 +70,9 @@ export const multiCompanyRecoveryService = {
                 if (activeCompanyIds.includes(suggestedCompany.id)) {
                     return false;
                 }
+                if (!_isAllowedCompany(suggestedCompany)) {
+                    return false;
+                }
                 /** @type {any} */ (callerEnv).pushStateBeforeReload?.();
                 activeCompanyIds.push(suggestedCompany.id);
                 user.activateCompanies(activeCompanyIds);
@@ -75,6 +91,9 @@ export const multiCompanyRecoveryService = {
                 }
                 const activeCompanyIds = user.activeCompanies.map((c) => c.id);
                 if (activeCompanyIds.includes(suggestedCompany.id)) {
+                    return false;
+                }
+                if (!_isAllowedCompany(suggestedCompany)) {
                     return false;
                 }
                 const scopedIds = model.config.context.allowed_company_ids ?? [];

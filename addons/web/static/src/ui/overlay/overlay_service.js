@@ -65,6 +65,12 @@ export class OverlayService {
         }
         const pending = this.removing.get(id);
         if (pending) {
+            if (odoo.debug && removeParams !== undefined) {
+                console.warn(
+                    `[overlay] closing overlay ${id} again while its removal ` +
+                        `is in flight: the provided removeParams are ignored.`,
+                );
+            }
             return pending;
         }
         // Registered BEFORE `onRemove` runs: its synchronous part executes

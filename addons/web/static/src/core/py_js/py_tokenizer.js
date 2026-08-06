@@ -159,14 +159,11 @@ export const binaryOperators = [
     ".",
 ];
 
-const unaryOperators = ["-"];
-
 const symbols = new Set([
     ...["(", ")", "[", "]", "{", "}", ":", ","],
     ...["if", "else", "lambda", "="],
     ...comparators,
     ...binaryOperators,
-    ...unaryOperators,
 ]);
 
 /** @param {...string} args */

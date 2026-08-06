@@ -170,7 +170,7 @@ export async function executeActionButton(
                         viewType: embeddedAction.default_view_mode,
                         ...pick(params, "onClose", "close", "effect", "stackPosition"),
                     },
-                    { isEmbeddedAction: true },
+                    { isEmbeddedAction: true, newWindow },
                 );
                 return;
             }

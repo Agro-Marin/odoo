@@ -182,6 +182,43 @@ test("view switcher on mobile", async () => {
     expect.verifySteps(["kanban"]);
 });
 
+test.tags("mobile");
+test("keyboard activation of an embedded action's delete icon on mobile", async () => {
+    onRpc("res.users.settings", "get_embedded_actions_settings", () => ({}));
+    onRpc("res.users.settings", "set_embedded_actions_setting", () => true);
+
+    await mountWithSearch(
+        ControlPanel,
+        { resModel: "foo" },
+        {
+            embeddedActions: [
+                {
+                    id: 1,
+                    name: "Tab One",
+                    parent_action_id: [7, "Parent"],
+                    parent_res_model: "foo",
+                    action_id: [11, "A1"],
+                    user_id: 2,
+                    is_deletable: true,
+                    context: {},
+                },
+            ],
+            parentActionId: 7,
+            currentEmbeddedActionId: 1,
+            actionId: 7,
+        },
+    );
+    await contains("button[name=openEmbeddedActions]").click();
+    expect(".o_embedded_actions_dropdown_menu .fa-trash-can").toHaveCount(1);
+
+    // Keyboard activation must behave like a click: open the confirmation
+    // dialog.
+    queryFirst(".o_embedded_actions_dropdown_menu .fa-trash-can").focus();
+    await press("Enter");
+    await animationFrame();
+    expect(".modal .modal-footer button:contains(Delete)").toHaveCount(1);
+});
+
 test("pager", async () => {
     const pagerProps = reactive({
         offset: 0,

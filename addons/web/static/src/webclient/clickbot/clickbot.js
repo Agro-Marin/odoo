@@ -135,6 +135,7 @@ export class ClickBot {
         this.state = reactive(
             currentState || {
                 light,
+                startedAt: Date.now(),
                 studioCount: 0,
                 testedApps: [],
                 testedMenus: [],
@@ -298,8 +299,17 @@ export class ClickBot {
                 );
             }
             if (!dropdownMenu) {
-                this.state.menuIndex = 0;
-                return;
+                // A toggler that opens nothing is a dropdown regression, not
+                // the end of the menus: report it loudly and move on to the
+                // next menu instead of silently ending the walk.
+                browser.console.error(
+                    `Menu toggler "${
+                        /** @type {HTMLElement} */ (menuToggle).innerText.trim()
+                    }" did not open its dropdown; skipping it.`,
+                );
+                this.state.menuIndex++;
+                this.state.subMenuIndex = 0;
+                return this.getNextMenu();
             }
             const items = dropdownMenu.querySelectorAll(".dropdown-item");
             if (this.state.subMenuIndex >= items.length) {

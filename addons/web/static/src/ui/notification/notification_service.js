@@ -4,6 +4,7 @@
 /** @module @web/ui/notification/notification_service */
 
 import { reactive } from "@odoo/owl";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { registry } from "@web/core/registry";
 import { mainComponentEntry } from "@web/ui/main_components_container";
 
@@ -145,6 +146,10 @@ export class NotificationService {
                 if (notification.onClose) {
                     notification.onClose();
                 }
+            } catch (error) {
+                // A throwing `onClose` must not propagate into the caller —
+                // the error service closes notifications mid-error-handling.
+                reportUncaught(error);
             } finally {
                 delete this.notifications[id];
             }

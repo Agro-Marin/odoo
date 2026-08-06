@@ -163,13 +163,6 @@ function connectionRecoveryDestroyed(env) {
     return connectionRecoveryByEnv.get(env)?.destroyed === true;
 }
 
-/**
- * @param {OdooEnv} env
- */
-export function _resetConnectionRecovery(env) {
-    connectionRecoveryByEnv.delete(env);
-}
-
 export const connectionRecoveryService = {
     /** @param {OdooEnv} env */
     start(env) {

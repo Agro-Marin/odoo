@@ -286,7 +286,6 @@ export class ViewCompiler {
             { selector: "widget", fn: this.compileWidget },
         ];
         this.templates = templates;
-        this.ctx = { readonly: "__comp__.props.readonly" };
 
         this.owlDirectiveRegexesWhitelist = /** @type {any} */ (
             this.constructor

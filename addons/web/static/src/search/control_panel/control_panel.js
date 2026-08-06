@@ -256,6 +256,19 @@ export class ControlPanel extends Component {
         return this.embeddedActions.confirmDelete(action);
     }
 
+    /**
+     * @param {KeyboardEvent} ev
+     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
+     */
+    onDeleteKeydown(ev, action) {
+        if (ev.key !== "Enter" && ev.key !== " ") {
+            return;
+        }
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.openConfirmationDialog(action);
+    }
+
     _onShareCheckboxChange() {
         this.state.embeddedInfos.newActionIsShared =
             !this.state.embeddedInfos.newActionIsShared;

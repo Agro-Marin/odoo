@@ -11,7 +11,7 @@ export function systemColorScheme() {
     return browser.matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light";
 }
 
-export function currentColorScheme() {
+function currentColorScheme() {
     return colorScheme.current;
 }
 

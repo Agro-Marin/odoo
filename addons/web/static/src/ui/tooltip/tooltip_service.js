@@ -23,7 +23,7 @@ let nextTooltipId = 1;
  * is a single state instead of seven that a hand-written `cleanup` has to reset
  * together, in the right order, on every exit path.
  */
-export class TrackedTooltip {
+class TrackedTooltip {
     /**
      * @param {HTMLElement} el
      * @param {() => void} onDetached

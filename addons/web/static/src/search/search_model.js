@@ -212,10 +212,6 @@ export class SearchModel extends SearchQueryMixin(
             if (this.defaultGroupByRemoved) {
                 this.defaultGroupBy = undefined;
             }
-            this.__legacyParseSearchPanelArchAnyway(
-                searchViewDescription,
-                searchViewFields,
-            );
             this.display = this._getDisplay(config.display);
             this._reconciliateFavorites();
             try {
@@ -473,10 +469,7 @@ export class SearchModel extends SearchQueryMixin(
             const enrichedSearchItems = [];
             for (const searchItem of Object.values(this.searchItems)) {
                 const enrichedSearchitem = this._enrichItem(searchItem, queryIndex);
-                if (
-                    enrichedSearchitem &&
-                    !isInvisible(searchItem.invisible, domainEvalContext)
-                ) {
+                if (!isInvisible(searchItem.invisible, domainEvalContext)) {
                     enrichedSearchItems.push(enrichedSearchitem);
                 }
             }
@@ -807,30 +800,5 @@ export class SearchModel extends SearchQueryMixin(
         this._facets = null;
         this._enrichedSearchItems = null;
         this._sections = null;
-    }
-
-    /**
-     * @param {Object} searchViewDescription
-     * @param {Object} searchViewFields
-     */
-    __legacyParseSearchPanelArchAnyway(searchViewDescription, searchViewFields) {
-        if (this.searchPanelInfo) {
-            return;
-        }
-
-        const parser = new SearchArchParser(
-            searchViewDescription,
-            searchViewFields,
-            {},
-            {},
-            this.domainEvalContext,
-        );
-        const { searchPanelInfo } = parser.parse();
-
-        this.searchPanelInfo = {
-            ...searchPanelInfo,
-            loaded: false,
-            shouldReload: false,
-        };
     }
 }

@@ -106,7 +106,6 @@ export class CommandPalette extends Component {
         bus: { type: EventBus, optional: true },
         close: Function,
         config: Object,
-        closeMe: { type: Function, optional: true },
     };
 
     // Declared here, assigned in setup() or in the methods below. Definite
