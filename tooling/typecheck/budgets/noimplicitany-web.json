@@ -1,7 +1,7 @@
 {
   "gate": "noimplicitany",
   "module": "web",
-  "total": 11383,
+  "total": 11381,
   "note": "Seeded 2026-08-02. Per-file ceilings for the files noImplicitAny excepts; membership still comes from exceptions/noimplicitany/web.txt.",
   "budgets": {
     "addons/web/static/src/components/action_swiper/action_swiper.js": 7,
@@ -172,7 +172,7 @@
     "addons/web/static/src/views/list/list_keyboard_nav.js": 11,
     "addons/web/static/src/views/list/list_optional_fields.js": 11,
     "addons/web/static/src/views/list/list_record_row.js": 3,
-    "addons/web/static/src/views/list/list_renderer.js": 27,
+    "addons/web/static/src/views/list/list_renderer.js": 26,
     "addons/web/static/src/views/list/list_selection.js": 13,
     "addons/web/static/src/views/list/list_sorting.js": 15,
     "addons/web/static/src/views/list/list_styling.js": 58,
@@ -505,7 +505,7 @@
     "addons/web/static/tests/views/list/list_footer_alignment.test.js": 6,
     "addons/web/static/tests/views/list/list_grid_state.test.js": 28,
     "addons/web/static/tests/views/list/list_group_layout.test.js": 11,
-    "addons/web/static/tests/views/list/list_record_row.test.js": 11,
+    "addons/web/static/tests/views/list/list_record_row.test.js": 10,
     "addons/web/static/tests/views/list/list_section_col_index.test.js": 4,
     "addons/web/static/tests/views/list/list_view.test.js": 152,
     "addons/web/static/tests/views/list/list_view_performance.test.js": 19,

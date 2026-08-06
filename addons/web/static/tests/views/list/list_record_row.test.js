@@ -21,12 +21,16 @@
  * - C6 (debug mode): a renderer instance field assigned after the delegation
  *   accessors were installed triggers a console warning instead of failing
  *   silently.
+ * - C7: ``record``/``group``/``groupId`` are the row's own props — the
+ *   explicit row context, not a grid lookup.
+ * - C8: the row template's actual reads define the row's reactive
+ *   subscriptions: one record's data change re-renders that row standalone.
  */
 
 import { expect, test } from "@odoo/hoot";
 import { queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { status, useState } from "@odoo/owl";
+import { onRendered, status, useState } from "@odoo/owl";
 import {
     contains,
     defineModels,
@@ -210,74 +214,44 @@ test("destroyed row: shadow subscriptions are inert and caches are cleared", asy
     );
 });
 
-test("row.group resolves the flat parentGroup even when virtualization is active", () => {
-    const groupGetter = Object.getOwnPropertyDescriptor(
-        ListRecordRow.prototype,
-        "group",
-    ).get;
-    const parentGroup = { id: "group-7" };
-    const makeThis = (virtIsActive) => ({
-        props: {
-            record: { id: 5 },
-            group: undefined,
-            renderer: {
-                virt: { isActive: virtIsActive },
-                gridState: {
-                    findRowByRecordId: (id) =>
-                        id === "5" ? { parentGroup } : undefined,
-                },
-            },
-        },
-    });
-    expect(groupGetter.call(makeThis(false))).toBe(parentGroup);
-    expect(groupGetter.call(makeThis(true))).toBe(parentGroup);
+test("record, group and groupId come from the row's own props (C7)", () => {
+    // The row context is explicit: `record`/`group`/`groupId` are the row's
+    // own props — `props.record` is the reactive OWL re-targets to the row,
+    // so template reads through these getters subscribe THIS row.
+    const get = (name) =>
+        Object.getOwnPropertyDescriptor(ListRecordRow.prototype, name).get;
+    const record = { id: 5 };
+    const group = { id: "group-7" };
+    const row = { props: { record, group, groupId: "group-7" } };
+    expect(get("record").call(row)).toBe(record);
+    expect(get("group").call(row)).toBe(group);
+    expect(get("groupId").call(row)).toBe("group-7");
 });
 
-test("record/group memoize the grid lookup and invalidate on rebuild (C7)", () => {
-    // `record` and `group` are read once per template expression AND once per
-    // `this.record` inside every delegated renderer method (the `_rendererCtx`
-    // Proxy routes both names here), so the lookup is memoized. The key is the
-    // grid GENERATION, not the ListGridState instance: the renderer holds one
-    // instance for its whole life and `rebuild()` mutates it in place.
-    const recordGetter = Object.getOwnPropertyDescriptor(
-        ListRecordRow.prototype,
-        "record",
-    ).get;
-    const groupGetter = Object.getOwnPropertyDescriptor(
-        ListRecordRow.prototype,
-        "group",
-    ).get;
-
-    let lookups = 0;
-    let generation = 1;
-    const flatRecord = { id: "5" };
-    const parentGroup = { id: "group-7" };
-    const row = {
-        props: {
-            record: { id: 5 },
-            group: undefined,
-            renderer: {
-                gridState: {
-                    get generation() {
-                        return generation;
-                    },
-                    findRowByRecordId(id) {
-                        lookups++;
-                        return id === "5"
-                            ? { record: flatRecord, parentGroup }
-                            : undefined;
-                    },
-                },
-            },
+test.tags("desktop");
+test("a record data change re-renders that row standalone (C8)", async () => {
+    // The template's actual reads define the row's reactive subscriptions:
+    // mutating one record's data re-renders that row — and only that row —
+    // without a full renderer render.
+    const rowRenders = [];
+    patchWithCleanup(ListRecordRow.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => rowRenders.push(this.props.record.resId));
         },
-    };
+    });
+    const captured = setupCustomRowList();
+    await mountView({ resModel: "foo", type: "list", arch: CUSTOM_ROW_ARCH });
+    rowRenders.length = 0;
 
-    expect(recordGetter.call(row)).toBe(flatRecord);
-    expect(groupGetter.call(row)).toBe(parentGroup);
-    expect(recordGetter.call(row)).toBe(flatRecord);
-    expect(lookups).toBe(1);
+    const record = captured.renderer.props.list.records[1];
+    await record.update({ name: "beta-prime" });
+    await animationFrame();
 
-    generation++; // a rebuild happened
-    expect(recordGetter.call(row)).toBe(flatRecord);
-    expect(lookups).toBe(2);
+    expect(rowRenders).toEqual([2]);
+    expect(queryAll(".o_data_row .o_data_cell").map((el) => el.textContent)).toEqual([
+        "alpha",
+        "beta-prime",
+        "gamma",
+    ]);
 });
