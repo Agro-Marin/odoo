@@ -10,6 +10,7 @@ import {
     onWillDestroy,
     onWillPatch,
     onWillRender,
+    reactive,
     status,
     useExternalListener,
     useRef,
@@ -110,6 +111,53 @@ import {
  *  isCellReadonly: (column: any, record: object) => boolean;
  *  expandCheckboxes: (record: object, direction: string) => boolean;
  * }} ListGridContext
+ *
+ * The cross-row booleans shared by every record row, as ONE stable reactive
+ * object (`this.rowFlags`, passed to rows as the `flags` prop). A row that
+ * reads a flag subscribes to that key only, so a flip re-renders exactly the
+ * rows whose output depends on it — unlike a per-row prop, which invalidates
+ * every row. Updated in `onWillRender`; a write of an unchanged value
+ * notifies nobody.
+ * @typedef {{
+ *  hasEditedRecord: boolean;
+ *  canSelectRecord: boolean;
+ * }} ListRowFlags
+ *
+ * The callbacks a record row may call on its renderer (`this.rowApi`, passed
+ * to rows as the `api` prop; built once in `setup` by `buildRowApi`, which a
+ * subclass extends to expose additional members to its row template). Every
+ * member routes through the renderer INSTANCE, so prototype overrides in the
+ * ~40 renderer subclasses keep catching the calls. Rendering reads receive
+ * the row's own reactive `record`, so what they read subscribes the calling
+ * row; action callbacks resolve record/group arguments back to the
+ * renderer's reactivity context first (see `resolveRowRecord`), keeping the
+ * identity comparisons in the renderer and the model valid.
+ * @typedef {{
+ *  getRowClass: (record: RelationalRecord) => string;
+ *  getColumns: (record: RelationalRecord) => Column[];
+ *  evalInvisible: (invisible: string, record: RelationalRecord) => boolean;
+ *  canUseFormatter: (column: any, record: RelationalRecord) => boolean;
+ *  getFormattedValue: (column: any, record: RelationalRecord) => any;
+ *  getCellClass: (column: any, record: RelationalRecord) => string;
+ *  getCellTitle: (column: any, record: RelationalRecord, formattedValue?: string) => string | undefined;
+ *  getFieldClass: (column: any) => string;
+ *  getFieldProps: (record: RelationalRecord, column: any) => object;
+ *  displayDeleteIcon: (record: RelationalRecord) => boolean;
+ *  onCellClicked: (record: RelationalRecord, column: any, ev: PointerEvent, newWindow?: boolean) => any;
+ *  onButtonCellClicked: (record: RelationalRecord, column: any, ev: PointerEvent) => any;
+ *  onRemoveCellClicked: (record: RelationalRecord, ev: PointerEvent) => any;
+ *  onCellKeydown: (ev: KeyboardEvent, group?: Group | null, record?: object | null) => any;
+ *  toggleRecordSelection: (record: any, ev?: any) => any;
+ *  onRowTouchStart: (record: RelationalRecord, ev: TouchEvent) => void;
+ *  onRowTouchEnd: (record: RelationalRecord) => void;
+ *  onRowTouchMove: (record: RelationalRecord) => void;
+ *  onClickCapture: (record: RelationalRecord, ev: PointerEvent) => void;
+ *  ignoreEventInSelectionMode: (ev: MouseEvent) => void;
+ *  getGridState: () => import("./list_grid_state").ListGridState;
+ *  getEditedRecord: () => any;
+ *  displaySaveNotification: () => void;
+ *  markRowRender: (recordId: string) => void;
+ * }} ListRowApi
  */
 
 /** @extends Component */
@@ -200,6 +248,10 @@ export class ListRenderer extends Component {
     _rendererInstance;
     /** @type {() => void} */
     _displaySaveNotification;
+    /** @type {import("./list_renderer").ListRowFlags} */
+    rowFlags;
+    /** @type {import("./list_renderer").ListRowApi} */
+    rowApi;
 
     setup() {
         useRenderCounter("list.ListRenderer");
@@ -264,6 +316,14 @@ export class ListRenderer extends Component {
                 ),
         };
 
+        // The record rows' explicit row context: one stable reactive flags
+        // object and one stable api object shared by every row (see the
+        // ListRowFlags / ListRowApi typedefs above). Stable identities keep
+        // the rows' `t-props` diff clean; the flags reactive carries the
+        // cross-row flips.
+        this.rowFlags = reactive({ hasEditedRecord: false, canSelectRecord: true });
+        this.rowApi = this.buildRowApi();
+
         this.sel = useListSelection(this.gridContext, {
             longTouchThreshold: /** @type {any} */ (this.constructor)
                 .LONG_TOUCH_THRESHOLD,
@@ -317,6 +377,8 @@ export class ListRenderer extends Component {
             : () => {};
         onWillRender(() => {
             this.editedRecord = this.props.list.editedRecord;
+            this.rowFlags.hasEditedRecord = Boolean(this.editedRecord);
+            this.rowFlags.canSelectRecord = this.canSelectRecord;
             this._readonlyCache = new Map();
             this._renderedRowIds = new Set();
 
@@ -541,6 +603,100 @@ export class ListRenderer extends Component {
     }
 
     /**
+     * Resolves a record received from a row's action callback back to this
+     * renderer's reactivity context, by id. Rows hold their own reactive over
+     * the same record, so `===` against renderer-side state (`editedRecord`,
+     * `list.records`) only holds after this translation. Non-record values
+     * pass through untouched.
+     *
+     * @param {any} record
+     */
+    resolveRowRecord(record) {
+        if (!record || typeof record !== "object") {
+            return record;
+        }
+        return this.gridState.findRowByRecordId(String(record.id))?.record ?? record;
+    }
+
+    /**
+     * Group counterpart of `resolveRowRecord`.
+     *
+     * @param {any} group
+     */
+    resolveRowGroup(group) {
+        if (!group || typeof group !== "object") {
+            return group;
+        }
+        return this.gridState.findRowByGroupId(String(group.id))?.group ?? group;
+    }
+
+    /**
+     * Builds the {@link ListRowApi} shared by this renderer's record rows.
+     * A subclass whose row template calls additional renderer methods extends
+     * the returned object:
+     *
+     *     buildRowApi() {
+     *         return {
+     *             ...super.buildRowApi(),
+     *             isSection: (record) => this.isSection(record),
+     *         };
+     *     }
+     *
+     * @returns {import("./list_renderer").ListRowApi}
+     */
+    buildRowApi() {
+        const rec = (/** @type {any} */ r) => this.resolveRowRecord(r);
+        const grp = (/** @type {any} */ g) => this.resolveRowGroup(g);
+        return {
+            // rendering reads: the row-context record argument passes through,
+            // so what the method reads subscribes the calling row
+            getRowClass: (record) => this.getRowClass(record),
+            getColumns: (record) => this.getColumns(record),
+            evalInvisible: (invisible, record) => this.evalInvisible(invisible, record),
+            canUseFormatter: (column, record) => this.canUseFormatter(column, record),
+            getFormattedValue: (column, record) =>
+                this.getFormattedValue(column, record),
+            getCellClass: (column, record) => this.getCellClass(column, record),
+            getCellTitle: (column, record, formattedValue) =>
+                this.getCellTitle(column, record, formattedValue),
+            getFieldClass: (column) => this.getFieldClass(column),
+            getFieldProps: (record, column) => this.getFieldProps(record, column),
+            displayDeleteIcon: (record) => this.displayDeleteIcon(record),
+            // action callbacks: record/group arguments are translated back to
+            // this renderer's context so identity comparisons keep holding
+            onCellClicked: (record, column, ev, newWindow) =>
+                this.onCellClicked(rec(record), column, ev, newWindow),
+            onButtonCellClicked: (record, column, ev) =>
+                this.onButtonCellClicked(rec(record), column, ev),
+            onRemoveCellClicked: (record, ev) =>
+                this.onRemoveCellClicked(rec(record), ev),
+            onCellKeydown: (ev, group = null, record = null) =>
+                this.onCellKeydown(ev, grp(group), rec(record)),
+            toggleRecordSelection: (record, ev) =>
+                this.toggleRecordSelection(rec(record), rec(ev)),
+            onRowTouchStart: (record, ev) => this.onRowTouchStart(rec(record), ev),
+            onRowTouchEnd: (record) => this.onRowTouchEnd(rec(record)),
+            onRowTouchMove: (record) => this.onRowTouchMove(rec(record)),
+            onClickCapture: (record, ev) => this.onClickCapture(rec(record), ev),
+            ignoreEventInSelectionMode: (ev) => this.ignoreEventInSelectionMode(ev),
+            // row plumbing
+            getGridState: () => this.gridState,
+            getEditedRecord: () => this.editedRecord,
+            displaySaveNotification: () => this.displaySaveNotification(),
+            markRowRender: (recordId) => this.markRowRender(recordId),
+        };
+    }
+
+    /**
+     * The record rows' props: the explicit row context (see the class
+     * comment on `ListRecordRow`). Values are identity-stable across renders
+     * unless the row's output changed, so the `t-props` diff skips untouched
+     * rows; the cross-row flips travel through the stable `flags` reactive
+     * instead of per-row props.
+     *
+     * TRANSITIONAL: `...this.props` and `renderer` feed the legacy dynamic
+     * delegation still used by not-yet-migrated subclass row templates.
+     *
      * @param {RelationalRecord} record
      * @param {Group | undefined} group
      * @param {string | undefined} groupId
@@ -552,13 +708,13 @@ export class ListRenderer extends Component {
             record,
             group,
             groupId,
+            api: this.rowApi,
+            flags: this.rowFlags,
             recordRowTemplate: /** @type {any} */ (this.constructor).recordRowTemplate,
             columns: this.columns,
             activeActions: this.activeActions,
             isEdited: this.editedRecord === record,
-            hasEditedRecord: Boolean(this.editedRecord),
             canResequence: this.canResequenceRows,
-            canSelectRecord: this.canSelectRecord,
             hasSelectors: this.hasSelectors,
             hasOpenFormViewColumn: this.hasOpenFormViewColumn,
             displayOptionalFields: this.displayOptionalFields,

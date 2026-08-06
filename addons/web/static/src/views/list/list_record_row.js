@@ -13,9 +13,48 @@ import {
 } from "@odoo/owl";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 
-const SKIP_DELEGATION = new Set(["constructor", "props", "env", "__owl__"]);
+/**
+ * @typedef {import("./list_renderer").ListRowApi} ListRowApi
+ * @typedef {import("./list_renderer").ListRowFlags} ListRowFlags
+ */
 
-/** @extends Component */
+/**
+ * One rendered record row.
+ *
+ * The row receives an explicit row context from `ListRenderer.getRowProps`:
+ *
+ * - `record` / `group` / `groupId`: THIS row's data. `props.record` is the
+ *   reactive the framework re-targets to this component, so every read the
+ *   row template performs (directly or through a renderer method that
+ *   receives `record` as an argument) subscribes THIS row — the template's
+ *   actual reads define the row's re-render triggers.
+ * - `api` {@link ListRowApi}: bound callbacks routing through the renderer
+ *   instance, so renderer-subclass overrides keep catching the calls.
+ *   Action callbacks resolve their record/group arguments back to the
+ *   renderer's reactivity context (see `ListRenderer.resolveRowRecord`), so
+ *   identity comparisons in the renderer and the model keep holding.
+ * - `flags` {@link ListRowFlags}: ONE stable reactive object carrying the
+ *   cross-row booleans; a row that reads a flag subscribes to exactly that
+ *   key, so a flip re-renders the rows whose output depends on it and no
+ *   others.
+ * - the remaining props (`columns`, `rowIndex`, `isEdited`, `canResequence`,
+ *   `hasSelectors`, ...) are the per-render invalidation keys: `t-props`
+ *   diffing skips the row when they are all identical.
+ *
+ * The class members below mirror the bare names the `recordRowTemplate`
+ * family resolves on `this`, because the same template body must also keep
+ * working when a subclass `Rows` template inlines it with `t-call` on the
+ * RENDERER's context (project's notebook tasks, hr_skills) — bare names
+ * resolve on either component.
+ *
+ * TRANSITIONAL (to be deleted once every downstream row template reads
+ * through `api`/`props`): names outside the static surface still resolve
+ * through the legacy delegation machinery — prototype accessors installed
+ * from the renderer's own props and prototype chain, a Proxy substituting
+ * `record`/`group`, and a shadow-reactive wrapper subscribing the row to
+ * renderer state it reads. `warnUndelegatedRendererFields` (debug) flags
+ * renderer fields assigned too late for delegation.
+ */
 export class ListRecordRow extends Component {
     static template = "web.ListRecordRow";
     static components = {};
@@ -69,29 +108,242 @@ export class ListRecordRow extends Component {
                 );
             }
             installRendererDelegation(/** @type {any} */ (this.constructor), renderer);
-            renderer.markRowRender?.(String(this.props.record.id));
-            this._touchRecordDependencies();
+            this.props.api.markRowRender(String(this.props.record.id));
         });
         onRendered(() => {
             this._isRendering = false;
         });
     }
 
+    // -------------------------------------------------------------------------
+    // Row context: data
+    // -------------------------------------------------------------------------
+
     get record() {
-        return resolveFlatRow(this)?.record ?? this.props.record;
+        return this.props.record;
     }
 
     get group() {
-        return resolveFlatRow(this)?.parentGroup ?? this.props.group ?? undefined;
+        return this.props.group;
     }
 
     get groupId() {
         return this.props.groupId;
     }
 
-    get _canSelectRecord() {
-        return this.props.canSelectRecord;
+    // -------------------------------------------------------------------------
+    // Row context: api and flags
+    // -------------------------------------------------------------------------
+
+    /** @returns {ListRowApi} */
+    get api() {
+        return this.props.api;
     }
+
+    /** @returns {ListRowFlags} */
+    get flags() {
+        return this.props.flags;
+    }
+
+    get _canSelectRecord() {
+        return this.props.flags.canSelectRecord;
+    }
+
+    get editedRecord() {
+        return this.props.flags.hasEditedRecord
+            ? this.props.api.getEditedRecord()
+            : null;
+    }
+
+    get gridState() {
+        return this.props.api.getGridState();
+    }
+
+    get _displaySaveNotification() {
+        return this.props.api.displaySaveNotification;
+    }
+
+    // -------------------------------------------------------------------------
+    // Row context: view-shape flags mirrored from props for bare-name reads
+    // -------------------------------------------------------------------------
+
+    get hasSelectors() {
+        return this.props.hasSelectors;
+    }
+
+    get hasOpenFormViewColumn() {
+        return this.props.hasOpenFormViewColumn;
+    }
+
+    get displayOptionalFields() {
+        return this.props.displayOptionalFields;
+    }
+
+    get isX2Many() {
+        return this.props.isX2Many;
+    }
+
+    get activeActions() {
+        return this.props.activeActions;
+    }
+
+    // -------------------------------------------------------------------------
+    // Row context: rendering reads (row-context record argument subscribes
+    // this row to exactly what the callee reads)
+    // -------------------------------------------------------------------------
+
+    /** @param {any} record */
+    getRowClass(record) {
+        return this.props.api.getRowClass(record);
+    }
+
+    /** @param {any} record */
+    getColumns(record) {
+        return this.props.api.getColumns(record);
+    }
+
+    /**
+     * @param {string} invisible
+     * @param {any} record
+     */
+    evalInvisible(invisible, record) {
+        return this.props.api.evalInvisible(invisible, record);
+    }
+
+    /**
+     * @param {any} column
+     * @param {any} record
+     */
+    canUseFormatter(column, record) {
+        return this.props.api.canUseFormatter(column, record);
+    }
+
+    /**
+     * @param {any} column
+     * @param {any} record
+     */
+    getFormattedValue(column, record) {
+        return this.props.api.getFormattedValue(column, record);
+    }
+
+    /**
+     * @param {any} column
+     * @param {any} record
+     */
+    getCellClass(column, record) {
+        return this.props.api.getCellClass(column, record);
+    }
+
+    /**
+     * @param {any} column
+     * @param {any} record
+     * @param {string} [formattedValue]
+     */
+    getCellTitle(column, record, formattedValue) {
+        return this.props.api.getCellTitle(column, record, formattedValue);
+    }
+
+    /** @param {any} column */
+    getFieldClass(column) {
+        return this.props.api.getFieldClass(column);
+    }
+
+    /**
+     * @param {any} record
+     * @param {any} column
+     */
+    getFieldProps(record, column) {
+        return this.props.api.getFieldProps(record, column);
+    }
+
+    /** @param {any} record */
+    displayDeleteIcon(record) {
+        return this.props.api.displayDeleteIcon(record);
+    }
+
+    // -------------------------------------------------------------------------
+    // Row context: action callbacks (record/group arguments are resolved back
+    // to the renderer's context at the api boundary)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @param {any} record
+     * @param {any} column
+     * @param {PointerEvent} ev
+     * @param {boolean} [newWindow]
+     */
+    onCellClicked(record, column, ev, newWindow) {
+        return this.props.api.onCellClicked(record, column, ev, newWindow);
+    }
+
+    /**
+     * @param {any} record
+     * @param {any} column
+     * @param {PointerEvent} ev
+     */
+    onButtonCellClicked(record, column, ev) {
+        return this.props.api.onButtonCellClicked(record, column, ev);
+    }
+
+    /**
+     * @param {any} record
+     * @param {PointerEvent} ev
+     */
+    onRemoveCellClicked(record, ev) {
+        return this.props.api.onRemoveCellClicked(record, ev);
+    }
+
+    /**
+     * @param {KeyboardEvent} ev
+     * @param {any} [group]
+     * @param {any} [record]
+     */
+    onCellKeydown(ev, group = null, record = null) {
+        return this.props.api.onCellKeydown(ev, group, record);
+    }
+
+    /**
+     * @param {any} record
+     * @param {any} [ev]
+     */
+    toggleRecordSelection(record, ev) {
+        return this.props.api.toggleRecordSelection(record, ev);
+    }
+
+    /**
+     * @param {any} record
+     * @param {TouchEvent} ev
+     */
+    onRowTouchStart(record, ev) {
+        return this.props.api.onRowTouchStart(record, ev);
+    }
+
+    /** @param {any} record */
+    onRowTouchEnd(record) {
+        return this.props.api.onRowTouchEnd(record);
+    }
+
+    /** @param {any} record */
+    onRowTouchMove(record) {
+        return this.props.api.onRowTouchMove(record);
+    }
+
+    /**
+     * @param {any} record
+     * @param {PointerEvent} ev
+     */
+    onClickCapture(record, ev) {
+        return this.props.api.onClickCapture(record, ev);
+    }
+
+    /** @param {MouseEvent} ev */
+    ignoreEventInSelectionMode(ev) {
+        return this.props.api.ignoreEventInSelectionMode(ev);
+    }
+
+    // -------------------------------------------------------------------------
+    // TRANSITIONAL legacy delegation (names outside the static surface)
+    // -------------------------------------------------------------------------
 
     /**
      * @param {string} name
@@ -148,57 +400,9 @@ export class ListRecordRow extends Component {
         this._dualCache.set(name, { target: value, proxy });
         return proxy;
     }
-
-    _touchRecordDependencies() {
-        const record = this.props.record;
-        void record.selected;
-        void record.isInEdition;
-        void record.isNew;
-        const data = record.data;
-        for (const fieldName in data) {
-            const value = data[fieldName];
-            void record.isFieldInvalid(fieldName);
-            if (value !== null && typeof value === "object" && toRaw(value) !== value) {
-                void (/** @type {any} */ (value).count);
-                void (/** @type {any} */ (value).currentIds);
-            }
-        }
-        let evalContext = record.evalContextWithVirtualIds;
-        for (
-            let depth = 0;
-            evalContext && typeof evalContext === "object" && depth < 5;
-            depth++
-        ) {
-            for (const key in evalContext) {
-                if (key !== "parent") {
-                    void evalContext[key];
-                }
-            }
-            evalContext = /** @type {any} */ (evalContext).parent;
-        }
-    }
 }
 
-/**
- * @param {any} row
- * @returns {any}
- */
-function resolveFlatRow(row) {
-    const gridState = row.props.renderer.gridState;
-    if (!gridState) {
-        return undefined;
-    }
-    const recordId = row.props.record.id;
-    if (
-        row._flatRowGeneration !== gridState.generation ||
-        row._flatRowId !== recordId
-    ) {
-        row._flatRowGeneration = gridState.generation;
-        row._flatRowId = recordId;
-        row._flatRowValue = gridState.findRowByRecordId(String(recordId));
-    }
-    return row._flatRowValue;
-}
+const SKIP_DELEGATION = new Set(["constructor", "props", "env", "__owl__"]);
 
 /**
  * @param {any} RowClass
