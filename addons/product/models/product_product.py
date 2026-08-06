@@ -21,6 +21,38 @@ class ProductProduct(models.Model):
     _order = "default_code, name, id"
     _check_company_domain = models.check_company_domain_parent_of
 
+    product_tmpl_id = fields.Many2one(
+        comodel_name="product.template",
+        string="Product Template",
+        required=True,
+        bypass_search_access=True,
+        ondelete="cascade",
+        index=True,
+    )
+    active = fields.Boolean(
+        string="Active",
+        default=True,
+        help="If unchecked, it will allow you to hide the product without removing it.",
+    )
+    default_code = fields.Char(
+        string="Internal Reference",
+        index=True,
+    )
+    code = fields.Char(
+        string="Reference",
+        compute="_compute_product_code",
+    )
+    barcode = fields.Char(
+        string="Barcode",
+        copy=False,
+        index="btree_not_null",
+        help="International Article Number used for product identification.",
+    )
+    partner_ref = fields.Char(
+        string="Customer Ref",
+        compute="_compute_partner_ref",
+    )
+
     # price_extra: catalog extra value only, sum of variant extra attributes
     price_extra = fields.Float(
         string="Variant Price Extra",
@@ -37,38 +69,6 @@ class ProductProduct(models.Model):
         help="The sale price is managed from the product template. Click on the 'Configure Variants' button to set the extra attribute prices.",
     )
 
-    default_code = fields.Char(
-        string="Internal Reference",
-        index=True,
-    )
-    code = fields.Char(
-        string="Reference",
-        compute="_compute_product_code",
-    )
-    partner_ref = fields.Char(
-        string="Customer Ref",
-        compute="_compute_partner_ref",
-    )
-
-    active = fields.Boolean(
-        string="Active",
-        default=True,
-        help="If unchecked, it will allow you to hide the product without removing it.",
-    )
-    product_tmpl_id = fields.Many2one(
-        comodel_name="product.template",
-        string="Product Template",
-        required=True,
-        bypass_search_access=True,
-        ondelete="cascade",
-        index=True,
-    )
-    barcode = fields.Char(
-        string="Barcode",
-        copy=False,
-        index="btree_not_null",
-        help="International Article Number used for product identification.",
-    )
     product_uom_ids = fields.One2many(
         comodel_name="product.uom",
         inverse_name="product_id",
@@ -80,12 +80,22 @@ class ProductProduct(models.Model):
         string="Attribute Values",
         ondelete="restrict",
     )
+    # Display-only view onto the same `product_variant_combination` relation as
+    # `product_template_attribute_value_ids`, filtered to the values that
+    # actually distinguish variants. It is `readonly` because it is a second
+    # door onto the combination: writing through it changes the relation while
+    # the stored `combination_indices` (computed from the *other* field) keeps
+    # its old value, which lets two active variants end up on the same
+    # combination despite the `_combination_unique` index. Every view already
+    # renders it readonly and nothing writes it; the compute below also depends
+    # on it so that even a direct RPC write cannot desynchronise the index.
     product_template_variant_value_ids = fields.Many2many(
         comodel_name="product.template.attribute.value",
         relation="product_variant_combination",
         string="Variant Values",
         domain=[("attribute_line_id.value_count", ">", 1)],
         ondelete="restrict",
+        readonly=True,
     )
     import_attribute_values = fields.Char(
         string="Product Values",
@@ -217,20 +227,20 @@ class ProductProduct(models.Model):
         store=True,
     )
 
-    # Ensure there is at most one active variant for each combination.
-    # There could be no variant for a combination if using dynamic attributes.
-    _combination_unique = models.UniqueIndex(
-        "(product_tmpl_id, combination_indices) WHERE active IS TRUE",
-    )
-
     is_favorite = fields.Boolean(
         related="product_tmpl_id.is_favorite",
         store=True,
         readonly=False,
     )
-    _is_favorite_index = models.Index("(is_favorite) WHERE is_favorite IS TRUE")
     is_in_selected_section_of_order = fields.Boolean(
         search="_search_is_in_selected_section_of_order",
+    )
+
+    _is_favorite_index = models.Index("(is_favorite) WHERE is_favorite IS TRUE")
+    # Ensure there is at most one active variant for each combination.
+    # There could be no variant for a combination if using dynamic attributes.
+    _combination_unique = models.UniqueIndex(
+        "(product_tmpl_id, combination_indices) WHERE active IS TRUE",
     )
 
     @api.constrains("barcode")
@@ -269,6 +279,124 @@ class ProductProduct(models.Model):
                 raise ValidationError(
                     self.env._("The cost of a product can't be negative."),
                 )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        products = super(
+            ProductProduct,
+            self.with_context(create_product_product=False),
+        ).create(vals_list)
+        # `_get_variant_id_for_combination` depends on existing variants.
+        # Scoped to the "product_variants" group on purpose: a bare
+        # `clear_cache()` clears the whole "default" group -- record-rule
+        # domains, ACL checks, xmlid lookups -- in this and every other worker,
+        # which is a heavy price for invalidating two product caches.
+        self.env.registry.clear_cache("product_variants")
+        # Return products in the caller's env so that the internal
+        # create_product_product=False context doesn't leak to downstream
+        # operations (e.g., product.copy() calling template.create() which
+        # then skips _create_variant_ids()).
+        return products.with_env(self.env)
+
+    def write(self, vals):
+        res = super().write(vals)
+        if "product_template_variant_value_ids" in vals:
+            # The alias and `product_template_attribute_value_ids` are two
+            # fields over the *same* m2m table, which the ORM has no way to
+            # know: writing one leaves the other's cache (and everything
+            # computed from it, notably `combination_indices`) stale. Refresh
+            # the canonical field from the database and replay its dependents,
+            # so the combination and the index it is guarded by cannot diverge.
+            self.invalidate_recordset(["product_template_attribute_value_ids"])
+            self.modified(["product_template_attribute_value_ids"])
+        # `_get_variant_id_for_combination` depends on `product_template_attribute_value_ids`
+        # and on which template a variant belongs to;
+        # `_get_first_possible_variant_id` depends on the variants' active state.
+        if (
+            "product_template_attribute_value_ids" in vals
+            # same relation, reachable through the readonly alias
+            or "product_template_variant_value_ids" in vals
+            or "active" in vals
+            or "product_tmpl_id" in vals
+        ):
+            self.env.registry.clear_cache("product_variants")
+        return res
+
+    def copy(self, default=None):
+        """Variants are generated depending on the configuration of attributes
+        and values on the template, so copying them does not make sense.
+
+        For convenience the template is copied instead and its first variant is
+        returned.
+        """
+        # copy variant is disabled in https://github.com/odoo/odoo/pull/38303
+        # this returns the first possible combination of variant to make it
+        # works for now, need to be fixed to return product_variant_id if it's
+        # possible in the future
+
+        # Use tmp recordset in case we copy several variants from the same template
+        templates = [product.product_tmpl_id for product in self]
+        templates_to_copy = self.env["product.template"].concat(*templates)
+        new_templates = templates_to_copy.copy(default=default)
+        new_product_list = [
+            new_template.product_variant_id
+            or new_template._create_first_product_variant()
+            for new_template in new_templates
+        ]
+        return self.env["product.product"].concat(*new_product_list)
+
+    def unlink(self):
+        if self.env.context.get("create_product_product") is False:
+            res = super().unlink()
+            # `_get_variant_id_for_combination` depends on existing variants,
+            # also on this early-return path (e.g. import placeholder cleanup).
+            self.env.registry.clear_cache("product_variants")
+            return res
+
+        unlink_products_ids = set()
+        unlink_templates_ids = set()
+
+        # Check if products still exists, in case they've been unlinked by unlinking their template
+        existing_products = self.exists()
+        product_ids_by_template_id = {
+            template.id: set(ids)
+            for template, ids in self.with_context(active_test=False)._read_group(
+                domain=[
+                    ("product_tmpl_id", "in", existing_products.product_tmpl_id.ids),
+                ],
+                groupby=["product_tmpl_id"],
+                aggregates=["id:array_agg"],
+            )
+        }
+        for product in existing_products:
+            # If there is an image set on the variant and no image set on the
+            # template, move the image to the template.
+            if product.image_variant_1920 and not product.product_tmpl_id.image_1920:
+                product.product_tmpl_id.image_1920 = product.image_variant_1920
+            # Check if the product is last product of this template...
+            # NB: only the current record is subtracted (not the whole batch):
+            # the variant engine batch-unlinks every obsolete variant during
+            # regeneration and relies on the template surviving that call.
+            has_other_products = product_ids_by_template_id.get(
+                product.product_tmpl_id.id,
+                set(),
+            ) - {product.id}
+            # ... and do not delete product template if it's configured to be created "on demand"
+            if (
+                not has_other_products
+                and not product.product_tmpl_id.has_dynamic_attributes()
+            ):
+                unlink_templates_ids.add(product.product_tmpl_id.id)
+            unlink_products_ids.add(product.id)
+        unlink_products = self.env["product.product"].browse(unlink_products_ids)
+        res = super(ProductProduct, unlink_products).unlink()
+        # delete templates after calling super, as deleting template could lead to deleting
+        # products due to ondelete='cascade'
+        unlink_templates = self.env["product.template"].browse(unlink_templates_ids)
+        unlink_templates.unlink()
+        # `_get_variant_id_for_combination` depends on existing variants
+        self.env.registry.clear_cache("product_variants")
+        return res
 
     def _inverse_import_attribute_values(self):
         raise UserError(
@@ -655,109 +783,6 @@ class ProductProduct(models.Model):
             return res
         return super().load(fields, data)
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        products = super(
-            ProductProduct,
-            self.with_context(create_product_product=False),
-        ).create(vals_list)
-        # `_get_variant_id_for_combination` depends on existing variants
-        self.env.registry.clear_cache()
-        # Return products in the caller's env so that the internal
-        # create_product_product=False context doesn't leak to downstream
-        # operations (e.g., product.copy() calling template.create() which
-        # then skips _create_variant_ids()).
-        return products.with_env(self.env)
-
-    def write(self, vals):
-        res = super().write(vals)
-        # `_get_variant_id_for_combination` depends on `product_template_attribute_value_ids`
-        # and on which template a variant belongs to;
-        # `_get_first_possible_variant_id` depends on the variants' active state.
-        if (
-            "product_template_attribute_value_ids" in vals
-            or "active" in vals
-            or "product_tmpl_id" in vals
-        ):
-            self.env.registry.clear_cache()
-        return res
-
-    def copy(self, default=None):
-        """Variants are generated depending on the configuration of attributes
-        and values on the template, so copying them does not make sense.
-
-        For convenience the template is copied instead and its first variant is
-        returned.
-        """
-        # copy variant is disabled in https://github.com/odoo/odoo/pull/38303
-        # this returns the first possible combination of variant to make it
-        # works for now, need to be fixed to return product_variant_id if it's
-        # possible in the future
-
-        # Use tmp recordset in case we copy several variants from the same template
-        templates = [product.product_tmpl_id for product in self]
-        templates_to_copy = self.env["product.template"].concat(*templates)
-        new_templates = templates_to_copy.copy(default=default)
-        new_product_list = [
-            new_template.product_variant_id
-            or new_template._create_first_product_variant()
-            for new_template in new_templates
-        ]
-        return self.env["product.product"].concat(*new_product_list)
-
-    def unlink(self):
-        if self.env.context.get("create_product_product") is False:
-            res = super().unlink()
-            # `_get_variant_id_for_combination` depends on existing variants,
-            # also on this early-return path (e.g. import placeholder cleanup).
-            self.env.registry.clear_cache()
-            return res
-
-        unlink_products_ids = set()
-        unlink_templates_ids = set()
-
-        # Check if products still exists, in case they've been unlinked by unlinking their template
-        existing_products = self.exists()
-        product_ids_by_template_id = {
-            template.id: set(ids)
-            for template, ids in self.with_context(active_test=False)._read_group(
-                domain=[
-                    ("product_tmpl_id", "in", existing_products.product_tmpl_id.ids),
-                ],
-                groupby=["product_tmpl_id"],
-                aggregates=["id:array_agg"],
-            )
-        }
-        for product in existing_products:
-            # If there is an image set on the variant and no image set on the
-            # template, move the image to the template.
-            if product.image_variant_1920 and not product.product_tmpl_id.image_1920:
-                product.product_tmpl_id.image_1920 = product.image_variant_1920
-            # Check if the product is last product of this template...
-            # NB: only the current record is subtracted (not the whole batch):
-            # the variant engine batch-unlinks every obsolete variant during
-            # regeneration and relies on the template surviving that call.
-            has_other_products = product_ids_by_template_id.get(
-                product.product_tmpl_id.id,
-                set(),
-            ) - {product.id}
-            # ... and do not delete product template if it's configured to be created "on demand"
-            if (
-                not has_other_products
-                and not product.product_tmpl_id.has_dynamic_attributes()
-            ):
-                unlink_templates_ids.add(product.product_tmpl_id.id)
-            unlink_products_ids.add(product.id)
-        unlink_products = self.env["product.product"].browse(unlink_products_ids)
-        res = super(ProductProduct, unlink_products).unlink()
-        # delete templates after calling super, as deleting template could lead to deleting
-        # products due to ondelete='cascade'
-        unlink_templates = self.env["product.template"].browse(unlink_templates_ids)
-        unlink_templates.unlink()
-        # `_get_variant_id_for_combination` depends on existing variants
-        self.env.registry.clear_cache()
-        return res
-
     def _compute_variant_image(self, size):
         """Fall back to the template image when the variant has none, for the
         given resolution ``size`` (e.g. 1920).
@@ -853,6 +878,10 @@ class ProductProduct(models.Model):
 
     @api.depends("product_template_attribute_value_ids")
     def _compute_combination_indices(self):
+        # A write through `product_template_variant_value_ids` (same relation)
+        # is funnelled back here by `write()`, which invalidates the field read
+        # below -- a plain `depends` on the alias would recompute from the
+        # sibling field's stale cache.
         for product in self:
             product.combination_indices = (
                 product.product_template_attribute_value_ids._ids2str()
@@ -1692,7 +1721,7 @@ class ProductProduct(models.Model):
                 price += product._get_attributes_extra_price()
 
             if uom:
-                price = product.uom_id._compute_price(price, uom)
+                price = product._convert_price_to_uom(price, uom)
 
             # Convert from current user company currency to asked one
             # This is right cause a field cannot be in more than one currency
@@ -1702,6 +1731,30 @@ class ProductProduct(models.Model):
             prices[product.id] = price
 
         return prices
+
+    def _convert_price_to_uom(self, price, uom):
+        """Convert ``price`` (per unit of the product's UoM) into ``uom``.
+
+        `uom._compute_price` scales by the ratio of the two units' factors with
+        no compatibility check, so asking for the price of a product sold in
+        Units "in Liters" silently returned a plausible-looking but meaningless
+        number (list price x liter factor / unit factor) instead of failing.
+        Quantity conversion (`_compute_quantity`) already refuses that case;
+        price conversion must not be more permissive.
+        """
+        self.ensure_one()
+        if uom and self.uom_id and not self.uom_id._has_common_reference(uom):
+            raise UserError(
+                self.env._(
+                    "The price of %(product)s cannot be expressed in %(unit)s:"
+                    " that unit is not compatible with the product's unit"
+                    " %(product_unit)s.",
+                    product=self.display_name,
+                    unit=uom.display_name,
+                    product_unit=self.uom_id.display_name,
+                )
+            )
+        return self.uom_id._compute_price(price, uom)
 
     @api.model
     def get_empty_list_help(self, help_message):

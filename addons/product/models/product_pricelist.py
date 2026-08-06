@@ -144,6 +144,22 @@ class ProductPricelist(models.Model):
 
         Requires self.ensure_one().
 
+        .. note::
+            The **environment company decides**, not ``self.company_id``.
+            Company-specific currency rates and the company-dependent
+            ``standard_price`` are resolved against ``self.env.company``, so the
+            same pricelist can legitimately return different prices to readers
+            in different companies. ``company_id`` on a pricelist is an
+            ownership/visibility marker, not the pricing context.
+
+            Callers are therefore expected to set the company of the document
+            being priced before calling in -- e.g.
+            ``order.with_company(order.company_id)`` (see
+            ``sale.order._compute_pricelist_id``, ``sale.order.line`` and
+            ``product.catalog`` controller), which is what makes inter-company
+            pricing come out in the right company's terms.
+            ``product.tests.test_product_audit_fixes`` locks this behaviour.
+
         :return: dict{product_id: (price, suitable_rule)} for the given pricelist
 
         :param products: recordset of products (product.product/product.template)

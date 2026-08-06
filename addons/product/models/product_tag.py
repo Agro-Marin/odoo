@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
 
@@ -46,10 +47,23 @@ class ProductTag(models.Model):
     )
     image = fields.Image(string="Image", max_width=200, max_height=200)
 
-    _name_uniq = models.Constraint(
-        "unique (name)",
-        "Tag name already exists!",
-    )
+    # NB: no SQL `unique (name)` here. `name` is `translate=True`, so its column
+    # is jsonb and a UNIQUE index compares whole translation *dicts*:
+    # {"en_US": "Fragile"} and {"en_US": "Fragile", "fr_FR": "Fragile"} are
+    # distinct values and both insert, which silently voided the guarantee as
+    # soon as a second language was installed. The check has to run in Python,
+    # on the value the user actually sees.
+    @api.constrains("name")
+    def _check_name_uniq(self):
+        for tag in self:
+            if not tag.name:
+                continue
+            if self.search_count(
+                [("name", "=", tag.name), ("id", "!=", tag.id)], limit=1
+            ):
+                raise ValidationError(
+                    self.env._("The tag name %(name)s already exists.", name=tag.name)
+                )
 
     @api.depends("product_template_ids.product_variant_ids", "product_product_ids")
     def _compute_product_ids(self):

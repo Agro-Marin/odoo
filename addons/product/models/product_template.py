@@ -45,24 +45,37 @@ class ProductTemplate(models.Model):
             category_ids = categories.sudo()._search([], order=categories._order)
         return categories.browse(category_ids)
 
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        string="Company",
+        index=True,
+    )
+    currency_id = fields.Many2one(
+        comodel_name="res.currency",
+        string="Currency",
+        compute="_compute_currency_id",
+    )
+    cost_currency_id = fields.Many2one(
+        comodel_name="res.currency",
+        string="Cost Currency",
+        compute="_compute_cost_currency_id",
+    )
+
     name = fields.Char(
         string="Name",
         required=True,
         translate=True,
         index="trigram",
     )
+    active = fields.Boolean(
+        string="Active",
+        default=True,
+        help="If unchecked, it will allow you to hide the product without removing it.",
+    )
     sequence = fields.Integer(
         string="Sequence",
         default=1,
         help="Gives the sequence order when displaying a product list",
-    )
-    description = fields.Html(string="Description", translate=True)
-    description_purchase = fields.Text(string="Purchase Description", translate=True)
-    description_sale = fields.Text(
-        string="Sales Description",
-        translate=True,
-        help="A description of the Product that you want to communicate to your customers. "
-        "This description will be copied to every Sales Order, Delivery Order and Customer Invoice/Credit Note",
     )
     type = fields.Selection(
         selection=[
@@ -76,10 +89,15 @@ class ProductTemplate(models.Model):
         help="Goods are tangible materials and merchandise you provide.\n"
         "A service is a non-material product you provide.",
     )
-    combo_ids = fields.Many2many(
-        comodel_name="product.combo",
-        string="Combo Choices",
-        check_company=True,
+    color = fields.Integer(string="Color Index")
+
+    description = fields.Html(string="Description", translate=True)
+    description_purchase = fields.Text(string="Purchase Description", translate=True)
+    description_sale = fields.Text(
+        string="Sales Description",
+        translate=True,
+        help="A description of the Product that you want to communicate to your customers. "
+        "This description will be copied to every Sales Order, Delivery Order and Customer Invoice/Credit Note",
     )
     service_tracking = fields.Selection(
         selection=[
@@ -99,15 +117,41 @@ class ProductTemplate(models.Model):
         group_expand="_read_group_categ_id",
     )
 
-    currency_id = fields.Many2one(
-        comodel_name="res.currency",
-        string="Currency",
-        compute="_compute_currency_id",
+    uom_id = fields.Many2one(
+        comodel_name="uom.uom",
+        string="Unit",
+        required=True,
+        default=_get_default_uom_id,
+        tracking=True,
+        help="Default unit of measure used for all stock operations.",
     )
-    cost_currency_id = fields.Many2one(
-        comodel_name="res.currency",
-        string="Cost Currency",
-        compute="_compute_cost_currency_id",
+    uom_ids = fields.Many2many(
+        comodel_name="uom.uom",
+        string="Packagings",
+        domain="[('id', '!=', uom_id)]",
+        help="Additional packagings for this product which can be used for sales",
+    )
+    uom_name = fields.Char(
+        related="uom_id.name",
+        string="Unit Name",
+        readonly=True,
+    )
+
+    seller_ids = fields.One2many(
+        comodel_name="product.supplierinfo",
+        inverse_name="product_tmpl_id",
+        string="Vendors",
+        depends_context=("company",),
+        domain=lambda self: [("company_id", "in", (False, self.env.company.id))],
+    )
+    variant_seller_ids = fields.One2many(
+        comodel_name="product.supplierinfo",
+        inverse_name="product_tmpl_id",
+    )
+    combo_ids = fields.Many2many(
+        comodel_name="product.combo",
+        string="Combo Choices",
+        check_company=True,
     )
 
     # list_price: catalog price, user defined
@@ -153,7 +197,10 @@ class ProductTemplate(models.Model):
         compute="_compute_weight_uom_name",
     )
 
-    sale_ok = fields.Boolean(string="Sales", default=True)
+    sale_ok = fields.Boolean(
+        string="Sales",
+        default=True,
+    )
     purchase_ok = fields.Boolean(
         string="Purchase",
         default=True,
@@ -161,48 +208,6 @@ class ProductTemplate(models.Model):
         store=True,
         readonly=False,
     )
-    uom_id = fields.Many2one(
-        comodel_name="uom.uom",
-        string="Unit",
-        required=True,
-        default=_get_default_uom_id,
-        tracking=True,
-        help="Default unit of measure used for all stock operations.",
-    )
-    uom_ids = fields.Many2many(
-        comodel_name="uom.uom",
-        string="Packagings",
-        domain="[('id', '!=', uom_id)]",
-        help="Additional packagings for this product which can be used for sales",
-    )
-    uom_name = fields.Char(
-        related="uom_id.name",
-        string="Unit Name",
-        readonly=True,
-    )
-    company_id = fields.Many2one(
-        comodel_name="res.company",
-        string="Company",
-        index=True,
-    )
-    seller_ids = fields.One2many(
-        comodel_name="product.supplierinfo",
-        inverse_name="product_tmpl_id",
-        string="Vendors",
-        depends_context=("company",),
-        domain=lambda self: [("company_id", "in", (False, self.env.company.id))],
-    )
-    variant_seller_ids = fields.One2many(
-        comodel_name="product.supplierinfo",
-        inverse_name="product_tmpl_id",
-    )
-
-    active = fields.Boolean(
-        string="Active",
-        default=True,
-        help="If unchecked, it will allow you to hide the product without removing it.",
-    )
-    color = fields.Integer(string="Color Index")
 
     is_product_variant = fields.Boolean(
         string="Is a product variant",
@@ -400,14 +405,6 @@ class ProductTemplate(models.Model):
             self.filtered(lambda t: t.combo_ids).combo_ids = False
         return res
 
-    def copy_data(self, default=None):
-        default = dict(default or {})
-        vals_list = super().copy_data(default=default)
-        if "name" not in default:
-            for template, vals in zip(self, vals_list, strict=False):
-                vals["name"] = _("%s (copy)", template.name)
-        return vals_list
-
     def copy(self, default=None):
         res = super().copy(default=default)
         # Since we don't copy the product template attribute values, we need to match the extra prices.
@@ -429,6 +426,14 @@ class ProductTemplate(models.Model):
                 ):
                     copied_ptav.price_extra = ptav.price_extra
         return res
+
+    def copy_data(self, default=None):
+        default = dict(default or {})
+        vals_list = super().copy_data(default=default)
+        if "name" not in default:
+            for template, vals in zip(self, vals_list, strict=False):
+                vals["name"] = _("%s (copy)", template.name)
+        return vals_list
 
     @api.depends("type")
     def _compute_service_tracking(self):
@@ -519,8 +524,8 @@ class ProductTemplate(models.Model):
                 template.company_id.sudo().currency_id.id or main_company.currency_id.id
             )
 
-    @api.depends("company_id")
     @api.depends_context("company")
+    @api.depends("company_id")
     def _compute_cost_currency_id(self):
         env_currency_id = self.env.company.currency_id.id
         for template in self:
@@ -1007,13 +1012,28 @@ class ProductTemplate(models.Model):
             price_currency = template.currency_id
             if price_type == "standard_price":
                 if not price and template.product_variant_ids:
+                    # `standard_price` is stored per *variant*; the template
+                    # field only mirrors it when there is exactly one variant
+                    # (see `_compute_template_field_from_variant_field`), so a
+                    # multi-variant template reads 0 and a cost-based pricelist
+                    # would price it free. This fallback avoids that.
+                    #
+                    # Caveat, deliberately kept rather than silently changed:
+                    # "the first variant" follows `product.product._order`
+                    # ("default_code, name, id"), so editing an internal
+                    # reference can change which variant's cost a multi-variant
+                    # template is priced from, without any cost being touched.
+                    # Costing a template that has per-variant costs is
+                    # ill-defined; callers that need a defensible number should
+                    # price the variant. Locked by
+                    # `test_product_audit_fixes.test_multi_variant_template_cost_*`.
                     price = template.product_variant_ids[0].standard_price
                 price_currency = template.cost_currency_id
             elif price_type == "list_price":
                 price += template._get_attributes_extra_price()
 
             if uom:
-                price = template.uom_id._compute_price(price, uom)
+                price = template._convert_price_to_uom(price, uom)
 
             # Convert from current user company currency to asked one
             # This is right cause a field cannot be in more than one currency
@@ -1022,6 +1042,28 @@ class ProductTemplate(models.Model):
 
             prices[template.id] = price
         return prices
+
+    def _convert_price_to_uom(self, price, uom):
+        """Convert ``price`` (per unit of the template's UoM) into ``uom``.
+
+        See `product.product._convert_price_to_uom`: `uom._compute_price` scales
+        by the ratio of the two units' factors without checking that they are
+        compatible, which turned an incoherent request into a silently wrong
+        price rather than an error.
+        """
+        self.ensure_one()
+        if uom and self.uom_id and not self.uom_id._has_common_reference(uom):
+            raise UserError(
+                _(
+                    "The price of %(product)s cannot be expressed in %(unit)s:"
+                    " that unit is not compatible with the product's unit"
+                    " %(product_unit)s.",
+                    product=self.display_name,
+                    unit=uom.display_name,
+                    product_unit=self.uom_id.display_name,
+                )
+            )
+        return self.uom_id._compute_price(price, uom)
 
     def _create_first_product_variant(self, log_warning=False):
         """Create if necessary and possible and return the first product
@@ -1110,11 +1152,24 @@ class ProductTemplate(models.Model):
         variants_to_activate = Product
         variants_to_unlink = Product
 
-        variant_limit = int(
+        # A malformed `product.dynamic_variant_limit` (any non-numeric value an
+        # admin can type into Technical > System Parameters) must not make
+        # variant generation crash with a bare ValueError: fall back to the
+        # default and say so.
+        raw_variant_limit = (
             self.env["ir.config_parameter"]
             .sudo()
             .get_param("product.dynamic_variant_limit", 1000)
         )
+        try:
+            variant_limit = int(raw_variant_limit)
+        except ValueError, TypeError:
+            _logger.warning(
+                "Ignoring invalid product.dynamic_variant_limit %r, using %s.",
+                raw_variant_limit,
+                1000,
+            )
+            variant_limit = 1000
 
         for tmpl_id in self:
             lines_without_no_variants = tmpl_id.valid_product_template_attribute_line_ids._without_no_variant_attributes()
@@ -1517,7 +1572,9 @@ class ProductTemplate(models.Model):
             self._get_variant_id_for_combination(filtered_combination)
         )
 
-    @tools.ormcache("self.id", "frozenset(filtered_combination.ids)")
+    @tools.ormcache(
+        "self.id", "frozenset(filtered_combination.ids)", cache="product_variants"
+    )
     def _get_variant_id_for_combination(self, filtered_combination):
         """See `_get_variant_for_combination`. This method returns an ID
         so it can be cached.
@@ -1541,7 +1598,7 @@ class ProductTemplate(models.Model):
             .id
         )
 
-    @tools.ormcache("self.id")
+    @tools.ormcache("self.id", cache="product_variants")
     def _get_first_possible_variant_id(self):
         """See `_create_first_product_variant`. This method returns an ID
         so it can be cached."""
@@ -1894,9 +1951,7 @@ class ProductTemplate(models.Model):
     def _domain_pricelist_rule_ids(self):
         return self._base_domain_item_ids()
 
-    ###################
-    # VALIDATIONS
-    ###################
+    # === VALIDATIONS ===#
 
     def has_dynamic_attributes(self):
         """Return whether this `product.template` has at least one dynamic
@@ -1998,9 +2053,7 @@ class ProductTemplate(models.Model):
 
         return True
 
-    ###################
-    # DEMO DATA SETUP #
-    ###################
+    # === DEMO DATA SETUP ===#
 
     @api.model
     def _demo_configure_variants(self):
