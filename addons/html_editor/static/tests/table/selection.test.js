@@ -56,7 +56,7 @@ describe("custom selection", () => {
         const overlayColorTDs = queryAll("table td").map(
             (td) => getComputedStyle(td)["box-shadow"],
         );
-        // Unselected cells should have the default background color, without any overlay
+        // Unselected cells should have no box-shadow overlay
         expect(overlayColorTDs[0]).toBe("none");
         // Selected cells should have a box-shadow color
         expect(overlayColorTDs[1]).not.toBe("none");
@@ -2202,7 +2202,7 @@ describe("single cell selection", () => {
             shiftKey: true,
         });
 
-        // Simulate shift + mousedown to extend selection.
+        // Extend the selection to that offset, as shift + click would.
         const selection = editor.document.getSelection();
         selection.extend(textNode, targetOffset);
         await tick();
