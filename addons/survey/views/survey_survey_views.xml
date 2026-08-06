@@ -150,7 +150,7 @@
                                     </div>
                                     <field name="survey_url" widget="CopyClipboardChar" />
                                     <field name="slug" placeholder="e.g. customer-feedback" />
-                                    <field name="survey_embed_code" widget="CopyClipboardText" />
+                                    <field name="survey_embed_code" widget="CopyClipboardChar" />
                                     <field name="webhook_url" placeholder="https://example.com/webhook" />
                                     <field name="webhook_events" invisible="not webhook_url" />
                                     <field name="survey_qr_url" widget="image_url"

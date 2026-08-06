@@ -8,17 +8,4 @@
 # Shrink-only, per scope: a NEW dangling reference fails the gate,
 # and a pinned one that stopped dangling fails until this list is
 # shrunk, so the fix is recorded rather than silently re-spendable.
-js_class:mrp_employee_tree  enterprise
-widget:CopyClipboardText  odoo
-widget:Many2one  enterprise
-widget:boolean_button  odoo
-widget:checkbox  odoo
-widget:geo_edit_map  agromarin
-widget:jsonb  enterprise
-widget:many2many_list  enterprise
-widget:many2one_avatar_document  agromarin
-widget:one2many_list  enterprise
-widget:statbutton  agromarin
-widget:stattext  agromarin
-widget:website_urls  odoo
-widget_unscoped:geo_edit_map  agromarin
+
