@@ -3438,6 +3438,55 @@ test("a category tree survives an imported state that predates it", async () => 
     ).toHaveLength(1);
 });
 
+test("restoring a state with an identical domain does not refetch the sections", async () => {
+    // No enable_counters and no expand: these sections only refetch when the
+    // search domain changed. The exported state carries `searchDomain`, so a
+    // restore followed by a reload with the same inputs must recognize the
+    // unchanged domain in `_reloadSections` instead of refetching everything.
+    Partner._views = {
+        search: `
+            <search>
+                <searchpanel view_types="kanban,list,toy">
+                    <field name="company_id"/>
+                    <field name="category_id" select="multi"/>
+                </searchpanel>
+            </search>
+        `,
+    };
+    onRpc("partner", /search_panel_/, ({ method }) => expect.step(method));
+
+    const component = await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+    });
+    expect.verifySteps([
+        "search_panel_select_range",
+        "search_panel_select_multi_range",
+    ]);
+    const state = component.env.searchModel.exportState();
+
+    const restored = await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+        globalState: { searchModel: JSON.stringify(state) },
+    });
+    expect.verifySteps([]);
+
+    // Same inputs, same domain: nothing to refetch.
+    await restored.env.searchModel.reload({});
+    await animationFrame();
+    expect.verifySteps([]);
+
+    // A genuine domain change still refetches — the restore must not wedge
+    // the panel into staleness.
+    await restored.env.searchModel.reload({ domain: [["bar", "=", true]] });
+    await animationFrame();
+    expect.verifySteps([
+        "search_panel_select_range",
+        "search_panel_select_multi_range",
+    ]);
+});
+
 test("group and value checkboxes of one section get distinct ids", async () => {
     // group ids and value ids come from different comodels and overlap freely
     onRpc("search_panel_select_multi_range", () => ({
