@@ -105,7 +105,7 @@ export function healSubtreeReplayFailures(record) {
                 continue;
             }
             seen.add(list);
-            list._healFailedReplay();
+            list.healFailedReplay();
             for (const subRecord of list.cachedRecords) {
                 if (!seen.has(subRecord)) {
                     seen.add(subRecord);
