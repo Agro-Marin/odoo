@@ -106,26 +106,69 @@ class CrmTeamMember(models.Model):
                     team=membership.crm_team_id.name
                 ))
 
-    @api.constrains('crm_team_id', 'active')
-    def _constrains_team_active(self):
-        """A live membership must point at a live team.
+    @api.constrains('crm_team_id', 'user_id', 'active')
+    def _constrains_live_endpoints(self):
+        """A live membership joins a live team to a live salesperson.
 
-        Without it, joining -- or unarchiving onto -- an archived team produced a
-        row that ``user.crm_team_ids`` does not report (a many2many read drops
-        archived corecords) but ``search([('crm_team_ids', ...)])`` still matches,
-        and that pinned the *stored* ``res_users.sale_team_id`` column to a dead
-        team, which crm's pipeline action and sale_commission both consume.
-        ``crm.team.write`` closes the other route by cascading the archive.
+        One constraint for both ends of the join, deliberately: the two are the
+        same invariant seen from either side, and the team end was guarded on its
+        own for long enough to show what the gap costs. Joining -- or unarchiving
+        onto -- a dead endpoint produces a row that the many2many reads do not
+        report (reading a many2many drops archived corecords) while the searches
+        still match it, so ``crm.team.member_ids`` and
+        ``search([('member_ids', ...)])`` disagree, ``user.crm_team_ids`` and
+        ``search([('crm_team_ids', ...)])`` disagree, and the *stored*
+        ``res_users.sale_team_id`` column stays pinned to the dead record --
+        which crm's pipeline action and sale_commission both consume.
+
+        Archiving a team or a user is cascaded away by ``crm.team.write`` and
+        ``res.users.write``; what is left for a constraint is the membership-side
+        routes those cascades cannot see -- creating a membership for a record
+        that is already archived, and unarchiving one long after the fact.
         """
         for membership in self.filtered('active'):
             if not membership.crm_team_id.active:
                 raise exceptions.ValidationError(_(
                     "Sales Team '%(team)s' is archived and cannot take new members.",
                     team=membership.crm_team_id.name))
+            if not membership.user_id.active:
+                raise exceptions.ValidationError(_(
+                    "Salesperson '%(user)s' is archived and cannot join a sales team.",
+                    user=membership.user_id.name))
 
     # ------------------------------------------------------------
     # SEARCH HELPERS
     # ------------------------------------------------------------
+
+    @api.model
+    def _get_live_teams_by_user(self, users):
+        """Map each of ``users`` to the live teams they currently belong to.
+
+        Both "already in other teams" warnings -- crm.team's, over the members of
+        a team, and this model's, over a membership's salesperson -- ask this one
+        question, and both had to be corrected twice in the same two ways:
+
+        * the ``active`` leaf is explicit rather than left to ``active_test``, or
+          the warning counts archived history whenever the caller happens to
+          search with ``active_test=False``;
+        * no ``sudo``, because ``crm_team_member_comp_rule`` and
+          ``crm_team_member_rule_personal`` already scope memberships to the
+          reader. Reading them as superuser and then naming their teams raised
+          AccessError for anyone outside those teams, and named a hidden team to
+          whoever got past it.
+
+        Asking it in one place is what stops the third correction from landing on
+        only one of the two.
+
+        :return: ``{user record: crm.team recordset}``, one entry per user asked
+            about, empty recordset for those with no live membership.
+        """
+        teams_by_user = dict.fromkeys(users, self.env['crm.team'])
+        if not users.ids:
+            return teams_by_user
+        for membership in self.search([('active', '=', True), ('user_id', 'in', users.ids)]):
+            teams_by_user[membership.user_id] |= membership.crm_team_id
+        return teams_by_user
 
     @api.model
     def _search_live_projection(self, membership_field, target_field, operator, value):
@@ -211,34 +254,24 @@ class CrmTeamMember(models.Model):
         if self.env['crm.team']._is_membership_multi():
             # a single global parameter: no need to ask each record for it
             self.member_warning = False
-        else:
-            active = self.filtered('active')
-            (self - active).member_warning = False
-            if not active:
-                return
-            # The active leaf is explicit: relying on active_test would make the
-            # warning depend on the caller's context and count archived history.
-            # No sudo: crm_team_member_comp_rule scopes this to the reader's
-            # companies, where reading as superuser then naming the teams raised
-            # AccessError for anyone outside them -- and leaked the name otherwise.
-            existing = self.env['crm.team.member'].search([
-                ('active', '=', True),
-                ('user_id', 'in', active.user_id.ids),
-            ])
-            user_mapping = dict.fromkeys(existing.user_id, self.env['crm.team'])
-            for membership in existing:
-                user_mapping[membership.user_id] |= membership.crm_team_id
+            return
 
-            for member in active:
-                teams = user_mapping.get(member.user_id, self.env['crm.team'])
-                remaining = teams - (member.crm_team_id | member._origin.crm_team_id)
-                if remaining:
-                    member.member_warning = _("%(user_name)s already in other teams (%(team_names)s).",
-                                              user_name=member.user_id.name,
-                                              team_names=", ".join(remaining.mapped('name'))
-                                             )
-                else:
-                    member.member_warning = False
+        active = self.filtered('active')
+        (self - active).member_warning = False
+        if not active:
+            return
+
+        teams_by_user = self._get_live_teams_by_user(active.user_id)
+        for member in active:
+            remaining = teams_by_user.get(member.user_id, self.env['crm.team']) - (
+                member.crm_team_id | member._origin.crm_team_id)
+            if remaining:
+                member.member_warning = _("%(user_name)s already in other teams (%(team_names)s).",
+                                          user_name=member.user_id.name,
+                                          team_names=", ".join(remaining.mapped('name'))
+                                         )
+            else:
+                member.member_warning = False
 
     # ------------------------------------------------------------
     # CRUD

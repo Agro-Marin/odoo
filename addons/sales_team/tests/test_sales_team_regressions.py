@@ -75,25 +75,37 @@ class TestArchivedMembershipVisibility(TestSalesCommon):
             self.env['res.users'].search([('crm_team_ids', 'in', self.other_team.ids)]))
 
     def test_search_crm_team_ids_keeps_archived_users(self):
-        """The active_test override exists for archived *users*; keep that.
+        """The active_test override is about archived *users*; keep that.
 
-        The state has to be built in two steps now that archiving a user
-        cascades to its memberships whichever way it is written: the override
-        this guards is about an archived *user* staying searchable, not about
-        the cascade leaving memberships alone, and conflating the two made the
-        test pass only for as long as ``write`` skipped the cascade.
+        This used to build the state in two steps -- archive the user, then
+        unarchive one of their memberships -- because the cascade had closed the
+        one-step version. ``_constrains_live_endpoints`` now closes that one too:
+        a live membership on an archived salesperson is precisely the row the
+        many2many reads and the searches disagree about. What is still reachable,
+        and still worth guarding, is the other half: an archived user remains
+        searchable through ``crm_team_ids`` under ``active_test=False``.
         """
         self.user_sales_leads.with_context(active_test=False).write({'active': False})
-        self.env.flush_all()
-        self.other_membership.action_unarchive()
         self.env.flush_all()
         self.env.invalidate_all()
 
         self.assertFalse(self.user_sales_leads.with_context(active_test=False).active)
-        self.assertTrue(self.other_membership.active)
         matched = self.env['res.users'].with_context(active_test=False).search(
-            [('crm_team_ids', 'in', self.other_team.ids)])
-        self.assertIn(self.user_sales_leads, matched)
+            [('crm_team_ids', '=', False)])
+        self.assertIn(self.user_sales_leads, matched,
+                      "an archived user must stay searchable by team")
+        self.assertNotIn(
+            self.user_sales_leads, self.env['res.users'].search([('crm_team_ids', '=', False)]),
+            "and must not leak into a default-context search")
+
+    def test_an_archived_user_cannot_keep_a_live_membership(self):
+        """The state the test above used to build, now structurally refused."""
+        self.user_sales_leads.with_context(active_test=False).write({'active': False})
+        self.env.flush_all()
+        self.assertFalse(self.other_membership.active, "the cascade archived it")
+        with self.assertRaises(exceptions.ValidationError):
+            self.other_membership.action_unarchive()
+            self.env.flush_all()
 
     def test_sale_team_id_ignores_archived_membership(self):
         """The stored field must not depend on the caller's active_test.
@@ -1030,6 +1042,46 @@ class TestArchivedTeamMembership(TestSalesCommon):
         with self.assertRaises(exceptions.ValidationError):
             self.member.action_unarchive()
             self.env.flush_all()
+
+    def test_cannot_join_a_team_as_an_archived_user(self):
+        """The salesperson end of the same invariant, which had no guard.
+
+        A live membership on a dead user is the state the many2many reads and
+        the searches disagree about, seen from the other side of the join.
+        """
+        ghost = mail_new_test_user(
+            self.env, login='ghost_user', name='Ghost User', groups='base.group_user')
+        ghost.action_archive()
+        self.env.flush_all()
+        with self.assertRaises(exceptions.ValidationError):
+            self.env['crm.team.member'].create(
+                {'crm_team_id': self.team.id, 'user_id': ghost.id})
+            self.env.flush_all()
+
+    def test_cannot_unarchive_a_membership_of_an_archived_user(self):
+        self.user_sales_leads.action_archive()   # cascades the archive
+        self.env.flush_all()
+        self.assertFalse(self.member.active)
+        with self.assertRaises(exceptions.ValidationError):
+            self.member.action_unarchive()
+            self.env.flush_all()
+
+    def test_reads_and_searches_agree_on_an_archived_user(self):
+        """The three symptoms the guard exists to prevent, asserted together."""
+        self.user_sales_leads.action_archive()
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertEqual(self.team.member_ids.ids, self.team.crm_team_member_ids.user_id.ids,
+                         "the many2many and the one2many must report the same people")
+        self.assertNotIn(
+            self.team,
+            self.env['crm.team'].search([('member_ids', 'in', [self.user_sales_leads.id])]),
+            "search must agree with the many2many read")
+        self.env.cr.execute("SELECT sale_team_id FROM res_users WHERE id = %s",
+                            (self.user_sales_leads.id,))
+        self.assertNotEqual(self.env.cr.fetchone()[0], self.team.id,
+                            "the stored column must not stay pinned to the team")
 
     def test_stored_sale_team_id_never_holds_an_archived_team(self):
         """crm's pipeline action and sale_commission both read this column."""

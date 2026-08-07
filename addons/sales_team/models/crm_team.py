@@ -224,25 +224,15 @@ class CrmTeam(models.Model):
         if not teams:
             return
 
-        # One query for the whole recordset; the active leaf is explicit so the
-        # warning does not silently count archived history under active_test=False.
-        # No sudo: crm_team_member_comp_rule already scopes memberships to the
-        # reader's companies. Reading them as superuser and then naming their teams
-        # raised AccessError on the crm.team read for anyone outside that company,
-        # and named a hidden team to whoever could get past it.
-        memberships = self.env['crm.team.member'].search([
-            ('active', '=', True),
-            ('user_id', 'in', teams.member_ids.ids),
-        ])
-        teams_by_user = {}
-        for membership in memberships:
-            teams_by_user.setdefault(membership.user_id.id, self.env['crm.team'])
-            teams_by_user[membership.user_id.id] |= membership.crm_team_id
+        # One query for the whole recordset, and the same query the membership's
+        # own warning asks -- see crm.team.member._get_live_teams_by_user for why
+        # the active leaf is explicit and why this must not be sudoed.
+        teams_by_user = self.env['crm.team.member']._get_live_teams_by_user(teams.member_ids)
 
         for team in teams:
             user_names, other_teams = [], self.env['crm.team']
             for user in team.member_ids:
-                elsewhere = teams_by_user.get(user.id, self.env['crm.team']) - team._origin
+                elsewhere = teams_by_user.get(user, self.env['crm.team']) - team._origin
                 if elsewhere:
                     user_names.append(user.name)
                     other_teams |= elsewhere
