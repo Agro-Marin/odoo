@@ -11,6 +11,7 @@ resolved to the same directory *today*, which is precisely why the divergence
 was invisible. This suite pins the agreement so it stays true.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -104,41 +105,73 @@ class TestCheckoutShape:
 class TestEveryToolAgrees:
     """No tool may reintroduce a private root or a counted depth."""
 
+    #: Every module that resolves a checkout root, and the attribute holding it.
+    #: Derived coverage is asserted by
+    #: :meth:`test_the_agreement_list_covers_every_root_resolving_module`, because
+    #: a hand-written list of eleven was the reason three tools kept counting
+    #: parents unnoticed.
+    ROOT_ATTRS = {
+        ("architecture", "layer_check"): "ROOT",
+        ("architecture", "js_layer_check"): "ROOT",
+        ("architecture", "js_cycle_check"): "ROOT",
+        ("architecture", "py_cycle_check"): "REPO_ROOT",
+        ("architecture", "named_export_coherence"): "ROOT",
+        ("architecture", "cross_repo_coherence"): "ROOT",
+        ("architecture", "env_surface_check"): "REPO_ROOT",
+        ("architecture", "env_model_surface_check"): "REPO_ROOT",
+        ("architecture", "pool_surface_check"): "REPO_ROOT",
+        ("architecture", "worker_thread_surface_check"): "REPO_ROOT",
+        ("architecture", "mixin_coupling_check"): "ROOT",
+        ("architecture", "libs_facade_check"): "REPO_ROOT",
+        ("architecture", "package_index_check"): "REPO_ROOT",
+        ("architecture", "subsystem_map_check"): "REPO_ROOT",
+        ("typecheck", "scope_gate"): "ROOT",
+        ("hoot", "hoot_lib"): "ODOO_ROOT",
+        ("vendored", "check_vendored_libs"): "ODOO_ROOT",
+        ("codegen", "generate_model_types"): "ODOO_ROOT",
+        ("codegen", "generate_service_types"): "ODOO_ROOT",
+        ("doclinks", "doc_link_gate"): "REPO_ROOT",
+        ("domain_parity", "check_parity"): "REPO_ROOT",
+    }
+
     def _roots(self):
+        import importlib
         import sys
 
-        for sub in ("architecture", "typecheck", "hoot", "vendored", "codegen", "doclinks"):
+        for sub in sorted({sub for sub, _ in self.ROOT_ATTRS}):
             sys.path.insert(0, str(ODOO_ROOT / "tooling" / sub))
-        import check_vendored_libs
-        import cross_repo_coherence
-        import doc_link_gate
-        import generate_model_types
-        import generate_service_types
-        import hoot_lib
-        import js_cycle_check
-        import js_layer_check
-        import layer_check
-        import named_export_coherence
-        import scope_gate
-
-        return {
-            "layer_check": layer_check.ROOT,
-            "js_layer_check": js_layer_check.ROOT,
-            "js_cycle_check": js_cycle_check.ROOT,
-            "named_export_coherence": named_export_coherence.ROOT,
-            "cross_repo_coherence": cross_repo_coherence.ROOT,
-            "scope_gate": scope_gate.ROOT,
-            "hoot_lib": hoot_lib.ODOO_ROOT,
-            "check_vendored_libs": check_vendored_libs.ODOO_ROOT,
-            "doc_link_gate": doc_link_gate.REPO_ROOT,
-            "generate_service_types": generate_service_types.ODOO_ROOT,
-            "generate_model_types": generate_model_types.ODOO_ROOT,
-        }
+        roots = {}
+        for (_sub, name), attr in self.ROOT_ATTRS.items():
+            roots[name] = getattr(importlib.import_module(name), attr)
+        return roots
 
     def test_all_tools_resolve_the_same_checkout_root(self):
         roots = self._roots()
         disagreeing = {name: r for name, r in roots.items() if Path(r) != ODOO_ROOT}
         assert not disagreeing, f"tools disagree about the checkout root: {disagreeing}"
+
+    def test_the_agreement_list_covers_every_root_resolving_module(self):
+        """The list above must not be narrower than the thing it guards.
+
+        It named eleven modules while twenty-one resolve a root, and the ten it
+        omitted included all three that were still counting parents. A coverage
+        list that is itself unchecked reproduces the bug it exists to catch.
+        """
+        listed = {name for _sub, name in self.ROOT_ATTRS}
+        resolving = set()
+        for path in sorted((ODOO_ROOT / "tooling").rglob("*.py")):
+            if "__pycache__" in path.parts or path.name.startswith("test_"):
+                continue
+            if path.name in ("_repo_root.py", "conftest.py"):
+                continue
+            text = path.read_text(encoding="utf-8")
+            if "find_odoo_root(" in text and "def find_odoo_root" not in text:
+                resolving.add(path.stem)
+        missing = sorted(resolving - listed)
+        assert not missing, (
+            f"module(s) resolve a checkout root but are absent from ROOT_ATTRS, "
+            f"so nothing asserts they agree: {missing}"
+        )
 
     def test_no_tool_keeps_a_private_marker_walk(self):
         # A private copy is how two of them drifted out of reach of any fix to
@@ -153,3 +186,39 @@ class TestEveryToolAgrees:
             if "def _find_odoo_root" in text:
                 offenders.append(str(path.relative_to(ODOO_ROOT)))
         assert not offenders, f"private marker walk reintroduced in: {offenders}"
+
+    def test_no_tool_counts_parents_to_reach_the_checkout_root(self):
+        """The OTHER half of the problem, which the grep above cannot see.
+
+        The module docstring names both shapes — "a private copy of the marker
+        walk or a ``parent.parent.parent``" — but only the first was pinned, so
+        ``package_index_check``, ``subsystem_map_check`` and ``check_parity``
+        counted parents for as long as they existed. They resolved correctly
+        *today*, which is precisely why nobody noticed.
+
+        A counted depth is fine for reaching something NEAR the file (``parent /
+        "baselines"``); what must not be counted is the checkout root. The
+        heuristic is depth: three or more levels up from ``tooling/<tool>/x.py``
+        lands at or above the root.
+        """
+        counted = re.compile(
+            r"""Path\(__file__\)\.resolve\(\)
+                (?:\.parent){3,}          # .parent.parent.parent
+              | Path\(__file__\)\.resolve\(\)\.parents\[\s*([2-9])\s*\]
+            """,
+            re.VERBOSE,
+        )
+        offenders = []
+        for path in sorted((ODOO_ROOT / "tooling").rglob("*.py")):
+            if "__pycache__" in path.parts or path.name == "test_repo_root.py":
+                continue
+            for lineno, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), 1
+            ):
+                if counted.search(line.replace("pathlib.", "")):
+                    offenders.append(f"{path.relative_to(ODOO_ROOT)}:{lineno}")
+        assert not offenders, (
+            f"checkout root reached by counting parents in: {offenders} — use "
+            f"_repo_root.find_odoo_root(), which is depth-independent and "
+            f"raises instead of guessing"
+        )

@@ -318,7 +318,9 @@ def main(argv: list[str] | None = None) -> int:
 
     scan_roots = args.roots or discover_addons_roots()
     if not scan_roots:
-        parser.error(f"no addons root found around {ROOT} (siblings {SIBLING_REPOS_ROOT})")
+        parser.error(
+            f"no addons root found around {ROOT} (siblings {SIBLING_REPOS_ROOT})"
+        )
     # Explicit scan roots also become the resolution universe unless told
     # otherwise: resolving an explicitly-scoped scan against the whole
     # workspace silently answered from a DIFFERENT copy of the module than the

@@ -653,11 +653,37 @@ def _is_test_file(path: Path) -> bool:
     )
 
 
+def _collapse_nested(roots: list[Path]) -> list[Path]:
+    """Drop any root already covered by a directory root above it.
+
+    ``source`` prefixes overlap by design — ``core-does-not-depend-on-addons``
+    names ``odoo.orm`` while ``orm-layer1-below-models-and-runtime`` names
+    ``odoo.orm.fields`` — and each root was walked independently, so every file
+    under an overlap was scanned once per covering root. Measured: 6453 paths
+    for 6362 distinct files, 91 of them doubled (all of ``odoo/orm/fields``,
+    ``odoo/orm/models``, ``odoo/db/*`` and the ``odoo/http`` leaf modules).
+
+    That is not merely a wrong "Files scanned" line. Every violation in a
+    doubled file was reported twice: injecting ONE forbidden import into
+    ``odoo/db/breaker.py`` produced "2 NEW violation(s)" at the same line,
+    against "1" for the identical injection into a singly-walked file. Counts
+    are what the reports, the ARCHITECTURE.md prose and the pinned baselines
+    are all written in terms of.
+
+    Directory roots only: a module-shaped root (``odoo/http/openapi`` ->
+    ``openapi.py``) never covers anything, but IS covered by ``odoo/http``.
+    """
+    dirs = [r for r in roots if r.is_dir()]
+    return [r for r in roots if not any(d != r and d in r.parents for d in dirs)]
+
+
 def iter_source_files() -> list[Path]:
     source_prefixes = {p for c in CONTRACTS for p in c.source}
     # Translate dotted source prefixes to directories to avoid walking the whole
     # tree (odoo/addons/ alone is enormous and out of scope).
-    roots = sorted({ROOT.joinpath(*p.split(".")) for p in source_prefixes})
+    roots = _collapse_nested(
+        sorted({ROOT.joinpath(*p.split(".")) for p in source_prefixes})
+    )
     files: list[Path] = []
     for root in roots:
         if root.is_dir():
@@ -672,6 +698,60 @@ def _is_known(module: str, target: str) -> bool:
         _matches(module, (k.module,)) and _matches(target, (k.imports,))
         for k in KNOWN_VIOLATIONS
     )
+
+
+def violations_for(
+    module: str, imports: list[tuple[str, int]], path: str
+) -> list[Violation]:
+    """Every contract ``module`` breaks, given the imports collected from it.
+
+    Split out of :func:`check` so the matching rules — prefix matching, the
+    own-subtree exemption, ``allow_exact``, and the ``<base>``/``<base>.<name>``
+    dedupe — are reachable without writing a file into the tree. They used to be
+    testable only through a full 6362-file walk, which is why the double-report
+    survived: nothing could ask "how many violations does THIS statement make?"
+    """
+    found: list[Violation] = []
+    for contract in CONTRACTS:
+        if not _matches(module, contract.source):
+            continue
+        # ``visit_ImportFrom`` deliberately emits BOTH ``<base>`` and
+        # ``<base>.<name>`` so ``from .. import models`` is caught. When the
+        # base alone already breaks the contract, the synthesized submodule
+        # record describes the same import statement twice: the two pinned cron
+        # imports rendered as "8 known exception(s)" over 4 source lines, each
+        # line printed twice. Keep the synthesized record only when it is the
+        # one carrying the violation — ``from odoo import models`` under a
+        # contract that forbids ``odoo.models`` but not ``odoo``.
+        reported: set[tuple[int, str]] = set()
+        for target, lineno in imports:
+            if not _matches(target, contract.forbidden):
+                continue
+            if _matches(target, contract.allow):
+                continue
+            if target in contract.allow_exact:
+                continue
+            # A file may legitimately import a sibling within its own source
+            # subtree (e.g. odoo.orm.fields importing odoo.orm.fields.base);
+            # that is never a layering violation.
+            if _matches(target, contract.source):
+                continue
+            if any(
+                line == lineno and target.startswith(seen + ".")
+                for line, seen in reported
+            ):
+                continue
+            reported.add((lineno, target))
+            found.append(
+                Violation(
+                    contract=contract.name,
+                    module=module,
+                    imports=target,
+                    path=path,
+                    lineno=lineno,
+                )
+            )
+    return found
 
 
 def check(files: list[Path] | None = None) -> tuple[list[Violation], list[Violation]]:
@@ -692,29 +772,8 @@ def check(files: list[Path] | None = None) -> tuple[list[Violation], list[Violat
             continue
         collector = _ImportCollector(module=module, is_init=path.name == "__init__.py")
         collector.visit(tree)
-        for contract in CONTRACTS:
-            if not _matches(module, contract.source):
-                continue
-            for target, lineno in collector.found:
-                if not _matches(target, contract.forbidden):
-                    continue
-                if _matches(target, contract.allow):
-                    continue
-                if target in contract.allow_exact:
-                    continue
-                # A file may legitimately import a sibling within its own source
-                # subtree (e.g. odoo.orm.fields importing odoo.orm.fields.base);
-                # that is never a layering violation.
-                if _matches(target, contract.source):
-                    continue
-                v = Violation(
-                    contract=contract.name,
-                    module=module,
-                    imports=target,
-                    path=str(path.relative_to(ROOT)),
-                    lineno=lineno,
-                )
-                (known if _is_known(module, target) else new).append(v)
+        for v in violations_for(module, collector.found, str(path.relative_to(ROOT))):
+            (known if _is_known(v.module, v.imports) else new).append(v)
     return new, known
 
 

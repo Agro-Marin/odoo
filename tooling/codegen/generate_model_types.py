@@ -105,6 +105,7 @@ def _rel(path: Path) -> Path:
     except ValueError:
         return path
 
+
 SCALAR_TYPE_MAP = {
     "char": "string",
     "text": "string",
@@ -269,11 +270,13 @@ def generate(
         Mutually exclusive with ``modules``.
     :param output_dir: where to write ``<module>/<model>.d.ts``.
     :param quiet: suppress per-file logging.
-    :param check: do not write; return only the models whose committed file is
-        missing or stale. The sibling ``generate_service_types.py`` has had a
-        ``--check`` mode wired into ``service_types.yml`` since it was written,
-        so a drifted services.d.ts is caught; model types had no equivalent and
-        could drift silently for as long as nobody happened to regenerate them.
+    :param check: do not write; return only the files that disagree with the
+        registry — missing, stale, or **orphaned** (committed for a model that
+        no longer exists, keyed as ``"(orphan) <path>"``). The sibling
+        ``generate_service_types.py`` has had a ``--check`` mode wired into
+        ``service_types.yml`` since it was written, so a drifted services.d.ts
+        is caught; model types had no equivalent and could drift silently for as
+        long as nobody happened to regenerate them.
     :return: mapping of model name → output Path written (or, under ``check``,
         → the path that disagrees with what the registry says it should hold).
     """
@@ -295,8 +298,21 @@ def generate(
             module = getattr(ModelCls, "_original_module", None) or "base"
             targets.append((module, model_name))
     else:
-        installed = env["ir.module.module"].search([("state", "=", "installed")])
-        wanted = set(modules) if modules else {m.name for m in installed}
+        installed = {
+            m.name
+            for m in env["ir.module.module"].search([("state", "=", "installed")])
+        }
+        wanted = set(modules) if modules else installed
+        if modules:
+            # A typo used to emit nothing and exit 0 — `--modules sales` looked
+            # exactly like a module that legitimately declares no models.
+            unknown = sorted(wanted - installed)
+            if unknown:
+                raise ValueError(
+                    f"not installed in this database: {', '.join(unknown)}. "
+                    f"Nothing would be generated for them, and a silent empty "
+                    f"run is indistinguishable from success."
+                )
         for model_name in env.registry:
             ModelCls = env[model_name]
             module = getattr(ModelCls, "_original_module", None) or "base"
@@ -352,6 +368,29 @@ def generate(
         if not quiet:
             print(f"  emit: {model_name:<40s} → {_rel(target_path)}")
 
+    if check:
+        # A model that is DELETED leaves its .d.ts behind, and comparing
+        # registry -> disk can never see it: the loop above only visits models
+        # that still exist. The orphan then keeps contributing an `interface`
+        # and a `Models` entry for a model the server no longer has, and
+        # `--check` reports "up to date". Every sibling gate here detects its
+        # own version of this (scope_gate's `stale`, py_cycle_check's
+        # `stale_pins`, package_index_check's `phantom`); this one did not.
+        #
+        # Scoped to the module directories actually targeted: with `--modules
+        # sale`, every OTHER module's committed file is untouched, not orphaned.
+        for module in sorted({m for m, _ in targets}):
+            module_dir = output_dir / module
+            if not module_dir.is_dir():
+                continue
+            expected = {p for p in claimed if p.parent == module_dir}
+            for path in sorted(module_dir.glob("*.d.ts")):
+                if path in expected:
+                    continue
+                written[f"(orphan) {_rel(path)}"] = path
+                if not quiet:
+                    print(f"  orphan: {_rel(path)} — no model claims this file")
+
     if not quiet:
         if check:
             print(
@@ -362,8 +401,6 @@ def generate(
         else:
             print(f"\nGenerated {len(written)} .d.ts files under {output_dir}")
     return written
-
-
 
 
 def _bootstrap_odoo(config_path: str, db: str) -> Any:
@@ -420,7 +457,11 @@ def _main() -> int:
             kwargs["modules"] = [m.strip() for m in args.modules.split(",")]
         if args.models:
             kwargs["models"] = [m.strip() for m in args.models.split(",")]
-        stale = generate(env, **kwargs)
+        try:
+            stale = generate(env, **kwargs)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     finally:
         env.cr.close()
     if args.check and stale:

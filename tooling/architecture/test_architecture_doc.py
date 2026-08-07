@@ -1156,7 +1156,7 @@ class TestSeams(unittest.TestCase):
         self.assertIn("def _core(self)", env)
 
     def test_the_raw_objects_really_are_private(self) -> None:
-        """"the raw objects stay private to Transaction" was false when written.
+        """ "the raw objects stay private to Transaction" was false when written.
 
         ``OrmCore``'s slots were named ``cache``/``engine``, so ``env._core.cache``
         WAS ``transaction._cache_store`` -- the curated facade handed out the raw
@@ -1183,7 +1183,9 @@ class TestSeams(unittest.TestCase):
             encoding="utf-8"
         )
         for named in ("_cache_store", "_compute_engine"):
-            self.assertIn(f'"{named}"', transaction, f"{named} is not a Transaction slot")
+            self.assertIn(
+                f'"{named}"', transaction, f"{named} is not a Transaction slot"
+            )
             self.assertIn(f"`{named}`", DOC, f"the page no longer names {named}")
 
     def test_transaction_storage_sniffing_is_gone(self) -> None:
@@ -1373,10 +1375,17 @@ class TestRuntimeSurfaceFigures(unittest.TestCase):
             f"`orm/models`' {sites['Layer 2']}**",
             DOC_FLAT,
         )
+        # Both counts, measured. This asserted a literal ``Layer 2 == 0``, which
+        # was true only while Layer 2's scope was ``orm/models`` alone; widening
+        # it to the ORM modules that were in no scope at all (``registration``,
+        # ``helpers``, …) gave Layer 2 subscripts of its own. A hardcoded zero
+        # in a suite whose whole premise is "figures come from a live run" is
+        # the same restated-number bug one level down.
         self.assertIn(
-            f"owns all {subscripts['Layer 1']} `pool[<model>]` subscripts", DOC_FLAT
+            f"uses {subscripts['Layer 1']} `pool[<model>]` subscripts against "
+            f"Layer 2's {subscripts.get('Layer 2', 0)}",
+            DOC_FLAT,
         )
-        self.assertEqual(subscripts.get("Layer 2", 0), 0)
 
     def test_pool_member_width_inversion_is_stated(self) -> None:
         """Layer 2 is *wider* by distinct member; the page must not claim otherwise."""
@@ -1595,10 +1604,14 @@ class TestPinnedCyclesAndRemovals(unittest.TestCase):
             cycle[0].split(".")[1]
             for cycle in getattr(report, "known", None) or report.cycles
         }
-        self.assertEqual(packages, {"service", "modules", "cli"})
-        self.assertIn(
-            "Three are pinned (`service`, `modules`, `cli`", DOC_FLAT.replace("—", "-")
-        )
+        # Derived from the run, not restated: the set used to be hardcoded to
+        # three, so restoring ``odoo/tests/`` to the graph — the shipped test
+        # FRAMEWORK, dropped wholesale by a directory-name filter — turned a
+        # correct widening of the gate's coverage into a red build.
+        self.assertEqual(packages, {"service", "modules", "cli", "tests"})
+        count = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five"}[len(packages)]
+        named = ", ".join(f"`{p}`" for p in ("service", "modules", "cli", "tests"))
+        self.assertIn(f"{count} are pinned ({named}", DOC_FLAT.replace("—", "-"))
 
     def test_the_orm_really_has_no_cycle(self) -> None:
         """ "the ORM has none" is the load-bearing half of that sentence."""

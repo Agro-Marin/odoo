@@ -52,7 +52,15 @@ def _load_manifest() -> dict:
         sys.exit(f"FATAL: malformed manifest {MANIFEST}: {exc}")
 
 
-def _check_rebuild(name: str, script: Path) -> int:
+#: What one library's verification concluded. ``UNVERIFIED`` is deliberately not
+#: folded into ``OK``: the whole point of this gate is that "nobody looked" and
+#: "we looked and it was fine" are different answers, and only one of them is a
+#: clean bill of health. ``--audit`` already made that distinction for an
+#: unreachable OSV; ``--drift`` used to collapse it.
+OK, FAIL, UNVERIFIED = "ok", "fail", "unverified"
+
+
+def _check_rebuild(name: str, script: Path) -> tuple[str, str]:
     """Ask a generated artefact's build script whether it is still current.
 
     Entries carrying ``rebuild`` are built from in-tree sources rather than
@@ -60,14 +68,16 @@ def _check_rebuild(name: str, script: Path) -> int:
     nothing useful — the question is whether the checked-in output still
     matches what its sources produce today.
 
-    A missing toolchain is reported, never passed over silently: a build that
-    could not run is not a build that succeeded.
+    A build that could not run is not a build that succeeded, so a missing
+    toolchain returns ``UNVERIFIED`` rather than ``OK``. It previously returned
+    the success code, which meant a machine without esbuild reported "All pinned
+    versions match the vendored files" while the one entry that needs a build to
+    verify (``popper_compat``) had not been looked at.
 
-    :returns: 1 if the artefact is stale, else 0.
+    :returns: ``(verdict, detail)``.
     """
     if not script.is_file():
-        print(f"  FAIL {name}: rebuild script {script} is missing")
-        return 1
+        return FAIL, f"rebuild script {script} is missing"
     try:
         done = subprocess.run(
             [str(script), "--check"],
@@ -77,27 +87,27 @@ def _check_rebuild(name: str, script: Path) -> int:
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        print(f"  ???  {name}: could not run {script.name} ({exc}) — NOT checked")
-        return 0
+        return UNVERIFIED, f"could not run {script.name} ({exc})"
     if done.returncode == 0:
-        print(f"  OK   {name}: generated artefact is up to date")
-        return 0
+        return OK, "generated artefact is up to date"
     # 127 is the script's own "no esbuild here" exit; that is an un-run
     # check, not a stale artefact.
     if done.returncode == 127:
-        print(f"  ???  {name}: build toolchain unavailable — NOT checked")
-        return 0
-    print(f"  FAIL {name}: {(done.stderr or done.stdout).strip() or 'stale artefact'}")
-    return 1
+        return UNVERIFIED, "build toolchain unavailable"
+    return FAIL, (done.stderr or done.stdout).strip() or "stale artefact"
 
 
-def check_drift(libs: dict) -> int:
+def check_drift(libs: dict) -> tuple[int, list[str]]:
     """Re-derive each pinned version from the vendored bytes.
 
-    :returns: the number of libraries whose shipped bytes contradict the
-        manifest (missing directories and unreadable probe files included).
+    :returns: ``(failures, unverified)`` — the number of libraries whose shipped
+        bytes contradict the manifest (missing directories and unreadable probe
+        files included), and the names of those nothing could verify. The second
+        half exists so the summary cannot say "all pinned versions match" about
+        libraries it never read.
     """
     failures = 0
+    unverified: list[str] = []
     for name, spec in sorted(libs.items()):
         version = spec["version"]
         directory = LIB_DIR / name
@@ -108,14 +118,24 @@ def check_drift(libs: dict) -> int:
 
         rebuild = spec.get("rebuild")
         if rebuild:
-            failures += _check_rebuild(name, directory / rebuild)
+            verdict, detail = _check_rebuild(name, directory / rebuild)
+            marker = {OK: "  OK  ", FAIL: "  FAIL", UNVERIFIED: "  ??? "}[verdict]
+            print(f"{marker} {name}: {detail}")
+            if verdict == FAIL:
+                failures += 1
+            elif verdict == UNVERIFIED:
+                unverified.append(name)
             continue
 
         probe = spec.get("probe")
         if not probe:
             # Fork-local and in-tree libraries have no upstream version to
-            # re-derive; the manifest entry is the whole truth.
-            print(f"  --   {name}: {version} (no probe)")
+            # re-derive; the manifest entry is the whole truth. Still counted as
+            # unverified — "there is nothing to check against" and "checked and
+            # correct" are different claims, and only the summary line ever
+            # distinguished them.
+            print(f"  --   {name}: {version} (no probe — nothing to re-derive)")
+            unverified.append(name)
             continue
 
         target = directory / probe["file"]
@@ -136,7 +156,7 @@ def check_drift(libs: dict) -> int:
                 f"does not match /{pattern}/"
             )
             failures += 1
-    return failures
+    return failures, unverified
 
 
 def _osv_query(package: str, version: str) -> list[dict] | None:
@@ -169,9 +189,14 @@ def audit(libs: dict) -> int:
     """
     vulnerable = 0
     unreachable = []
+    not_on_npm = []
     for name, spec in sorted(libs.items()):
         package = spec.get("npm")
         if not package or spec.get("upstream") is False:
+            # Reported, not skipped in silence. Five of seventeen libraries land
+            # here, and the run still printed "No known advisories against the
+            # pinned versions" — a sentence about twelve of them.
+            not_on_npm.append(name)
             continue
         version = spec["version"]
         vulns = _osv_query(package, version)
@@ -188,6 +213,9 @@ def audit(libs: dict) -> int:
             summary = (vuln.get("summary") or "").strip() or "(no summary)"
             print(f"         {vuln['id']}: {summary}")
 
+    if not_on_npm:
+        print(f"\nNOTE: no npm coordinates for: {', '.join(not_on_npm)}")
+        print("OSV cannot be queried for these; they are outside the audit.")
     if unreachable:
         print(f"\nWARNING: OSV not reached for: {', '.join(unreachable)}")
         print("These were NOT audited -- do not read this run as a clean result.")
@@ -214,12 +242,22 @@ def main() -> int:
 
     if args.drift:
         print(f"Version drift ({len(libs)} libraries):")
-        failures = check_drift(libs)
-        print(
-            f"\n{failures} mismatch(es).\n"
-            if failures
-            else "\nAll pinned versions match the vendored files.\n"
-        )
+        failures, unverified = check_drift(libs)
+        if failures:
+            print(f"\n{failures} mismatch(es).")
+        else:
+            verified = len(libs) - len(unverified)
+            print(f"\nAll {verified} verifiable pinned version(s) match.")
+        if unverified:
+            # Never fold this into the pass line. A build that could not run and
+            # a library with no probe are both "nobody looked", and saying "all
+            # pinned versions match" over them is the failure this gate exists
+            # to catch one level up.
+            print(
+                f"{len(unverified)} NOT verified: {', '.join(unverified)}\n"
+                f"  Do not read this run as a clean result for those."
+            )
+        print()
         status |= 1 if failures else 0
 
     if args.audit:

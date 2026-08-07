@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import textwrap
 import unittest
+import unittest.mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -168,6 +169,85 @@ class DriftTest(unittest.TestCase):
                 "## Module map\n| `a.py` | a |\n| `b.py` | b |\n",
             )
             self.assertTrue(pic.check(core, INDEX).ok)
+
+
+class SelfCountsTest(unittest.TestCase):
+    """A README that restates a count about itself must restate it correctly.
+
+    This whole feature had no test. It also failed open: an unmatched pattern
+    was skipped, so rewording ``**Total**: 15 files`` to ``**Total:** 15 files``
+    silently retired the check while the number stayed wrong.
+    """
+
+    COUNTS = {r"\*\*Total\*\*: (\d+) files": "files"}
+
+    def _pkg(self, tmp, stated_line, modules=("a.py", "b.py")):
+        return make_package(
+            Path(tmp), "pkg", list(modules), f"## Module map\n{stated_line}\n"
+        )
+
+    def test_a_correct_self_count_passes(self):
+        with TemporaryDirectory() as tmp:
+            core = self._pkg(
+                tmp, "| `a.py` | a |\n| `b.py` | b |\n\n**Total**: 2 files"
+            )
+            with unittest.mock.patch.dict(pic.SELF_COUNTS, {"pkg": self.COUNTS}):
+                report = pic.check(core, INDEX)
+            self.assertEqual(report.packages[0].wrong_counts, [])
+            self.assertTrue(report.packages[0].ok)
+
+    def test_a_wrong_self_count_fails(self):
+        with TemporaryDirectory() as tmp:
+            core = self._pkg(
+                tmp, "| `a.py` | a |\n| `b.py` | b |\n\n**Total**: 99 files"
+            )
+            with unittest.mock.patch.dict(pic.SELF_COUNTS, {"pkg": self.COUNTS}):
+                report = pic.check(core, INDEX)
+            self.assertEqual(report.packages[0].wrong_counts, [("files", 99, 2)])
+            self.assertFalse(report.packages[0].ok)
+
+    def test_a_registered_pattern_that_matches_nothing_raises(self):
+        """The fail-open regression, pinned.
+
+        Reword the label and the count check used to vanish, leaving the number
+        wrong and the gate green.
+        """
+        with TemporaryDirectory() as tmp:
+            core = self._pkg(
+                tmp, "| `a.py` | a |\n| `b.py` | b |\n\n**Total:** 99 files"
+            )
+            with unittest.mock.patch.dict(pic.SELF_COUNTS, {"pkg": self.COUNTS}):
+                with self.assertRaisesRegex(ValueError, "matched nothing"):
+                    pic.check(core, INDEX)
+
+    def test_init_is_excluded_from_the_measured_count(self):
+        with TemporaryDirectory() as tmp:
+            core = self._pkg(
+                tmp,
+                "| `a.py` | a |\n| `b.py` | b |\n\n**Total**: 2 files",
+                modules=("a.py", "b.py", "__init__.py"),
+            )
+            with unittest.mock.patch.dict(pic.SELF_COUNTS, {"pkg": self.COUNTS}):
+                self.assertTrue(pic.check(core, INDEX).ok)
+
+    def test_patches_kind_skips_leading_underscore_helpers(self):
+        pkg = pic.CORE_ROOT / "_monkeypatches"
+        files = pic._measure("files", pkg)
+        patches = pic._measure("patches", pkg)
+        self.assertGreater(files, patches, "no helper modules distinguished")
+
+    def test_the_live_patterns_still_match_their_readme(self):
+        """The registered patterns are claims about a real file; check them.
+
+        Without this, the ValueError above only fires when someone happens to
+        run the gate — which is the same "nobody looked" failure one level up.
+        """
+        for package, counts in pic.SELF_COUNTS.items():
+            readme_name, _heading = pic.PACKAGE_INDEXES[package]
+            text = (pic.CORE_ROOT / package / readme_name).read_text(encoding="utf-8")
+            for pattern in counts:
+                with self.subTest(package=package, pattern=pattern):
+                    self.assertRegex(text, pattern)
 
 
 class LiveRepositoryTest(unittest.TestCase):

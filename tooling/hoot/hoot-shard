@@ -6,6 +6,7 @@ _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
+
 """Parallel shard wrapper around the warm-server ``hoot`` runner.
 
 HOOT runs a suite's tests *serially inside one browser page*, so a single
@@ -59,11 +60,8 @@ WEIGHTS_PATH = HERE / "data" / "hoot_shard_weights.json"
 
 # Colours and the isatty-aware wrapper live in hoot_lib: `hoot-shard` parses
 # `hoot`'s output, so the two agreeing on them is a contract.
-C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
-    H.C_GREEN, H.C_RED, H.C_YEL, H.C_DIM, H.C_RST
-)
+C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (H.C_GREEN, H.C_RED, H.C_YEL, H.C_DIM, H.C_RST)
 _color = H.color
-
 
 
 def default_web_suites() -> list[str]:
@@ -77,22 +75,45 @@ def default_web_suites() -> list[str]:
     """
     return sorted(H.ci_runner_suites("web"))
 
+
 # Seed runtimes (seconds), rough, for balancing only. Refined by --calibrate.
 SEED_WEIGHTS = {
-    "@web/core": 45, "@web/components": 40, "@web/services": 25, "@web/ui": 15,
-    "@web/model": 15, "@web/views/calendar": 15, "@web/views/fields": 180,
-    "@web/views/form": 35, "@web/views/kanban": 22, "@web/views/list": 40,
-    "@web/views/graph": 40, "@web/views/pivot": 30, "@web/views/pivot_view": 25,
-    "@web/views/view_components": 20, "@web/views/view_compiler": 10,
-    "@web/views/view_dialogs": 15, "@web/views/widgets": 20,
-    "@web/views/layout": 8, "@web/views/view_button": 10,
-    "@web/views/view_buttons": 8, "@web/views/view_button_hook": 6,
-    "@web/views/view_service": 8, "@web/views/view": 20,
-    "@web/views/view_utils": 8, "@web/views/module_views": 6,
+    "@web/core": 45,
+    "@web/components": 40,
+    "@web/services": 25,
+    "@web/ui": 15,
+    "@web/model": 15,
+    "@web/views/calendar": 15,
+    "@web/views/fields": 180,
+    "@web/views/form": 35,
+    "@web/views/kanban": 22,
+    "@web/views/list": 40,
+    "@web/views/graph": 40,
+    "@web/views/pivot": 30,
+    "@web/views/pivot_view": 25,
+    "@web/views/view_components": 20,
+    "@web/views/view_compiler": 10,
+    "@web/views/view_dialogs": 15,
+    "@web/views/widgets": 20,
+    "@web/views/layout": 8,
+    "@web/views/view_button": 10,
+    "@web/views/view_buttons": 8,
+    "@web/views/view_button_hook": 6,
+    "@web/views/view_service": 8,
+    "@web/views/view": 20,
+    "@web/views/view_utils": 8,
+    "@web/views/module_views": 6,
     "@web/views/settings": 6,
-    "@web/search": 40, "@web/webclient": 90, "@web/public": 20, "@web/env": 5,
-    "@web/reactivity": 5, "@web/t_custom_click": 4, "@web/helpers": 6,
-    "@web/interactions": 15, "@web/l10n": 8, "@web/mock_server": 10,
+    "@web/search": 40,
+    "@web/webclient": 90,
+    "@web/public": 20,
+    "@web/env": 5,
+    "@web/reactivity": 5,
+    "@web/t_custom_click": 4,
+    "@web/helpers": 6,
+    "@web/interactions": 15,
+    "@web/l10n": 8,
+    "@web/mock_server": 10,
     "@web/modules": 8,
 }
 DEFAULT_WEIGHT = 30  # unknown suite
@@ -215,9 +236,15 @@ class ShardResult:
             if m := RE_SUMMARY.match(line):
                 self.status = m[1]
                 detail = m[3]
-                self.failed = int(RE_FAILED.search(detail)[1]) if RE_FAILED.search(detail) else 0
-                self.passed = int(RE_PASSED.search(detail)[1]) if RE_PASSED.search(detail) else 0
-                self.wall = float(RE_WALL.search(detail)[1]) if RE_WALL.search(detail) else 0.0
+                self.failed = (
+                    int(RE_FAILED.search(detail)[1]) if RE_FAILED.search(detail) else 0
+                )
+                self.passed = (
+                    int(RE_PASSED.search(detail)[1]) if RE_PASSED.search(detail) else 0
+                )
+                self.wall = (
+                    float(RE_WALL.search(detail)[1]) if RE_WALL.search(detail) else 0.0
+                )
             elif b := RE_BULLET.match(line):
                 self.failed_tests.append(b[1])
         # A nonzero rc with no parsed summary => the shard's hoot run itself
@@ -254,8 +281,15 @@ def shard_deadline(suites: list[str], args) -> float:
 def run_shard(index: int, suites: list[str], args) -> ShardResult:
     db = db_for(index, args.db_prefix)
     res = ShardResult(index, db)
-    extra = ["--db", db, "--preset", args.preset, "--timeout", str(args.timeout),
-             "--isolate"]
+    extra = [
+        "--db",
+        db,
+        "--preset",
+        args.preset,
+        "--timeout",
+        str(args.timeout),
+        "--isolate",
+    ]
     if args.hoot_timeout:
         extra += ["--hoot-timeout", str(args.hoot_timeout)]
     if args.verbose:
@@ -263,7 +297,10 @@ def run_shard(index: int, suites: list[str], args) -> ShardResult:
     extra += suites
     try:
         proc = subprocess.run(
-            hoot_cmd(extra), capture_output=True, text=True, check=False,
+            hoot_cmd(extra),
+            capture_output=True,
+            text=True,
+            check=False,
             timeout=shard_deadline(suites, args),
         )
         res.raw = proc.stdout + proc.stderr
@@ -315,7 +352,8 @@ def stop_all(prefix: str) -> None:
         {
             db
             for state in H.read_all_states()
-            if (db := state.get("db")) and (db == prefix or db.startswith(f"{prefix}_s"))
+            if (db := state.get("db"))
+            and (db == prefix or db.startswith(f"{prefix}_s"))
         }
     )
     if not dbs:
@@ -332,22 +370,45 @@ def main() -> int:
         description="Run @web/... HOOT suites across N concurrent warm servers.",
     )
     p.add_argument("suites", nargs="*", help="@web/... suites (default: full web).")
-    p.add_argument("-j", "--shards", type=int, default=0,
-                   help="Shard count (default: auto from CPU count).")
+    p.add_argument(
+        "-j",
+        "--shards",
+        type=int,
+        default=0,
+        help="Shard count (default: auto from CPU count).",
+    )
     p.add_argument("--preset", choices=("desktop", "mobile"), default="desktop")
-    p.add_argument("--timeout", type=int, default=900,
-                   help="Per-shard wall-clock timeout, seconds (default: 900).")
-    p.add_argument("--hoot-timeout", type=int, default=0,
-                   help="HOOT in-page timeout, ms (default: hoot's own).")
-    p.add_argument("--db-prefix", default="hoot_web",
-                   help="Shard 0 uses this DB; shard i uses <prefix>_s{i}.")
+    p.add_argument(
+        "--timeout",
+        type=int,
+        default=900,
+        help="Per-shard wall-clock timeout, seconds (default: 900).",
+    )
+    p.add_argument(
+        "--hoot-timeout",
+        type=int,
+        default=0,
+        help="HOOT in-page timeout, ms (default: hoot's own).",
+    )
+    p.add_argument(
+        "--db-prefix",
+        default="hoot_web",
+        help="Shard 0 uses this DB; shard i uses <prefix>_s{i}.",
+    )
     p.add_argument("-v", "--verbose", action="store_true")
-    p.add_argument("--plan", action="store_true",
-                   help="Print the shard partition and exit (no run).")
-    p.add_argument("--calibrate", action="store_true",
-                   help="Time each suite solo and refresh the weights file.")
-    p.add_argument("--stop", action="store_true",
-                   help="Stop every shard's warm server and exit.")
+    p.add_argument(
+        "--plan",
+        action="store_true",
+        help="Print the shard partition and exit (no run).",
+    )
+    p.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="Time each suite solo and refresh the weights file.",
+    )
+    p.add_argument(
+        "--stop", action="store_true", help="Stop every shard's warm server and exit."
+    )
     args = p.parse_args()
 
     # Before any suite discovery: stopping servers needs no shard plan, and
@@ -368,10 +429,14 @@ def main() -> int:
         # itself as success: `--plan` printed "0 shards" and exited 0, and a
         # real run died on `max_workers must be greater than 0`, a message
         # about thread pools rather than about suites.
-        print(_color(
-            "hoot-shard: no suites to run. With no arguments the plan comes "
-            "from web/tests/test_js.py's _run_hoot calls; an empty result means "
-            "that file could not be read or no longer declares any.", C_RED))
+        print(
+            _color(
+                "hoot-shard: no suites to run. With no arguments the plan comes "
+                "from web/tests/test_js.py's _run_hoot calls; an empty result means "
+                "that file could not be read or no longer declares any.",
+                C_RED,
+            )
+        )
         return 2
     weights = load_weights()
 
@@ -395,19 +460,27 @@ def main() -> int:
 
     print(_color(f"Shard plan ({n} shards, preset={args.preset}):", C_DIM))
     for i, group in enumerate(shards):
-        print(f"  s{i} [{db_for(i, args.db_prefix)}]  ~{est(group):.0f}s  "
-              + " ".join(group))
+        print(
+            f"  s{i} [{db_for(i, args.db_prefix)}]  ~{est(group):.0f}s  "
+            + " ".join(group)
+        )
     if args.plan:
         return 0
     est_wall = max((est(g) for g in shards), default=0)
-    print(_color(f"Running {n} shards concurrently "
-                 f"(est ~{est_wall:.0f}s wall; first run of new shard DBs "
-                 f"adds a one-time web install)...", C_DIM))
+    print(
+        _color(
+            f"Running {n} shards concurrently "
+            f"(est ~{est_wall:.0f}s wall; first run of new shard DBs "
+            f"adds a one-time web install)...",
+            C_DIM,
+        )
+    )
 
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=n) as pool:
-        results = list(pool.map(lambda ig: run_shard(ig[0], ig[1], args),
-                                enumerate(shards)))
+        results = list(
+            pool.map(lambda ig: run_shard(ig[0], ig[1], args), enumerate(shards))
+        )
     wall = time.time() - t0
 
     total_passed = total_failed = 0
@@ -418,10 +491,16 @@ def main() -> int:
         total_passed += r.passed
         total_failed += r.failed
         all_failed += r.failed_tests
-        code = C_GREEN if r.status == "PASS" else (C_YEL if r.status == "WARN" else C_RED)
-        print(_color(
-            f"  s{r.index} [{r.db}]  {r.status}  "
-            f"({r.failed} failed / {r.passed} passed, {r.wall:.1f}s)", code))
+        code = (
+            C_GREEN if r.status == "PASS" else (C_YEL if r.status == "WARN" else C_RED)
+        )
+        print(
+            _color(
+                f"  s{r.index} [{r.db}]  {r.status}  "
+                f"({r.failed} failed / {r.passed} passed, {r.wall:.1f}s)",
+                code,
+            )
+        )
         for name in r.failed_tests:
             print(_color(f"       - {name}", C_RED))
         if r.status not in ("PASS", "WARN") and not r.failed_tests and r.rc:
@@ -431,15 +510,21 @@ def main() -> int:
 
     print("=" * 60)
     speedup = f"{cpu_equiv / wall:.1f}x" if wall else "n/a"
-    line = (f"TOTAL: {total_failed} failed / {total_passed} passed in "
-            f"{wall:.1f}s wall  ({cpu_equiv:.0f}s serial-equiv across {n} "
-            f"shards → {speedup})")
+    line = (
+        f"TOTAL: {total_failed} failed / {total_passed} passed in "
+        f"{wall:.1f}s wall  ({cpu_equiv:.0f}s serial-equiv across {n} "
+        f"shards → {speedup})"
+    )
     print(_color(line, C_GREEN if total_failed == 0 else C_RED))
     if all_failed:
         print(_color("FAILED:", C_RED))
         for name in all_failed:
             print(_color(f"  - {name}", C_RED))
-    return 1 if total_failed or any(r.status not in ("PASS", "WARN") for r in results) else 0
+    return (
+        1
+        if total_failed or any(r.status not in ("PASS", "WARN") for r in results)
+        else 0
+    )
 
 
 if __name__ == "__main__":

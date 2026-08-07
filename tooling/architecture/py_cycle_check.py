@@ -39,15 +39,21 @@ WHAT IS ENFORCED
 ----------------
 
 **No cycles**, with today's pinned in ``KNOWN_CYCLES`` as visible debt — the same
-contract and the same escape hatch as ``js_cycle_check``. The three that exist
-are all the benign package↔submodule shape (``from . import x`` in an
-``__init__`` that the submodule imports back), which Python tolerates. They are
-pinned rather than allow-listed by pattern so that a *fourth* one has to be
-argued for.
+contract and the same escape hatch as ``js_cycle_check``. All four are the
+benign package↔submodule shape (``from . import x`` in an ``__init__`` that the
+submodule imports back), which Python tolerates. They are pinned rather than
+allow-listed by pattern so that a *fifth* one has to be argued for.
 
 Worth recording what the measurement found: **the ORM has none.** 156 files
 across four layers, the most intricate subsystem in the tree, zero cycles. The
-three that exist are in ``service``, ``modules`` and ``cli``.
+four that exist are in ``service``, ``modules``, ``cli`` and ``tests``.
+
+The ``tests`` one is a lesson about scope rather than about cycles. It went
+unseen not because the graph tolerated it but because the graph never contained
+it: ``odoo/tests/`` is the shipped test *framework*, and a "drop any path with a
+``tests`` component" filter removed all 17 of its modules. The gate then
+reported on 323 modules and called them the core. It is 338. See
+``_CORE_TEST_FRAMEWORK_PACKAGE``.
 
 USAGE
 -----
@@ -116,6 +122,20 @@ KNOWN_CYCLES: tuple[Known, ...] = (
     ),
     Known(("odoo.modules", "odoo.modules.db"), _PACKAGE_REEXPORT),
     Known(("odoo.cli", "odoo.cli.command"), _PACKAGE_REEXPORT),
+    Known(
+        ("odoo.tests", "odoo.tests.common", "odoo.tests.http"),
+        "The package<->submodule shape with one submodule<->submodule edge, and "
+        "the only cycle here that is documented AT THE SOURCE: common.py ends "
+        "with `from .http import (...)` under the comment 'Imported last on "
+        "purpose: odoo.tests.http imports from this module, so hoisting this to "
+        "the top makes the cycle unresolvable.' So it is managed, not "
+        "accidental -- but it was invisible rather than tolerated: odoo/tests/ "
+        "was dropped wholesale by the old directory-name filter, so the gate "
+        "reported 323 modules and zero unpinned cycles over a graph that never "
+        "contained the test framework. Pinned to make the existing decision "
+        "visible. Removing it means re-exporting HttpCase from somewhere that "
+        "is not common.py.",
+    ),
 )
 
 
@@ -201,17 +221,37 @@ def module_name_for(path: Path) -> str:
     return ".".join(parts)
 
 
+#: ``odoo/tests/`` is NOT tests. It is the shipped test *framework* --
+#: ``TransactionCase``, ``HttpCase``, ``ChromeBrowser``, the loader and the tag
+#: selector -- imported by every addon suite in the workspace. The
+#: directory-name rule below swallowed all 17 of its modules, so the graph this
+#: gate reported on was 323 modules when it should have been 338.
+#:
+#: ``layer_check`` had the identical bug and documents the fix at
+#: ``_CORE_TEST_FRAMEWORK_PACKAGE``; this is that rule, applied to the cycle
+#: graph. The consequence here was concrete: with the framework restored, the
+#: graph gains a real strongly-connected component
+#: (``odoo.tests`` <-> ``common`` <-> ``http``) which no gate had ever seen.
+_CORE_TEST_FRAMEWORK_PACKAGE = ("tests",)
+
+
+def _is_test_file(rel: tuple[str, ...], name: str) -> bool:
+    """Whether a path relative to ``odoo/`` is a test rather than framework code."""
+    if rel[: len(_CORE_TEST_FRAMEWORK_PACKAGE)] == _CORE_TEST_FRAMEWORK_PACKAGE:
+        # Inside the test framework, only its own tests are test files.
+        return name.startswith("test_") or name == "conftest.py"
+    return "tests" in rel or name.startswith("test_") or name == "conftest.py"
+
+
 def iter_source_files() -> list[Path]:
     out = []
     for path in sorted(CORE.rglob("*.py")):
         rel = path.relative_to(CORE).parts
-        if set(rel) & EXCLUDED_SUBPACKAGES or "__pycache__" in rel:
+        # Top-level only: ``EXCLUDED_SUBPACKAGES`` names subpackages OF
+        # ``odoo/``, and a set intersection matched the name at any depth.
+        if rel[0] in EXCLUDED_SUBPACKAGES or "__pycache__" in rel:
             continue
-        if (
-            "tests" in rel
-            or path.name.startswith("test_")
-            or path.name == "conftest.py"
-        ):
+        if _is_test_file(rel, path.name):
             continue
         out.append(path)
     return out
@@ -305,7 +345,14 @@ def check(files: list[Path] | None = None) -> Report:
     seen = set()
     for component in strongly_connected(set(modules), edges):
         if len(component) < 2:
-            # a module importing itself is still a cycle
+            # `build_graph` drops any edge whose resolved target is the
+            # importing module, so the gate's own graph never carries a
+            # self-edge — and that filter is not optional: for a package
+            # `__init__.py`, `from . import x` resolves the base to the package
+            # itself, so keeping self-edges would report a self-loop on every
+            # package in the tree. The test below therefore only fires for a
+            # caller that builds its own graph, which is how `strongly_connected`
+            # is exercised directly.
             only = component[0]
             if only not in edges.get(only, ()):
                 continue

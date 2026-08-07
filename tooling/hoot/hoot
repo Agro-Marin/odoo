@@ -6,6 +6,7 @@ _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
+
 """Fast warm-server HOOT test runner for the Odoo 19 web module.
 
 Replaces the ~8-11 min ``odoo-bin --test-tags /web:WebSuite.test_X`` loop:
@@ -46,9 +47,7 @@ import hoot_lib as H
 
 # Colours and the isatty-aware wrapper live in hoot_lib: `hoot-shard` parses
 # `hoot`'s output, so the two agreeing on them is a contract.
-C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
-    H.C_GREEN, H.C_RED, H.C_YEL, H.C_DIM, H.C_RST
-)
+C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (H.C_GREEN, H.C_RED, H.C_YEL, H.C_DIM, H.C_RST)
 _color = H.color
 
 # Viewport size + touch per HOOT preset — mirrors the definePreset(...) calls in
@@ -73,13 +72,13 @@ CI. Override with ``--tag`` (``--tag ''`` clears it).
 """
 
 
-
 def _setup_logging(verbose: bool) -> None:
     level = logging.INFO if verbose else logging.WARNING
     logging.basicConfig(
         level=level,
         format=f"{C_DIM}%(asctime)s %(name)s %(levelname)s{C_RST} %(message)s"
-        if sys.stdout.isatty() else "%(asctime)s %(name)s %(levelname)s %(message)s",
+        if sys.stdout.isatty()
+        else "%(asctime)s %(name)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
     # ChromeBrowser console noise is muted in run_suites (propagate=False)
@@ -98,17 +97,23 @@ def _repeated_note(result) -> str:
 def _report(result: H.RunResult) -> None:
     header = " ".join(result.suites) or "(no suites)"
     if result.ok:
-        print(_color(
-            f"PASS  {header}  "
-            f"({result.passed} passed, {result.wall:.1f}s)", C_GREEN))
+        print(
+            _color(
+                f"PASS  {header}  ({result.passed} passed, {result.wall:.1f}s)", C_GREEN
+            )
+        )
         return
     if result.incomplete and not result.failed:
         # Every executed test passed but HOOT's summary never arrived (usually a
         # browser-teardown timeout). Not a test failure — flag it, don't fail.
-        print(_color(
-            f"WARN  {header}  "
-            f"({result.passed} passed, no clean summary — likely a browser "
-            f"teardown timeout, {result.wall:.1f}s)", C_YEL))
+        print(
+            _color(
+                f"WARN  {header}  "
+                f"({result.passed} passed, no clean summary — likely a browser "
+                f"teardown timeout, {result.wall:.1f}s)",
+                C_YEL,
+            )
+        )
         if result.repeated:
             print(_color(_repeated_note(result), C_YEL))
         if result.error:
@@ -118,15 +123,22 @@ def _report(result: H.RunResult) -> None:
         # Truncated AND failing: the counts below are a prefix of the suite, so
         # the failure list is "what we got to", never "all there is". Say so —
         # reporting this as a plain FAIL hid the unrun remainder.
-        print(_color(
-            f"FAIL  {header}  "
-            f"({result.failed} failed / {result.passed} passed, "
-            f"RUN TRUNCATED — remaining tests never ran, {result.wall:.1f}s)",
-            C_RED))
-        print(_color(
-            "  note: counts are DISTINCT tests seen so far, a prefix of the "
-            "suite; re-run with a larger --timeout or in smaller suite groups "
-            "for a complete result.", C_YEL))
+        print(
+            _color(
+                f"FAIL  {header}  "
+                f"({result.failed} failed / {result.passed} passed, "
+                f"RUN TRUNCATED — remaining tests never ran, {result.wall:.1f}s)",
+                C_RED,
+            )
+        )
+        print(
+            _color(
+                "  note: counts are DISTINCT tests seen so far, a prefix of the "
+                "suite; re-run with a larger --timeout or in smaller suite groups "
+                "for a complete result.",
+                C_YEL,
+            )
+        )
         if result.repeated:
             print(_color(_repeated_note(result), C_YEL))
         if result.error:
@@ -136,10 +148,14 @@ def _report(result: H.RunResult) -> None:
         if len(result.failed_tests) > 50:
             print(_color(f"  ... and {len(result.failed_tests) - 50} more", C_RED))
         return
-    print(_color(
-        f"FAIL  {header}  "
-        f"({result.failed} failed / {result.passed} passed, "
-        f"{result.wall:.1f}s)", C_RED))
+    print(
+        _color(
+            f"FAIL  {header}  "
+            f"({result.failed} failed / {result.passed} passed, "
+            f"{result.wall:.1f}s)",
+            C_RED,
+        )
+    )
     if result.error:
         print(_color(f"  error: {result.error}", C_YEL))
     for name in result.failed_tests[:50]:
@@ -153,12 +169,13 @@ def _resolve_suites(args) -> list[str]:
         changed = H.changed_web_js(args.suites or None)
         suites = H.affected_suites(changed, downstream=args.downstream)
         if not suites:
-            print(_color(
-                "No affected suites detected from the changed JS files.",
-                C_YEL))
+            print(
+                _color("No affected suites detected from the changed JS files.", C_YEL)
+            )
         else:
-            print(_color(f"Affected suites ({len(suites)}): "
-                        + " ".join(suites), C_DIM))
+            print(
+                _color(f"Affected suites ({len(suites)}): " + " ".join(suites), C_DIM)
+            )
         return suites
     return list(args.suites)
 
@@ -236,22 +253,19 @@ def _watch(suites: list[str], state: dict, args) -> int:
                     snap[str(p)] = p.stat().st_mtime
         return snap
 
-    print(_color("Watch mode: edit a .js file to re-run. Ctrl-C to exit.",
-                C_YEL))
+    print(_color("Watch mode: edit a .js file to re-run. Ctrl-C to exit.", C_YEL))
     last = snapshot()
     _report(_run_once(suites, state, args))
     try:
         while True:
             time.sleep(1.0)
             cur = snapshot()
-            changed = [Path(k) for k in cur
-                       if cur[k] != last.get(k)]
+            changed = [Path(k) for k in cur if cur[k] != last.get(k)]
             if not changed:
                 last = cur
                 continue
             last = cur
-            print(_color(f"\nChanged: {len(changed)} file(s) -> re-running",
-                        C_DIM))
+            print(_color(f"\nChanged: {len(changed)} file(s) -> re-running", C_DIM))
             run_suites = suites
             if args.affected:
                 # Same selection the non-watch path makes: dropping
@@ -273,63 +287,119 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=__doc__,
     )
-    ap.add_argument("suites", nargs="*",
-                    help="@web/... suite paths (or full test paths) to run. "
-                         "With --affected, these are treated as changed files.")
-    ap.add_argument("--affected", action="store_true",
-                    help="Run only suites affected by changed JS "
-                         "(default: git diff in every addons-path repo).")
-    ap.add_argument("--downstream", action="store_true",
-                    help="With --affected: also select affected suites owned "
-                         "by OTHER addons (a core file reaches ~100 of them).")
-    ap.add_argument("--isolate", action="store_true",
-                    help="Run each suite in its own page load, as CI does; "
-                         "batched suites pollute each other.")
-    ap.add_argument("--watch", action="store_true",
-                    help="Re-run on JS file changes (mtime poll).")
-    ap.add_argument("--preset", default="desktop",
-                    choices=["desktop", "mobile"],
-                    help="HOOT preset (default: desktop).")
-    ap.add_argument("--db", default=None,
-                    help="Warm-server database (default: derived from the "
-                         "requested suites' addons, e.g. @mail/... -> "
-                         "hoot_mail; plain @web -> hoot_web).")
-    ap.add_argument("--timeout", type=int, default=300,
-                    help="Wall-clock timeout per run, seconds (default: 300).")
-    ap.add_argument("--hoot-timeout", type=int, default=15000,
-                    help="HOOT in-page timeout, ms (default: 15000). Covers the "
-                         "test body only, not its hooks.")
-    ap.add_argument("--hook-timeout", type=int, default=None,
-                    help="HOOT before-test/after-test hook timeout, ms "
-                         "(default: HOOT's own 5000). Lower it to reproduce a "
-                         "hook that outlives the threshold.")
-    ap.add_argument("--filter", default="",
-                    help="Extra HOOT text filter appended to the URL.")
-    ap.add_argument("--tag", default=None,
-                    help="HOOT tag filter, e.g. '-headless' or 'desktop'. "
-                         "Defaults to what CI sends for the preset "
-                         "(mobile: -headless); pass '' to clear it.")
-    ap.add_argument("--browser-size", default=None,
-                    help="Chrome window WxH (default: from --preset, "
-                         "e.g. mobile=375x667).")
-    ap.add_argument("--touch", action="store_true", default=None,
-                    help="Force touch emulation (default: from --preset).")
-    ap.add_argument("-v", "--verbose", action="store_true",
-                    help="Verbose (server + browser INFO logs).")
+    ap.add_argument(
+        "suites",
+        nargs="*",
+        help="@web/... suite paths (or full test paths) to run. "
+        "With --affected, these are treated as changed files.",
+    )
+    ap.add_argument(
+        "--affected",
+        action="store_true",
+        help="Run only suites affected by changed JS "
+        "(default: git diff in every addons-path repo).",
+    )
+    ap.add_argument(
+        "--downstream",
+        action="store_true",
+        help="With --affected: also select affected suites owned "
+        "by OTHER addons (a core file reaches ~100 of them).",
+    )
+    ap.add_argument(
+        "--isolate",
+        action="store_true",
+        help="Run each suite in its own page load, as CI does; "
+        "batched suites pollute each other.",
+    )
+    ap.add_argument(
+        "--watch", action="store_true", help="Re-run on JS file changes (mtime poll)."
+    )
+    ap.add_argument(
+        "--preset",
+        default="desktop",
+        choices=["desktop", "mobile"],
+        help="HOOT preset (default: desktop).",
+    )
+    ap.add_argument(
+        "--db",
+        default=None,
+        help="Warm-server database (default: derived from the "
+        "requested suites' addons, e.g. @mail/... -> "
+        "hoot_mail; plain @web -> hoot_web).",
+    )
+    ap.add_argument(
+        "--timeout",
+        type=int,
+        default=300,
+        help="Wall-clock timeout per run, seconds (default: 300).",
+    )
+    ap.add_argument(
+        "--hoot-timeout",
+        type=int,
+        default=15000,
+        help="HOOT in-page timeout, ms (default: 15000). Covers the "
+        "test body only, not its hooks.",
+    )
+    ap.add_argument(
+        "--hook-timeout",
+        type=int,
+        default=None,
+        help="HOOT before-test/after-test hook timeout, ms "
+        "(default: HOOT's own 5000). Lower it to reproduce a "
+        "hook that outlives the threshold.",
+    )
+    ap.add_argument(
+        "--filter", default="", help="Extra HOOT text filter appended to the URL."
+    )
+    ap.add_argument(
+        "--tag",
+        default=None,
+        help="HOOT tag filter, e.g. '-headless' or 'desktop'. "
+        "Defaults to what CI sends for the preset "
+        "(mobile: -headless); pass '' to clear it.",
+    )
+    ap.add_argument(
+        "--browser-size",
+        default=None,
+        help="Chrome window WxH (default: from --preset, e.g. mobile=375x667).",
+    )
+    ap.add_argument(
+        "--touch",
+        action="store_true",
+        default=None,
+        help="Force touch emulation (default: from --preset).",
+    )
+    ap.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose (server + browser INFO logs).",
+    )
     # Lifecycle-only actions.
-    ap.add_argument("--status", action="store_true",
-                    help="Print warm-server status and exit.")
-    ap.add_argument("--stop", action="store_true",
-                    help="Stop this invocation's warm server (keep its DB) "
-                         "and exit.")
-    ap.add_argument("--clean", action="store_true",
-                    help="Stop this invocation's warm server AND drop its DB, "
-                         "then exit.")
-    ap.add_argument("--all", action="store_true",
-                    help="With --stop/--clean: act on EVERY recorded warm "
-                         "server, including those other sessions are using.")
-    ap.add_argument("--restart", action="store_true",
-                    help="Force a fresh warm server before running.")
+    ap.add_argument(
+        "--status", action="store_true", help="Print warm-server status and exit."
+    )
+    ap.add_argument(
+        "--stop",
+        action="store_true",
+        help="Stop this invocation's warm server (keep its DB) and exit.",
+    )
+    ap.add_argument(
+        "--clean",
+        action="store_true",
+        help="Stop this invocation's warm server AND drop its DB, then exit.",
+    )
+    ap.add_argument(
+        "--all",
+        action="store_true",
+        help="With --stop/--clean: act on EVERY recorded warm "
+        "server, including those other sessions are using.",
+    )
+    ap.add_argument(
+        "--restart",
+        action="store_true",
+        help="Force a fresh warm server before running.",
+    )
     args = ap.parse_args()
     _setup_logging(args.verbose)
 
@@ -339,9 +409,11 @@ def main() -> int:
         if not warm:
             print(_color("COLD  no warm server", C_YEL))
         for st in warm:
-            print(_color(
-                f"WARM  pid={st['pid']} port={st['port']} db={st['db']}",
-                C_GREEN))
+            print(
+                _color(
+                    f"WARM  pid={st['pid']} port={st['port']} db={st['db']}", C_GREEN
+                )
+            )
         return 0
     if args.stop or args.clean:
         # Default to a single DB. This workspace runs several Claude Code
@@ -373,13 +445,19 @@ def main() -> int:
             else [H.module_scope_param(suites)]
         )
         warmed = H.warm_bundles(state["port"], state["db"], scopes)
-        print(_color(
-            f"Warm server booted (port={state['port']} db={state['db']}) "
-            f"in {time.time() - t0:.1f}s (bundles: {warmed:.1f}s)", C_DIM))
+        print(
+            _color(
+                f"Warm server booted (port={state['port']} db={state['db']}) "
+                f"in {time.time() - t0:.1f}s (bundles: {warmed:.1f}s)",
+                C_DIM,
+            )
+        )
     else:
-        print(_color(
-            f"Reusing warm server (port={state['port']} db={state['db']})",
-            C_DIM))
+        print(
+            _color(
+                f"Reusing warm server (port={state['port']} db={state['db']})", C_DIM
+            )
+        )
 
     if args.watch:
         return _watch(suites, state, args)

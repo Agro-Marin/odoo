@@ -7,9 +7,22 @@ way as the checker itself. Run with:
 """
 
 import ast
+from collections import Counter
 from pathlib import Path
 
 import layer_check as lc  # sys.path set by conftest.py
+
+
+def _violations_for(module: str, src: str) -> list[lc.Violation]:
+    """Contract violations a source string makes, as ``module``.
+
+    Goes through the real :func:`layer_check.violations_for`, so the dedupe and
+    the matching rules under test are the ones the gate runs.
+    """
+    collector = lc._ImportCollector(module=module, is_init=False)
+    collector.visit(ast.parse(src))
+    return lc.violations_for(module, collector.found, f"{module.replace('.', '/')}.py")
+
 
 # --- relative-import resolution (the subtle part: __init__ vs regular module) ---
 
@@ -508,6 +521,75 @@ def test_is_test_file():
     assert not lc._is_test_file(Path("odoo/orm/fields/base.py"))
 
 
+# --- the scan counts what it scanned, once ---
+
+
+def test_the_walk_visits_every_file_exactly_once():
+    """Overlapping ``source`` prefixes used to be walked once per covering root.
+
+    ``core-does-not-depend-on-addons`` names ``odoo.orm`` and
+    ``orm-layer1-below-models-and-runtime`` names ``odoo.orm.fields``; each root
+    was rglob'd independently, so 91 files were scanned twice and every
+    violation in them was reported twice.
+    """
+    files = lc.iter_source_files()
+    duplicated = [p for p, n in Counter(files).items() if n > 1]
+    assert duplicated == [], f"{len(duplicated)} file(s) walked more than once"
+
+
+def test_nested_roots_are_collapsed_but_disjoint_ones_are_kept():
+    root = lc.ROOT
+    collapsed = lc._collapse_nested(
+        [root / "odoo" / "orm", root / "odoo" / "orm" / "fields", root / "odoo" / "db"]
+    )
+    assert root / "odoo" / "orm" / "fields" not in collapsed
+    assert root / "odoo" / "orm" in collapsed
+    assert root / "odoo" / "db" in collapsed
+
+
+def test_a_module_shaped_root_under_a_directory_root_is_collapsed():
+    # ``odoo/http/openapi`` resolves to ``openapi.py``, which ``odoo/http``'s
+    # rglob already returns.
+    root = lc.ROOT
+    collapsed = lc._collapse_nested(
+        [root / "odoo" / "http", root / "odoo" / "http" / "openapi"]
+    )
+    assert collapsed == [root / "odoo" / "http"]
+
+
+def test_one_import_statement_is_one_violation():
+    """``visit_ImportFrom`` emits ``<base>`` and ``<base>.<name>`` on purpose.
+
+    When the base alone already breaks the contract, both records describe the
+    same statement: the four pinned cron/job imports rendered as "8 known
+    exception(s)", each source line printed twice.
+    """
+    source = "from odoo.addons.base.models import ir_cron\n"
+    violations = _violations_for("odoo.service.probe", source)
+    assert len(violations) == 1, [v.imports for v in violations]
+
+
+def test_the_submodule_record_is_kept_when_it_is_the_one_that_violates():
+    """The case the double-emit exists for, which the dedupe must not eat.
+
+    ``orm-layer1-below-models-and-runtime`` forbids ``odoo.models`` but not
+    ``odoo``, so only the synthesized ``<base>.<name>`` carries the violation.
+    """
+    violations = _violations_for("odoo.orm.fields.probe", "from odoo import models\n")
+    assert [v.imports for v in violations] == ["odoo.models"]
+
+
+def test_two_distinct_forbidden_names_on_one_line_are_two_violations():
+    # Deduping by line number alone would have collapsed these.
+    violations = _violations_for(
+        "odoo.orm.fields.probe", "from odoo.orm import models, runtime\n"
+    )
+    assert sorted(v.imports for v in violations) == [
+        "odoo.orm.models",
+        "odoo.orm.runtime",
+    ]
+
+
 # --- regression guard: the real framework core stays clean ---
 
 
@@ -630,7 +712,10 @@ def test_every_db_and_http_module_is_in_a_tier():
     mode `subsystem_map_check.py` exists to prevent for the *map*, reproduced
     here for the *contracts*.
     """
-    repo_root = Path(__file__).resolve().parent.parent.parent
+    # ``lc.ROOT``, not a counted depth: the module under test already resolved
+    # the checkout by marker, and a second, differently-derived answer here is
+    # how the two drift apart.
+    repo_root = lc.ROOT
     for pkg, contract_name in (
         ("db", "db-resilience-below-connectivity"),
         ("http", "http-features-below-serving"),

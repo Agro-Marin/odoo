@@ -126,6 +126,56 @@ class ParseNamesTest(unittest.TestCase):
         self.assertTrue(complete)
 
 
+class DatedModuleStemTest(unittest.TestCase):
+    """The name charset must accept whatever ``_actual_children`` reports.
+
+    That function returns ``p.stem`` for every ``*.py`` — any filename, not just
+    an importable identifier. ``[A-Za-z_][A-Za-z0-9_]*`` could not match a dated
+    rewrite script (``18.1-00-sql-constraint.py``: leading digit, dots,
+    hyphens), and ``package_index_check._ROW_RE`` had to be widened for exactly
+    this. The failure would be silent-then-loud: the parser reads none of
+    ``upgrade_code/``'s nine scripts, and rule 2 reports all nine as
+    undocumented against a map that lists every one.
+    """
+
+    STEMS = (
+        "18.1-00-sql-constraint",
+        "17.5-01-tree-to-list",
+        "18.5-00-deprecated-properties",
+    )
+
+    def test_a_dated_stem_parses_as_one_name(self):
+        for stem in self.STEMS:
+            with self.subTest(stem=stem):
+                self.assertEqual(smc.parse_names(stem), ([(stem, False)], True))
+
+    def test_a_list_of_dated_stems_parses(self):
+        names, complete = smc.parse_names(", ".join(self.STEMS))
+        self.assertEqual([n for n, _ in names], list(self.STEMS))
+        self.assertTrue(complete)
+
+    def test_the_charset_agrees_with_what_the_tree_reports(self):
+        """Every real ``upgrade_code`` stem must be expressible in the map."""
+        modules, _packages = smc._actual_children("upgrade_code", smc.CORE_ROOT)
+        self.assertTrue(modules, "upgrade_code has no modules — probe is vacuous")
+        for stem in sorted(modules):
+            with self.subTest(stem=stem):
+                self.assertEqual(smc.parse_names(stem), ([(stem, False)], True))
+
+    def test_widening_did_not_break_the_prose_boundary(self):
+        # The first attempt anchored the name to a delimiter, which dropped the
+        # leading token of every package line.
+        self.assertEqual(
+            smc.parse_names("service/  Process lifecycle + servers: server"),
+            ([("service", True)], False),
+        )
+        names, complete = smc.parse_names(
+            "api/ · fields/ · models/   Thin public re-export shims"
+        )
+        self.assertEqual([n for n, _ in names], ["api", "fields", "models"])
+        self.assertFalse(complete)
+
+
 class ExtractMapBlockTest(unittest.TestCase):
     """A map that cannot be found must be an error, never a clean report."""
 

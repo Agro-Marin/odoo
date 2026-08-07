@@ -154,6 +154,77 @@ class TestAgainstTheRealTree(unittest.TestCase):
         )
 
 
+class TestTestFrameworkIsInTheGraph(unittest.TestCase):
+    """``odoo/tests/`` is the shipped test framework, not a test suite.
+
+    A "drop any path with a ``tests`` component" filter removed all 17 of its
+    modules, so the gate reported on 323 modules and called that the core.
+    ``layer_check`` had the identical bug and fixed it at
+    ``_CORE_TEST_FRAMEWORK_PACKAGE``; nothing propagated the lesson here, and
+    the cost was a real strongly-connected component no gate had ever seen.
+    """
+
+    FRAMEWORK = (
+        "odoo.tests.common",
+        "odoo.tests.case",
+        "odoo.tests.loader",
+        "odoo.tests.http",
+        "odoo.tests.suite",
+        "odoo.tests.tag_selector",
+    )
+
+    def test_framework_modules_are_in_the_graph(self):
+        modules, _edges, _lines = pcc.build_graph()
+        missing = [m for m in self.FRAMEWORK if m not in modules]
+        self.assertEqual(missing, [], f"test framework modules dropped: {missing}")
+
+    def test_the_frameworks_own_tests_are_still_excluded(self):
+        modules, _edges, _lines = pcc.build_graph()
+        for name in ("odoo.tests.test_cursor", "odoo.tests.test_module_operations"):
+            with self.subTest(name=name):
+                self.assertNotIn(name, modules)
+
+    def test_ordinary_test_packages_are_still_dropped(self):
+        modules, _edges, _lines = pcc.build_graph()
+        leaked = [
+            m for m in modules if ".tests." in m and not m.startswith("odoo.tests")
+        ]
+        self.assertEqual(leaked[:5], [], "a real test suite leaked into the graph")
+
+    def test_is_test_file_rule(self):
+        # framework code
+        self.assertFalse(pcc._is_test_file(("tests", "common.py"), "common.py"))
+        # the framework's own tests
+        self.assertTrue(
+            pcc._is_test_file(("tests", "test_cursor.py"), "test_cursor.py")
+        )
+        # an ordinary suite anywhere else
+        self.assertTrue(pcc._is_test_file(("orm", "tests", "x.py"), "x.py"))
+        self.assertTrue(pcc._is_test_file(("orm", "conftest.py"), "conftest.py"))
+        self.assertFalse(pcc._is_test_file(("orm", "fields", "base.py"), "base.py"))
+
+    def test_excluded_subpackages_match_only_at_the_top_level(self):
+        """``EXCLUDED_SUBPACKAGES`` names subpackages OF ``odoo/``.
+
+        A set intersection matched the name at any depth, so a future
+        ``odoo/<anything>/addons/`` would have vanished from the graph.
+        """
+        self.assertNotIn("odoo.tools", str(pcc.EXCLUDED_SUBPACKAGES))
+        modules, _edges, _lines = pcc.build_graph()
+        self.assertTrue(any(m.startswith("odoo.tools") for m in modules))
+
+
+class TestScanIsWiderThanBefore(unittest.TestCase):
+    def test_module_count_includes_the_framework(self):
+        """Guards the regression directly: 323 was the count without it."""
+        report = pcc.check()
+        self.assertGreaterEqual(
+            report.modules,
+            330,
+            "the graph shrank — odoo/tests/ was probably dropped again",
+        )
+
+
 class TestPinsAreLive(unittest.TestCase):
     def test_no_stale_pins(self):
         report = pcc.check()

@@ -162,7 +162,9 @@ def score_files(baseline: dict) -> list[FileScore]:
     return scores
 
 
-def _print_table(rows: list[FileScore], limit: int, *, from_baseline: bool = False) -> None:
+def _print_table(
+    rows: list[FileScore], limit: int, *, from_baseline: bool = False
+) -> None:
     """Pretty-print the ranked list."""
     if not rows:
         # The default source is the LIVE tree, not the baseline — so an empty

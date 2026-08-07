@@ -55,8 +55,12 @@ class TestSymbolVersusModule(unittest.TestCase):
         self.assertTrue(report.ok)
 
     def test_leaf_module_import_of_the_same_symbol_fails(self):
-        report = _check_source("from odoo.libs.numbers.float_utils import float_round\n")
-        self.assertEqual([v.module for v in report.new], ["odoo.libs.numbers.float_utils"])
+        report = _check_source(
+            "from odoo.libs.numbers.float_utils import float_round\n"
+        )
+        self.assertEqual(
+            [v.module for v in report.new], ["odoo.libs.numbers.float_utils"]
+        )
         self.assertFalse(report.ok)
 
     def test_the_two_are_indistinguishable_by_name_alone(self):
@@ -76,7 +80,9 @@ class TestSymbolVersusModule(unittest.TestCase):
 class TestImportForms(unittest.TestCase):
     def test_plain_import_of_a_leaf_is_caught(self):
         report = _check_source("import odoo.libs.numbers.float_utils\n")
-        self.assertEqual([v.module for v in report.new], ["odoo.libs.numbers.float_utils"])
+        self.assertEqual(
+            [v.module for v in report.new], ["odoo.libs.numbers.float_utils"]
+        )
 
     def test_plain_import_of_an_area_passes(self):
         self.assertEqual(_check_source("import odoo.libs.numbers\n").new, [])
@@ -86,7 +92,9 @@ class TestImportForms(unittest.TestCase):
         self.assertEqual(_modules("from . import models\nfrom ..x import y\n"), [])
 
     def test_non_libs_imports_are_ignored(self):
-        self.assertEqual(_modules("from odoo.tools import config\nimport odoo.orm\n"), [])
+        self.assertEqual(
+            _modules("from odoo.tools import config\nimport odoo.orm\n"), []
+        )
 
 
 class TestAreas(unittest.TestCase):

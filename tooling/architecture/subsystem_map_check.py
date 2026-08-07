@@ -51,8 +51,13 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# ``tooling/architecture/`` -> repo root
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
+# Located by marker, not by counting parents — see _repo_root. The
+# ``parent.parent.parent`` this replaces was correct only while the file stayed
+# three levels down.
+REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="subsystem_map_check")
 
 ARCHITECTURE_MD = REPO_ROOT / "odoo" / "ARCHITECTURE.md"
 CORE_ROOT = REPO_ROOT / "odoo"
@@ -101,7 +106,24 @@ def _split_top_level(text: str) -> list[str]:
 
 
 #: A bare package/module name, optionally with a trailing ``/``.
-_NAME_RE = re.compile(r"^(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?P<slash>/?)\s*")
+#:
+#: The charset must agree with :func:`_actual_children`, which reports ``p.stem``
+#: for every ``*.py`` — any filename, not just an importable identifier. It used
+#: to be ``[A-Za-z_][A-Za-z0-9_]*``, which cannot match a dated rewrite script
+#: such as ``18.1-00-sql-constraint.py``: the stem starts with a digit and
+#: carries dots and hyphens. ``package_index_check._ROW_RE`` had exactly this
+#: bug and records why it matters — the failure is silent, not loud. Here it
+#: would land the moment the map enumerated ``upgrade_code/``'s contents: the
+#: parser would read none of the nine scripts, and rule 2 would report all nine
+#: as undocumented against a map that listed them all.
+#:
+#: A name must still START with a letter, digit or underscore, so a tree glyph
+#: or punctuation left by the stripper cannot be read as a name. Everything
+#: after the first token is still settled by :func:`_is_gloss`, not by the
+#: charset — constraining the match to end at a delimiter instead drops the
+#: leading token of every prose line (``service/  Process lifecycle …`` parsed
+#: to no names at all).
+_NAME_RE = re.compile(r"^(?P<name>[A-Za-z0-9_][A-Za-z0-9_.\-]*)(?P<slash>/?)\s*")
 
 
 def _is_gloss(remainder: str) -> bool:

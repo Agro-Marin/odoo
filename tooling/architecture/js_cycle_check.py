@@ -228,7 +228,9 @@ def find_cycles(graph: dict[str, list[str]]) -> list[Cycle]:
     """Tarjan's strongly-connected components, iterative (the graph is ~700
     modules deep in places and CPython's recursion limit is not a contract).
 
-    Returns every SCC with more than one module, plus any self-loop.
+    Returns every SCC with more than one module, plus any self-loop. The gate's
+    own graph never contains one (`build_graph` filters it), but this function
+    is also driven directly from tests with hand-built graphs.
     """
     index: dict[str, int] = {}
     low: dict[str, int] = {}
@@ -275,6 +277,13 @@ def find_cycles(graph: dict[str, list[str]]) -> list[Cycle]:
                     component.append(w)
                     if w == node:
                         break
+                # `build_graph` drops any dep equal to the importing module, so
+                # the gate's own pipeline never produces a self-edge. The check
+                # is kept because `find_cycles` is called directly with
+                # hand-built graphs (its self-import case is pinned in
+                # `test_js_cycle_check`), and a detector that silently ignores
+                # the degenerate cycle when handed one is worse than one that
+                # never sees it.
                 is_self_loop = len(component) == 1 and component[0] in graph.get(
                     component[0], ()
                 )

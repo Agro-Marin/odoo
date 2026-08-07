@@ -316,12 +316,8 @@ class ProgramMembershipTests(unittest.TestCase):
         self.touch(f"{WEB_SRC}plain.js")
         log = f"{self.root}/{WEB_SRC}plain.js\n{self.root}/{WEB_SRC}with space.js\n"
         program = scope_gate.parse_program_files(log)
-        self.assertEqual(
-            program, {f"{WEB_SRC}plain.js", f"{WEB_SRC}with space.js"}
-        )
-        v = evaluate_module(
-            "web", {}, [], sorted(program), "exact", program=program
-        )
+        self.assertEqual(program, {f"{WEB_SRC}plain.js", f"{WEB_SRC}with space.js"})
+        v = evaluate_module("web", {}, [], sorted(program), "exact", program=program)
         self.assertTrue(v.ok)
         self.assertEqual(v.locked, 2)
 
