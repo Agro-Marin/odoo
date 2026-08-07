@@ -269,3 +269,20 @@ class AccountReconcileModel(models.Model):
                 name = _("%s (copy)", name)
             vals["name"] = name
         return vals_list
+
+    def copy_translations(self, new, excluded=()):
+        # ``copy_data`` renames ``name`` in the duplicating user's language
+        # only; without this the copy would keep the source record's exact
+        # ``name`` in every other language.
+        super().copy_translations(new, excluded=(*excluded, "name"))
+        rounds, name = 0, self.name
+        while name != new.name and rounds < 10:
+            name = self.env._("%s (copy)", name)
+            rounds += 1
+
+        def rename(record, term):
+            for _round in range(rounds):
+                term = record.env._("%s (copy)", term)
+            return term
+
+        self._copy_translations_of_renamed_field(new, "name", rename)

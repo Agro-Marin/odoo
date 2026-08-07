@@ -37,3 +37,4 @@ from . import (
     test_views,
     test_web_save,
 )
+from . import test_translation_write_propagation

@@ -958,6 +958,17 @@ class AccountJournal(models.Model):
             vals.update(code=copy_code, name=_("%s (copy)", journal.name or ""))
         return vals_list
 
+    def copy_translations(self, new, excluded=()):
+        # ``copy_data`` renames ``name`` in the duplicating user's language
+        # only; without this the copy would keep the source record's exact
+        # ``name`` in every other language.
+        super().copy_translations(new, excluded=(*excluded, "name"))
+        self._copy_translations_of_renamed_field(
+            new,
+            "name",
+            lambda record, term: record.env._("%s (copy)", term or ""),
+        )
+
     def write(self, vals):
         # for journals, force a readable name instead of a sanitized name e.g. non ascii in journal names
         if vals.get("alias_name") and "type" not in vals:

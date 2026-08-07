@@ -898,3 +898,86 @@ class TestProductAuditFixes(ProductCommon):
 
         self.assertAlmostEqual(price_from_a, 10.0, places=2)
         self.assertAlmostEqual(price_from_b, 70.0, places=2)
+
+    # -- duplication of a translated name -------------------------------------
+
+    def _spanish_product(self):
+        self.env["res.lang"]._activate_lang("es_MX")
+        template = self.env["product.template"].create({"name": "Blue Widget"})
+        template.with_context(lang="es_MX").name = "Artilugio Azul"
+        self.env.flush_all()
+        return template
+
+    def test_duplicating_in_one_language_suffixes_every_language(self):
+        """`copy_data` rewrites `name` to "<name> (copy)" using only the
+        duplicating user's language; `copy_translations` then restored the
+        source record's translations for every *other* language, so a copy made
+        by a Spanish user kept the original's exact en_US name -- an English
+        user saw two products with identical names.
+        """
+        template = self._spanish_product()
+
+        copy = template.with_context(lang="es_MX").copy()
+        self.env.flush_all()
+
+        name_en = copy.with_context(lang="en_US").name
+        name_es = copy.with_context(lang="es_MX").name
+        self.assertNotEqual(
+            name_en,
+            "Blue Widget",
+            "the copy must not reuse the source product's English name verbatim",
+        )
+        self.assertIn("Blue Widget", name_en, "the English name keeps its own term")
+        self.assertNotEqual(name_es, "Artilugio Azul")
+        self.assertIn("Artilugio Azul", name_es, "the Spanish name keeps its own term")
+
+    def test_duplicating_in_the_base_language_also_suffixes_translations(self):
+        """The mirror case: duplicating as an en_US user used to leave the
+        Spanish translation as the source product's unsuffixed name.
+        """
+        template = self._spanish_product()
+
+        copy = template.with_context(lang="en_US").copy()
+        self.env.flush_all()
+
+        self.assertNotEqual(copy.with_context(lang="es_MX").name, "Artilugio Azul")
+        self.assertIn("Artilugio Azul", copy.with_context(lang="es_MX").name)
+
+    def test_renaming_a_copy_in_one_language_leaves_the_others_distinguishable(self):
+        """Writing a translated field in one language only ever updates that
+        language -- by design.  What must not happen is the other languages
+        falling back to the *source* product's name.
+        """
+        template = self._spanish_product()
+
+        copy = template.with_context(lang="es_MX").copy()
+        copy.with_context(lang="es_MX").name = "Artilugio Rojo"
+        self.env.flush_all()
+
+        self.assertEqual(copy.with_context(lang="es_MX").name, "Artilugio Rojo")
+        self.assertNotEqual(copy.with_context(lang="en_US").name, "Blue Widget")
+
+    def test_explicit_default_name_wins_in_every_language(self):
+        """A caller-supplied `name` default must not be suffixed or
+        per-language patched: `copy_translations` has to leave it alone.
+        """
+        template = self._spanish_product()
+
+        copy = template.with_context(lang="es_MX").copy({"name": "Fixed Name"})
+        self.env.flush_all()
+
+        self.assertEqual(copy.with_context(lang="en_US").name, "Fixed Name")
+        self.assertEqual(copy.with_context(lang="es_MX").name, "Fixed Name")
+
+    def test_duplicating_a_variant_suffixes_every_language(self):
+        """`product.product.copy` delegates to the template, so it must inherit
+        the same per-language suffixing.
+        """
+        template = self._spanish_product()
+
+        variant = template.product_variant_id.with_context(lang="es_MX").copy()
+        self.env.flush_all()
+
+        self.assertNotEqual(variant.with_context(lang="en_US").name, "Blue Widget")
+        self.assertIn("Blue Widget", variant.with_context(lang="en_US").name)
+        self.assertIn("Artilugio Azul", variant.with_context(lang="es_MX").name)

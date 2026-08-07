@@ -979,6 +979,15 @@ class SurveySurvey(models.Model):
             for survey, vals in zip(self, vals_list, strict=False)
         ]
 
+    def copy_translations(self, new, excluded=()):
+        # ``copy_data`` renames ``title`` in the duplicating user's language
+        # only; without this the copy would keep the source record's exact
+        # ``title`` in every other language.
+        super().copy_translations(new, excluded=(*excluded, "title"))
+        self._copy_translations_of_renamed_field(
+            new, "title", lambda record, term: record.env._("%s (copy)", term)
+        )
+
     def action_archive(self) -> None:
         """Archive survey and its certification badge."""
         super().action_archive()
