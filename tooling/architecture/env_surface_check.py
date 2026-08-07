@@ -17,11 +17,18 @@ The measurement that motivated this gate: **Layer 1 — the layer declared
 *furthest below* the runtime — is the heaviest consumer of the runtime's
 private internals, wider than Layer 2.**
 
-    orm/fields   19 public env members +  5 unsanctioned private (10 accesses)
+    orm/fields   19 public env members +  4 unsanctioned private (10 accesses)
     orm/models   21 public env members +  2 unsanctioned private ( 3 accesses)
     orm/domain    3 public env members +  0
     orm/components                    0 + 0   (its purity claim, independently
                                                confirmed by this measure)
+
+The distinct unsanctioned private names across the whole ORM number FIVE, not
+six: ``_field_depends_context`` is reached from both packages. Counting that
+union as ``orm/fields``' own figure is the arithmetic slip this note used to
+make (and ARCHITECTURE.md copied); ``test_env_surface_check`` now derives both
+numbers from a live run so the two cannot drift apart again. The inversion the
+gate exists to show is unaffected -- 4 > 2 on members, 10 > 3 on accesses.
 
 WHAT IS ENFORCED
 ----------------

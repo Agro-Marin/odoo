@@ -44,6 +44,34 @@ class TestHttpStaticCommon(TestHttpBase):
             self.assertEqual(res.content, assert_content)
         return res
 
+    def assertXSendfileWithheld(self, res, absolute_path):
+        """``X-Accel-Redirect`` is served; the absolute path must not be.
+
+        Werkzeug sets ``X-Sendfile`` to the ABSOLUTE filestore path, and nginx
+        passes unknown upstream headers straight through -- so shipping it
+        discloses the server's ``data_dir`` layout to every client that
+        downloads an attachment. ``Stream.get_response`` pops it once
+        ``X-Accel-Redirect`` carries the same information in a form that does
+        not leak the path.
+
+        These assertions used to require ``X-Sendfile`` to be *present*, which
+        is upstream 19.0's behaviour and the reason this suite failed against
+        the fixed code: the header removal landed in ``odoo/http/stream.py``
+        and the expectation here was never updated. Asserting the absence
+        rather than deleting the assertion keeps the fix from silently
+        regressing.
+        """
+        self.assertNotIn(
+            "X-Sendfile",
+            res.headers,
+            "the absolute filestore path is being disclosed to the client",
+        )
+        self.assertNotIn(
+            absolute_path,
+            "\n".join(f"{k}: {v}" for k, v in res.headers.items()),
+            "the absolute filestore path leaked through another header",
+        )
+
     def assertDownloadGizeh(self, url, x_sendfile=None, assert_filename="gizeh.png"):
         headers = {
             "Content-Length": "814",
@@ -55,15 +83,17 @@ class TestHttpStaticCommon(TestHttpBase):
             key = pathlib.Path(x_sendfile).relative_to(
                 config.filestore(self.env.cr.dbname)
             )
-            headers["X-Sendfile"] = x_sendfile
             headers["X-Accel-Redirect"] = (
                 f"/web/filestore/{self.cr.dbname}/{key.as_posix()}"
             )
             headers["Content-Length"] = "0"
 
-        return self.assertDownload(
+        res = self.assertDownload(
             url, {}, 200, headers, b"" if x_sendfile else self.gizeh_data
         )
+        if x_sendfile:
+            self.assertXSendfileWithheld(res, x_sendfile)
+        return res
 
     def _inline_checksumless_attachment(self, vals):
         attachment = self.env["ir.attachment"].create(vals)
@@ -443,18 +473,18 @@ class TestHttpStatic(TestHttpStaticCommon):
             self.subTest(x_sendfile=True),
             patch.object(config, "options", {**config.options, "x_sendfile": True}),
         ):
-            self.assertDownload(
+            res = self.assertDownload(
                 attachment.url,
                 headers={},
                 assert_status_code=200,
                 assert_headers={
-                    "X-Sendfile": x_sendfile,
                     "X-Accel-Redirect": x_accel_redirect,
                     "Content-Length": "0",
                     "Content-Type": "application/javascript; charset=utf-8",
                     "Content-Disposition": "inline; filename=web.assets_web.min.js",
                 },
             )
+            self.assertXSendfileWithheld(res, x_sendfile)
 
     def test_static21_download_false(self):
         self.assertDownloadGizeh("/web/content/test_http.gizeh_png?download=0")
@@ -488,18 +518,18 @@ class TestHttpStatic(TestHttpStaticCommon):
             self.subTest(x_sendfile=True),
             patch.object(config, "options", {**config.options, "x_sendfile": True}),
         ):
-            self.assertDownload(
+            res = self.assertDownload(
                 attachment.url,
                 headers={},
                 assert_status_code=200,
                 assert_headers={
-                    "X-Sendfile": x_sendfile,
                     "X-Accel-Redirect": x_accel_redirect,
                     "Content-Length": "0",
                     "Content-Type": "application/javascript; charset=utf-8",
                     "Content-Disposition": "inline; filename=web.assets_web.min.js",
                 },
             )
+            self.assertXSendfileWithheld(res, x_sendfile)
 
     def test_static22_image_field_csp(self):
         test_user = new_test_user(self.env, "test user")

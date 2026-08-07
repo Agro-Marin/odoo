@@ -7,6 +7,16 @@ from odoo.orm.components.compute import ComputeEngine
 from odoo.orm.components.core import OrmCore
 
 _DELEGATIONS = [
+    # Added when OrmCore stopped exposing its raw collaborators: two addon
+    # tests were reaching `env._core.cache.get_value(...)` because the facade
+    # had no equivalent, which is how a "curated facade" acquires a hole.
+    ("get_value", "cache", "get_value", 2, True),
+    # `set_value` joined it for the same reason, one lane later: the two sites
+    # reaching `_core.cache.set_value` live in DB-BACKED addon tests
+    # (base/tests/test_orm.py, base/tests/test_translate.py), which the DB-free
+    # tiers never execute -- so the slot rename left them raising
+    # AttributeError and only `--test-tags /base` said so.
+    ("set_value", "cache", "set_value", 3, False),
     ("get_field_data", "cache", "get_field_data", 1, True),
     ("get_field_data_or_none", "cache", "get_field_data_or_none", 1, True),
     ("mark_dirty", "cache", "mark_dirty", 2, False),
@@ -64,15 +74,15 @@ class TestOrmCoreCache(unittest.TestCase):
         self.f2 = FakeField("res.partner", "email")
 
     def test_get_field_data_returns_live_dict(self) -> None:
-        self.core.cache.set_value(self.f1, 1, "Alice")
+        self.core._cache.set_value(self.f1, 1, "Alice")
         data = self.core.get_field_data(self.f1)
         self.assertEqual(data[1], "Alice")
         data[2] = "Bob"
-        self.assertEqual(self.core.cache.get_value(self.f1, 2), "Bob")
+        self.assertEqual(self.core._cache.get_value(self.f1, 2), "Bob")
 
     def test_get_field_data_or_none(self) -> None:
         self.assertIsNone(self.core.get_field_data_or_none(self.f1))
-        self.core.cache.set_value(self.f1, 1, "X")
+        self.core._cache.set_value(self.f1, 1, "X")
         self.assertIsNotNone(self.core.get_field_data_or_none(self.f1))
 
     def test_mark_dirty_and_pop(self) -> None:
@@ -105,7 +115,7 @@ class TestOrmCoreCache(unittest.TestCase):
         self.assertIsNone(self.core.get_patches(self.f1))
 
     def test_iter_field_items(self) -> None:
-        self.core.cache.set_value(self.f1, 1, "a")
+        self.core._cache.set_value(self.f1, 1, "a")
         items = dict(self.core.iter_field_items())
         self.assertIn(self.f1, items)
         self.assertEqual(items[self.f1][1], "a")
@@ -186,7 +196,7 @@ class TestOrmCoreCompute(unittest.TestCase):
 
         sched = self.core.new_scheduler()
         self.assertIsInstance(sched, RecomputeScheduler)
-        self.assertIs(sched._engine, self.core.engine)
+        self.assertIs(sched._engine, self.core._engine)
         self.assertIsNot(sched, self.core.new_scheduler())
 
     def test_new_scheduler_seeds_marked_from_live_pending_in_both_modes(self) -> None:
@@ -194,7 +204,7 @@ class TestOrmCoreCompute(unittest.TestCase):
         batch = self.core.new_scheduler()
         inline = self.core.new_scheduler(inline=True)
         for sched in (batch, inline):
-            self.assertIs(sched._marked, self.core.engine.pending)
+            self.assertIs(sched._marked, self.core._engine.pending)
             self.assertEqual(sched._marked.get(self.f1), {1, 2})
         self.core.schedule(self.f2, [3])
         self.assertEqual(batch._marked.get(self.f2), {3})
@@ -256,18 +266,18 @@ class TestOrmCoreLifecycle(unittest.TestCase):
         self.f1 = FakeField("x", "a")
 
     def test_clear_cache_only(self) -> None:
-        self.core.cache.set_value(self.f1, 1, "v")
+        self.core._cache.set_value(self.f1, 1, "v")
         self.core.schedule(self.f1, [1])
         self.core.clear_cache()
-        self.assertIsNone(self.core.cache.get_value(self.f1, 1, None))
+        self.assertIsNone(self.core._cache.get_value(self.f1, 1, None))
         self.assertTrue(self.core.has_pending_field(self.f1))
 
 
 class TestOrmCoreConstructor(unittest.TestCase):
     def test_default_creates_components(self) -> None:
         core = OrmCore()
-        self.assertIsInstance(core.cache, FieldCache)
-        self.assertIsInstance(core.engine, ComputeEngine)
+        self.assertIsInstance(core._cache, FieldCache)
+        self.assertIsInstance(core._engine, ComputeEngine)
 
     def test_custom_components(self) -> None:
         from odoo.tools import OrderedSet
@@ -275,8 +285,8 @@ class TestOrmCoreConstructor(unittest.TestCase):
         cache = FieldCache(dirty_factory=OrderedSet)
         engine = ComputeEngine(pending_factory=OrderedSet)
         core = OrmCore(cache=cache, engine=engine)
-        self.assertIs(core.cache, cache)
-        self.assertIs(core.engine, engine)
+        self.assertIs(core._cache, cache)
+        self.assertIs(core._engine, engine)
 
     def test_repr(self) -> None:
         core = OrmCore()

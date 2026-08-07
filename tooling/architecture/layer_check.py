@@ -192,6 +192,54 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
     ),
     Contract(
+        name="tools-does-not-reach-the-orm-runtime",
+        source=("odoo.tools",),
+        forbidden=("odoo.orm.runtime",),
+        allow=(),
+        rationale=(
+            "Closes the laundering conduit. Every ORM-layer contract here is a "
+            "DIRECT-edge rule, so `orm-layer1-below-models-and-runtime` stops "
+            "`odoo/orm/fields` importing `odoo.orm.runtime` and says nothing "
+            "about `odoo/orm/fields` -> `odoo.tools.x` -> `odoo.orm.runtime`. "
+            "That path was demonstrated, not hypothesised: two real modules "
+            "spelling exactly it were added to the tree and `--check` reported "
+            "'New: 0' over 6448 files. Making the layer contracts transitive is "
+            "the wrong fix -- `tools/` is the Odoo-COUPLED utility layer by "
+            "design (ARCHITECTURE.md), everything reaches everything through a "
+            "shared utility tier, and a transitive rule would need a large "
+            "low-signal pinned baseline. The narrow invariant is the useful one: "
+            "utilities may use ORM VALUES and TYPES, but must not reach the "
+            "RUNTIME. Measured, that already holds at zero -- the only "
+            "`odoo.orm.runtime` references in tools/ are TYPE_CHECKING-guarded "
+            "(`date_utils.py`, `security.py`), and the real edges target Layers "
+            "0-1 (`view_validation` -> `orm.domain`, `date_utils`/"
+            "`depends_audit` -> `orm.fields`), which stay allowed."
+        ),
+    ),
+    Contract(
+        name="orm-helpers-and-registration-stay-below-runtime",
+        source=("odoo.orm.helpers", "odoo.orm.registration"),
+        forbidden=("odoo.orm.runtime",),
+        allow=(),
+        rationale=(
+            "The second ungoverned channel of the same kind as "
+            "`tools-does-not-reach-the-orm-runtime`, this time INSIDE the ORM. "
+            "Measured: of the top-level `odoo/orm/*.py`, four were in no "
+            "LAYERING contract at all (`helpers`, `registration`, "
+            "`model_test_env`, `__init__`) -- 1296 of 1987 lines, ~65%. They "
+            "looked covered because `core-does-not-depend-on-addons` names "
+            "`odoo.orm`, but that contract only forbids `odoo.addons` and "
+            "governs no layering. `helpers.py` is the one that matters: it is "
+            "imported by 11 Layer-2 mixins, so anything it imports is reachable "
+            "from Layer 2 without Layer 2 importing it -- exactly the shape the "
+            "tools conduit had. Both modules are clean today (`helpers` reaches "
+            "only `orm.models.base`; `registration` reaches Layers 0-2), so "
+            "this pins them there. `model_test_env.py` is deliberately NOT a "
+            "source: it is the DB-free test harness and constructs "
+            "`Environment`/`Transaction`/`Registry` by design."
+        ),
+    ),
+    Contract(
         name="orm-components-are-pure-python",
         source=("odoo.orm.components",),
         forbidden=("odoo",),
@@ -289,6 +337,20 @@ CONTRACTS: tuple[Contract, ...] = (
             "odoo.service",
             "odoo.tools",
             "odoo.upgrade_code",
+            # The top-level MODULES, not just the packages. These were in no
+            # contract at all, and `iter_source_files` walked zero of them: it
+            # derives its roots from `source`, so a module nobody named was a
+            # module nobody read. `odoo/init.py` is the bootstrap and
+            # `odoo/logutils.py` is imported by Layer 1 — either could import an
+            # addon and stay green forever. `iter_source_files` already handles
+            # module-shaped roots via `root.with_suffix(".py")`; they simply had
+            # to be named. `test_core_source_covers_every_core_module` pins it.
+            "odoo.init",
+            "odoo.logutils",
+            "odoo.exceptions",
+            "odoo.release",
+            "odoo._testing_bootstrap",
+            "odoo.__main__",
         ),
         forbidden=("odoo.addons",),
         allow=(),

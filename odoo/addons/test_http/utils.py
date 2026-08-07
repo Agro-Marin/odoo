@@ -151,6 +151,15 @@ class MemorySessionStore(SessionStore):
     def delete(self, session):
         self.store.pop(session.sid, None)
 
+    def _delete_sid(self, sid):
+        # Borrowed, not inherited: this class extends werkzeug's SessionStore,
+        # but `rotate` below delegates to FilesystemSessionStore.rotate(self, ...),
+        # which drops the superseded sid through this private hook. Without an
+        # in-memory twin the unbound call reaches a method that does not exist
+        # and every rotating request 500s -- which is what /web/session/logout
+        # did in five of this module's tests.
+        self.store.pop(sid, None)
+
     def delete_from_identifiers(self, identifiers, exclude_sid=None):
         sid_to_remove = [
             sid

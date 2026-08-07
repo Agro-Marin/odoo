@@ -56,6 +56,7 @@ CORE_ROOT = REPO_ROOT / "odoo"
 PACKAGE_INDEXES: dict[str, tuple[str, str]] = {
     "db": ("README.md", "## Module map"),
     "_monkeypatches": ("README.md", "## Patch Index"),
+    "http": ("README.md", "## Module map"),
 }
 
 #: Core packages that ship a README with **no** module inventory, so there is

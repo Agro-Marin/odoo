@@ -8,9 +8,15 @@ counterpart to the per-addon `machine_doc_v1/ARCHITECTURE.md` maps.
 > mechanically by `tooling/architecture/layer_check.py` and gated in CI
 > (`.github/workflows/architecture.yml`). The rationale for each rule lives in
 > the ADRs under `doc/adr/`. Docs explain *why*; the checker guarantees *that*.
-> The factual claims *about* the checker on this page (contract names, pinned
-> counts, mixin count, runtime floors) are themselves pinned by
-> `tooling/architecture/test_architecture_doc.py`, which runs in the same job.
+> The factual claims *about* the checkers on this page are themselves pinned by
+> `tooling/architecture/test_architecture_doc.py`, which runs in the same job:
+> contract names and row bodies, pinned counts, the mixin composition, the
+> runtime floors, the module inventories, the gate table against the workflow,
+> and — since 2026-08 — every **measured** figure, derived from a live run of the
+> checker that produces it rather than restated. That last rule exists because
+> the page and `env_surface_check.py`'s own docstring once agreed with each other
+> and with nothing else. Prose that no test reads is prose that has already
+> drifted; if you add a number here, add the assertion with it.
 
 ## Identity
 
@@ -52,12 +58,14 @@ odoo/
 │   └── [features]  openapi (OpenAPI 3.1 from the routing map),
 │                   _params (annotation-driven @route(typed=True) coercion),
 │                   geoip, constants, exceptions, _protocols
-├── service/        Process lifecycle + servers: server, _base_server,
-│                   _threaded (ThreadedServer + EventServer), _prefork, _worker,
-│                   wsgi, _cron, transaction (the retrying() primitive),
-│                   db, model, security, common, lifecycle
-├── modules/        Module graph (iterated by phase, dependency depth, then
-│                   name), loading, migration, registry/
+├── service/        Process lifecycle + the servers
+│   ├── server, _base_server, _threaded (ThreadedServer + EventServer),
+│   │   _prefork, _worker, _watcher, wsgi, _cron, lifecycle
+│   └── transaction (the retrying() primitive), db, model, security, common,
+│       _env, _helpers, _db_helpers, _dump_scanner, _metrics
+├── modules/        The module graph (iterated by phase, dependency depth,
+│   │               then name) and what loads it
+│   └── module_graph, module, loading, migration, db, neutralize, registry/
 ├── tools/          Odoo-COUPLED utilities (need ORM / config / runtime)
 │   ├── assets/     Server-side asset pipeline (esbuild + ESM graph/bridges/
 │   │               registry/lexer)
@@ -65,8 +73,8 @@ odoo/
 │   └── babel_extractors/   Babel message extractors for Python and JavaScript
 ├── libs/           Odoo-AGNOSTIC utilities (no framework dependency)
 ├── _monkeypatches/ Explicit, import-hook-driven third-party patches
-│                   (`PatchImportHook` on `sys.meta_path`; each submodule
-│                   exposes `patch_module()`)
+│                   (`PatchImportHook` on `sys.meta_path`; every
+│                   non-underscore submodule exposes `patch_module()`)
 ├── cli/            Command-line entry points
 ├── upgrade_code/   Dated source-rewrite scripts run by `odoo-bin upgrade_code`
 └── addons/         The bundled base addons (`base`, `web`, `test_*`, …) — the
@@ -84,9 +92,11 @@ odoo/
 > used to be documentation only: `subsystem_map_check.py` verified that the
 > listed modules *exist* and nothing verified the direction *between* the
 > groups. Measured, both were already layered — `db/` had 6 connectivity →
-> resilience edges against 1 the other way, `http/` 22 serving → features
-> against 1 — and each back-edge was a module filed in the wrong bracket rather
-> than a genuine cycle. `db/errors.py` (with `dsn`/`utils`) imports nothing else
+> resilience edges against 1 the other way (counting imported *symbols*, as
+> `layer_check` does), `http/` 22 serving → features against 1 (counting import
+> *statements*; by symbol it is 43 against 2) — and each back-edge was a module
+> filed in the wrong bracket rather than a genuine cycle. `db/errors.py` (with
+> `dsn`/`utils`) imports nothing else
 > in `db/` and is used by both tiers, so it is `[foundation]`, not
 > `[connectivity]`; `http/helpers.py` imports `core` and is imported by
 > `dispatcher`/`_serve`/`request_class`, so it is `[serving]`, not
@@ -127,9 +137,17 @@ Layer 0  primitives parsing validation constants _typing         ─┘
 
 - **Layer 0** imports no higher *ORM* layer (the enforced
   `orm-layer0-is-foundational` rule). It may still use dependency-free helpers
-  from `odoo.tools`/`odoo_rust` (e.g. the `SQL` builder in `primitives.py`): the
-  invariant is "nothing from `fields`/`models`/`runtime`", not "nothing from
-  `odoo`".
+  from `odoo.tools` and `odoo_rust`: the invariant is "nothing from the ORM
+  above it", not "nothing from `odoo`". Read that precisely — the contract
+  forbids `orm.fields`, `orm.domain`, `orm.models`, `orm.runtime` **and**
+  `orm.components`, plus the three façades `odoo.fields`, `odoo.models` and
+  `odoo.api`, because re-export shims are the obvious way round a rule written
+  only against `odoo.orm.*`. Of that permission it
+  currently exercises only the first — `primitives.py` takes the `SQL` builder
+  from `odoo.tools`, and no Layer-0 module imports `odoo_rust` at all (it enters
+  the ORM at `helpers.py`, `models/mixins/read.py` and `runtime/environment.py`).
+  Both halves are permission, not practice; do not read the pairing as a claim
+  that Layer 0 depends on the Rust extension.
 - **Layer 1** (`fields`, `domain`) uses no higher ORM layer, and Layer 1
   imports `components/` nowhere. As with Layer 0 the rule is about *ORM*
   layers: both packages import `odoo.tools`, `odoo.libs` and `odoo.exceptions`
@@ -142,7 +160,22 @@ Layer 0  primitives parsing validation constants _typing         ─┘
 - **`components/`** is the cache/compute/unit-of-work engine — pure Python apart
   from `odoo.libs` (which is itself dependency-free; `model_graph.py` imports
   `Collector` from it), so it is unit-testable without an `Environment`,
-  `Registry`, or database. Collaborators are injected (ADR-0002). Framework code
+  `Registry`, or database.
+  > **What that does and does not mean.** The contract is about *this package's*
+  > imports, and it holds. It does **not** mean a component can be imported in
+  > isolation: `import odoo.orm.components.model_graph` executes the parent
+  > package first, and `orm/__init__.py`'s last line is `import odoo.init` — the
+  > framework bootstrap, which applies the `_monkeypatches` and so loads `babel`
+  > (and, through the patched modules, `lxml`). Traced, not assumed. That is why
+  > `components/tests/conftest.py` stubs the `odoo` / `odoo.orm` /
+  > `odoo.orm.components` namespace packages rather than importing them: the
+  > suite already works around this. The purity that is real is *dependency
+  > direction*, not import isolation; treat "unit-testable" as "needs no ORM
+  > runtime objects", not "costs nothing to import".
+  > (`odoo.libs` was a second, independent path to the same heavy stack until
+  > its facade was made lazy — see `libs/tests/test_facade_is_lazy.py`.)
+
+  Collaborators are injected (ADR-0002). Framework code
   reaches the per-transaction `FieldCache`/`ComputeEngine` through the curated
   id-level facade **`env._core`** (`OrmCore`, defined in `components/core.py`);
   the raw objects stay private to `Transaction` (`_cache_store`/
@@ -162,6 +195,8 @@ Layer 0  primitives parsing validation constants _typing         ─┘
 |----------|------|--------|
 | `libs-is-dependency-free` | `odoo/libs/**` must not import `odoo.*` (except `odoo.libs`) | ✅ clean |
 | `db-is-orm-agnostic` | `odoo/db/**` must not import `odoo.orm/models/fields/api` | ✅ clean |
+| `tools-does-not-reach-the-orm-runtime` | `odoo/tools/**` must not import `odoo.orm.runtime` (Layers 0–1 stay allowed) | ✅ clean |
+| `orm-helpers-and-registration-stay-below-runtime` | `orm/helpers.py` & `orm/registration.py` must not import `orm/runtime` | ✅ clean |
 | `orm-components-are-pure-python` | `odoo/orm/components/**` must not import `odoo.*` (except `odoo.libs`) | ✅ clean |
 | `orm-layer0-is-foundational` | Layer-0 (`primitives`, `parsing`, `validation`, `constants`, `_typing`) imports no higher ORM layer | ✅ clean |
 | `orm-layer1-below-models-and-runtime` | `orm/fields` & `orm/domain` must not import `orm/models` or `orm/runtime` | ✅ clean |
@@ -169,7 +204,7 @@ Layer 0  primitives parsing validation constants _typing         ─┘
 | `orm-seams-stay-below-models-and-runtime` | `orm/_recordset` & `orm/decorators` must not import `orm/models` or `orm/runtime` | ✅ clean |
 | `facade-boundary` | addon code (`odoo/addons/**` **and** the repo-root `addons/**`) must not import `odoo.orm.*` (use `odoo.api`/`odoo.fields`/`odoo.models`) | ✅ clean |
 | `core-does-not-depend-on-addons` | core packages must not import `odoo.addons.<module>` (bare `odoo.addons` for `__path__` discovery is fine) | ✅ 0 new, 2 pinned rules |
-| `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, savepoint, schema_cache, bulk, lifecycle) | ✅ clean |
+| `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, schema, savepoint, schema_cache, bulk, lifecycle) | ✅ clean |
 | `http-features-below-serving` | `http/` `[features]` (openapi, `_params`, geoip, constants, exceptions, `_protocols`) must not import `[serving]` | ✅ clean |
 
 **The eight original boundaries are clean at zero** — no tolerated exceptions.
@@ -177,8 +212,21 @@ The gate is **drift-zero**: any *new* crossing fails CI. A genuinely unavoidable
 exception must be pinned (annotated) in `layer_check.py`'s `KNOWN_VIOLATIONS`, so
 it stays visible and cannot multiply.
 
-Two scope caveats the "✅ clean" column does not show, both by design:
+Three scope caveats the "✅ clean" column does not show, all by design:
 
+- **Every contract is a DIRECT-edge rule, never transitive.**
+  `orm-layer1-below-models-and-runtime` stops `odoo/orm/fields` importing
+  `odoo.orm.runtime`; it says nothing about `odoo/orm/fields` →
+  `odoo.tools.something` → `odoo.orm.runtime`. That is not hypothetical — two
+  real modules spelling exactly that path were added to the tree and `--check`
+  reported `New: 0` over 6453 files. Transitivity is deliberately *not* the fix:
+  `tools/` is the Odoo-coupled utility layer by design, so in a transitive graph
+  everything reaches everything through it, and the rule would need a large,
+  low-signal pinned baseline. The useful invariant is narrower — utilities may
+  use ORM *values and types*, but must not reach the *runtime* — and it is
+  enforced as `tools-does-not-reach-the-orm-runtime`, which holds at zero and
+  rejects that exploit. Read the contracts as "no direct edge", and add a
+  targeted contract when a conduit matters.
 - **Test files are not scanned.** `layer_check.iter_source_files()` drops any
   path with a `tests` component, plus `conftest.py` and `test_*.py` — tests
   legitimately import across boundaries for fixtures and bootstrap.
@@ -240,7 +288,7 @@ another recordset of the same model couples exactly as much as calling it on
 from `self.browse(…)`, `self.filtered(…)`, `self.sudo()` and the rest
 (`RECORDSET_PRODUCERS`) adds 8 edges — and the first measurement found a cycle
 the page had been claiming did not exist: **`base.py` ⇄ `create`**, where
-`base.py:302` calls `self.create(…)` in `name_create` while `create.py` called
+`orm/models/base.py:159` calls `self.create(…)` in `name_create` while `create.py` called
 `_validate_fields` on recordsets `self` never names.
 
 It was broken the same way its predecessors were, by moving behaviour off the
@@ -300,7 +348,17 @@ WSGI  →  Application.__call__  →  Request (_post_init: session + db)
             → cr.close() → response
 ```
 
-Three details the sketch flattens:
+Three details the sketch flattens. All three are claims about **order**, which
+no text search can settle — every gate that "covers" them below is a grep, and a
+commit moved above the dispatcher call would satisfy all of them. The runtime
+proof is `addons/test_http/tests/test_lifecycle_order.py`, which patches
+`Request._save_session` and *both* cursor classes and reads the sequence off the
+serving thread. Observed: `[save_session, commit]` normally, and
+`[save_session, save_session, commit]` on the promoted path — the double-run
+showing up in the same trace as the ordering. (Both cursor classes, because
+under `HttpCase` the request's `env.cr` is a `TestCursor`, which subclasses
+`BaseCursor` rather than `Cursor`; instrumenting `Cursor.commit` alone observes
+nothing and reads as "`retrying()` never commits".)
 
 - **`retrying()` lives in `odoo/service/transaction.py`**, not on a model. It
   re-runs the callable on PostgreSQL serialization/deadlock errors, rewinding
@@ -319,8 +377,16 @@ Three details the sketch flattens:
 `Dispatcher` has three subclasses (`HttpDispatcher`, `JsonRPCDispatcher`,
 `Json2Dispatcher`) selected by `routing["type"]`.
 
-The canonical, more detailed call graph is the module docstring of
-`odoo/http/__init__.py`.
+The canonical, unflattened call graph — every stage, plus what each one is
+responsible for — is **`odoo/http/README.md`**. It used to be the module
+docstring of `odoo/http/__init__.py`, and for two commits this page pointed at a
+docstring that no longer existed: `4ffeacacd8c` stripped docstrings from `odoo/`
+and, because nothing read that one, took the only detailed copy with it while
+this sketch went on calling itself the abridged version. Recovered from
+`4ffeacacd8c~1`, re-verified symbol by symbol against the current tree, and moved
+to a README so the strip policy and the call graph no longer compete for the same
+lines. The file also carries `http/`'s module map, which
+`package_index_check.py` now gates.
 
 ## Known boundary exceptions (tracked debt)
 
@@ -370,7 +436,7 @@ python tooling/architecture/subsystem_map_check.py --check   # the map above vs 
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **twelve** blocking checkers — it first
+`Architecture Boundaries` workflow runs **thirteen** blocking checkers — it first
 runs `pytest tooling/architecture/` to self-test them, then:
 
 | Gate | What it locks |
@@ -378,7 +444,8 @@ runs `pytest tooling/architecture/` to self-test them, then:
 | `layer_check.py` | the Python layering contracts in the table above |
 | `mixin_coupling_check.py` | the `self`-call graph the import graph cannot see |
 | `env_surface_check.py` | the Layer→runtime `env` seam, and that every reached `Environment` member exists |
-| `env_model_surface_check.py` | the framework's string-keyed dependency on addon-owned models (`env["res.users"]`), which `core-does-not-depend-on-addons` cannot see |
+| `pool_surface_check.py` | the Layer→runtime `pool` seam: private reach, member validity, and `components/` at zero |
+| `env_model_surface_check.py` | the framework's string-keyed dependency on addon-owned models (`env["res.users"]`), which `core-does-not-depend-on-addons` cannot see — *which* models (exact set) **and** which subtrees may reach none |
 | `worker_thread_surface_check.py` | inline `threading.current_thread().<attr>` reads of per-request bookkeeping (`dbname`, `cursor_mode`, …), which mypy and `layer_check` cannot see |
 | `libs_facade_check.py` | addon code **and every core package** importing `odoo.libs` **areas**, never their leaf modules |
 | `py_cycle_check.py` | Python import cycles in the core — the direction gates cannot see them |
@@ -388,20 +455,62 @@ runs `pytest tooling/architecture/` to self-test them, then:
 | `js_cycle_check.py` | ESM import cycles across **every** addon's client source |
 | `named_export_coherence.py` | `import { x }` with no matching `export` |
 
-Two of those are the same argument as `mixin_coupling_check.py`, applied to
+Four of those are the same argument as `mixin_coupling_check.py`, applied to
 surfaces the import graph cannot see:
 
 - **`env_surface_check.py`** — `orm-layer1-below-models-and-runtime` and
   `orm-models-below-runtime` are clean and always will be, because Layers 1 and
   2 do not reach the runtime by *importing* it; they reach it through `self.env`
   on every call. Measured, **Layer 1 (`orm/fields`) is the heaviest consumer of
-  `Environment`'s private internals — wider than Layer 2** (5 unsanctioned
-  private members against 2). The layering story is true of the import graph and
-  false of the runtime graph. The gate also validates that every reached member
+  `Environment`'s private internals — wider than Layer 2** (4 unsanctioned
+  private members against 2, 10 accesses against 3). This page and the checker's
+  own docstring both said *5* until 2026-08: five is the size of the distinct
+  private set across the whole ORM (`_field_depends_context` is reached from
+  both packages), not `orm/fields`' share of it. The figures are now derived
+  from a live run by `test_env_surface_check`, so the union and the per-package
+  count cannot be conflated again. The layering story is true of the import
+  graph and false of the runtime graph. The gate also validates that every reached member
   *exists*, which covers the four `env.__dict__["_field_cache_memo"]` string-key
   hot paths: renaming that member is caught by nothing else (ruff is blind; mypy
   sees only the 2 plain-attribute sites), and the `except KeyError` fallback
   would silently turn the fast path into a permanent slow one.
+- **`env_model_surface_check.py`** — ratchets *which* addon-owned models the
+  framework reaches by string key, as an exact set. That set is flat across the
+  whole scope, so on its own it answers "which models", never "who may reach
+  them" — and a package reaching an **already-known** model adds nothing to the
+  set, so the gate stays green. Demonstrated: appending `env["ir.model"]` to
+  `orm/components/model_graph.py` — a package whose entire contract is that it is
+  pure Python — passed this gate, `layer_check`, `env_surface_check` **and**
+  `pool_surface_check` at once. It now also pins seven subtrees at *zero* model
+  reaches (`orm/components`, `libs`, `db`, the `api`/`fields`/`models` shims,
+  `_monkeypatches`), each of which already claims the property for an independent
+  reason, so a first reach is a contradiction rather than a cost. Deliberately
+  not the full (package, model) cross-product — that would fire on every ordinary
+  new reach inside a package that already reaches models, which is noise.
+- **`pool_surface_check.py`** — the *second* Layer→runtime channel, and until
+  2026-08 nothing measured it. `env_surface_check` watches `self.env`; the
+  Registry is reached through `self.pool`, which produces no import edge either,
+  and that reach shows the same inversion, though on one axis rather than three:
+  **`orm/fields` (Layer 1) touches the Registry at 30 sites against
+  `orm/models`' 17**, and owns all 5 `pool[<model>]` subscripts, which Layer 2
+  never uses. Be precise about the rest, because the first version of this
+  paragraph was not: Layer 2 reaches *more distinct* members than Layer 1 (11
+  against 9), and it has a private reach of its own — `_ensure_field_triggers`,
+  pinned beside `_relation_reflections`. The claim that survives measurement is
+  volume and subscripts, not "Layer 2 touches nothing private".
+  It ratchets three invariants — no unsanctioned `pool._private` from
+  Layers 0–2, every referenced member must exist on `Registry`, and
+  `components/` must not touch `pool` at all (the runtime half of the purity
+  claim `orm-components-are-pure-python` makes about imports). Public-surface
+  *width* is reported, not ratcheted, on the same rationale as the `env` gate:
+  Layer 1 consulting `pool.field_inverses` is the design working, and a gate
+  firing on a 10th public member would punish ordinary work.
+  Its sharpest finding is a lifecycle one: `Registry._relation_reflections` is
+  created inside `init_models`' `try:` and `del`-eted in its `finally:`, so it
+  exists *only* for that call — and `fields/relational/many2many.py` mutates it
+  from Layer 1, which works solely because `update_db` runs inside that window.
+  Nothing declares that ordering, and nothing but an `AttributeError` during
+  module installation would catch its violation.
 - **`py_cycle_check.py`** — the Python half of what `js_cycle_check.py` does
   for the client. Both layer gates lock import *direction* and are blind to
   *cycles*: every edge of a cycle can sit inside one layer and cross no
@@ -440,21 +549,33 @@ they were subdirectories, when both packages are flat — and that invented
 referenced file *exists*; this proves a described package still *matches its
 directory*.
 
-`package_index_check.py` applies the same rule one level down, to the two
-packages that document themselves per-module — `db/README.md`'s *Module map* and
-`_monkeypatches/README.md`'s *Patch Index*. Both are complete today; neither was
-protected, and `db/README.md` invites additions ("Add the check here when you
-add an invariant above") with nothing enforcing them. The check is scoped to the
-inventory **section**: both READMEs carry other tables that name `.py` files, and
-`_monkeypatches`' *Recently Removed* table correctly names six modules that no
-longer exist — an unscoped scan reports all six as failures against a document
-that is exactly right.
+`package_index_check.py` applies the same rule one level down, to the three
+packages that document themselves per-module — `db/README.md`'s *Module map*,
+`_monkeypatches/README.md`'s *Patch Index*, and `http/README.md`'s *Module map*.
+All three are complete today; none was protected, and `db/README.md` invites
+additions ("Add the check here when you
+add an invariant above") with nothing enforcing them. Registration is not
+optional: `PACKAGE_INDEXES` is an inclusion list, so an unregistered README
+would be gated by nothing — `test_every_core_readme_is_classified` forces every
+core README into `PACKAGE_INDEXES` or into `READMES_WITHOUT_AN_INDEX`, and it is
+what failed the moment `http/README.md` was added. The check is scoped to the
+inventory **section**: the READMEs carry other tables that name `.py` files, and
+`_monkeypatches`' *Recently Removed* table names eight patches, six of which are
+modules that no longer exist (`urllib3`, `lxml`, `xlrd`, `zeep`, `pytz`, `xlwt`;
+the other two rows retire a *patch* from a file that is still there). An
+unscoped scan reports all six as failures against a document that is exactly
+right — which is what `test_section_scoping_is_load_bearing` pins, by name
+rather than by count.
 
-(Those names are quoted rather than backticked on purpose: this gate reads a
-backticked path as a claim that the path exists, and cannot tell a citation from
-an assertion.)
+Scoping is the whole fix, and it has to be: those names are backticked in the
+README, like every other path in the tree. A gate that reads a backticked path
+as an assertion that the path exists cannot tell a citation from an assertion,
+so the only thing that can tell them apart is *where on the page they are*. An
+earlier version of this paragraph claimed the removed names were "quoted rather
+than backticked on purpose" — they never were, and no convention asks authors to
+punctuate around a checker.
 
-(`cross_repo_coherence.py` is an eleventh checker and the only one outside CI: it
+(`cross_repo_coherence.py` is a fourteenth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub checks
 out this repo alone and the check needs the sibling checkouts to compare against.
 It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
@@ -474,10 +595,34 @@ regressing:
   ```
 
 - **DB-backed integration gate** (`.github/workflows/integration_tests.yml`,
-  ADR-0007) — boots PostgreSQL 18, installs `base` and runs its suite
-  (`--test-tags /base`, less the excluded `TestReportsRendering` and
-  `TestIrModelFieldsTranslation`), so the decomposed pieces are verified to
-  *behave*, not just to import cleanly.
+  ADR-0007) — boots PostgreSQL 18 and runs two suites, **each against its own
+  database**: `base` (less the excluded `TestReportsRendering` and
+  `TestIrModelFieldsTranslation`) and `test_http`. So the decomposed pieces are
+  verified to *behave*, not just to import cleanly.
+
+  **This is the only lane that runs addon tests, and that is the sharpest limit
+  on the word "enforced" at the top of this page.** Every one of the thirteen
+  boundary checkers is structural and DB-free: they read import graphs, call
+  graphs, reached-member sets and documents. A change can satisfy all thirteen,
+  and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
+  (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
+  2026-08 while every gate and both DB-free tiers stayed green, because nothing
+  those gates read had changed. Read a green boundary job as "the structure
+  holds", never as "the framework works".
+
+  The corollary is that a suite outside this lane is a suite nobody runs, which
+  is not hypothetical either: `test_http` was in no workflow until 2026-08 and
+  had accumulated three defects, one of them a test committed red two months
+  earlier. It is in the lane now. When you add a test addon, add it here too —
+  **with its own database.** The suites genuinely interfere: `test_http` depends
+  on `mail`, whose `res_partner_views.xml` inherits
+  `base.view_res_partner_filter` anchored on `<filter name="inactive">`, and
+  base's `test_hard_reset_from_file_still_works` overwrites that view with a
+  minimal `<search>`. The write re-validates the children, so `-i base` is 5/5
+  green while `-i base,test_http` raises `ValidationError` — running only that
+  one test class. The base test is fragile by construction, since it mutates a
+  shared core view and therefore passes only while nothing inherits it; one
+  database per suite is what stops the next addon added here from tripping it.
 
 ADR-0009 records how these gates were wired shut (mainline `push:` triggers,
 full façade scope, re-measured floors) after an audit found each one bypassable.

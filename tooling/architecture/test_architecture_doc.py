@@ -585,7 +585,9 @@ class TestContractTable(unittest.TestCase):
         rows = self._table_rows()
         self.assertEqual(8, len(self.ORIGINAL_EIGHT))
         missing = self.ORIGINAL_EIGHT - set(rows)
-        self.assertFalse(missing, f"original boundary dropped from the table: {missing}")
+        self.assertFalse(
+            missing, f"original boundary dropped from the table: {missing}"
+        )
         self.assertIn("**The eight original boundaries are clean at zero**", DOC)
 
     def test_later_contracts_are_also_in_the_table(self) -> None:
@@ -708,7 +710,13 @@ class TestReferencedArtifacts(unittest.TestCase):
 
     def test_adrs_exist(self) -> None:
         adr_dir = ROOT / "doc" / "adr"
-        for number in sorted(set(re.findall(r"ADR-(\d{4})", DOC))):
+        numbers = sorted(set(re.findall(r"ADR-(\d{4})", DOC)))
+        # Without this the test is a no-op the moment the citations or the
+        # pattern change: "every ADR the page names exists" is trivially true of
+        # a page that names none. Audited by running the suite against an empty
+        # DOC -- this was one of four tests that survived it.
+        self.assertTrue(numbers, "the page cites no ADR; the pattern has rotted")
+        for number in numbers:
             self.assertTrue(
                 list(adr_dir.glob(f"{number}-*.md")),
                 f"ARCHITECTURE.md references ADR-{number}, which does not exist",
@@ -729,14 +737,22 @@ class TestReferencedArtifacts(unittest.TestCase):
         self.assertEqual((match.group(1), match.group(2)), (on_disk[0], on_disk[-1]))
 
     def test_documented_commands_exist(self) -> None:
-        for script in re.findall(r"^python (\S+\.py)", DOC, re.MULTILINE):
+        scripts = re.findall(r"^python (\S+\.py)", DOC, re.MULTILINE)
+        self.assertTrue(
+            scripts, "the page documents no command; the pattern has rotted"
+        )
+        for script in scripts:
             self.assertTrue(
                 (ROOT / script).is_file(),
                 f"ARCHITECTURE.md documents `python {script}`, which is missing",
             )
 
     def test_referenced_workflows_exist(self) -> None:
-        for wf in re.findall(r"`\.github/workflows/([\w.-]+\.yml)`", DOC):
+        workflows = re.findall(r"`\.github/workflows/([\w.-]+\.yml)`", DOC)
+        self.assertTrue(
+            workflows, "the page references no workflow; the pattern has rotted"
+        )
+        for wf in workflows:
             self.assertTrue((ROOT / ".github" / "workflows" / wf).is_file(), wf)
 
     def test_ci_gate_table_matches_the_workflow(self) -> None:
@@ -767,8 +783,85 @@ class TestReferencedArtifacts(unittest.TestCase):
             "ten": 10,
             "eleven": 11,
             "twelve": 12,
+            "thirteen": 13,
         }
         self.assertEqual(words[stated.group(1)], len(run_in_ci))
+
+    def test_ci_path_filter_covers_every_scanned_tree(self) -> None:
+        """A PR touching a scanned package must actually trigger this gate.
+
+        The ``pull_request: paths:`` filter used to enumerate the core packages
+        by hand, which is a second copy of every checker's scope and rots the
+        same way prose does. Measured, four real packages inside the checkers'
+        scope were missing from it -- ``odoo/api``, ``odoo/fields``,
+        ``odoo/models`` and ``odoo/tests`` -- so a PR touching only those ran no
+        gate on the PR at all, and drift was caught (if ever) by the post-merge
+        ``push:`` trigger, after the merge-blocking check had reported nothing.
+
+        This derives the requirement from the tree instead of trusting the list.
+        """
+        workflow = (ROOT / ".github" / "workflows" / "architecture.yml").read_text(
+            encoding="utf-8"
+        )
+        pr_block = workflow.split("pull_request:", 1)[1].split("permissions:", 1)[0]
+        globs = re.findall(r"^\s*- '([^']+)'", pr_block, re.MULTILINE)
+        self.assertTrue(globs, "the pull_request path filter is empty")
+
+        # NOT fnmatch: Python's `*` crosses `/` (`fnmatch("odoo/api/x.py",
+        # "odoo/*.py")` is True), so an fnmatch-based version of this test
+        # passes against the very filter it is meant to reject. GitHub's
+        # semantics are `*` = any run of non-slash, `**` = any run including
+        # slash, `**/` = zero or more directories.
+        def to_regex(glob: str) -> re.Pattern[str]:
+            out, i = [], 0
+            while i < len(glob):
+                if glob.startswith("**/", i):
+                    out.append("(?:.*/)?")
+                    i += 3
+                elif glob.startswith("**", i):
+                    out.append(".*")
+                    i += 2
+                elif glob[i] == "*":
+                    out.append("[^/]*")
+                    i += 1
+                elif glob[i] == "?":
+                    out.append("[^/]")
+                    i += 1
+                else:
+                    out.append(re.escape(glob[i]))
+                    i += 1
+            return re.compile("^" + "".join(out) + "$")
+
+        patterns = [to_regex(g) for g in globs]
+
+        def covered(path: str) -> bool:
+            return any(p.match(path) for p in patterns)
+
+        uncovered: list[str] = []
+        for tree in ("odoo", "addons"):
+            root = ROOT / tree
+            if not root.is_dir():
+                continue
+            for child in sorted(root.iterdir()):
+                if child.name.startswith((".", "__")):
+                    continue
+                if child.is_dir():
+                    if not any(child.rglob("*.py")):
+                        continue
+                    probe = f"{tree}/{child.name}/probe.py"
+                elif child.suffix == ".py":
+                    probe = f"{tree}/{child.name}"
+                else:
+                    continue
+                if not covered(probe):
+                    uncovered.append(probe)
+
+        self.assertEqual(
+            uncovered,
+            [],
+            "these scanned paths would not retrigger architecture.yml on a PR: "
+            + ", ".join(uncovered),
+        )
 
     def test_cross_repo_checker_is_a_prepush_hook(self) -> None:
         """It is outside CI on purpose; the page must describe where it does run."""
@@ -816,7 +909,9 @@ class TestReferencedArtifacts(unittest.TestCase):
         name is allowed to resolve as ``<name>.py``. Globs are skipped.
         """
         pattern = r"`((?:odoo|tooling|doc|addons|libs|orm|db|http|service)/[\w./-]+?)`"
-        for raw in sorted(set(re.findall(pattern, DOC))):
+        found = sorted(set(re.findall(pattern, DOC)))
+        self.assertTrue(found, "the page names no path; the pattern has rotted")
+        for raw in found:
             if "*" in raw or raw.endswith("/"):
                 continue
             candidates = [ROOT / raw, ROOT / "odoo" / raw]
@@ -983,6 +1078,45 @@ class TestHttpLifecycle(unittest.TestCase):
         src = (ROOT / "odoo" / "http" / "_serve.py").read_text(encoding="utf-8")
         self.assertIn("psycopg.errors.ReadOnlySqlTransaction", src)
 
+    #: The three lifecycle claims are about *when*, and the assertions above are
+    #: all text searches, which cannot see order: move the commit above the
+    #: dispatcher call and every one of them still passes. Each therefore names
+    #: the DB-backed test that observes it, and this suite checks those tests
+    #: exist -- the boundary job is stdlib-only and cannot run them itself.
+    BEHAVIOURAL_COVER = {
+        "addons/test_http/tests/test_lifecycle_order.py": (
+            "test_session_is_saved_before_the_commit",
+            "test_commit_is_the_last_thing_on_the_serving_thread",
+            "test_promotion_reruns_the_handler_and_still_saves_before_committing",
+        ),
+        "addons/test_http/tests/test_models.py": (
+            "test_promotion_replay_does_not_inherit_the_aborted_env",
+        ),
+    }
+
+    def test_ordering_claims_have_a_runtime_test(self) -> None:
+        for rel, names in self.BEHAVIOURAL_COVER.items():
+            path = ROOT / "odoo" / rel
+            self.assertTrue(
+                path.is_file(),
+                f"{rel} is gone; the ordering claims are back to being grep-only",
+            )
+            src = path.read_text(encoding="utf-8")
+            for name in names:
+                self.assertRegex(
+                    src,
+                    rf"\n    def {name}\(",
+                    f"{rel} no longer defines {name}",
+                )
+
+    def test_the_runtime_test_is_registered(self) -> None:
+        """An unimported test module is a test that never runs."""
+        init = ROOT / "odoo" / "addons" / "test_http" / "tests" / "__init__.py"
+        self.assertIn("from . import test_lifecycle_order", init.read_text())
+
+    def test_the_page_names_where_the_proof_is(self) -> None:
+        self.assertIn("test_lifecycle_order.py", DOC_FLAT)
+
 
 class TestSeams(unittest.TestCase):
     """Each documented decoupling seam must still be wired the documented way."""
@@ -1020,6 +1154,37 @@ class TestSeams(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("def _core(self)", env)
+
+    def test_the_raw_objects_really_are_private(self) -> None:
+        """"the raw objects stay private to Transaction" was false when written.
+
+        ``OrmCore``'s slots were named ``cache``/``engine``, so ``env._core.cache``
+        WAS ``transaction._cache_store`` -- the curated facade handed out the raw
+        collaborator it claimed to be curating. The slots are ``_cache``/``_engine``
+        now, with ``get_value``/``set_value`` on the facade, and the claim is true.
+        Nothing on this page checked it, which is why the sentence outlived the
+        thing it described; this asserts the property rather than the class name.
+        """
+        core = (ROOT / "odoo" / "orm" / "components" / "core.py").read_text(
+            encoding="utf-8"
+        )
+        slots = re.search(r"__slots__ = \(([^)]*)\)", core)
+        self.assertIsNotNone(slots, "OrmCore no longer declares __slots__")
+        names = re.findall(r'"(\w+)"', slots.group(1))
+        self.assertTrue(names, "OrmCore's __slots__ is empty")
+        public = [n for n in names if not n.startswith("_")]
+        self.assertEqual(
+            public,
+            [],
+            f"OrmCore exposes its collaborator(s) {public} as public attributes, "
+            f"so the page's 'raw objects stay private' claim is false again",
+        )
+        transaction = (ROOT / "odoo" / "orm" / "runtime" / "transaction.py").read_text(
+            encoding="utf-8"
+        )
+        for named in ("_cache_store", "_compute_engine"):
+            self.assertIn(f'"{named}"', transaction, f"{named} is not a Transaction slot")
+            self.assertIn(f"`{named}`", DOC, f"the page no longer names {named}")
 
     def test_transaction_storage_sniffing_is_gone(self) -> None:
         """ADR-0011's claim: production CRUD no longer reads transaction.storage."""
@@ -1115,6 +1280,688 @@ class TestCronExceptionRationale(unittest.TestCase):
                 "odoo/addons/base/models/ir_job.py",
             ],
         )
+
+
+class TestRuntimeSurfaceFigures(unittest.TestCase):
+    """Surface figures must come from a live run, never from a sibling docstring.
+
+    The page said ``orm/fields`` reaches **5** unsanctioned private ``Environment``
+    members. It reaches 4; five is the size of the distinct private set across the
+    whole ORM, because ``_field_depends_context`` is reached from both packages.
+    The slip was authored in ``env_surface_check.py``'s own module docstring and
+    copied here, so *both* prose copies agreed with each other and neither agreed
+    with the checker -- which is the exact failure mode a doc gate exists to catch
+    and could not, because nothing compared either sentence to a run.
+    """
+
+    @staticmethod
+    def _env_by_package() -> dict[str, dict[str, set[str]]]:
+        import env_surface_check
+
+        buckets: dict[str, dict[str, set[str]]] = {}
+        for reach in env_surface_check.check().reaches:
+            bucket = buckets.setdefault(reach.layer, {"pub": set(), "prv": set()})
+            bucket["prv" if reach.is_private else "pub"].add(reach.attr)
+        for bucket in buckets.values():
+            bucket["prv"] -= set(env_surface_check.SANCTIONED_PRIVATE)
+        return buckets
+
+    def test_env_private_member_counts_are_measured(self) -> None:
+        buckets = self._env_by_package()
+        layer1 = len(buckets["Layer 1"]["prv"])
+        layer2 = len(buckets["Layer 2"]["prv"])
+        self.assertIn(
+            f"({layer1} unsanctioned private members against {layer2},",
+            DOC_FLAT,
+            f"the page's env private-member figures disagree with a live run "
+            f"(Layer 1 has {layer1}, Layer 2 has {layer2})",
+        )
+
+    def test_env_access_counts_are_measured(self) -> None:
+        """Accesses, not pinned entries.
+
+        ``KNOWN_VIOLATIONS`` is keyed by ``(path, attr)``, so its length counts
+        6 and 2 -- one entry covers all four ``base.py`` reaches of
+        ``_field_cache_memo``. The page quotes *sites*, which only a run knows.
+        """
+        import env_surface_check
+
+        sanctioned = set(env_surface_check.SANCTIONED_PRIVATE)
+        by_layer: dict[str, int] = {}
+        for reach in env_surface_check.check().reaches:
+            if reach.is_private and reach.attr not in sanctioned:
+                by_layer[reach.layer] = by_layer.get(reach.layer, 0) + 1
+        self.assertIn(
+            f"{by_layer['Layer 1']} accesses against {by_layer['Layer 2']})", DOC_FLAT
+        )
+
+    def test_the_union_is_named_as_a_union(self) -> None:
+        """The page must state where the discredited 5 came from, not just drop it."""
+        import env_surface_check
+
+        union = {k.attr for k in env_surface_check.KNOWN_VIOLATIONS}
+        self.assertEqual(len(union), 5, "the union figure the page explains is 5")
+        self.assertIn("distinct private set across the whole ORM", DOC_FLAT)
+        shared = sorted(
+            attr
+            for attr in union
+            if len(
+                {
+                    "fields" if "/fields/" in k.path else "models"
+                    for k in env_surface_check.KNOWN_VIOLATIONS
+                    if k.attr == attr
+                }
+            )
+            > 1
+        )
+        self.assertEqual(shared, ["_field_depends_context"])
+        self.assertIn("`_field_depends_context` is reached from", DOC_FLAT)
+
+    def test_pool_figures_are_measured(self) -> None:
+        import pool_surface_check
+
+        report = pool_surface_check.check()
+        sites: dict[str, int] = {}
+        members: dict[str, set[str]] = {}
+        subscripts: dict[str, int] = {}
+        for reach in report.reaches:
+            sites[reach.layer] = sites.get(reach.layer, 0) + 1
+            members.setdefault(reach.layer, set()).add(reach.attr)
+            subscripts[reach.layer] = subscripts.get(reach.layer, 0) + reach.subscript
+        self.assertIn(
+            f"touches the Registry at {sites['Layer 1']} sites against "
+            f"`orm/models`' {sites['Layer 2']}**",
+            DOC_FLAT,
+        )
+        self.assertIn(
+            f"owns all {subscripts['Layer 1']} `pool[<model>]` subscripts", DOC_FLAT
+        )
+        self.assertEqual(subscripts.get("Layer 2", 0), 0)
+
+    def test_pool_member_width_inversion_is_stated(self) -> None:
+        """Layer 2 is *wider* by distinct member; the page must not claim otherwise."""
+        import pool_surface_check
+
+        report = pool_surface_check.check()
+        members: dict[str, set[str]] = {}
+        privates: dict[str, set[str]] = {}
+        for reach in report.reaches:
+            # ``pool[...]`` is recorded as ``__getitem__``: the Mapping protocol
+            # Registry implements, not a member of its surface. The checker's own
+            # report excludes it from the member list and counts it as a
+            # subscript, so the page's figures must exclude it too.
+            if reach.attr.startswith("__"):
+                continue
+            members.setdefault(reach.layer, set()).add(reach.attr)
+            if reach.is_private:
+                privates.setdefault(reach.layer, set()).add(reach.attr)
+        self.assertGreater(
+            len(members["Layer 2"]),
+            len(members["Layer 1"]),
+            "Layer 2 is no longer the wider consumer; rewrite the paragraph",
+        )
+        self.assertIn(
+            f"reaches *more distinct* members than Layer 1 ({len(members['Layer 2'])} "
+            f"against {len(members['Layer 1'])})",
+            DOC_FLAT,
+        )
+        self.assertTrue(privates.get("Layer 2"), "Layer 2 has no private reach left")
+        for attr in privates["Layer 2"]:
+            self.assertIn(f"`{attr}`", DOC)
+
+
+class TestGateInventoryIsWiredShut(unittest.TestCase):
+    """Every checker the page lists must be a blocking step, and vice versa.
+
+    ``pool_surface_check.py`` shipped as a standalone gate, was added to the table
+    and to the workflow, and the page still carried a blockquote saying it was
+    "not yet wired". The count sentence and the annotate condition drifted the
+    same way: the sentence said *twelve* while the table had thirteen rows, and
+    ``Annotate PR on failure`` listed twelve of thirteen step ids, so the one gate
+    nobody had checked was also the one whose failure would post no annotation.
+    """
+
+    WORKFLOW = ROOT / ".github" / "workflows" / "architecture.yml"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.yaml = cls.WORKFLOW.read_text(encoding="utf-8")
+
+    def _table_gates(self) -> list[str]:
+        section = DOC.split("## Quality gates beyond the boundaries", 1)[1]
+        return re.findall(r"^\| `([\w.]+\.py)` \|", section, re.MULTILINE)
+
+    def _workflow_gates(self) -> list[str]:
+        return re.findall(r"python tooling/architecture/([\w.]+\.py)", self.yaml)
+
+    def test_table_matches_the_workflow(self) -> None:
+        self.assertEqual(set(self._table_gates()), set(self._workflow_gates()))
+
+    def test_stated_count_matches_both(self) -> None:
+        words = {12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen"}
+        count = len(self._workflow_gates())
+        self.assertIn(
+            f"runs **{words[count]}** blocking checkers", DOC_FLAT, f"{count} gates run"
+        )
+
+    def test_every_gate_step_is_blocking(self) -> None:
+        """A step that does not re-raise its exit code is a gate that cannot fail."""
+        self.assertEqual(
+            self.yaml.count('exit "${GATE_EXIT}"'), len(self._workflow_gates())
+        )
+
+    def test_annotate_condition_covers_every_step(self) -> None:
+        ids = set(re.findall(r"^\s+id: (\w+)$", self.yaml, re.MULTILINE))
+        condition = self.yaml.split("Annotate PR on failure", 1)[1].split("uses:", 1)[0]
+        checked = set(re.findall(r"steps\.(\w+)\.outputs", condition))
+        self.assertEqual(
+            ids - checked,
+            set(),
+            "a gate step whose failure posts no PR annotation",
+        )
+
+    def test_no_gate_is_described_as_unwired(self) -> None:
+        self.assertNotIn("Not yet wired", DOC)
+
+    def test_the_outside_checker_is_counted_from_the_inside_ones(self) -> None:
+        """``cross_repo_coherence.py`` is "an Nth checker" — N must track the table."""
+        words = {12: "twelfth", 13: "thirteenth", 14: "fourteenth", 15: "fifteenth"}
+        expected = words[len(self._workflow_gates()) + 1]
+        self.assertIn(f"is a {expected} checker and the only one outside CI", DOC_FLAT)
+
+
+class TestCitationsResolve(unittest.TestCase):
+    """The citation forms ``test_named_source_paths_exist`` cannot see.
+
+    That test only matches paths carrying a known top-level directory, so every
+    bare ``<name>.py`` on the page went unchecked — which is how the page came to
+    name ``test_pool_surface.py`` for a while after the file had been renamed.
+    Matching *all* bare names is wrong: the page deliberately names ``sql_db.py``,
+    ``http.py``, ``models.py``, ``api.py`` and ``fields.py`` as monoliths that no
+    longer exist. So the rule is scoped to the one namespace where a bare name is
+    always a live artefact — the checkers in ``tooling/architecture/``.
+    """
+
+    TOOLING = ROOT / "tooling" / "architecture"
+
+    def test_bare_checker_names_exist(self) -> None:
+        checkers = {p.name for p in self.TOOLING.glob("*.py")}
+        named = set(re.findall(r"`(\w+_check(?:er)?\.py|\w+_coherence\.py)`", DOC))
+        self.assertTrue(named, "the page names no checkers; the regex has rotted")
+        missing = {n for n in named if n not in checkers}
+        self.assertEqual(
+            missing,
+            set(),
+            f"ARCHITECTURE.md names checker(s) that are not in "
+            f"tooling/architecture/: {sorted(missing)}",
+        )
+
+    def test_line_number_citations_resolve(self) -> None:
+        """``base.py:302`` outlived two rewrites of the file it pointed into.
+
+        A ``file.py:N`` citation is checked three ways: the file exists, it has
+        an Nth line, and — since a line number alone would still drift silently
+        within a file — the sentence's claim about that line holds.
+        """
+        cites = re.findall(r"`([\w/]+\.py):(\d+)`", DOC)
+        self.assertTrue(cites, "no line citations found; the regex has rotted")
+        for name, lineno in cites:
+            # Package-relative to ``odoo/``, the base the page uses throughout.
+            # A bare ``base.py`` would be ambiguous -- ``orm/models/base.py`` and
+            # ``orm/fields/base.py`` both exist -- so a citation must carry
+            # enough path to name exactly one file.
+            target = ROOT / "odoo" / name
+            self.assertTrue(
+                target.is_file(),
+                f"`{name}:{lineno}` does not resolve under odoo/; a line "
+                f"citation must carry enough path to be unambiguous",
+            )
+            lines = target.read_text(encoding="utf-8").splitlines()
+            self.assertGreaterEqual(
+                len(lines),
+                int(lineno),
+                f"`{name}:{lineno}` is past the end of a {len(lines)}-line file",
+            )
+            sentence = DOC_FLAT.split(f"`{name}:{lineno}`", 1)[1]
+            called = re.match(r" calls `([\w.]+)\(", sentence)
+            if called:
+                self.assertIn(called.group(1), lines[int(lineno) - 1])
+
+
+class TestHttpCallGraphIsRecoverable(unittest.TestCase):
+    """The page defers to a canonical call graph; it must still be somewhere.
+
+    It pointed at ``odoo/http/__init__.py``'s module docstring, which
+    ``4ffeacacd8c`` deleted along with every other docstring under ``odoo/``. The
+    page went on calling itself the abridged version of a document that no longer
+    existed, and no gate noticed: ``test_named_source_paths_exist`` proves the
+    *file* exists, never its contents.
+    """
+
+    README = ROOT / "odoo" / "http" / "README.md"
+
+    def test_the_pointer_resolves(self) -> None:
+        self.assertIn("`odoo/http/README.md`", DOC)
+        self.assertTrue(self.README.is_file())
+        # The page may (and does) explain where the graph used to live; what it
+        # must not do is still *point* there.
+        self.assertNotIn("call graph is the module docstring", DOC_FLAT)
+
+    def test_the_graph_is_actually_in_it(self) -> None:
+        text = self.README.read_text(encoding="utf-8")
+        for stage in (
+            "Application.__call__",
+            "Request._serve_static",
+            "Request._serve_nodb",
+            "Request._serve_db",
+            "transaction.retrying(Request._serve_ir_http)",
+            "transaction.retrying(Request._serve_ir_http_fallback)",
+            "env['ir.http']._authenticate",
+            "env['ir.http']._post_dispatch",
+        ):
+            self.assertIn(stage, text, f"the recovered call graph lost {stage}")
+
+    def test_every_named_ir_http_hook_exists(self) -> None:
+        ir_http = (
+            ROOT / "odoo" / "addons" / "base" / "models" / "ir_http.py"
+        ).read_text(encoding="utf-8")
+        hooks = set(re.findall(r"env\['ir\.http'\]\.(\w+)", self.README.read_text()))
+        self.assertTrue(hooks)
+        for hook in hooks:
+            self.assertRegex(ir_http, rf"\n    def {hook}\(")
+
+    def test_every_named_request_method_exists(self) -> None:
+        serve = (ROOT / "odoo" / "http" / "_serve.py").read_text(encoding="utf-8")
+        methods = set(re.findall(r"Request\.(_serve_\w+)", self.README.read_text()))
+        self.assertTrue(methods)
+        for method in methods:
+            self.assertRegex(serve, rf"\n    def {method}\(")
+
+
+class TestPinnedCyclesAndRemovals(unittest.TestCase):
+    """Two more prose claims that no gate read.
+
+    Both are of the form the page's own thesis is about: a *number stated in
+    prose that the code also states*, sitting next to gates that never compared
+    them. ``py_cycle_check``'s three pinned cycles and the ``_monkeypatches``
+    removal count were each measured once, written down, and left.
+    """
+
+    def test_pinned_cycles_are_the_ones_named(self) -> None:
+        import py_cycle_check
+
+        report = py_cycle_check.check()
+        packages = {
+            cycle[0].split(".")[1]
+            for cycle in getattr(report, "known", None) or report.cycles
+        }
+        self.assertEqual(packages, {"service", "modules", "cli"})
+        self.assertIn(
+            "Three are pinned (`service`, `modules`, `cli`", DOC_FLAT.replace("—", "-")
+        )
+
+    def test_the_orm_really_has_no_cycle(self) -> None:
+        """ "the ORM has none" is the load-bearing half of that sentence."""
+        import py_cycle_check
+
+        report = py_cycle_check.check()
+        orm = [c for c in report.cycles if any(m.startswith("odoo.orm") for m in c)]
+        self.assertEqual(orm, [], "the ORM has a cycle; the page says it has none")
+        self.assertIn("the ORM has none", DOC_FLAT)
+
+    def test_removed_module_count_and_names(self) -> None:
+        """The page quotes six; the README's table has eight rows.
+
+        Two of the eight retire a *patch* from a file that still exists
+        (``werkzeug.py``, ``email.py``), which is exactly why the count and the
+        row total differ — and why the page now names the six instead of only
+        counting them.
+        """
+        readme = ROOT / "odoo" / "_monkeypatches" / "README.md"
+        section = readme.read_text(encoding="utf-8").split("## Recently Removed", 1)[1]
+        section = section.split("\n## ", 1)[0]
+        rows = re.findall(r"^\| `([\w.]+\.py)`", section, re.MULTILINE)
+        gone = sorted(
+            name
+            for name in rows
+            if not (ROOT / "odoo" / "_monkeypatches" / name).exists()
+        )
+        self.assertEqual(len(rows), 8)
+        self.assertEqual(len(gone), 6)
+        for name in gone:
+            self.assertIn(f"`{name.removesuffix('.py')}`", DOC)
+        self.assertIn("names eight patches, six of which are", DOC_FLAT)
+
+    def test_the_backtick_note_is_not_reinstated(self) -> None:
+        """The removed names are backticked in the README; saying otherwise is false."""
+        readme = (ROOT / "odoo" / "_monkeypatches" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("| `urllib3.py` |", readme)
+        # The page may explain that the old claim was wrong; what it must not do
+        # is assert it again.
+        self.assertNotIn("Those names are quoted rather than backticked", DOC_FLAT)
+
+
+class TestPatchModuleConvention(unittest.TestCase):
+    """``each submodule exposes patch_module()`` was too broad by one file.
+
+    ``_excel_utils.py`` exposes no ``patch_module``, and correctly: ``patch_init``
+    skips ``_``-prefixed submodules, and the README files it as a ``UTIL``. The
+    claim is true of the modules the hook actually registers, so that is what the
+    page now says.
+    """
+
+    PKG = ROOT / "odoo" / "_monkeypatches"
+
+    def test_every_registered_patch_exposes_the_hook(self) -> None:
+        missing = [
+            path.name
+            for path in sorted(self.PKG.glob("*.py"))
+            if not path.name.startswith("_")
+            and "def patch_module(" not in path.read_text(encoding="utf-8")
+        ]
+        self.assertEqual(missing, [])
+
+    def test_the_underscore_exemption_is_real_and_stated(self) -> None:
+        init = (self.PKG / "__init__.py").read_text(encoding="utf-8")
+        self.assertIn('if submodule.name.startswith("_"):', init)
+        exempt = [
+            path.name
+            for path in sorted(self.PKG.glob("_*.py"))
+            if path.name != "__init__.py"
+            and "def patch_module(" not in path.read_text(encoding="utf-8")
+        ]
+        self.assertTrue(exempt, "no underscore helper left; simplify the page")
+        # The claim sits inside the map's fenced block, so a ``│`` gutter glyph
+        # survives whitespace-flattening mid-sentence; assert either side of it.
+        self.assertIn("non-underscore submodule exposes `patch_module()`", DOC_FLAT)
+
+
+class TestEdgeCountConventions(unittest.TestCase):
+    """Two adjacent measurements counted by two different conventions.
+
+    ``db``'s 6-against-1 is per imported *symbol*; ``http``'s 22-against-1 is per
+    import *statement*. Both digits are right and neither is reproducible without
+    knowing which — a reader who picks the other convention gets 5 and 39. The
+    page now says which, and this recomputes both.
+    """
+
+    TIERS = {
+        "db": {
+            "connectivity": [
+                "pool",
+                "cursor",
+                "ddl",
+                "schema",
+                "savepoint",
+                "schema_cache",
+                "bulk",
+                "lifecycle",
+                "errors",
+                "dsn",
+                "utils",
+            ],
+            "resilience": [
+                "breaker",
+                "lag",
+                "budget",
+                "leaks",
+                "reaper",
+                "metrics",
+                "stats",
+            ],
+        },
+        "http": {
+            "serving": [
+                "application",
+                "dispatcher",
+                "routing",
+                "session",
+                "request_class",
+                "_serve",
+                "_response",
+                "wrappers",
+                "stream",
+                "_csrf",
+                "controller",
+                "core",
+            ],
+            "features": [
+                "openapi",
+                "_params",
+                "geoip",
+                "constants",
+                "exceptions",
+                "_protocols",
+                "helpers",
+            ],
+        },
+    }
+
+    def _edges(self, package: str, per_symbol: bool) -> dict[tuple[str, str], int]:
+        groups = self.TIERS[package]
+        of = {mod: tier for tier, mods in groups.items() for mod in mods}
+        counted: dict[tuple[str, str], int] = {}
+        for path in sorted((ROOT / "odoo" / package).glob("*.py")):
+            here = of.get(path.stem)
+            if here is None:
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            deferred: set[int] = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.If) and "TYPE_CHECKING" in ast.unparse(
+                    node.test
+                ):
+                    deferred |= {id(inner) for inner in ast.walk(node)}
+            for node in ast.walk(tree):
+                if id(node) in deferred or not isinstance(node, ast.ImportFrom):
+                    continue
+                if node.level == 1 and node.module:
+                    targets = [node.module.split(".")[0]]
+                elif node.level == 1:
+                    targets = [alias.name for alias in node.names]
+                elif node.module and node.module.startswith(f"odoo.{package}."):
+                    targets = [node.module.split(".")[2]]
+                else:
+                    continue
+                for target in targets:
+                    there = of.get(target)
+                    if there is None or there == here:
+                        continue
+                    key = (here, there)
+                    counted[key] = counted.get(key, 0) + (
+                        len(node.names) if per_symbol else 1
+                    )
+        return counted
+
+    def test_db_figures_are_per_symbol(self) -> None:
+        edges = self._edges("db", per_symbol=True)
+        self.assertEqual(edges[("connectivity", "resilience")], 6)
+        self.assertEqual(edges[("resilience", "connectivity")], 1)
+        self.assertIn("had 6 connectivity", DOC_FLAT)
+        self.assertIn("counting imported *symbols*", DOC_FLAT)
+
+    def test_http_figures_are_per_statement_and_the_symbol_count_is_given(self) -> None:
+        per_statement = self._edges("http", per_symbol=False)
+        per_symbol = self._edges("http", per_symbol=True)
+        self.assertEqual(per_statement[("serving", "features")], 22)
+        self.assertEqual(per_statement[("features", "serving")], 1)
+        self.assertIn("22 serving", DOC_FLAT)
+        self.assertIn(
+            f"by symbol it is {per_symbol[('serving', 'features')]} against "
+            f"{per_symbol[('features', 'serving')]}",
+            DOC_FLAT,
+        )
+
+
+class TestTheEnforcedClaimIsBounded(unittest.TestCase):
+    """The page says "enforced"; it must also say what that word does not cover.
+
+    All thirteen boundary checkers are structural and DB-free -- import graphs,
+    call graphs, reached-member sets, documents. None of them executes framework
+    behaviour, so a change can be green across every gate and both DB-free tiers
+    and still be wrong. That is not a thought experiment: renaming ``OrmCore``'s
+    slots broke two DB-backed addon tests while everything measurable stayed
+    green. The only lane that runs addon tests is ADR-0007's integration
+    workflow, and a page claiming enforcement has to say so.
+    """
+
+    BOUNDARY = ROOT / ".github" / "workflows" / "architecture.yml"
+    INTEGRATION = ROOT / ".github" / "workflows" / "integration_tests.yml"
+
+    def test_the_boundary_job_really_has_no_database(self) -> None:
+        """The claim "DB-free" must be true of the workflow, not just asserted."""
+        yaml = self.BOUNDARY.read_text(encoding="utf-8")
+        for marker in ("services:", "postgres", "POSTGRES_"):
+            self.assertNotIn(
+                marker,
+                yaml,
+                f"architecture.yml now provisions a database ({marker!r}); the "
+                f"page's DB-free claim about the boundary gates is stale",
+            )
+
+    def test_the_integration_lane_is_the_one_with_a_database(self) -> None:
+        yaml = self.INTEGRATION.read_text(encoding="utf-8")
+        self.assertIn("postgres:18", yaml)
+        self.assertIn("only lane that runs addon tests", DOC_FLAT)
+
+    def test_every_installed_module_is_named_by_the_page(self) -> None:
+        yaml = self.INTEGRATION.read_text(encoding="utf-8")
+        installs = re.findall(r"^  (?:\w+_)?INSTALL: (.+)$", yaml, re.MULTILINE)
+        self.assertTrue(installs, "the integration lane installs nothing")
+        for spec in installs:
+            for module in spec.split(","):
+                self.assertIn(
+                    f"`{module.strip()}`",
+                    DOC,
+                    f"the integration lane installs {module.strip()}, unmentioned",
+                )
+
+    def test_each_suite_gets_its_own_database(self) -> None:
+        """Separate databases, because the suites interfere.
+
+        ``test_http`` depends on ``mail``, whose ``res_partner_views.xml``
+        inherits ``base.view_res_partner_filter`` anchored on
+        ``<filter name="inactive">``. base's
+        ``test_hard_reset_from_file_still_works`` overwrites that view with a
+        minimal ``<search>``, and the write re-validates the children -- so
+        ``-i base`` is 5/5 green and ``-i base,test_http`` raises
+        ``ValidationError`` while running only that one test class. One database
+        per suite is what keeps the next addon added here from tripping it.
+        """
+        yaml = self.INTEGRATION.read_text(encoding="utf-8")
+        databases = re.findall(r"^\s+-d (\w+) \\$", yaml, re.MULTILINE)
+        self.assertGreater(len(databases), 1, "only one suite runs")
+        self.assertEqual(
+            len(databases),
+            len(set(databases)),
+            f"two suites share a database, so they can interfere: {databases}",
+        )
+        installs = re.findall(r"^  (?:\w+_)?INSTALL: (.+)$", yaml, re.MULTILINE)
+        self.assertEqual(
+            len(databases),
+            len(installs),
+            "every suite must declare its own module set",
+        )
+        for spec in installs:
+            self.assertNotIn(
+                ",",
+                spec,
+                f"suites are combined into one database again ({spec!r}); the "
+                f"base/test_http view-inheritance clash comes back",
+            )
+
+    def test_the_ormcache_style_gap_is_named(self) -> None:
+        """The concrete example is what stops this reading as boilerplate."""
+        self.assertIn("OrmCore", DOC)
+        self.assertIn('never as "the framework works"', DOC_FLAT)
+        # The example must stay a real one: those slots must still be private.
+        core = (ROOT / "odoo" / "orm" / "components" / "core.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertRegex(core, r"_cache\b")
+        self.assertRegex(core, r"_engine\b")
+
+
+class TestPermissionIsNotPractice(unittest.TestCase):
+    """Where the page states a *permission*, it must not read as a measurement.
+
+    The Layer-0 bullet paired ``odoo.tools``/``odoo_rust`` as helpers Layer 0
+    "may still use", with an example covering only the first. The permission is
+    real -- ``orm-layer0-is-foundational`` forbids higher ORM layers and nothing
+    else -- but no Layer-0 module imports ``odoo_rust``, and a reader deciding
+    where to put code would reasonably infer a dependency that does not exist.
+    The page now says which half is exercised; this keeps that honest in both
+    directions, so it also fails if Layer 0 *starts* importing ``odoo_rust``.
+    """
+
+    LAYER0 = ("primitives", "parsing", "validation", "constants", "_typing")
+
+    def _layer0_importers(self) -> list[str]:
+        return [
+            name
+            for name in self.LAYER0
+            if "odoo_rust"
+            in (ROOT / "odoo" / "orm" / f"{name}.py").read_text(encoding="utf-8")
+        ]
+
+    def test_layer0_does_not_import_odoo_rust(self) -> None:
+        importers = self._layer0_importers()
+        self.assertEqual(
+            importers,
+            [],
+            f"Layer 0 now imports odoo_rust ({importers}); the page says it does "
+            f"not -- update the bullet rather than deleting this test",
+        )
+        self.assertIn("no Layer-0 module imports `odoo_rust` at all", DOC_FLAT)
+
+    def test_the_named_entry_points_are_where_odoo_rust_arrives(self) -> None:
+        """The page names three; they must be exactly the ORM's importers."""
+        orm = ROOT / "odoo" / "orm"
+        actual = sorted(
+            str(path.relative_to(orm))
+            for path in orm.rglob("*.py")
+            if "tests" not in path.parts
+            and "odoo_rust" in path.read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            actual,
+            ["helpers.py", "models/mixins/read.py", "runtime/environment.py"],
+        )
+        for name in actual:
+            self.assertIn(f"`{name}`", DOC)
+
+    def test_the_permission_is_really_granted(self) -> None:
+        """``orm-layer0-is-foundational`` must forbid ORM layers and nothing else."""
+        contract = next(
+            c for c in layer_check.CONTRACTS if c.name == "orm-layer0-is-foundational"
+        )
+        # Not just ``odoo.orm.*``: the façades are re-export shims over exactly
+        # those layers, so a rule that ignored them would be one import away
+        # from useless. The page must name both halves or a reader will try it.
+        facades = {"odoo.fields", "odoo.models", "odoo.api"}
+        self.assertTrue(
+            facades <= set(contract.forbidden),
+            f"the façades are no longer blocked for Layer 0: {contract.forbidden}",
+        )
+        self.assertTrue(
+            all(f.startswith("odoo.orm.") or f in facades for f in contract.forbidden),
+            f"the contract forbids something that is neither the ORM nor a "
+            f"façade, so the page's paraphrase is now wrong: {contract.forbidden}",
+        )
+        # Assert the façades by their FULL dotted name. ``removeprefix("odoo.")``
+        # would reduce ``odoo.fields`` to ``fields``, which the page backticks in
+        # a dozen unrelated places -- an assertion that passes whether or not the
+        # façade half is stated, as a mutation of this very paragraph showed.
+        bullet = DOC_FLAT.split("**Layer 0** imports no higher", 1)[1][:900]
+        for dotted in contract.forbidden:
+            wanted = dotted if dotted in facades else dotted.removeprefix("odoo.")
+            self.assertIn(
+                f"`{wanted}`",
+                bullet,
+                f"the Layer-0 bullet does not name {dotted}",
+            )
 
 
 if __name__ == "__main__":
