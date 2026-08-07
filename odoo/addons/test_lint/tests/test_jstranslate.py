@@ -8,12 +8,19 @@ from . import lint_case
 
 _logger = logging.getLogger(__name__)
 
-TSTRING_RE = re.compile(r"_t\(\s*`.*?\s*`\s*\)", re.DOTALL)
-EXPRESSION_RE = re.compile(r"\$\{.+?\}")
-UNDERSCORE_RE = re.compile(r'\b_\(\s*[\'"]')
+# One pattern per rule, in the dialect the Rust scanner takes, compiled here
+# for the unit tests. There used to be two copies of each -- a `re.compile`
+# with `re.DOTALL` for the tests and a separate string for the scanner -- so
+# what the unit tests exercised and what the gate actually ran could drift
+# apart with nothing to notice. Inline `(?s)` means the same thing to both
+# engines, which is what lets the pair collapse into one.
+TSTRING_PAT = r"(?s)_t\(\s*`.*?\s*`\s*\)"
+UNDERSCORE_PAT = r"""\b_\(\s*['"]"""
+PATTERNS = (TSTRING_PAT, UNDERSCORE_PAT)
 
-_RUST_TSTRING_PAT = r"(?s)_t\(\s*`.*?\s*`\s*\)"
-_RUST_UNDERSCORE_PAT = r"""\b_\(\s*['"]"""
+TSTRING_RE = re.compile(TSTRING_PAT)
+UNDERSCORE_RE = re.compile(UNDERSCORE_PAT)
+EXPRESSION_RE = re.compile(r"\$\{.+?\}")
 
 
 class TestJsTranslations(lint_case.LintCase):
@@ -68,22 +75,10 @@ class TestJsTranslations(lint_case.LintCase):
         self.assertEqual(self.check_text(bad_js), [(2, None), (4, None)])
 
     def test_js_translations(self):
-        """No JS template string is translated, and ``_`` is not ``_t``.
-
-        Scoped to this repository, like every other file-based gate here: a
-        sibling checkout is separately versioned and a finding in one is not
-        this branch's to fix.
-
-        The offenders go in the failure, not only in the log. This used to
-        ``_logger.error`` each one and then assert a bare count, so the
-        assertion said "12 invalid template strings" and a reader had to go
-        find the log to learn where -- which, in CI, means the failure is
-        unactionable from the failure itself.
-        """
         results = scan_regex_patterns(
             lint_case.core_module_roots(),
             [".js"],
-            [_RUST_TSTRING_PAT, _RUST_UNDERSCORE_PAT],
+            list(PATTERNS),
             ["node_modules", "__pycache__"],
         )
 

@@ -3,7 +3,7 @@ import logging
 from lxml import etree
 
 from . import _sort_xml_records
-from .lint_case import LintCase, core_xml_files
+from .lint_case import LintCase, core_data_files
 
 _logger = logging.getLogger(__name__)
 
@@ -11,32 +11,19 @@ _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
 
 
 class XmlRecordLinter(LintCase):
-    """Lint checks for ``<record>`` structure and element attributes in XML data files.
-
-    Run the standalone fixer to resolve all violations at once::
-
-        ./venv/odoo/bin/python core/odoo/addons/test_lint/tests/_sort_xml_records.py addons_custom core
-    """
+    @staticmethod
+    def scanned_files():
+        # The selection, named, so `TestFixerScope` can compare it against the
+        # formatter's and against what the fixers actually rewrite.
+        return core_data_files()
 
     @classmethod
     def setUpClass(cls):
-        """Parse the data files once and keep both verdicts.
-
-        The two checks below used to walk and parse the whole tree separately,
-        for 12 730 files each. They ask different questions of the same
-        document, so the document is read once.
-
-        Scoped to the repository the fork owns, as every other file-based gate
-        here now is: ``enterprise`` is a pristine upstream mirror, and
-        reordering its XML would only make the next merge conflict. That scoping
-        is what takes this class from 2 009 failures to the ones somebody here
-        can actually fix.
-        """
         super().setUpClass()
         cls.field_order_violations = []
         cls.attrib_order_violations = []
         cls.checked = 0
-        for xml_file in core_xml_files():
+        for xml_file in map(str, cls.scanned_files()):
             tree = cls._parse(xml_file)
             if tree is None:
                 continue
@@ -55,11 +42,6 @@ class XmlRecordLinter(LintCase):
         )
 
     def test_xml_record_field_order(self):
-        """Assert that ``<field>`` children within ``<record>`` elements are in canonical order.
-
-        Records containing comment nodes between their fields are excluded
-        (comments imply intentional structural grouping).
-        """
         self._assert_clean(
             self.field_order_violations,
             FIELD_ORDER_FLOOR,
@@ -67,12 +49,6 @@ class XmlRecordLinter(LintCase):
         )
 
     def test_xml_element_attrib_order(self):
-        """Assert that XML element attributes appear in canonical order.
-
-        Checked elements: ``<record>``, ``<field>`` (direct children of records),
-        ``<menuitem>``, ``<template>``, ``<delete>``, ``<function>``.
-        Elements inside ``<arch>`` / QWeb template bodies are excluded.
-        """
         self._assert_clean(
             self.attrib_order_violations,
             ATTRIB_ORDER_FLOOR,
@@ -81,7 +57,6 @@ class XmlRecordLinter(LintCase):
 
     @staticmethod
     def _parse(xml_file: str) -> etree._ElementTree | None:
-        """Parse *xml_file*; return ``None`` and log a warning on syntax error."""
         try:
             return etree.parse(xml_file, _PARSER)
         except etree.XMLSyntaxError as exc:
@@ -153,5 +128,6 @@ class XmlRecordLinter(LintCase):
         return violations
 
 
+# The debt these gates inherit. `_sort_xml_records.py` takes both to 0.
 FIELD_ORDER_FLOOR = 792
 ATTRIB_ORDER_FLOOR = 2461

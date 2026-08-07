@@ -36,8 +36,12 @@ BTREE_INDEX_IGNORE_FIELDS = {
 @common.no_retry
 class TestIndex(common.TransactionCase):
     def test_enforce_index_on_one2many_inverse(self):
-
-        def ignore(o2m_field, m2o_field):
+        # `comodel` is a parameter, not a free variable read out of the
+        # enclosing loop. It happened to be correct only because the caller
+        # reassigned it on the line before every call -- so the helper's answer
+        # depended on loop state it does not name, and moving either the call
+        # or the assignment would have silently judged the wrong model.
+        def ignore(o2m_field, m2o_field, comodel):
             if not comodel._auto or comodel._abstract:
                 return True
             if comodel.is_transient():
@@ -68,7 +72,7 @@ class TestIndex(common.TransactionCase):
                 if field.type == "one2many" and field.inverse_name:
                     comodel = self.env[field.comodel_name]
                     inverse_field = comodel._fields[field.inverse_name].base_field
-                    if not ignore(field, inverse_field):
+                    if not ignore(field, inverse_field, comodel):
                         fields_to_index.add(f"{inverse_field} (inverse of {field})")
         if fields_to_index:
             msg = (

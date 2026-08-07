@@ -7,18 +7,17 @@ _NOQA_RE = re.compile(
     \#                          # the comment marker
     \s*
     noqa
-    (?:                         # optional code list — codes are e.g. F401, B007
+    (?:                         # optional code list — `F401`, or `sql-injection`
         :\s*
         (?P<codes>
-            [A-Z]+\d+
-            (?:\s*,\s*[A-Z]+\d+)*
+            [A-Za-z][\w-]*
+            (?:\s*,\s*[A-Za-z][\w-]*)*
         )
     )?
     (?P<rest>.*)$               # everything after the codes (may be empty)
     """,
     re.VERBOSE | re.IGNORECASE,
 )
-
 _RATIONALE_LEAD_RE = re.compile(r"^[\s\-—–:#>·•|]+")
 
 _MIN_RATIONALE_CHARS = 4

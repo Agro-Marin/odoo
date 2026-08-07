@@ -21,27 +21,6 @@ GLOB_CHARS = "*?["
 @tagged("post_install", "-at_install")
 class TestAssetPathsExist(lint_case.LintCase):
     def test_manifest_asset_paths_match_a_file(self):
-        """Every path a manifest's ``assets`` names must match something on disk.
-
-        A path that matches nothing is not inert. ``remove`` raises
-        ``AssetDirectiveError`` when its target is absent, and that happens
-        while *assembling the bundle*, so the failure is not scoped to the
-        module that owns the manifest: any database with it installed aborts on
-        startup under ``--test-enable``, taking the whole run with it.
-
-        This is the failure mode of deleting a file that a manifest still
-        mentions, which is easy to miss because the deletion looks safe --
-        nothing imports the file, and greping for importers finds nothing. The
-        reference lives in Python, not in JS. (Written after doing exactly that
-        to ``pos_settle_due``.)
-
-        Non-``remove`` directives are checked too: a glob matching nothing is
-        dead weight that silently ships no asset, which is how a stylesheet or
-        a script goes missing without anything failing.
-
-        Paths into an addon that is not on this addons_path are skipped -- the
-        bundle can only ever contain modules it can see.
-        """
         manifests = list(Manifest.all_addon_manifests())
         addon_dirs = {m.name: Path(m.path) for m in manifests}
         attachment_urls = set()

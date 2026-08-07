@@ -56,6 +56,11 @@ def _get_call_name(node: ast.Call) -> str:
     return ""
 
 
+def _is_raw_text(node: ast.expr) -> bool:
+    """A bare string literal: text that reaches the user with no way to translate it."""
+    return isinstance(node, ast.Constant) and isinstance(node.value, str)
+
+
 def _is_whitelisted_argument(arg: ast.expr) -> bool:
     match arg:
         case ast.Name() | ast.Attribute() | ast.Subscript() | ast.Call():
@@ -64,21 +69,30 @@ def _is_whitelisted_argument(arg: ast.expr) -> bool:
             return _is_whitelisted_argument(body) and _is_whitelisted_argument(orelse)
         case ast.BoolOp(values=values):
             return all(_is_whitelisted_argument(v) for v in values)
+        case ast.BinOp(op=ast.Add(), left=left, right=right) if _is_raw_text(
+            left
+        ) or _is_raw_text(right):
+            # Concatenation with a bare string literal in it. The literal *is*
+            # part of the message and ships untranslated, whatever the other
+            # half does: `"Error:\n" + "\n".join(errors)` was waved through
+            # because the join is a Call and one whitelisted half was enough.
+            #
+            # Only a raw literal decides it, not "the half is not whitelisted".
+            # Requiring both halves outright pulls in shapes that are already
+            # translated by their other operand and takes the rule from 20
+            # findings to 32, most of them noise.
+            return False
         case ast.BinOp(left=left, right=right):
+            # Interpolation (`%`, and the rest): only the left half is the
+            # message. `_("%(a)s and %(b)s") % {...}` is the dominant real
+            # shape and the right half is a Dict, which is never whitelisted --
+            # so requiring both here would report 17 correctly translated
+            # sites in this repository.
             return _is_whitelisted_argument(left) or _is_whitelisted_argument(right)
     return False
 
 
 def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
-    """Walk *tree* and yield gettext violations.
-
-    Whether the file is test code -- and so exempt -- is the scan's decision,
-    not this checker's: see :func:`_py_scan.is_test_path`. Three checkers used
-    to answer it three different ways.
-
-    *nodes* is an already-materialised walk of the tree, shared by the scan so
-    the tree is traversed once for every checker rather than once each.
-    """
     for node in nodes if nodes is not None else ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue

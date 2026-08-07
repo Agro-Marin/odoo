@@ -86,26 +86,15 @@ class TestI18n(lint_case.LintCase):
             ),
         ]
 
-        error_count = 0
-        for i, (file_content, expected_matches) in enumerate(test_cases):
-            matches = [(m.group(3)) for m in self.PROPS_RE.finditer(file_content)]
-            if matches != expected_matches:
-                _logger.error(
-                    "Test case %s failed: expected %s, got %s",
-                    i + 1,
-                    expected_matches,
-                    matches,
-                )
-                error_count += 1
-        self.assertEqual(error_count, 0)
+        # A subTest per case. This used to `_logger.error` each mismatch and
+        # then assert a bare count, so the failure read `3 != 0` and which of
+        # the six cases broke was only in a log the reader may not have.
+        for index, (file_content, expected_matches) in enumerate(test_cases, start=1):
+            with self.subTest(case=index, source=file_content.strip()):
+                matches = [m.group(3) for m in self.PROPS_RE.finditer(file_content)]
+                self.assertEqual(matches, expected_matches)
 
     def test_user_content_as_prop_is_translatable(self):
-        """A component prop holding human-readable text needs ``.translate``.
-
-        Scoped to this repository, like every other file-based gate here, and
-        reporting the props in the failure rather than only in the log: a bare
-        ``0 != 7`` sends the reader looking for a log they may not have.
-        """
         offenders = []
         checked = 0
         for file_path in self.iter_module_files("**/static/**/*.xml"):

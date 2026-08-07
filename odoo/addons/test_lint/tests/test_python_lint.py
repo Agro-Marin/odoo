@@ -1,39 +1,28 @@
-"""Python lint gates, all driven by one shared parse of the corpus.
-
-Replaces ``test_ruff`` (which ran no ruff), ``test_onchange_domains``,
-``test_orm_import`` and ``test_noqa_rationale``. Those four re-read and
-re-parsed the same tree between them; the scan behind this module does it once.
-See :mod:`_py_scan` for the measurements and :mod:`_suppression` for what
-``# noqa`` means to all of them.
-
-Standard lint rules are ruff's job (``ruff.toml``, ratcheted in CI). What lives
-here is the set of Odoo-specific rules no general linter knows about.
-
-The same division settles JavaScript: ESLint owns it, as a blocking ratchet in
-CI (``.github/workflows/lint.yml`` against ``tooling/ratchet/baselines/``), so
-this module carries no JS gate of its own.
-
-**Every rule is a ratchet, and that is the point.** The suite this replaces
-failed 3 562 times on a clean checkout -- most of it against sibling checkouts
-the fork must not edit, but 1 585 findings in its own code too. A gate that is
-red on arrival is a gate nobody reads, and two of the old tests had already
-given up and downgraded themselves to ``_logger.warning`` (one of them
-referencing a ``_BATCH_FAIL_MODULES`` constant that was never written). Freezing
-today's counts makes the suite green, so that tomorrow's regression is the only
-thing in it -- and the exact-match check means a fix cannot be quietly undone,
-because lowering the count without committing the new floor fails too. Same
-mechanism as ``tooling/ratchet`` and ``SINGLE_BUNDLE_GAP_FLOOR``.
-"""
-
 from . import _py_scan
 from .lint_case import LintCase
 
 FLOORS = {
-    "sql-injection": 43,
+    # 43 -> 44: `env.cr` and `self._cr` joined CURSOR_EXPRESSIONS. The one
+    # call they brought into scope, odoo/tools/translate.py, builds
+    # identifiers from a .po file -- but only after checking each against
+    # `_fields`, so it is safe and wants an inline suppression saying why.
+    "sql-injection": 44,
+    # The one site is `_description_falsy_value_label`, whose literal lives in
+    # the field declaration where the extractor already finds it -- safe, and
+    # wants an inline suppression saying so.
     "gettext-variable": 1,
+    # Five messages with two bare %s, which a translator cannot reorder.
     "gettext-placeholders": 5,
+    # Eight messages rendering Python repr syntax into a sentence a user
+    # reads. Replace each %r with a quoted %s.
     "gettext-repr": 8,
-    "missing-gettext": 20,
+    # 20 -> 23: a raw string literal concatenated onto a translated one is
+    # itself untranslated, and the BinOp whitelist used to accept the pair on
+    # the strength of either half.
+    "missing-gettext": 23,
+    # `stock.location.unlink` rewrites the recordset it delegates to, which an
+    # @api.ondelete hook cannot do; uninstall was tested and still succeeds,
+    # so it wants an inline suppression carrying that evidence.
     "raise-unlink-override": 1,
     "orm-import": 0,
     "onchange-domain": 0,
@@ -70,8 +59,6 @@ _ADVICE = {
 
 
 class TestPythonLint(LintCase):
-    """Odoo-specific AST rules, checked against the code this fork owns."""
-
     maxDiff = None
 
     @classmethod
@@ -91,56 +78,36 @@ class TestPythonLint(LintCase):
         )
 
     def test_sql_injection(self):
-        """No query may be built from a value that is not a compile-time constant."""
         self._assert_ratchet("sql-injection")
 
     def test_gettext_variable(self):
-        """``_()`` takes a literal: a variable cannot be extracted into the .pot."""
         self._assert_ratchet("gettext-variable")
 
     def test_gettext_placeholders(self):
-        """Two bare ``%s`` cannot be reordered by a translator."""
         self._assert_ratchet("gettext-placeholders")
 
     def test_gettext_repr(self):
-        """``%r`` leaks Python syntax into a user-facing sentence."""
         self._assert_ratchet("gettext-repr")
 
     def test_missing_gettext(self):
-        """A user-facing error message has to be translatable."""
         self._assert_ratchet("missing-gettext")
 
     def test_unlink_override(self):
-        """Raising in ``unlink`` also blocks uninstall."""
         self._assert_ratchet("raise-unlink-override")
 
     def test_orm_import(self):
-        """Addon code reaches the ORM through the public facade."""
         self._assert_ratchet("orm-import")
 
     def test_onchange_domains(self):
-        """A domain returned from an onchange binds only that one form view."""
         self._assert_ratchet("onchange-domain")
 
     def test_noqa_rationale(self):
-        """Every ``# noqa`` should say why the rule was waived.
-
-        A suppression without a reason is unreviewable: nobody can tell later
-        whether it is still needed.
-        """
         self._assert_ratchet("noqa-rationale")
 
     def test_batch_queries(self):
-        """A query inside a ``for`` is an N+1; hoist it and index in memory."""
         self._assert_ratchet("n-plus-one-query")
 
     def test_every_rule_has_a_floor(self):
-        """A rule the scan reports but ``FLOORS`` does not name would go unchecked.
-
-        The scan is the source of truth for which rules exist, so adding a
-        checker without a floor must fail here rather than silently report
-        nothing.
-        """
         self.assertEqual(
             sorted(_py_scan.findings().keys() - FLOORS.keys()),
             [],
@@ -159,7 +126,6 @@ class TestPythonLint(LintCase):
         )
 
     def test_the_corpus_is_not_empty(self):
-        """A scan that reached nothing would pass every rule above."""
         corpus = _py_scan.corpus()
         self.assertGreater(len(corpus), 5000, "the corpus scan reached almost nothing")
         self.assertTrue(

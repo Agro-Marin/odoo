@@ -50,13 +50,20 @@ class L10nLinter(lint_case.LintCase):
             rs.extend(
                 zip(
                     itertools.repeat(
-                        str(Path(path).relative_to(Path.cwd(), walk_up=True))
+                        str(Path(path).relative_to(lint_case.core_root()))
                     ),
                     checker.visit(t),
                 )
             )
 
-        rs.sort(key=lambda t: t[0])
-        assert not rs, "missing `post_install_l10n` tag at\n" + "\n".join(
-            "- %s:%d" % (path, node.lineno) for path, node in rs
+        # Ratcheted like every other gate here, and reported relative to the
+        # repository rather than to `Path.cwd()`: the old form printed a
+        # different path depending on where the runner happened to be started,
+        # which is not something a failure message should depend on.
+        self.assert_ratchet(
+            sorted(f"{path}:{node.lineno}" for path, node in rs),
+            0,
+            "l10n test class(es) without the right post_install_l10n tagging",
+            "Tag the class `post_install_l10n` (with `post_install`) or "
+            "`external_l10n` (with `external`), never both and never neither.",
         )

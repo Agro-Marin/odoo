@@ -28,13 +28,6 @@ MANIFEST_KEYS = {
 
 class ManifestLinter(LintCase):
     def test_manifests(self):
-        """Scoped to this repository.
-
-        1 514 modules failed here on a clean checkout and 886 of them live in a
-        sibling checkout -- `enterprise` above all, a pristine upstream mirror
-        whose manifests are not this fork's to reorder. Reporting them produced
-        a wall of failures with no action attached to it.
-        """
         checked = 0
         violations = []
         self.advisories = []
@@ -109,16 +102,16 @@ class ManifestLinter(LintCase):
                 f"{manifest_data['countries'][0]!r} but has no `l10n` in its name"
             )
 
+        # Collected, not asserted in the loop. `assertNotEqual` raises on the
+        # first redundant default, and the caller catches it one level up -- so
+        # every advisory this method would have raised for a *later* key was
+        # silently never collected. Advisories are floored at 0, which makes a
+        # dropped one the difference between a green run and a real finding.
+        redundant = []
         for key, value in manifest_data._Manifest__manifest_content.items():
             if key in _DEFAULT_MANIFEST:
-                if key in verified_keys:
-                    self.assertNotEqual(
-                        value,
-                        _DEFAULT_MANIFEST[key],
-                        f"Setting manifest key {key} to the default manifest value for module {module!r}. "
-                        "You can remove this key from the dict to reduce noise/inconsistencies between manifests specifications"
-                        " and ease understanding of manifest content.",
-                    )
+                if key in verified_keys and value == _DEFAULT_MANIFEST[key]:
+                    redundant.append(key)
 
                 expected_type = type(_DEFAULT_MANIFEST[key])
                 if not isinstance(value, expected_type):
@@ -135,31 +128,37 @@ class ManifestLinter(LintCase):
                 elif key == "countries":
                     self._test_manifest_countries_value(module, value)
             elif key == "icon":
-                self._test_manifest_icon_value(module, value)
+                redundant.extend(self._test_manifest_icon_value(module, value))
+
+        # One assertion, after every key has been looked at, so the caller
+        # still records this manifest once and no advisory is lost on the way.
+        self.assertFalse(
+            redundant,
+            f"Manifest key(s) {', '.join(redundant)} set to the default value for "
+            f"module {module!r}. Remove them: a key that restates the default is "
+            f"noise, and it hides the ones that do carry a decision.",
+        )
 
     def _test_manifest_icon_value(self, module, value):
-        self.assertTrue(
-            isinstance(value, str),
-            f"Wrong type for manifest value icon in module {module!r}, expected string",
-        )
-        self.assertNotEqual(
-            value,
-            f"/{module}/static/description/icon.png",
-            f"Setting manifest key icon to the default manifest value for module {module!r}. "
-            "You can remove this key from the dict to reduce noise/inconsistencies between manifests specifications"
-            " and ease understanding of manifest content.",
-        )
+        """Advisories go on ``self.advisories``; redundant keys are returned."""
+        if not isinstance(value, str):
+            self.advisories.append(
+                f"{module}: icon is {type(value).__name__}, expected str"
+            )
+            return []
+        if value == f"/{module}/static/description/icon.png":
+            return ["icon"]
         if not value:
             self.advisories.append(f"{module}: icon is empty; drop the key")
-        else:
-            path_parts = value.split("/")
-            try:
-                file_path(str(PurePosixPath(*path_parts[1:])))
-            except FileNotFoundError:
-                self.advisories.append(
-                    f"{module}: icon {value!r} matches no file; correct it or "
-                    f"drop the key"
-                )
+            return []
+        path_parts = value.split("/")
+        try:
+            file_path(str(PurePosixPath(*path_parts[1:])))
+        except FileNotFoundError:
+            self.advisories.append(
+                f"{module}: icon {value!r} matches no file; correct it or drop the key"
+            )
+        return []
 
     def _test_manifest_countries_value(self, module, values):
         for value in values:
@@ -169,4 +168,9 @@ class ManifestLinter(LintCase):
                 )
 
 
-MANIFEST_FLOOR = 630
+# 630 -> 629 with no manifest touched: `_test_manifest_values` no longer
+# aborts on its first finding, which changed what one manifest contributes.
+# `_sort_manifests.py` takes the rest to 2, and the two survivors are real --
+# `account` declares a `kpi_providers` key nothing in this fork reads, and
+# `base_account` restates the default `auto_install`.
+MANIFEST_FLOOR = 629

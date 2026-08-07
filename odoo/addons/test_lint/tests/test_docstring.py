@@ -171,24 +171,6 @@ class TestDocstring(LintCase):
         cls.doctree_settings_verbose = doctree.settings
 
     def test_docstring(self):
-        """Verify that the function signature and its docstring match.
-
-        **Every definition, once each.** The dedup key used to be the method
-        *name* alone, so once ``_read_group`` had been judged on whichever model
-        the registry happened to yield first, no other model's ``_read_group``
-        was ever looked at -- and which one that was depended on the install.
-        Keying on the class that introduced the method instead checks 1 221
-        definitions where 1 194 were reached, and does not depend on iteration
-        order for what it covers.
-
-        **Collected and ratcheted, not 31 red subtests.** Every other gate in
-        this module freezes the debt it inherits so that tomorrow's regression
-        is the only thing in it; this one shipped 31 failures on a clean
-        checkout, which is how a suite stops being run at all. The mismatches
-        are real -- ``ir.attachment._get_path`` is annotated ``str | None`` and
-        documented ``str`` -- and they come down one at a time, against a floor
-        that cannot silently go back up.
-        """
         offenders = []
         seen = set()
         checked = 0
