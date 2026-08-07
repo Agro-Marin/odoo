@@ -1,0 +1,4 @@
+{
+  "count": 274,
+  "note": "Initial floor for doc/coding_guidelines.rst \u00a72.4's abolished-verb list. Scope: model classes (models.Model/TransientModel/AbstractModel) under odoo/ and addons/, non-test files. Measured 274 on a clean 'git archive HEAD odoo addons' export AND on the working tree (47 files modified by a concurrent session, none affecting this metric) -- the dirty-tree mis-measurement that corrupted ruff.json twice was checked for, not assumed absent. Counts only the mechanically decidable rules: the _get_/_prepare_ split (judgement per method) and the provisional EXEC and _set_/_update_ rules are excluded by design. Sibling repos measure 230 (enterprise) and 54 (agromarin) and need their own baselines. Command: python tooling/architecture/naming_vocabulary.py --count"
+}
