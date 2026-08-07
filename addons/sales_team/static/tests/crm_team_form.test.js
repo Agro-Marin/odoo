@@ -11,70 +11,88 @@ import { defineCrmTeamModels } from "@sales_team/../tests/crm_team_test_helpers"
 
 defineCrmTeamModels();
 
-test("crm team form activate multi-team option via alert", async () => {
-    expect.assertions(7);
+const ARCH = `<form js_class="crm_team_form">
+    <field name="is_membership_multi" invisible="1"/>
+    <field name="member_warning" invisible="1"/>
+    <div class="alert alert-info" invisible="is_membership_multi or not member_warning">
+        <field name="member_warning"/>
+        Working in multiple teams?
+        <button name="crm_team_activate_multi_membership" type="button">
+            Activate "Multi-team"
+        </button>
+    </div>
+    <sheet>
+        <field name="member_ids">
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="name"/>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </sheet>
+</form>`;
 
+/**
+ * Two teams sharing one member, so the mono-membership warning -- and with it
+ * the alert carrying the button -- is displayed.
+ */
+async function setupSharedMember() {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "Maria" });
     const userId = pyEnv["res.users"].create({ partner_id: partnerId });
-    const [teamId_1] = pyEnv["crm.team"].create([
-        {
-            name: "Team1",
-            member_ids: [userId],
-        },
-        {
-            name: "Team2",
-            member_ids: [userId],
-        },
+    const teamIds = pyEnv["crm.team"].create([
+        { name: "Team1", member_ids: [userId] },
+        { name: "Team2", member_ids: [userId] },
     ]);
+    return { pyEnv, teamIds };
+}
 
-    onRpc("has_group", ({ args }) => {
-        expect.step("has_group");
-        expect(args[1]).toBe("sales_team.group_sale_manager");
-        return true;
-    });
-    onRpc("set_param", ({ args }) => {
-        expect.step("set_param");
-        expect(args[0]).toBe("sales_team.membership_multi");
+test("crm team form activate multi-team option via alert", async () => {
+    const { pyEnv, teamIds } = await setupSharedMember();
+
+    // Both the group check and the parameter write live on the model. The client
+    // used to guard on `user.hasGroup` without awaiting it -- an always-truthy
+    // promise, so the guard never fired -- and then wrote the parameter itself,
+    // which a Sales Administrator has no rights to do.
+    onRpc("crm.team", "action_activate_multi_membership", ({ args }) => {
+        expect.step("action_activate_multi_membership");
+        expect(args).toEqual([]);
+        pyEnv["crm.team"].write(teamIds, { is_membership_multi: true });
         return true;
     });
 
     await start();
-    await openFormView("crm.team", teamId_1, {
-        arch: `<form js_class="crm_team_form">
-            <field name="is_membership_multi" invisible="1"/>
-            <field name="member_warning" invisible="1"/>
-            <div class="alert alert-info" invisible="is_membership_multi or not member_warning">
-                <field name="member_warning"/>
-                Working in multiple teams?
-                <button name="crm_team_activate_multi_membership" type="button">
-                    Activate "Multi-team"
-                </button>
-            </div>
-            <sheet>
-                <field name="member_ids">
-                    <kanban>
-                        <templates>
-                            <t t-name="card">
-                                <field name="name"/>
-                            </t>
-                        </templates>
-                    </kanban>
-                </field>
-            </sheet>
-        </form>`,
-    });
+    await openFormView("crm.team", teamIds[0], { arch: ARCH });
 
     // Members list should have Maria which is already in Team2 => Alert should be shown
-    await expect(".o_field_widget[name='member_ids'] .o_kanban_record:visible:not(.o-kanban-button-new)").toHaveCount(1);
-    await expect(".o_field_widget[name='member_ids'] .o_kanban_record:visible:not(.o-kanban-button-new)").toHaveText("Maria");
+    await expect(
+        ".o_field_widget[name='member_ids'] .o_kanban_record:visible:not(.o-kanban-button-new)"
+    ).toHaveText("Maria");
     await contains(".alert:visible", { count: 1 });
 
-    // Clicking on the button should update the multi-team option and remove the alert
+    // Clicking the button activates the option; the reload re-reads
+    // is_membership_multi, which is what hides the alert
     await webContains(".alert button[name='crm_team_activate_multi_membership']").click();
     await contains(".alert:visible", { count: 0 });
-    expect.verifySteps([
-        "has_group",
-        "set_param",
-    ]);
+    expect.verifySteps(["action_activate_multi_membership"]);
+});
+
+test("crm team form keeps the alert when activation is refused", async () => {
+    const { teamIds } = await setupSharedMember();
+
+    onRpc("crm.team", "action_activate_multi_membership", () => {
+        expect.step("action_activate_multi_membership");
+        throw new Error("Access Denied");
+    });
+
+    await start();
+    await openFormView("crm.team", teamIds[0], { arch: ARCH });
+    await contains(".alert:visible", { count: 1 });
+
+    await webContains(".alert button[name='crm_team_activate_multi_membership']").click();
+    // the option is still off, so the alert must survive
+    await contains(".alert:visible", { count: 1 });
+    expect.verifySteps(["action_activate_multi_membership"]);
 });

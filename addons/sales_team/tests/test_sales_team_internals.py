@@ -2,7 +2,6 @@
 
 from odoo import exceptions
 from odoo.tests.common import TransactionCase, users
-from odoo.tools import mute_logger
 
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.sales_team.tests.common import TestSalesMC
@@ -27,11 +26,13 @@ class TestCornerCases(TransactionCase):
         })
 
     def test_unicity(self):
-        """ Archived memberships should be removed when detecting duplicates.
-        Creating duplicates should raise unicity constraint.
+        """ Archived memberships are kept; a duplicate *active* pair is refused.
 
-        Note: redoing the data set to avoid clashing with SavepointCase as
-        we expect a db-level assert """
+        The check is `crm.team.member._constrains_membership`, in Python: the
+        invariant does not hold mid-transaction (the ORM flushes the INSERT of a
+        re-added member before the matching ``active = False`` UPDATE), and
+        PostgreSQL cannot defer a *partial* unique index, so no SQL constraint
+        can express it. """
         sales_team_1_m1 = self.env['crm.team.member'].create({
             'user_id': self.user_sales_leads.id,
             'crm_team_id': self.sales_team_1.id,
@@ -51,7 +52,7 @@ class TestCornerCases(TransactionCase):
         ])
         self.assertEqual(found, sales_team_1_m2)
 
-        with self.assertRaises(exceptions.UserError), mute_logger('odoo.db'):
+        with self.assertRaises(exceptions.ValidationError):
             self.env['crm.team.member'].create({
                 'user_id': self.user_sales_leads.id,
                 'crm_team_id': self.sales_team_1.id,
@@ -60,7 +61,7 @@ class TestCornerCases(TransactionCase):
     def test_unicity_multicreate(self):
         """ Test constraint works with creating duplicates in the same create
         method. """
-        with self.assertRaises(exceptions.UserError), mute_logger('odoo.db'):
+        with self.assertRaises(exceptions.ValidationError):
             self.env['crm.team.member'].create([
                 {'user_id': self.user_sales_leads.id, 'crm_team_id': self.sales_team_1.id},
                 {'user_id': self.user_sales_leads.id, 'crm_team_id': self.sales_team_1.id}

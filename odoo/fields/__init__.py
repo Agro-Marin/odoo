@@ -1,6 +1,7 @@
 from odoo.orm.primitives import COLLECTION_TYPES, NO_ACCESS, Command
 from odoo.orm.domain import (
     CONDITION_OPERATORS,
+    NEGATIVE_CONDITION_OPERATORS,
     Domain,
     DomainCondition,
     OptimizationLevel,
@@ -35,6 +36,7 @@ from odoo.orm.parsing import parse_field_expr
 __all__ = [
     "COLLECTION_TYPES",
     "CONDITION_OPERATORS",
+    "NEGATIVE_CONDITION_OPERATORS",
     "NO_ACCESS",
     "Binary",
     "Boolean",

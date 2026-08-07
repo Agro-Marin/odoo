@@ -2,7 +2,6 @@
 
 from odoo import exceptions
 from odoo.tests.common import users
-from odoo.tools import mute_logger
 
 from odoo.addons.sales_team.tests.common import TestSalesCommon
 
@@ -311,8 +310,9 @@ class TestMembership(TestSalesCommon):
         self.assertTrue(admin_archived.exists())
         self.assertFalse(admin_archived.active)
 
-        # change team of membership should raise unicity constraint
-        with self.assertRaises(exceptions.UserError), mute_logger('odoo.db'):
+        # moving a membership onto a team where the salesperson is already active
+        # is a duplicate; _constrains_membership refuses it in Python
+        with self.assertRaises(exceptions.ValidationError):
             added.write({'crm_team_id': sales_team_1.id})
 
     def test_users_sale_team_id(self):

@@ -2,7 +2,7 @@
 
 {
     'name': 'Sales Teams',
-    'version': '1.1',
+    'version': '1.2',
     'category': 'Sales/Sales',
     'summary': 'Sales Teams',
     'description': """
