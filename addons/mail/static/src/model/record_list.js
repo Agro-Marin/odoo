@@ -614,11 +614,27 @@ export class RecordList extends Array {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const store = recordList._store;
-        if (deleteCount === undefined) {
-            // like Array.prototype.splice(start): remove to the end, else
-            // the undefined count slices on NaN and removes nothing
-            deleteCount = recordList.data.length - start;
-        }
+        // Normalize to Array.prototype.splice semantics once, up front: the
+        // teardown slice below and the splice further down must agree on which
+        // entries are leaving. Used raw, a negative `start` made the slice
+        // empty (`slice(-1, 0)`) while the splice still removed the last
+        // entry — dropping it from `data` with its `uses`/inverse bookkeeping
+        // left dangling.
+        const length = recordList.data.length;
+        const relativeStart = Math.trunc(start) || 0;
+        const actualStart =
+            relativeStart < 0
+                ? Math.max(length + relativeStart, 0)
+                : Math.min(relativeStart, length);
+        const actualDeleteCount =
+            start === undefined
+                ? 0
+                : deleteCount === undefined
+                  ? length - actualStart
+                  : Math.min(
+                        Math.max(Math.trunc(deleteCount) || 0, 0),
+                        length - actualStart,
+                    );
         return store.MAKE_UPDATE(function recordListSplice() {
             const oldRecordLocalIds = recordList.data.slice(
                 actualStart,
