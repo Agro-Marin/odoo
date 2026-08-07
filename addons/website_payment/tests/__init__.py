@@ -1,3 +1,4 @@
+from . import test_donation_portal
 from . import test_mailing
 from . import test_payment_provider
 from . import test_snippets
