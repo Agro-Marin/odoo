@@ -11,12 +11,8 @@ _logger = logging.getLogger(__name__)
 
 DARK_SUFFIX = ".dark.scss"
 
-#: A bundle answers the dark scheme if its name says so, or if it carries the
-#: variable layer that inverts the palette. Anything else compiles light.
 DARK_MARKER = "web/static/src/scss/primitives.dark.scss"
 
-#: Light bundles that carry a dark sibling on purpose. Each needs a reason: a
-#: dark sibling only makes sense where the dark palette compiled.
 ALLOWED = set()
 
 
@@ -47,22 +43,18 @@ class TestDarkSiblingScope(lint_case.LintCase):
     where iap_mail's dark sibling had been sitting undelivered.
     """
 
-    # A fragment carries dark siblings for whichever consumer wants them --
-    # mail.assets_core_common feeds both schemes, and each consumer says so with
-    # its own `remove`. Which scheme it compiled is only answerable where it is
-    # served, which is what `served_bundle_names` decides.
-
     def test_dark_siblings_only_in_dark_bundles(self):
         offenders = []
         checked = 0
         empty = []
+        skipped = []
         with Registry(get_db_name()).cursor() as cr:
             env = api.Environment(cr, SUPERUSER_ID, {})
             for bundle in self.served_bundle_names(env):
                 try:
                     files = env["ir.qweb"]._get_asset_bundle(bundle, css=True).files
                 except Exception as exc:
-                    _logger.info("%s did not assemble (%s)", bundle, type(exc).__name__)
+                    skipped.append(f"{bundle} ({type(exc).__name__})")
                     continue
                 if not files:
                     empty.append(bundle)
@@ -78,8 +70,17 @@ class TestDarkSiblingScope(lint_case.LintCase):
                 )
 
         _logger.info("checked %s bundles with files", checked)
-        if empty:
-            _logger.info("assembled to nothing: %s", ", ".join(empty))
+        self.assertFalse(
+            skipped,
+            f"{len(skipped)} served bundle(s) did not assemble, so this check "
+            f"never looked at them; `TestBundlesAssemble` owns that:\n  "
+            + "\n  ".join(skipped),
+        )
+        self.assertFalse(
+            empty,
+            f"{len(empty)} served bundle(s) assembled to no files:\n  "
+            + "\n  ".join(empty),
+        )
         self.assertFalse(
             offenders,
             f"{len(offenders)} dark sibling(s) in a bundle that never compiled "

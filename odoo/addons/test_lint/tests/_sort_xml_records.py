@@ -217,14 +217,12 @@ def _sort_record_fields(record: etree._Element, model: str) -> bool:
 
     original_tails = [f.tail for f in fields]
 
-    # One queue per name, so repeated names keep every element and stay in
-    # their original relative order.
     queues: dict[str | None, list[etree._Element]] = {}
     for field in fields:
         queues.setdefault(field.get("name"), []).append(field)
 
     ordered = [queues[name].pop(0) for name in expected_names]
-    if len(ordered) != len(fields):  # a name `expected_field_order` invented
+    if len(ordered) != len(fields):
         return False
 
     for field in fields:

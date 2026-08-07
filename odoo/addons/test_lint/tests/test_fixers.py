@@ -37,13 +37,6 @@ from .lint_case import LintCase, core_root, core_xml_files
 
 _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
 
-#: Well-formed data files the formatter declines rather than rewrites. Empty,
-#: and named rather than counted so it stays that way: a decline is safe -- the
-#: file is left exactly as it was -- but it is also a file no formatting gate
-#: can ever report on, which is a thing to notice rather than absorb.
-#:
-#: Files that do not parse *before* the pass are not in scope here at all; one
-#: ``l10n_it_edi`` sample invoice has a mismatched tag and nothing can format it.
 DECLINED_BY_THE_FORMATTER: list[str] = []
 
 
@@ -330,7 +323,7 @@ class TestPrettyXml(BaseCase):
         original = path.read_bytes()
         real = _pretty_xml._esc_text
         try:
-            _pretty_xml._esc_text = lambda value: ""  # lose every text node
+            _pretty_xml._esc_text = lambda value: ""
             self.assertIsNone(_pretty_xml.format_xml_file(path))
         finally:
             _pretty_xml._esc_text = real
@@ -462,7 +455,7 @@ class TestFixersOverTheRepository(LintCase):
                 try:
                     before_shape, before_words = _shape(original), _words(original)
                 except etree.XMLSyntaxError:
-                    continue  # not well-formed to begin with; not the fixer's doing
+                    continue
                 target = Path(tmp) / f"{index}.xml"
                 target.write_bytes(original)
                 if fixer(target) is None:

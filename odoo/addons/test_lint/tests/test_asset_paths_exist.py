@@ -44,15 +44,6 @@ class TestAssetPathsExist(lint_case.LintCase):
         """
         manifests = list(Manifest.all_addon_manifests())
         addon_dirs = {m.name: Path(m.path) for m in manifests}
-        # An asset may live in an ir.attachment rather than on disk -- the
-        # per-company report stylesheet is generated into one and referenced by
-        # the same kind of manifest path (`web.asset_styles_company_report`).
-        #
-        # Read on its own cursor, so this only sees attachments the loading
-        # transaction has committed. That is why the class runs post_install:
-        # at_install, a module's data files are still uncommitted and every
-        # attachment-backed path in it reads as missing -- invisibly, because
-        # re-running against the now-installed database passes.
         attachment_urls = set()
         with Registry(get_db_name()).cursor() as cr:
             env = api.Environment(cr, SUPERUSER_ID, {})
@@ -91,8 +82,6 @@ class TestAssetPathsExist(lint_case.LintCase):
 
         for manifest in manifests:
             if manifest.name == "test_assetsbundle":
-                # Ships deliberately-invalid fixtures to exercise the error
-                # paths this test exists to prevent in real modules.
                 continue
             for bundle, entries in (manifest.get("assets") or {}).items():
                 for entry in entries:
@@ -103,10 +92,7 @@ class TestAssetPathsExist(lint_case.LintCase):
                         continue
                     directive = entry[0]
                     if directive == INCLUDE_DIRECTIVE:
-                        # The operand is a bundle name, not a path.
                         continue
-                    # For `after`/`before`/`replace` both operands name real
-                    # files (the anchor and the new asset), so check them all.
                     for operand in entry[1:]:
                         check(manifest.name, bundle, operand, directive)
 
@@ -118,6 +104,4 @@ class TestAssetPathsExist(lint_case.LintCase):
             f"module:\n  " + "\n  ".join(sorted(missing)),
         )
 
-        # `remove` is the one that raises rather than silently shipping nothing;
-        # keep the constant referenced so a rename here is a hard error.
         self.assertEqual(REMOVE_DIRECTIVE, "remove")

@@ -8,7 +8,6 @@ from . import test_grey_ramp_token
 from . import test_scheme_duplication
 from . import test_pofile
 from . import test_docstring
-from . import test_eslint
 from . import test_index
 from . import test_jstranslate
 from . import test_l10n

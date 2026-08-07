@@ -8,12 +8,6 @@ from . import lint_case
 
 _logger = logging.getLogger(__name__)
 
-#: `cookie.get("color_scheme")` and `cookie.set("color_scheme", …)`, plus the
-#: raw `document.cookie` spelling that covers both.
-#:
-#: One definition each, compiled for the self-test below and handed to the Rust
-#: scanner as text: a self-test that validates a *copy* stops answering for the
-#: pattern the scan actually runs the moment either is edited.
 COOKIE_GET_PAT = r"""cookie\.get\(\s*["']color_scheme["']\s*\)"""
 COOKIE_SET_PAT = r"""cookie\.set\(\s*["']color_scheme["']"""
 RAW_COOKIE_PAT = r"""document\.cookie[^;\n]*color_scheme"""
@@ -21,9 +15,6 @@ PATTERNS = (COOKIE_GET_PAT, COOKIE_SET_PAT, RAW_COOKIE_PAT)
 
 REGEXES = tuple(re.compile(pattern) for pattern in PATTERNS)
 
-#: The only file that may touch the cookie. It carries both halves -- the read
-#: and the publication -- so everything else goes through `colorScheme` in
-#: `@web/core/color_scheme`, in either direction.
 ALLOWED_SUFFIXES = ("/web/static/src/core/color_scheme.js",)
 
 
@@ -74,43 +65,34 @@ class TestColorSchemeReads(lint_case.LintCase):
         self.assertEqual(self.check_text(bad_js), [2, 3, 5, 7])
 
     def test_no_direct_cookie_reads(self):
+        """Scoped to this repository, and reporting where, not how many."""
         results = scan_regex_patterns(
-            self._module_roots(),
+            lint_case.core_module_roots(),
             [".js"],
             list(PATTERNS),
             ["node_modules", "__pycache__"],
         )
 
-        failures = 0
+        offenders = []
         for path, line, _pat_idx, matched_text in results:
             if path.endswith(ALLOWED_SUFFIXES):
                 continue
-            # Vendored code we do not author; it cannot import from @web.
             if "/static/lib/" in path:
                 continue
             if "/static/tests/" in path:
                 continue
 
-            failures += 1
             try:
                 mod, relative_path, _ = get_resource_from_path(path)
             except TypeError:
                 mod, relative_path = "?", path
+            offenders.append(f"{mod}/{relative_path}:{line}: {matched_text.strip()}")
 
-            _logger.error(
-                "Direct color_scheme cookie use in `%s/%s` at line %s: %s. "
-                "Read it through `colorScheme` from @web/core/color_scheme "
-                "(`colorScheme.isDark`, `colorScheme.current`); to change it, "
-                "save the setting and have the page re-served.",
-                mod,
-                relative_path,
-                line,
-                matched_text.strip(),
-            )
-
-        self.assertEqual(
-            failures,
+        self.assert_ratchet(
+            offenders,
             0,
-            "The colour scheme cookie is @web/core/color_scheme's to read "
-            "and the server's to write; see the errors above.",
+            "direct use(s) of the color_scheme cookie",
+            "Read it through `colorScheme` from @web/core/color_scheme "
+            "(`colorScheme.isDark`, `colorScheme.current`); to change it, save "
+            "the setting and have the page re-served.",
         )

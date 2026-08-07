@@ -63,27 +63,15 @@ class SqlInjectionChecker:
     )
     _root_call: ast.Call | None = field(default=None, init=False)
     _const_def_cache: dict = field(default_factory=dict, init=False)
-    #: ``id(scope) -> {name: [assigning statements]}``. See
-    #: :meth:`_assignments_in`.
     _assign_cache: dict[int, dict[str, list[ast.AST]]] = field(
         default_factory=dict, init=False
     )
-    #: ``id(scope) -> {names referenced inside an assert}``. See
-    #: :meth:`_is_asserted`.
     _assert_cache: dict[int, set[str]] = field(default_factory=dict, init=False)
-    #: Test code, which builds queries freely and ships nothing. Passed in
-    #: rather than derived from the path: three checkers used to derive it and
-    #: all three disagreed, so ``addons/base/tests/common.py`` was scanned by
-    #: this one and by neither of the others. See :func:`_py_scan.is_test_path`.
     is_test: bool = False
 
-    #: ``id(module) -> {name: value}`` for top-level assignments. See
-    #: :meth:`_module_constant`.
     _module_const_cache: dict[int, dict[str, ast.expr]] = field(
         default_factory=dict, init=False
     )
-    #: Names and nodes currently being resolved, so a definition that mentions
-    #: itself terminates. See :meth:`_check_name_constexpr`.
     _resolving_names: set[tuple[int, str]] = field(default_factory=set, init=False)
     _resolving_nodes: set[int] = field(default_factory=set, init=False)
 
@@ -629,8 +617,6 @@ class SqlInjectionChecker:
         mapping: dict[str, list[ast.AST]] = defaultdict(list)
         params: set[str] = set()
         if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            # `posonlyargs` is deliberately absent, as it was before: adding it
-            # here would change which expressions count as constant.
             params = {arg.arg for arg in scope.args.args + scope.args.kwonlyargs}
             if scope.args.vararg:
                 params.add(scope.args.vararg.arg)

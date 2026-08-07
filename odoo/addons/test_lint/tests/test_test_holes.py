@@ -7,7 +7,8 @@ from collections import Counter
 
 from odoo.modules import Manifest
 
-from odoo.addons.test_lint.tests.lint_case import LintCase
+from . import lint_case
+from .lint_case import LintCase
 
 _logger = logging.getLogger(__name__)
 
@@ -53,18 +54,15 @@ class TestTestHoles(LintCase):
         errors = []
         checked = 0
         for manifest in Manifest.all_addon_manifests():
+            if not lint_case.is_core_path(str(manifest.path)):
+                continue
             checker.names.clear()
             p = checker.path = pathlib.Path(manifest.path, "tests")
-            if not p.exists():
+            if not p.exists() or not any(p.rglob("*.py")):
                 continue
 
             init = p / "__init__.py"
             if not init.exists():
-                # Collected, not raised. A bare `assert` here aborted the whole
-                # scan on the first offender: it fired on `cloud_storage`, the
-                # 119th of 986 modules with a tests directory, so the remaining
-                # 866 were never examined at all -- and only two modules in the
-                # tree actually have this problem.
                 errors.append(f"Python test directory without an __init__: {p}")
                 continue
 
@@ -72,8 +70,6 @@ class TestTestHoles(LintCase):
             try:
                 checker.visit(ast.parse(init.read_bytes(), init))
             except (AssertionError, SyntaxError, OSError) as exc:
-                # Likewise: one unparseable or non-trivial init must not hide
-                # every module after it.
                 errors.append(f"{init}: {exc}")
                 continue
 

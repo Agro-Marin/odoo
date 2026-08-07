@@ -4,6 +4,7 @@ import re
 from collections import Counter
 
 from odoo import SUPERUSER_ID, api
+from odoo.modules import Manifest
 from odoo.modules.registry import Registry
 from odoo.tests import tagged
 from odoo.tests.common import get_db_name
@@ -12,31 +13,14 @@ from . import lint_case
 
 _logger = logging.getLogger(__name__)
 
-#: The bundle keeps one comment per source file, in order, which is the only
-#: provenance the compiled article carries.
 SOURCE_MARK_RE = re.compile(r"/\*\s*(/[^*]+?)\s*\*/")
 
-#: `var(--name)` or `var(--name, fallback)`, the fallback allowed one level of
-#: nested parentheses so `var(--x, rgba(0,0,0,.1))` resolves.
 VAR_RE = re.compile(r"var\(\s*(--[\w-]+)\s*(?:,([^()]*(?:\([^()]*\)[^()]*)*))?\)")
 
-#: The attribute the token layer answers.
 DARK_SELECTOR_RE = re.compile(r':root\[data-color-scheme="?dark"?\]')
 
-#: What cannot resolve inside a `data:` URI. Percent-encoded because
-#: `escape-svg()` writes the parenthesis as `%28` -- matching only the raw form
-#: would miss every real case.
 INERT_IN_URI_RE = re.compile(r"(?:var|color-mix)(?:\(|%28)")
 
-#: The same attribute used as an ancestor, scoping an ordinary rule to the dark
-#: scheme: `:root[data-color-scheme="dark"] .bg-primary-light`.
-#:
-#: Anywhere in the compound, not only at its head. A rule emitted under the
-#: scope can still pick up an ancestor of its own -- html_editor's colour
-#: combinations nest through `$o-color-extras-nesting-selector`, so the dark
-#: half reads `.o_colored_level :root[…="dark"] .o_cc1 .btn-fill-primary`.
-#: Removing the scope wherever it sits gives back the selector it answers for,
-#: and it outscores that selector either way: (0,2,0) against (0,1,0).
 DARK_SCOPE_RE = re.compile(r'(?:^|(?<= )):root\[data-color-scheme="?dark"?\] +')
 
 _KEYWORDS = {
@@ -46,38 +30,6 @@ _KEYWORDS = {
     "#fff": "#ffffff",
 }
 
-#: How far a single bundle is from serving both schemes, per module. A ratchet:
-#: a module may only go down, and a module absent from this map must contribute
-#: nothing. See ``knowledge/plans/2026-08-01-single-stylesheet-colour-scheme.md``.
-#:
-#: The **maximum** over three measured installs, because a module's count is not
-#: install-independent: what a declaration resolves to depends on the palette in
-#: effect, and installing the theme moves some counts up and others down. The
-#: spread is real and bidirectional -- ``web`` is 941 without the theme and 978
-#: with it, ``website`` 76 without and 65 with. Taking the max keeps every
-#: configuration green at the cost of that spread in sensitivity: a module can
-#: absorb up to the difference before this notices. Narrowing it would mean a
-#: floor per configuration, which is not worth the machinery.
-#:
-#: Measured 2026-08-02, every entry a reading rather than a seeded ceiling: the
-#: previous table carried 2791-era numbers for the modules only the broadest
-#: install contributes, so a module could shed forty declarations without the
-#: gate noticing. The recipes are in the plan -- write them down, because a
-#: sibling session dropping a test database is routine and these floors cannot
-#: be reproduced without them:
-#:   * community only, 86 modules -- 195. ``--addons-path=odoo/addons,addons``
-#:     is the *only* thing that keeps the theme out: ``web_enterprise`` declares
-#:     ``auto_install: ['web']``, so on a workspace with the enterprise checkout
-#:     on the path it arrives however narrow the ``-i`` list is.
-#:   * the same set with the theme, 150 modules -- 361.
-#:   * the ``marin`` installer's tree, 449 modules, the broadest this fork has --
-#:     470.
-#:
-#: A floor is only as good as the bundle it was read from: these were taken
-#: while ``web.assets_web_dark`` failed to compile, which is why ``mail`` sat at
-#: 65 for a value that has always been 67. A bundle that did not compile fails
-#: ``TestTokenLayer.test_both_publication_paths_agree`` loudly; this one quietly
-#: measures less.
 SINGLE_BUNDLE_GAP_FLOOR = {
     "account": 5,
     "account_accountant": 3,
@@ -232,7 +184,6 @@ def unreachable(selector):
     return bool(parts) and all("[data-bs-theme=" in part for part in parts)
 
 
-#: Stands in for every plain-`:root` selector once they are settled together.
 ROOT = "\x00:root"
 
 
@@ -341,12 +292,6 @@ def measure(light_css, dark_css):
 
     served = {(s, p): v for _, s, p, v in light}
     origin = {(s, p): f for f, s, p, _ in light}
-    # An ordinary rule may answer the scheme by being restated under the
-    # attribute as an ancestor -- `:root[…="dark"] .bg-primary-light` -- which
-    # outscores the plain rule and is the only route left for a value no
-    # token can carry, such as a `color-contrast()` pick. Read as the light
-    # bundle's answer for the selector it scopes, or a technique that works
-    # scores as no progress at all.
     scoped = {}
     for _, selector, prop, value in light:
         parts = split_selector(selector)
@@ -354,11 +299,6 @@ def measure(light_css, dark_css):
         if parts and all(a != b for a, b in zip(parts, stripped, strict=True)):
             scoped[(",".join(stripped), prop)] = value
 
-    # What the *dark* bundle answers under the scope. A folded skin puts the
-    # rule in both bundles, so the dark one carries its plain rule and the
-    # scoped one beside it -- and the scoped one wins there exactly as it does
-    # in a single stylesheet. Comparing the plain rule against the light
-    # bundle's would score a correct fold as a regression.
     dark_scoped = set()
     for _, selector, prop, _value in dark:
         parts = split_selector(selector)
@@ -455,7 +395,14 @@ class TestSchemeDuplication(lint_case.LintCase):
             env = api.Environment(cr, SUPERUSER_ID, {})
             gap, answered, light, dark = self._measure(env)
 
-        self.assertTrue(light and dark, "both bundles must compile to declarations")
+        self.assertGreater(
+            min(light, dark),
+            12000,
+            f"assets_web compiled {light} declarations and assets_web_dark "
+            f"{dark}. Something did not compile -- every floor below is being "
+            f"measured against a partial bundle and will pass for the wrong "
+            f"reason.",
+        )
         _logger.info(
             "assets_web %s declarations, assets_web_dark %s: %s declarations would "
             "still be wrong under one stylesheet, %s the attribute already answers",
@@ -476,12 +423,6 @@ class TestSchemeDuplication(lint_case.LintCase):
                 offenders.append(f"{module}: {count}, in a module that had none")
             elif count > floor:
                 offenders.append(f"{module}: {count}, floor is {floor}")
-        # Reported, not advised. The floor is the max over three installs, so on
-        # any one of them several modules sit below it and always will --
-        # lowering on the strength of a single run breaks the other two. A floor
-        # comes down when the count holds in every configuration it was measured
-        # on, which is a decision for whoever finished the work, not for this
-        # run.
         under = sorted(
             f"{module} {by_module.get(module, 0)}/{floor}"
             for module, floor in SINGLE_BUNDLE_GAP_FLOOR.items()
@@ -489,6 +430,14 @@ class TestSchemeDuplication(lint_case.LintCase):
         )
         if under:
             _logger.info("under the floor on this install: %s", ", ".join(under))
+        unreachable = sorted(set(SINGLE_BUNDLE_GAP_FLOOR) - set(by_module))
+        _logger.info(
+            "%s of %s floors were exercised on this install; %s were not: %s",
+            len(SINGLE_BUNDLE_GAP_FLOOR) - len(unreachable),
+            len(SINGLE_BUNDLE_GAP_FLOOR),
+            len(unreachable),
+            ", ".join(unreachable),
+        )
         self.assertFalse(
             offenders,
             f"{len(offenders)} module(s) put more between this fork and a single "
@@ -496,6 +445,21 @@ class TestSchemeDuplication(lint_case.LintCase):
             f'one a light bundle under `data-color-scheme="dark"` resolves '
             f"differently from what the dark bundle serves:\n  "
             + "\n  ".join(offenders),
+        )
+
+    def test_every_floor_names_a_module_that_exists(self):
+        """A floor for a module that is gone can never come down.
+
+        It is also invisible: the gate only reports a module whose count is
+        *above* its floor, so an entry naming nothing at all sits there
+        indefinitely, adding to the 47 and to the impression of coverage. This
+        is install-independent -- it asks the addons path, not the registry --
+        so it holds on the narrowest database as well as the broadest.
+        """
+        known = {manifest.name for manifest in Manifest.all_addon_manifests()}
+        self.assertFalse(
+            sorted(set(SINGLE_BUNDLE_GAP_FLOOR) - known),
+            "these floors name a module that is not on the addons path",
         )
 
     def test_the_measurement_survives_a_brace_in_a_string(self):
@@ -564,8 +528,6 @@ class TestSchemeDuplication(lint_case.LintCase):
         self.assertEqual(
             DARK_SCOPE_RE.sub("", ".bg-primary-light"), ".bg-primary-light"
         )
-        # The token layer's own block is not a scope: it has no descendant, and
-        # `_measure` reads it through `attr_root` instead.
         self.assertEqual(
             DARK_SCOPE_RE.sub("", ':root[data-color-scheme="dark"]'),
             ':root[data-color-scheme="dark"]',

@@ -11,16 +11,11 @@ from odoo.addons.base.models.ir_qweb_assets import IrQweb
 
 _logger = logging.getLogger(__name__)
 
-# `import x from "spec"`, `export {x} from "spec"`, bare `import "spec"`, and
-# `import("spec")` -- the last covering both dynamic imports and the
-# `@type {import("spec").T}` JSDoc form, which is the same syntax.
 STATIC_IMPORT_RE = re.compile(
     r"""(?:^|[\s;}])(?:import|export)\s+(?:[^'"()]*?\sfrom\s+)?["']([^"']+)["']""",
     re.MULTILINE,
 )
 DYNAMIC_IMPORT_RE = re.compile(r"""\bimport\(\s*["']([^"']+)["']\s*\)""")
-#: Block and line comments, so a JSDoc `@type {import("./x").T}` is not read as
-#: a runtime import: it names a type, is never fetched, and needs no extension.
 COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 
 
@@ -75,6 +70,9 @@ class TestEsmSpecifiers(lint_case.LintCase):
         ``./foo`` to ``foo/index.js``, the browser does not.
         """
         broken = []
+        self.assertGreater(
+            len(_addon_js_sources()), 1000, "the scan reached almost no JS"
+        )
         for path, source in _addon_js_sources():
             code = COMMENT_RE.sub(" ", source)
             specs = set(STATIC_IMPORT_RE.findall(code))
@@ -141,8 +139,6 @@ class TestEsmSpecifiers(lint_case.LintCase):
                     continue
                 url = IrQweb._specifier_to_static_url(spec)
                 if url is None:
-                    # Bare or reserved @odoo/* namespace: resolved by the
-                    # loader, not by a file on disk.
                     continue
                 addon, _, relative = url.lstrip("/").partition("/")
                 root = addon_paths.get(addon)
@@ -154,6 +150,7 @@ class TestEsmSpecifiers(lint_case.LintCase):
                     broken.append((path, spec, f"{addon}/{relative}"))
 
         _logger.info("checked ESM specifiers in %s js files", scanned)
+        self.assertGreater(scanned, 1000, "the scan reached almost no JS")
         if broken:
             details = "\n".join(
                 f"  {path}\n      imports {spec!r} -> no such file {target}"

@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+import odoo
 from odoo.libs.lint import scan_byte_patterns
 
 from . import lint_case
@@ -13,11 +14,21 @@ EXTENSIONS = [".py", ".js", ".xml", ".less", ".sass"]
 
 class TestConflictMarkers(lint_case.LintCase):
     def test_conflict_markers(self):
-        import odoo.addons
+        """Test that there are no conflict markers left in Odoo files.
 
+        Scoped to this repository, like every other file-based gate here. The
+        roots came from ``odoo.addons.__path__``, which is the whole
+        addons_path -- so an unresolved merge in a sibling checkout failed this
+        fork's suite, on a conflict this branch cannot resolve.
+        """
         roots = sorted(
-            {str(Path(p).resolve()) for p in [*odoo.addons.__path__, *odoo.__path__]}
+            {
+                str(Path(p).resolve())
+                for p in [*lint_case.core_module_roots(), *odoo.__path__]
+                if lint_case.is_core_path(str(Path(p).resolve()))
+            }
         )
+        self.assertTrue(roots, "the scan reached no roots at all")
 
         results = scan_byte_patterns(
             roots,
@@ -26,11 +37,10 @@ class TestConflictMarkers(lint_case.LintCase):
             ["node_modules", "__pycache__"],
         )
 
-        if results:
-            results.sort()
-            msg = "Conflict markers found:\n" + "\n".join(
-                f"- {path}:{line}" for path, line, _ in results
-            )
-            self.fail(msg)
-
-        _logger.info("conflict marker scan complete (no violations)")
+        self.assert_ratchet(
+            sorted(f"{path}:{line}" for path, line, _ in results),
+            0,
+            "conflict marker(s) left in the tree",
+            "Finish the merge.",
+        )
+        _logger.info("conflict marker scan complete over %s root(s)", len(roots))

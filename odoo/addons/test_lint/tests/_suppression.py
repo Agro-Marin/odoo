@@ -21,22 +21,6 @@ what is silenced, and the prose after them is documentation.
 
 import re
 
-#: ``# noqa`` optionally followed by a code list. Anything after the codes is
-#: rationale -- required by ``test_noqa_rationale``, ignored here.
-#:
-#: A code is a ruff-style ``F401`` **or** a rule name such as ``sql-injection``.
-#: The pattern used to accept only ``[A-Z]+\d+``, so a rule spelled by name did
-#: not match the code group at all -- and a code group that does not match is a
-#: bare ``# noqa``, which silences *everything on the line*. Half of
-#: :data:`RULE_ALIASES` was therefore unreachable, and reaching for it did the
-#: opposite of what it says:
-#:
-#:     x = f(...)  # noqa: sql-injection  the table name is a literal
-#:
-#: read as "silence every rule here", including the N+1 nobody looked at. No
-#: line in the tree spells one that way today, which is the only reason it
-#: never bit; the escape hatch this offers for the SQL rule makes it likely
-#: that some will.
 _NOQA_RE = re.compile(
     r"""
     \#\s*noqa
@@ -48,9 +32,6 @@ _NOQA_RE = re.compile(
 
 _PYLINT_DISABLE_RE = re.compile(r"#\s*pylint:\s*disable=([^\n#]+)")
 
-#: Every spelling a suppression may use for a rule. The numeric codes are the
-#: identifiers the former pylint plugins published; they are kept so existing
-#: suppressions in the tree keep working.
 RULE_ALIASES: dict[str, frozenset[str]] = {
     "sql-injection": frozenset({"sql-injection", "E8501"}),
     "gettext-variable": frozenset({"gettext-variable", "E8502"}),
@@ -64,9 +45,6 @@ RULE_ALIASES: dict[str, frozenset[str]] = {
 }
 
 
-#: The rule that flags unexplained suppressions. It is never itself
-#: suppressible: every line it reports contains a ``# noqa`` by construction, so
-#: honouring one here would let the rule silence itself and never fire again.
 NOQA_RATIONALE_RULE = "noqa-rationale"
 
 

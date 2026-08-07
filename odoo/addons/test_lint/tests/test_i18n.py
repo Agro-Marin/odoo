@@ -100,18 +100,30 @@ class TestI18n(lint_case.LintCase):
         self.assertEqual(error_count, 0)
 
     def test_user_content_as_prop_is_translatable(self):
-        error_count = 0
+        """A component prop holding human-readable text needs ``.translate``.
+
+        Scoped to this repository, like every other file-based gate here, and
+        reporting the props in the failure rather than only in the log: a bare
+        ``0 != 7`` sends the reader looking for a log they may not have.
+        """
+        offenders = []
+        checked = 0
         for file_path in self.iter_module_files("**/static/**/*.xml"):
+            if not lint_case.is_core_path(file_path):
+                continue
+            checked += 1
             with tools.file_open(file_path, "r") as f:
                 file_content = f.read()
-                for m in self.PROPS_RE.finditer(file_content):
-                    lineno = file_content[: m.start()].count("\n") + 1
-                    _logger.error(
-                        """The prop “%s” in file “%s” in the component node starting at line %s contains what looks like human-readable text. If the content of this prop is intended for display to the end user, add the .translate suffix to make the prop translatable.
-                        If this is a false positive, please contact the i18n team.""",
-                        m.group(3),
-                        file_path,
-                        lineno,
-                    )
-                    error_count += 1
-        self.assertEqual(error_count, 0)
+            for m in self.PROPS_RE.finditer(file_content):
+                lineno = file_content[: m.start()].count("\n") + 1
+                offenders.append(f"{file_path}:{lineno}: {m.group(3)}")
+
+        _logger.info("checked %s component template(s)", checked)
+        self.assertTrue(checked, "the scan reached no component templates at all")
+        self.assert_ratchet(
+            offenders,
+            0,
+            "component prop(s) carrying untranslatable human-readable text",
+            "Add the `.translate` suffix. If this is a false positive, please "
+            "contact the i18n team.",
+        )

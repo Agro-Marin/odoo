@@ -11,7 +11,6 @@ from odoo.modules import Manifest
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, get_db_name, no_retry
 
-#: `t-call-assets="<bundle>"`, as it survives into `ir_ui_view.arch_db`.
 _T_CALL_ASSETS_RE = re.compile(r"""t-call-assets=\\?["']([\w.]+)\\?["']""")
 
 
