@@ -128,6 +128,10 @@ def _hasclass(context: Any, *cls: str) -> bool:
     return node_classes.issuperset(cls)
 
 
+def _arch_is_absent(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and not value)
+
+
 _IR_UI_VIEW_XMLID_SUFFIX = "_ir_ui_view"
 
 
@@ -830,7 +834,7 @@ class IrUiView(models.Model):
             parent_types = {p.id: p.type for p in parents}
 
         for values in vals_list:
-            if "arch_db" in values and not values["arch_db"]:
+            if "arch_db" in values and _arch_is_absent(values["arch_db"]):
                 del values["arch_db"]
 
             for fname in ("arch", "arch_base", "arch_db"):
@@ -841,11 +845,12 @@ class IrUiView(models.Model):
                     values["type"] = parent_types.get(values["inherit_id"])
                 else:
                     try:
-                        if not values.get("arch") and not values.get("arch_base"):
+                        arch = values.get("arch")
+                        if _arch_is_absent(arch):
+                            arch = values.get("arch_base")
+                        if _arch_is_absent(arch):
                             raise ValidationError(_("Missing view architecture."))
-                        values["type"] = etree.fromstring(
-                            values.get("arch") or values.get("arch_base")
-                        ).tag
+                        values["type"] = etree.fromstring(arch).tag
                         if values["type"] not in valid_types:
                             raise ValidationError(
                                 _(
@@ -865,8 +870,13 @@ class IrUiView(models.Model):
                     part for part in (values.get("model"), values.get("type")) if part
                 ]
                 values["name"] = " ".join(known) or _("Unnamed view")
-            values["arch_prev"] = (
-                values.get("arch_base") or values.get("arch_db") or values.get("arch")
+            values["arch_prev"] = next(
+                (
+                    values[fname]
+                    for fname in ("arch_base", "arch_db", "arch")
+                    if fname in values and not _arch_is_absent(values[fname])
+                ),
+                values.get("arch"),
             )
             if "arch" in values:
                 values["arch_db"] = values.pop("arch")
