@@ -8,3 +8,7 @@ from . import test_stock_landed_costs_rounding
 from . import test_stockvaluationlayer
 from . import test_landed_cost_validation
 from . import test_landed_cost_split
+from . import test_landed_cost_from_bill
+from . import test_account_move_line_landed_cost
+from . import test_landed_cost_lifecycle
+from . import test_landed_cost_guards

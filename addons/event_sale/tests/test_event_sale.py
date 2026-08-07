@@ -42,7 +42,7 @@ class TestEventSale(TestEventSaleCommon):
 
         cls.sale_order = cls.env['sale.order'].create({
             'partner_id': cls.env['res.partner'].create({'name': 'Test Partner'}).id,
-            'note': 'Invoice after delivery',
+            'notes': 'Invoice after delivery',
             'payment_term_id': cls.env.ref('account.account_payment_term_end_following_month').id
         })
 
@@ -88,7 +88,7 @@ class TestEventSale(TestEventSaleCommon):
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
                     'product_id': ticket.product_id.id,
-                    'product_uom_qty': 3,
+                    'product_qty': 3,
                     'price_unit': 10,
                 })
             ]
@@ -124,13 +124,13 @@ class TestEventSale(TestEventSaleCommon):
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket1.id,
                     'product_id': ticket1.product_id.id,
-                    'product_uom_qty': TICKET1_COUNT,
+                    'product_qty': TICKET1_COUNT,
                     'price_unit': 10,
                 }), (0, 0, {
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket2.id,
                     'product_id': ticket2.product_id.id,
-                    'product_uom_qty': TICKET2_COUNT,
+                    'product_qty': TICKET2_COUNT,
                     'price_unit': 50,
                 })
             ]
@@ -213,7 +213,7 @@ class TestEventSale(TestEventSaleCommon):
         # ADDING MANUAL LINES ON SO
         # ------------------------------------------------------------
 
-        ticket2_line.write({'product_uom_qty': 3})
+        ticket2_line.write({'product_qty': 3})
 
         # Whenever the quantity is modified the price is recomputed in function of the ticket,
         # so we reapply the wanted price.
@@ -246,7 +246,7 @@ class TestEventSale(TestEventSaleCommon):
                 'event_id': self.event_0.id,
                 'event_ticket_id': ticket.id,
                 'product_id': ticket.product_id.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
                 'price_unit': 10,
             })]
         })
@@ -289,7 +289,7 @@ class TestEventSale(TestEventSaleCommon):
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
                     'product_id': ticket.product_id.id,
-                    'product_uom_qty': TICKET_COUNT,
+                    'product_qty': TICKET_COUNT,
                     'price_unit': 0,
                 })
             ]
@@ -332,14 +332,14 @@ class TestEventSale(TestEventSaleCommon):
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
                     'product_id': ticket.product_id.id,
-                    'product_uom_qty': TICKET_COUNT - 1,
+                    'product_qty': TICKET_COUNT - 1,
                     'price_unit': 0,
                 }),
                 (0, 0, {
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
                     'product_id': ticket.product_id.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                     'price_unit': 0,
                 })
             ]
@@ -377,14 +377,14 @@ class TestEventSale(TestEventSaleCommon):
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
                     'product_id': ticket.product_id.id,
-                    'product_uom_qty': TICKET_COUNT - 1,
+                    'product_qty': TICKET_COUNT - 1,
                     'price_unit': 0,
                 }),
                 (0, 0, {
                     'event_id': self.event_0.id,
                     'event_ticket_id': ticket.id,
                     'product_id': ticket.product_id.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                     'price_unit': 0,
                 })
             ]

@@ -21,7 +21,6 @@ class TestProjectDashboardCommon(Common):
             'partner_invoice_id': cls.partner.id,
             'partner_shipping_id': cls.partner.id,
         })
-        cls.dashboard_sale_order.action_confirm()
         cls.dashboardSaleOrderLine = cls.env['sale.order.line'].with_context(tracking_disable=True, default_order_id=cls.dashboard_sale_order.id)
         cls.dashboard_product_delivery_service, cls.product_milestone, cls.product_prepaid = cls.env['product.product'].create([{
             'name': "Service Delivery",
@@ -81,6 +80,10 @@ class TestDashboardProject(TestProjectDashboardCommon):
         expected_dict = sol_service_3._read_format(
             ['display_name', 'product_uom_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id']
         )
+        # The fork refuses to confirm an order with no lines, so the order
+        # is confirmed here instead of in setUpClass.
+        self.dashboard_sale_order.action_confirm()
+
         sale_item_data = self.dashboard_project.get_sale_items_data(limit=5, with_action=False, section_id='materials')
         self.assertEqual(sale_item_data['sol_items'], expected_dict)
         expected_dict = (sol_service_1 + sol_service_2 + sol_service_4)._read_format(
