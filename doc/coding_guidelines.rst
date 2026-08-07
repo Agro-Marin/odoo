@@ -263,6 +263,11 @@ The one-screen version. Each entry links to the rule that explains it.
 * Deletion constraints use ``@api.ondelete``; a ``raise`` inside an ``unlink``
   override is a violation (§2.6) ``[test_lint E8506]``.
 * Name new buttons ``action_*`` — never rename an inherited core method (§2.4).
+* One verb per operation: ``_prepare_`` builds payloads, ``_get_`` reads, ``_check_``
+  raises, ``_is_``/``_has_``/``_can_`` return booleans, ``_update_`` writes,
+  ``_add_``/``_remove_`` for collections. ``_build_``, ``_fetch_``, ``_validate_``,
+  ``_verify_``, ``_ensure_``, ``_do_``, ``_run_``, ``_perform_`` are abolished
+  (§2.4) ``[review]``.
 * ``odoo.fields.Command`` for x2many writes, never raw tuples (§2.9.7) ``[review]``.
 * Never compare money or floats with ``==`` / ``!=`` / ``<`` / ``>`` — use
   ``float_compare`` / ``float_is_zero`` (§2.9.12). Only ``==`` / ``!=`` is linted
@@ -514,7 +519,7 @@ Code is grouped under ``# UPPERCASE`` section banners, in this order ``[review]`
      - ``models.Constraint()``
    * - 4
      - ``# CONSTRAINT METHODS``
-     - ``_check_*``, ``_validate_*``
+     - ``_check_*`` (and legacy ``_validate_*``, abolished by §2.4)
    * - 5
      - ``# CRUD METHODS``
      - ``create``, ``write``, ``unlink``, ``copy_data``, ``default_get``
@@ -660,7 +665,7 @@ Defaults that must remain overridable use ``lambda self:``:
      - ``_onchange_``
      - ``_onchange_partner_id``
    * - Constraints
-     - ``_check_`` / ``_validate_``
+     - ``_check_``
      - ``_check_date``
    * - Inverse
      - ``_inverse_``
@@ -674,6 +679,88 @@ Defaults that must remain overridable use ``lambda self:``:
    * - Default
      - ``_default_``
      - ``_default_warehouse_id``
+
+**The verb vocabulary** ``[review]``. The table above governs prefixes that carry an
+ORM role. Every other method opens with a free verb, and the tree currently spells
+single operations many ways: 141 stems are written with two or more verbs drawn from
+one semantic family, and 146 groups of methods share a byte-identical body under
+different names. One verb per operation. The abolished spellings are not
+lesser-preferred synonyms — they are wrong.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 16 34 38
+
+   * - Family
+     - Canonical
+     - Abolished
+     - Discriminator
+   * - Payload
+     - ``_prepare_*``
+     - ``_build_`` ``_make_`` ``_compose_`` ``_construct_``
+     - the return value feeds ``create()`` / ``write()`` / ``Command``
+   * - Read
+     - ``_get_*``
+     - ``_fetch_`` ``_retrieve_`` ``_obtain_`` ``_lookup_``
+     - returns state that already exists; does not build it
+   * - Predicate
+     - ``_is_`` ``_has_`` ``_can_``
+     - —
+     - returns ``bool``, never raises, no side effect
+   * - Validation
+     - ``_check_*``
+     - ``_validate_`` ``_verify_`` ``_ensure_`` ``_control_``
+     - **raises** on failure; a boolean answer is a predicate
+   * - Mutation
+     - ``_update_*``
+     - ``_assign_`` ``_fill_`` ``_inject_``
+     - writes to records; ``_set_*`` is reserved for ``inverse=`` targets
+   * - Addition
+     - ``_add_*``
+     - ``_append_`` ``_insert_`` ``_push_``
+     - —
+   * - Removal
+     - ``_remove_*``
+     - ``_delete_`` ``_drop_`` ``_purge_`` ``_discard_``
+     - ``unlink`` stays reserved for the ORM operation
+
+**``_get_`` is not a default.** At 7,965 definitions it is 17.6 % of every method in
+the fork, having absorbed reading, building, deriving and computing. The split that
+matters is against ``_prepare_``: 1,681 definitions are payload builders — they end
+in ``_vals``, ``_values``, ``_data``, ``_dict``, ``_domain`` or ``_context`` — yet are
+spelled ``get_*``, against 957 already spelled ``_prepare_*``. Apply the discriminator
+per method; the suffix alone does not decide it, because some of those genuinely
+retrieve rather than build.
+
+**Validation raises; predicates return.** ``_check_*`` (1,474 definitions) is
+canonical and matches ``@api.constrains``. ``_validate_`` (194) plus ``_verify_``,
+``_ensure_`` and ``_control_`` (119 together) are the same operation under four names.
+A method that *answers* a question rather than enforcing one is ``_is_*`` / ``_has_*``
+/ ``_can_*`` and must not raise.
+
+**Do not name a method for the act of running** — *provisional*. ``_do_``, ``_run_``,
+``_perform_``, ``_execute_``, ``_process_`` and ``_handle_`` (506 definitions) describe
+execution rather than behaviour; every method executes. Name the domain operation:
+``_post_entries``, not ``_do_posting``. ``_run_`` survives only as a scheduled-job
+entry point. This rule has no mechanical rewrite — each site needs judgement.
+
+**``_set_`` versus ``_update_``** — *provisional*. ``_set_*`` (368 definitions) and
+``_update_*`` (357) are near-evenly split and the boundary between them is the
+fuzziest in this section. The rule above reserves ``_set_`` for methods wired as an
+``inverse=`` target, where the field wiring already fixes the meaning; everything else
+that writes to records is ``_update_``. Expect to revisit it.
+
+**``_post_`` is overloaded** ``[review]``. 242 definitions carry three unrelated
+meanings — ``account.move._post`` (accounting), ``message_post`` (mail) and HTTP
+handlers. Do not add a fourth: new code names the domain operation. The existing
+three are load-bearing and are not renamed by this section.
+
+**Adoption.** As with §2.2, apply the vocabulary to methods you create or
+substantially rework rather than churning files you are passing through. Enforcement
+is planned as a ``test_lint`` counter over a ``naming`` ratchet baseline; until that
+lands, every rule in this subsection is ``[review]`` only. A rename must rewrite the
+XML ``name="…"`` bindings and JS references in the same commit — a Python-only
+refactor breaks them silently and no gate catches it today.
 
 **Never rename an inherited core method** ``[review]``. These rules apply to methods
 you author. Core ships many ``button_*`` methods bound by name from XML and many
@@ -706,7 +793,7 @@ override is a hard failure, not a style note. This is what makes
      - ``# INVERSE METHODS``
    * - ``_onchange_*``; ``@api.onchange``
      - ``# ONCHANGE METHODS``
-   * - ``_check_*`` / ``_validate_*``; ``@api.constrains``
+   * - ``_check_*`` (legacy ``_validate_*``); ``@api.constrains``
      - ``# CONSTRAINT METHODS``
    * - ``action_*``
      - ``# ACTION METHODS``
@@ -3128,6 +3215,26 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.2
+     - 2026-08-06
+     - Expanded §2.4 with a **verb vocabulary**: one canonical verb per operation
+       (``_prepare_`` / ``_get_`` / ``_check_`` / ``_is_`` / ``_update_`` /
+       ``_add_`` / ``_remove_``) and an abolished list (``_build_``, ``_make_``,
+       ``_fetch_``, ``_retrieve_``, ``_validate_``, ``_verify_``, ``_ensure_``,
+       ``_do_``, ``_run_``, ``_perform_``, ``_assign_``, ``_append_``, ``_delete_``
+       and their kin), each with the discriminator that decides which applies.
+       Derived from an AST census of 45,312 non-test model methods across ``odoo``,
+       ``enterprise`` and ``agromarin``: 141 stems carry two or more same-family
+       verbs, 146 method groups share a byte-identical body under different names,
+       and ``_get_`` alone is 17.6 % of all methods. **Resolved an ambiguity this
+       guide created**: §2.4 previously offered ``_check_`` and ``_validate_`` as
+       interchangeable, which was generating collisions on its own; ``_check_`` is
+       now canonical and ``_validate_`` is marked legacy in both placement tables.
+       Flagged ``_post_`` as carrying three unrelated meanings across 242
+       definitions. The EXEC-verb and ``_set_``/``_update_`` rules ship marked
+       *provisional*. Enforcement is ``[review]`` only — the ``test_lint`` counter
+       and ``naming`` ratchet baseline are not built yet, and this revision does not
+       claim they are.
    * - 5.1
      - 2026-07-30
      - Corrected five claims that execution disproved. **``force_company`` does
