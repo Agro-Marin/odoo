@@ -1,6 +1,7 @@
 import datetime
 import ipaddress
 import logging
+import os
 import pathlib
 import re
 import tempfile
@@ -272,11 +273,23 @@ class Database(http.Controller):
                 raise ValueError(f"Database {name!r} is not known")
             ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d_%H-%M-%S")
             filename = f"{name}_{ts}.{backup_format}"
+            dump_stream = odoo.service.db.dump_db(name, None, backup_format, filestore)
+            # Announce the length.  ``dump_db`` hands back a seekable temp file
+            # already fully written, so measuring it is free — and without a
+            # Content-Length the body is delimited by nothing but the
+            # connection closing.  A transfer cut short mid-download (flaky
+            # link, proxy giving up on a multi-GB response) then lands in the
+            # browser as a *successful* download of a truncated archive, which
+            # only surfaces later as an unrestorable backup.  Declaring the
+            # size turns that silent corruption into a visible short read, and
+            # lets clients show real progress.
+            dump_size = dump_stream.seek(0, os.SEEK_END)
+            dump_stream.seek(0)
             headers = [
                 ("Content-Type", "application/octet-stream; charset=binary"),
                 ("Content-Disposition", content_disposition(filename)),
+                ("Content-Length", str(dump_size)),
             ]
-            dump_stream = odoo.service.db.dump_db(name, None, backup_format, filestore)
             return Response(dump_stream, headers=headers, direct_passthrough=True)
         except Exception as e:
             _logger.exception("Database.backup")
