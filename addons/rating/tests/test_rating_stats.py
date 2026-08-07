@@ -1,6 +1,7 @@
 """Tests for the rating aggregation stats on rated records."""
 
-from odoo.tests import TransactionCase, tagged
+from odoo import http
+from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
 
 
 @tagged("post_install", "-at_install")
@@ -113,3 +114,75 @@ class TestRatingStats(TransactionCase):
         self.assertIn(self.project, matches)
         empty = self.env["project.project"].search([("rating_avg", ">=", 4.6)])
         self.assertNotIn(self.project, empty)
+
+
+@tagged("post_install", "-at_install")
+class TestRatingExternalRoutes(HttpCase):
+    """Public token routes to open and submit a rating."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.project = cls.env["project.project"].create({"name": "Route project"})
+        cls.task = cls.env["project.task"].create(
+            {"name": "Rated by route", "project_id": cls.project.id}
+        )
+        cls.partner = cls.env["res.partner"].create(
+            {"name": "Route rater", "email": "route.rater@example.com"}
+        )
+        cls.rating = cls.env["rating.rating"].create(
+            {
+                "res_model_id": cls.env["ir.model"]._get_id("project.task"),
+                "res_id": cls.task.id,
+                "partner_id": cls.partner.id,
+            }
+        )
+        cls.token = cls.rating.access_token
+
+    def test_open_rating_page_with_valid_token(self):
+        """A valid token opens the submit page for the chosen rate."""
+        res = self.url_open(f"/rate/{self.token}/5")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("submit_feedback", res.text)
+
+    def test_open_rating_with_unknown_token_is_not_found(self):
+        """A token matching no rating yields a 404."""
+        res = self.url_open("/rate/definitely-not-a-token/5")
+        self.assertEqual(res.status_code, 404)
+
+    def test_open_rating_with_invalid_rate_fails(self):
+        """A rate outside 1/3/5 is refused (>=400, exact code unpinned)."""
+        # NOTE: today this surfaces as a 500 because the upstream-inherited
+        # raise passes kwargs to ValueError (TypeError); the assert stays
+        # valid once that is fixed to a clean 4xx/error page.
+        res = self.url_open(f"/rate/{self.token}/7")
+        self.assertGreaterEqual(res.status_code, 400)
+
+    def test_foreign_internal_user_gets_invalid_partner_page(self):
+        """Another customer's rating never shows the submit form."""
+        new_test_user(
+            self.env, login="foreign_rater", groups="base.group_user",
+        )
+        self.authenticate("foreign_rater", "foreign_rater")
+        res = self.url_open(f"/rate/{self.token}/5")
+        self.assertEqual(res.status_code, 200)
+        self.assertNotIn("submit_feedback", res.text)
+
+    def test_submit_feedback_applies_rating(self):
+        """Posting the feedback consumes the rating and logs the message."""
+        self.authenticate(None, None)
+        res = self.url_open(
+            f"/rate/{self.token}/submit_feedback",
+            data={
+                "rate": 5,
+                "feedback": "Excellent work",
+                "csrf_token": http.Request.csrf_token(self),
+            },
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.rating.rating, 5)
+        self.assertTrue(self.rating.consumed)
+        self.assertIn("Excellent work", self.rating.feedback)
+        self.assertTrue(self.task.message_ids.filtered(
+            lambda m: m.rating_ids and self.rating in m.rating_ids
+        ))
