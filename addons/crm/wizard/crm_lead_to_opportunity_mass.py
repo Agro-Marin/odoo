@@ -60,15 +60,14 @@ class CrmLead2opportunityPartnerMass(models.TransientModel):
     @api.depends('lead_tomerge_ids')
     def _compute_duplicated_lead_ids(self):
         for convert in self:
-            duplicated = self.env['crm.lead']
-            for lead in convert.lead_tomerge_ids:
-                duplicated_leads = self.env['crm.lead']._get_lead_duplicates(
-                    partner=lead.partner_id,
-                    email=lead.partner_id and lead.partner_id.email or lead.email_from,
-                    include_lost=False)
-                if len(duplicated_leads) > 1:
-                    duplicated += lead
-            convert.duplicated_lead_ids = duplicated.ids
+            # one search for all the leads being merged, not one per lead
+            duplicates_by_lead = self.env['crm.lead']._get_lead_duplicates_by_lead(
+                convert.lead_tomerge_ids, with_partner=True, include_lost=False)
+            convert.duplicated_lead_ids = [
+                lead.id
+                for lead, duplicates in duplicates_by_lead.items()
+                if len(duplicates) > 1
+            ]
 
     def _convert_and_allocate(self, leads, user_ids, team_id=False):
         """ When "massively" (more than one at a time) converting leads to

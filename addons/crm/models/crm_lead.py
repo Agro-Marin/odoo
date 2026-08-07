@@ -1938,6 +1938,70 @@ class CrmLead(models.Model):
 
         return self.with_context(active_test=False).search(domain)
 
+    def _get_lead_duplicates_by_lead(self, leads, with_partner=False, include_lost=False):
+        """ Batched counterpart of ``_get_lead_duplicates``, keyed by lead.
+
+        The per-lead domain only ever varies by e-mail and customer, so a whole
+        population can be resolved with a single search instead of one per lead.
+        Callers pre-filling a cache paid a query per lead for what is the same
+        search repeated with a different ``IN`` list.
+
+        :param leads: the ``crm.lead`` records to look duplicates up for
+        :param boolean with_partner: also match on the lead's customer, and
+          prefer the customer's e-mail over the lead's, as ``_get_lead_duplicates``
+          callers passing a ``partner`` do
+        :param boolean include_lost: see ``_get_lead_duplicates``
+        :return: dict {lead: duplicates recordset}, ordered like ``_get_lead_duplicates``
+        """
+        emails_by_lead, all_emails = {}, set()
+        partners = self.env['res.partner']
+        for lead in leads:
+            email = lead.email_from
+            if with_partner and lead.partner_id:
+                partners |= lead.partner_id
+                email = lead.partner_id.email or lead.email_from
+            normalized = email_normalize_all(email) if email else []
+            emails_by_lead[lead] = normalized
+            all_emails.update(normalized)
+
+        empty = self.env['crm.lead']
+        if not all_emails and not partners:
+            return dict.fromkeys(leads, empty)
+
+        domain = Domain.FALSE
+        if all_emails:
+            domain |= Domain('email_normalized', 'in', list(all_emails))
+        if partners:
+            domain |= Domain('partner_id', 'in', partners.ids)
+        if include_lost:
+            # include lost means archived opportunities are allowed, if lost
+            domain &= Domain('won_status', '!=', 'won') & (
+                Domain('type', '=', 'opportunity') | Domain('active', '=', True))
+        else:
+            # always filter out archived, those are not actionable anymore
+            domain &= Domain('won_status', '=', 'pending') & Domain('active', '=', True)
+        candidates = self.with_context(active_test=False).search(domain)
+
+        ids_by_email, ids_by_partner = defaultdict(list), defaultdict(list)
+        for candidate in candidates:
+            ids_by_email[candidate.email_normalized].append(candidate.id)
+            if candidate.partner_id:
+                ids_by_partner[candidate.partner_id.id].append(candidate.id)
+        # keep the search order, which is what the per-lead version returned
+        rank = {candidate.id: index for index, candidate in enumerate(candidates)}
+
+        duplicates_by_lead = {}
+        for lead in leads:
+            dup_ids = {
+                dup_id
+                for normalized in emails_by_lead[lead]
+                for dup_id in ids_by_email.get(normalized, ())
+            }
+            if with_partner and lead.partner_id:
+                dup_ids.update(ids_by_partner.get(lead.partner_id.id, ()))
+            duplicates_by_lead[lead] = candidates.browse(sorted(dup_ids, key=rank.__getitem__))
+        return duplicates_by_lead
+
     def _sort_by_confidence_level(self, reverse=False):
         """ Sorting the leads/opps according to the confidence level to it
         being won. It is sorted following this incremental heuristics :
@@ -2301,11 +2365,15 @@ class CrmLead(models.Model):
             result[-1][field]['won_total'] += frequency['won_count']
             result[-1][field]['lost_total'] += frequency['lost_count']
 
-        # Get all won, lost and total count for all records in frequencies per team_id
+        # Get all won, lost and total count for all records in frequencies per team_id.
+        # The reference stage does not depend on the team, so it is resolved once
+        # here rather than re-searched for every team in the loop.
+        first_stage_id = self._pls_first_stage()
         for team_id in result:
             result[team_id]['team_won'], \
             result[team_id]['team_lost'], \
-            result[team_id]['team_total'] = self._pls_get_won_lost_total_count(result[team_id])
+            result[team_id]['team_total'] = self._pls_get_won_lost_total_count(
+                result[team_id], first_stage_id=first_stage_id)
 
         save_team_id = None
         p_won, p_lost = 1, 1
@@ -2653,16 +2721,25 @@ class CrmLead(models.Model):
 
     # Compute Automated Probability Tools
     # -----------------------------------
-    def _pls_get_won_lost_total_count(self, team_results):
+    def _pls_first_stage(self):
+        """ The first team-agnostic stage, used as the reference point for won /
+        lost counts. It is the same for every team, so callers looping over teams
+        must resolve it once and pass it to ``_pls_get_won_lost_total_count``. """
+        return self.env['crm.stage'].search([('team_ids', '=', False)], order='sequence, id', limit=1)
+
+    def _pls_get_won_lost_total_count(self, team_results, first_stage_id=None):
         """ Get all won and all lost + total :
                first stage can be used to know how many lost and won there is
                as won count are equals for all stage
                and first stage is always incremented in lost_count
         :param team_results:
+        :param first_stage_id: reference stage, see ``_pls_first_stage``; resolved
+          on demand when not given, so single-team callers keep working unchanged
         :return: won count, lost count and total count for all records in frequencies
         """
         # TODO : check if we need to handle specific team_id stages [for lost count] (if first stage in sequence is team_specific)
-        first_stage_id = self.env['crm.stage'].search([('team_ids', '=', False)], order='sequence, id', limit=1)
+        if first_stage_id is None:
+            first_stage_id = self._pls_first_stage()
         if str(first_stage_id.id) not in team_results.get('stage_id', []):
             return 0, 0, 0
         stage_result = team_results['stage_id'][str(first_stage_id.id)]

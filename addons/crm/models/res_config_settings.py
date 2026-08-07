@@ -13,8 +13,8 @@ class ResConfigSettings(models.TransientModel):
 
     group_use_lead = fields.Boolean(string="Leads", implied_group='crm.group_use_lead')
     group_use_recurring_revenues = fields.Boolean(string="Recurring Revenues", implied_group='crm.group_use_recurring_revenues')
-    # Membership
-    is_membership_multi = fields.Boolean(string='Multi Teams', config_parameter='sales_team.membership_multi')
+    # Membership: 'is_membership_multi' is declared by sales_team, which owns the
+    # parameter and every behaviour keyed on it; crm only places it in Settings.
     module_partnership = fields.Boolean("Membership / Partnership")
     # Lead assignment
     crm_use_auto_assignment = fields.Boolean(
