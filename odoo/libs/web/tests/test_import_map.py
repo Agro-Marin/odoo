@@ -1,5 +1,3 @@
-"""Tests for ``odoo.libs.web.import_map`` and the pages that hand-roll a map."""
-
 import base64
 import hashlib
 import json
@@ -32,8 +30,6 @@ class TestImportMapFor(unittest.TestCase):
         )
 
     def test_hash_covers_exactly_the_emitted_inline_body(self):
-        """The invariant the whole helper exists for: a browser hashes the text
-        between the tags, so that text and ``csp_hash`` must never disagree."""
         for specs in (("@popperjs/core",), ("luxon", "dompurify"), ("@odoo/owl",)):
             with self.subTest(specs=specs):
                 map_ = import_map_for(*specs)
@@ -41,8 +37,6 @@ class TestImportMapFor(unittest.TestCase):
                 self.assertEqual(map_.csp_hash, _sha256_expr(body))
 
     def test_hash_matches_a_browser_computed_value(self):
-        """Known answer: Chrome asked for this exact expression when refusing
-        the IoT homepage's inline map."""
         body = '{"imports": {"@popperjs/core": "/web/static/lib/popper/popper.esm.js"}}'
         self.assertEqual(
             _sha256_expr(body),
@@ -62,12 +56,6 @@ class TestImportMapFor(unittest.TestCase):
 
 
 class TestHardcodedImportMaps(unittest.TestCase):
-    """Pages outside the asset pipeline may still inline their own map.
-
-    Where they do, the URLs must agree with ``ODOO_EXTERNAL_LIBS`` — otherwise a
-    vendored library moves and those pages keep pointing at the old path.
-    """
-
     def _hardcoded_maps(self):
         for pattern in ("addons/**/*.html", "addons/**/*.xml"):
             for path in _REPO_ROOT.glob(pattern):

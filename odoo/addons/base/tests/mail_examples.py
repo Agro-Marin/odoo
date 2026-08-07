@@ -399,8 +399,10 @@ GMAIL_1_IN = [
     '<div class="gmail_quote" data-o-mail-quote-container="1" data-o-mail-quote="1">',
     '<div dir="ltr" class="gmail_attr" data-o-mail-quote="1">On Thu, Nov 8, 2012 at 5:29 PM',
     '<blockquote class="gmail_quote" data-o-mail-quote-container="1" data-o-mail-quote="1" data-o-mail-quote-node="1">',
-    '<div data-o-mail-quote="1"><br clear="all" data-o-mail-quote="1"></div>\n'
-    '<div data-o-mail-quote="1"><br data-o-mail-quote="1"></div>',
+    (
+        '<div data-o-mail-quote="1"><br clear="all" data-o-mail-quote="1"></div>\n'
+        '<div data-o-mail-quote="1"><br data-o-mail-quote="1"></div>'
+    ),
 ]
 GMAIL_1_OUT = []
 

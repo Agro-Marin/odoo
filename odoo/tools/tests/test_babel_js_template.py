@@ -1,10 +1,3 @@
-"""Regression tests for template-string term extraction in the JS extractor.
-
-A ``_t("...")`` call inside a ``${ ... }`` template-string expression must be
-extracted even when the string contains an escaped quote; a previous
-single-vs-two-character escape bug silently dropped such terms from the POT.
-"""
-
 import io
 import unittest
 

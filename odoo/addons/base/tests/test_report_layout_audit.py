@@ -4,10 +4,6 @@ from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestReportLayoutAccess(TransactionCase):
-    """RL-L1: report.layout is shared global configuration. Internal users get
-    read-only access; only system users may create/write/unlink it.
-    """
-
     def test_internal_user_cannot_modify_report_layout(self):
         user = new_test_user(self.env, login="rl_plain_user")
         view = self.env["ir.ui.view"].search([], limit=1)
@@ -42,11 +38,6 @@ class TestReportLayoutAccess(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestReportLayoutCascade(TransactionCase):
-    """RLAY-C1: report.layout.view_id is ondelete='cascade'. Deleting the template
-    view must remove the dependent layout rather than orphan it (the implicit
-    `set null` default would violate the required=True constraint).
-    """
-
     def test_view_unlink_cascades_to_layout(self):
         view = (
             self.env["ir.ui.view"]

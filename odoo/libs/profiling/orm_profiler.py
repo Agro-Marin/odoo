@@ -1,30 +1,3 @@
-"""Aggregate ORM profiler for transaction-level performance analysis.
-
-Collects per-model, per-operation timing statistics across an entire
-transaction (HTTP request / RPC call / test), then emits a structured
-summary at flush time.
-
-Activation: ``ODOO_ORM_PROFILE=1`` environment variable (opt-in).
-
-When enabled, lightweight recording hooks in the ORM mixins (create.py,
-write.py, unlink.py, read.py, search.py, cache.py) call ``record_*()``
-methods on the ``OrmProfiler`` instance attached to the current
-``Transaction``.
-At the end of the request (``Transaction.flush()``), the profiler
-emits a summary to the ``odoo.orm.profile`` logger.
-
-When **disabled** the only overhead is a single boolean check per ORM
-call (module-level ``_orm_profiling_enabled`` flag).
-
-See Also
---------
-- ``odoo.libs.profiling.nplusone`` — N+1 CRUD detection (repeated single-record calls)
-- ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
-- ``odoo.tests.benchmark`` — Micro-benchmark statistics
-- ``doc/coding_guidelines.rst`` §11 (Performance) — when to reach for which tool
-
-"""
-
 import logging
 import os
 import time
@@ -42,18 +15,6 @@ if _orm_profiling_enabled:
 
 
 class _OrmProfile:
-    """Lightweight phase timer for ORM operation instrumentation.
-
-    Construct it at the start of the operation, call :meth:`mark` at each phase
-    boundary, :meth:`stop` at the end, then read :meth:`ms` / :attr:`elapsed`
-    for the debug line and profiler hook.
-
-    Active only when the operation's logger has DEBUG enabled or aggregate
-    profiling is on; otherwise every method is a cheap no-op (no
-    ``perf_counter`` calls). ``debug`` guards the per-phase marks and debug line,
-    ``agg`` the aggregate-profiler hook; both share the start/stop bounds.
-    """
-
     __slots__ = ("_marks", "agg", "debug")
 
     def __init__(self, logger: logging.Logger) -> None:
@@ -64,28 +25,22 @@ class _OrmProfile:
             self._marks["start"] = time.perf_counter()
 
     def mark(self, name: str) -> None:
-        """Record a phase boundary (debug-only, like the original checkpoints)."""
         if self.debug:
             self._marks[name] = time.perf_counter()
 
     def stop(self) -> None:
-        """Record the end bound (taken whenever debug or profiling is active)."""
         if self.debug or self.agg:
             self._marks["end"] = time.perf_counter()
 
     def ms(self, start: str, end: str) -> float:
-        """Return the elapsed milliseconds between two recorded marks."""
         return (self._marks[end] - self._marks[start]) * 1000.0
 
     @property
     def elapsed(self) -> float:
-        """Total seconds between ``start`` and ``stop`` (for the profiler hook)."""
         return self._marks["end"] - self._marks["start"]
 
 
 class _OpStats:
-    """Accumulator for a single (operation, model_name) bucket."""
-
     __slots__ = ("count", "records", "time")
 
     def __init__(self) -> None:
@@ -98,15 +53,9 @@ type _Key = tuple[str, str]
 
 
 class OrmProfiler:
-    """Collects aggregate ORM statistics within a single transaction.
-
-    Attached to ``Transaction._orm_profiler`` when profiling is enabled.
-    """
-
     __slots__ = ("_data", "_total_time")
 
     def __init__(self) -> None:
-        """Start with empty per-(operation, model) stats and a zero time total."""
         self._data: dict[_Key, _OpStats] = {}
         self._total_time: float = 0.0
 
@@ -117,7 +66,6 @@ class OrmProfiler:
         record_count: int,
         elapsed: float,
     ) -> None:
-        """Record a single ORM operation."""
         key: _Key = (operation, model_name)
         stats = self._data.get(key)
         if stats is None:
@@ -129,43 +77,34 @@ class OrmProfiler:
         self._total_time += elapsed
 
     def record_create(self, model_name: str, record_count: int, elapsed: float) -> None:
-        """Record a ``create`` of ``record_count`` rows on ``model_name``."""
         self._record("create", model_name, record_count, elapsed)
 
     def record_write(self, model_name: str, record_count: int, elapsed: float) -> None:
-        """Record a ``write`` over ``record_count`` rows on ``model_name``."""
         self._record("write", model_name, record_count, elapsed)
 
     def record_unlink(self, model_name: str, record_count: int, elapsed: float) -> None:
-        """Record an ``unlink`` of ``record_count`` rows on ``model_name``."""
         self._record("unlink", model_name, record_count, elapsed)
 
     def record_read(self, model_name: str, record_count: int, elapsed: float) -> None:
-        """Record a ``read`` of ``record_count`` rows on ``model_name``."""
         self._record("read", model_name, record_count, elapsed)
 
     def record_search(self, model_name: str, record_count: int, elapsed: float) -> None:
-        """Record a ``search`` returning ``record_count`` rows on ``model_name``."""
         self._record("search", model_name, record_count, elapsed)
 
     def record_recompute(
         self, model_name: str, record_count: int, elapsed: float
     ) -> None:
-        """Record a ``recompute`` over ``record_count`` rows on ``model_name``."""
         self._record("recompute", model_name, record_count, elapsed)
 
     def record_flush(self, model_name: str, record_count: int, elapsed: float) -> None:
-        """Record a ``flush`` over ``record_count`` rows on ``model_name``."""
         self._record("flush", model_name, record_count, elapsed)
 
     def record_modified(
         self, model_name: str, record_count: int, elapsed: float
     ) -> None:
-        """Record a ``modified`` over ``record_count`` rows on ``model_name``."""
         self._record("modified", model_name, record_count, elapsed)
 
     def report(self) -> None:
-        """Emit a structured summary to the logger."""
         if not self._data or not _logger.isEnabledFor(logging.WARNING):
             return
 
@@ -218,6 +157,5 @@ class OrmProfiler:
         _logger.warning("\n".join(lines))
 
     def clear(self) -> None:
-        """Drop all accumulated stats (called after :meth:`report`)."""
         self._data.clear()
         self._total_time = 0.0

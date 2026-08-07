@@ -25,8 +25,6 @@ class Feedback(TransactionCase):
 
 
 class TestSudo(Feedback):
-    """Test the behavior of method sudo()."""
-
     def test_sudo(self):
         record = self.env["test_access_right.some_obj"].create({"val": 5})
         user1 = self.user
@@ -97,8 +95,6 @@ class TestSudo(Feedback):
 
 
 class TestACLFeedback(Feedback):
-    """Tests that proper feedback is returned on ir.model.access errors"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -128,7 +124,6 @@ class TestACLFeedback(Feedback):
         cls.env.invalidate_all()
 
     def test_no_groups(self):
-        """Operation is never allowed"""
         with self.assertRaises(AccessError) as ctx:
             self.record.with_user(self.user).write({"val": 10})
         self.assertEqual(
@@ -168,8 +163,6 @@ Contact your administrator to request access if necessary."""
 
 
 class TestIRRuleFeedback(Feedback):
-    """Tests that proper feedback is returned on ir.rule errors"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -326,9 +319,6 @@ If you really, really need access, perhaps you can win over your friendly admini
         )
 
     def test_globals_any(self):
-        """Global rules are AND-ed together, so when an access fails it
-        might be just one of the rules, and we want an exact listing
-        """
         self._make_rule("rule 0", '[("val", "=", 42)]', global_=True)
         self._make_rule("rule 1", '[(1, "=", 1)]', global_=True)
         with self.debug_mode(), self.assertRaises(AccessError) as ctx:
@@ -385,10 +375,6 @@ If you really, really need access, perhaps you can win over your friendly admini
         )
 
     def test_warn_company_no_access(self):
-        """If one of the failing rules mentions company_id, add a note that
-        this might be a multi-company issue, but the user doesn't have access to this
-        company, then no information about the company is shown.
-        """
         self._make_rule("rule 0", "[('company_id', '=', user.company_id.id)]")
         self._make_rule("rule 1", '[("val", "=", 0)]', global_=True)
         with self.debug_mode(), self.assertRaises(AccessError) as ctx:
@@ -415,10 +401,6 @@ If you really, really need access, perhaps you can win over your friendly admini
         )
 
     def test_warn_company_no_company_field(self):
-        """If one of the failing rules mentions company_id, add a note that
-        this might be a multi-company issue, but the record doesn't have a company_id
-        field, then no information about the company is shown.
-        """
         ChildModel = self.env["test_access_right.child"].sudo()
         self.env["ir.rule"].create(
             {
@@ -462,9 +444,6 @@ If you really, really need access, perhaps you can win over your friendly admini
         )
 
     def test_warn_company_access(self):
-        """because of prefetching, read() goes through a different codepath
-        to apply rules
-        """
         self.record.sudo().company_id = self.env["res.company"].create(
             {"name": "Brosse Inc."}
         )
@@ -508,7 +487,6 @@ This seems to be a multi-company issue, you might be able to access the record b
             p.with_user(self.user).val
 
     def test_warn_company_access_multi_record(self):
-        """Test that AccessError handle correctly several companies"""
         company_1, company_2 = self.env["res.company"].create(
             [
                 {"name": "Brosse Inc."},
@@ -639,38 +617,16 @@ Groups: allowed for groups 'Role / Portal', 'Test Group'"""
 
     @mute_logger("odoo.models")
     def test_check_field_access_rights_order_drops_unreadable_terms(self):
-        """An ORDER BY term the user may not read is dropped, not refused.
-
-        This asserted ``AccessError`` until the ordering path stopped raising.
-        Refusing is not an option there: ``_order_to_sql`` also runs for the
-        model's own ``_order`` on a model-level (empty) recordset, and
-        ``_has_field_access`` can be record-sensitive -- ``res.users`` grants
-        ``SELF_READABLE_FIELDS`` only when ``self._origin == self.env.user`` --
-        so an empty recordset fails closed and users could no longer sort, or
-        open the preferences form for, their own record.
-
-        Dropping still leaks nothing, which is the half worth pinning: the
-        term must not reach the SQL, because sequencing rows on a value the
-        caller cannot see exposes it as relative order, and ``limit``/``offset``
-        walks that order out record by record.
-        """
         self.record.search([], order="val")
 
-        # Dropped, not refused.
         self.record.search([], order="forbidden3 DESC")
         self.record.search([], order="forbidden3")
         self.record.search([], order="val DESC,    forbidden3       DESC")
 
-        # ...and genuinely dropped: the column never reaches the query, in any
-        # spelling. Asserting only "did not raise" would also pass if the term
-        # were quietly honoured, which is the leak this behaviour exists to
-        # prevent.
         for order in ("forbidden3", "forbidden3 DESC", "val DESC, forbidden3 DESC"):
             query = self.record._search([], order=order)
             self.assertNotIn("forbidden3", str(query.select()), f"order={order!r}")
 
-        # A readable term in the same clause still orders the query -- dropping
-        # is per-term, not "give up on the whole ORDER BY".
         query = self.record._search([], order="val DESC, forbidden3 DESC")
         self.assertIn("val", str(query.select()))
 

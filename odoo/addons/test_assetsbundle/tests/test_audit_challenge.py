@@ -1,13 +1,3 @@
-"""Adversarial verification of the 2026-06-10 assetsbundle audit claims.
-
-Each test pins one contested behavior with an executable proof:
-readonly-flag asymmetry of ``save_attachment``, dead-code status of the
-``get_attachments`` copy-fallback in base, the LIKE-escaping of ``_`` in
-bundle-URL patterns (cross-bundle attachment deletion and the
-multi-record ``.raw`` crash before the fix), silent LTR degradation when
-rtlcss is missing, and the epoch-0 mtime sentinel conflation.
-"""
-
 import os
 import tempfile
 from pathlib import Path
@@ -22,7 +12,6 @@ PLAIN_CSS = "body { margin-left: 1px; }"
 
 
 def _file(url, content, last_modified=1.0):
-    """Build the files-dict entry shape produced by ir_qweb._get_asset_content."""
     return {
         "url": url,
         "filename": None,
@@ -32,8 +21,6 @@ def _file(url, content, last_modified=1.0):
 
 
 class TestAuditReadonlyAsymmetry(TransactionCase):
-    """``save_attachment`` does not consult ``cr.readonly`` (bridges do)."""
-
     def _make_cursor_readonly(self):
         cr = self.env.cr
         original = cr._readonly
@@ -41,10 +28,6 @@ class TestAuditReadonlyAsymmetry(TransactionCase):
         self.addCleanup(setattr, cr, "_readonly", original)
 
     def test_save_attachment_ignores_readonly_flag(self):
-        """The create proceeds with the readonly flag set — no guard, no
-        diversion. Harmless today because every reachable caller holds a
-        rw cursor (binary controller escalation / default-rw routes); the
-        test pins the asymmetry so a future render-path caller trips it."""
         bundle = AssetsBundle(
             "test_assetsbundle.audit_ro",
             [_file("/test_assetsbundle/static/src/js/audit_ro.js", PLAIN_JS)],
@@ -57,12 +40,6 @@ class TestAuditReadonlyAsymmetry(TransactionCase):
 
 
 class TestAuditFallbackDeadInBase(TransactionCase):
-    """The ``get_attachments`` copy-fallback cannot trigger without an
-    ``_get_asset_bundle_url`` override (website): in base the
-    ``ignore_params=True`` pattern is byte-identical to the primary one. The
-    fallback query is now skipped when the two patterns match, so base no
-    longer pays a guaranteed-empty second round-trip on every cache miss."""
-
     def test_ignore_params_pattern_identical_in_base(self):
         bundle = AssetsBundle(
             "test_assetsbundle.audit_fb",
@@ -78,8 +55,6 @@ class TestAuditFallbackDeadInBase(TransactionCase):
         self.assertEqual(primary, fallback)
 
     def test_fallback_query_skipped_when_pattern_identical(self):
-        """On a base cache miss, ``get_attachments`` runs ONLY the primary
-        query — the cross-params fallback (identical pattern) is skipped."""
         bundle = AssetsBundle(
             "test_assetsbundle.audit_fb_skip",
             [_file("/test_assetsbundle/static/src/js/audit_fb_skip.js", PLAIN_JS)],
@@ -98,10 +73,6 @@ class TestAuditFallbackDeadInBase(TransactionCase):
 
 
 class TestAuditLikeUnderscoreWildcard(TransactionCase):
-    """``_`` in bundle names is LIKE-escaped in URL patterns: a bundle's
-    pattern must never match sibling bundles whose name differs only at
-    an underscore position (it used to — read AND write side)."""
-
     FILES = [_file("/test_assetsbundle/static/src/js/audit_like.js", PLAIN_JS)]
 
     def test_sibling_bundle_not_matched(self):
@@ -112,9 +83,6 @@ class TestAuditLikeUnderscoreWildcard(TransactionCase):
         self.assertNotIn("test.auditXa.min.js", matched.mapped("name"))
 
     def test_clean_attachments_spares_sibling(self):
-        """Write side: saving ``test.audit_b`` runs ``_clean_attachments``;
-        its escaped pattern must not match (and delete) the previously
-        saved sibling ``test.auditXb`` — it did before the escape fix."""
         sibling_att = AssetsBundle(
             "test.auditXb", self.FILES, env=self.env, css=False
         ).save_attachment("min.js", "/* sibling */")
@@ -126,9 +94,6 @@ class TestAuditLikeUnderscoreWildcard(TransactionCase):
         self.assertTrue(own_att.exists())
 
     def test_ignore_version_returns_only_own(self):
-        """Read side: with a coexisting sibling, the ``ignore_version``
-        lookup returns exactly one name and the singleton ``raw`` read in
-        ``css()``'s degraded-error path works (it used to raise)."""
         bundle = AssetsBundle("test.audit_c", self.FILES, env=self.env, css=False)
         bundle.save_attachment("min.js", "/* own */")
         AssetsBundle(
@@ -139,8 +104,6 @@ class TestAuditLikeUnderscoreWildcard(TransactionCase):
         self.assertEqual(matched.raw, b"/* own */")
 
     def test_clean_attachments_still_cleans_own_versions(self):
-        """The escape must not break the cleanup's actual job: replacing
-        an outdated version of the SAME bundle still deletes it."""
         files_v1 = [_file("/test_assetsbundle/static/src/js/audit_v.js", PLAIN_JS, 1.0)]
         old_att = AssetsBundle(
             "test.audit_v", files_v1, env=self.env, css=False
@@ -155,9 +118,6 @@ class TestAuditLikeUnderscoreWildcard(TransactionCase):
 
 
 class TestAuditRtlSilentDegradation(TransactionCase):
-    """Missing rtlcss serves LTR styles to RTL users with no css_errors
-    entry — only a once-per-process server log."""
-
     def test_missing_rtlcss_returns_ltr_silently(self):
         bundle = AssetsBundle(
             "test_assetsbundle.audit_rtl",
@@ -176,9 +136,6 @@ class TestAuditRtlSilentDegradation(TransactionCase):
 
 
 class TestAuditEpochMtime(TransactionCase):
-    """``last_modified`` keeps a legitimate epoch-0 mtime distinct from
-    the missing-file ``-1`` sentinel (``is None`` check, 2026-06-11)."""
-
     def _tmp_js(self, mtime):
         fd, path = tempfile.mkstemp(suffix=".js")
         with os.fdopen(fd, "w") as handle:

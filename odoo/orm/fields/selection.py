@@ -18,48 +18,6 @@ if typing.TYPE_CHECKING:
 
 
 class Selection(Field[str | typing.Literal[False]]):
-    """Encapsulates an exclusive choice between different values.
-
-    :param selection: specifies the possible values for this field.
-        It is given as either a list of pairs ``(value, label)``, or a model
-        method, or a method name.
-    :type selection: list(tuple(str,str)) or callable or str
-
-    :param selection_add: provides an extension of the selection in the case
-        of an overridden field. It is a list of pairs ``(value, label)`` or
-        singletons ``(value,)``, where singleton values must appear in the
-        overridden selection. The new values are inserted in an order that is
-        consistent with the overridden selection and this list::
-
-            selection = [('a', 'A'), ('b', 'B')]
-            selection_add = [('c', 'C'), ('b',)]
-            > result = [('a', 'A'), ('c', 'C'), ('b', 'B')]
-    :type selection_add: list(tuple(str,str))
-
-    :param ondelete: provides a fallback mechanism for any overridden
-        field with a selection_add. It is a dict that maps every option
-        from the selection_add to a fallback action.
-
-        This fallback action will be applied to all records whose
-        selection_add option maps to it.
-
-        The actions can be any of the following:
-            - 'set null' -- the default, all records with this option
-              will have their selection value set to False.
-            - 'cascade' -- all records with this option will be
-              deleted along with the option itself.
-            - 'set default' -- all records with this option will be
-              set to the default of the field definition
-            - 'set VALUE' -- all records with this option will be
-              set to the given value
-            - <callable> -- a callable whose first and only argument will be
-              the set of records containing the specified Selection option,
-              for custom processing
-
-    The attribute ``selection`` is mandatory except in the case of
-    ``related`` or extended fields.
-    """
-
     type = "selection"
     _column_type = ("varchar", pg_varchar())
 
@@ -172,14 +130,6 @@ class Selection(Field[str | typing.Literal[False]]):
                     if callable(val) or val in ("set null", "cascade"):
                         continue
                     if val == "set default":
-                        # ``raise``, not ``assert``: this validates a field
-                        # definition at registry build, and ``python -O`` strips
-                        # asserts.  Both invalid policies below were then
-                        # accepted silently, and wrote an invalid value (or NULL
-                        # into a required column) when the selection entry was
-                        # finally deleted.  The ``else`` branch of this very
-                        # chain already raised, so the block disagreed with
-                        # itself about how an invalid policy is rejected.
                         if self.default is None:
                             raise ValueError(
                                 f"{self!r}: ondelete policy of type 'set default' is invalid for this field "
@@ -214,7 +164,6 @@ class Selection(Field[str | typing.Literal[False]]):
         self._selection = values
 
     def _selection_modules(self, model: BaseModel) -> dict[str, set[str]]:
-        """Return a mapping from selection values to modules defining each value."""
         if not isinstance(self.selection, list):
             return {}
         value_modules = defaultdict(set)
@@ -236,9 +185,6 @@ class Selection(Field[str | typing.Literal[False]]):
         return value_modules
 
     def _description_selection(self, env: Environment) -> list[SelectValue]:
-        """Return the selection list (pairs (value, label)); labels are
-        translated according to the context language.
-        """
         selection = self.selection
         if isinstance(selection, str) or callable(selection):
             selection = determine(selection, env[self.model_name])
@@ -257,7 +203,6 @@ class Selection(Field[str | typing.Literal[False]]):
         return self.get_values(records.env)
 
     def get_values(self, env: Environment) -> list[str]:
-        """Return a list of the possible values."""
         selection = self.selection
         if isinstance(selection, str) or callable(selection):
             selection = determine(

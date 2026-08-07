@@ -2,12 +2,6 @@ from odoo.tests import common
 
 
 class TestFillTemporal(common.TransactionCase):
-    """Test for fill temporal.
-
-    This feature is mainly used in graph view. For more informations, read the
-    documentation of models's '_read_group_fill_temporal' method.
-    """
-
     maxDiff = None
 
     def setUp(self):
@@ -15,11 +9,6 @@ class TestFillTemporal(common.TransactionCase):
         self.Model = self.env["test_read_group.fill_temporal"]
 
     def test_date_range_and_flag(self):
-        """Simple date range test, the flag is also tested.
-
-        One of the most simple test. It must verify that dates 'holes' are filled
-        only when the fill_temporal flag is set.
-        """
         self.Model.create({"date": "1916-08-18", "value": 2})
         self.Model.create({"date": "1916-10-19", "value": 3})
         self.Model.create({"date": "1916-12-19", "value": 5})
@@ -105,16 +94,6 @@ class TestFillTemporal(common.TransactionCase):
         )
 
     def test_date_range_with_context_timezone(self):
-        """Test if date are date_trunced correctly by pgres.
-
-        This test was added in attempt to fix a bug appearing with babel that
-        we use to translate the dates. Typically after a daylight saving, A
-        whole year was displayed in a graph like this (APR missing and OCT
-        appearing twice) :
-
-            JAN   FEB   MAR   MAY   JUN   JUL   AUG   SEP   OCT   OCT   NOV
-                           ^^^                                    ^^^
-        """
         self.Model.create({"date": "1915-01-01", "value": 3})
         self.Model.create({"date": "1916-01-01", "value": 5})
 
@@ -265,7 +244,6 @@ class TestFillTemporal(common.TransactionCase):
             self.assertEqual(groups, expected)
 
     def test_only_with_only_null_date(self):
-        """We should have the same result when fill_temporal is set or not."""
         self.Model.create({"date": False, "value": 13})
         self.Model.create({"date": False, "value": 11})
         self.Model.create({"date": False, "value": 17})
@@ -290,7 +268,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_date_range_and_null_date(self):
-        """Test data with null and non-null dates."""
         self.Model.create({"date": "1916-08-19", "value": 4})
         self.Model.create({"date": False, "value": 13})
         self.Model.create({"date": "1916-10-18", "value": 5})
@@ -460,7 +437,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_date_range_groupby_week(self):
-        """Test data with weeks starting on Sunday."""
         self.Model.create(
             [
                 {"date": "1916-08-19", "value": 4},
@@ -538,7 +514,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_order_date_desc(self):
-        """Test if changing Model._order has influence on the result."""
         self.Model.create({"date": "1916-08-18", "value": 3})
         self.Model.create({"date": "1916-08-19", "value": 4})
         self.Model.create({"date": "1916-10-18", "value": 5})
@@ -589,11 +564,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_timestamp_without_timezone(self):
-        """Test datetimes.
-
-        Date stored with an hour inside the Odoo model are processed as timestamp
-        without timezone by postgres.
-        """
         self.Model.create({"datetime": "1916-08-19 01:30:00", "value": 7})
         self.Model.create({"datetime": False, "value": 13})
         self.Model.create({"datetime": "1916-10-18 02:30:00", "value": 5})
@@ -652,11 +622,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_with_datetimes_and_groupby_per_hour(self):
-        """Test with datetimes and groupby per hour.
-
-        Test if datetimes are filled correctly when grouping by hours instead of
-        months.
-        """
         self.Model.create({"datetime": "1916-01-01 01:30:00", "value": 2})
         self.Model.create({"datetime": "1916-01-01 01:50:00", "value": 8})
         self.Model.create({"datetime": "1916-01-01 02:30:00", "value": 3})
@@ -902,11 +867,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_hour_with_timezones(self):
-        """Test hour with timezones.
-
-        What we do here is similar to test_with_datetimes_and_groupby_per_hour
-        but with a timezone in the user context.
-        """
         self.Model.create({"datetime": "1915-12-31 22:30:00", "value": 2})
         self.Model.create({"datetime": "1916-01-01 03:30:00", "value": 3})
 
@@ -980,10 +940,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_quarter_with_timezones(self):
-        """Test quarter with timezones.
-
-        We group year by quarter and check that it is consistent with timezone.
-        """
         self.Model.create({"datetime": "2016-01-01 03:30:00", "value": 2})
         self.Model.create({"datetime": "2016-12-30 22:30:00", "value": 3})
 
@@ -1037,18 +993,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_edge_fx_tz(self):
-        """Test an edge effect by using a timezone different from the user context
-
-        Suppose a user resident near Hovd, a city in Mongolia. He sells a product
-        at exactly 4:00 AM on 1st January 2018. Using his context, that datetime
-        is converted to UTC time by the ORM so as being stored properly inside the
-        database. We are in winter time so 'Asia/Hovd' is UTC+7 :
-
-                 '2018-01-01 04:00:00'   -->  '2017-12-31 21:00:00'
-
-        If that same user groups by datetime, we must ensure that the last
-        displayed date is in January and not in December.
-        """
         self.Model.create({"datetime": "2017-12-31 21:00:00", "value": 42})
 
         expected = [
@@ -1071,15 +1015,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_with_bounds(self):
-        """Test the alternative dictionary format for the fill_temporal context key (fill_from, fill_to).
-
-        We apply the fill_temporal logic only to a targeted portion of the result of a formatted_read_group.
-        [fill_from, fill_to] are the inclusive bounds of this portion.
-        Data outside those bounds will not be filtered out
-        Bounds will be converted to the start of the period which they belong to (depending
-        on the granularity of the groupby). This means that we can put any date of the period as the bound
-        and it will still work.
-        """
         self.Model.create({"date": "1916-02-15", "value": 1})
         self.Model.create({"date": "1916-06-15", "value": 2})
         self.Model.create({"date": "1916-11-15", "value": 3})
@@ -1153,16 +1088,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_datetime_bounds_with_timezone(self):
-        """Datetime field + explicit fill bounds + tz must not crash.
-
-        Group keys are naive local-time values; the string bounds must be parsed
-        as datetimes (per the grouped field's type) and stay naive to match
-        them.  Previously the bound went through ``Date.to_date`` (yielding a
-        ``date``) and/or was tz-localised, so the fill comparison raised
-        ``date < datetime`` / ``can't compare offset-naive and offset-aware``.
-        Regression guard: an existing datum OUTSIDE the requested window is what
-        triggered the naive-vs-(date|aware) mix.
-        """
         self.Model.create({"datetime": "1916-06-15 10:00:00", "value": 7})
 
         groups = self.Model.with_context(
@@ -1178,7 +1103,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual([g["__count"] for g in groups], [0, 0, 0, 1])
 
     def test_with_bounds_groupby_week(self):
-        """Test data with weeks starting on Sunday and forced boundaries."""
         self.Model.create(
             [
                 {"date": "1916-08-19", "value": 4},
@@ -1274,11 +1198,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_upper_bound(self):
-        """Test the alternative dictionary format for the fill_temporal context key (fill_to).
-
-        Same as with both bounds, but this time the first bound is the earliest group with data
-        (since only fill_to is set)
-        """
         self.Model.create({"date": "1916-02-15", "value": 1})
 
         expected = [
@@ -1324,11 +1243,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_lower_bound(self):
-        """Test the alternative dictionary format for the fill_temporal context key (fill_from).
-
-        Same as with both bounds, but this time the second bound is the latest group with data
-        (since only fill_from is set)
-        """
         self.Model.create({"date": "1916-04-15", "value": 1})
 
         expected = [
@@ -1375,10 +1289,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_empty_context_key(self):
-        """Test the alternative dictionary format for the fill_temporal context key.
-
-        When fill_temporal context key is set to an empty dictionary, it must be equivalent to being True
-        """
         self.Model.create({"date": "1916-02-15", "value": 1})
         self.Model.create({"date": "1916-04-15", "value": 2})
 
@@ -1424,11 +1334,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_min_groups(self):
-        """Test the alternative dictionary format for the fill_temporal context key (min_groups).
-
-        We guarantee that at least a certain amount of contiguous groups is returned, from the
-        earliest group with data.
-        """
         self.Model.create({"date": "1916-02-15", "value": 1})
 
         expected = [
@@ -1464,16 +1369,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
     def test_with_bounds_and_min_groups(self):
-        """Test the alternative dictionary format for the fill_temporal context key (fill_from, fill_to, min_groups).
-
-        We guarantee that at least a certain amount of contiguous groups is returned, from the
-        fill_from bound. The fill_from bound has precedence over the first group with data regarding min_groups
-        (min_groups will first try to anchor itself on fill_from, or, if not specified, on the first group with data).
-        This amount is not restricted by the fill_to bound, so, if necessary, the fill_temporal
-        logic will be applied until min_groups is guaranteed, even for groups later than fill_to
-        Groups outside the specifed bounds are not counted as part of min_groups, unless added specifically
-        to guarantee min_groups.
-        """
         self.Model.create({"date": "1916-02-15", "value": 1})
         self.Model.create({"date": "1916-06-15", "value": 2})
         self.Model.create({"date": "1916-11-15", "value": 3})

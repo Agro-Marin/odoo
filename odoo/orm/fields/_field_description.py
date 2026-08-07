@@ -1,8 +1,3 @@
-"""Client-facing field metadata: get_description and its _description_* parts.
-
-Extracted from the Field god-class; mixed into Field (base.py).
-"""
-
 import typing
 from collections.abc import (
     Collection,
@@ -24,12 +19,9 @@ from ._field_stubs import _FieldStubs
 
 
 class _FieldDescriptionMixin(_FieldStubs):
-    """Client-facing field metadata: get_description and its _description_* parts."""
-
     def get_description(
         self, env: Environment, attributes: Collection[str] | None = None
     ) -> ValuesType:
-        """Return a dictionary that describes the field ``self``."""
         desc = {}
         for attr, prop in self.description_attrs:
             if attributes is not None and attr not in attributes:
@@ -63,8 +55,6 @@ class _FieldDescriptionMixin(_FieldStubs):
             )
         except ValueError, AccessError:
             return False
-        # An empty term means the ordering would be dropped (unreadable field,
-        # many2one cycle), so the client must not offer to sort on it.
         return bool(term)
 
     def _description_groupable(self, env: Environment) -> bool:
@@ -116,5 +106,4 @@ class _FieldDescriptionMixin(_FieldStubs):
         return env._(self.falsy_value_label) if self.falsy_value_label else None
 
     def is_editable(self) -> bool:
-        """Return whether the field can be editable in a view."""
         return not self.readonly

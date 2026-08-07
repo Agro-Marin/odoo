@@ -1,31 +1,3 @@
-"""``begin_invalidation()`` must be closed even when model setup raises.
-
-``Registry._setup_models__`` opens a teardown window with
-``model_graph.begin_invalidation()`` and closes it with ``end_invalidation()``
-~80 lines later.  Between the two sit ``registration.setup_model_classes(env)``
-and the ``field.get_depends(model)`` loop, both of which raise on a malformed
-model -- ``registration`` alone has five ``raise TypeError`` sites reachable
-from a bad ``ir.model`` / ``ir.model.fields`` row.  There is no ``try/finally``,
-so the window is left open.
-
-While the barrier is up, ``ModelGraph.set_triggers`` refuses every
-epoch-validated publication, and ``Registry._field_triggers`` -- the sole
-epoch-validated publisher in the tree -- is a ``cached_property``, so the
-refused (stale) result is memoized on the registry as well.
-
-Scope, measured rather than assumed: this does **not** stop recomputation.  The
-previously published snapshot stays in place and stays correct as long as the
-model set has not actually changed, and a later *successful* ``_setup_models__``
-calls ``end_invalidation()`` and republishes.  What the missing ``finally``
-costs is that the registry is left in a state where trigger publication is
-silently disabled until some other caller happens to complete a successful
-setup -- a failure mode with no log line and no way for a reader to tell the
-barrier is up.
-
-Both tests use ``ModelGraph`` directly: the invariant belongs to the component,
-and pinning it here keeps the suite database-free.
-"""
-
 from collections import defaultdict
 
 import pytest
@@ -34,7 +6,6 @@ from odoo.orm.components.model_graph import ModelGraph
 
 
 def _publish(graph, triggers=None):
-    """Attempt an epoch-validated publication, as ``_field_triggers`` does."""
     start_epoch = graph.trigger_epoch
     return graph.set_triggers(triggers or defaultdict(dict), epoch=start_epoch)
 
@@ -53,7 +24,6 @@ def test_barrier_blocks_publication_while_open():
 
 
 def test_a_raising_teardown_leaves_the_barrier_open():
-    """The shape of ``_setup_models__``: begin, raise, never end."""
     graph = ModelGraph()
 
     with pytest.raises(TypeError):
@@ -61,12 +31,10 @@ def test_a_raising_teardown_leaves_the_barrier_open():
         raise TypeError("simulated malformed model")
 
     assert _publish(graph) is False
-    # ... and it stays refused for every later attempt, with nothing logged.
     assert _publish(graph) is False
 
 
 def _functions_opening_a_teardown_window():
-    """Every function in odoo/orm that calls ``begin_invalidation()``."""
     import ast
     import pathlib
 
@@ -91,7 +59,6 @@ def _functions_opening_a_teardown_window():
 
 
 def _closes_in_a_finally(func_node):
-    """Is ``end_invalidation()`` reached from some ``finally:`` in this function?"""
     import ast
 
     for node in ast.walk(func_node):
@@ -109,7 +76,6 @@ def _closes_in_a_finally(func_node):
 
 
 def test_the_scan_finds_the_real_call_sites():
-    """Guard the guard: if this ever returns nothing, the check below is vacuous."""
     openers = _functions_opening_a_teardown_window()
     assert openers, "no begin_invalidation() call sites found -- scan is broken"
 

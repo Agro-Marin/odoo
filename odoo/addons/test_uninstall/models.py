@@ -2,11 +2,6 @@ from odoo import fields, models
 
 
 class Test_UninstallModel(models.Model):
-    """
-    This model uses different types of columns to make it possible to test
-    the uninstall feature of Odoo.
-    """
-
     _name = "test_uninstall.model"
     _description = "Testing Uninstall Model"
 

@@ -1,10 +1,3 @@
-"""Prefork (multiprocess) server.
-
-``PreforkServer`` (aka Multicorn) forks one ``Worker`` child (``_worker.py``)
-per HTTP/cron slot and supervises them from a signal-driven master loop.
-Subclasses ``CommonServer`` (``_base_server.py``).
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -44,11 +37,6 @@ GRACEFUL_STOP_TIMEOUT_S = 60.0
 
 
 def _graceful_stop_timeout(logger: logging.Logger) -> float:
-    """Resolve the graceful-stop SIGKILL deadline, honouring the env override.
-
-    Read at stop time so a unit-file ``Environment=`` edit takes effect on the
-    next reload.  Floored at 1 s so a "0" can't disable the escalation.
-    """
     return env_float(
         "ODOO_GRACEFUL_STOP_TIMEOUT",
         GRACEFUL_STOP_TIMEOUT_S,
@@ -64,12 +52,6 @@ EVENTED_STOP_TIMEOUT_S = 5.0
 
 
 class PreforkServer(CommonServer):
-    """Multiprocessing inspired by (g)unicorn.
-    PreforkServer (aka Multicorn) currently uses accept(2) as dispatching
-    method between workers but we plan to replace it by a more intelligent
-    dispatcher to parse the first HTTP request line.
-    """
-
     def __init__(self, app: Any) -> None:
         super().__init__(app)
         self.population = config["workers"]
@@ -95,16 +77,9 @@ class PreforkServer(CommonServer):
         self._respawn_not_before = 0.0
 
     def pipe_new(self) -> tuple[int, int]:
-        """Create a new non-blocking, close-on-exec pipe pair."""
         return os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
 
     def _set_socket_cloexec(self) -> None:
-        """Set FD_CLOEXEC on ``self.socket`` (POSIX only; no-op elsewhere).
-
-        Used for the reload- and socket-activation-inherited listen sockets,
-        which arrive without CLOEXEC; the default bind path gets it for free
-        (Python sockets are CLOEXEC by default).
-        """
         if os.name != "posix":
             return
         fd = self.socket.fileno()
@@ -112,7 +87,6 @@ class PreforkServer(CommonServer):
         fcntl.fcntl(fd, fcntl.F_SETFD, flags)
 
     def pipe_ping(self, pipe: tuple[int, int]) -> None:
-        """Write a single byte to the write end of a pipe to wake the master."""
         try:
             os.write(pipe[1], b".")
         except OSError as e:
@@ -129,12 +103,6 @@ class PreforkServer(CommonServer):
         self.pipe_ping(self.pipe)
 
     def _close_inherited_pipe_fds_in_child(self, new_worker: Worker) -> None:
-        """Release sibling workers' pipe fds that this child inherited via fork.
-
-        ``os.pipe2(O_CLOEXEC)`` only closes on ``execve``, so after a bare
-        ``fork`` the child still holds every sibling's pipes plus the master
-        wakeup pipe — leaked for its whole lifetime.  Close all but its own.
-        """
         keep = {
             new_worker.watchdog_pipe[0],
             new_worker.watchdog_pipe[1],
@@ -157,19 +125,6 @@ class PreforkServer(CommonServer):
                     os.close(fd)
 
     def _note_spawn_failure(self) -> None:
-        """Arm the respawn backoff after a spawn that failed BEFORE forking.
-
-        A ``pipe2``/``fork``/``Popen`` failure (EMFILE/ENFILE/EAGAIN/ENOMEM)
-        creates no child, so ``process_zombie`` never reaps one and
-        ``_note_worker_exit`` — the only other place that arms the throttle —
-        never runs.  Without this, ``process_spawn`` re-attempts every ``beat``
-        (~4s), each try logging a full traceback, precisely while fd/memory
-        pressure is highest.  Mirror the reaped-child throttle (same counter,
-        same ``2 ** n`` cap) so a sustained resource outage yields a handful of
-        warnings on a widening backoff instead of a steady flood; a worker that
-        later boots and lives ``WORKER_MIN_HEALTHY_LIFETIME_S`` clears it via
-        ``_note_worker_exit``, exactly as a crash-loop recovery does.
-        """
         self._consecutive_fast_deaths += 1
         backoff = min(2.0**self._consecutive_fast_deaths, WORKER_RESPAWN_BACKOFF_CAP_S)
         self._respawn_not_before = time.monotonic() + backoff
@@ -180,7 +135,6 @@ class PreforkServer(CommonServer):
         )
 
     def worker_spawn(self, klass: type, workers_registry: dict) -> Worker | None:
-        """Fork a new worker of the given class and register it."""
         self.generation += 1
         worker = None
         try:
@@ -228,13 +182,6 @@ class PreforkServer(CommonServer):
             os._exit(exit_code)
 
     def long_polling_spawn(self) -> None:
-        """Spawn the evented long-polling subprocess.
-
-        A transient ``Popen`` failure (``OSError`` — EAGAIN/ENOMEM) must NOT
-        propagate: it would reach ``run()``'s catch-all and stop the master over
-        a momentary spike (same guard ``worker_spawn`` puts on ``os.fork()``).
-        Leave ``long_polling_pid`` unset so the next ``process_spawn`` retries.
-        """
         nargs = stripped_sys_argv()
         cmd = [sys.executable, sys.argv[0], "evented"] + nargs[1:]
         try:
@@ -251,26 +198,12 @@ class PreforkServer(CommonServer):
         self.long_polling_spawn_time = time.monotonic()
 
     def _reconcile_long_polling_popen(self, returncode: int | None) -> None:
-        """Mark the evented child's ``Popen`` finished after it was reaped.
-
-        The master reaps that child through ``process_zombie``'s ``waitpid(-1)``
-        or ``_stop_long_polling``'s ``psutil`` wait — never ``Popen.wait()`` — so
-        the handle still thinks the child runs.  Set its ``returncode`` (any
-        non-``None`` value suffices; ``None`` means psutil couldn't read the code
-        of a non-child on the reload path) so ``__del__`` neither warns nor parks
-        it on ``subprocess._active``.
-        """
         popen = self.long_polling_popen
         self.long_polling_popen = None
         if popen is not None and popen.returncode is None:
             popen.returncode = returncode if returncode is not None else -signal.SIGKILL
 
     def worker_pop(self, pid: int) -> None:
-        """Unregister and clean up a worker by PID.
-
-        ``Worker.close`` suppresses per-fd ``OSError``, so the bookkeeping pops
-        finish even if a pipe fd was already released on this side.
-        """
         if pid == self.long_polling_pid:
             self.long_polling_pid = None
         if pid in self.workers:
@@ -281,7 +214,6 @@ class PreforkServer(CommonServer):
             self.workers.pop(pid).close()
 
     def worker_kill(self, pid: int, sig: int) -> None:
-        """Send a signal to a worker, unregistering it on ESRCH or SIGKILL."""
         try:
             os.kill(pid, sig)
             if sig == signal.SIGKILL:
@@ -291,14 +223,6 @@ class PreforkServer(CommonServer):
                 self.worker_pop(pid)
 
     def process_signals(self) -> None:
-        """Drain the signal queue and act on each pending signal.
-
-        Only signals routed through ``self.signal_handler`` reach here.
-        ``SIGQUIT``/``SIGUSR1``/``SIGUSR2`` are bound directly to their handlers
-        in ``start()`` and never enter the queue.  ``SIGCHLD`` is enqueued only
-        to wake the master from ``sleep``; the actual reaping is in
-        ``process_zombie``, so it needs no branch here.
-        """
         while self.queue:
             sig = self.queue.popleft()
             if sig in [signal.SIGINT, signal.SIGTERM]:
@@ -312,7 +236,6 @@ class PreforkServer(CommonServer):
                 self.population = max(self.population - 1, 0)
 
     def process_zombie(self) -> None:
-        """Reap dead workers via ``waitpid(-1, WNOHANG)``."""
         while True:
             try:
                 wpid, status = os.waitpid(-1, os.WNOHANG)
@@ -326,26 +249,6 @@ class PreforkServer(CommonServer):
                 raise
 
     def _note_worker_exit(self, pid: int, status: int) -> None:
-        """Feed a reaped worker's exit into the fork-storm respawn throttle.
-
-        Only an *unexpected, early* death arms the backoff.  A worker that lived
-        at least ``WORKER_MIN_HEALTHY_LIFETIME_S`` (a successful boot) clears it.
-        An early death arms it on a non-zero exit code or a fatal signal other
-        than ``SIGTERM`` (segfault, C-extension ``SIGABRT``, OOM-kill / ``kill
-        -9``) — else a crash-on-boot storm that dies by signal would refill its
-        slot undetected.
-
-        ``SIGTERM`` is excluded defensively (the master only sends it during
-        ``stop()``, outside the throttle loop).  ``SIGKILL`` is NOT excluded: a
-        master watchdog SIGKILL ``worker_pop``s the worker first, so any SIGKILL
-        reaching here with the worker still registered is external (OOM-killer /
-        ``kill -9``) — exactly the storm this damps.  A young *clean* exit (a
-        recycle) neither arms nor clears.
-
-        The long-polling subprocess feeds the same throttle (its only backoff),
-        so a crash-on-boot evented child (e.g. ``gevent_port`` bound) doesn't
-        re-exec every cycle; its expected watchdog recycle exits 0 and is ignored.
-        """
         if pid == self.long_polling_pid:
             name = "Long-polling (evented) subprocess"
             lifetime = time.monotonic() - self.long_polling_spawn_time
@@ -387,7 +290,6 @@ class PreforkServer(CommonServer):
             )
 
     def process_timeout(self) -> None:
-        """Kill workers that have exceeded their watchdog timeout."""
         now = time.monotonic()
         for pid, worker in list(self.workers.items()):
             if (
@@ -442,7 +344,6 @@ class PreforkServer(CommonServer):
                 return
 
     def sleep(self) -> None:
-        """Wait for worker pings or internal wakeups, updating watchdog timestamps."""
         try:
             fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
             with selectors.DefaultSelector() as sel:
@@ -502,13 +403,6 @@ class PreforkServer(CommonServer):
                 self.socket.listen(8 * self.population)
 
     def fork_and_reload(self) -> bool:
-        """Fork: parent re-execs the new server; child waits for SIGHUP then shuts down.
-
-        Returns True if the new server signalled readiness (SIGHUP) within the
-        timeout, False otherwise. The caller uses this to decide whether the
-        old server's workers should be terminated — if the new server never
-        came up, shutting them down would leave zero listeners on the port.
-        """
         self.logger.info("Reloading server")
         pid = os.fork()
         if pid != 0:
@@ -551,17 +445,6 @@ class PreforkServer(CommonServer):
         return phoenix_hatched
 
     def _stop_long_polling(self) -> None:
-        """Stop the evented subprocess: SIGTERM, bounded wait, SIGKILL fallback.
-
-        ``EventServer`` turns SIGTERM into a graceful stop (``serve_forever``
-        unwinds and the ``on_stop`` hooks close its PG connections), so try
-        that first — the unconditional SIGKILL this replaces predated that
-        handler.  A wedged child still cannot stall shutdown or keep
-        ``gevent_port`` bound into the next master's spawn: after the grace
-        period it is SIGKILLed.  ``psutil.Process.wait`` (not ``waitpid``)
-        because on the reload path the child belongs to the re-exec'd master,
-        which reaps it via ``process_zombie``.
-        """
         pid = self.long_polling_pid
         if pid is None:
             return
@@ -597,7 +480,6 @@ class PreforkServer(CommonServer):
             self._reconcile_long_polling_popen(code)
 
     def stop_workers_gracefully(self) -> None:
-        """Signal all workers to finish their current request then exit."""
         self.logger.info("Stopping workers gracefully")
 
         self._stop_long_polling()
@@ -650,17 +532,6 @@ class PreforkServer(CommonServer):
         lifecycle.server_phoenix = phoenix_decided
 
     def _sweep_stale_workers(self) -> None:
-        """SIGTERM workers that outlived a drain, skipping recycled PIDs.
-
-        Only meaningful in the ``fork_and_reload`` child, which is a sibling of
-        the workers rather than their parent: it cannot ``waitpid`` them, so a
-        pid still in ``self.workers`` after the drain may already have been
-        reaped by the new master and reissued to some unrelated process.
-        ``_drain_procs`` holds handles created while those workers were alive,
-        and ``psutil`` compares creation times, so ``is_running()`` is False once
-        the pid has been recycled.  A pid with no handle was already gone when
-        the drain started and needs no signal either.
-        """
         for pid in list(self.workers):
             proc = self._drain_procs.get(pid)
             if proc is None or not proc.is_running():
@@ -696,7 +567,6 @@ class PreforkServer(CommonServer):
             self.worker_kill(pid, signal.SIGTERM)
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
-        """Start the prefork server, optionally stopping after preloading registries."""
         self.start()
 
         rc = preload_registries(preload)

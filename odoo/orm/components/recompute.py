@@ -1,18 +1,3 @@
-"""Standalone recomputation scheduler for the ORM.
-
-:class:`RecomputeScheduler` converts trigger-traversal results into scheduling
-decisions. No dependency on Environment, BaseModel, or cursors — testable with
-pure Python. It processes (field, ids) trigger entries (from the trigger tree
-traversal in ``RecomputeMixin._modified_triggers``) and for each routes to:
-
-* **Recomputation** (stored-computed fields) — accumulated in :attr:`to_recompute`
-* **Cache invalidation** (non-stored computed) — accumulated in :attr:`to_invalidate`
-* **Recursive traversal** (recursive fields) — returned from :meth:`process_entry`
-
-Protection subtraction and cycle detection are handled internally via the
-:class:`ComputeEngine`.
-"""
-
 from __future__ import annotations
 
 import typing
@@ -28,29 +13,6 @@ if typing.TYPE_CHECKING:
 
 
 class RecomputeScheduler:
-    """Route trigger entries into recomputation scheduling decisions.
-
-    Pure-data processor over field-like keys (hashables with ``recursive`` and
-    ``is_stored_computed`` attributes) and ID sets. Accumulates results across
-    :meth:`process_entry` calls so the caller can interleave trigger traversal
-    (DB-coupled) with scheduling (pure logic).
-
-    :param compute_engine: standalone compute engine for protection checks.
-    :param marked: read-only ``{field: set_of_ids}`` of fields already pending,
-        for pruning recursive stored-computed fields. Pass the engine's *live*
-        pending map (``engine.pending``) so ids already scheduled by earlier
-        ``modified()`` calls in the same transaction are not re-traversed
-        (each re-traversal costs inverse-resolution SQL in the caller);
-        scheduling is idempotent, so the prune is always safe.
-    :param schedule_inline: when ``True``, each entry's routed recompute ids
-        (the per-entry delta, after protection and cycle filtering) are
-        scheduled into the engine's pending map immediately, so a lazy
-        trigger-tree iterator sees newly pending fields mid-traversal.
-    :param set_factory: set-like factory for the :attr:`to_recompute` id sets
-        (e.g. ``OrderedSet`` for deterministic recompute order); defaults to
-        ``set``.
-    """
-
     __slots__ = (
         "_engine",
         "_inline",
@@ -68,7 +30,6 @@ class RecomputeScheduler:
         schedule_inline: bool = False,
         set_factory: type | None = None,
     ) -> None:
-        """Bind to *compute_engine* and start with empty result accumulators."""
         self._engine = compute_engine
         self._marked: Mapping = marked if marked is not None else {}
         self._inline = schedule_inline
@@ -82,23 +43,9 @@ class RecomputeScheduler:
         ids: AbstractSet,
         cached_ids: Container | None = None,
     ) -> frozenset:
-        """Process one trigger entry.
-
-        Applies protection subtraction and cycle detection, then routes the
-        entry to :attr:`to_recompute` or :attr:`to_invalidate`.
-
-        :param field: a :class:`~._protocols.SchedulableField` (reads
-            ``.recursive`` and ``.is_stored_computed``).
-        :param ids: record IDs affected by the modification.
-        :param cached_ids: for recursive non-stored fields, the IDs with cached
-            data; only those are processed. ``None`` skips this filter.
-        :returns: frozenset of IDs needing recursive traversal (empty if none).
-            The caller resolves inverse dependencies for these (DB-coupled) and
-            feeds the resulting entries back in.
-        """
         protected = self._engine.protected_ids(field)
         if protected:
-            ids = ids - protected
+            ids = ids - protected  # noqa: PLR6104  `ids` is caller-owned: -= would mutate it in place
         if not ids:
             return frozenset()
 
@@ -107,14 +54,14 @@ class RecomputeScheduler:
             if field.is_stored_computed:
                 m = self._marked.get(field)
                 if m:
-                    ids = ids - m
+                    ids = ids - m  # noqa: PLR6104  caller-owned set, see above
                 r = self.to_recompute.get(field)
                 if r and ids:
-                    ids = ids - r
+                    ids = ids - r  # noqa: PLR6104  caller-owned set, see above
             else:
                 seen = self._seen_recursive.get(field)
                 if seen:
-                    ids = ids - seen
+                    ids = ids - seen  # noqa: PLR6104  caller-owned set, see above
                 if cached_ids is not None and ids:
                     ids = type(ids)(id_ for id_ in ids if id_ in cached_ids)
             if not ids:
@@ -133,7 +80,6 @@ class RecomputeScheduler:
         return recursive_ids
 
     def __repr__(self) -> str:
-        """Return a debug summary with recompute/invalidate field and entry counts."""
         n_recompute = sum(len(ids) for ids in self.to_recompute.values())
         n_invalidate = sum(len(ids) for _, ids in self.to_invalidate)
         return (

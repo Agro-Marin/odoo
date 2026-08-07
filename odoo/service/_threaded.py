@@ -1,16 +1,3 @@
-"""Threaded and evented HTTP servers.
-
-* ``ThreadedServer`` — the default single-process server: a threaded werkzeug
-  WSGI server plus in-process cron threads.
-* ``EventServer`` — the evented/websocket long-polling server, run as the
-  dedicated ``odoo-bin evented`` subprocess in prefork mode.  Despite the legacy
-  naming (``gevent_port``, ``limit_memory_soft_gevent`` — kept for config
-  compatibility), this fork dropped gevent: it is a plain threaded werkzeug
-  server whose requests hold the socket open for websocket traffic.
-
-Both subclass ``CommonServer`` (``_base_server.py``).
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -154,12 +141,6 @@ class ThreadedServer(CommonServer):
         process_jobs: Any,
         label: str,
     ) -> None:
-        """Shared LISTEN/NOTIFY worker loop of the cron and job threads.
-
-        ``process_jobs(db_name)`` is the per-database unit of work
-        (``IrCron._process_jobs`` / ``IrJob._process_jobs``); ``channel`` the
-        PG NOTIFY channel armed on the recycled ``postgres`` connection.
-        """
 
         cron_logger = self.logger.getChild(f"{label}{number}")
         cron_logger.info("Alive")
@@ -254,7 +235,6 @@ class ThreadedServer(CommonServer):
                 time.sleep(backoff)
 
     def cron_spawn(self) -> None:
-        """Start ``max_cron_threads`` daemon threads, each running ``cron_thread``."""
         for i in range(config["max_cron_threads"]):
             t = threading.Thread(
                 target=self.cron_thread,
@@ -266,7 +246,6 @@ class ThreadedServer(CommonServer):
             t.start()
 
     def job_spawn(self) -> None:
-        """Start ``job_workers`` daemon threads, each running ``job_thread``."""
         for i in range(config["job_workers"]):
             t = threading.Thread(
                 target=self.job_thread,
@@ -318,14 +297,6 @@ class ThreadedServer(CommonServer):
             self.http_spawn()
 
     def stop(self) -> None:
-        """Shut down the WSGI server, waiting briefly for non-daemon threads.
-
-        Every thread ``ThreadedServer`` spawns is daemon, so the join loop is
-        there to give application-spawned non-daemon threads up to one second.
-        It busy-waits (``join(0.05)`` + ``sleep(0.05)``) rather than one long
-        ``join()`` because ``Thread.join`` masks signals, and a second SIGINT
-        must still force the shutdown.
-        """
         if lifecycle.server_phoenix:
             self.logger.info("Initiating server reload")
         elif self._stop_after_init:
@@ -371,20 +342,6 @@ class ThreadedServer(CommonServer):
         logging.shutdown()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
-        """Start the http server and the cron thread, then wait for a signal.
-
-        A first SIGINT or SIGTERM starts a graceful shutdown; a second forces
-        an immediate exit.
-
-        The whole body runs under one ``try/except KeyboardInterrupt`` with
-        ``stop()`` in a ``finally``: this server raises ``KeyboardInterrupt``
-        from its signal handler, so a quit signal (INT/TERM/HUP) arriving during
-        ``preload_registries`` — common under ``--dev=reload`` when a file is
-        saved mid-startup — or during the drain must still route into the normal
-        shutdown, run the on-stop hooks, and (for SIGHUP, which also set
-        ``server_phoenix``) let ``lifecycle.start`` re-exec.  A bare escape would
-        skip cleanup and silently downgrade a reload to a crash.
-        """
         rc: int | None = None
         self._stop_after_init = stop
         try:
@@ -442,13 +399,6 @@ class ThreadedServer(CommonServer):
         return rc if stop else None
 
     def _has_other_http_requests(self) -> bool:
-        """Return True if a non-limit-exceeding HTTP request is in flight.
-
-        ``run()``'s reload gate uses this to wait for unrelated requests to drain
-        so a limit breach on one doesn't abort others.  HTTP threads are matched
-        by ``type == "http"`` (they ARE daemon, so a ``not daemon`` filter would
-        always be False); ``limits_reached_threads`` separates the offenders.
-        """
         return any(
             t not in self.limits_reached_threads
             for t in threading.enumerate()
@@ -456,11 +406,6 @@ class ThreadedServer(CommonServer):
         )
 
     def reload(self) -> None:
-        """Trigger a graceful reload via ``lifecycle.restart``.
-
-        Delegates rather than ``os.kill(self.pid, SIGHUP)`` (no SIGHUP on
-        Windows); ``lifecycle.restart`` handles both platforms.
-        """
         lifecycle.restart()
 
 
@@ -489,7 +434,6 @@ class EventServer(CommonServer):
             os.kill(self.pid, signal.SIGTERM)
 
     def watchdog(self, beat: int = 4) -> None:
-        """Periodically check memory and parent PID; send SIGTERM if limits exceeded."""
         self.ppid = os.getppid()
         while True:
             try:
@@ -503,15 +447,6 @@ class EventServer(CommonServer):
             time.sleep(beat)
 
     def _quit_signal_handler(self, sig: int, frame: Any) -> None:
-        """Turn SIGINT/SIGTERM into a graceful shutdown of the evented server.
-
-        ``serve_forever()`` runs on the main thread, so calling
-        ``self.httpd.shutdown()`` here would deadlock (it waits for the
-        serve_forever this handler suspends).  Raise ``KeyboardInterrupt``
-        instead: serve_forever doesn't catch it, so it propagates to ``start()``
-        which handles it as a clean stop and lets ``run()``'s ``finally`` run the
-        ``on_stop`` hooks — otherwise a routine SIGTERM logs as a fatal crash.
-        """
         raise KeyboardInterrupt
 
     def start(self) -> None:

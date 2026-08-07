@@ -42,8 +42,7 @@ registry.category("web_tour.tours").add("test_company_switch_access_error", {
             run: "click",
         },
         {
-            trigger:
-                "header.o_navbar .o_menu_brand:contains(model_multicompany_menu)",
+            trigger: "header.o_navbar .o_menu_brand:contains(model_multicompany_menu)",
         },
         {
             trigger: ".o_view_controller.o_list_view .o_data_cell:contains(p1)",

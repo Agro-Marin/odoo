@@ -16,8 +16,6 @@ from odoo.tools.pdf.signature import PdfSigner
 
 
 class TestSignature(TransactionCase):
-    """Tests on signature tool"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

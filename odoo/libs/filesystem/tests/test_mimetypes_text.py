@@ -1,12 +1,3 @@
-"""Regression tests for the text/plain fallback in ``_odoo_guess_mimetype``.
-
-The guesser only inspects the first 1024 bytes.  Decoding that slice with a
-plain ``bytes.decode()`` fails whenever the cut lands inside a multi-byte
-character, and the resulting UnicodeDecodeError was read as "not text" -- so an
-ordinary UTF-8 document was reported as ``application/octet-stream`` purely
-because of where byte 1024 happened to fall.
-"""
-
 import unittest
 
 from odoo.libs.filesystem.mimetypes import UNKNOWN_MIMETYPE, _odoo_guess_mimetype
@@ -33,8 +24,6 @@ class TestMultibyteAtTheCut(unittest.TestCase):
 
 
 class TestStillRejectsBinary(unittest.TestCase):
-    """Tolerating a truncated trailing character must not make binary look textual."""
-
     def test_invalid_utf8_in_the_body(self):
         self.assertEqual(
             _odoo_guess_mimetype(b"hello" + b"\xff\xfe" + b"world"), UNKNOWN_MIMETYPE
@@ -75,8 +64,6 @@ class TestPlainText(unittest.TestCase):
 
 
 class TestNoStateLeakBetweenCalls(unittest.TestCase):
-    """The decoder is per-call; a truncated char must not affect the next input."""
-
     def test_truncated_then_binary(self):
         truncated = ("a" * 1023 + "\N{EURO SIGN}").encode()
         self.assertEqual(_odoo_guess_mimetype(truncated), "text/plain")

@@ -1,11 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.errors`.
-
-The concurrency-retry taxonomy is the contract between the cursor layer's log
-demotion and the service-layer retry loop; pin it here so drift fails in
-milliseconds.  ``_log_sql_error``'s level selection (WARNING for recoverable,
-ERROR otherwise) is what keeps retried faults out of the error log.
-"""
-
 import logging
 import unittest
 

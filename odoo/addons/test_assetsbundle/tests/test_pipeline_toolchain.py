@@ -1,19 +1,3 @@
-"""Toolchain resolution, backend parity and invalidation coverage.
-
-This batch pins the seams where the asset pipeline meets the machine it runs
-on, each of which failed *silently* — the bundle still built, it was just
-wrong or degraded:
-
-* rtlcss is resolved the way the pipeline's other two Node tools are, so an
-  npm-provisioned checkout does not serve LTR CSS to RTL users;
-* the Dart Sass CLI fallback emits the same bytes as the embedded compiler,
-  so which backend ran cannot decide a bundle's content;
-* the pipeline fingerprint covers its non-Python inputs, so editing one still
-  invalidates cached bundles;
-* the compiled-CSS LRU survives concurrent access;
-* an upper-case asset extension is bundled instead of dropped.
-"""
-
 import re
 import threading
 from pathlib import Path
@@ -37,7 +21,6 @@ NON_ASCII_SCSS = '.audit-charset{content:"→ flecha"}'
 
 
 def _file(url, content, last_modified=1.0):
-    """Build the files-dict entry shape produced by ir_qweb._get_asset_content."""
     return {
         "url": url,
         "filename": None,
@@ -47,16 +30,6 @@ def _file(url, content, last_modified=1.0):
 
 
 class TestSassBackendParity(BaseCase):
-    """The Dart Sass CLI fallback must produce the embedded compiler's bytes.
-
-    ``ScssStylesheetAsset.compile`` degrades from sass-embedded to the CLI on
-    any protocol failure, and both results are stored under the same
-    ``_compiled_cache`` key. With the CLI emitting a charset marker and the
-    embedded compiler not, which backend happened to run decided the bundle's
-    content — and the marker itself reached the browser mid-stylesheet, where
-    it is no longer stripped.
-    """
-
     def test_cli_command_disables_the_charset_marker(self):
         asset = ScssStylesheetAsset.for_inline_compile()
         self.assertIn("--no-charset", asset.get_command())
@@ -64,8 +37,6 @@ class TestSassBackendParity(BaseCase):
     def test_cli_and_embedded_agree_on_non_ascii_output(self):
         asset = ScssStylesheetAsset.for_inline_compile()
         embedded = asset.compile(NON_ASCII_SCSS)
-        # PreprocessedCSS.compile is the raw _run_cli_pipe path; ScssStylesheetAsset
-        # overrides compile() to try the embedded protocol first.
         cli = super(ScssStylesheetAsset, asset).compile(NON_ASCII_SCSS)
         self.assertEqual(cli.strip(), embedded.strip())
 
@@ -77,8 +48,6 @@ class TestSassBackendParity(BaseCase):
 
 
 class TestRtlcssResolution(BaseCase):
-    """rtlcss resolves to something runnable, or RTL degrades unnoticed."""
-
     def test_resolves_to_an_existing_executable(self):
         binary = _rtlcss_bin()
         self.assertTrue(
@@ -90,19 +59,6 @@ class TestRtlcssResolution(BaseCase):
 
 
 class TestNodeToolchainManifest(BaseCase):
-    """``package.json`` and ``package-lock.json`` must agree.
-
-    The pipeline shells out to three Node tools — esbuild, Dart Sass and
-    rtlcss — all provisioned by the documented ``npm install``. Two ways that
-    quietly breaks, both seen here:
-
-    * a tool present in ``node_modules`` but undeclared. ``npm ci`` prunes to
-      the lock, so the tool vanishes on any clean checkout and the pipeline
-      degrades (rtlcss: RTL silently served as LTR).
-    * a tool declared in ``package.json`` but missing from the lock. ``npm ci``
-      refuses to run at all — it is a hard install failure, not a degrade.
-    """
-
     @staticmethod
     def _manifests():
         import json
@@ -139,16 +95,6 @@ class TestNodeToolchainManifest(BaseCase):
 
 
 class TestPipelineFingerprintNonPythonSources(BaseCase):
-    """``rtlcss.json`` is inside the digest; the ESM lexer worker is not.
-
-    The config is passed to rtlcss as ``-c``, so it decides the bytes of a
-    *version-hashed* RTL attachment: editing it left every cached RTL bundle
-    valid. The lexer worker is deliberately excluded — it feeds only
-    content-addressed artifacts, which self-invalidate — and the second test
-    pins that boundary so the digest is not widened back on the intuition that
-    "it is pipeline code too".
-    """
-
     def _covered_files(self):
         covered = []
         for source in _pipeline_sources():
@@ -162,9 +108,6 @@ class TestPipelineFingerprintNonPythonSources(BaseCase):
         self.assertIn("rtlcss.json", {p.name for p in self._covered_files()})
 
     def test_content_addressed_inputs_are_not_covered(self):
-        """The lexer worker must stay out: including it costs a global
-        re-version of every legacy bundle for output that is already
-        content-addressed."""
         self.assertNotIn(
             "esm_lexer_worker.mjs", {p.name for p in self._covered_files()}
         )
@@ -199,27 +142,16 @@ class TestPipelineFingerprintNonPythonSources(BaseCase):
 
 
 class TestCompiledCacheConcurrency(BaseCase):
-    """The LRU survives concurrent readers and stays bounded.
-
-    ``get`` then ``move_to_end`` is two operations: another thread evicting the
-    key in between makes ``move_to_end`` raise ``KeyError``, which
-    ``compile_css`` does not catch — it escapes as a 500 on an asset URL. The
-    threaded server (``workers = 0``) is the exposure.
-    """
-
     def setUp(self):
         super().setUp()
         CssPipeline._compiled_cache.clear()
         self.addCleanup(CssPipeline._compiled_cache.clear)
-        # The memo short-circuits under --dev, which would make every assertion
-        # below vacuous.
         patcher = patch.object(css_pipeline, "config", {"dev_mode": []})
         patcher.start()
         self.addCleanup(patcher.stop)
 
     def test_parallel_access_never_raises_and_stays_bounded(self):
         failures = []
-        # More distinct sources than the cache holds, so eviction runs constantly.
         sources = [f"src-{i}" for i in range(CssPipeline._COMPILED_CACHE_SIZE * 3)]
 
         def worker(offset):
@@ -255,21 +187,6 @@ class TestCompiledCacheConcurrency(BaseCase):
 
 
 class TestUrlExtensionCaseFolding(TransactionCase):
-    """An upper-case extension is a bundle member, not a silent drop.
-
-    Every table the extension is looked up in is lower-case, so ``x.CSS`` used
-    to match nothing and leave the bundle with a ``bundle_file_skipped``
-    warning as its only trace.
-
-    :meth:`test_uppercase_member_survives_ir_asset_resolution` is the one that
-    earns the fix: constructing an ``AssetsBundle`` by hand proves the
-    classification but not that such a member can ever *arrive*. It can — via
-    an explicit ``ir.asset`` path backed by an attachment. It cannot via a
-    manifest glob, which ``ir_asset_paths._glob_static_file`` filters on a
-    case-sensitive ``ASSET_EXTENSIONS`` test of its own; that upstream half of
-    the gap is out of this package's reach.
-    """
-
     def test_uppercase_member_survives_ir_asset_resolution(self):
         self.env["ir.attachment"].create(
             {
@@ -319,13 +236,6 @@ class TestUrlExtensionCaseFolding(TransactionCase):
 
 
 class TestRtlOutputIsActuallyFlipped(TransactionCase):
-    """rtlcss transforms an RTL bundle's content, end to end.
-
-    The regression this guards is not rtlcss itself but its *resolution*: with
-    the binary unfound, ``run_rtlcss`` returns its input untouched and the RTL
-    bundle is byte-identical to the LTR one, with only a WARNING to say so.
-    """
-
     def test_directional_properties_flip(self):
         bundle = AssetsBundle(
             "test_assetsbundle.audit_rtl_resolution",

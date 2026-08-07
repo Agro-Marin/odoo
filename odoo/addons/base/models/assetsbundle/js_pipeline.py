@@ -15,25 +15,10 @@ from .common import _bundle_log
 
 
 class JsPipeline:
-    """Assemble one bundle's JavaScript content for the legacy concatenated bundle.
-
-    Split out of :class:`AssetsBundle` so JS content generation (module-syntax
-    guard, production concatenation, debug sourcemap body) lives behind one
-    boundary, mirroring :class:`CssPipeline`. Attachment persistence (the ``js``
-    / ``js.map`` records) stays on :class:`AssetsBundle`.
-    """
-
     def __init__(self, bundle: AssetsBundle) -> None:
-        """Bind the pipeline to the bundle whose JavaScript it assembles."""
         self._bundle = bundle
 
     def _module_syntax_error_stub(self, asset: JavascriptAsset) -> str | None:
-        """Return a ``console.error`` stub when module syntax can't be concatenated.
-
-        :param asset: legacy-routed JS asset about to be concatenated
-        :return: replacement JS for the asset, or ``None`` when it is safe
-        :rtype: str | None
-        """
         bundle = self._bundle
         if bundle._is_esm_bundle:
             return None
@@ -58,11 +43,6 @@ class JsPipeline:
         return f"console.error({json.dumps(msg)});"
 
     def minified_bundle(self, template_bundle: str) -> str:
-        """Concatenated, minified JS for the production (``min.js``) bundle.
-
-        ``template_bundle`` is the legacy template IIFE (empty for ESM bundles,
-        which deliver templates separately).
-        """
         content_bundle = ";\n".join(
             self._module_syntax_error_stub(asset) or asset.minify()
             for asset in self._bundle.javascripts
@@ -74,12 +54,6 @@ class JsPipeline:
     def sourcemap_bundle(
         self, generator: SourceMapGenerator, sourcemap_url: str, template_bundle: str
     ) -> str:
-        """Build the un-minified debug JS body, populating *generator*.
-
-        Adds a per-file source mapping to *generator* and appends the
-        ``sourceMappingURL`` link. The caller owns the ``js`` / ``js.map``
-        attachment I/O (and sets ``generator.file`` once the js URL is known).
-        """
         content_bundle_list = []
         content_line_count = 0
         line_header = JavascriptAsset._HEADER_LINE_COUNT

@@ -1,8 +1,3 @@
-"""Odoo-agnostic text processing utilities.
-
-Pure Python text helpers with no Odoo dependencies.
-"""
-
 from .strings import remove_accents, human_size, str2bool, mod10r, get_flag
 from .address import street_split, ADDRESS_REGEX
 from .arabic_reshaper import reshape

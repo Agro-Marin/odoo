@@ -1,8 +1,8 @@
 import { expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
+import { Component, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { LazyComponent } from "@web/core/assets";
-import { Component, xml } from "@odoo/owl";
 
 test("LazyComponent loads the required bundle", async () => {
     class Test extends Component {

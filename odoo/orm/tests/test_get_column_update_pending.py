@@ -1,18 +1,3 @@
-"""A real value must outrank ``PENDING``, and a popped dirty flag must not vanish.
-
-A context-dependent field has one *column* but one *cache per context*, and only
-the contexts a compute has actually run in hold a value.  ``get_column_update``
-returned the first cache hit, so a ``PENDING`` slot left by ``create()`` in the
-creating context outranked a real value written in another one.  ``_flush`` has
-already popped the dirty flag by the time it asks, so it dropped the column and
-the write was lost -- no exception, no warning, the field simply read back empty.
-
-``PENDING`` means "not computed *here*", never "no value anywhere", so a real
-value wins wherever it comes from; and when nothing is writable yet the dirty
-flag is handed back instead of discarded, which turns a lost write into (at
-worst) a reported flush stall.
-"""
-
 from odoo import api, fields, models
 from odoo.orm.model_test_env import model_test_env
 from odoo.tools.misc import PENDING
@@ -37,7 +22,6 @@ class Thing(models.Model):
 
 
 def _create_in_a_write_in_b(env):
-    """Create under ``branch=a`` (leaving PENDING there), write under ``branch=b``."""
     env_a = env(context={"branch": "a"})
     env_b = env(context={"branch": "b"})
     record = env_a["gcup.thing"].create({"name": "a"})
@@ -67,7 +51,6 @@ def test_write_survives_the_flush():
 
 
 def test_all_pending_hands_the_dirty_flag_back():
-    """Nothing writable yet: keep the flag rather than drop the write."""
     with model_test_env(Thing) as env:
         record = env["gcup.thing"].create({"name": "a"})
         field = record._fields["per_branch"]

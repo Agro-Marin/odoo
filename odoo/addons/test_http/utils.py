@@ -208,11 +208,6 @@ class HtmlTokenizer(HTMLParser):
 
     @classmethod
     def tokenize(cls, source_str):
-        """
-        Parse the source html into a list of tokens. Only tags and
-        tags data are conserved, other elements such as comments are
-        discarded.
-        """
         tokenizer = cls()
         tokenizer.feed(source_str)
         return tokenizer.tokens

@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.text.strings`` helpers."""
-
 import unittest
 
 from odoo.libs.text.strings import get_flag

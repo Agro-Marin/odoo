@@ -3,7 +3,7 @@ import configparser
 import errno
 import functools
 import logging
-import optparse
+import optparse  # noqa: TID251  the whole CLI is built on optparse; the ban guards NEW uses
 import os
 import sys
 import tempfile
@@ -166,9 +166,6 @@ class _PosixOnlyOption(_OdooOption):
 
 
 def _deduplicate_loggers(loggers: list[str]) -> Generator[str]:
-    """Drop duplicate logger levels so repeated ``--save`` doesn't grow the
-    config file's log_handler list unboundedly.
-    """
     seen: dict[str, str] = {}
     for spec in loggers:
         logger, sep, level = spec.rpartition(":")
@@ -1313,13 +1310,6 @@ class configmanager:
         *,
         setup_logging: bool | None = None,
     ) -> None:
-        """Parse the config file (if any) and command-line arguments.
-
-        Initialize odoo.tools.config with library-wide values; call this
-        before using the library, e.g.::
-
-            odoo.tools.config.parse_config(sys.argv[1:])
-        """
         from odoo import modules
         from odoo.logutils import init_logger
 
@@ -1839,7 +1829,6 @@ class configmanager:
         return self.options[key]
 
     def pop(self, key: str, *args: Any) -> Any:
-        """Remove ``key`` from the runtime options, dict.pop-style (optional fallback)."""
         return self.options.pop(key, *args)
 
     @functools.cached_property
@@ -1886,7 +1875,6 @@ class configmanager:
         self.options["admin_passwd"] = crypt_context.hash(new_password)
 
     def verify_admin_password(self, password: str) -> bool:
-        """Verify the super-admin password, rehashing the stored hash if needed."""
         stored_hash = self.options["admin_passwd"]
         if not stored_hash:
             return False
@@ -1912,15 +1900,6 @@ class configmanager:
         return normcase(str(Path(expandvars(path.strip())).expanduser().resolve()))
 
     def _get_sources(self, name: str) -> dict[str, Any]:
-        """Return the option's value from each source, keyed by source name.
-
-        The five named sources below are the ``ChainMap``'s own maps; the
-        ``source#N`` entries are any *extra* maps a caller pushed with
-        ``new_child()``. Hence ``[:-5]``, not ``[:-4]`` — the latter left the
-        runtime map in the slice, so every call reported it twice, once as
-        ``source#0`` and once as ``runtime``, on a diagnostic whose whole job is
-        to tell the operator which source a deprecated alias came from.
-        """
         return {
             **{
                 f"source#{no}": source.get(name, EMPTY)

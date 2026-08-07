@@ -5,14 +5,6 @@ from odoo.tests.common import TransactionCase, mute_logger, new_test_user, tagge
 
 @tagged("post_install", "-at_install")
 class TestIrDefaultCompanyDependent(TransactionCase):
-    """Regression coverage for the company-dependent helpers of ``ir.default``.
-
-    Covers two previously-untested ORM methods (ird-T1/ird-T2):
-    ``_get_field_column_fallbacks`` (per-company column fallback mapping) and
-    ``_evaluate_condition_with_fallback`` (tri-state True/False/None return).
-    ``res.partner.barcode`` is the reference ``company_dependent`` Char.
-    """
-
     def setUp(self):
         super().setUp()
         self.IrDefault = self.env["ir.default"]
@@ -20,9 +12,6 @@ class TestIrDefaultCompanyDependent(TransactionCase):
         self.assertTrue(self.env["res.partner"]._fields["barcode"].company_dependent)
 
     def _existing_company_ids(self):
-        """Return the current ``res.company`` ids via raw SQL, mirroring what
-        ``_get_field_column_fallbacks`` reads internally.
-        """
         self.env.flush_all()
         self.env.cr.execute("SELECT ARRAY_AGG(id) FROM res_company")
         company_ids = self.env.cr.fetchone()[0] or []
@@ -30,7 +19,6 @@ class TestIrDefaultCompanyDependent(TransactionCase):
         return set(company_ids)
 
     def test_field_column_fallbacks_no_default(self):
-        """With no default, every company maps to the field's null fallback."""
         result = json.loads(
             self.IrDefault._get_field_column_fallbacks("res.partner", "barcode")
         )
@@ -39,7 +27,6 @@ class TestIrDefaultCompanyDependent(TransactionCase):
         self.assertTrue(all(value is None for value in result.values()))
 
     def test_field_column_fallbacks_with_default(self):
-        """A global default is reflected as the column value for every company."""
         self.IrDefault.set(
             "res.partner", "barcode", "DEFBC", user_id=False, company_id=False
         )
@@ -51,7 +38,6 @@ class TestIrDefaultCompanyDependent(TransactionCase):
         self.assertTrue(all(value == "DEFBC" for value in result.values()))
 
     def test_field_column_fallbacks_company_added(self):
-        """Creating a company busts the (model, field)-keyed ormcache."""
         first = json.loads(
             self.IrDefault._get_field_column_fallbacks("res.partner", "barcode")
         )
@@ -65,7 +51,6 @@ class TestIrDefaultCompanyDependent(TransactionCase):
 
     @mute_logger("odoo.orm.fields")
     def test_evaluate_condition_true_and_false(self):
-        """Fallback satisfying the condition returns True, otherwise False."""
         self.assertIs(
             self.IrDefault._evaluate_condition_with_fallback(
                 "res.partner", "barcode", "=", False
@@ -81,7 +66,6 @@ class TestIrDefaultCompanyDependent(TransactionCase):
 
     @mute_logger("odoo.orm.fields")
     def test_evaluate_condition_unknown_returns_none(self):
-        """A malformed operator raises ValueError, swallowed as None (unknown)."""
         new_test_user(self.env, login="ird_audit_user")
         self.assertIsNone(
             self.IrDefault._evaluate_condition_with_fallback(

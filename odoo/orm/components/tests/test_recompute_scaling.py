@@ -1,16 +1,3 @@
-"""RecomputeScheduler.process_entry cost/semantics pins (no Odoo, no DB).
-
-Regression: the recursive stored-computed branch built a merged ``known`` set
-(``marked | to_recompute``) per trigger entry — O(|pending|), ~500 ms per 500
-entries against a 100k-id pending map. The fix is two left-iterating
-subtractions (identical algebra); the non-stored branch's ``ids & cached_ids``
-similarly iterated the whole cached-id view (right operand) in cache order, and
-now iterates the entry's ids, preserving recordset order end to end.
-
-These tests pin the semantics of the rewritten branches (the O() claims are
-covered by a benchmark script, not timing asserts).
-"""
-
 import unittest
 
 from odoo.orm.components.compute import ComputeEngine
@@ -30,8 +17,6 @@ class _MockField:
 
 
 class TestKnownSubtractionSemantics(unittest.TestCase):
-    """(ids - marked) - to_recompute must equal ids - (marked | to_recompute)."""
-
     def test_marked_and_accumulated_with_ordered_sets(self) -> None:
         engine = ComputeEngine(pending_factory=OrderedSet)
         field = _MockField("parent_total", stored_computed=True, recursive=True)
@@ -80,13 +65,6 @@ class TestKnownSubtractionSemantics(unittest.TestCase):
 
 
 class _MembershipOnlyView:
-    """A cached-ids stand-in that forbids iteration.
-
-    The pre-fix ``ids & cached_ids`` (``abc.Set.__and__``) iterated the whole
-    cached-id view — O(|cache|) per entry, in cache order. The fixed branch
-    may only membership-test it while iterating the entry's own ids.
-    """
-
     def __init__(self, keys) -> None:
         self._keys = set(keys)
         self.lookups: list = []
@@ -103,11 +81,7 @@ class _MembershipOnlyView:
 
 
 class TestCachedIdsIntersection(unittest.TestCase):
-    """The non-stored branch intersects by iterating the entry's ids."""
-
     def test_iterates_entry_ids_not_cache(self) -> None:
-        """The intersection walks the entry's ids in recordset order and only
-        membership-tests the cached-id view (never iterates it)."""
         engine = ComputeEngine(pending_factory=OrderedSet)
         field = _MockField("display", stored_computed=False, recursive=True)
         scheduler = RecomputeScheduler(

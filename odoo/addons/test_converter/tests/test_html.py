@@ -145,7 +145,6 @@ class TestCurrencyExport(TestExport):
         )
 
     def test_currency_precision(self):
-        """Precision should be the currency's, not the float field's"""
         currency = self.create(
             self.Currency,
             name="Test",

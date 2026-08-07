@@ -10,11 +10,6 @@ from odoo.addons.base.models.ir_actions import _safe_eval_dict
 
 @tagged("post_install", "-at_install")
 class TestIrActionsExists(TransactionCase):
-    """IRA-L1: ir.actions exists() must reflect uncommitted changes; the cached
-    _existing() id-set (stale for NewId/just-created records) is now consulted
-    only inside the already-flushing _get_bindings, not in a public override.
-    """
-
     def test_exists_reflects_uncommitted_create(self):
         model = self.env["ir.actions.act_url"]
         action = model.create({"name": "audit-ira-l1", "url": "/audit/ira-l1"})
@@ -27,11 +22,6 @@ class TestIrActionsExists(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsBindingsCacheOnCreate(TransactionCase):
-    """ir.actions.actions.create only clears the registry cache for a bound
-    action: _get_bindings selects only rows with binding_model_id set, so
-    unbound creates cannot stale it.
-    """
-
     def test_unbound_create_keeps_bindings_cache(self):
         Actions = self.env["ir.actions.actions"]
         before = Actions._get_bindings("res.partner")
@@ -59,8 +49,6 @@ class TestIrActionsBindingsCacheOnCreate(TransactionCase):
 
 
 class TestSafeEvalDict(TransactionCase):
-    """Shared degrade-to-default evaluator for stored dict expressions."""
-
     def test_safe_eval_dict_degrades(self):
         self.assertEqual(_safe_eval_dict("{'a': 1}", {}, {}), {"a": 1})
         self.assertEqual(_safe_eval_dict(False, {}, {"d": 1}), {})
@@ -73,12 +61,6 @@ class TestSafeEvalDict(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsUnlinkCascadesEmbedded(TransactionCase):
-    """ir.actions unlink() must manually cascade to ir.embedded.actions: the
-    ``ondelete="cascade"`` on action_id never becomes a working FK (ir_actions
-    is a PostgreSQL inheritance root), so without it deleted actions leave
-    dangling embedded actions behind.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -124,9 +106,6 @@ class TestIrActionsUnlinkCascadesEmbedded(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestEmbeddedActionsGroupIdsConvention(TransactionCase):
-    """ir.embedded.actions follows the group_ids naming convention of sibling
-    action models (the field was historically misnamed groups_ids)."""
-
     def test_group_ids_field_renamed(self):
         fields = self.env["ir.embedded.actions"]._fields
         self.assertIn("group_ids", fields)
@@ -139,18 +118,7 @@ class TestEmbeddedActionsGroupIdsConvention(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsUnenforcedReferences(TransactionCase):
-    """unlink() derives the references PostgreSQL cannot cascade from the
-    registry, instead of hard-coding ir.actions.todo / ir.filters /
-    ir.embedded.actions -- which silently left rows behind for every module
-    that declared its own Many2one to ir.actions.actions.
-    """
-
     def test_registry_sweep_lists_every_declared_reference(self):
-        """Every reference that owns its column, and only those.
-
-        A related field names the same column but does not own it: its policy
-        is the source field's, which is listed here in its own right.
-        """
         Actions = self.env["ir.actions.actions"]
         declared = {
             (model_name, field_name)
@@ -167,7 +135,6 @@ class TestIrActionsUnenforcedReferences(TransactionCase):
         self.assertEqual(swept, declared)
 
     def test_no_real_foreign_key_backs_those_fields(self):
-        """The premise of the sweep: no FK exists, so ondelete never fires."""
         self.env.cr.execute(
             """
             SELECT count(*) FROM pg_constraint con
@@ -194,7 +161,6 @@ class TestIrActionsUnenforcedReferences(TransactionCase):
         self.assertFalse(todo.exists())
 
     def test_set_null_reference_is_cleared(self):
-        """res.users.action_id declares no ondelete, so it defaults to set null."""
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-sweep-home", "res_model": "res.partner"}
         )
@@ -209,7 +175,6 @@ class TestIrActionsUnenforcedReferences(TransactionCase):
         self.assertFalse(user.action_id)
 
     def test_todo_action_id_declares_cascade(self):
-        """The sweep obeys the declaration, so it has to state the real intent."""
         self.assertEqual(
             self.env["ir.actions.todo"]._fields["action_id"].ondelete, "cascade"
         )
@@ -217,13 +182,6 @@ class TestIrActionsUnenforcedReferences(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsCacheInvalidation(TransactionCase):
-    """write() invalidates on the fields that registry caches actually read.
-
-    The previous safelist-of-everything-else marked ``path`` cache-safe, but
-    ``ir.ui.menu.load_menus`` embeds it as each menu's ``action_path``, so
-    renaming a path left the whole web client linking to the old URL.
-    """
-
     def test_path_write_invalidates_menu_cache(self):
         menu = self.env["ir.ui.menu"].search([("action", "!=", False)], limit=1)
         action = self.env[menu.action._name].browse(menu.action.id)
@@ -243,7 +201,6 @@ class TestIrActionsCacheInvalidation(TransactionCase):
         )
 
     def test_inert_field_write_keeps_cache(self):
-        """Writing a field no registry cache reads must not flush the caches."""
         Actions = self.env["ir.actions.actions"]
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-inert", "res_model": "res.partner"}
@@ -256,11 +213,7 @@ class TestIrActionsCacheInvalidation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsComputeDependencies(TransactionCase):
-    """Non-stored computes must declare what they actually read."""
-
     def test_embedded_actions_are_per_active_record(self):
-        """embedded_action_ids is context-derived; without depends_context the
-        first record's result was served for every other record."""
         partner_a = self.env["res.partner"].create({"name": "audit-emb-A"})
         partner_b = self.env["res.partner"].create({"name": "audit-emb-B"})
         parent = self.env["ir.actions.act_window"].create(
@@ -287,7 +240,6 @@ class TestIrActionsComputeDependencies(TransactionCase):
         self.assertEqual(parent.with_context(**ctx_b).embedded_action_ids.ids, [])
 
     def test_views_follow_view_ids_sequence(self):
-        """views is ordered by view_ids._order, so it depends on sequence."""
         list_view = self.env["ir.ui.view"].search(
             [("type", "=", "list"), ("model", "=", "res.partner")], limit=1
         )
@@ -322,7 +274,6 @@ class TestIrActionsComputeDependencies(TransactionCase):
         self.assertEqual(action.views[0], (form_view.id, "form"))
 
     def test_client_params_depend_on_uid(self):
-        """_compute_params evaluates the stored expression with `uid`."""
         params_field = self.env["ir.actions.client"]._fields["params"]
         __depends, depends_context = params_field.get_depends(
             self.env["ir.actions.client"]
@@ -332,12 +283,6 @@ class TestIrActionsComputeDependencies(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsReadableFieldsAreFields(TransactionCase):
-    """_get_readable_fields() feeds read(), so every name must be a real field.
-
-    Virtual client-side keys (effect/infos/close, the report action dict keys)
-    live in _get_client_only_keys() instead; clean_action keeps the union.
-    """
-
     def _action_models(self):
         Actions = self.env.registry["ir.actions.actions"]
         return [
@@ -379,8 +324,6 @@ class TestIrActionsReadableFieldsAreFields(TransactionCase):
         readable = action._get_readable_fields()
         keys = list(action._get_action_dict())
         self.assertEqual(set(keys), set(readable))
-        # read() preserves the order of the field list it is given, so the
-        # payload's key order is stable only because _get_action_dict sorts.
         self.assertEqual(keys, list(action.sudo().read(sorted(readable))[0]))
         self.assertNotEqual(
             keys, list(action.sudo().read(sorted(readable, reverse=True))[0])
@@ -389,8 +332,6 @@ class TestIrActionsReadableFieldsAreFields(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsTodoOpenState(TransactionCase):
-    """Opening a configuration wizard must actually open it."""
-
     def _make_todo(self, sequence):
         return self.env["ir.actions.todo"].create(
             {
@@ -400,9 +341,6 @@ class TestIrActionsTodoOpenState(TransactionCase):
         )
 
     def test_reopening_a_todo_wins_over_older_open_ones(self):
-        """The regression: opening the higher-sequence todo used to be a
-        silent no-op, because the old rule kept the lowest sequence instead of
-        the record whose write triggered it."""
         self.env["ir.actions.todo"].search([]).write({"state": "done"})
         early = self._make_todo(1)
         late = self._make_todo(5)
@@ -475,16 +413,6 @@ class TestIrActionsActWindowValidation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsUnlinkIsAtomic(TransactionCase):
-    """The reference sweep must not survive its own failure.
-
-    unlink() applies the ondelete rules PostgreSQL cannot, one model at a time
-    in the registry's alphabetical order. Any reference the ORM refuses to
-    delete -- an @api.ondelete guard, an access error, a constraint -- used to
-    abort the sweep with the earlier models' deletions already applied and the
-    action itself still there. ValidationError/UserError leave the transaction
-    usable, so a caller that catches one keeps the destruction.
-    """
-
     def setUp(self):
         super().setUp()
         self.action = self.env["ir.actions.act_window"].create(
@@ -495,7 +423,6 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
         )
 
     def _seeded_embedded_action(self):
-        """An embedded action ir.embedded.actions refuses to delete."""
         embedded = self.env["ir.embedded.actions"].create(
             {
                 "parent_action_id": self.parent.id,
@@ -514,8 +441,6 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
         return embedded
 
     def test_failed_unlink_keeps_earlier_cascades(self):
-        # ir.actions.todo sorts before ir.embedded.actions in the sweep, so it
-        # is cascade-deleted before the guard on the latter aborts the unlink.
         todo = self.env["ir.actions.todo"].create({"action_id": self.action.id})
         embedded = self._seeded_embedded_action()
 
@@ -569,11 +494,6 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
         self.assertTrue(self.action.exists())
 
     def test_related_reference_field_normalises_its_ondelete(self):
-        """A related field skips setup_nonrelated, so its ondelete stays None.
-
-        The sweep normalises it the way Many2one.update_db_foreign_key would,
-        instead of letting None reach the policy dispatch as a fourth value.
-        """
         policies = {
             ondelete
             for __, __, ondelete in self.env[
@@ -586,11 +506,6 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsRootModelUnlink(TransactionCase):
-    """ir_actions is a PostgreSQL inheritance root, so deleting a subtype row
-    through ir.actions.actions reaches it -- but every ORM cleanup keyed on the
-    model name misses, leaving a dangling ir.model.data row behind.
-    """
-
     def test_unlink_through_the_root_model_cleans_up_the_xml_id(self):
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-root-unlink", "res_model": "res.partner"}
@@ -638,15 +553,6 @@ class TestIrActionsRootModelUnlink(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsBindingGroupsStayIds(TransactionCase):
-    """_get_bindings caches group ids, never external identifiers.
-
-    Resolving them to xml ids made a cached read *create* an ir.model.data row
-    for every group that had none. That write lands in the 'groups' cache group
-    while the binding lands in 'default': a request that rolls back after
-    populating both leaves the identifier cached in 'default' alone, and the
-    binding vanishes for every user until 'default' is cleared.
-    """
-
     def setUp(self):
         super().setUp()
         self.group = self.env["res.groups"].create(
@@ -706,7 +612,6 @@ class TestIrActionsBindingGroupsStayIds(TransactionCase):
         self.assertNotIn("audit-binding-action", names)
 
     def test_binding_survives_a_groups_only_invalidation(self):
-        """The desync that used to hide the action from everyone."""
         self.assertIn("audit-binding-action", self._bound_names())
         self.env.registry.clear_cache("groups")
         self.assertIn("audit-binding-action", self._bound_names())
@@ -714,12 +619,6 @@ class TestIrActionsBindingGroupsStayIds(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsBindingAccess(TransactionCase):
-    """get_bindings is a public RPC entry point: it must not describe the
-    actions bound to a model the caller cannot read. Filtering only on each
-    action's own res_model missed ir.actions.server and ir.actions.report,
-    which name their model model_id/model.
-    """
-
     def setUp(self):
         super().setUp()
         self.model_id = self.env["ir.model"]._get_id("ir.module.module")
@@ -770,11 +669,6 @@ class TestIrActionsBindingAccess(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsEmbeddedInvalidation(TransactionCase):
-    """embedded_action_ids is computed from a search in upstream, which gives
-    the ORM no dependency to invalidate: an embedded action created in the same
-    transaction stayed invisible until something else flushed the field cache.
-    """
-
     def test_new_embedded_action_is_visible_immediately(self):
         parent = self.env["ir.actions.act_window"].create(
             {"name": "audit-embedded-invalidation", "res_model": "res.partner"}
@@ -796,13 +690,6 @@ class TestIrActionsEmbeddedInvalidation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsViewModeVocabulary(TransactionCase):
-    """ir.actions.act_window.view.view_mode duplicates ir.ui.view.type: every
-    module adding a view type must extend both. The two cannot be derived from
-    one another (selection_add needs a list-valued base, and only that form
-    carries the ondelete policies that clean up act_window lines on uninstall),
-    so the invariant is asserted instead.
-    """
-
     def test_view_mode_is_view_type_minus_the_non_window_ones(self):
         from odoo.addons.base.models.ir_actions import NON_WINDOW_VIEW_TYPES
 
@@ -825,11 +712,6 @@ class TestIrActionsViewModeVocabulary(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsTodoLaunchContext(TransactionCase):
-    """action_launch evaluated the action context with only ``user`` in scope,
-    so anything referencing uid/active_id/time silently degraded the whole
-    context to {'disable_log': True} instead of just failing that key.
-    """
-
     def test_launch_keeps_a_context_referencing_the_eval_context(self):
         action = self.env["ir.actions.act_window"].create(
             {
@@ -852,14 +734,6 @@ class TestIrActionsTodoLaunchContext(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsTableInheritanceRoot(TransactionCase):
-    """ir.actions.actions declares that it owns the table its subtypes inherit.
-
-    Relational fields consult that declaration to skip the foreign key
-    PostgreSQL would accept but never honour. It used to be a table name
-    hard-coded in odoo/orm/fields/relational/many2one.py, which the many2many
-    equivalent did not have at all.
-    """
-
     def test_the_root_declares_itself(self):
         self.assertTrue(
             self.env["ir.actions.actions"]._is_table_inheritance_root(),
@@ -873,7 +747,6 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
                 self.assertFalse(self.env[name]._is_table_inheritance_root())
 
     def test_a_foreign_key_to_the_root_would_reject_a_subtype_row(self):
-        """Why the declaration exists, asserted against PostgreSQL itself."""
         self.env.cr.execute("SELECT id FROM ir_act_window LIMIT 1")
         [act_window_id] = self.env.cr.fetchone()
         with self.assertRaises(IntegrityError), mute_logger("odoo.sql_db"):
@@ -888,12 +761,6 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
                 )
 
     def test_many2many_relations_to_the_root_are_swept_on_unlink(self):
-        """No such field exists today; the sweep must be ready if one appears.
-
-        Both ends: update_db_foreign_keys skips a root whether it is the model
-        or the comodel, so a many2many declared *on* an action leaks its
-        relation rows exactly as one pointing *at* an action does.
-        """
         Actions = self.env["ir.actions.actions"]
         roots = Actions._root_model_names()
         declared = {
@@ -911,7 +778,6 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
         self.assertEqual(set(Actions._unenforced_reference_relations()), declared)
 
     def test_no_foreign_key_backs_either_end_of_such_a_relation(self):
-        """What makes the sweep necessary, asserted against the catalog."""
         Actions = self.env["ir.actions.actions"]
         for relation, column in Actions._unenforced_reference_relations():
             with self.subTest(relation=relation, column=column):
@@ -930,16 +796,6 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsPathUniquenessAcrossSubtypes(TransactionCase):
-    """A path is unique across the whole ir_actions inheritance tree.
-
-    A ``unique(path)`` declared on the root is built once per subtype table --
-    PostgreSQL does not inherit UNIQUE, so the ORM creates one index per
-    model's own table -- and none of them spans the tree. The guarantee now
-    rests on ir.actions.path's single index; the Python check that stood in for
-    it could not see a sibling subtype's pending write, and could never have
-    seen a concurrently committed one at all.
-    """
-
     def _duplicate_rows(self, path):
         self.env.cr.execute(
             "SELECT id, type FROM ir_actions WHERE path = %s ORDER BY id", [path]
@@ -998,14 +854,6 @@ class TestIrActionsPathUniquenessAcrossSubtypes(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsUnenforcedReferencesOwnership(TransactionCase):
-    """Only a field that owns its column can carry an ondelete policy.
-
-    A related field's ondelete is None -- an absence, since it never reaches
-    Many2one.setup_nonrelated -- and applying a coerced 'set null' to it blanks
-    a derived column while its source field, listed separately, still holds the
-    real policy. A non-stored one has no column and no search method.
-    """
-
     def test_only_owned_columns_are_swept(self):
         Actions = self.env["ir.actions.actions"]
         roots = Actions._root_model_names()
@@ -1032,7 +880,6 @@ class TestIrActionsUnenforcedReferencesOwnership(TransactionCase):
                 self.assertIn(ondelete, ("cascade", "set null", "restrict"))
 
     def test_every_policy_found_is_dispatched(self):
-        """The sweep dispatches restrict/cascade/set null; nothing else exists."""
         policies = {
             ondelete
             for __, __, ondelete in self.env[
@@ -1044,13 +891,6 @@ class TestIrActionsUnenforcedReferencesOwnership(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsBindingOrder(TransactionCase):
-    """Bindings are ordered by (sequence, id).
-
-    Reading per action type rather than per action groups the accumulation by
-    model, so without the id tie-break the bucket no longer follows the
-    ORDER BY a.id the query asks for.
-    """
-
     def test_id_breaks_ties_across_action_types(self):
         model_id = self.env["ir.model"]._get_id("res.currency")
         Actions = self.env["ir.actions.actions"]
@@ -1099,8 +939,6 @@ class TestIrActionsBindingOrder(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsCacheOnEmptyWrite(TransactionCase):
-    """A write reaching no record changes nothing, whichever field it names."""
-
     def test_empty_recordset_write_keeps_the_cache(self):
         Actions = self.env["ir.actions.actions"]
         self.env.registry.clear_cache()
@@ -1121,14 +959,6 @@ class TestIrActionsCacheOnEmptyWrite(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
-    """Repointing a menu's action at another model invalidates the menu cache.
-
-    ir.ui.menu._visible_menu_ids resolves each menu action's destination model
-    and caches whether the user may read it. It does that for every action a
-    menu points at, so write()'s "is this action inside a registry cache" test
-    -- which answers only for bound or pathed ones -- cannot gate it.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1166,12 +996,6 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
         self.assertFalse(self._menu_visible(menu))
 
     def test_every_subtype_declares_its_destination_model_field(self):
-        """The field ir.ui.menu access-checks must be in the unconditional set.
-
-        Derived from the declaration rather than a literal copy of it: the copy
-        this replaces was the third one, and it agreed with the two it checked
-        only because all three were edited together.
-        """
         Actions = self.env["ir.actions.actions"]
         declared = {}
         for model_name in Actions._inheritance_tree_model_names():
@@ -1202,13 +1026,6 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
                     self.assertIn(field_name, model._fields)
 
     def test_a_client_action_gates_on_res_model_like_the_others(self):
-        """The one field the two consumers used to disagree about.
-
-        Menus never access-checked a client action's ``res_model`` while
-        get_bindings did; declaring it once makes both check it. No shipped
-        client action is bound and no menu pointing at one sets it, so the
-        tightening is inert today.
-        """
         self.assertEqual(
             self.env["ir.actions.client"]._menu_access_model_field(), "res_model"
         )
@@ -1217,7 +1034,6 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
         )
 
     def test_an_uncached_field_still_skips_the_clear(self):
-        """The optimisation the gate exists for must survive the correction."""
         Actions = self.env["ir.actions.actions"]
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-menu-acl-keep", "res_model": "res.currency"}
@@ -1230,13 +1046,6 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsTypeMatchesItsModel(TransactionCase):
-    """``type`` is a denormalised copy of the model name, and everything
-    dispatches on it: clean_action does env[action["type"]], ir.actions.todo
-    browses through it, unlink used to delete through it. Nothing kept the two
-    in sync, so an act_window could claim to be a client action and become
-    undeletable while unlink reported success.
-    """
-
     def test_a_type_naming_another_subtype_is_rejected(self):
         with self.assertRaises(ValidationError):
             self.env["ir.actions.act_window"].create(
@@ -1258,7 +1067,6 @@ class TestIrActionsTypeMatchesItsModel(TransactionCase):
                 self.assertEqual(model.default_get(["type"])["type"], name)
 
     def test_every_stored_action_agrees_with_its_table(self):
-        """The invariant the constraint only enforces going forward."""
         self.env.flush_all()
         self.env.cr.execute(
             "SELECT a.id, a.type, c.relname FROM ir_actions a"
@@ -1274,23 +1082,7 @@ class TestIrActionsTypeMatchesItsModel(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsUnlinkFollowsTheStorage(TransactionCase):
-    """Deleting through the root dispatches on where the row actually lives.
-
-    Dispatching on the ``type`` column deleted nothing at all when the two
-    disagreed -- unlink aimed at a table the row is not in, removed zero rows
-    and still returned True -- which is unrecoverable from the UI because the
-    action stays visible and every further delete repeats the no-op.
-    """
-
     def test_a_row_whose_type_lies_is_still_deleted(self):
-        """And deleted *through its own model*, which the row alone cannot show.
-
-        Deleting an act_window as an ir.actions.actions removes the row either
-        way — PostgreSQL reaches the child through the parent — so asserting
-        only that it is gone passes even when the dispatch fell back to the
-        root. The xml id is what tells the two apart: its cleanup is keyed on
-        the model name.
-        """
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-legacy-type", "res_model": "res.partner"}
         )
@@ -1328,7 +1120,6 @@ class TestIrActionsUnlinkFollowsTheStorage(TransactionCase):
                 self.assertIn(name, by_table[self.env[name]._table])
 
     def test_the_root_table_is_the_only_ambiguous_one(self):
-        """Which is why ``type`` still arbitrates there, and only there."""
         Actions = self.env["ir.actions.actions"]
         ambiguous = {
             table: names
@@ -1349,14 +1140,6 @@ class TestIrActionsUnlinkFollowsTheStorage(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsReferenceSweep(TransactionCase):
-    """A Reference gets no foreign key against any comodel, ever.
-
-    It stores "model,id" in a varchar and checks the target exists only when
-    the value is written, so ir.ui.menu.action went on naming a deleted
-    act_window; the menu vanished from the UI purely because _visible_menu_ids
-    re-resolves every action on each load.
-    """
-
     def test_a_menu_reference_is_cleared_when_its_action_dies(self):
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-ref-sweep", "res_model": "res.partner"}
@@ -1436,20 +1219,7 @@ class TestIrActionsReferenceSweep(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsViewTypeVocabulary(TransactionCase):
-    """view_mode and its siblings are free Chars the web client dispatches on.
-
-    An unknown type reaches buildActionViews and throws "View types not
-    defined" with only the action id to go on; the six records carrying
-    "search" -- which NON_WINDOW_VIEW_TYPES declares an action window can never
-    render -- had been shipping that way undetected.
-    """
-
     def test_the_comma_separated_fields_and_the_lines_share_one_vocabulary(self):
-        """The Char fields and the view_ids Selection must offer the same modes.
-
-        _window_view_types reads that Selection directly, so a module adding a
-        renderable view type extends one list and both follow.
-        """
         allowed = self.env["ir.actions.actions"]._window_view_types()
         line_modes = set(
             self.env["ir.actions.act_window.view"]
@@ -1459,7 +1229,6 @@ class TestIrActionsViewTypeVocabulary(TransactionCase):
         self.assertEqual(allowed, line_modes)
 
     def test_that_vocabulary_is_still_the_view_types_minus_the_unrenderable(self):
-        """Tying it back to ir.ui.view.type, which the lines only mirror."""
         from odoo.addons.base.models.ir_actions import NON_WINDOW_VIEW_TYPES
 
         allowed = self.env["ir.actions.actions"]._window_view_types()
@@ -1505,7 +1274,6 @@ class TestIrActionsViewTypeVocabulary(TransactionCase):
                 self.env.invalidate_all()
 
     def test_every_shipped_action_uses_a_renderable_view_type(self):
-        """What the constraint only guards going forward, over the data files."""
         allowed = self.env["ir.actions.actions"]._window_view_types()
         offenders = []
         for action in self.env["ir.actions.act_window"].search([]):
@@ -1522,15 +1290,6 @@ class TestIrActionsViewTypeVocabulary(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsContextDegradesQuietly(TransactionCase):
-    """A context that fails to evaluate at read time is the normal case.
-
-    ir.actions.act_window.read evaluates ``context`` with nothing but the
-    environment's own context bound, so every action mentioning ``active_id``
-    raises NameError and degrades to {} exactly as designed. Logging that
-    buries the rare real corruption: a plain base+web+mail database emits it
-    for 10 of its 134 act_windows on a single read.
-    """
-
     def test_an_active_id_context_is_the_normal_case_not_a_warning(self):
         action = self.env["ir.actions.act_window"].create(
             {
@@ -1544,7 +1303,6 @@ class TestIrActionsContextDegradesQuietly(TransactionCase):
         self.assertEqual(values[0]["context"], "{'default_parent_id': active_id}")
 
     def test_a_shipped_database_would_drown_such_a_log(self):
-        """The measurement behind the decision, kept as the reason."""
         failing = 0
         for action in self.env["ir.actions.act_window"].search([]):
             try:
@@ -1561,14 +1319,6 @@ class TestIrActionsContextDegradesQuietly(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMenuActionReferenceIsJunkTolerant(TransactionCase):
-    """The Reference column can hold a model that declares no menu gating.
-
-    The ORM will not write one -- Reference validates against its selection --
-    but raw SQL and legacy data can, and resolving the gating field per action
-    model must miss rather than raise, or one junk row takes the whole menu
-    tree down.
-    """
-
     def test_a_reference_to_a_non_action_model_does_not_break_the_menu(self):
         menu = self.env["ir.ui.menu"].create({"name": "audit-junk-ref"})
         self.env.flush_all()
@@ -1601,15 +1351,6 @@ class TestMenuActionReferenceIsJunkTolerant(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsPathReservation(TransactionCase):
-    """Path uniqueness lives in one index over one table.
-
-    ``unique(path)`` declared on the root is built once per subtype table --
-    PostgreSQL does not inherit UNIQUE, so the ORM creates ir_act_window_...,
-    ir_act_url_... and so on -- and none of them spans the tree. The Python
-    check that stood in for them could not span a transaction either: cursors
-    are REPEATABLE READ, so a re-check cannot see a concurrently committed row.
-    """
-
     def test_the_reservation_table_holds_the_only_tree_wide_index(self):
         self.env.cr.execute(
             """
@@ -1623,7 +1364,6 @@ class TestIrActionsPathReservation(TransactionCase):
         self.assertIn(self.env["ir.actions.path"]._table, tables)
 
     def test_every_pathed_action_holds_a_reservation(self):
-        """What init() backfills, asserted over the whole database."""
         self.env.flush_all()
         self.env.cr.execute(
             """
@@ -1679,7 +1419,6 @@ class TestIrActionsPathReservation(TransactionCase):
         self.assertFalse(Reservation.search([("action_id", "=", action.id)]))
 
     def test_deleting_an_action_frees_its_path(self):
-        """Through the ondelete sweep, which finds the many2one on its own."""
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-res-free", "res_model": "res.partner", "path": "audit-free"}
         )
@@ -1707,14 +1446,6 @@ class TestIrActionsPathReservation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsBindingAccessGate(TransactionCase):
-    """One access gate for menus and for bindings, asked the same way.
-
-    get_bindings used to check ``res_model``, which only act_window and client
-    declare, so a server or report binding whose destination differed from the
-    model it was bound to showed its name and domain to anyone who could read
-    the latter.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1774,7 +1505,6 @@ class TestIrActionsBindingAccessGate(TransactionCase):
         self.assertIn(action.name, self._visible_names())
 
     def test_the_gating_model_never_reaches_the_browser(self):
-        """get_views ships the rest of the dict to the client as a toolbar."""
         self.env["ir.actions.act_window"].create(
             {
                 "name": "audit-gate-keys",
@@ -1793,13 +1523,6 @@ class TestIrActionsBindingAccessGate(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsAsConcrete(TransactionCase):
-    """Re-browsing an action through its own model, in one place.
-
-    Three callers did it by hand off ``type`` -- unlink, web's URL-path
-    resolver and ir.actions.todo -- putting a denormalised column between a URL
-    and the model that answers it.
-    """
-
     def test_each_subtype_round_trips_through_the_root(self):
         Actions = self.env["ir.actions.actions"]
         made = [
@@ -1836,13 +1559,6 @@ class TestIrActionsAsConcrete(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsTodoSurvivor(TransactionCase):
-    """Which todo stays open must be the one the queue will run.
-
-    ir.module.module._next_todo_action takes search(state=open, limit=1), which
-    reads _order; keeping whichever came first out of create() left the queue
-    running a different record than the one that "won".
-    """
-
     def test_the_survivor_is_the_one_the_queue_picks(self):
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-todo-act", "res_model": "res.partner"}
@@ -1870,12 +1586,6 @@ class TestIrActionsTodoSurvivor(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrActionsBindingModelIsChecked(TransactionCase):
-    """binding_model_id is a root field, so the check belongs to the root.
-
-    ir.model rows outlive their registry entry, so a binding can point at a
-    model that is gone; only ir.actions.act_window used to notice.
-    """
-
     def test_every_subtype_rejects_a_binding_to_a_missing_model(self):
         stale = self.env["ir.model"].create(
             {"name": "audit-stale", "model": "x_audit.stale.model"}
@@ -1900,15 +1610,6 @@ class TestIrActionsBindingModelIsChecked(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestActionCreateDoesNotEditItsArgument(TransactionCase):
-    """No create/write override may write back into the caller's vals.
-
-    ir.actions.act_window.create already built a new dict; its siblings did
-    not, and each leaked something different: a derived name and a deleted key
-    (ir.embedded.actions), the parent's model and groups (ir.actions.server),
-    a base64 icon blob (ir.ui.menu). A caller reusing one dict for several
-    records then created them from values nobody wrote.
-    """
-
     def _unchanged(self, model_name, vals, extra=None):
         snapshot = dict(vals)
         self.env[model_name].create([{**vals, **(extra or {})}] if extra else [vals])
@@ -1949,7 +1650,6 @@ class TestActionCreateDoesNotEditItsArgument(TransactionCase):
         )
 
     def test_the_same_dict_twice_yields_the_same_record_twice(self):
-        """What the leak actually broke, rather than the leak itself."""
         parent = self.env["ir.actions.act_window"].create(
             {"name": "audit-arg-parent3", "res_model": "res.partner"}
         )

@@ -37,32 +37,23 @@ class TestProfileAccess(TransactionCase):
             self.test_profile.with_user(user).read(["name"])
 
     def test_action_view_speedscope_url(self):
-        """IRPROF-L1: the toolbar button opens the speedscope *config* URL
-        (intentional); pin it so button label and URL don't drift apart."""
         action = self.test_profile.action_view_speedscope()
         self.assertEqual(action["type"], "ir.actions.act_url")
         self.assertTrue(action["url"].startswith("/web/profile_config/"))
 
     def test_generate_speedscope_check_access(self):
-        """IRPROF-C2: ``_generate_speedscope`` enforces the group_system ACL up
-        front, so a non-system user gets AccessError regardless of whether the
-        profile id exists (no existence oracle)."""
         user = new_test_user(self.env, login="noProfileSpeed", groups="base.group_user")
         params = self.test_profile._parse_params({})
         with self.assertRaises(AccessError):
             self.test_profile.with_user(user)._generate_speedscope(params)
 
     def test_generate_memory_profile_check_access(self):
-        """IRPROF-C2: ``_generate_memory_profile`` likewise enforces the ACL
-        before reading any stored field."""
         user = new_test_user(self.env, login="noProfileMem", groups="base.group_user")
         params = self.test_profile._parse_params({})
         with self.assertRaises(AccessError):
             self.test_profile.with_user(user)._generate_memory_profile(params)
 
     def test_speedscope_url_no_speedscope_dependency(self):
-        """IRPROF-P1: reading the cheap ``speedscope_url`` must NOT trigger the
-        expensive ``_compute_speedscope`` (the URL is derived only from id)."""
         IrProfile = type(self.env["ir.profile"])
         with patch.object(
             IrProfile, "_compute_speedscope", autospec=True
@@ -272,8 +263,6 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(profile_combined["events"][-1]["at"], 8.35)
 
     def test_end_priority(self):
-        """A timed sample (usually a query) keeps its complete frame even if a
-        concurrent frame ticks before it ends: frame duration is more reliable."""
 
         async_profile = self.example_profile()["result"]
         sql_profile = self.example_profile()["result"]
@@ -561,7 +550,6 @@ class TestProfiling(TransactionCase):
         self.assertEqual(p.db, self.env.cr.dbname)
 
     def test_sql_summary_after_entry_processing(self):
-        """SQLCollector.summary() does not crash after entries post-processing nulls _entries."""
         with Profiler(db=None, collectors=["sql"]) as p:
             self.env.cr.execute("SELECT 1")
         collector = p.collectors[0]
@@ -569,9 +557,6 @@ class TestProfiling(TransactionCase):
         self.assertIn("sql", collector.summary())
 
     def test_traces_async_dedup_idle(self):
-        """A period of idle (identical consecutive frames) is deduplicated to a
-        handful of entries instead of one per sampling tick.
-        """
         with Profiler(
             db=None,
             collectors=["traces_async"],
@@ -603,7 +588,6 @@ class TestProfiling(TransactionCase):
         )
 
     def test_execution_context_nested(self):
-        """Check that an execution context can nest at the same stack level."""
         with Profiler(db=None, collectors=["sql"]) as p:
             stack_level = profiler.stack_size()
             with ExecutionContext(letter="a"):
@@ -875,7 +859,6 @@ class TestProfiling(TransactionCase):
 
 
 def deep_call(func, depth):
-    """Call the given function at the given call depth."""
     if depth > 0:
         deep_call(func, depth - 1)
     else:
@@ -885,7 +868,6 @@ def deep_call(func, depth):
 @tagged("-standard", "profiling_performance")
 class TestPerformance(BaseCase):
     def test_collector_max_frequency(self):
-        """Check the creation time of an entry."""
         collector = profiler.Collector()
         p = Profiler(collectors=[collector], db=None)
 
@@ -913,8 +895,6 @@ class TestPerformance(BaseCase):
         self.assertGreater(len(collector.entries), 50000)
 
     def test_frequencies_1ms_sleep(self):
-        """Check the entries generated in 1s at 1kHz. Change the frame as often
-        as possible to avoid the memory optimisation that skips identical frames."""
 
         def sleep_1():
             time.sleep(0.0001)
@@ -932,7 +912,6 @@ class TestPerformance(BaseCase):
         self.assertGreater(entry_count, 700)
 
     def test_traces_async_memory_optimisation(self):
-        """Identical frames are saved only once, so a 1s sleep yields few entries."""
         with Profiler(collectors=["traces_async"], db=None) as res:
             time.sleep(1)
         entry_count = len(res.collectors[0].entries)
@@ -999,50 +978,30 @@ class TestMemoryProfiler(HttpCase):
 
 
 class _FakeRequest:
-    """Minimal stand-in for ``odoo.http.request`` in ``set_profiling`` tests.
-
-    Truthy (so the ``if not request`` guard passes) and exposes a plain dict
-    ``session`` that mimics the keys ``set_profiling`` reads/writes.
-    """
-
     def __init__(self):
         self.session = {}
 
 
 @tagged("post_install", "-at_install", "profiling")
 class TestProfilingStateMachine(TransactionCase):
-    """IRPROF-T1: pin the arming/consuming state machine at the unit level.
-
-    Previously only exercised end-to-end via the web HttpCase; this covers the
-    base model contract directly: an expired/blank ICP closes the window, a
-    non-system user cannot arm profiling, and a system user gets the wizard.
-    """
-
     def _set_window(self, value):
-        """Set the ``base.profiling_enabled_until`` ICP to ``value``."""
         self.env["ir.config_parameter"].sudo().set_param(
             "base.profiling_enabled_until", value
         )
 
     def test_enabled_until_blank_is_none(self):
-        """A blank ICP means profiling is not armed -> ``_enabled_until`` None."""
         self._set_window(False)
         self.assertIsNone(self.env["ir.profile"]._enabled_until())
 
     def test_enabled_until_expired_is_none(self):
-        """A past ICP window is closed -> ``_enabled_until`` returns None."""
         self._set_window("2000-01-01 00:00:00")
         self.assertIsNone(self.env["ir.profile"]._enabled_until())
 
     def test_enabled_until_future_returns_limit(self):
-        """A future ICP window is open -> ``_enabled_until`` returns the limit."""
         self._set_window("2999-01-01 00:00:00")
         self.assertEqual(self.env["ir.profile"]._enabled_until(), "2999-01-01 00:00:00")
 
     def test_non_system_cannot_arm_profiling(self):
-        """IRPROF-T1: a non-system user with no open window cannot arm
-        profiling -- ``set_profiling(True)`` raises UserError, it does not
-        silently open a session."""
         self._set_window(False)
         user = new_test_user(self.env, login="noArmProfiling", groups="base.group_user")
         fake_request = _FakeRequest()
@@ -1052,8 +1011,6 @@ class TestProfilingStateMachine(TransactionCase):
         self.assertIsNone(fake_request.session.get("profile_session"))
 
     def test_system_user_gets_wizard_when_unarmed(self):
-        """IRPROF-T1: a system user with no open window gets the enable-profiling
-        wizard action instead of a session."""
         self._set_window(False)
         fake_request = _FakeRequest()
         with patch("odoo.addons.base.models.ir_profile.request", fake_request):
@@ -1061,8 +1018,6 @@ class TestProfilingStateMachine(TransactionCase):
         self.assertEqual(action["res_model"], "base.enable.profiling.wizard")
 
     def test_parse_params_memory_limit_non_numeric(self):
-        """IRPROF-C1: a non-numeric ``memory_limit`` from the controller query
-        string must not raise (no HTTP 500); it degrades to 0."""
         IrProfile = self.env["ir.profile"]
         self.assertEqual(
             IrProfile._parse_params({"memory_limit": "abc"})["memory_limit"], 0
@@ -1076,9 +1031,6 @@ class TestProfilingStateMachine(TransactionCase):
         self.assertEqual(IrProfile._parse_params({})["memory_limit"], 0)
 
     def test_parse_params_malformed_values_degrade_to_defaults(self):
-        """Malformed boolean query params (?constant_time=x) and an unknown
-        aggregation mode must not raise ValueError (an HTTP 500 before any
-        access check on /web/speedscope); they degrade to their defaults."""
         IrProfile = self.env["ir.profile"]
         params = IrProfile._parse_params(
             {
@@ -1104,7 +1056,6 @@ class TestProfilingStateMachine(TransactionCase):
         self.assertEqual(params["memory_limit"], 0)
 
     def test_parse_params_valid_values_pass_through(self):
-        """Well-formed values keep parsing as before the hardening."""
         IrProfile = self.env["ir.profile"]
         params = IrProfile._parse_params(
             {

@@ -1,14 +1,3 @@
-"""Per-cursor SQL metrics and debug-stats accounting for :class:`~odoo.db.cursor.Cursor`.
-
-Split out of :mod:`odoo.db.cursor` so the transaction surface stays focused.
-``_MetricsMixin`` is mixed into :class:`Cursor` and operates on the host's own
-``_thread`` / ``sql_*_log`` / ``sql_log_count`` members (declared below under
-``TYPE_CHECKING``); it has no ``__init__``, relying on the host to seed them.
-
-The process-global :data:`sql_counter` lives here and is exposed as
-``odoo.db.sql_counter`` via ``odoo/db/__init__.py``'s module ``__getattr__``.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -29,13 +18,6 @@ if TYPE_CHECKING:
     from typing import Protocol
 
     class _MetricsHost(Protocol):
-        """The host-cursor surface that :class:`_MetricsMixin` relies on.
-
-        Mirrors :class:`odoo.db.bulk._CursorInternals`: each method annotates
-        ``self`` with this Protocol so its body type-checks against exactly the
-        members the host provides.
-        """
-
         _thread: threading.Thread
         sql_from_log: dict[str, tuple[int, float]]
         sql_into_log: dict[str, tuple[int, float]]
@@ -43,15 +25,7 @@ if TYPE_CHECKING:
 
 
 class _MetricsMixin:
-    """Query-counter, thread-metric and debug-stats bookkeeping for :class:`Cursor`.
-
-    Stateless (no ``__init__``): operates on the log dicts the host seeds and the
-    process-global :data:`sql_counter`.  Stateful methods annotate ``self`` with
-    :class:`_MetricsHost`, as in :mod:`odoo.db.bulk`.
-    """
-
     def _format(self, query: Any, params: Any = None) -> str:
-        """Format a query for debug logging (approximate, not for execution)."""
         if isinstance(query, SQL):
             query, params = query.code, query.params
         if params is None:
@@ -73,21 +47,7 @@ class _MetricsMixin:
         start: float = 0.0,
         hooks: Any = None,
     ) -> None:
-        """Update query counters, thread-local metrics, and run query hooks.
-
-        Centralises all post-execution bookkeeping so that execute(),
-        executemany() and copy_from() share one code path.
-
-        :param delay: query wall time in seconds
-        :param count: number of queries to account for (a batch counts as many)
-        :param query: The executed query (passed to hooks, may be None)
-        :param params: The query parameters (passed to hooks, may be None)
-        :param start: Monotonic timestamp before execution (passed to hooks)
-        :param hooks: the thread's ``query_hooks`` (or None).  Passed in rather
-            than re-read here: the caller already read it to gate ``start``, and
-            this runs on every query.
-        """
-        global sql_counter
+        global sql_counter  # noqa: PLW0603  process-wide SQL counter; the module IS the accumulator
         self.sql_log_count += count
         sql_counter += count
         t = self._thread
@@ -101,17 +61,6 @@ class _MetricsMixin:
     def _record_sql_log(
         self: _MetricsHost, query_type: str, table: str | None, delay: float
     ) -> None:
-        """Accumulate per-table from/into timing stats (DEBUG-only).
-
-        Shared by :meth:`Cursor.execute` and :meth:`Cursor.copy_from`, whose stats
-        bookkeeping was otherwise hand-inlined in two places.  Callers gate on
-        ``isEnabledFor(DEBUG)`` so the table extraction cost is only paid when
-        the stats will actually be printed.
-
-        :param query_type: ``'into'``, ``'from'`` or ``'other'``.
-        :param table: table name, or ``None`` for unclassified queries.
-        :param delay: query wall time in seconds.
-        """
         if query_type == "into":
             log_target = self.sql_into_log
         elif query_type == "from":

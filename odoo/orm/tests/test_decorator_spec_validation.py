@@ -1,22 +1,3 @@
-"""Decoration-time validation of ``@api.constrains`` / ``@api.depends`` /
-``@api.onchange`` / ``@api.depends_context`` specs.
-
-Tier-2 suite (real ``import odoo``, no database — run as ``pytest
-odoo/orm/tests``).  Before validation was added, a malformed spec was stored
-silently and failed far from its cause:
-
-* callable + extra string arguments: the extras were silently dropped;
-* a list argument: ``depends([...])`` happened to raise ``AttributeError``
-  from ``_check_depends_id``'s ``.split``, while ``constrains([...])`` was
-  stored and only crashed at consumption time with an unhashable ``TypeError``;
-* ``onchange([...])`` stored ``(["a", "b"],)``, which the class build merely
-  log-warned about — and the onchange then *silently never fired*;
-* ``depends_context(42)`` only surfaced far away, at cache-key construction.
-
-All now raise a clear ``TypeError`` at decoration time; the documented forms
-keep working unchanged.
-"""
-
 import pytest
 
 from odoo import api

@@ -1,10 +1,3 @@
-"""Typed routing: annotation-driven param coercion/validation (``@route(typed=True)``).
-
-``TestTypedParams`` is a DB-free unit test of the coercion core
-(:mod:`odoo.http._params`); ``TestTypedRouting`` drives a real ``typed=True``
-route over HTTP to prove the wiring end to end, including the 400 responses.
-"""
-
 from werkzeug.exceptions import BadRequest
 
 from odoo.http._params import ParamSpec, build_param_specs, coerce_params
@@ -33,8 +26,6 @@ def _required(self, n: int, **kw):
 
 @tagged("post_install", "-at_install")
 class TestTypedParams(BaseCase):
-    """Pure unit tests of build_param_specs / coerce_params."""
-
     def test_specs_cover_annotated_keyword_params_only(self):
         specs = build_param_specs(_all_optional)
         self.assertEqual(set(specs), {"n", "x", "flag", "name", "ids", "opt"})
@@ -101,13 +92,6 @@ class TestTypedParams(BaseCase):
         self.assertEqual(build_param_specs(lambda self, **kw: None), {})
 
     def test_override_inherits_typed_without_restating_it(self):
-        """``typed=True`` is inherited like every other ``@route`` argument.
-
-        The merge carries the verdict, and the specs are compiled once per
-        routing-map build against the leaf's own signature. An override that
-        does not restate ``typed=True`` used to keep ``routing['typed'] is
-        True`` (and its OpenAPI schema) while silently accepting raw strings.
-        """
         from odoo.http.routing import _check_and_complete_route_definition
 
         def parent(self, n: int, **kw):
@@ -137,7 +121,6 @@ class TestTypedParams(BaseCase):
         self.assertTrue(merged["typed"], "the override must inherit parameter coercion")
 
     def test_override_can_opt_out_of_typed(self):
-        """An explicit ``typed=False`` on the override still disables coercion."""
         from odoo.http.routing import _check_and_complete_route_definition
 
         def child(self, n: int, **kw):
@@ -156,13 +139,6 @@ class TestTypedParams(BaseCase):
         self.assertFalse(merged["typed"])
 
     def test_merge_never_writes_specs_on_the_shared_wrapper(self):
-        """Specs belong to the per-build endpoint, not the decorated function.
-
-        A ``route_wrapper`` is one process-global object shared by every
-        database; the merged ``typed`` verdict depends on the installed module
-        set. Writing specs there let the last routing-map build decide coercion
-        for all databases.
-        """
         from odoo.http.routing import _check_and_complete_route_definition
 
         def parent(self, n: int, **kw):
@@ -182,8 +158,6 @@ class TestTypedParams(BaseCase):
 
 @tagged("post_install", "-at_install")
 class TestTypedRouting(TestHttpBase):
-    """End-to-end: a ``typed=True`` route coerces query strings and 400s on bad input."""
-
     def test_query_strings_are_coerced(self):
         res = self.nodb_url_open("/test_http/typed-echo?n=5&flag=on")
         self.assertEqual(res.status_code, 200)

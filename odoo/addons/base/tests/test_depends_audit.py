@@ -1,36 +1,3 @@
-"""Gate: no computed field may read a sibling field it does not depend on.
-
-A non-stored computed field with an empty dependency set is computed once per
-transaction cache and then never invalidated -- it serves a stale value with no
-error, no warning and no failing query. Four instances were live in ``base``
-when this gate was written:
-
-===================================================  ==================================
-field                                                stale after
-===================================================  ==================================
-``report.paperformat.print_page_width`` / ``_height``  flipping ``orientation``
-``ir.sequence.number_next_actual``                     writing ``number_next``
-``ir.sequence.date_range.number_next_actual``          writing ``number_next``
-``ir.attachment.res_name``                             re-pointing ``res_id``
-===================================================  ==================================
-
-``odoo.tools.depends_audit`` finds them statically (see that module for the
-method and its limits). This test pins the result to an explicit exemption list,
-so a *new* offender fails here while the known-and-reviewed ones stay
-documented. It is deliberately an allowlist of ``model.field`` keys rather than a
-count: a bare count says nothing about which field regressed, and bumping it is
-indistinguishable from fixing one.
-
-Exempt entries fall in two kinds, and the reason string says which:
-
-* **not expressible** -- the real input is not a static field path (an aggregate
-  over another model's rows, the live HTTP request, a PostgreSQL sequence). The
-  staleness is real but no ``@api.depends`` can fix it.
-* **false positive** -- the flagged name is a field name, but the compute reads
-  it off something that is not a record (``get_lang(env).code``). See the
-  module docstring of ``depends_audit`` for why the static reader cannot tell.
-"""
-
 from odoo.tests.common import TransactionCase
 from odoo.tools.depends_audit import audit_registry
 
@@ -50,8 +17,6 @@ EXEMPT: dict[str, str] = {
 
 
 class TestDependsAudit(TransactionCase):
-    """No computed field may read a model field it declares no dependency on."""
-
     def test_no_undeclared_dependency_reads(self):
         findings = list(audit_registry(self.env.registry))
         unexpected = [f for f in findings if f.label not in EXEMPT]
@@ -70,11 +35,6 @@ class TestDependsAudit(TransactionCase):
         )
 
     def test_exemptions_are_all_still_needed(self):
-        """A stale exemption hides the next regression on that field.
-
-        Once a field is fixed (or removed), its entry must go, otherwise the
-        allowlist grows monotonically and stops meaning anything.
-        """
         flagged = {f.label for f in audit_registry(self.env.registry)}
         stale = sorted(set(EXEMPT) - flagged)
         stale = [
@@ -90,12 +50,6 @@ class TestDependsAudit(TransactionCase):
         )
 
     def test_audit_detects_a_deliberately_broken_field(self):
-        """Guard against the audit silently detecting nothing.
-
-        Without this, deleting the body of ``audit_registry`` would leave both
-        tests above passing forever. Uses a real registry field and a compute
-        that provably reads a sibling.
-        """
         from odoo.tools.depends_audit import audit_field
 
         registry = self.env.registry

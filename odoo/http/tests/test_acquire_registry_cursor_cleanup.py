@@ -1,18 +1,3 @@
-"""``_acquire_registry_cursor`` must never leak its read-only cursor.
-
-It opens a read-only cursor, then calls ``registry.check_signaling(cr)``.  Its
-``except`` clause only names ``PoolError`` / ``OperationalError`` /
-``ProgrammingError`` and closes ``cr`` in that clause's ``finally``.  Anything
-else — an ``InternalError`` / ``DataError`` from ``check_signaling``, a bug in a
-signaling override, a ``KeyboardInterrupt`` — used to propagate with the cursor
-still open, and ``_serve_db``'s own ``finally`` could not reach it (its local
-``cr`` is never assigned when this call raises instead of returning).  The
-broad handler closes the cursor on any escape.
-
-Pure-Python: the method is exercised on a minimal stub ``self`` with the
-module-level ``Registry`` patched — no HTTP stack, no database.
-"""
-
 import typing
 import unittest
 from types import SimpleNamespace
@@ -33,14 +18,10 @@ class _TrackingCursor:
 
 
 def _acquire(this: typing.Any) -> typing.Any:
-    """Call the unbound method with a duck-typed stub ``self`` (cast for mypy)."""
     return _serve._RequestServeMixin._acquire_registry_cursor(this)
 
 
 def _call(check_signaling):
-    """Drive ``_acquire_registry_cursor`` with a registry whose
-    ``check_signaling`` behaves as given; return ``(raised, cursor)``.
-    """
     cursor = _TrackingCursor()
     registry: typing.Any = SimpleNamespace(
         cursor=lambda readonly=False: cursor,
@@ -51,7 +32,7 @@ def _call(check_signaling):
         raised = None
         try:
             _acquire(this)
-        except BaseException as e:  # the test inspects the raised type
+        except BaseException as e:
             raised = e
     return raised, cursor
 
@@ -85,9 +66,7 @@ class TestAcquireRegistryCursorCleanup(unittest.TestCase):
             raise sentinel
 
         raised, cursor = _call(boom)
-        # Not translated to RegistryError — propagated as-is …
         self.assertIs(raised, sentinel)
-        # … and the cursor is closed rather than leaked.
         self.assertTrue(cursor.closed, "cursor leaked on an unexpected error")
 
     def test_base_exception_also_closes(self):

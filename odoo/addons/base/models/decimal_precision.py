@@ -22,7 +22,6 @@ class DecimalPrecision(models.Model):
 
     @api.constrains("digits")
     def _check_digits(self) -> None:
-        """Reject negative precisions, which are nonsensical for rounding (DP-C1)."""
         if any(record.digits < 0 for record in self):
             raise ValidationError(
                 self.env._("The number of digits cannot be negative.")

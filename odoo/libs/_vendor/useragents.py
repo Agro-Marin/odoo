@@ -1,18 +1,9 @@
-"""User agent string parser.
-
-Originally from werkzeug.useragents (removed in werkzeug 2.1).
-Vendored to preserve browser/platform detection that werkzeug dropped.
-
-:copyright: 2007 Pallets
-:license: BSD-3-Clause
-"""
 
 import functools
 import re
 
 
 class UserAgentParser:
-    """A simple user agent parser.  Used by the `UserAgent`."""
 
     platforms = (
         ("cros", "chromeos"),
@@ -105,16 +96,6 @@ class UserAgentParser:
 
 
 class UserAgent:
-    """Represents a parsed user agent string.
-
-    Attributes:
-        string: the raw user agent string
-        platform: detected OS platform (e.g. 'linux', 'windows', 'macos')
-        browser: detected browser name (e.g. 'chrome', 'firefox', 'safari')
-        version: detected browser version string
-        language: detected language code (e.g. 'en-US')
-
-    """
 
     _parser = UserAgentParser()
 

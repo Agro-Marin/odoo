@@ -1,5 +1,3 @@
-"""Floating point rounding, comparison and precision helpers."""
-
 import builtins
 import math
 from typing import Literal
@@ -53,29 +51,6 @@ def float_round(
     precision_rounding: float | None = None,
     rounding_method: RoundingMethod = "HALF-UP",
 ) -> float:
-    """Return ``value`` rounded to ``precision_digits`` decimal digits.
-
-    IEEE-754 floating point representation errors are minimized, and the
-    tie-breaking rule selected with ``rounding_method`` is applied, by default
-    HALF-UP (away from zero).
-    Precision must be given by ``precision_digits`` or ``precision_rounding``,
-    not both!
-
-    :param value: the value to round
-    :param precision_digits: number of fractional digits to round to.
-    :param precision_rounding: decimal number representing the minimum
-        non-zero value at the desired precision (for example, 0.01 for a
-        2-digit precision).
-    :param rounding_method: the rounding method used:
-
-        - 'HALF-UP' will round to the closest number with ties going away from zero.
-        - 'HALF-DOWN' will round to the closest number with ties going towards zero.
-        - 'HALF-EVEN' will round to the closest number with ties going to the closest
-          even number.
-        - 'UP' will always round away from 0.
-        - 'DOWN' will always round towards 0.
-    :return: rounded float
-    """
     rounding_factor = _float_check_precision(
         precision_digits=precision_digits, precision_rounding=precision_rounding
     )
@@ -89,7 +64,7 @@ def float_round(
     else:
         normalized_value = value / rounding_factor
 
-    if normalized_value == 0.0:
+    if normalized_value == 0.0:  # noqa: RUF069  exact-zero fast path; 0.0 is representable
         return 0.0
 
     epsilon_magnitude = math.log2(abs(normalized_value))
@@ -102,12 +77,14 @@ def float_round(
     elif rounding_method == "HALF-EVEN":
         integral = math.floor(normalized_value)
         remainder = abs(normalized_value - integral)
-        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon
+        # RUF069: the exact test is the fast path; the epsilon test after `or`
+        # is what handles the inexact case, so both are needed.
+        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon  # noqa: RUF069  see comment above
         result = integral + (integral & 1) if is_half else round(normalized_value)
     elif rounding_method == "HALF-DOWN":
         integral = math.floor(abs(normalized_value))
         remainder = abs(normalized_value) - integral
-        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon
+        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon  # noqa: RUF069  exact fast path + epsilon fallback, as above
         if is_half:
             result = math.copysign(integral, normalized_value)
         else:
@@ -136,33 +113,13 @@ def float_is_zero(
     precision_digits: int | None = None,
     precision_rounding: float | None = None,
 ) -> bool:
-    """Return whether ``value`` is small enough to be treated as zero.
-
-    A value is treated as zero at the given precision when *rounding it* to
-    that precision yields something below the corresponding *epsilon*
-    (``10**-precision_digits`` or ``precision_rounding``).  Note this is not
-    the same as ``abs(value) < epsilon``: rounding happens first, so at 2
-    digits ``0.005`` rounds up to ``0.01`` and is **not** zero, while
-    ``0.0049`` rounds to ``0.0`` and is.
-    Precision must be given by ``precision_digits`` or ``precision_rounding``,
-    not both!
-
-    Warning: ``float_is_zero(value1-value2)`` is not equivalent to
-    ``float_compare(value1,value2) == 0``, as the former will round after
-    computing the difference, while the latter will round before, giving
-    different results for e.g. 0.006 and 0.002 at 2 digits precision.
-
-    :param precision_digits: number of fractional digits to round to.
-    :param precision_rounding: decimal number representing the minimum
-        non-zero value at the desired precision (for example, 0.01 for a
-        2-digit precision).
-    :param value: value to compare with the precision's zero
-    :return: True if ``value`` is considered zero
-    """
     epsilon = _float_check_precision(
         precision_digits=precision_digits, precision_rounding=precision_rounding
     )
-    return value == 0.0 or abs(float_round(value, precision_rounding=epsilon)) < epsilon
+    return (
+        value == 0.0  # noqa: RUF069  exact-zero fast path; the epsilon test after `or` is the real check
+        or abs(float_round(value, precision_rounding=epsilon)) < epsilon
+    )
 
 
 def float_compare(
@@ -171,33 +128,6 @@ def float_compare(
     precision_digits: int | None = None,
     precision_rounding: float | None = None,
 ) -> Literal[-1, 0, 1]:
-    """Compare ``value1`` and ``value2`` after rounding them to the given precision.
-
-    A value is considered lower/greater than another value if their rounded
-    value is different. This is not the same as having a non-zero difference!
-    Precision must be given by ``precision_digits`` or ``precision_rounding``,
-    not both!
-
-    Example: 1.432 and 1.431 are equal at 2 digits precision,
-    so this method would return 0
-    However 0.006 and 0.002 are considered different (this method returns 1)
-    because they respectively round to 0.01 and 0.0, even though
-    0.006-0.002 = 0.004 which would be considered zero at 2 digits precision.
-
-    Warning: ``float_is_zero(value1-value2)`` is not equivalent to
-    ``float_compare(value1,value2) == 0``, as the former will round after
-    computing the difference, while the latter will round before, giving
-    different results for e.g. 0.006 and 0.002 at 2 digits precision.
-
-    :param value1: first value to compare
-    :param value2: second value to compare
-    :param precision_digits: number of fractional digits to round to.
-    :param precision_rounding: decimal number representing the minimum
-        non-zero value at the desired precision (for example, 0.01 for a
-        2-digit precision).
-    :return: (resp.) -1, 0 or 1, if ``value1`` is (resp.) lower than,
-        equal to, or greater than ``value2``, at the given precision.
-    """
     rounding_factor = _float_check_precision(
         precision_digits=precision_digits, precision_rounding=precision_rounding
     )
@@ -212,53 +142,12 @@ def float_compare(
 
 
 def float_repr(value: float, precision_digits: int) -> str:
-    """Return a string representation of a float with the given fractional digits.
-
-    This should not be used to perform a rounding operation (this is done via
-    :func:`~.float_round`), but only to produce a suitable string
-    representation for a float.
-
-    :param value: the value to represent
-    :param precision_digits: number of fractional digits to include in the output
-    :return: the string representation of the value
-    """
     if float_is_zero(value, precision_digits=precision_digits):
         value = 0.0
     return f"{value:.{precision_digits}f}"
 
 
 def float_split_str(value: float, precision_digits: int) -> tuple[str, str]:
-    """Split the given float ``value`` into its unitary and decimal parts as strings.
-
-    Each part is returned as a string, rounding the value using the provided
-    ``precision_digits`` argument.
-
-    The length of the string returned for decimal places will always
-    be equal to ``precision_digits``, adding zeros at the end if needed.
-
-    In case ``precision_digits`` is zero, an empty string is returned for
-    the decimal places.
-
-    The sign lives on the *unitary* part only; the decimal part is always the
-    unsigned magnitude of the fraction. For ``-1 < value < 0`` the unitary part
-    is the string ``"-0"`` (e.g. ``-0.05`` => ``('-0', '05')``) -- keep it as a
-    string if you need the sign, because ``int('-0') == 0`` erases it (see
-    :func:`float_split`). Callers that only care about magnitude should pass
-    ``abs(value)``.
-
-    Examples:
-        1.432  with precision 2 => ('1', '43')
-        1.49   with precision 1 => ('1', '5')
-        1.1    with precision 3 => ('1', '100')
-        1.12   with precision 0 => ('1', '')
-        -2.675 with precision 2 => ('-2', '68')
-        -0.05  with precision 2 => ('-0', '05')
-
-    :param value: value to split.
-    :param precision_digits: number of fractional digits to round to.
-    :return: returns the tuple(<unitary part>, <decimal part>) of the given value
-
-    """
     value = float_round(value, precision_digits=precision_digits)
     value_repr = float_repr(value, precision_digits)
     if precision_digits:
@@ -268,22 +157,6 @@ def float_split_str(value: float, precision_digits: int) -> tuple[str, str]:
 
 
 def float_split(value: float, precision_digits: int) -> tuple[int, int]:
-    """Return the unitary and decimal parts of ``value`` as integers.
-
-    Same as :func:`float_split_str` except that the parts are returned as
-    integers instead of strings. In case ``precision_digits`` is zero, 0 is
-    always returned as decimal part.
-
-    .. warning::
-
-        The integer form cannot represent ``-0``, so for ``-1 < value < 0`` the
-        sign is **lost**: ``float_split(-0.05, 2) == (0, 5)``, indistinguishable
-        from ``+0.05``. Reconstruct a possibly-negative value as
-        ``sign(value) * (abs(units) + cents / 10**precision_digits)`` using the
-        original value's sign, or use :func:`float_split_str` (whose ``"-0"``
-        keeps the sign). For ``value <= -1`` the sign rides on ``units`` and
-        round-trips fine.
-    """
     units, cents = float_split_str(value, precision_digits)
     if not cents:
         return int(units), 0
@@ -295,25 +168,6 @@ def json_float_round(
     precision_digits: int,
     rounding_method: RoundingMethod = "HALF-UP",
 ) -> float:
-    """Round ``value`` and return it as a float ready for JSON serialization.
-
-    Not suitable for float calculations! Similar to :func:`float_repr` except
-    that it returns a float suitable for json dump.
-
-    This may be necessary to produce "exact" representations of rounded float
-    values during serialization, such as what is done by `json.dumps()`.
-    Unfortunately `json.dumps` does not allow any form of custom float representation,
-    nor any custom types, everything is serialized from the basic JSON types.
-
-    :param precision_digits: number of fractional digits to round to.
-    :param rounding_method: the rounding method used: 'HALF-UP', 'UP' or 'DOWN',
-           the first one rounding up to the closest number with the rule that
-           number>=0.5 is rounded up to 1, the second always rounding up and the
-           latest one always rounding down.
-    :return: a rounded float value that must not be used for calculations, but
-             is ready to be serialized in JSON with minimal chances of
-             representation errors.
-    """
     rounded_value = float_round(
         value,
         precision_digits=precision_digits,
@@ -358,12 +212,6 @@ _INVERTDICT = {
 
 
 def float_invert(value: float) -> float:
-    """Inverts a floating point number with increased accuracy.
-
-    :param value: value to invert.
-    :return: inverted float.
-    :raises ZeroDivisionError: if ``value`` is zero.
-    """
     if not value:
         raise ZeroDivisionError("cannot invert 0")
     result = _INVERTDICT.get(value)

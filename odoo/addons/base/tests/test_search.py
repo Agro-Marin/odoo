@@ -387,7 +387,6 @@ class test_search(TransactionCase):
         self.assertEqual(found_ids, expected_ids)
 
     def test_20_x_active(self):
-        """Check the behaviour of the x_active field."""
         self.addCleanup(self.registry.reset_changes)
 
         model_country = self.env["res.country"]

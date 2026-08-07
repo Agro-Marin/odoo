@@ -5,10 +5,7 @@ from odoo.tools.misc import mute_logger
 
 
 class TestIrSequenceDateRangeStandard(SingleTransactionCase):
-    """A few tests for a 'Standard' (i.e. PostgreSQL) sequence."""
-
     def test_ir_sequence_date_range_1_create(self):
-        """Try to create a sequence object with date ranges enabled."""
         seq = self.env["ir.sequence"].create(
             {
                 "code": "test_sequence_date_range",
@@ -19,8 +16,6 @@ class TestIrSequenceDateRangeStandard(SingleTransactionCase):
         self.assertTrue(seq)
 
     def test_ir_sequence_date_range_2_change_dates(self):
-        """Draw numbers to create a subsequence, change its date range, then
-        draw again and check a new subsequence was created."""
         year = date.today().year - 1
 
         def january(d):
@@ -56,10 +51,7 @@ class TestIrSequenceDateRangeStandard(SingleTransactionCase):
 
 
 class TestIrSequenceDateRangeNoGap(SingleTransactionCase):
-    """Copy of the previous tests for a 'No gap' sequence."""
-
     def test_ir_sequence_date_range_1_create_no_gap(self):
-        """Try to create a sequence object."""
         seq = self.env["ir.sequence"].create(
             {
                 "code": "test_sequence_date_range_2",
@@ -71,8 +63,6 @@ class TestIrSequenceDateRangeNoGap(SingleTransactionCase):
         self.assertTrue(seq)
 
     def test_ir_sequence_date_range_2_change_dates(self):
-        """Draw numbers to create a subsequence, change its date range, then
-        draw again and check a new subsequence was created."""
         year = date.today().year - 1
 
         def january(d):
@@ -108,10 +98,7 @@ class TestIrSequenceDateRangeNoGap(SingleTransactionCase):
 
 
 class TestIrSequenceDateRangeChangeImplementation(SingleTransactionCase):
-    """Create sequence objects and change their ``implementation`` field."""
-
     def test_ir_sequence_date_range_1_create(self):
-        """Try to create a sequence object."""
         seq = self.env["ir.sequence"].create(
             {
                 "code": "test_sequence_date_range_3",
@@ -132,7 +119,6 @@ class TestIrSequenceDateRangeChangeImplementation(SingleTransactionCase):
         self.assertTrue(seq)
 
     def test_ir_sequence_date_range_2_use(self):
-        """Make some use of the sequences to create some subsequences"""
         year = date.today().year - 1
 
         def january(d):
@@ -155,7 +141,6 @@ class TestIrSequenceDateRangeChangeImplementation(SingleTransactionCase):
             self.assertEqual(n, str(i))
 
     def test_ir_sequence_date_range_3_write(self):
-        """swap the implementation method on both"""
         domain = [
             (
                 "code",
@@ -180,12 +165,6 @@ class TestIrSequenceDateRangeChangeImplementation(SingleTransactionCase):
 
 
 class TestIrSequenceDateRangeSwitchImplementation(TransactionCase):
-    """Switching ``standard`` -> ``no_gap`` must seed each date-range
-    sub-sequence's ``number_next`` from its live PostgreSQL sequence value
-    before dropping it, so the sub-sequence numbering continues without
-    duplicates.
-    """
-
     def test_switch_to_no_gap_continues_subsequence_numbering(self):
         year = date.today().year - 1
         seq = self.env["ir.sequence"].create(
@@ -203,10 +182,6 @@ class TestIrSequenceDateRangeSwitchImplementation(TransactionCase):
 
 
 class TestIrSequenceDateRangeClamp(TransactionCase):
-    """A new date range must clamp against the *nearest* following range, not
-    the furthest-future one — otherwise it overlaps the intermediate ranges.
-    """
-
     def test_new_range_clamps_to_nearest_following_range(self):
         year = date.today().year - 1
         seq = self.env["ir.sequence"].create(
@@ -243,15 +218,6 @@ class TestIrSequenceDateRangeClamp(TransactionCase):
 
 
 class TestIrSequenceDateRangeConcurrentCreate(TransactionCase):
-    """A UniqueViolation on the range insert must return the existing range
-    instead of surfacing the raw constraint error, whenever that range is
-    visible to this transaction.
-
-    When it is not -- a genuinely concurrent creation, which no snapshot-bound
-    search can observe -- the caller gets a retryable error instead; see
-    ``TestIrSequenceDateRangeConcurrency`` in ``test_ir_sequence.py``.
-    """
-
     @mute_logger("odoo.db")
     def test_conflicting_range_creation_recovers(self):
         year = date.today().year - 1
@@ -268,15 +234,6 @@ class TestIrSequenceDateRangeConcurrentCreate(TransactionCase):
 
 
 class TestIrSequenceDateRangeSwitchToStandard(TransactionCase):
-    """Mirror of :class:`TestIrSequenceDateRangeSwitchImplementation` for the
-    other direction: switching ``no_gap`` -> ``standard`` must seed each
-    date-range sub-sequence's PostgreSQL sequence from its OWN ``number_next``.
-
-    Seeding them all from the *parent's* ``number_next`` (which never advances
-    once ``use_date_range`` is on) restarted every range at 1 and re-issued
-    numbers already handed out.
-    """
-
     def test_switch_to_standard_continues_subsequence_numbering(self):
         year = date.today().year - 1
         seq = self.env["ir.sequence"].create(
@@ -300,11 +257,6 @@ class TestIrSequenceDateRangeSwitchToStandard(TransactionCase):
 
 
 class TestIrSequencePlainSequenceDate(TransactionCase):
-    """SEQ-D1: ``sequence_date`` must drive prefix/suffix interpolation for a
-    plain (non date-ranged) sequence, as it already did for a date-ranged one
-    and as ``preview_next`` already reported.
-    """
-
     def _make(self, **extra):
         return self.env["ir.sequence"].create(
             {
@@ -338,14 +290,6 @@ class TestIrSequencePlainSequenceDate(TransactionCase):
 
 
 class TestIrSequenceDateRangeSeeding(TransactionCase):
-    """SEQ-D2: a date range must start at the number it was created with.
-
-    ``create()`` routes every field absent from vals through ``default_get``,
-    so a ``default_get`` supplying ``number_next_actual = 1`` was injected into
-    every programmatic create and its inverse overwrote an explicitly passed
-    ``number_next`` — silently restarting the range at 1.
-    """
-
     def setUp(self):
         super().setUp()
         self.seq = self.env["ir.sequence"].create(

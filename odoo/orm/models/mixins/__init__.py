@@ -1,11 +1,3 @@
-"""BaseModel mixins package.
-
-BaseModel (models/base.py) is split across these mixins: each provides one
-slice of functionality (create, write, unlink, copy, iteration, traversal,
-cache, environment, lifecycle, read, search, read_group, translation, schema,
-export, load, access). Shared CRUD constants/loggers live in _crud_common.py.
-"""
-
 from .access import AccessMixin
 from .cache import CacheMixin
 from .copy import CopyMixin

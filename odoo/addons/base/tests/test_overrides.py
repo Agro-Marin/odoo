@@ -4,19 +4,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("-at_install", "post_install")
 class TestOverrides(TransactionCase):
-    """Every CRUD override must stay a no-op on an empty recordset.
-
-    Acting on no records is not an action: there is nothing to validate, nothing
-    to protect and nothing to report, so an override that inspects ``self`` must
-    reach its guards with an empty ``self`` and fall through. Batch code relies
-    on it -- ``records.filtered(...).unlink()`` is written everywhere without a
-    preceding emptiness check.
-
-    Each model is its own ``subTest`` so the sweep reports every offender in one
-    run; asserting directly stops at the first model in registry order and hides
-    the rest behind it.
-    """
-
     def _concrete_models(self):
         return [model for model in self.env.values() if not model._abstract]
 

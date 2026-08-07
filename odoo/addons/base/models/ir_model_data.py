@@ -21,8 +21,6 @@ _logger = logging.getLogger(__name__)
 
 
 class IrModelData(models.Model):
-    """External identifiers (XML ids) mapping records to their defining module."""
-
     _name = "ir.model.data"
     _description = "Model Data"
     _order = "module, model, name"
@@ -85,7 +83,6 @@ class IrModelData(models.Model):
     @api.model
     @tools.ormcache("xmlid")
     def _xmlid_lookup(self, xmlid: str) -> tuple[str, int]:
-        """Return (res_model, res_id) for xmlid, or raise ValueError if not found."""
         if "." not in xmlid:
             raise ValueError(f"External ID not found in the system: {xmlid}")
         module, name = xmlid.split(".", 1)
@@ -100,7 +97,6 @@ class IrModelData(models.Model):
     def _xmlid_to_res_model_res_id(
         self, xmlid: str, raise_if_not_found: bool = False
     ) -> tuple[str, int] | tuple[typing.Literal[False], typing.Literal[False]]:
-        """Return (res_model, res_id), or (False, False) if not found."""
         try:
             return self._xmlid_lookup(xmlid)
         except ValueError:
@@ -118,10 +114,6 @@ class IrModelData(models.Model):
     def check_object_reference(
         self, module: str, xml_id: str, raise_on_access_error: bool = False
     ) -> tuple[str, int | bool]:
-        """Return (model, res_id) for the given module and xml_id, but only if the
-        current user has read access to that record. Otherwise raise an AccessError
-        if ``raise_on_access_error`` is True, or return (model, False).
-        """
         model, res_id = self._xmlid_lookup(f"{module}.{xml_id}")
         if self.env[model].search([("id", "=", res_id)]):
             return model, res_id
@@ -136,7 +128,6 @@ class IrModelData(models.Model):
         return model, False
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
-        """Copy xmlids, suffixing ``name`` to avoid UniqueIndex collisions."""
         vals_list = super().copy_data(default=default)
         for model, vals in zip(self, vals_list, strict=True):
             rand = f"{random.getrandbits(16):04x}"
@@ -145,14 +136,12 @@ class IrModelData(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Create xmlids, busting the groups cache for res.groups rows."""
         res = super().create(vals_list)
         if any(vals.get("model") == "res.groups" for vals in vals_list):
             self.env.registry.clear_cache("groups")
         return res
 
     def write(self, vals: dict[str, Any]) -> bool:
-        """Update xmlids, busting the _xmlid_lookup cache and the groups cache for res.groups rows."""
         if not self:
             return True
         bust_xmlid = not (set(vals) <= {"noupdate"})
@@ -168,21 +157,16 @@ class IrModelData(models.Model):
         return res
 
     def unlink(self) -> bool:
-        """Unlink, clearing the _xmlid_lookup cache and the groups cache for res.groups rows."""
         if not self:
             return True
         touch_groups = any(data.model == "res.groups" for data in self.exists())
         res = super().unlink()
-        # cleared after the delete, like write(): clearing first leaves a window
-        # in which a concurrent read repopulates the cache from the pre-delete
-        # rows and the stale entry outlives the transaction
         self.env.registry.clear_cache()
         if touch_groups:
             self.env.registry.clear_cache("groups")
         return res
 
     def _lookup_xmlids(self, xml_ids: list[str], model: Any) -> list[tuple]:
-        """Look up the given XML ids of the given model."""
         if not xml_ids:
             return []
 
@@ -216,12 +200,6 @@ class IrModelData(models.Model):
     def _update_xmlids(
         self, data_list: list[dict[str, Any]], update: bool = False
     ) -> None:
-        """Create or update the given XML ids.
-
-        :param data_list: list of dicts with keys `xml_id` (XMLID to
-            assign), `noupdate` (flag on XMLID), `record` (target record).
-        :param update: should be ``True`` when upgrading a module
-        """
         if not data_list:
             return
 
@@ -271,17 +249,9 @@ class IrModelData(models.Model):
             self.env.registry.clear_cache("groups")
 
     def _insert_xmlids_extra_columns(self) -> dict[str, SQL]:
-        """Extra constant-valued columns appended to each xmlid row inserted by
-        :meth:`_build_update_xmlids_query`, as ``{column_name: SQL value}``.
-        """
         return {}
 
     def _build_update_xmlids_query(self, sub_rows: list[tuple], update: bool) -> SQL:
-        """Build the upsert query for one batch of xmlid rows.
-
-        Each row of ``sub_rows`` is ``(module, name, model, res_id, noupdate)``;
-        the resulting :class:`~odoo.tools.SQL` carries its own parameters.
-        """
         extra = self._insert_xmlids_extra_columns()
         columns = ["module", "name", "model", "res_id", "noupdate", *extra]
         values = SQL(", ").join(
@@ -308,7 +278,6 @@ class IrModelData(models.Model):
 
     @api.model
     def _load_xmlid(self, xml_id: str) -> Any:
-        """Mark the given XML id as loaded, and return the corresponding record."""
         record = self.env.ref(xml_id, raise_if_not_found=False)
         if record:
             self.pool.loaded_xmlids.add(xml_id)
@@ -319,11 +288,6 @@ class IrModelData(models.Model):
 
     @api.model
     def _module_data_uninstall(self, modules_to_remove: list[str]) -> None:
-        """Delete all records (and their DB schema: tables, columns, FKs)
-        referenced by the given modules' ir.model.data entries, unless another
-        entry still references them. Deletion is ordered to maximise graceful
-        removal. Part of a module's full uninstallation.
-        """
         if not self.env.is_system():
             raise AccessError(
                 _("Administrator access is required to uninstall a module")
@@ -471,13 +435,6 @@ class IrModelData(models.Model):
     def _count_xmlids_per_record(
         self, keys: list[tuple[str, int]]
     ) -> dict[tuple[str, int], int]:
-        """Return ``{(model, res_id): number of xml ids}`` for the given keys.
-
-        One query for the whole batch. ``_process_end`` used to ask the same
-        question with a ``search_count`` per candidate row, excluding the ids it
-        had already condemned; the caller now decrements this mapping instead,
-        which is the same bookkeeping without the round trips.
-        """
         if not keys:
             return {}
         models_, res_ids = zip(*set(keys), strict=True)
@@ -503,21 +460,6 @@ class IrModelData(models.Model):
 
     @api.model
     def _process_end(self, modules: list[str]) -> None:
-        """Remove records dropped from updated module data.
-
-        Called at the end of module loading to delete records no longer present
-        in the data: those with an xml id whose module is in ir_model_data and
-        noupdate is false, but which are not in self.pool.loaded_xmlids.
-
-        .. warning::
-            This consumes ``loaded_xmlids`` and **clears it on the way out**,
-            and that set is accumulated across every module of the current load.
-            Calling this outside the loader -- from a test, say -- therefore
-            makes the real call at the end of the load treat every previously
-            loaded record as dropped from the data, and delete it.  Any other
-            caller must swap in a throwaway set first (see
-            ``TestIrModelData._isolated_process_end``).
-        """
         if not modules or tools.config.get("import_partial"):
             return
 
@@ -562,8 +504,6 @@ class IrModelData(models.Model):
             if keep:
                 continue
 
-            # another, still-live xml id points at this record: drop only this
-            # one and leave the record alone
             if xmlids_per_record.get((model, res_id), 1) > 1:
                 xmlids_per_record[(model, res_id)] -= 1
                 bad_imd_ids.append(id)
@@ -589,7 +529,6 @@ class IrModelData(models.Model):
 
     @api.model
     def toggle_noupdate(self, model: str, res_id: int) -> None:
-        """Toggle the noupdate flag on the external id of the record"""
         self.env[model].browse(res_id).check_access("write")
         xids = self.search([("model", "=", model), ("res_id", "=", res_id)])
         for noupdate, group in xids.grouped("noupdate").items():

@@ -4,14 +4,14 @@ import logging
 import werkzeug
 from psycopg.errors import SerializationFailure
 
-SERIALIZATION_FAILURE = "40001"
-
 from odoo import http
 from odoo.exceptions import AccessError, ConcurrencyError, UserError
 from odoo.http import request
 from odoo.tools import replace_exceptions, str2bool
 
 from odoo.addons.web.controllers.utils import ensure_db
+
+SERIALIZATION_FAILURE = "40001"
 
 _logger = logging.getLogger(__name__)
 
@@ -355,7 +355,7 @@ class TestHttp(http.Controller):
         csrf=False,
     )
     def upload_file_retry(self, ufile):
-        global should_fail
+        global should_fail  # noqa: PLW0603  test fixture toggle, single-threaded by construction
         if should_fail is None:
             raise ValueError("should_fail should be set.")
 
@@ -397,7 +397,7 @@ class TestHttp(http.Controller):
 
     @http.route("/test_http/retry_replay", type="http", auth="user")
     def retry_replay(self):
-        global should_fail
+        global should_fail  # noqa: PLW0603  test fixture toggle, as above
         default_env = request.env.transaction.default_env
         replay_observations.append(
             {
@@ -418,7 +418,7 @@ class TestHttp(http.Controller):
 
     @http.route("/test_http/concurrency_error", type="http", auth="none")
     def concurrency_error(self):
-        global should_fail
+        global should_fail  # noqa: PLW0603  test fixture toggle, as above
         if should_fail is None:
             e = "should_fail must be set."
             raise ValueError(e)

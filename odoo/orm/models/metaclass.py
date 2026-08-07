@@ -1,5 +1,3 @@
-"""MetaModel - the metaclass for all Odoo models."""
-
 import inspect
 import logging
 import re
@@ -20,11 +18,6 @@ _BASE_MODEL_INIT_PARAM_COUNT = 4
 
 
 class MetaModel(type):
-    """The metaclass of all model classes.
-
-    Its main purpose is to register the models per module.
-    """
-
     _module_to_models__: defaultdict[str, list[MetaModel]] = defaultdict(list)
 
     pool: Registry | None

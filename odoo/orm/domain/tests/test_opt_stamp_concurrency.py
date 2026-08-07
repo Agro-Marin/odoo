@@ -1,25 +1,3 @@
-"""Threaded stress tests for the ``_opt`` optimization-stamp invariants.
-
-Tier-1 suite (stubbed ``odoo.*`` packages, no framework import — run from the
-repo root as plain ``pytest``).  The single-threaded contracts around
-``Domain._opt`` are locked by ``test_optimize_unit.TestOptimizeModelScoping``;
-this suite exercises the *concurrent* claims documented in
-``odoo/orm/domain/ast.py`` (``Domain._optimize``, ``__slots__`` comment):
-
-* the ``(level, model_name)`` stamp is one tuple written atomically, so a
-  reader never observes a *torn* stamp;
-* a node already carrying another model's stamp is treated as immutable —
-  cross-model optimization always works on a private copy, leaving the shared
-  node's stamp (and content) untouched for its owner;
-* same-model interleaving is benign: two threads optimizing one node for the
-  same model may race the in-place stamp, but every write is identical and
-  both results equal the fresh single-threaded optimization (no
-  "Trying to skip optimization level" on the harmless race).
-
-Barrier-synchronized so both optimizers (and the reader) enter the racy region
-together on every iteration.  Runtime is a fraction of a second.
-"""
-
 import threading
 import unittest
 
@@ -56,8 +34,6 @@ class _Model:
 
 
 def _build_domain():
-    """A small tree with per-model-divergent BASIC coercion on both branches
-    (integer models keep ints, boolean models coerce to True/False)."""
     return (Domain("a", "=", 5) & Domain("b", "in", [1, 2, 5])) | (
         Domain("a", "in", [5, 6]) & Domain("b", "!=", 0)
     )

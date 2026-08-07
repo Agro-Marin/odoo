@@ -32,27 +32,11 @@ NEGATIVE_SIGN_JOINER = "-\N{ZERO WIDTH NO-BREAK SPACE}"
 
 
 class IrQwebField(models.AbstractModel):
-    """Convert a ``t-field``/``t-out`` value into output HTML.
-
-    :meth:`~.record_to_html` formats a field off a record (``t-field`` path)
-    and :meth:`~.value_to_html` formats a bare value (``t-out`` widget path);
-    :meth:`~.attributes` builds the ``data-oe-*`` metadata for inline editing.
-    """
-
     _name = "ir.qweb.field"
     _description = "Qweb Field"
 
     @api.model
     def get_available_options(self) -> dict[str, dict[str, Any]]:
-        """Return the available options as ``{name: settings}``.
-
-        Each settings dict has guaranteed ``type`` (one of ``string``,
-        ``integer``, ``boolean``, ``char``, ``date``, ``datetime``, ``json``,
-        ``model``, ``array``, ``selection``) and ``string`` keys, plus optional
-        ``description``, ``required`` (``False``
-        when absent, else ``True`` or a string), ``params`` and ``default_value``
-        (json-friendly).
-        """
         return {}
 
     @api.model
@@ -63,12 +47,6 @@ class IrQwebField(models.AbstractModel):
         options: dict[str, Any],
         values: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Return the ``data-oe-*`` metadata attributes for the field's root node.
-
-        Covers model, id, field, type, expression and (if readonly) readonly.
-        ``type`` is the logical widget type, which may not match the field's
-        ``type`` nor any Field subclass name.
-        """
         data = {}
         field = record._fields[field_name]
 
@@ -86,7 +64,6 @@ class IrQwebField(models.AbstractModel):
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
-        """Convert a single value to its HTML output."""
         if value is None or value is False:
             return ""
 
@@ -94,15 +71,12 @@ class IrQwebField(models.AbstractModel):
 
     @api.model
     def _get_record_context_keys(self) -> list[str]:
-        """Context keys propagated from the rendering environment onto the
-        record when reading the field value in :meth:`record_to_html`."""
         return self.env["ir.qweb"]._get_template_cache_keys() + ["tz", "bin_size"]
 
     @api.model
     def record_to_html(
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
-        """Convert the given field of ``record`` to HTML."""
         if not record:
             return False
         env_context = self.env.context
@@ -123,7 +97,6 @@ class IrQwebField(models.AbstractModel):
 
     @api.model
     def user_lang(self) -> models.BaseModel:
-        """Return the ``res.lang`` record for the language in the user's context."""
         return self.env["res.lang"].browse(get_lang(self.env).id)
 
     @api.model
@@ -134,16 +107,6 @@ class IrQwebField(models.AbstractModel):
         grouping: bool = True,
         lang: models.BaseModel | None = None,
     ) -> str:
-        """Locale-format ``value`` with ``number_format`` (a single ``%``
-        specifier) and keep the negative sign glued to its digits.
-
-        Shared by the integer/float/monetary widgets, which all need the same
-        locale grouping + bidi-safe minus handling.
-
-        :param lang: optional pre-resolved ``res.lang`` record; callers that
-            already hold one (e.g. monetary) pass it to avoid a second
-            ``user_lang()`` resolution per value.
-        """
         return (
             (lang or self.user_lang())
             .format(number_format, value, grouping=grouping)
@@ -321,7 +284,6 @@ class IrQwebFieldText(models.AbstractModel):
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str | Markup:
-        """Escape the value and convert newlines to HTML line breaks."""
         return nl2br(value) if value else ""
 
 
@@ -398,8 +360,6 @@ class IrQwebFieldOne2many(models.AbstractModel):
 
 
 class IrQwebFieldHtml(models.AbstractModel):
-    """``html`` converter, emits the stored markup as-is (no sanitization here)."""
-
     _name = "ir.qweb.field.html"
     _description = "Qweb Field HTML"
     _inherit = ["ir.qweb.field"]
@@ -423,15 +383,6 @@ class IrQwebFieldHtml(models.AbstractModel):
 
 
 class IrQwebFieldImage(models.AbstractModel):
-    """``image`` widget rendering, inserts a data:uri-using image tag in the
-    document. May be overridden by e.g. the website module to generate links
-    instead.
-
-    .. todo:: what happens if different output need different converters? e.g.
-              reports may need embedded images or FS links whereas website
-              needs website-aware
-    """
-
     _name = "ir.qweb.field.image"
     _description = "Qweb Field Image"
     _inherit = ["ir.qweb.field"]
@@ -467,10 +418,6 @@ class IrQwebFieldImage(models.AbstractModel):
 
 
 class IrQwebFieldImage_Url(models.AbstractModel):
-    """``image_url`` widget rendering, inserts an image tag in the
-    document.
-    """
-
     _name = "ir.qweb.field.image_url"
     _description = "Qweb Field Image"
     _inherit = ["ir.qweb.field.image"]
@@ -481,13 +428,6 @@ class IrQwebFieldImage_Url(models.AbstractModel):
 
 
 class IrQwebFieldMonetary(models.AbstractModel):
-    """``monetary`` converter. ``display_currency`` is required unless the field
-    is a Monetary one (which must then declare a ``currency_field``).
-
-    The currency drives formatting *and rounding* (via res.currency's ``round``);
-    the linked res.currency is assumed to have a non-empty rounding value.
-    """
-
     _name = "ir.qweb.field.monetary"
     _description = "Qweb Field Monetary"
     _inherit = ["ir.qweb.field"]
@@ -617,12 +557,6 @@ TIMEDELTA_SECONDS_BY_UNIT = {unit: seconds for unit, _label, seconds in TIMEDELT
 
 
 class IrQwebFieldFloat_Time(models.AbstractModel):
-    """``float_time`` converter, to display integral or fractional values as
-    human-readable time spans (e.g. 1.5 as "01:30").
-
-    Can be used on any numerical field.
-    """
-
     _name = "ir.qweb.field.float_time"
     _description = "Qweb Field Float Time"
     _inherit = ["ir.qweb.field"]
@@ -633,13 +567,6 @@ class IrQwebFieldFloat_Time(models.AbstractModel):
 
 
 class IrQwebFieldTime(models.AbstractModel):
-    """``time`` converter, to display integer or fractional value as
-    human-readable time (e.g. 1.5 as "1:30 AM"). The unit of this value
-    is in hours.
-
-    Can be used on any numerical field between: 0 <= value < 24
-    """
-
     _name = "ir.qweb.field.time"
     _description = "QWeb Field Time"
     _inherit = ["ir.qweb.field"]
@@ -660,14 +587,6 @@ class IrQwebFieldTime(models.AbstractModel):
 
 
 class IrQwebFieldDuration(models.AbstractModel):
-    """``duration`` converter: display a numerical value as a human-readable
-    time span (e.g. 1.5 as "1 hour 30 minutes"). Sub-second values are ignored.
-
-    Options: ``unit`` (second/minute/hour/day/week/month/year, default second)
-    interprets the value; ``round`` (default second); ``digital`` shows 01:00
-    instead of "1 hour".
-    """
-
     _name = "ir.qweb.field.duration"
     _description = "Qweb Field Duration"
     _inherit = ["ir.qweb.field"]
@@ -725,12 +644,6 @@ class IrQwebFieldDuration(models.AbstractModel):
         fmt: str,
         locale: Any,
     ) -> str:
-        """Wrap :func:`babel.dates.format_timedelta` with an en_US fallback.
-
-        Some babel builds (e.g. the 2.8 shipped on ubuntu22) miss locale data
-        and raise ``KeyError``; retry once against en_US.
-        https://github.com/python-babel/babel/pull/827
-        """
         kwargs = {
             "granularity": granularity,
             "add_direction": add_direction,
@@ -840,11 +753,6 @@ class IrQwebFieldRelative(models.AbstractModel):
 
 
 class IrQwebFieldBarcode(models.AbstractModel):
-    """``barcode`` widget rendering, inserts a data:uri-using image tag in the
-    document. May be overridden by e.g. the website module to generate links
-    instead.
-    """
-
     _name = "ir.qweb.field.barcode"
     _description = "Qweb Field Barcode"
     _inherit = ["ir.qweb.field"]

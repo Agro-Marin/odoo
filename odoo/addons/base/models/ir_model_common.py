@@ -1,11 +1,3 @@
-"""Shared, class-independent helpers for the ``ir.model.*`` reflection family.
-
-A leaf module: depends only on ORM core, never on the ``ir_model*`` model
-classes. Housing these constants and pure functions here lets the siblings
-(``ir_model``, ``ir_model_fields``, ...) share them without importing each
-other, which previously formed an import cycle.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Collection, Mapping
@@ -15,11 +7,6 @@ from typing import TYPE_CHECKING, Any
 from psycopg.types.json import Jsonb
 
 from odoo import api, models
-
-# Re-exported, not defined here: the flag gates ``@api.ondelete`` inside
-# ``UnlinkMixin.unlink``, so the ORM owns it (``odoo.orm.primitives``, reached
-# through the ``odoo.api`` facade). It stays importable from this module because
-# the ir_model* / ir_module code that *sets* it already imports it from here.
 from odoo.api import MODULE_UNINSTALL_FLAG  # noqa: F401
 from odoo.tools import SQL
 from odoo.tools.safe_eval import datetime, dateutil, safe_eval, time
@@ -40,7 +27,6 @@ mode they are handed, and both used to spell the set out for themselves.
 
 
 def check_access_mode(mode: str) -> None:
-    """Raise ``ValueError`` unless ``mode`` is one of :data:`ACCESS_MODES`."""
     if mode not in ACCESS_MODES:
         raise ValueError(
             f"Invalid access mode {mode!r}: expected one of {ACCESS_MODES}."
@@ -48,7 +34,6 @@ def check_access_mode(mode: str) -> None:
 
 
 def access_mode_columns(alias: str) -> dict[str, SQL]:
-    """Map each access mode to its ``perm_<mode>`` column on table *alias*."""
     return {mode: SQL.identifier(alias, f"perm_{mode}") for mode in ACCESS_MODES}
 
 
@@ -84,19 +69,6 @@ SAFE_EVAL_BASE = {
 def make_compute(
     text: str, deps: str | None, origin: str = "unknown"
 ) -> Callable[[models.BaseModel], Any]:
-    """Return a compute function from its code body and dependencies.
-
-    ``text`` is a Python block that writes results back through subscript
-    assignment (``for record in self: record[fname] = ...``); ``safe_eval``
-    forbids ``STORE_ATTR``, so ``record.fname = ...`` is *not* usable and the
-    function's return value is unused.  ``deps`` is a comma-separated field list.
-
-    :param origin: ``model.field`` this code belongs to. It becomes the compiled
-        block's filename, so the deepest traceback frame reads
-        ``File "<compute sale.order.x_total>", line 2`` instead of ``File ""``,
-        and a ``SyntaxError`` names the field in its own message. Nothing else
-        in the failure identifies which custom field ran.
-    """
     filename = f"<compute {origin}>"
 
     def compute(self: models.BaseModel) -> None:
@@ -108,17 +80,12 @@ def make_compute(
 
 
 def mark_modified(records: models.BaseModel, fnames: list[str]) -> None:
-    """Mark the given fields as modified on records."""
     field_objs = [records._fields[fname] for fname in fnames]
     with records.env.protecting(field_objs, records):
         records.modified(fnames)
 
 
 def compute_modules(records: models.BaseModel) -> None:
-    """Shared compute for the ``modules`` field of ``ir.model`` and
-    ``ir.model.fields``: the sorted, comma-separated list of installed modules
-    that define (or extend) each record, derived from its XML ids.
-    """
     installed = records.env["ir.module.module"].search_fetch(
         [("state", "=", "installed")], ["name"]
     )
@@ -134,17 +101,6 @@ def reload_schema(
     setup_models: Collection[str],
     init_models: Collection[str] = (),
 ) -> None:
-    """Reload the registry (and optionally the DB schema) after a change to the
-    reflected model/field definitions: flush pending updates, run an incremental
-    ``_setup_models__`` for ``setup_models``, then ``init_models`` for
-    ``init_models`` and their ``_inherits`` descendants.
-
-    :param setup_models: model names passed to ``_setup_models__``. An *empty*
-        collection still runs the incremental setup (reloading custom models);
-        ``ir.model.create`` relies on this.
-    :param init_models: model names whose DB schema must be updated; empty means
-        "registry reload only".
-    """
     env.flush_all()
     registry = env.registry
     registry._setup_models__(env.cr, setup_models)
@@ -156,29 +112,24 @@ def reload_schema(
 
 
 def _model_slug(model_name: str) -> str:
-    """Return the XML-id-safe form of a dotted model name (``a.b`` -> ``a_b``)."""
     return model_name.replace(".", "_")
 
 
 def model_xmlid(module: str, model_name: str) -> str:
-    """Return the XML id of the given model."""
     return f"{module}.model_{_model_slug(model_name)}"
 
 
 def inherit_xmlid(module: str, model_name: str, parent_name: str) -> str:
-    """Return the XML id of the given ``ir.model.inherit`` record."""
     return (
         f"{module}.model_inherit__{_model_slug(model_name)}__{_model_slug(parent_name)}"
     )
 
 
 def field_xmlid(module: str, model_name: str, field_name: str) -> str:
-    """Return the XML id of the given field."""
     return f"{module}.field_{_model_slug(model_name)}__{field_name}"
 
 
 def selection_xmlid(module: str, model_name: str, field_name: str, value: str) -> str:
-    """Return the XML id of the given selection."""
     xvalue = value.replace(".", "_").replace(" ", "_").lower()
     return f"{module}.selection__{_model_slug(model_name)}__{field_name}__{xvalue}"
 
@@ -186,12 +137,6 @@ def selection_xmlid(module: str, model_name: str, field_name: str, value: str) -
 def query_insert(
     cr: BaseCursor, table: str, rows: list[dict[str, Any]] | Mapping[str, Any]
 ) -> list[int]:
-    """Insert rows in a table. ``rows`` is a list of dicts, all with the same
-    set of keys. Return the ids of the new rows.
-
-    The columns are taken from the first row, so every row must carry exactly
-    that key set: a missing key raises ``KeyError`` and an extra key is ignored.
-    """
     if isinstance(rows, Mapping):
         rows = [rows]
     if not rows:
@@ -208,9 +153,6 @@ def query_insert(
 def query_update(
     cr: BaseCursor, table: str, values: dict[str, Any], selectors: list[str]
 ) -> list[int]:
-    """Update the table with the given values (dict), and use the columns in
-    ``selectors`` to select the rows to update.
-    """
     selector_set = set(selectors)
     assignments = [
         SQL("%s = %s", SQL.identifier(key), val)
@@ -238,12 +180,6 @@ def query_update(
 def select_en(
     model: models.BaseModel, fnames: list[str], model_names: list[str]
 ) -> list[tuple[Any, ...]]:
-    """Select the given columns for the rows whose ``model`` is in *model_names*.
-
-    Translated fields are returned in 'en_US'.  Only usable on tables that have
-    a ``model`` text column (``ir.model``, ``ir.model.fields``, ...); siblings
-    keyed differently read with a purpose-built query instead.
-    """
     if not model_names:
         return []
     cols = SQL(", ").join(
@@ -269,12 +205,6 @@ def _build_upsert_query(
     conflict: list[str],
     values: SQL,
 ) -> SQL:
-    """Build the ``MERGE`` statement used by :func:`upsert_en`.
-
-    Pure (no database access): *values* is the pre-rendered
-    ``(v, ...), (v, ...)`` source list for one batch.  Kept separate from
-    execution so the generated SQL is unit-testable without a cursor.
-    """
     fields = model._fields
     comma = SQL(", ").join
     col_ids = [SQL.identifier(fname) for fname in fnames]
@@ -345,15 +275,6 @@ def upsert_en(
     rows: list[tuple[Any, ...]],
     conflict: list[str],
 ) -> list[int]:
-    """Insert or update the table with the given rows using MERGE.
-
-    :param model: recordset of the model to query
-    :param fnames: list of column names (must be non-empty)
-    :param rows: list of tuples, where each tuple value corresponds to a column
-        name; rows must be unique on the *conflict* columns
-    :param conflict: list of column names for the MERGE ON predicate
-    :return: the ids of the inserted or updated rows, in the same order as *rows*
-    """
     if not rows:
         return []
     if not fnames:

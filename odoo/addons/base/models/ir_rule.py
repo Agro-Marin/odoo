@@ -52,7 +52,6 @@ class IrRule(models.Model):
 
     @api.model
     def _eval_context(self) -> dict[str, Any]:
-        """Return the evaluation context (namespace) for ir.rule domains."""
         return {
             "user": self.env.user.with_context({}),
             "company_ids": self.env.companies.ids,
@@ -84,16 +83,9 @@ class IrRule(models.Model):
                     raise ValidationError(_("Invalid domain: %s", e)) from None
 
     def _compute_domain_keys(self) -> list[str]:
-        """Return the list of context keys to use for caching ``_compute_domain``."""
         return ["allowed_company_ids"]
 
     def _get_failing(self, for_records: Any, mode: str = "read") -> Self:
-        """Return the rules for *mode* that fail on *for_records* for the user.
-
-        May return any global rule and/or all local rules: local rules are
-        OR-ed (the group succeeds or fails as a whole) while global rules are
-        AND-ed and can each fail.
-        """
         Model = for_records.browse(()).sudo().with_context(active_test=False)
         eval_context = self._eval_context()
 
@@ -124,7 +116,6 @@ class IrRule(models.Model):
         ).with_user(self.env.user)
 
     def _get_rules(self, model_name: str, mode: str = "read") -> Self:
-        """Return all rules matching the model and mode for the current user."""
         check_access_mode(mode)
 
         if self.env.su:

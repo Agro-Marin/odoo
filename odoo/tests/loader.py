@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 
 def get_module_test_cases(module: Any) -> Iterator[case.TestCase]:
-    """Return a suite of all test cases contained in the given module."""
     for obj in module.__dict__.values():
         if not isinstance(obj, type):
             continue
@@ -40,9 +39,6 @@ def get_module_test_cases(module: Any) -> Iterator[case.TestCase]:
 
 
 def get_test_modules(module: str) -> list[Any]:
-    """Return a list of modules for the addons potentially containing tests to
-    feed ``get_module_test_cases()``.
-    """
     results = _get_tests_modules(importlib.util.find_spec(f"odoo.addons.{module}"))
     results += list(_get_upgrade_test_modules(module))
 
@@ -50,7 +46,6 @@ def get_test_modules(module: str) -> list[Any]:
 
 
 def _get_tests_modules(mod: Any) -> list[Any]:
-    """Return all ``test_*`` submodules inside the addon's ``tests`` package."""
     spec = importlib.util.find_spec(".tests", mod.name)
     if not spec:
         return []
@@ -64,7 +59,6 @@ def _get_tests_modules(mod: Any) -> list[Any]:
 
 
 def _get_upgrade_test_modules(module: str) -> Generator[Any]:
-    """Yield test modules found in upgrade/migration directories for the addon."""
     upgrade_modules = (
         f"odoo.upgrade.{module}",
         f"odoo.addons.{module}.migrations",
@@ -89,12 +83,6 @@ def _get_upgrade_test_modules(module: str) -> Generator[Any]:
 
 
 def make_suite(module_names: list[str], position: str = "at_install") -> OdooSuite:
-    """Create a test suite for all the tests in the specified modules,
-    filtered by the provided ``position`` and the current test tags.
-
-    :param module_names: modules to load tests from
-    :param position: ``"at_install"`` or ``"post_install"``
-    """
     config_tags = TagsSelector(tools.config["test_tags"])
     position_tag = TagsSelector(position)
     tests = (
@@ -110,7 +98,6 @@ def make_suite(module_names: list[str], position: str = "at_install") -> OdooSui
 def run_suite(
     suite: OdooSuite, global_report: OdooTestResult | None = None
 ) -> OdooTestResult:
-    """Run the given test suite and return its results."""
     from ..modules import module
 
     module.current_test = True

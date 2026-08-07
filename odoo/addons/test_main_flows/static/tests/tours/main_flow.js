@@ -1,8 +1,7 @@
+import { markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
-
-import { markup } from "@odoo/owl";
 
 registry.category("web_tour.tours").add("main_flow_tour", {
     url: "/odoo",
@@ -13,9 +12,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         }),
         ...stepUtils.goToAppSteps(
             "sale.sale_menu_root",
-            markup(
-                _t("Organize your sales activities with the <b>Sales app</b>."),
-            ),
+            markup(_t("Organize your sales activities with the <b>Sales app</b>.")),
         ),
         {
             isActive: ["mobile"],
@@ -34,8 +31,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["desktop"],
-            trigger:
-                ".o_menu_sections .dropdown-toggle span:contains('Products')",
+            trigger: ".o_menu_sections .dropdown-toggle span:contains('Products')",
             content: _t("Let's create products."),
             tooltipPosition: "bottom",
             run: "click",
@@ -122,9 +118,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             trigger: ".o_form_button_save",
-            content: _t(
-                "Save this product and the modifications you've made to it.",
-            ),
+            content: _t("Save this product and the modifications you've made to it."),
             tooltipPosition: "bottom",
             run: "click",
         },
@@ -158,8 +152,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["desktop"],
-            trigger:
-                ".o_selected_row .o_required_modifier[name=product_id] input",
+            trigger: ".o_selected_row .o_required_modifier[name=product_id] input",
             content: _t("Select a product, or create a new one on the fly."),
             tooltipPosition: "right",
             run: "edit the_flow.component1",
@@ -171,16 +164,14 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".o_selected_row .o_required_modifier[name=product_id] input",
+            trigger: ".o_selected_row .o_required_modifier[name=product_id] input",
             content: _t("Click here to open kanban search mobile."),
             tooltipPosition: "bottom",
             run: "click",
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-dialog .btn:contains('New')",
+            trigger: ".modal:not(.o_inactive_modal) .modal-dialog .btn:contains('New')",
             content: _t("Click here to add new line."),
             tooltipPosition: "left",
             run: "click",
@@ -257,21 +248,18 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".o_form_editable .o_field_many2one[name=partner_id] input",
+            trigger: ".o_form_editable .o_field_many2one[name=partner_id] input",
             content: _t("Select a vendor, or create a new one on the fly."),
             tooltipPosition: "bottom",
             run: "click",
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-title:contains('Vendor')",
+            trigger: ".modal:not(.o_inactive_modal) .modal-title:contains('Vendor')",
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-footer .o_create_button",
+            trigger: ".modal:not(.o_inactive_modal) .modal-footer .o_create_button",
             content: _t("Select a vendor, or create a new one on the fly."),
             tooltipPosition: "right",
             run: "click",
@@ -297,9 +285,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         {
             isActive: ["mobile"],
             trigger: ".modal:not(.o_inactive_modal) .o_form_button_save",
-            content: _t(
-                "Save this product and the modifications you've made to it.",
-            ),
+            content: _t("Save this product and the modifications you've made to it."),
             tooltipPosition: "right",
             run: "click",
         },
@@ -334,8 +320,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-title:contains(Component)",
+            trigger: ".modal:not(.o_inactive_modal) .modal-title:contains(Component)",
         },
         {
             isActive: ["mobile"],
@@ -389,16 +374,14 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".o_selected_row .o_required_modifier[name=product_id] input",
+            trigger: ".o_selected_row .o_required_modifier[name=product_id] input",
             content: _t("Click here to open kanban search mobile."),
             tooltipPosition: "bottom",
             run: "click",
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-dialog .btn:contains(New)",
+            trigger: ".modal:not(.o_inactive_modal) .modal-dialog .btn:contains(New)",
             content: _t("Click here to add new line."),
             tooltipPosition: "left",
             run: "click",
@@ -418,8 +401,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["desktop"],
-            trigger:
-                ".o_selected_row .o_required_modifier[name=product_id] input",
+            trigger: ".o_selected_row .o_required_modifier[name=product_id] input",
             content: _t("Select a product, or create a new one on the fly."),
             tooltipPosition: "right",
             run: "edit the_flow.component2",
@@ -509,8 +491,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-title:contains('Vendor')",
+            trigger: ".modal:not(.o_inactive_modal) .modal-title:contains('Vendor')",
         },
         {
             isActive: ["mobile"],
@@ -659,16 +640,14 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-dialog .btn:contains('New')",
+            trigger: ".modal:not(.o_inactive_modal) .modal-dialog .btn:contains('New')",
             content: _t("Click here to add new line."),
             tooltipPosition: "left",
             run: "click",
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-title:contains(Project)",
+            trigger: ".modal:not(.o_inactive_modal) .modal-title:contains(Project)",
         },
         {
             isActive: ["mobile"],
@@ -680,8 +659,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["auto", "desktop"],
-            trigger:
-                ".o-autocomplete--dropdown-item > a:contains('the_flow.project')",
+            trigger: ".o-autocomplete--dropdown-item > a:contains('the_flow.project')",
             run: "click",
         },
         {
@@ -697,18 +675,14 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             trigger: ".o_form_status_indicator .o_form_button_save",
-            content: _t(
-                "Save this product and the modifications you've made to it.",
-            ),
+            content: _t("Save this product and the modifications you've made to it."),
             tooltipPosition: "bottom",
             run: "click",
         },
         ...stepUtils.toggleHomeMenu(),
         ...stepUtils.goToAppSteps(
             "crm.crm_menu_root",
-            markup(
-                _t("Organize your sales activities with the <b>CRM app</b>."),
-            ),
+            markup(_t("Organize your sales activities with the <b>CRM app</b>.")),
         ),
         {
             trigger: ".o_opportunity_kanban .o_kanban_renderer",
@@ -731,8 +705,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["desktop"],
-            trigger:
-                ".o_kanban_quick_create .o_field_widget[name=partner_id] input",
+            trigger: ".o_kanban_quick_create .o_field_widget[name=partner_id] input",
             content: _t(
                 "Write the name of your customer to create one on the fly, or select an existing one.",
             ),
@@ -741,8 +714,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".o_kanban_quick_create .o_field_widget[name=partner_id] input",
+            trigger: ".o_kanban_quick_create .o_field_widget[name=partner_id] input",
             content: _t(
                 "Write the name of your customer to create one on the fly, or select an existing one.",
             ),
@@ -751,16 +723,14 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-dialog .btn:contains('New')",
+            trigger: ".modal:not(.o_inactive_modal) .modal-dialog .btn:contains('New')",
             content: _t("Click here to add new line."),
             tooltipPosition: "left",
             run: "click",
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-title:contains(Contact)",
+            trigger: ".modal:not(.o_inactive_modal) .modal-title:contains(Contact)",
         },
         {
             isActive: ["mobile"],
@@ -777,8 +747,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-title:contains(Contact)",
+            trigger: ".modal:not(.o_inactive_modal) .modal-title:contains(Contact)",
         },
         {
             isActive: ["mobile"],
@@ -838,8 +807,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".o-dropdown--menu .o-dropdown-item:contains('Proposition')",
+            trigger: ".o-dropdown--menu .o-dropdown-item:contains('Proposition')",
             content: _t("Change status from New to proposition."),
             tooltipPosition: "bottom",
             run: "click",
@@ -850,8 +818,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         ),
         {
             isActive: ["desktop"],
-            trigger:
-                ".o_field_widget[name=line_ids] .o_field_x2many_list_row_add > a",
+            trigger: ".o_field_widget[name=line_ids] .o_field_x2many_list_row_add > a",
             content: _t("Click here to add some lines to your quotations."),
             tooltipPosition: "bottom",
             run: "click",
@@ -880,8 +847,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-title:contains(Order Lines)",
+            trigger: ".modal:not(.o_inactive_modal) .modal-title:contains(Order Lines)",
         },
         {
             isActive: ["mobile"],
@@ -895,16 +861,14 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         ...stepUtils.mobileKanbanSearchMany2X("Product", "the_flow.product"),
         {
             isActive: ["desktop"],
-            trigger:
-                ".o_field_widget[name=line_ids] .o_field_x2many_list_row_add > a",
+            trigger: ".o_field_widget[name=line_ids] .o_field_x2many_list_row_add > a",
             content: _t("Click here to add some lines to your quotations."),
             tooltipPosition: "bottom",
             run: "click",
         },
         {
             isActive: ["mobile"],
-            trigger:
-                ".modal:not(.o_inactive_modal) .modal-title:contains(Order Lines)",
+            trigger: ".modal:not(.o_inactive_modal) .modal-title:contains(Order Lines)",
         },
         {
             isActive: ["mobile"],
@@ -980,9 +944,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             ".o_statusbar_status .dropdown-toggle:contains('Quotation')",
         ),
         {
-            isActive: [
-                "body:not(:has(.modal-footer button[name='action_send_mail']))",
-            ],
+            isActive: ["body:not(:has(.modal-footer button[name='action_send_mail']))"],
             trigger: ".modal .modal-footer button[name='document_layout_save']",
             content: _t("let's continue"),
             tooltipPosition: "bottom",
@@ -1016,10 +978,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             markup(_t("<p>Confirm this quotation</p>")),
         ),
         ...stepUtils.toggleHomeMenu(),
-        ...stepUtils.goToAppSteps(
-            "stock.menu_stock_root",
-            _t("Go to Inventory"),
-        ),
+        ...stepUtils.goToAppSteps("stock.menu_stock_root", _t("Go to Inventory")),
         {
             isActive: ["mobile"],
             trigger: ".o_breadcrumb .active:contains('Inventory Overview')",
@@ -1097,10 +1056,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         ...stepUtils.toggleHomeMenu(),
 
-        ...stepUtils.goToAppSteps(
-            "purchase.menu_purchase_root",
-            _t("Go to Purchase"),
-        ),
+        ...stepUtils.goToAppSteps("purchase.menu_purchase_root", _t("Go to Purchase")),
         {
             isActive: ["desktop"],
             trigger:
@@ -1132,10 +1088,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             ".o_statusbar_status:contains('Ready')",
         ),
         ...stepUtils.toggleHomeMenu(),
-        ...stepUtils.goToAppSteps(
-            "mrp.menu_mrp_root",
-            _t("Go to Manufacturing"),
-        ),
+        ...stepUtils.goToAppSteps("mrp.menu_mrp_root", _t("Go to Manufacturing")),
         {
             isActive: ["mobile"],
             trigger:
@@ -1196,9 +1149,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         ...stepUtils.toggleHomeMenu(),
         ...stepUtils.goToAppSteps(
             "sale.sale_menu_root",
-            markup(
-                _t("Organize your sales activities with the <b>Sales app</b>."),
-            ),
+            markup(_t("Organize your sales activities with the <b>Sales app</b>.")),
         ),
         {
             isActive: ["mobile"],
@@ -1213,8 +1164,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["desktop"],
-            trigger:
-                ".o_menu_sections button[data-menu-xmlid='sale.sale_order_menu']",
+            trigger: ".o_menu_sections button[data-menu-xmlid='sale.sale_order_menu']",
             content: _t("Go to Sales menu"),
             tooltipPosition: "bottom",
             run: "click",
@@ -1239,8 +1189,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["mobile"],
-            trigger:
-                '.o_navbar_breadcrumbs .o_breadcrumb:contains("Sales Orders")',
+            trigger: '.o_navbar_breadcrumbs .o_breadcrumb:contains("Sales Orders")',
         },
         {
             isActive: ["mobile"],
@@ -1296,8 +1245,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             isActive: ["desktop"],
             trigger:
                 'div[name="timesheet_ids"] td.o_field_x2many_list_row_add a[role="button"]',
-            content:
-                "Click on Add a line to create a new timesheet into the task.",
+            content: "Click on Add a line to create a new timesheet into the task.",
             run: "click",
         },
         {
@@ -1413,14 +1361,10 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             trigger: "span.text-bg-success:contains('Paid')",
         },
         ...stepUtils.toggleHomeMenu(),
-        stepUtils.goToAppSteps(
-            "accountant.menu_accounting",
-            _t("Go to Accounting"),
-        )[2],
+        stepUtils.goToAppSteps("accountant.menu_accounting", _t("Go to Accounting"))[2],
         {
             isActive: ["enterprise", "desktop"],
-            trigger:
-                "div.o_account_kanban a.oe_kanban_action span:contains('Bank')",
+            trigger: "div.o_account_kanban a.oe_kanban_action span:contains('Bank')",
             content: _t("Open the bank reconciliation widget"),
             run: "click",
         },

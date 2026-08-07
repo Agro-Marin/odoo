@@ -1,9 +1,3 @@
-"""Odoo-agnostic date and time utilities.
-
-Pure Python date/time helpers with no Odoo dependencies.
-Uses standard library datetime, zoneinfo, and dateutil.
-"""
-
 from .date_utils import (
     utc,
     WEEKDAY_NUMBER,

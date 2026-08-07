@@ -94,7 +94,9 @@ def directory(p: str, create: bool = False) -> Path:
     return expanded
 
 
-_env = jinja2.Environment()
+# S701: scaffold renders Python/XML/CSV SOURCE files, not HTML — autoescaping
+# would HTML-escape the generated code and corrupt every scaffolded module.
+_env = jinja2.Environment()  # noqa: S701  see comment above
 _env.filters["snake"] = snake
 _env.filters["pascal"] = pascal
 

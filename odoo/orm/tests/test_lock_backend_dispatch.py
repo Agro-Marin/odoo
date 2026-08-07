@@ -1,13 +1,3 @@
-"""Regression: row-lock methods must honor the persistence-backend seam.
-
-``lock_for_update`` / ``try_lock_for_update`` built ``FOR UPDATE`` SQL and called
-``env.execute_query`` with no ``env.backend`` branch, unlike the nine other
-persistence sites. Against the in-memory backend that raised
-``InMemorySqlNotSupported``. They now dispatch to ``InMemoryBackend``, where a row
-locks iff it exists (no concurrent lockers). Tier-2 suite: real ``import odoo``,
-no database.
-"""
-
 import sys
 
 import pytest

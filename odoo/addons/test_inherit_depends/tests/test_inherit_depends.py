@@ -13,7 +13,6 @@ class TestInheritDepends(common.TransactionCase):
         )
 
     def test_40_selection_extension(self):
-        """check that attribute selection_add=... extends selection on fields."""
         mother = self.env["test.inherit.mother"]
 
         self.assertEqual(

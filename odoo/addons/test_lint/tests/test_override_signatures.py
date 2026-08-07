@@ -18,20 +18,6 @@ EMPTY = inspect.Parameter.empty
 
 
 def _stringify_annotation(ann: object) -> str:
-    """Return a comparable string form of an annotation.
-
-    With ``annotationlib.Format.FORWARDREF``, names that fail to resolve at
-    runtime become ``ForwardRef('Name')`` while names that resolve return the
-    actual class object.  Two overrides referencing the SAME source symbol
-    therefore produce different annotation OBJECTS depending on whether the
-    runtime namespace happened to contain the symbol — typically because a
-    parent module guards the import behind ``if TYPE_CHECKING:`` while a
-    child imports it directly.
-
-    Stringifying both sides through this helper normalises the difference:
-    ``list[ForwardRef('ValuesType')]`` and ``list[ValuesType]`` collapse to
-    the identical string ``'list[ValuesType]'`` and compare equal.
-    """
     if ann is EMPTY:
         return ""
     if isinstance(ann, typing.ForwardRef):
@@ -91,8 +77,6 @@ MODEL_METHODS_TO_IGNORE = {
 
 @dataclass(slots=True)
 class HitMiss:
-    """Track hit/miss counts for method override checks."""
-
     hit: int = 0
     miss: int = 0
 

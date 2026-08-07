@@ -1,13 +1,3 @@
-"""``get_translated_module`` must degrade to "base" when asked for a frame that
-does not exist, instead of crashing.
-
-The int form documents ``arg`` as "number of frames to go back to the caller".
-Walking past the top of the stack set the local ``frame`` to None and the next
-``frame.f_back`` raised ``AttributeError`` -- which defeated the function's own
-``if not frame: return "base"`` fallback (dead code, since the loop crashed
-first).
-"""
-
 import unittest
 
 from odoo.tools.translate import get_translated_module

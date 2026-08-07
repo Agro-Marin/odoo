@@ -1,13 +1,9 @@
-"""Pure-Python tests for DictBackend — no Odoo, no database required."""
-
 import unittest
 
 from odoo.orm.components.storage import DictBackend
 
 
 class TestDictBackendInsert(unittest.TestCase):
-    """Test insert operations."""
-
     def setUp(self) -> None:
         self.backend = DictBackend()
 
@@ -42,8 +38,6 @@ class TestDictBackendInsert(unittest.TestCase):
 
 
 class TestDictBackendFetch(unittest.TestCase):
-    """Test fetch operations."""
-
     def setUp(self) -> None:
         self.backend = DictBackend()
         self.backend.insert_rows(
@@ -78,8 +72,6 @@ class TestDictBackendFetch(unittest.TestCase):
 
 
 class TestDictBackendUpdate(unittest.TestCase):
-    """Test update operations."""
-
     def setUp(self) -> None:
         self.backend = DictBackend()
         self.backend.insert_rows("partner", ["name", "email"], [("Alice", "a@x.com")])
@@ -104,8 +96,6 @@ class TestDictBackendUpdate(unittest.TestCase):
 
 
 class TestDictBackendDelete(unittest.TestCase):
-    """Test delete operations."""
-
     def setUp(self) -> None:
         self.backend = DictBackend()
         self.backend.insert_rows(
@@ -133,8 +123,6 @@ class TestDictBackendDelete(unittest.TestCase):
 
 
 class TestDictBackendHelpers(unittest.TestCase):
-    """Test helper methods."""
-
     def setUp(self) -> None:
         self.backend = DictBackend()
 
@@ -166,8 +154,6 @@ class TestDictBackendHelpers(unittest.TestCase):
 
 
 class TestDictBackendSealedApi(unittest.TestCase):
-    """Public row API added so the ORM never touches ``_tables`` directly."""
-
     def setUp(self) -> None:
         self.backend = DictBackend()
 
@@ -223,8 +209,6 @@ class TestDictBackendSealedApi(unittest.TestCase):
 
 
 class TestDictBackendSearch(unittest.TestCase):
-    """search_rows — the One2many-resolution lookup (was only doctest-covered)."""
-
     def setUp(self) -> None:
         self.backend = DictBackend()
         self.backend.insert_rows(

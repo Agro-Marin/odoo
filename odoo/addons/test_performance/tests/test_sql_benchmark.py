@@ -1,18 +1,3 @@
-"""
-SQL Performance Benchmark Suite for Odoo.
-
-This module provides comprehensive benchmarks to assess the performance
-of the synchronous SQL implementation in Odoo. Results can be used to
-identify bottlenecks and theorize benefits of async implementation.
-
-Run with:
-    ./odoo-bin -c ./conf/odoo.conf -d benchmark_db \
-        --test-tags '/test_performance:TestSQLBenchmark' -u test_performance \
-        --stop-after-init --workers=0
-
-Results are logged to odoo.log with tag [SQL_BENCHMARK].
-"""
-
 import gc
 import json
 import logging
@@ -37,16 +22,6 @@ WARMUP_ITERATIONS = 5
 
 @tagged("standard", "sql_benchmark")
 class TestSQLBenchmark(TransactionCase):
-    """
-    Comprehensive SQL performance benchmark suite.
-
-    Measures:
-    - Query execution timing with statistical analysis
-    - Query count per operation
-    - DB wait time vs Python processing time ratio
-    - Variance and consistency metrics
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -59,7 +34,6 @@ class TestSQLBenchmark(TransactionCase):
 
     @classmethod
     def _create_test_data(cls):
-        """Create test data for benchmarks."""
         existing = cls.Partner.search_count([("name", "like", "BenchmarkPartner%")])
         if existing < 100:
             _logger.info("[SQL_BENCHMARK] Creating test data...")
@@ -94,7 +68,6 @@ class TestSQLBenchmark(TransactionCase):
         setup: Callable[[], None] | None = None,
         teardown: Callable[[], None] | None = None,
     ) -> BenchmarkStats:
-        """Run a benchmark function multiple times and collect statistics."""
         stats = run_benchmark(
             name,
             func,
@@ -109,7 +82,6 @@ class TestSQLBenchmark(TransactionCase):
         return stats
 
     def test_01_single_record_read_by_id(self):
-        """Benchmark: Read single record by ID."""
         partner = self.Partner.search([], limit=1)
 
         def bench():
@@ -120,7 +92,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Single Record Read (by ID)", bench)
 
     def test_02_single_record_create(self):
-        """Benchmark: Create single record."""
         counter = [0]
 
         def bench():
@@ -135,7 +106,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Single Record Create", bench, iterations=30)
 
     def test_03_single_record_write(self):
-        """Benchmark: Update single record."""
         partner = self.Partner.create({"name": "WriteTest"})
 
         def bench():
@@ -144,7 +114,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Single Record Write", bench)
 
     def test_04_single_record_unlink(self):
-        """Benchmark: Delete single record."""
 
         def setup():
             self._partner_to_delete = self.Partner.create({"name": "ToDelete"})
@@ -155,7 +124,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Single Record Unlink", bench, setup=setup, iterations=30)
 
     def test_10_search_simple_domain(self):
-        """Benchmark: Search with simple domain."""
 
         def bench():
             self.Partner.search([("is_company", "=", True)], limit=50)
@@ -163,7 +131,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Search Simple Domain (limit=50)", bench)
 
     def test_11_search_complex_domain(self):
-        """Benchmark: Search with complex multi-field domain."""
 
         def bench():
             self.Partner.search(
@@ -180,7 +147,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Search Complex Domain (limit=100)", bench)
 
     def test_12_search_with_order(self):
-        """Benchmark: Search with ordering."""
 
         def bench():
             self.Partner.search(
@@ -190,7 +156,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Search with ORDER BY (limit=100)", bench)
 
     def test_13_search_count(self):
-        """Benchmark: Count records matching domain."""
 
         def bench():
             self.Partner.search_count([("is_company", "=", True)])
@@ -198,7 +163,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Search Count", bench)
 
     def test_14_search_read_combined(self):
-        """Benchmark: Search and read in one call."""
 
         def bench():
             self.Partner.search_read(
@@ -210,7 +174,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Search Read Combined (limit=50)", bench)
 
     def test_20_batch_create_10(self):
-        """Benchmark: Create 10 records in batch."""
         counter = [0]
 
         def bench():
@@ -228,7 +191,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Batch Create (10 records)", bench, iterations=20)
 
     def test_21_batch_create_100(self):
-        """Benchmark: Create 100 records in batch."""
         counter = [0]
 
         def bench():
@@ -246,7 +208,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Batch Create (100 records)", bench, iterations=10)
 
     def test_22_batch_write(self):
-        """Benchmark: Update multiple records."""
         partners = self.Partner.search(
             [("name", "like", "BenchmarkPartner%")], limit=50
         )
@@ -257,7 +218,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Batch Write (50 records)", bench)
 
     def test_23_batch_read(self):
-        """Benchmark: Read multiple records."""
         partners = self.Partner.search([], limit=100)
 
         def bench():
@@ -266,7 +226,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Batch Read (100 records, 5 fields)", bench)
 
     def test_30_relational_many2one_access(self):
-        """Benchmark: Access Many2one related fields."""
         partners = self.Partner.search([("country_id", "!=", False)], limit=50)
 
         def bench():
@@ -277,7 +236,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Many2one Access (50 records)", bench)
 
     def test_31_relational_one2many_access(self):
-        """Benchmark: Access One2many related records."""
         countries = self.Country.search([], limit=10)
 
         def bench():
@@ -289,7 +247,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("One2many Access (10 countries)", bench)
 
     def test_32_relational_deep_traversal(self):
-        """Benchmark: Deep relational field traversal."""
         partners = self.Partner.search([("country_id", "!=", False)], limit=20)
 
         def bench():
@@ -299,7 +256,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Deep Relational Traversal (3 levels)", bench)
 
     def test_40_computed_field_access(self):
-        """Benchmark: Access computed fields (display_name)."""
         partners = self.Partner.search([], limit=100)
 
         def bench():
@@ -309,7 +265,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Computed Field Access (100 records)", bench)
 
     def test_41_computed_field_with_depends(self):
-        """Benchmark: Computed fields with dependencies."""
         users = self.User.search([], limit=20)
 
         def bench():
@@ -320,7 +275,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Computed Fields with Dependencies (20 users)", bench)
 
     def test_50_raw_sql_select(self):
-        """Benchmark: Raw SQL SELECT."""
 
         def bench():
             self.env.cr.execute("""
@@ -334,7 +288,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Raw SQL SELECT (100 rows)", bench)
 
     def test_51_orm_equivalent_select(self):
-        """Benchmark: ORM equivalent of raw SQL."""
 
         def bench():
             self.Partner.search_read(
@@ -346,7 +299,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("ORM Equivalent SELECT (100 rows)", bench)
 
     def test_52_raw_sql_insert(self):
-        """Benchmark: Raw SQL INSERT."""
         counter = [0]
 
         def bench():
@@ -367,7 +319,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Raw SQL INSERT", bench, iterations=30)
 
     def test_60_savepoint_overhead(self):
-        """Benchmark: Savepoint creation and release overhead."""
 
         def bench():
             with self.env.cr.savepoint():
@@ -376,7 +327,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Savepoint Overhead", bench)
 
     def test_61_multiple_queries_single_transaction(self):
-        """Benchmark: Multiple queries in single transaction."""
 
         def bench():
             self.Partner.search_count([("is_company", "=", True)])
@@ -387,7 +337,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Multiple Queries (4 queries, 1 transaction)", bench)
 
     def test_70_cache_hit_single(self):
-        """Benchmark: Cache hit on single record."""
         partner = self.Partner.search([], limit=1)
         _ = partner.name
 
@@ -397,7 +346,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Cache Hit (single field)", bench, iterations=100)
 
     def test_71_cache_miss_single(self):
-        """Benchmark: Cache miss on single record."""
         partner = self.Partner.search([], limit=1)
 
         def setup():
@@ -409,7 +357,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Cache Miss (single field)", bench, setup=setup)
 
     def test_72_prefetch_behavior(self):
-        """Benchmark: ORM prefetch behavior."""
         partners = self.Partner.search([], limit=100)
         self.env.invalidate_all()
 
@@ -420,7 +367,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Prefetch (100 records)", bench)
 
     def test_80_sequential_operations(self):
-        """Benchmark: Sequential independent operations."""
 
         def bench():
             self.Partner.search_count([("is_company", "=", True)])
@@ -431,7 +377,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Sequential Operations (4 counts)", bench)
 
     def test_85_scaling_batch_create_1(self):
-        """Benchmark: Create 1 record (baseline)."""
         counter = [0]
 
         def bench():
@@ -443,7 +388,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Scale: Create 1 record", bench, iterations=30)
 
     def test_85_scaling_batch_create_5(self):
-        """Benchmark: Create 5 records."""
         counter = [0]
 
         def bench():
@@ -461,7 +405,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Scale: Create 5 records", bench, iterations=30)
 
     def test_85_scaling_batch_create_25(self):
-        """Benchmark: Create 25 records."""
         counter = [0]
 
         def bench():
@@ -479,7 +422,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Scale: Create 25 records", bench, iterations=20)
 
     def test_85_scaling_batch_create_50(self):
-        """Benchmark: Create 50 records."""
         counter = [0]
 
         def bench():
@@ -497,7 +439,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Scale: Create 50 records", bench, iterations=15)
 
     def test_86_scaling_search_10(self):
-        """Benchmark: Search limit=10."""
 
         def bench():
             self.Partner.search([], limit=10)
@@ -505,7 +446,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Scale: Search limit=10", bench)
 
     def test_86_scaling_search_50(self):
-        """Benchmark: Search limit=50."""
 
         def bench():
             self.Partner.search([], limit=50)
@@ -513,7 +453,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Scale: Search limit=50", bench)
 
     def test_86_scaling_search_200(self):
-        """Benchmark: Search limit=200."""
 
         def bench():
             self.Partner.search([], limit=200)
@@ -521,7 +460,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Scale: Search limit=200", bench)
 
     def test_86_scaling_search_500(self):
-        """Benchmark: Search limit=500."""
 
         def bench():
             self.Partner.search([], limit=500)
@@ -529,7 +467,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Scale: Search limit=500", bench)
 
     def test_90_independent_reads_2_tables(self):
-        """Benchmark: 2 independent table reads (async potential: high)."""
 
         def bench():
             self.Partner.search_read([("is_company", "=", True)], limit=50)
@@ -538,7 +475,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Independent: 2 table reads", bench)
 
     def test_90_independent_reads_4_tables(self):
-        """Benchmark: 4 independent table reads (async potential: very high)."""
 
         def bench():
             self.Partner.search_read([("is_company", "=", True)], limit=30)
@@ -549,7 +485,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Independent: 4 table reads", bench)
 
     def test_91_dependent_chain(self):
-        """Benchmark: Dependent query chain (async potential: low)."""
 
         def bench():
             partner = self.Partner.search([("country_id", "!=", False)], limit=1)
@@ -562,7 +497,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Dependent: Query chain", bench)
 
     def test_92_mixed_independent_dependent(self):
-        """Benchmark: Mix of independent and dependent queries."""
 
         def bench():
             companies = self.Partner.search([("is_company", "=", True)], limit=20)
@@ -574,7 +508,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Mixed: Independent + Dependent", bench)
 
     def test_93_n_plus_one_pattern(self):
-        """Benchmark: Classic N+1 query pattern (async potential: medium)."""
         partners = self.Partner.search([("country_id", "!=", False)], limit=20)
         self.env.invalidate_all()
 
@@ -595,7 +528,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("N+1 Pattern (20 records, 3 levels)", bench)
 
     def test_94_bulk_field_access(self):
-        """Benchmark: Bulk field access pattern (async potential: low - uses prefetch)."""
         partners = self.Partner.search([], limit=100)
         self.env.invalidate_all()
 
@@ -608,7 +540,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Bulk mapped() access (100 records, 3 fields)", bench)
 
     def test_95_simple_where(self):
-        """Benchmark: Simple WHERE clause."""
 
         def bench():
             self.Partner.search([("active", "=", True)], limit=100)
@@ -616,7 +547,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Query: Simple WHERE", bench)
 
     def test_95_multiple_conditions(self):
-        """Benchmark: Multiple AND conditions."""
 
         def bench():
             self.Partner.search(
@@ -631,7 +561,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Query: Multiple AND conditions", bench)
 
     def test_95_or_conditions(self):
-        """Benchmark: OR conditions."""
 
         def bench():
             self.Partner.search(
@@ -648,7 +577,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Query: OR conditions", bench)
 
     def test_95_join_condition(self):
-        """Benchmark: Query requiring JOIN."""
 
         def bench():
             self.Partner.search(
@@ -661,7 +589,6 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Query: JOIN condition", bench)
 
     def test_96_aggregation_group_by(self):
-        """Benchmark: Aggregation with GROUP BY."""
 
         def bench():
             self.Partner._read_group(
@@ -673,12 +600,11 @@ class TestSQLBenchmark(TransactionCase):
         self._run_benchmark("Query: GROUP BY aggregation", bench)
 
     def test_99_generate_summary(self):
-        """Generate final summary and export results."""
         if not self.all_results:
             _logger.info("[SQL_BENCHMARK] No results to summarize.")
             return
 
-        _logger.info("\n" + "=" * 80)
+        _logger.info("\n%s", "=" * 80)
         _logger.info("[SQL_BENCHMARK] FINAL SUMMARY")
         _logger.info("=" * 80)
 
@@ -749,7 +675,7 @@ class TestSQLBenchmark(TransactionCase):
         _logger.info("\n[SQL_BENCHMARK] JSON Export:")
         _logger.info(json.dumps(export_data, indent=2, default=str))
 
-        _logger.info("\n" + "=" * 80)
+        _logger.info("\n%s", "=" * 80)
         _logger.info("[SQL_BENCHMARK] ASYNC BENEFIT ANALYSIS")
         _logger.info("=" * 80)
 
@@ -901,6 +827,6 @@ class TestSQLBenchmark(TransactionCase):
             )
         _logger.info("   - Consider psycopg3 migration for hybrid sync/async support")
 
-        _logger.info("\n" + "=" * 80)
+        _logger.info("\n%s", "=" * 80)
         _logger.info("[SQL_BENCHMARK] Benchmark complete.")
         _logger.info("=" * 80)

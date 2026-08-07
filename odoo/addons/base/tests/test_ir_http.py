@@ -32,14 +32,8 @@ class TestIrHttpPerformances(TransactionCase):
 
 
 class TestIrHttpAuth(TransactionCase):
-    """Base-level coverage for the auth methods and the URL fallback (IHTTP-T1, security-critical)."""
-
     @contextmanager
     def _fake_request(self, env, path="/"):
-        """Push a minimal fake ``request`` exposing ``env`` onto the stack, so
-        classmethods reading only ``request.env``/``request.httprequest`` run
-        without a live WSGI request.
-        """
         fake = SimpleNamespace(env=env, httprequest=SimpleNamespace(path=path))
         _request_stack.push(fake)
         try:
@@ -48,30 +42,18 @@ class TestIrHttpAuth(TransactionCase):
             _request_stack.pop()
 
     def test_auth_method_user_rejects_public(self):
-        """``_auth_method_user`` rejects a not-logged-in (public) user.
-
-        Covers the ``uid in [None] + _get_public_users()`` branch: the public
-        user (and an anonymous uid=None env) counts as not logged in.
-        """
         public_uid = self.env.ref("base.public_user").id
         with self._fake_request(self.env(user=public_uid)):
             with self.assertRaises(SessionExpiredException):
                 self.registry["ir.http"]._auth_method_user()
 
     def test_authenticate_explicit_unknown_method(self):
-        """An unknown ``auth=`` value fails closed with AccessDenied (IHTTP-M3)."""
         with self._fake_request(self.env) as fake:
             fake.session = SimpleNamespace(uid=None)
             with self.assertRaises(AccessDenied):
                 self.registry["ir.http"]._authenticate_explicit("does_not_exist")
 
     def test_serve_fallback_skips_non_public(self):
-        """The URL fallback must NOT serve a non-public binary attachment.
-
-        Regression pin for IHTTP-L3: ``_serve_fallback`` searches under
-        ``sudo()``; without the ``public=True`` filter a non-public attachment
-        on an unmatched path would be served to anonymous callers.
-        """
         path = "/non_public_fallback_probe"
         self.env["ir.attachment"].sudo().create(
             {
@@ -89,11 +71,6 @@ class TestIrHttpAuth(TransactionCase):
             )
 
     def test_serve_attachment_public_filter(self):
-        """The fallback domain (``public=True``) selects only public rows (IHTTP-L3).
-
-        Asserts the ``extra_domain=[('public', '=', True)]`` filter that
-        ``_serve_fallback`` passes to ``_get_serve_attachment`` directly.
-        """
         path = "/serve_attachment_public_filter_probe"
         Attachment = self.env["ir.attachment"].sudo()
         non_public = Attachment.create(

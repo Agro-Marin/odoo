@@ -1,15 +1,3 @@
-"""``log_ormcache_stats`` must only claim its state machine for real signals.
-
-The handler guards itself with a module-level ``_logger_state`` tri-state so a
-second SIGUSR1 aborts an in-flight dump.  It used to move that state to "run"
-*before* checking whether ``sig`` was one of the two signals it actually
-dispatches on, and only the dispatch resets the state.  Any other ``sig`` --
-including the ``sig=None`` default that the signature advertises for a direct
-call -- therefore parked the state at "run" forever, and every subsequent
-SIGUSR1 took the ``!= "wait"`` branch, set "abort" and returned.  The cache
-stats dump was then dead for the remaining life of the process.
-"""
-
 import signal
 import unittest
 
@@ -22,7 +10,6 @@ class TestLogOrmcacheStatsSignalGating(unittest.TestCase):
         self.addCleanup(setattr, cache_mod, "_logger_state", "wait")
 
     def _drain(self):
-        """Wait for the reporting thread (if any) to settle back to "wait"."""
         for thread in list(__import__("threading").enumerate()):
             if thread.name.startswith("odoo.signal.log_ormcache_stats"):
                 thread.join(timeout=10)

@@ -1,17 +1,3 @@
-"""``Many2oneReference._update_inverses`` visits only the models it was given.
-
-A reference field is the inverse of one field on every model that points at it
-(136 of them for ``mail.message.res_id``), but a batch of records names one or
-two models. Indexing the per-model id map with a ``defaultdict`` lookup created
-an empty entry and browsed a throwaway recordset for every other inverse.
-
-The visited set must stay exactly "the inverses whose model appears in the
-batch", and the resulting inverse values must be unchanged -- the filter is a
-pure narrowing of work, which
-:func:`test_browsing_does_not_grow_with_the_number_of_inverse_fields` is the
-only test able to distinguish.
-"""
-
 from odoo import fields, models
 from odoo.orm.model_test_env import model_test_env
 
@@ -129,7 +115,6 @@ def _pointing_model(index):
 
 
 def _browses_for_one_reference(extra_models):
-    """Browse calls made by ``_update_inverses`` with *extra_models* bystanders."""
     classes = [Note, Alpha, Beta, *(_pointing_model(i) for i in range(extra_models))]
     with model_test_env(*classes) as env:
         alpha = env["ris.alpha"].create({"name": "a"})
@@ -151,11 +136,6 @@ def _browses_for_one_reference(extra_models):
 
 
 def test_browsing_does_not_grow_with_the_number_of_inverse_fields():
-    """The optimization itself, stated scale-invariantly.
-
-    Bystander models that merely point at the reference field must cost
-    nothing: the work is bounded by the models actually named in the batch.
-    """
     few_inverses, few_browses = _browses_for_one_reference(0)
     many_inverses, many_browses = _browses_for_one_reference(12)
 

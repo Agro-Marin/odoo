@@ -1,11 +1,3 @@
-"""Standalone ORM components — testable without database or Odoo server.
-
-These components encapsulate the core data structures and algorithms of
-the ORM (cache, compute scheduling, storage, field metadata, dependency
-graph, flush scheduling) behind clean APIs that can be unit-tested with
-pure Python.
-"""
-
 from .cache import FieldCache
 from .compute import ComputeEngine
 from .core import OrmCore

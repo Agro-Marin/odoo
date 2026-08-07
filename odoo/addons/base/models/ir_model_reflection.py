@@ -1,11 +1,3 @@
-"""Schema-reflection bookkeeping models.
-
-These models record the PostgreSQL schema objects (constraints, indexes and
-many2many relation tables) that Odoo models create, so they can be dropped again
-when the owning module is uninstalled. Split out of ``ir_model_access.py``, with
-which they share no logic.
-"""
-
 import logging
 from collections.abc import Collection
 from typing import Any, Self
@@ -24,8 +16,6 @@ _logger = logging.getLogger(__name__)
 
 
 class IrModelConstraint(models.Model):
-    """Tracks PostgreSQL indexes, foreign keys and constraints used by Odoo models."""
-
     _name = "ir.model.constraint"
     _description = "Model Constraint"
     _allow_sudo_commands = False
@@ -91,11 +81,6 @@ class IrModelConstraint(models.Model):
             hname = make_identifier(name)
             typ = data.type
             if typ in ("f", "u"):
-                # ask PostgreSQL which table carries the constraint instead of
-                # deriving it from the model name: a model absent from the
-                # registry (its module is being uninstalled -- exactly when this
-                # runs) left only the `model.replace(".", "_")` guess, which is
-                # wrong for every model with a custom _table, e.g. ir.actions.*
                 for (table,) in self.env.execute_query(
                     SQL(
                         """SELECT cl.relname
@@ -147,11 +132,6 @@ class IrModelConstraint(models.Model):
         module: str,
         message: str | None = None,
     ) -> Self | None:
-        """Reflect the given constraint so it can be dropped when its module is
-        uninstalled. ``type`` is 'f' (foreign key), 'i' (index) or 'u' (other).
-
-        :return: the created/modified record, or ``None`` if unchanged
-        """
         if not module:
             return None
         if type not in ("f", "u", "i"):
@@ -215,14 +195,6 @@ class IrModelConstraint(models.Model):
         return None
 
     def _reflect_constraints(self, model_names: list[str]) -> None:
-        """Reflect the ``_table_objects`` of the given models.
-
-        Batched like ``_reflect_fields``: one SELECT for all ``(name, module)``
-        pairs, one MERGE for created/changed rows and one batched xml-id update,
-        instead of a round-trip per constraint. MERGE (not ``INSERT ... ON
-        CONFLICT``) so the upsert does not require the ``(name, module)`` unique
-        constraint to already exist in the database.
-        """
         expected: dict[tuple[str, str], dict[str, Any]] = {}
         for model_name in model_names:
             model = self.env[model_name]
@@ -331,8 +303,6 @@ class IrModelConstraint(models.Model):
 
 
 class IrModelRelation(models.Model):
-    """Tracks PostgreSQL tables implementing Odoo many2many relations."""
-
     _name = "ir.model.relation"
     _description = "Relation Model"
     _allow_sudo_commands = False
@@ -351,7 +321,6 @@ class IrModelRelation(models.Model):
     create_date = fields.Datetime()
 
     def _module_data_uninstall(self) -> None:
-        """Delete PostgreSQL many2many relation tables tracked by this model."""
         if not self.env.is_system():
             raise AccessError(
                 _("Administrator access is required to uninstall a module")
@@ -388,14 +357,6 @@ class IrModelRelation(models.Model):
             _logger.info("Dropped table %s", table)
 
     def _reflect_relations(self, items: Collection[tuple[str, str, str]]) -> None:
-        """Reflect m2m tables so they can be dropped when their module is
-        uninstalled. Each item is ``(model_name, table, module)``.
-
-        Batched like every other reflector: one SELECT for all ``(name, module)``
-        pairs and one INSERT for the missing rows.  It used to run a SELECT and
-        possibly an INSERT *per many2many field*, redoing the work for every
-        field sharing a relation table -- both sides of a relation always do.
-        """
         expected: dict[tuple[str, str], str] = {}
         for model_name, table, module in items:
             expected.setdefault((table, module), model_name)

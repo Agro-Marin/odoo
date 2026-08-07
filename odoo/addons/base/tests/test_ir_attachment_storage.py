@@ -1,10 +1,3 @@
-"""Phase-1 tests for the ir.attachment storage-backend skeleton.
-
-Cover write-side backend selection, read-side key dispatch, and equivalence
-of backend value fragments with the live model. See the C1 plan
-(``2026-06-10-storage-backend-formalization-plan.md``).
-"""
-
 import base64
 import contextlib
 import io
@@ -33,7 +26,6 @@ class TestIrAttachmentStorage(TransactionCase):
         self.icp = self.env["ir.config_parameter"]
 
     def test_location_selection(self):
-        """Write-side backend follows ir_attachment.location; unknown → file."""
         self.assertIsInstance(self.Attachment._storage_backend(), FileStorage)
         self.icp.set_param("ir_attachment.location", "db")
         self.assertIsInstance(self.Attachment._storage_backend(), DbStorage)
@@ -41,7 +33,6 @@ class TestIrAttachmentStorage(TransactionCase):
         self.assertIsInstance(self.Attachment._storage_backend(), FileStorage)
 
     def test_key_dispatch(self):
-        """Read-side backend follows the store key's URI scheme."""
         plain = self.Attachment._backend_for_key("ab/abcdef0123")
         self.assertIsInstance(plain, FileStorage)
         self.addCleanup(
@@ -66,10 +57,6 @@ class TestIrAttachmentStorage(TransactionCase):
             STORAGE_BACKENDS.pop("fake_s3")
 
     def test_unknown_scheme_warns_once(self):
-        """IRA-S2: a schemed key with no registered backend falls back to the
-        filestore with a distinct warning, once per scheme, so the read
-        failure is blamed on the missing backend, not the filestore.
-        """
         dbname = self.env.cr.dbname
         self.addCleanup(
             ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, (dbname, "ghost-s3")
@@ -89,12 +76,6 @@ class TestIrAttachmentStorage(TransactionCase):
         warn.assert_not_called()
 
     def test_unknown_scheme_warns_per_database(self):
-        """The once-only guard is per database, not per worker process.
-
-        One worker serves many databases and a backend module is installed per
-        database, so silencing every other database's warning off the first hit
-        withheld the explanation from exactly the operators who needed it.
-        """
         dbname = self.env.cr.dbname
         other = f"{dbname}__other"
         for key in ((dbname, "twin-s3"), (other, "twin-s3")):
@@ -115,11 +96,6 @@ class TestIrAttachmentStorage(TransactionCase):
         self.assertEqual(len(cm.records), 1, "a second database must be told too")
 
     def test_register_storage_rejects_a_contested_location(self):
-        """Two backends claiming one location must fail loudly, not race.
-
-        The loser's rows keep a key scheme nothing resolves once the winner --
-        decided by module load order -- has taken the name.
-        """
 
         class FirstStorage(AttachmentStorage):
             location = "contested"
@@ -134,7 +110,6 @@ class TestIrAttachmentStorage(TransactionCase):
             with self.assertRaises(ValueError):
                 register_storage(SecondStorage)
             self.assertIs(STORAGE_BACKENDS["contested"], FirstStorage)
-            # re-registering the same class stays a no-op (module reload)
             self.assertIs(register_storage(FirstStorage), FirstStorage)
         finally:
             STORAGE_BACKENDS.pop("contested", None)
@@ -147,7 +122,6 @@ class TestIrAttachmentStorage(TransactionCase):
         self.assertNotIn("", STORAGE_BACKENDS)
 
     def test_stream_key_dispatch(self):
-        """_to_http_stream routes keyed content to the key's owning backend."""
         att = self.Attachment.create({"name": "ks.bin", "raw": b"ks-payload"})
 
         class FakeStreamStorage(AttachmentStorage):
@@ -172,7 +146,6 @@ class TestIrAttachmentStorage(TransactionCase):
             STORAGE_BACKENDS.pop("fake_stream")
 
     def test_write_fragment_matches_model(self):
-        """backend.write's store fragment equals _get_datas_related_values output."""
         for location, backend_cls in (("file", FileStorage), ("db", DbStorage)):
             self.icp.set_param("ir_attachment.location", location)
             for data in (b"payload", b""):
@@ -186,7 +159,6 @@ class TestIrAttachmentStorage(TransactionCase):
                     self.assertEqual(fragment["db_datas"], model_vals["db_datas"])
 
     def test_gc_lock_not_available_returns_false(self):
-        """A lock timeout skips the sweep and reports False for retry."""
         real_execute = self.env.cr.execute
 
         def fake_execute(query, *args, **kwargs):
@@ -209,7 +181,6 @@ class TestIrAttachmentStorage(TransactionCase):
             self.assertIs(self.Attachment._gc_file_store(), False)
 
     def test_migration_domain_delegation(self):
-        """_get_storage_domain delegates per configured backend."""
         cases = (
             ("file", [("db_datas", "!=", False)]),
             ("db", [("store_fname", "!=", False)]),
@@ -222,13 +193,6 @@ class TestIrAttachmentStorage(TransactionCase):
 
 
 class MemoryStorage(AttachmentStorage):
-    """In-memory backend: the test seam proving the contract is complete.
-
-    Deletes are reference-counted against ``store_fname`` (like the file
-    backend's deferred GC): content-addressed keys are shared by copies, so
-    an eager delete would corrupt remaining references.
-    """
-
     location = "memory"
     key_scheme = "mem"
     blobs: dict[str, bytes] = {}
@@ -274,7 +238,6 @@ class MemoryStorage(AttachmentStorage):
 
 @contextlib.contextmanager
 def activate_memory_storage(env):
-    """Register MemoryStorage and make it the configured write backend."""
     register_storage(MemoryStorage)
     env["ir.config_parameter"].set_param("ir_attachment.location", "memory")
     try:
@@ -286,12 +249,6 @@ def activate_memory_storage(env):
 
 
 class TestMemoryStorageCRUD(TransactionCase):
-    """CRUD flows against a non-file backend prove the contract is complete.
-
-    Not the whole attachment suite: tests asserting filestore specifics
-    (on-disk paths, GC checklist) stay on FileStorage.
-    """
-
     def test_crud_lifecycle(self):
         payload = b"mem-payload"
         with activate_memory_storage(self.env):
@@ -325,18 +282,6 @@ class TestMemoryStorageCRUD(TransactionCase):
             self.assertNotIn(old_key, MemoryStorage.blobs)
 
     def test_streamed_upload_lifecycle(self):
-        """The streaming upload path must work on a backend that cannot stream.
-
-        ``_create_from_stream`` is the one writer that creates the row before it
-        has any content, then hands the payload to ``backend.write_stream`` and
-        writes the derived columns back. ``FileStorage`` overrides that method,
-        so the base implementation -- buffer, hash, delegate to ``write`` -- was
-        only ever exercised through ``DbStorage``, which owns no store key. A
-        keyed backend inheriting it goes down a path nothing covered: the key
-        comes back from ``write``, but ``checksum``/``file_size`` come from
-        ``write_stream``, and the index read has to go through the backend
-        rather than the filestore.
-        """
         payload = b"streamed-into-a-custom-backend-" * 40
         text = b"hello indexable streamed content " * 30
         with activate_memory_storage(self.env):
@@ -393,8 +338,6 @@ class TestMemoryStorageCRUD(TransactionCase):
             self.assertEqual(att.raw, payload)
 
     def test_unreadable_content_copy_preserves_metadata(self):
-        """Copy preserves metadata even when backend content is unreadable
-        (IRA-B4, the A1 scenario simulated without monkeypatching privates, E1)."""
         payload = b"e1-payload"
         with activate_memory_storage(self.env):
             att = self.env["ir.attachment"].create({"name": "e1.bin", "raw": payload})

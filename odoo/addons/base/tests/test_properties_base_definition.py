@@ -10,15 +10,6 @@ class DeliberateRollback(Exception):
 
 
 class TestPropertiesBaseDefinition(TransactionCase):
-    """PBD-H1: a lazily-created properties base definition must not be memoized in
-    the process-global "stable" ormcache before it is committed.
-
-    ormcache additions are not transaction-aware, so an id cached at create time
-    would survive a rollback and be served dangling to later requests. The fix
-    memoizes created ids in the transaction-local ``env.cr.cache`` and lets only
-    SELECT hits populate the stable cache.
-    """
-
     MODEL = "res.partner"
     FIELD = "properties"
 

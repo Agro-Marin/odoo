@@ -1,5 +1,3 @@
-"""View validation: assertion-based checks plus RelaxNG schema validation."""
-
 import ast
 import collections
 import logging
@@ -47,12 +45,6 @@ DOMAIN_OPERATORS = {
 
 
 def _filter_contextual_names(contextual_values: set[str]) -> set[str]:
-    """Filter contextual value names down to reportable value names.
-
-    Drops the bare ``parent`` reference and any name whose root is a
-    predefined evaluation symbol (``IGNORED_IN_EXPRESSION``); ``parent.*``
-    paths are kept whole while other names are reduced to their root.
-    """
     value_names = set()
     for name in contextual_values:
         if name == "parent":
@@ -64,24 +56,6 @@ def _filter_contextual_names(contextual_values: set[str]) -> set[str]:
 
 
 def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
-    """Return the field names and contextual value names used by this domain.
-
-    Contextual roots listed in ``IGNORED_IN_EXPRESSION`` (``context``, ``uid``,
-    builtins, ...) are excluded from the second set.
-
-    For example, the string domain::
-
-        [
-            ("id", "in", [1, 2, 3]),
-            ("field_a", "in", parent.truc),
-            ("field_b", "in", context.get("b")),
-        ]
-
-    returns ``{'id', 'field_a', 'field_b'}, {'parent.truc'}``.
-
-    :param domain: list(tuple) or str
-    :return: set(str), set(str)
-    """
     contextual_values = set()
     field_names = set()
 
@@ -182,22 +156,6 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
 
 
 def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
-    """Return the contextual value names referenced in this AST node.
-
-    For example, the AST of::
-
-        (
-            id in [1, 2, 3]
-            and field_a in parent.truc
-            and field_b in context.get("b")
-            or (True and bool(context.get("c")))
-        )
-
-    returns ``{'id', 'field_a', 'parent.truc', 'field_b', 'context.get', 'bool'}``.
-
-    :param item_ast: ast
-    :return: set(str)
-    """
 
     if isinstance(item_ast, ast.Constant):
         return set()
@@ -259,25 +217,6 @@ def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
 
 
 def get_expression_field_names(expression: str) -> set[str]:
-    """Return all field names used by this expression.
-
-    Contextual roots listed in ``IGNORED_IN_EXPRESSION`` (``context``, builtins,
-    ...) are excluded.
-
-    For example, the expression::
-
-        (
-            id in [1, 2, 3]
-            and field_a in parent.truc.id
-            and field_b in context.get("b")
-            or (True and bool(context.get("c")))
-        )
-
-    returns ``{'id', 'field_a', 'field_b', 'parent.truc.id'}``.
-
-    :param expression: str
-    :return: set(str)
-    """
     if not expression:
         return set()
     item_ast = ast.parse(expression.strip(), mode="eval").body
@@ -286,10 +225,6 @@ def get_expression_field_names(expression: str) -> set[str]:
 
 
 def get_dict_asts(expr: str | ast.AST) -> dict[str, ast.AST]:
-    """Check that the given string or AST node represents a dict expression
-    where all keys are string literals, and return it as a dict mapping string
-    keys to the AST of values.
-    """
     if isinstance(expr, str):
         expr = ast.parse(expr.strip(), mode="eval").body
 
@@ -315,7 +250,6 @@ def valid_view(arch: etree._Element, **kwargs: object) -> bool:
 
 
 def validate(*view_types: str) -> object:
-    """Register a view-validation function for the given view types."""
 
     def decorator(fn):
         for arch in view_types:
@@ -326,7 +260,6 @@ def validate(*view_types: str) -> object:
 
 
 def relaxng(view_type: str) -> etree.RelaxNG | None:
-    """Return a validator for the given view type, or None."""
     if view_type not in _relaxng_cache:
         with tools.file_open(str(Path("base", "rng", f"{view_type}_view.rng"))) as frng:
             try:
@@ -342,7 +275,6 @@ def relaxng(view_type: str) -> etree.RelaxNG | None:
 
 @validate("calendar", "graph", "pivot", "search", "list", "activity")
 def schema_valid(arch, **kwargs):
-    """Validate ``arch`` against its RelaxNG schema, logging any errors."""
     validator = relaxng(arch.tag)
     if validator and not validator.validate(arch):
         for error in validator.error_log:
@@ -352,14 +284,12 @@ def schema_valid(arch, **kwargs):
 
 
 def att_names(name):
-    """Yield an attribute name and its ``t-att-``/``t-attf-`` dynamic variants."""
     yield name
     yield f"t-att-{name}"
     yield f"t-attf-{name}"
 
 
 def check_dropdown_menu(node):
-    """Return accessibility warnings for a ``dropdown-menu`` node."""
     warnings = []
     if any("dropdown-menu" in node.get(cl, "") for cl in att_names("class")):
         if node.get("role") != "menu":
@@ -368,7 +298,6 @@ def check_dropdown_menu(node):
 
 
 def check_progress_bar(node):
-    """Return accessibility warnings for an ``o_progressbar`` node."""
     warnings = []
     if any("o_progressbar" in node.get(cl, "") for cl in att_names("class")):
         if node.get("role") != "progressbar":
@@ -383,10 +312,6 @@ def check_progress_bar(node):
 
 
 def check_fa_class_accessibility(node, description):
-    """Return a 0- or 1-element list of warnings for a Font Awesome node that
-    lacks an accessible text alternative (in itself, a sibling, an ancestor or
-    a descendant).
-    """
     valid_aria_attrs = {
         *att_names("title"),
         *att_names("aria-label"),
@@ -440,13 +365,6 @@ def check_fa_class_accessibility(node, description):
 
 
 def check_class_accessibility(node, expr):
-    """Return accessibility warnings for the classes in ``expr`` on ``node``.
-
-    ``expr`` is the raw ``class`` attribute value, which may be a dynamic
-    ``t-attf-class`` expression, hence the best-effort whitespace splitting.
-    Font Awesome findings are appended before the button findings, preserving
-    the original emission order.
-    """
     warnings = []
     classes = set(expr.split(" "))
     if "modal" in classes and node.get("role") != "dialog":

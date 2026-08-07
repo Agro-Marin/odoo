@@ -10,20 +10,15 @@ from odoo.addons.base.models.ir_model_common import (
 
 
 class TestReflection(common.TransactionCase):
-    """Test the reflection into 'ir.model', 'ir.model.fields', etc."""
-
     def assertModelXID(self, record):
-        """Check the XML id of the given 'ir.model' record."""
         xid = model_xmlid("test_orm", record.model)
         self.assertEqual(record, self.env.ref(xid))
 
     def assertFieldXID(self, record):
-        """Check the XML id of the given 'ir.model.fields' record."""
         xid = field_xmlid("test_orm", record.model, record.name)
         self.assertEqual(record, self.env.ref(xid))
 
     def assertSelectionXID(self, record):
-        """Check the XML id of the given 'ir.model.fields.selection' record."""
         xid = selection_xmlid(
             "test_orm",
             record.field_id.model,
@@ -33,7 +28,6 @@ class TestReflection(common.TransactionCase):
         self.assertEqual(record, self.env.ref(xid))
 
     def test_models_fields(self):
-        """check that all models and fields are reflected as expected."""
         model_names = [
             "decimal.precision.test",
             "domain.bool",
@@ -304,7 +298,6 @@ class TestSchema(common.TransactionCase):
         return self.cr.fetchall()
 
     def test_00_table(self):
-        """check the database schema of a model"""
         model = self.env["test_orm.foo"]
         self.assertEqual(model._table, "test_orm_foo")
 
@@ -351,7 +344,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_boolean(self):
-        """check the database representation of a boolean field"""
         model = self.env["test_orm.message"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -377,7 +369,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_integer(self):
-        """check the database representation of an integer field"""
         model = self.env["test_orm.category"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -403,7 +394,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_float(self):
-        """check the database representation of a float field"""
         model = self.env["test_orm.mixed"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -429,7 +419,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_monetary(self):
-        """check the database representation of a monetary field"""
         model = self.env["test_orm.mixed"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -455,7 +444,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_char(self):
-        """check the database representation of a char field"""
         model = self.env["res.country"]
         self.assertTrue(type(model).code.required)
         self.assertEqual(type(model).code.size, 2)
@@ -533,7 +521,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_text(self):
-        """check the database representation of a text field"""
         model = self.env["test_orm.message"]
         columns_data = self.get_columns_data(model._table)
         body_field = model._fields["body"]
@@ -564,7 +551,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_html(self):
-        """check the database representation of an html field"""
         model = self.env["test_orm.mixed"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -590,7 +576,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_date(self):
-        """check the database representation of a date field"""
         model = self.env["test_orm.mixed"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -616,7 +601,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_datetime(self):
-        """check the database representation of a datetime field"""
         model = self.env["test_orm.mixed"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -642,7 +626,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_selection(self):
-        """check the database representation of a selection field"""
         model = self.env["test_orm.mixed"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -668,7 +651,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_reference(self):
-        """check the database representation of a reference field"""
         model = self.env["test_orm.mixed"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -694,7 +676,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_many2one(self):
-        """check the database representation of a many2one field"""
         model = self.env["test_orm.mixed"]
         columns_data = self.get_columns_data(model._table)
         self.assertEqual(
@@ -725,7 +706,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_10_many2many(self):
-        """check the database representation of a many2many field"""
         model = self.env["test_orm.discussion"]
         field = type(model).categories
         comodel = self.env[field.comodel_name]
@@ -811,10 +791,6 @@ class TestSchema(common.TransactionCase):
         )
 
     def test_20_unique_indexes(self):
-        """Test uniqueness of indexes:
-        - test_orm.order.line_short_field_name
-        - test_orm.order.line.short_field_name
-        """
         tablenames = ["test_orm_order", "test_orm_order_line"]
         self.env.cr.execute(
             """
@@ -828,20 +804,6 @@ class TestSchema(common.TransactionCase):
         self.assertEqual(tables, {"test_orm_order", "test_orm_order_line"})
 
     def test_21_too_long_indexes(self):
-        """Test too long indexes name:
-
-        Both indexes share same truncated name
-        'test_orm_order_line__very_very_very_very_very_long_field_nam'
-        if no strategy is done to avoid duplicate too long index names
-
-        -  test_orm.order.line.very_very_very_very_very_long_field_name_1
-        -> test_orm_order_line__very_very_very_very_very_long_field_name_1_index
-        => test_orm_order_line__very_very_very_very_very_long_ea4b39c9
-
-        -  test_orm.order.line.very_very_very_very_very_long_field_name_2
-        -> test_orm_order_line__very_very_very_very_very_long_field_name_2_index
-        => test_orm_order_line__very_very_very_very_very_long_dba32354
-        """
         self.env.cr.execute(
             """
             SELECT COUNT(*)

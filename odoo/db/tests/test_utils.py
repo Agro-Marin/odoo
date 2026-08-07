@@ -1,17 +1,3 @@
-"""Database-free tests for :mod:`odoo.db.utils`.
-
-``connection_info_for`` decides what every connection in the process is made
-of — where it points, which health parameters it carries, and whose credentials
-it uses.  It is pure string/dict work, yet it was reachable only through the
-DB-backed suite, so its sharpest edges (an operator's explicit URI parameter
-being silently overwritten by Odoo's defaults; the read-only replica inheriting
-the primary's credentials) had no assertion of their own.
-
-``is_maintenance_db`` is here for the same reason: getting it wrong means Odoo
-holds a pooled connection to a template and ``CREATE DATABASE … TEMPLATE``
-starts failing, which is an expensive way to discover a one-line predicate.
-"""
-
 import unittest
 from unittest.mock import patch
 
@@ -20,7 +6,7 @@ from odoo.db.utils import _HEALTH_PARAMS, connection_info_for, is_maintenance_db
 
 
 class _Config(dict):
-    """Minimal stand-in for ``tools.config`` (a mapping with ``.get``)."""
+    pass
 
 
 def _config(**overrides):

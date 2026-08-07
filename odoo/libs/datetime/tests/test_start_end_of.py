@@ -1,5 +1,3 @@
-"""Regression tests for ``start_of`` / ``end_of`` tzinfo handling."""
-
 import unittest
 from datetime import date, datetime
 from zoneinfo import ZoneInfo

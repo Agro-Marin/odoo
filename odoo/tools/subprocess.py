@@ -1,17 +1,8 @@
-"""
-Subprocess and system process utilities for Odoo.
-
-This module provides utilities for:
-- Finding executables in PATH
-- PostgreSQL tool discovery and environment setup
-- Process debugging (stack traces)
-- Command-line argument handling
-"""
-
 import logging
 import os
 import sys
 import threading
+import time
 import traceback
 
 from odoo.libs.filesystem import which
@@ -22,13 +13,6 @@ _logger = logging.getLogger(__name__)
 
 
 def find_in_path(name: str) -> str:
-    """Find an executable, searching the system PATH and the configured `bin_path` option.
-
-    :param str name: Name of the executable to find
-    :return: Full path to the executable
-    :rtype: str
-    :raises OSError: (``errno.ENOENT``) if no matching executable is found
-    """
     path = os.environ.get("PATH", os.defpath).split(os.pathsep)
     if config.get("bin_path") and config["bin_path"] != "None":
         path.append(config["bin_path"])
@@ -36,16 +20,6 @@ def find_in_path(name: str) -> str:
 
 
 def find_pg_tool(name: str) -> str:
-    """Find a PostgreSQL command-line tool.
-
-    Searches for PostgreSQL tools (pg_dump, pg_restore, etc.) using
-    the configured `pg_path` option or the system PATH.
-
-    :param str name: Name of the PostgreSQL tool (e.g., 'pg_dump')
-    :return: Full path to the tool
-    :rtype: str
-    :raises FileNotFoundError: If the tool is not found
-    """
     path = None
     if config["pg_path"] and config["pg_path"] != "None":
         path = config["pg_path"]
@@ -56,21 +30,6 @@ def find_pg_tool(name: str) -> str:
 
 
 def exec_pg_environ() -> dict[str, str]:
-    """Get environment variables for PostgreSQL subprocess execution.
-
-    Copy the current environment, setting PostgreSQL variables from the Odoo
-    configuration, for running pg_dump, pg_restore, and other PostgreSQL tools.
-
-    Note: On systems where pg_restore/pg_dump require an explicit password
-    (i.e. on Windows where TCP sockets are used), it is necessary to pass the
-    postgres user password in the PGPASSWORD environment variable or in a
-    special .pgpass file.
-
-    See also https://www.postgresql.org/docs/current/libpq-envars.html
-
-    :return: Environment dict with PostgreSQL variables set
-    :rtype: dict
-    """
     env = os.environ.copy()
     if config["db_host"]:
         env["PGHOST"] = config["db_host"]
@@ -90,13 +49,6 @@ def exec_pg_environ() -> dict[str, str]:
 
 
 def stripped_sys_argv(*strip_args: str) -> list[str]:
-    """Return a copy of sys.argv, stripped of args unsuited to re-execution or subprocess
-    spawning (-s/--save, -u/--update, -i/--init, --i18n-overwrite, plus any given here).
-
-    :param strip_args: Additional argument flags to strip
-    :return: Filtered argument list
-    :rtype: list[str]
-    """
     strip_args = sorted(
         set(strip_args)
         | {
@@ -132,8 +84,6 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
     return [x for i, x in enumerate(args) if not strip(args, i)]
 
 
-import time
-
 real_time = time.time.__call__
 
 
@@ -143,14 +93,6 @@ def dumpstacks(
     thread_idents: set[int] | None = None,
     log_level: int = logging.INFO,
 ) -> None:
-    """Signal handler that logs stack traces of running threads, e.g. to diagnose hangs
-    or inspect thread state.
-
-    :param sig: Signal number (when used as signal handler)
-    :param frame: Current stack frame (when used as signal handler)
-    :param thread_idents: Optional set of thread IDs to dump (if None, dumps all threads)
-    :param log_level: Logging level for output (default: INFO)
-    """
     code = []
 
     def extract_stack(stack):

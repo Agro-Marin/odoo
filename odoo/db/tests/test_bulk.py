@@ -1,16 +1,3 @@
-"""Database-free tests for :mod:`odoo.db.bulk`'s argument validation.
-
-Every check exercised here runs *before* the mixin touches the host cursor, so
-a bare ``_BulkAccessMixin()`` is a sufficient stand-in — no connection, no
-server, no framework.  These are the guards that turn a caller mistake into a
-named error instead of a cryptic failure deep inside the COPY protocol or a
-silently-wrong statement, so they are worth pinning at the cheapest tier.
-
-What needs a real backend — the catalog lookup, the lock-before-read ordering,
-binary/text encoding of exotic column types — lives in
-``odoo/addons/base/tests/test_db_cursor.py``.
-"""
-
 import unittest
 from typing import Any
 
@@ -23,8 +10,6 @@ from odoo.db.bulk import (
 
 
 class TestCopyFromValidation(unittest.TestCase):
-    """``copy_from`` rejects incoherent arguments at the boundary."""
-
     def setUp(self):
         self.bulk: Any = _BulkAccessMixin()
 
@@ -56,8 +41,6 @@ class TestCopyFromValidation(unittest.TestCase):
 
 
 class TestExecuteValuesValidation(unittest.TestCase):
-    """``execute_values`` needs exactly one real ``%s`` row-list marker."""
-
     def setUp(self):
         self.bulk: Any = _BulkAccessMixin()
 
@@ -95,25 +78,12 @@ class TestExecuteValuesValidation(unittest.TestCase):
 
 
 class TestTypeOidConstants(unittest.TestCase):
-    """The binary-COPY OIDs are PostgreSQL-fixed; pin them against a typo."""
-
     def test_constants_match_postgres(self):
         self.assertEqual(_TEXT_OID, 25)
         self.assertEqual(_NUMERIC_OID, 1700)
 
 
 class TestTableIdentifier(unittest.TestCase):
-    """One resolution of the caller's table name, for every consumer of it.
-
-    ``copy_from`` used to reach the same table two incompatible ways: the lock
-    and the COPY quoted it as a single identifier, while the catalog lookups
-    passed the raw string through ``::regclass``/``pg_get_serial_sequence``,
-    which parse and case-fold.  Verified against PG 18: ``'MyTable'::regclass``
-    resolves ``mytable`` while ``COPY "MyTable"`` targets a different relation,
-    so binary COPY encoded with one table's types and wrote into another's
-    columns (``int4`` read as ``oid``: 4000000000 stored as -294967296).
-    """
-
     def _rendered(self, table):
         return _table_identifier(table).as_string(None)
 
@@ -131,22 +101,11 @@ class TestTableIdentifier(unittest.TestCase):
 
 
 class _FractionOnly(_BulkAccessMixin):
-    """Isolates the numeric-fraction rule from the dumper probe."""
-
     def _can_dump_binary(self, oids):
         return True
 
 
 class TestBinaryPaysOff(unittest.TestCase):
-    """Binary COPY is chosen on measured cost, not on 'is it possible'.
-
-    psycopg has no float-to-numeric binary dumper, so every numeric cell costs a
-    ``Decimal`` conversion.  Measured on 20k rows x 20 columns (PG 18, psycopg
-    3.3.4) binary beats text at 0-5 numeric columns (-60% to -9%) and loses from
-    6 (+15%, rising to +291% at 20), so the crossover sits at a quarter of the
-    row.
-    """
-
     def setUp(self):
         self.bulk: Any = _FractionOnly()
 

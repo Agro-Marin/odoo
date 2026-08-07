@@ -1,10 +1,3 @@
-"""Ordering tests for ``odoo.libs.parse_version``.
-
-These assertions used to live in a ``if __name__ == "__main__"`` block inside
-``parse_version.py``, so they never ran -- and being bare ``assert``s, ``-O``
-would have stripped them anyway.
-"""
-
 import itertools
 import unittest
 

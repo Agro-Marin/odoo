@@ -7,13 +7,6 @@ if TYPE_CHECKING:
 
 
 class _GeoIPNull:
-    """Chainable null sentinel returned by :class:`GeoIP` when geoip2 isn't installed.
-
-    Mimics an empty geoip2 record so chained access (``g.country.iso_code``,
-    ``g.location.latitude``) returns this same instance instead of raising,
-    while ``bool(g)`` and ``g == None`` are False/True respectively.
-    """
-
     __slots__ = ()
 
     def __getattr__(self, _name):
@@ -65,15 +58,6 @@ except ImportError:
 
 
 def _none_if_null(value: Any) -> Any:
-    """Map the geoip2-absent null sentinel to ``None`` for *leaf* values.
-
-    When geoip2 is absent, attribute chains through :data:`_GEOIP_NULL` return
-    the *same* sentinel (so intermediate access stays safe to dot through), but a
-    leaked sentinel at a scalar leaf breaks the contract: it is ``is not None``,
-    not JSON-serialisable, and psycopg cannot adapt it (e.g. ``website.visitor``'s
-    ``country_code`` upsert hard-errors for anonymous visitors without geoip2).
-    Coerce it to ``None`` at the leaf; a genuine ``0`` / ``0.0`` is preserved.
-    """
     return None if value is _GEOIP_NULL else value
 
 
@@ -99,38 +83,6 @@ _GEOIP_CITY_ONLY_MODEL_ATTRS = frozenset({"city", "location", "postal", "subdivi
 
 
 class GeoIP(collections.abc.Mapping):
-    """
-    IP geolocalization utility, determine information such as the
-    country or the timezone of the user based on their IP Address.
-
-    The instances share the same API as `geoip2.models.City
-    <https://geoip2.readthedocs.io/en/latest/#geoip2.models.City>`_.
-
-    When the IP couldn't be geolocalized (missing database, bad address)
-    then an empty object is returned. This empty object can be used like
-    a regular one with the exception that all values are set to None.
-
-    :param ip: The IP Address to geo-localize, or ``None`` when the
-        WSGI server reported no ``REMOTE_ADDR``; an unusable address
-        resolves to the empty record like any other lookup miss.
-    :param app: the :class:`~odoo.http.Application` owning the geoip
-        databases. Required rather than defaulted to the ``root`` singleton:
-        the default was the last edge making this module import
-        ``application``, which imports this one back.
-
-    .. note::
-
-        The geoip info for the current request is available at
-        :attr:`~odoo.http.request.geoip`.
-
-    .. code-block:: python
-
-        >>> GeoIP("127.0.0.1").country.iso_code  # doctest: +SKIP
-        >>> odoo_ip = socket.gethostbyname("odoo.com")  # doctest: +SKIP
-        >>> GeoIP(odoo_ip).country.iso_code  # doctest: +SKIP
-        'FR'
-    """
-
     def __init__(self, ip: str | None, app: Any) -> None:
         self.app = app
         self.ip = ip

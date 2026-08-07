@@ -8,7 +8,7 @@ from pathlib import Path
 from psycopg.errors import InsufficientPrivilege
 
 import odoo
-import odoo.release
+import odoo.release  # noqa: F401  binds the submodule so `odoo.release.version` resolves below
 from odoo.service import db, server
 from odoo.tools import config
 
@@ -84,8 +84,7 @@ def setup_pid_file() -> None:
     """
     if not odoo.evented and config["pidfile"]:
         pid = os.getpid()
-        with Path(config["pidfile"]).open("w") as fd:
-            fd.write(str(pid))
+        Path(config["pidfile"]).write_text(str(pid), encoding="utf-8")
         atexit.register(rm_pid_file, pid)
 
 

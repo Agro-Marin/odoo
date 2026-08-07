@@ -29,15 +29,7 @@ class OnchangeChecker(lint_case.NodeVisitor):
 
 
 class TestOnchangeDomains(lint_case.LintCase):
-    """Would ideally have been a pylint module but that's slow as molasses
-    (takes minutes to run, and can blow up entirely depending on the pylint
-    version)
-    """
-
     def test_forbid_domains_in_onchanges(self):
-        """Dynamic domains (returning a domain from an onchange) are deprecated
-        and should not be used in "standard" Odoo anymore
-        """
         checker = OnchangeChecker()
         rs = []
         for path in self.iter_module_files("*.py"):

@@ -1,10 +1,3 @@
-"""Render a Python dict as an XML tree.
-
-Used by the e-invoicing exporters (UBL/CII and the localizations built on them)
-to build a document from a nested dict rather than a template, so the node
-order can be pinned by a separate template dict.
-"""
-
 from lxml import etree
 
 from .utils import remove_control_characters
@@ -19,40 +12,6 @@ def dict_to_xml(
     tag: str | None = None,
     path: str | None = None,
 ) -> etree._Element | None:
-    """Render a Python dict as an XML node.
-
-    The dict is expected to be of the form::
-
-        {
-            # Special keys:
-            "_tag": "tag_name",  # '_tag' is rendered as the node's tag
-            "_text": "content",  # '_text' is rendered as the node's text content
-            "_dummy": "dummy_value",  # Keys starting with '_' are not rendered
-            # Simple values are rendered as attributes
-            "attribute_name": "attribute_value",
-            # Dicts are rendered as child nodes
-            "child_tag": {
-                "_text": "content",
-                "attribute_name": "attribute_value",
-            },
-            # Lists of dicts are also rendered as child nodes
-            "child_tag": [
-                {
-                    "_text": "content",
-                    "attribute_name": "attribute_value",
-                },
-            ],
-        }
-
-    :param node: The Python dict to render.
-    :param nsmap: (optional) A dict of namespaces to be used for rendering the node.
-    :param template: (optional) A Python dict providing the order of keys, a fallback '_tag' and the templates of the child nodes.
-    :param render_empty_nodes: (optional) If True, empty nodes will be rendered in the XML tree.
-    :param tag: (optional) The tag of the node to render (needed only for recursive calls).
-    :param path: (optional) The path of the currently rendered node in the XML tree (needed only for recursive calls).
-    :return: The rendered XML node as an lxml.Element, or None if the node is empty and render_empty_nodes is False.
-    :raise ValueError: if no tag can be determined, or if a non-empty child node is missing from the template.
-    """
     if nsmap is None:
         nsmap = {}
 

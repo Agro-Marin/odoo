@@ -43,27 +43,10 @@ _KNOWN_ROUTING_PARAMETERS: set[str] = {
 
 
 def register_routing_parameters(*names: str) -> None:
-    """Declare extension ``@route`` parameter names as known.
-
-    Call at module import time, before any controller using the parameter is
-    decorated — conventionally from the owning addon's ``__init__.py``. Only
-    suppresses the unknown-parameter warning; storage in ``endpoint.routing``
-    is unconditional either way.
-    """
     _KNOWN_ROUTING_PARAMETERS.update(names)
 
 
 class LazyCompiledBuilder:
-    """Defer a werkzeug ``Rule``'s URL-builder compilation until first ``url_for``.
-
-    ``Rule.compile`` builds both a matcher and a builder; the builder
-    (:meth:`werkzeug.routing.Rule._compile_builder`) dominates routing-map
-    construction, yet most rules are only ever *matched* (inbound dispatch),
-    never *built* (``url_for``). This descriptor stands in for the compiled
-    builder and materialises it on the first call, so map construction pays only
-    for the matcher.
-    """
-
     def __init__(
         self,
         rule: werkzeug.routing.Rule,
@@ -87,31 +70,11 @@ class LazyCompiledBuilder:
 
 
 class FasterRule(werkzeug.routing.Rule):
-    """Make ``_compile_builder`` lazy: it dominates routing-map generation but rules are rarely built."""
-
     def _compile_builder(self, append_unknown: bool = True) -> LazyCompiledBuilder:
         return LazyCompiledBuilder(self, super()._compile_builder, append_unknown)
 
 
 def rule_routing_kwargs(endpoint: Callable) -> dict[str, Any]:
-    """Build the werkzeug ``Rule`` keyword arguments for ``endpoint``.
-
-    Returns the :data:`ROUTING_KEYS` subset of ``endpoint.routing`` with
-    ``OPTIONS`` appended to any ``methods`` allow-list, so that *every* route
-    answers OPTIONS through :meth:`Dispatcher.pre_dispatch` — a 204 preflight for
-    a ``cors`` route, a 204 ``Allow`` advertisement otherwise — instead of a
-    werkzeug 405 for allow-listed routes and a framework 204 for unrestricted
-    ones. Shared by both routing maps (nodb and per-database) so they cannot
-    drift on accepted methods.
-
-    Widening the rule is only safe because ``pre_dispatch`` intercepts OPTIONS
-    before the endpoint runs whenever the author did not list it: without that
-    interception a ``@route(methods=["POST"], csrf=True)`` handler would execute
-    for ``OPTIONS /path?...``, CSRF-free, since OPTIONS is a
-    :data:`SAFE_HTTP_METHODS` member. Routes that genuinely serve OPTIONS
-    themselves (WebDAV, the mail-plugin handshake) list it in their own
-    ``methods=`` and reach their endpoint as declared.
-    """
     routing = submap(endpoint.routing, ROUTING_KEYS)
     methods = routing.get("methods")
     if methods is not None and "OPTIONS" not in methods:
@@ -120,24 +83,6 @@ def rule_routing_kwargs(endpoint: Callable) -> dict[str, Any]:
 
 
 def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
-    """Classify ``endpoint``'s parameters for request-arg filtering, ONCE.
-
-    :returns: ``(accepts_var_keyword, accepted_named_params, bound_self_name)``
-        — whether it has a ``**kwargs`` catch-all (accepts every arg), the names
-        it accepts by keyword, and the name of its first parameter (the bound
-        ``self``, supplied positionally by ``route_wrapper``).
-
-    Classified once at decoration time instead of calling ``inspect.signature``
-    (~7.5us) per request as :func:`~odoo.libs.func.filter_kwargs` did. Acceptance
-    mirrors ``filter_kwargs`` (POSITIONAL_OR_KEYWORD / KEYWORD_ONLY by name,
-    VAR_KEYWORD accepts all, POSITIONAL_ONLY / VAR_POSITIONAL not by keyword);
-    ``test_session08`` locks the "called ignoring args {...}" contract.
-
-    The first parameter (the controller instance) is EXCLUDED: it is bound
-    positionally, so a same-named request arg (e.g. ``?self=1``) would otherwise
-    raise ``got multiple values for argument 'self'`` — a 500 on every route.
-    This exclusion is a deliberate divergence from ``filter_kwargs``.
-    """
     accepts_var_keyword = False
     named: set[str] = set()
     params = list(inspect.signature(endpoint).parameters.values())
@@ -154,24 +99,6 @@ def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
 
 
 def _apply_param_specs(endpoint: Callable, specs: dict[str, Any] | None) -> None:
-    """Attach compiled ``typed=`` parameter specs to a per-build endpoint.
-
-    ``endpoint._param_specs`` drives coercion in
-    :meth:`Dispatcher._call_endpoint`; ``endpoint.typed_list_params`` names the
-    ``list``-annotated parameters that :meth:`HttpDispatcher.dispatch` must
-    re-read with ``getlist``, because the flat ``get_http_params`` merge keeps
-    only one value per key.
-
-    The target MUST be the ``functools.partial`` minted per URL by
-    :func:`_generate_routing_rules`, never the decorated ``route_wrapper``: a
-    wrapper is one process-global object shared by every database, while the
-    merged ``typed`` verdict depends on which modules are installed. Writing it
-    on the wrapper let the last routing-map build decide coercion for *all*
-    databases — a database with no typed route at all would 400 on a valid
-    request, and a ``list[...]`` parameter would coerce while silently keeping
-    only its first value, because ``typed_list_params`` was already read from
-    the per-build endpoint while ``_param_specs`` was not.
-    """
     endpoint._param_specs = specs
     endpoint.typed_list_params = (
         frozenset(name for name, spec in specs.items() if spec.target is list)
@@ -181,20 +108,10 @@ def _apply_param_specs(endpoint: Callable, specs: dict[str, Any] | None) -> None
 
 
 def _original_endpoint(method: Any) -> Callable:
-    """The undecorated handler behind a ``@route``-decorated bound method."""
     return method.original_endpoint
 
 
 def _reject_wildcard_credentials(who: str, routing: Any) -> None:
-    """Refuse ``cors='*'`` combined with ``cors_credentials``.
-
-    The pair asks the framework to echo back whatever ``Origin`` called, with
-    ``Access-Control-Allow-Credentials: true`` — every site on the internet then
-    gets authenticated, readable access to the route, and on a ``jsonrpc`` route
-    (``csrf`` off by default) that is a complete same-origin-policy bypass. It
-    is checked both at decoration and after the merge, since the two keys can
-    arrive from different fragments of an override chain.
-    """
     if routing.get("cors") == "*" and routing.get("cors_credentials"):
         e = (
             f"{who}: cors='*' cannot be combined with cors_credentials. Name the "
@@ -205,16 +122,6 @@ def _reject_wildcard_credentials(who: str, routing: Any) -> None:
 
 
 def _effective_route_type(declared_routing: dict[str, Any]) -> str:
-    """The route type in force for the call being served.
-
-    A declaration that names its ``type`` is authoritative: the merge forces
-    every fragment of a chain to the first-declared type, so a fragment's own
-    ``type`` either is the merged one or is a misconfiguration already warned
-    about at build time. A bare ``@route()`` override declares nothing and must
-    borrow the merged verdict, which is per routing-map build — i.e. per
-    database — so it cannot be cached on the process-global wrapper. The active
-    dispatcher was selected from exactly that verdict, so read it from there.
-    """
     declared = declared_routing.get("type")
     if declared is not None:
         return declared
@@ -224,102 +131,6 @@ def _effective_route_type(declared_routing: dict[str, Any]) -> str:
 
 
 def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
-    """
-    Decorate a controller method to route incoming requests matching the
-    given URL and options to the decorated method.
-
-    .. warning::
-        It is mandatory to re-decorate any method that is overridden in
-        controller extensions but the arguments can be omitted. See
-        :class:`~odoo.http.Controller` for more details.
-
-    :param str | Iterable[str] route: The paths that the decorated
-        method is serving. Incoming HTTP request paths matching this
-        route will be routed to this decorated method. See `werkzeug
-        routing documentation <https://werkzeug.palletsprojects.com/en/stable/routing/>`_
-        for the format of route expressions.
-    :param str type: The type of request: ``'http'`` (the default),
-        ``'jsonrpc'`` (JSON-RPC 2.0 envelope) or ``'json2'`` (plain JSON
-        body in, plain JSON out). It describes where to find the request
-        parameters and how to serialize the response.
-    :param str auth: The authentication method, one of the following:
-
-        * ``'user'``: The user must be authenticated and the current
-          request will be executed using the rights of the user.
-        * ``'bearer'``: The user is authenticated using an "Authorization"
-          request header, using the Bearer scheme with an API token.
-          The request will be executed with the permissions of the
-          corresponding user. If the header is missing, the request
-          must belong to an authentication session, as for the "user"
-          authentication method.
-        * ``'public'``: The user may or may not be authenticated. If he
-          isn't, the current request will be executed using the shared
-          Public user.
-        * ``'none'``: The method is always active, even if there is no
-          database. Mainly used by the framework and authentication
-          modules. The request code will not have any facilities to
-          access the current user.
-    :param Iterable[str] methods: A list of http methods (verbs) this
-        route applies to. If not specified, all methods are allowed.
-    :param str | Callable[[Request], str | None] cors: The
-        Access-Control-Allow-Origin value, either a literal (``'*'`` or one
-        origin) or a resolver invoked per request that returns the origin to
-        allow, or ``None`` to allow none. Use the resolver form to allow a *set*
-        of origins, e.g. :func:`~odoo.http.cors_same_host`.
-    :param bool cors_credentials: Allow a cross-origin caller to send
-        credentials (the session cookie). The request's own ``Origin`` is echoed
-        back when ``cors`` resolves to exactly that origin, together with
-        ``Access-Control-Allow-Credentials: true`` and ``Vary: Origin``; any
-        other ``Origin`` gets no CORS headers at all, so the browser blocks it.
-        ``cors='*'`` is REFUSED with this option — echoing an arbitrary origin
-        back with credentials grants every site on the internet authenticated,
-        readable access, which is what the CORS spec forbids the wildcard for.
-        ``False`` by default; without it a ``cors=`` route cannot be called
-        cross-origin with cookie authentication.
-    :param bool csrf: Whether CSRF protection should be enabled for the
-        route. Enabled by default for ``'http'``-type requests, disabled
-        by default for ``'jsonrpc'``-type requests.
-    :param bool typed: When ``True``, coerce and validate request parameters
-        against the handler's type annotations (see :mod:`odoo.http._params`):
-        an ``n: int`` parameter then arrives as a real ``int``, and a missing
-        required parameter or a value that cannot be coerced yields a ``400``.
-        A ``list[...]``-annotated parameter collects every repeated occurrence
-        of its query/form key (``?a=1&a=2`` → ``[1, 2]``) on ``type='http'``
-        routes. Only annotated parameters are affected; unannotated ones pass
-        through unchanged. ``False`` by default.
-
-        Inherited like every other routing key: an override that re-decorates
-        without restating ``typed=True`` still gets coercion, compiled against
-        *its own* signature. Pass ``typed=False`` on the override to opt out.
-    :param bool | Callable[[Controller, rule, dict], bool] readonly:
-        Whether this endpoint should open a cursor on a read-only
-        replica instead of (by default) the primary read/write database.
-        When callable, it is invoked as ``readonly(controller, rule, args)``
-        where ``controller`` is the controller instance, ``rule`` is the
-        matched werkzeug routing rule, and ``args`` is the dict of URL
-        path parameters. It must return a boolean.
-
-        If a ``readonly=True`` endpoint nevertheless issues a write, the request
-        is transparently re-dispatched on a read/write cursor — which means
-        **the handler body runs a second time**. Keep non-transactional side
-        effects (sending email, outbound HTTP calls, consuming a one-time token)
-        out of the handler until after the first database write, or they execute
-        twice. A WARNING naming the route is logged on every such promotion.
-    :param Callable[[Exception], Response] handle_params_access_error:
-        Implement a custom behavior if an error occurred when retrieving
-        the record from the URL parameters (access error or missing error).
-    :param str captcha: The action name of the captcha. When set the
-        request will be validated against a captcha implementation. Upon
-        failing these requests will return a UserError.
-    :param bool save_session: Whether it should set a session_id cookie
-        on the http response and save dirty session on disk. ``False``
-        by default for ``auth='bearer'``. ``True`` by default otherwise.
-    :param int | Callable[[Controller], int] max_content_length:
-        Per-route override for the request body size limit (in bytes).
-        When callable, it is invoked as ``max_content_length(controller)``
-        and must return the limit as an int. If omitted, the default
-        :data:`DEFAULT_MAX_CONTENT_LENGTH` applies.
-    """
 
     def decorator(endpoint: Callable) -> Callable:
         fname = f"<function {endpoint.__module__}.{endpoint.__name__}>"
@@ -394,24 +205,12 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
 def _generate_routing_rules(
     modules: list[str], nodb_only: bool
 ) -> Generator[tuple[str, Any]]:
-    """
-    Two-fold algorithm used to (1) determine which method in the
-    controller inheritance tree should bind to what URL with respect to
-    the list of installed modules and (2) merge the various @route
-    arguments of said method with the @route arguments of the method it
-    overrides.
-    """
 
     def is_valid(cls: type) -> bool:
-        """Determine if the class is defined in an addon."""
         path = cls.__module__.split(".")
         return path[:2] == ["odoo", "addons"] and path[2] in modules
 
     def get_leaf_classes(cls: type) -> list[type]:
-        """
-        Find the classes that have no child and that have ``cls`` as
-        ancestor.
-        """
         result = []
         for subcls in cls.__subclasses__():
             if is_valid(subcls):
@@ -421,11 +220,6 @@ def _generate_routing_rules(
         return result
 
     def build_controllers() -> Generator[Controller]:
-        """
-        Create dummy controllers that inherit only from the controllers
-        defined at the given ``modules`` (often system wide modules or
-        installed modules). Modules in this context are Odoo addons.
-        """
         yield from (ctrl() for ctrl in Controller.children_classes.get("", []))
 
         highest_controllers = []
@@ -533,33 +327,6 @@ def _generate_routing_rules(
 def _check_and_complete_route_definition(
     controller_cls: type, submethod: Any, merged_routing: dict[str, Any]
 ) -> dict[str, Any]:
-    """Return ``submethod``'s effective routing contribution for the merge.
-
-    Starts from a copy of ``submethod.original_routing`` and corrects on the
-    copy the keys an override may not change (a conflicting ``type`` keeps the
-    original; a boolean ``readonly`` flip forces read/write), warning on each
-    conflict. ``merged_routing`` carries the walk state (``type`` / ``readonly``
-    are filled via ``setdefault``); the caller applies the returned fragment
-    with ``merged_routing.update(...)``.
-
-    The declared ``original_routing`` is NEVER mutated. The pre-split code
-    wrote the corrections back into it, which leaked one build's merge context
-    into every later build — routing maps are rebuilt per database with
-    different installed-module sets, so a later build merged against
-    contaminated declarations — and made the conflict warnings one-shot per
-    process. Corrections now replay from pristine declarations on every build
-    (order-independent), and a genuine misconfiguration warns on each map build.
-
-    Patch point: the ``odoo.http`` re-export of this name is for importing
-    only — ``_generate_routing_rules`` resolves it from THIS module's
-    namespace, so wrappers must patch
-    ``odoo.http.routing._check_and_complete_route_definition`` and return the
-    inner call's fragment (see ``test_lint.tests.test_routes``).
-
-    :param submethod: route method
-    :param dict merged_routing: accumulated routing values
-    :returns: the corrected copy of ``submethod.original_routing``
-    """
     fragment = dict(submethod.original_routing)
 
     routing_type = merged_routing.setdefault("type", fragment.get("type", "http"))

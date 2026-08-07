@@ -1,17 +1,3 @@
-"""Pure-Python regression tests for the domain optimizer — no Odoo, no database.
-
-``Domain.optimize(model)`` / ``optimize_full(model)`` only read ``model._name``
-and ``model._fields[name].{type, relational, comodel_name, ...}``, so the whole
-optimizer (``optimizations.py``, ~1k lines of rewrite passes) is exercisable
-against a ten-line stub model — milliseconds per case, no registry bootstrap.
-The full-stack suite (``addons/test_orm/tests/test_domain.py``) uses a real
-``TransactionCase``; this suite locks the BASIC-level algebra so a confluence or
-canonicalisation regression fails here, fast, instead of as a slow search in
-production.
-
-Every expected value below was captured from the live optimizer, not assumed.
-"""
-
 import types
 import unittest
 from datetime import date, datetime
@@ -32,11 +18,6 @@ _UNSET = object()
 
 
 class _StubField:
-    """Minimal structural stand-in for :class:`odoo.fields.Field`.
-
-    Carries only the attributes the optimizer reads when resolving a leaf.
-    """
-
     _FALSY_BY_TYPE = {
         "char": "",
         "text": "",
@@ -73,10 +54,6 @@ class _StubField:
 
 
 class _StubEnv:
-    """Environment stand-in for the two attributes the optimizer reads:
-    ``env.tz`` (date -> naive-UTC datetime conversion) and ``env[comodel]``
-    (descending into ``any`` sub-domains)."""
-
     tz = utc
 
     def __init__(self, model):
@@ -87,13 +64,11 @@ class _StubEnv:
 
 
 class _StubModel:
-    """Ten-line stand-in for a recordset: just ``_name`` and ``_fields``."""
-
     _name = "m"
     _auto = True
 
     def _check_field_access(self, field, operation):
-        """No-op ACL hook; the stub declares no field groups."""
+        pass
 
     def __init__(self):
         self._fields = {
@@ -110,13 +85,10 @@ class _StubModel:
 
 
 def _opt(domain):
-    """Optimise ``domain`` against the stub model and return the legacy list form."""
     return list(domain.optimize(_StubModel()))
 
 
 class TestScalarNormalisation(unittest.TestCase):
-    """Scalar (in)equality leaves canonicalise to ``in`` / ``not in`` sets."""
-
     def test_eq_becomes_in(self):
         self.assertEqual(_opt(Domain("a", "=", 1)), [("a", "in", [1])])
 
@@ -134,8 +106,6 @@ class TestScalarNormalisation(unittest.TestCase):
 
 
 class TestBooleanNormalisation(unittest.TestCase):
-    """Boolean leaves normalise to ``in [True]`` regardless of phrasing."""
-
     def test_eq_true(self):
         self.assertEqual(_opt(Domain("ok", "=", True)), [("ok", "in", [True])])
 
@@ -144,8 +114,6 @@ class TestBooleanNormalisation(unittest.TestCase):
 
 
 class TestNegation(unittest.TestCase):
-    """``~`` folds into the leaf operator; double negation cancels."""
-
     def test_single_negation(self):
         self.assertEqual(_opt(~Domain("a", "=", 1)), [("a", "not in", [1])])
 
@@ -154,8 +122,6 @@ class TestNegation(unittest.TestCase):
 
 
 class TestSetMerging(unittest.TestCase):
-    """Same-field conditions merge by set algebra (union / intersection)."""
-
     def test_or_unions(self):
         self.assertEqual(
             _opt(Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])),
@@ -193,13 +159,6 @@ class TestSetMerging(unittest.TestCase):
 
 
 class TestFalsyValueSetMerging(unittest.TestCase):
-    """A field's ``falsy_value`` (``""`` for char) is SQL-aliased with False/NULL.
-
-    The optimizer must canonicalize it to ``False`` in in/not-in sets so the
-    n-ary set-merge (which uses Python set algebra, where ``"" != False``) stays
-    sound. Regression guard for the previously-wrong collapses.
-    """
-
     def test_eq_empty_string_canonicalizes_to_false(self):
         self.assertEqual(_opt(Domain("name", "=", "")), [("name", "in", [False])])
         self.assertEqual(_opt(Domain("name", "=", False)), [("name", "in", [False])])
@@ -232,8 +191,6 @@ class TestFalsyValueSetMerging(unittest.TestCase):
 
 
 class TestBooleanAbsorption(unittest.TestCase):
-    """TRUE / FALSE absorb correctly in AND / OR."""
-
     def test_true_and_x_is_x(self):
         self.assertEqual(_opt(Domain.TRUE & Domain("a", "=", 1)), [("a", "in", [1])])
 
@@ -248,8 +205,6 @@ class TestBooleanAbsorption(unittest.TestCase):
 
 
 class TestNaryFlattening(unittest.TestCase):
-    """Nested same-operator n-ary nodes flatten into one node."""
-
     def test_nested_and_flattens(self):
         d = (Domain("a", "=", 1) & Domain("b", "=", 2)) & Domain("c", "=", 3)
         self.assertEqual(
@@ -266,8 +221,6 @@ class TestNaryFlattening(unittest.TestCase):
 
 
 class TestOptimizerInvariants(unittest.TestCase):
-    """Cross-cutting guarantees the rest of the ORM relies on."""
-
     def test_optimize_does_not_mutate_original(self):
         original = Domain("a", "=", 1)
         original.optimize(_StubModel())
@@ -295,11 +248,6 @@ class TestOptimizerInvariants(unittest.TestCase):
 
 
 class TestOptimizeModelScoping(unittest.TestCase):
-    """``_opt_level`` is cached per model: reusing an optimised (canonical)
-    domain against a different model must not skip type-dependent BASIC
-    coercion, which would silently emit wrong SQL.
-    """
-
     class _Field:
         def __init__(self, name, ftype, model_name):
             self.name = name
@@ -354,9 +302,6 @@ class TestOptimizeModelScoping(unittest.TestCase):
 
 
 class TestBooleanSearchableTautology(unittest.TestCase):
-    """`searchable_bool in [True, False]` must collapse to TRUE before the
-    field's search method is invoked (upstream 7a67274e138)."""
-
     def _model_with_searchable_bool(self, calls):
         model = _StubModel()
         field = _StubField("flag", "boolean", search=True)
@@ -385,22 +330,6 @@ class TestBooleanSearchableTautology(unittest.TestCase):
 
 
 class TestDatetimeEqualityGranularity(unittest.TestCase):
-    """'=' on a datetime field matches per element granularity: a *date* value
-    covers its whole day, a datetime value is compared exactly.
-
-    Regression: the equality rewrite used ``timedelta(seconds=1)``
-    unconditionally, so ``dt = date(2024, 1, 1)`` (and ``dt = 'today'`` once
-    the DYNAMIC pass resolved it to a date) matched only ``[00:00:00,
-    00:00:01)`` — e.g. ``search_count([('create_date', '=', 'today')])``
-    returned 0.
-
-    The whole-day window applies only to date-derived values. A datetime
-    comparand keeps its own precision: widening it to its whole second made the
-    domain disagree with the table for any row storing a non-zero microsecond,
-    which every ``create_date``/``write_date`` does (see
-    ``_optimize_type_datetime`` and ``TestDatetimeSubSecondBoundaries``).
-    """
-
     def test_eq_datetime_is_exact(self):
         self.assertEqual(
             _opt(Domain("dt", "=", datetime(2024, 1, 1, 10, 30, 15, 123456))),
@@ -440,7 +369,6 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
         )
 
     def test_in_mixed_date_and_datetime_granularities(self):
-        """Only the date element is widened; the datetime one stays exact."""
         self.assertEqual(
             _opt(Domain("dt", "in", [date(2024, 1, 1), datetime(2024, 3, 4, 5, 6, 7)])),
             [
@@ -480,10 +408,6 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
 
 
 class TestRelativePassSkipsWithoutStrings(unittest.TestCase):
-    """The DYNAMIC relative-date passes return the *same node* when the value
-    set holds nothing to resolve, instead of allocating an identical condition
-    on every pass (mirrors ``_optimize_relational_name_search``)."""
-
     def test_datetime_set_without_strings_is_same_object(self):
         condition = DomainCondition("dt", "in", OrderedSet([datetime(2024, 1, 1)]))
         result = optimizations._optimize_type_datetime_relative(condition, _StubModel())
@@ -509,11 +433,6 @@ class TestRelativePassSkipsWithoutStrings(unittest.TestCase):
 
 
 class TestSubdomainNestingGuardCaseInsensitive(unittest.TestCase):
-    """The parse-time ``any`` nesting guard must match operators
-    case-insensitively, exactly like the parser (which lowercases them later in
-    ``DomainCondition.checked``): a raw uppercase "ANY" level used to slip past
-    the guard and RecursionError at evaluation time."""
-
     @staticmethod
     def _nested_any(depth, op):
         subdomain = [("a", "=", 1)]
@@ -536,12 +455,6 @@ class TestSubdomainNestingGuardCaseInsensitive(unittest.TestCase):
 
 
 class TestDeepDomainSurfacesValueError(unittest.TestCase):
-    """Entry points that optimize internally (``validate``, condition
-    ``_as_predicate``) must surface a stack-exhausting domain as the same
-    catchable ``ValueError`` as ``optimize``/``optimize_full`` — not as an
-    opaque ``RecursionError`` (reachable from ir.rule's constraint via
-    ``validate`` and from ``filtered_domain`` via ``_as_predicate``)."""
-
     def test_validate_surfaces_value_error(self):
         domain = Domain("a", "=", 1)
         for _ in range(2000):
@@ -558,14 +471,6 @@ class TestDeepDomainSurfacesValueError(unittest.TestCase):
 
 
 class TestMergedSetCanonicalOrder(unittest.TestCase):
-    """Merged in/not-in sets are emitted in canonical element order.
-
-    The element order of the set does not change the flat leaf's SQL (single
-    bound parameter), but it leaks into sibling-subtree ordering through the
-    repr-based ``_nary_subtree_tiebreak``, making semantically identical
-    domains optimize to ``!=`` trees with different SQL text.  Unmerged sets
-    keep the caller's order (no churn)."""
-
     def test_or_union_is_value_sorted(self):
         canonical = [("a", "in", [1, 2, 3])]
         self.assertEqual(
@@ -607,10 +512,6 @@ class TestMergedSetCanonicalOrder(unittest.TestCase):
 
 
 class _HierarchyStubModel(_StubModel):
-    """Extends the stub with the hooks ``_operator_hierarchy`` touches for an
-    ``id``-keyed hierarchy: identity ``sudo``/``with_context``, a parent field
-    name, and a ``search`` that only ever runs with an empty seed here."""
-
     _parent_name = "rel"
     _parent_store = False
     ids: list = []
@@ -630,14 +531,6 @@ class _HierarchyStubModel(_StubModel):
 
 
 class TestHierarchyBooleanValues(unittest.TestCase):
-    """child_of/parent_of with boolean values must fail (True) or collapse
-    (False) *cleanly* at optimization time.
-
-    Regression: ``bool`` is an ``int`` subclass, so ``True`` passed the
-    scalar-int wrap and ``[True]``/``[False]`` passed the int partition,
-    reaching SQL as ``parent_id IN (true)`` — a psycopg UndefinedFunction
-    surfacing as an opaque RPC 500."""
-
     def test_scalar_true_raises_clean_value_error(self):
         for op in ("child_of", "parent_of"):
             with self.assertRaisesRegex(ValueError, "not a valid hierarchy value"):
@@ -666,12 +559,6 @@ class TestHierarchyBooleanValues(unittest.TestCase):
 
 
 class TestInRequiredPredicateSafety(unittest.TestCase):
-    """``_optimize_in_required`` strips False from required NOT NULL fields —
-    valid only for persisted bindings.  The stripped node must keep the
-    pre-strip condition reachable (``_predicate_fallback``) because the FULL
-    stamp outlives the binding it was computed against (e.g. a cached
-    record-rule domain later evaluated over ``new()`` records)."""
-
     def _model(self, ids):
         model = _StubModel()
         field = _StubField("rel", "many2one", relational=True, comodel="m")
@@ -711,11 +598,6 @@ class TestInRequiredPredicateSafety(unittest.TestCase):
 
 
 class TestBasicPassesSkipNoOpRebuild(unittest.TestCase):
-    """The BASIC boolean/datetime passes return the *same node* when the
-    conversion changes nothing, instead of allocating an identical condition
-    on every BASIC fixpoint pass (the DYNAMIC relative-date passes were
-    already fixed this way, cf. ``TestRelativePassSkipsWithoutStrings``)."""
-
     def test_boolean_all_bool_values_is_same_object(self):
         for values in ([True], [True, False]):
             condition = DomainCondition("ok", "in", OrderedSet(values))

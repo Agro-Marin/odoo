@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.sql.utils.reverse_order``."""
-
 import unittest
 
 from odoo.libs.sql.utils import reverse_order

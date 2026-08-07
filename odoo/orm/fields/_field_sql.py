@@ -1,8 +1,3 @@
-"""SQL and domain-condition generation for a field.
-
-Extracted from the Field god-class; mixed into Field (base.py).
-"""
-
 import operator as pyoperator
 import re
 import typing
@@ -39,14 +34,7 @@ IN_TO_ANY_THRESHOLD = 100
 
 
 class _FieldSqlMixin(_FieldStubs):
-    """SQL and domain-condition generation for a field."""
-
     def to_sql(self, model: ModelLike, alias: str) -> SQL:
-        """Return an :class:`SQL` object that represents the value of the given
-        field from the given table alias.
-
-        The query object is necessary for fields that need to add tables to the query.
-        """
         if not self.store or not self.column_type:
             raise ValueError(f"Cannot convert {self} to SQL because it is not stored")
         sql_field = SQL.identifier(alias, self.name, to_flush=self)
@@ -76,74 +64,12 @@ class _FieldSqlMixin(_FieldStubs):
         alias: str,
         query: Query,
     ) -> SQL:
-        """Return an :class:`SQL` object that represents the value of the given
-        expression from the given table alias.
-
-        The query object is necessary for fields that need to add tables to the query.
-        """
         raise ValueError(f"Invalid field property {property_name!r} on {self}")
 
     def _comparand_to_column(self, value: typing.Any, model: BaseModel) -> typing.Any:
-        """Return the SQL parameter comparing *value* against this field's column.
-
-        Distinct from :meth:`convert_to_column`, which converts a value for
-        **storage**.  Storage conversion is allowed to be lossy -- ``Integer``
-        truncates (``int(2.5) == 2``), ``Float(digits=...)`` rounds
-        (``float_round(0.01000004, 6) == 0.01``) -- because the column cannot
-        hold more than that anyway.  A *comparand* is not stored: it only has to
-        order and compare correctly against the stored values, so it must be
-        converted **exactly**.  Coercing it through storage conversion silently
-        moves the comparison boundary and, since the Python evaluator does not
-        apply it, makes the two evaluators disagree:
-
-        * ``('sequence', '<', 2.5)`` became ``< 2`` and dropped every record
-          with ``sequence == 2`` (in *both* evaluators, which share
-          :meth:`_inequality_comparand`);
-        * ``('sequence', '=', 2.5)`` matched ``sequence == 2`` under
-          ``search()`` and nothing under ``filtered_domain()``;
-        * ``('rounding', '=', 0.01000004)`` on a ``Float(digits=(12, 6))``
-          matched every ``0.01`` row under ``search()`` and nothing under
-          ``filtered_domain()``.
-
-        The default keeps the historical behaviour (storage conversion); the
-        numeric field classes override it to stay exact.  PostgreSQL promotes
-        both operands to a common numeric type, so an ``int4`` column compares
-        exactly against ``2.5`` and a ``numeric`` column against a full-precision
-        ``Decimal``.
-        """
         return self.convert_to_column(value, model, validate=False)
 
     def _inequality_comparand(self, value: typing.Any, model: BaseModel) -> typing.Any:
-        """Coerce the right-hand side of an ordering comparison (``<``, ``>``,
-        ``<=``, ``>=``) to the field's cache format.
-
-        **Single source of truth** for the two evaluators of the same domain:
-        :meth:`_condition_to_sql` (SQL) and :meth:`filter_function` (Python).
-        They used to coerce independently -- SQL through ``convert_to_cache``,
-        Python not at all -- so ``search(domain)`` and
-        ``recs.filtered_domain(domain)`` could disagree on identical inputs:
-
-        * ``('int_field', '>', '3')`` (a string comparand, the ordinary shape
-          coming from the web client / ``ir.filters``): SQL coerced to ``3`` and
-          matched; Python left ``'3'`` and raised ``TypeError: '>' not supported
-          between instances of 'int' and 'str'`` while *building* the predicate.
-        * ``('html_field', '<', 'note')``: SQL compared against the sanitized
-          ``<p>note</p>`` (what is actually stored); Python compared against the
-          raw ``'note'``, returning a different set of records.
-
-        Only called when the field has a ``falsy_value`` (Char/Text/Html,
-        Integer, Float/Monetary, Boolean) -- the case both call sites already
-        special-cased; fields without one map a falsy comparand to SQL NULL in
-        ``convert_to_column`` instead.  The trailing ``or falsy_value``
-        normalizes a falsy comparand (``False`` / ``None`` / ``''`` / ``0``) to
-        the field's own falsy sentinel, so ``NULL`` and the sentinel keep
-        comparing alike on both sides.
-
-        Like its SQL counterpart :meth:`_comparand_to_column`, this must be
-        **exact**: the numeric field classes override it so that a threshold is
-        not truncated/rounded down to what the column happens to be able to
-        store (see there).
-        """
         return self.convert_to_cache(value, model) or self.falsy_value
 
     def condition_to_sql(
@@ -155,13 +81,6 @@ class _FieldSqlMixin(_FieldStubs):
         alias: str,
         query: Query,
     ) -> SQL:
-        """Return an :class:`SQL` object that represents the domain condition
-        given by the triple ``(field_expr, operator, value)`` with the given
-        table alias, and in the context of the given query.
-
-        This method should use the model to resolve the SQL and check access
-        of the field.
-        """
         sql_expr = self._condition_to_sql(
             field_expr, operator, value, model, alias, query
         )
@@ -206,16 +125,6 @@ class _FieldSqlMixin(_FieldStubs):
             assert isinstance(value, COLLECTION_TYPES), (
                 f"condition_to_sql() 'in' operator expects a collection, not a {value!r}"
             )
-            # A comparand the column cannot represent equals no stored value, so
-            # it is dropped from the set rather than raised on -- the rule
-            # ``_optimize_numeric_comparand`` documents for numeric fields and
-            # ``Id.filter_function`` already applies on the Python side ("dropped
-            # from an equality set ... which is what the SQL side concludes
-            # too").  The SQL side did not: it raised, so ``('id', '=', 'abc')``
-            # aborted ``search()`` while ``filtered_domain()`` matched nothing.
-            # An *ordering* comparison still raises, in both evaluators.
-            # ``null_in_condition`` is tracked explicitly: inferring it from a
-            # length difference would read a dropped value as a null comparand.
             converted: list[typing.Any] = []
             null_in_condition = False
             for v in value:
@@ -313,7 +222,6 @@ class _FieldSqlMixin(_FieldStubs):
         alias: str,
         query: Query,
     ) -> SQL:
-        """Add a NOT NULL guard on company-dependent fields to use the index."""
         if (
             self.company_dependent
             and self.index == "btree_not_null"
@@ -331,35 +239,11 @@ class _FieldSqlMixin(_FieldStubs):
         return sql_expr
 
     def expression_getter(self, field_expr: str) -> Callable[[BaseModel], typing.Any]:
-        """Given some field expression (what you find in domain conditions),
-        return a function that returns the corresponding expression for a record::
-
-            field = record._fields["create_date"]
-            get_value = field.expression_getter("create_date.month_number")
-            month_number = get_value(record)
-        """
         if field_expr == self.name:
             return self.__get__
         raise ValueError(f"Expression not supported on {self}: {field_expr!r}")
 
     def _pattern_text(self, cache_value: typing.Any) -> str:
-        """Render a *cache* value the way ``condition_to_sql`` renders the column.
-
-        The single authority for the text a pattern operator matches against, so
-        the two evaluators cannot drift.  ``condition_to_sql`` compares
-        ``column::text``; this must reproduce PostgreSQL's output for the same
-        stored value, because ``like``/``ilike`` on a non-text field is a
-        comparison against a *rendering* that neither side owns on its own.
-
-        The base rule is ``str()``, which matches ``::text`` for every textual,
-        date and selection column.  ``None`` (SQL NULL) and ``False`` render as
-        ``""``: ``NULL LIKE …`` is NULL, i.e. never a match, and the empty
-        string cannot match any pattern that survives ``_optimize_like_str``
-        (which rewrites the degenerate all-wildcard ones into ``=``/``!=``).
-
-        Numeric types override this; see :meth:`Integer._pattern_text` and
-        :meth:`Float._pattern_text`.
-        """
         if cache_value is None or cache_value is False:
             return ""
         return str(cache_value)
@@ -367,26 +251,6 @@ class _FieldSqlMixin(_FieldStubs):
     def _pattern_getter(
         self, records: M, field_expr: str, getter: Callable[[M], typing.Any]
     ) -> Callable[[M], str]:
-        """Return ``callable(record) -> str`` feeding the pattern comparison.
-
-        Reads the *cache* rather than the record value, because
-        :meth:`convert_to_record` collapses distinctions ``::text`` keeps: an
-        unset Integer reads back as ``0``, so rendering the record value made a
-        NULL column match ``%0%`` while SQL matched only a stored zero.  The
-        cache holds ``None`` for NULL and ``0`` for a real zero.
-
-        Falls back to the record value when the cache cannot answer -- a
-        non-stored field, a miss, or a per-term-translated field, whose cache
-        holds ``{lang: value}`` dicts rather than scalars under
-        ``prefetch_langs``.
-
-        The cache dict is resolved per record rather than captured once:
-        ``getter`` may compute a value, and a compute can invalidate the whole
-        transaction, after which a captured dict is an orphan still holding the
-        pre-invalidation values.  Resolution is a single lookup in
-        ``env._field_cache_memo``, which is noise next to the regex match this
-        feeds.
-        """
         pattern_text = self._pattern_text
         if field_expr != self.name or callable(self.translate):
             return lambda rec: pattern_text(getter(rec))
@@ -432,10 +296,6 @@ class _FieldSqlMixin(_FieldStubs):
                 unaccent_python = records.env.registry.unaccent_python
 
                 def unaccent(x):
-                    # SQL folds as ``unaccent(...) ILIKE unaccent(...)``, i.e.
-                    # case *after* transliteration.  Lowering first hides every
-                    # rule whose replacement is upper-case (``₹``->``Rs``,
-                    # ``Æ``->``AE``), which is 95 of 9978 characters.
                     return unaccent_python(x).lower()
 
             else:

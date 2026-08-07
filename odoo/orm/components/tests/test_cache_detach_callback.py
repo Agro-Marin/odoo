@@ -1,23 +1,9 @@
-"""``FieldCache`` must announce every operation that DETACHES a per-field dict.
-
-A detached dict is one removed from ``_data`` rather than emptied in place.
-Anything still holding a reference to it -- above all
-``Environment._field_cache_memo``, which the ``Field.__get__`` fast paths read
-without revalidating -- would go on serving values from an object the cache no
-longer owns.  Three call sites used to repair that by hand *after* calling in;
-these tests pin the callback that replaced the convention, and, just as
-importantly, pin which operations must NOT fire it (they empty in place, and a
-spurious purge would throw away a hot memo on every ``modified()``).
-"""
-
 import unittest
 
 from odoo.orm.components.cache import FieldCache
 
 
 class _F:
-    """Minimal field key: hashable, carries ``model_name`` for pop_dirty_for_model."""
-
     def __init__(self, name: str, model_name: str = "m") -> None:
         self.name = name
         self.model_name = model_name
@@ -32,8 +18,6 @@ class TestDetachCallback(unittest.TestCase):
         self.cache = FieldCache(on_detach=lambda: self.fired.append(1))
         self.f = _F("a")
 
-    # --- operations that detach: the callback MUST fire -------------------
-
     def test_clear_fires(self) -> None:
         self.cache.set_value(self.f, 1, "x")
         self.cache.clear()
@@ -45,7 +29,6 @@ class TestDetachCallback(unittest.TestCase):
         self.assertEqual(len(self.fired), 1)
 
     def test_invalidate_all_fires_with_dirty_entries_too(self) -> None:
-        """The dirty branch deletes emptied sub-dicts and field entries."""
         g = _F("b")
         self.cache.set_value(self.f, 1, "x")
         self.cache.set_value(g, 1, "y")
@@ -61,8 +44,6 @@ class TestDetachCallback(unittest.TestCase):
         self.assertEqual(len(self.fired), 1)
         self.assertNotIn(key, self.cache.get_field_data(self.f))
 
-    # --- operations that empty in place: the callback must NOT fire -------
-
     def test_invalidate_does_not_fire(self) -> None:
         self.cache.set_value(self.f, 1, "x")
         self.cache.invalidate(self.f, [1], context_dependent=False)
@@ -75,7 +56,6 @@ class TestDetachCallback(unittest.TestCase):
         self.assertEqual(self.cache.get_field_data(self.f), {})
 
     def test_context_dependent_invalidate_keeps_the_sub_dict_object(self) -> None:
-        """The aliasing hazard in reverse: ``invalidate`` must not detach."""
         key = ("en_US",)
         sub = {1: "x"}
         self.cache.get_field_data(self.f)[key] = sub

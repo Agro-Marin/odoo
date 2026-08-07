@@ -34,7 +34,6 @@ INSTALL_BLACKLIST = {
 
 
 def install(db_name: str, module_id: int, module_name: str) -> None:
-    """Install the given module immediately."""
     with Registry(db_name).cursor() as cr:
         env = api.Environment(cr, api.SUPERUSER_ID, {})
         module = env["ir.module.module"].browse(module_id)
@@ -43,7 +42,6 @@ def install(db_name: str, module_id: int, module_name: str) -> None:
 
 
 def uninstall(db_name: str, module_id: int, module_name: str) -> None:
-    """Uninstall the given module immediately."""
     with Registry(db_name).cursor() as cr:
         env = api.Environment(cr, api.SUPERUSER_ID, {})
         module = env["ir.module.module"].browse(module_id)
@@ -52,21 +50,18 @@ def uninstall(db_name: str, module_id: int, module_name: str) -> None:
 
 
 def cycle(db_name: str, module_id: int, module_name: str) -> None:
-    """Perform a full install/uninstall/reinstall cycle for a module."""
     install(db_name, module_id, module_name)
     uninstall(db_name, module_id, module_name)
     install(db_name, module_id, module_name)
 
 
 def addons_path(value: str) -> Any:
-    """Validate and return an addons path value."""
     return config._check_addons_path(
         config.options_index["addons_path"], "--addons-path", value
     )
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments for the module operations test script."""
     parser = argparse.ArgumentParser(
         description="Script for testing the install / uninstall / reinstall"
         " cycle of Odoo modules. Prefer the 'cycle' subcommand to"
@@ -167,8 +162,6 @@ def parse_args() -> argparse.Namespace:
 
 
 class UninstallAction(argparse.Action):
-    """Argparse action that routes --uninstall to the test_uninstall function."""
-
     def __call__(
         self,
         parser: argparse.ArgumentParser,
@@ -181,8 +174,6 @@ class UninstallAction(argparse.Action):
 
 
 class StandaloneAction(argparse.Action):
-    """Argparse action that routes --standalone to the test_standalone function."""
-
     def __call__(
         self,
         parser: argparse.ArgumentParser,
@@ -195,7 +186,6 @@ class StandaloneAction(argparse.Action):
 
 
 def test_cycle(args: argparse.Namespace) -> None:
-    """Test full install/uninstall/reinstall cycle for all modules."""
     with Registry(args.database).cursor() as cr:
         env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
 
@@ -229,7 +219,6 @@ def test_cycle(args: argparse.Namespace) -> None:
 
 
 def test_uninstall(args: argparse.Namespace) -> None:
-    """Try to uninstall/reinstall one or more modules."""
     for module_name in args.uninstall.split(","):
         with Registry(args.database).cursor() as cr:
             env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
@@ -247,7 +236,6 @@ def test_uninstall(args: argparse.Namespace) -> None:
 
 
 def test_standalone(args: argparse.Namespace) -> None:
-    """Try to launch standalone scripts tagged with @standalone."""
     odoo.service.db._check_faketime_mode(args.database)
     registry = Registry(args.database)
     for module_name in registry._init_modules:

@@ -1,8 +1,3 @@
-"""DB-free unit tests for pure helpers in :mod:`odoo.http.helpers`.
-
-Run via ``pytest odoo/http/tests``.
-"""
-
 import threading
 import types
 
@@ -39,9 +34,6 @@ def test_normalize_dbfilter_host_strips_port_www_and_lowercases():
 
 
 def test_dbfilter_host_normalized_exactly_once():
-    """Regression: ``db_filter`` normalized the Host, then ``_compiled_dbfilter``
-    normalized it AGAIN — a ``www.www.example.com`` Host lost both ``www.``
-    prefixes, so ``%h`` matched the wrong database."""
     from odoo.http.helpers import _compiled_dbfilter, db_filter
     from odoo.tools import config
 
@@ -65,8 +57,6 @@ def _fake_request(method):
 
 
 def test_is_cors_preflight_returns_real_bool():
-    """Regression: with a cors allow-origin string set, the helper used to leak
-    that string instead of a bool despite its ``-> bool`` contract."""
     endpoint = types.SimpleNamespace(routing={"cors": "https://example.com"})
     result = is_cors_preflight(_fake_request("OPTIONS"), endpoint)
     assert result is True
@@ -76,9 +66,6 @@ def test_is_cors_preflight_returns_real_bool():
 
 
 def test_db_filter_without_request_uses_empty_host():
-    """Regression: with ``dbfilter`` configured and no active request (shell,
-    cron), ``db_filter(dbs)`` raised RuntimeError on the unbound request proxy
-    instead of filtering against the empty host."""
     from odoo.http.helpers import db_filter
     from odoo.tools import config
 
@@ -103,17 +90,12 @@ def test_restore_thread_attr_deletes_when_absent():
 
 
 def test_normalize_dbfilter_host_ipv6_keeps_brackets():
-    """Regression: ``partition(":")`` truncated a bracketed IPv6 Host (RFC
-    3986) to ``[``, so no dbfilter %h could ever match an IPv6 client."""
     assert _normalize_dbfilter_host("[::1]:8069") == "[::1]"
     assert _normalize_dbfilter_host("[2001:DB8::1]") == "[2001:db8::1]"
     assert _normalize_dbfilter_host("[::1") == "[::1"
 
 
 def test_serialize_exception_masks_infra_errors_for_clients_only():
-    """OSError/psycopg messages (paths, SQL, row data) are masked toward an
-    active client request, but stay transparent server-side (cron failure
-    records are read by admins)."""
     import psycopg
 
     from odoo.http import _request_stack

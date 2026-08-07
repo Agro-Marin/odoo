@@ -50,44 +50,20 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-#: Characters that terminate or nest a PDF literal string (PDF 32000-1 §7.3.4.2).
 _PDF_LITERAL_ESCAPES = str.maketrans({"\\": r"\\", "(": r"\(", ")": r"\)"})
 
 
 def _escape_pdf_literal(text: str) -> str:
-    r"""Escape *text* for inclusion in a PDF literal string ``(...)``.
-
-    ``(``, ``)`` and ``\`` are the delimiters of a literal string, so text
-    interpolated into one without escaping does not stay text: an unescaped
-    ``)`` ends the string and everything after it is parsed as content-stream
-    operators.  Since the only values interpolated here are a signer's name and
-    email — which end users control — that turns a display field into control
-    over what the visible signature draws.
-
-    Escaping is enough on its own; nothing else in the appearance stream comes
-    from user input.  Non-printables are left alone: a PDF literal may contain
-    arbitrary bytes, and mangling them would silently corrupt legitimate names.
-    """
     return text.translate(_PDF_LITERAL_ESCAPES)
 
 
 class _SignatureAlgorithm(NamedTuple):
-    """CMS algorithm identifiers (asn1crypto names) and signer for one key type."""
-
     digest: str
     signature: str
     sign: Callable[[bytes], bytes]
 
 
 class PdfSigner:
-    """Add a signature field and a cryptographic signature to a PDF document.
-
-    This implementation follows the Adobe PDF Reference (v1.7) (https://ia601001.us.archive.org/1/items/pdf1.7/pdf_reference_1-7.pdf)
-    for the structure of the PDF document,
-    and Digital Signatures in a PDF (https://www.adobe.com/devnet-docs/acrobatetk/tools/DigSig/Acrobat_DigitalSignatures_in_PDF.pdf),
-    for the structure of the signature in a PDF.
-    """
-
     _CONTENTS_PLACEHOLDER_BYTES = 8192
 
     def __init__(
@@ -111,11 +87,6 @@ class PdfSigner:
         field_name: str = "Odoo Signature",
         signer: ResUsers | None = None,
     ) -> io.BytesIO | None:
-        """Sign the PDF document.
-
-        :return: the resulting output stream, or None in case of error.
-        :rtype: io.BytesIO | None
-        """
         if not self.company or not load_pem_x509_certificate:
             return None
 
@@ -133,11 +104,6 @@ class PdfSigner:
     def _load_key_and_certificate(
         self,
     ) -> tuple[PrivateKeyTypes | None, Certificate | None]:
-        """Load the private key and certificate.
-
-        :return: a (private key, certificate) tuple, or (None, None) if they couldn't be loaded.
-        :rtype: tuple[PrivateKeyTypes | None, Certificate | None]
-        """
         if (
             "signing_certificate_id" not in self.company._fields
             or not self.company.signing_certificate_id.pem_certificate
@@ -157,14 +123,6 @@ class PdfSigner:
         field_name: str,
         signer: ResUsers | None = None,
     ) -> tuple[DictionaryObject, DictionaryObject] | None:
-        """Create the /AcroForm and populate it with the signature field.
-
-        :param visible_signature: whether the signature should be visible on the document.
-        :param field_name: the name of the signature field.
-        :param signer: user shown in the visuals of the signature field.
-        :return: a (signature field, signature field value) tuple.
-        :rtype: tuple[DictionaryObject, DictionaryObject]
-        """
         if "/AcroForm" not in self.writer._root_object:
             form = DictionaryObject()
             form.update({NameObject("/SigFlags"): NumberObject(3)})
@@ -237,9 +195,6 @@ class PdfSigner:
             if signer is not None:
                 content = f"{content} by {signer.name} <{signer.email}>"
 
-            # The text goes into a PDF literal string, so it must be escaped
-            # here: create_string_object returns a str subclass and would
-            # interpolate the signer's name verbatim.  See _escape_pdf_literal.
             stream._data = (
                 f"q 0.5 0 0 0.5 0 0 cm BT /F1 12 Tf 0 TL 0 10 Td "
                 f"({_escape_pdf_literal(content)}) Tj ET Q"
@@ -299,12 +254,6 @@ class PdfSigner:
     def _get_signature_algorithm(
         self, private_key: PrivateKeyTypes
     ) -> _SignatureAlgorithm | None:
-        """Map the private key type to its CMS algorithms and signing callable.
-
-        :return: the matching :class:`_SignatureAlgorithm`, or None for an
-            unsupported key type.
-        :rtype: _SignatureAlgorithm | None
-        """
         if isinstance(private_key, rsa.RSAPrivateKey):
             return _SignatureAlgorithm(
                 "sha256",
@@ -329,17 +278,6 @@ class PdfSigner:
         certificate: Certificate,
         algorithm: _SignatureAlgorithm,
     ) -> cms.ContentInfo:
-        """Create an object that follows the Cryptographic Message Syntax (CMS).
-
-        RFC: https://datatracker.ietf.org/doc/html/rfc5652
-
-        :param digest: the digest of the document in bytes, computed with
-            ``algorithm.digest``.
-        :param certificate: the signing certificate.
-        :param algorithm: the CMS algorithms and signer for the private key.
-        :return: a CMS object containing the signature information.
-        :rtype: cms.ContentInfo
-        """
         cert = x509.Certificate.load(certificate.public_bytes(encoding=Encoding.DER))
         encap_content_info = {"content_type": "data", "content": None}
 
@@ -438,12 +376,6 @@ class PdfSigner:
         )
 
     def _perform_signature(self, sig_field_value: DictionaryObject) -> bool:
-        """Create the signature content and fill the /ByteRange and /Contents properties.
-
-        :param sig_field_value: the value (/V) of the signature field to modify.
-        :return: True on success, False if the signature could not be created.
-        :rtype: bool
-        """
         private_key, certificate = self._load_key_and_certificate()
         if private_key is None or certificate is None:
             return False
@@ -522,7 +454,6 @@ class PdfSigner:
         return True
 
     def _get_document_data(self) -> bytes:
-        """Retrieve the bytes of the document from the writer."""
         output_stream = io.BytesIO()
         self.writer.write_stream(output_stream)
         return output_stream.getvalue()
@@ -530,18 +461,6 @@ class PdfSigner:
     def _correct_byte_range(
         self, old_range: list[int], new_range: list[int], base_pdf_len: int
     ) -> list[int]:
-        """Correct the last value of the new byte range.
-
-        The initial byte range (old_range) was computed for a document still containing the
-        placeholder values for the /ByteRange and /Contents fields. Updating /ByteRange changes
-        the document length, so the range must be recomputed to stay valid.
-
-        :param old_range: the previous byte range.
-        :param new_range: the new byte range.
-        :param base_pdf_len: the length of the pdf before insertion of the actual byte range.
-        :return: the corrected byte range.
-        :rtype: list[int]
-        """
         current_len = len(str(old_range))
         corrected_len = len(str(new_range))
         diff = corrected_len - current_len
@@ -556,18 +475,6 @@ class PdfSigner:
     def _compute_digest_from_byte_range(
         self, data: bytes, byte_range: list[int], algorithm: str = "sha256"
     ) -> bytes:
-        """Compute the digest of the data selected by a byte range.
-
-        The byte range is an array [offset, length, offset, length, ...] selecting the bytes
-        of the document used to compute the hash. E.g. for data = b'example' and
-        byte_range = [0, 1, 6, 1], the hash is computed from b'ee'.
-
-        :param data: the data in bytes.
-        :param byte_range: the byte range used to compute the digest.
-        :param algorithm: the hashlib algorithm name.
-        :return: the computed digest.
-        :rtype: bytes
-        """
         hashed = hashlib.new(algorithm)
         for i in range(0, len(byte_range), 2):
             hashed.update(data[byte_range[i] : byte_range[i] + byte_range[i + 1]])

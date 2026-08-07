@@ -15,7 +15,6 @@ class TestSetTags(TransactionCase):
         self.assertEqual(fc.test_module, "base")
 
     def test_set_tags_not_decorated(self):
-        """Test that a TransactionCase has some test_tags by default"""
 
         class FakeClass(TransactionCase):
             pass
@@ -46,7 +45,6 @@ class TestSetTags(TransactionCase):
         self.assertEqual(fc.test_module, "base")
 
     def test_inheritance(self):
-        """Test inheritance when using the 'tagged' decorator"""
 
         @tagged("slow")
         class FakeClassA(TransactionCase):
@@ -66,7 +64,6 @@ class TestSetTags(TransactionCase):
         self.assertEqual(fc.test_tags, {"at_install", "slow"})
 
     def test_untagging(self):
-        """Test that one can remove the 'standard' tag"""
 
         @tagged("-standard")
         class FakeClassA(TransactionCase):
@@ -91,7 +88,6 @@ class TestSetTags(TransactionCase):
         self.assertEqual(fc.test_tags, {"fast", "at_install"})
 
     def test_parental_advisory(self):
-        """Explicit test tags on the class should override anything"""
 
         @tagged("flow")
         class FakeClassA(TransactionCase):
@@ -107,9 +103,6 @@ class TestSetTags(TransactionCase):
 @tagged("nodatabase")
 class TestSelector(TransactionCase):
     def test_selector_file_path_typo_rejected(self):
-        """A malformed .py file spec must be rejected loudly. It used to be
-        accepted (unescaped dot in the regex), then matched no test at all:
-        a typo'd --test-tags run reported 0 tests and exited green."""
         with self.assertLogs("odoo.tests.tag_selector", level="ERROR") as capture:
             tags = TagsSelector("standard/odoo/addons/base/tests/test_tests_tags?py")
         self.assertEqual(set(), tags.include)
@@ -131,9 +124,6 @@ class TestSelector(TransactionCase):
         )
 
     def test_selector_negated_parameter_registers_not_excludes(self):
-        """`-tag[param]` attaches a negated parameter to matching tests; the
-        `-` binds to the parameter, NOT the tag — the test itself must stay
-        selected (via the implicit `standard` include base)."""
         tags = TagsSelector("-standard[foo]")
         self.assertEqual(set(), tags.exclude)
         self.assertEqual({("standard", None, None, None, None)}, tags.include)
@@ -143,7 +133,6 @@ class TestSelector(TransactionCase):
         )
 
     def test_selector_parser(self):
-        """Test the parser part of the TagsSelector class"""
 
         tags = TagsSelector("+slow")
         self.assertEqual(
@@ -430,7 +419,6 @@ class TestSelector(TransactionCase):
 @tagged("nodatabase")
 class TestSelectorSelection(TransactionCase):
     def test_selector_selection(self):
-        """Test check_tags use cases"""
 
         class Test_A(TransactionCase):
             pass

@@ -1,24 +1,3 @@
-"""DB-backed cells of the ``Field.__get__`` semantic-equivalence matrix.
-
-The bulk of the matrix runs DB-free in
-``odoo/orm/tests/test_field_get_equivalence.py`` (the Tier-2 harness proves each
-fast path's ACL preamble DISPATCHES correctly with a spy, and does true
-differential ``fast == canonical`` comparisons on cache states).  This module
-covers the cells the harness deliberately fakes, and can only be exercised
-against a real database:
-
-* **Real field-level ACL** across fast-path field TYPES — the actual
-  ``_has_field_access`` / ``_check_field_access`` stack, a real unauthorized user
-  and a real ``AccessError`` (message construction included), plus the ``sudo()``
-  bypass and an authorized read.
-* **Real translated DB rows** — a ``translate=True`` field read per language must
-  equal ``convert_to_record`` of the cached value, and an origin-less new record
-  read in a non-en language must fall back to the ``en_US`` value (the fast
-  path's documented divergence from base).
-
-Runs post_install so the security rules / languages are fully loaded.
-"""
-
 import odoo.tests
 from odoo.exceptions import AccessError
 from odoo.fields import Command
@@ -65,7 +44,6 @@ class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
         )
 
     def test_real_field_acl_raises_denies_and_bypasses_per_fast_path_type(self):
-        """Real ACL per fast-path field type: unauthorized read raises AccessError, sudo() bypasses, authorized reads normally."""
         self.assertFalse(self.user.has_group("base.group_system"))
         rec_admin = self.rec
         rec_user = self.rec.with_user(self.user)
@@ -82,10 +60,6 @@ class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
                 getattr(rec_admin, fname)
 
     def test_real_translate_true_per_language_matches_convert_to_record(self):
-        """A ``translate=True`` Char read per language equals
-        ``convert_to_record`` of the value the fast path found in that language's
-        sub-cache — for both en_US and an activated fr_FR.
-        """
         self.env["res.lang"]._activate_lang("fr_FR")
         rec = (
             self.env["test_orm.related_translation_1"]
@@ -105,7 +79,6 @@ class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
         self.assertNotEqual(seen["en_US"], seen["fr_FR"])
 
     def test_real_translate_true_new_record_falls_back_to_en_us(self):
-        """Origin-less NEW record, translate=True field read in a non-en language returns the en_US value."""
         self.env["res.lang"]._activate_lang("fr_FR")
         rec = (
             self.env["test_orm.related_translation_1"]

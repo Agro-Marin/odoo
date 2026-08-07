@@ -1,11 +1,3 @@
-"""
-Test for the pseudo-form implementation (odoo.tests.Form), which should
-be a server-side implementation of form views (though probably not
-complete) intended for properly validating business "view" flows (onchanges,
-readonly, required, ...) and make it easier to generate sensible & coherent
-business objects.
-"""
-
 from operator import itemgetter
 
 from lxml import etree
@@ -16,10 +8,6 @@ from odoo.tests import Form, TransactionCase
 
 class TestBasic(TransactionCase):
     def test_defaults(self):
-        """
-        Checks that we can load a default form view and perform trivial
-        default_get & onchanges & computations
-        """
         f = Form(self.env["test_testing_utilities.a"])
         self.assertEqual(f.id, False, "check that our record is not in db (yet)")
 
@@ -66,10 +54,6 @@ class TestBasic(TransactionCase):
         self.assertEqual(r2.f_bool, 0)
 
     def test_readonly(self):
-        """
-        Checks that fields with readonly modifiers (marked as readonly or
-        computed w/o set) raise an error when set.
-        """
         f = Form(self.env["test_testing_utilities.readonly"])
 
         with self.assertRaises(AssertionError):
@@ -78,7 +62,6 @@ class TestBasic(TransactionCase):
             f.f2 = 42
 
     def test_readonly_save(self):
-        """Should not save readonly fields unless they're force_save"""
         f = Form(
             self.env["test_testing_utilities.a"],
             view="test_testing_utilities.non_normalized_attrs",
@@ -93,7 +76,6 @@ class TestBasic(TransactionCase):
         self.assertEqual(r.f6, 987)
 
     def test_attrs(self):
-        """Checks that attrs/modifiers with non-normalized domains work"""
         f = Form(
             self.env["test_testing_utilities.a"],
             view="test_testing_utilities.non_normalized_attrs",
@@ -108,7 +90,6 @@ class TestBasic(TransactionCase):
 
 class TestM2O(TransactionCase):
     def test_default_and_onchange(self):
-        """Checks defaults & onchanges impacting m2o fields"""
         Sub = self.env["test_testing_utilities.m2o"]
         Sub.create({"name": "A"})
         b = Sub.create({"name": "B"})
@@ -124,10 +105,6 @@ class TestM2O(TransactionCase):
         f.save()
 
     def test_set(self):
-        """
-        Checks that we get/set recordsets for m2o & that set correctly
-        triggers onchange
-        """
         r1 = self.env["test_testing_utilities.m2o"].create({"name": "A"})
         r2 = self.env["test_testing_utilities.m2o"].create({"name": "B"})
 
@@ -275,9 +252,6 @@ get = itemgetter("name", "value", "v")
 
 class TestO2M(TransactionCase):
     def test_basic_alterations(self):
-        """Tests that the o2m proxy allows adding, removing and editing o2m
-        records
-        """
         with Form(
             self.env["test_testing_utilities.parent"],
             view="test_testing_utilities.o2m_parent",
@@ -315,9 +289,6 @@ class TestO2M(TransactionCase):
             sub.name = "whop whop"
 
     def test_o2m_editable_list(self):
-        """Tests the o2m proxy when the list view is editable rather than
-        delegating to a separate form view
-        """
         f = Form(
             self.env["test_testing_utilities.parent"],
             view="test_testing_utilities.o2m_parent_ed",
@@ -367,9 +338,6 @@ class TestO2M(TransactionCase):
         )
 
     def test_o2m_inline(self):
-        """Tests the o2m proxy when the list and form views are provided
-        inline rather than fetched separately
-        """
         with Form(
             self.env["test_testing_utilities.parent"],
             view="test_testing_utilities.o2m_parent_inline",
@@ -386,14 +354,12 @@ class TestO2M(TransactionCase):
         )
 
     def test_o2m_parent_context(self):
-        """Test the o2m form with a context on the field that uses 'parent'."""
         view = "test_testing_utilities.o2m_parent_context"
         with Form(self.env["test_testing_utilities.parent"], view=view) as f:
             with f.subs.new() as s:
                 s.value = 42
 
     def test_o2m_default(self):
-        """Tests that default_get can return defaults for the o2m"""
         with Form(self.env["test_testing_utilities.default"]) as f:
             with f.subs.edit(index=0) as s:
                 self.assertEqual(s.v, 5)
@@ -404,20 +370,17 @@ class TestO2M(TransactionCase):
         self.assertEqual([get(s) for s in r.subs], [("5", 2, 5)])
 
     def test_o2m_inner_default(self):
-        """Tests that creating an o2m record will get defaults for it"""
         with Form(self.env["test_testing_utilities.default"]) as f:
             with f.subs.new() as s:
                 self.assertEqual(s.value, 2)
                 self.assertEqual(s.v, 2, "should have onchanged value to v")
 
     def test_o2m_default_discarded(self):
-        """Tests what happens when the default value is discarded."""
         model = self.env["test_testing_utilities.default"]
         with Form(model.with_context(default_value=42)) as f:
             self.assertFalse(len(f.subs))
 
     def test_o2m_onchange_parent(self):
-        """Tests that changing o2m content triggers onchange in the parent"""
         f = Form(self.env["test_testing_utilities.parent"])
 
         self.assertEqual(f.value, 1, "value should have its default")
@@ -428,9 +391,6 @@ class TestO2M(TransactionCase):
         self.assertEqual(f.v, 3, "should be sum of value & children v")
 
     def test_o2m_onchange_inner(self):
-        """Tests that editing a field of an o2m record triggers onchange
-        in the o2m record and its parent
-        """
         f = Form(self.env["test_testing_utilities.parent"])
 
         with f.subs.new() as sub:
@@ -440,9 +400,6 @@ class TestO2M(TransactionCase):
         self.assertEqual(f.v, 7)
 
     def test_o2m_parent_content(self):
-        """Tests that when editing a field of an o2m the data sent contains
-        the parent data
-        """
         f = Form(self.env["test_testing_utilities.parent"])
 
         with f.subs.new() as sub:
@@ -452,9 +409,6 @@ class TestO2M(TransactionCase):
             self.assertEqual(sub.v, 1)
 
     def test_readonly_o2m(self):
-        """Tests that o2m fields flagged as readonly (readonly="1" in the
-        view) can't be written to
-        """
         r = self.env["test_testing_utilities.parent"].create(
             {"subs": [Command.create({})]}
         )
@@ -468,9 +422,6 @@ class TestO2M(TransactionCase):
             f.subs.remove(index=0)
 
     def test_o2m_readonly_subfield(self):
-        """Tests that readonly is applied to the field of the o2m = not sent
-        as part of the create / write values
-        """
         with Form(self.env["o2m_readonly_subfield_parent"]) as f:
             with f.line_ids.new() as new_line:
                 new_line.name = "ok"
@@ -590,10 +541,6 @@ class TestO2M(TransactionCase):
         self.assertEqual(r.subs, a | b | c)
 
     def test_o2m_onchange_change_saved(self):
-        """If an onchange updates o2m values (in existing sub-records of an
-        existing record), those updated values should be saved, both if the
-        sub-records were touched by the user and not (check that one maybe)
-        """
         with Form(self.env["o2m_changes_children"]) as f:
             with f.line_ids.new() as line:
                 line.v = 1
@@ -731,11 +678,6 @@ class TestNestedO2M(TransactionCase):
         form.save()
 
     def test_remove(self):
-        """onchanges can remove o2m records which haven't been loaded yet due
-        to lazy loading of o2ms. The removal information should still be
-        retained, otherwise due to the stateful update system we end up
-        retaining records we don't even know exist.
-        """
         r = self.env["o2m_changes_parent"].create(
             {
                 "name": "A",
@@ -761,12 +703,6 @@ class TestNestedO2M(TransactionCase):
 
 
 class TestEdition(TransactionCase):
-    """These use the context manager form as we don't need the record
-    post-save (we already have it) and it's easier to see what bits act on
-    the form (inside `with`) versus outside. That let me catch a few
-    mistakes.
-    """
-
     def test_trivial(self):
         r = self.env["test_testing_utilities.a"].create(
             {

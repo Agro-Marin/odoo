@@ -1,25 +1,3 @@
-"""Byte-compatibility and contract tests for the canonical ``__version`` hash.
-
-``odoo.tools.cache_version._canonical_digest`` was switched from stdlib ``json``
-to orjson (Rust) for speed.  The client rpc cache (``rpc_cache.js``) compares two
-*server-emitted* ``__version`` strings for O(1) equality and **never recomputes**
-the hash itself, so the runtime contract is only:
-
-  * deterministic — identical content always yields the identical digest;
-  * key-order invariant — dict insertion order must not matter;
-  * never raises — it stamps live responses.
-
-On top of that contract we additionally pin **byte-identity with the previous
-stdlib output** for the value space these endpoints actually emit (str-keyed
-dicts of finite JSON scalars, ASCII or not, ids, datetimes), so existing client
-caches are not invalidated by the swap.  Three encodings intentionally diverge
-(toward standard-JSON / V8 ``JSON.stringify`` semantics); those are pinned
-explicitly in :class:`TestIntentionalDivergences` and documented in
-``cache_version._CANONICAL_OPT``.
-
-No Odoo ORM / database dependency — runs under the standalone pytest suite.
-"""
-
 import datetime
 import json
 import math
@@ -30,7 +8,6 @@ from odoo.tools.cache_version import _canonical_bytes, _canonical_digest
 
 
 def _stdlib_canonical(value):
-    """The exact pre-orjson implementation — the byte reference."""
     return json.dumps(
         value, sort_keys=True, default=str, separators=(",", ":")
     ).encode()
@@ -94,20 +71,12 @@ BYTE_IDENTICAL_PAYLOADS = [
 
 
 class TestByteIdentity(unittest.TestCase):
-    """The swap must not change the digest for the emitted value space."""
-
     def test_canonical_bytes_match_stdlib(self):
         for value in BYTE_IDENTICAL_PAYLOADS:
             with self.subTest(value=repr(value)[:60]):
                 self.assertEqual(_canonical_bytes(value), _stdlib_canonical(value))
 
     def test_digest_matches_old_implementation(self):
-        """The digest of the orjson bytes equals the digest of the stdlib bytes.
-
-        This pins the *serialization* swap, not the hash: it must hold for
-        whichever algorithm ``libs.hashing`` selected, so it compares two
-        digests of the same family rather than a hardcoded sha256.
-        """
         for value in BYTE_IDENTICAL_PAYLOADS:
             with self.subTest(value=repr(value)[:60]):
                 self.assertEqual(
@@ -117,8 +86,6 @@ class TestByteIdentity(unittest.TestCase):
 
 
 class TestContract(unittest.TestCase):
-    """Properties the JS rpc cache actually relies on (rpc_cache.js)."""
-
     def test_key_order_invariant(self):
         a = {"a": 1, "b": 2, "c": {"x": 9, "y": 8}}
         b = {"c": {"y": 8, "x": 9}, "b": 2, "a": 1}
@@ -154,10 +121,6 @@ class TestContract(unittest.TestCase):
 
 
 class TestIntentionalDivergences(unittest.TestCase):
-    """Encodings that intentionally differ from the old stdlib bytes — each
-    moves toward standard-JSON / V8 ``JSON.stringify`` and is contract-safe
-    (one-time, self-healing client cache refresh; never recomputed in JS)."""
-
     def test_non_ascii_is_utf8_not_escaped(self):
         v = {"display_name": "Société Générale — café ☕"}
         new = _canonical_bytes(v)

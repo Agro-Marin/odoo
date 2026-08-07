@@ -65,19 +65,6 @@ class IrFilters(models.Model):
 
     @api.constrains("domain", "context", "sort")
     def _check_serialized_fields(self) -> None:
-        """Validate serialized blobs on every write path, not only ``create_filter``.
-
-        Raw ORM create/write (server code, data files, future RPC) must validate
-        too so the IRF-L1 guarantee holds at the write boundary (IRF-L2).
-
-        The ``sort`` column also carries ``_check_sort_json``, which PostgreSQL
-        evaluates on the INSERT itself -- before this runs. That check therefore
-        has to reject rather than fail: phrased as ``jsonb_typeof(sort::jsonb)``
-        it raised a bare ``invalid input syntax for type json`` on any non-JSON
-        text, a ``DataError`` no layer maps to a user-facing message, so a
-        malformed ``sort`` surfaced as a 500 instead of "Invalid sort
-        definition". ``IS JSON ARRAY`` answers false where the cast threw.
-        """
         for filter_ in self:
             self._validate_serialized_fields(
                 {
@@ -129,8 +116,6 @@ class IrFilters(models.Model):
         embedded_action_id: int | None = None,
         embedded_parent_res_id: int | None = None,
     ) -> list[tuple]:
-        """Return a domain component for matching filters that are visible in the
-        same context (menu/view) as the given action."""
         action_condition = (
             ("action_id", "in", [action_id, False])
             if action_id
@@ -161,20 +146,6 @@ class IrFilters(models.Model):
         embedded_action_id: int | None = None,
         embedded_parent_res_id: int | None = None,
     ) -> list[ValuesType]:
-        """Return the filters available to the current user on the given model.
-
-        :param str model: the ``model_id`` value (e.g. ``"res.partner"``), not a db id.
-        :param action_id: if set, restrict to this action plus global filters;
-            otherwise only global filters. The action need not match the model.
-        :param embedded_action_id: embedded action the filter is scoped to;
-            combined with ``embedded_parent_res_id``.
-        :param embedded_parent_res_id: parent record the embedded-action filter
-            applies to; only meaningful with ``embedded_action_id``.
-        :return: list of dicts with ``name``, ``is_default``, ``domain``,
-            ``context``, ``user_ids``, ``sort``, ``embedded_action_id`` and
-            ``embedded_parent_res_id``.
-        :rtype: list[dict]
-        """
         user_context = self.env["res.users"].context_get()
         action_domain = self._get_action_domain(
             action_id, embedded_action_id, embedded_parent_res_id
@@ -199,26 +170,6 @@ class IrFilters(models.Model):
 
     @api.model
     def _validate_serialized_fields(self, vals: dict[str, Any]) -> None:
-        """Validate that stored ``domain``/``context``/``sort`` blobs have the right shape.
-
-        These are persisted as free-form text that downstream consumers evaluate.
-        A malformed favorite created over RPC would break the favorites dropdown
-        for everyone sharing it, failing far from its cause; validate at the
-        write boundary instead.
-
-        ``domain`` is validated *structurally* (parseable, top-level list/tuple,
-        only whitelisted free names), not with ``literal_eval``: the web client
-        saves favorite domains unevaluated so they stay dynamic (e.g.
-        ``[("create_uid", "=", uid)]``), and requiring a literal would reject
-        every such favorite. ``context`` and ``sort`` remain literal-only: the
-        client serializes a favorite's context and sort from already-evaluated
-        JSON data, never as dynamic expressions.
-
-        :param dict vals: filter values about to be persisted.
-        :raises ValidationError: if ``domain`` is not a (possibly dynamic) list
-            expression, ``context`` is not a dict, or ``sort`` is not a list of
-            strings.
-        """
         self._validate_domain_expression(vals.get("domain"))
         for fname, types, label in (
             ("context", (dict,), "dict"),
@@ -258,22 +209,6 @@ class IrFilters(models.Model):
 
     @api.model
     def _validate_domain_expression(self, raw: Any) -> None:
-        """Structurally validate a ``domain`` blob without evaluating it.
-
-        Accepts a possibly *dynamic* domain: any syntactically valid expression
-        whose top level is a list/tuple and whose free names are all in
-        ``_ALLOWED_DOMAIN_NAMES`` (attribute access and calls rooted at those
-        names — ``datetime.timedelta(...)``, ``context.get(...)``,
-        ``.strftime(...)`` — are therefore fine). This keeps the shape-safety
-        guarantee (a malformed blob cannot poison the shared favorites
-        dropdown) while restoring the upstream ability to save dynamic
-        favorites.
-
-        :param raw: the ``domain`` value about to be persisted (``None`` to
-            skip, an already-parsed list/tuple, or the stored text blob).
-        :raises ValidationError: if the blob does not parse, is not a
-            list/tuple expression, or references a name outside the whitelist.
-        """
         if raw is None or isinstance(raw, (list, tuple)):
             return
         if not isinstance(raw, str):

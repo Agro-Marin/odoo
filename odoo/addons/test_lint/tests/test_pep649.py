@@ -1,10 +1,3 @@
-"""Regression test for PEP 649 annotation-resolution failures.
-
-Guards against the pattern where a module imports a type only under
-``if TYPE_CHECKING:`` but uses it in a runtime-visible annotation.
-See :mod:`_checker_pep649` for background.
-"""
-
 from odoo.tests.common import BaseCase, no_retry
 
 from ._checker_pep649 import scan_module
@@ -41,8 +34,6 @@ CLEAN_MODULES = (
 
 @no_retry
 class TestPEP649Annotations(BaseCase):
-    """Ensure annotations on public symbols remain introspectable."""
-
     def test_clean_modules_introspect(self):
         for modname in CLEAN_MODULES:
             with self.subTest(module=modname):

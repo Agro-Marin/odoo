@@ -31,8 +31,7 @@ registry.category("web_tour.tours").add("sql_constaint", {
         },
         {
             content: "check notification box",
-            trigger:
-                ".o_error_dialog:contains(The color code must be positive!)",
+            trigger: ".o_error_dialog:contains(The color code must be positive!)",
         },
         {
             content: "close notification box",

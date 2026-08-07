@@ -1,10 +1,3 @@
-"""OpenAPI generation from the routing map (built on typed routing).
-
-``TestOpenApi`` unit-tests the pure generator (:mod:`odoo.http.openapi`);
-``TestOpenApiEndpoint`` fetches the served ``/test_http/openapi.json`` and checks
-the typed route is documented with its coerced parameter schema.
-"""
-
 from odoo.http._params import ParamSpec
 from odoo.http.openapi import (
     RouteInfo,
@@ -18,7 +11,6 @@ from odoo.addons.test_http.tests.test_common import TestHttpBase
 
 
 def _http_handler(self, n: int, flag: bool = False, **kw):
-    """Echo n and flag."""
     return
 
 
@@ -28,8 +20,6 @@ def _json_handler(self, qty: int, note: str | None = None, **kw):
 
 @tagged("post_install", "-at_install")
 class TestOpenApi(BaseCase):
-    """Pure unit tests of the OpenAPI generator."""
-
     def test_param_spec_to_schema(self):
         self.assertEqual(
             param_spec_to_schema(ParamSpec(int, None, False, True)), {"type": "integer"}
@@ -127,8 +117,6 @@ class TestOpenApi(BaseCase):
 
 @tagged("post_install", "-at_install")
 class TestOpenApiEndpoint(TestHttpBase):
-    """End-to-end: the served /openapi.json documents the live typed route."""
-
     def test_endpoint_documents_typed_echo(self):
         res = self.nodb_url_open("/test_http/openapi.json")
         self.assertEqual(res.status_code, 200)
@@ -147,9 +135,6 @@ class TestOpenApiEndpoint(TestHttpBase):
 
 @tagged("post_install", "-at_install")
 class TestWebOpenApiEndpoint(HttpCase):
-    """The production ``/web/openapi.json`` (web module): generated from the
-    DATABASE routing map, gated to system administrators."""
-
     def test_admin_gets_document_with_db_typed_routes(self):
         self.authenticate("admin", "admin")
         res = self.url_open("/web/openapi.json")

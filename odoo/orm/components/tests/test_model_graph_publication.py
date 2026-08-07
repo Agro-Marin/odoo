@@ -1,20 +1,3 @@
-"""Concurrency tests for ModelGraph's snapshot publication (no Odoo, no DB).
-
-The trigger map and every cache derived from it live in one ``_TriggerState``
-snapshot published by a single reference swap; lock-free readers grab one
-snapshot per operation. These tests pin:
-
-* the discard_fields reader/writer race regression (an in-place scrub of the
-  published map used to crash concurrent tree builds with "dictionary changed
-  size during iteration" — reproduced by the audit's ``race_discard_fields``
-  script against the pre-snapshot implementation);
-* that ``set_triggers`` publishes the map and its derived caches as ONE
-  snapshot (structurally, and under reader/writer stress);
-* the epoch/barrier protocol (``begin_invalidation``/``end_invalidation``)
-  that refuses publication to trigger rebuilds which started before or during
-  a registry teardown.
-"""
-
 import threading
 import unittest
 
@@ -26,7 +9,6 @@ N_WRITER_ITERATIONS = 120
 
 
 def _staged_map(entries):
-    """Build a raw trigger map ``{dep: {path: [targets]}}`` from tuples."""
     staged = _empty_triggers()
     for dep, path, targets in entries:
         bucket = staged[dep][path]
@@ -37,8 +19,6 @@ def _staged_map(entries):
 
 
 class TestDiscardFieldsRace(unittest.TestCase):
-    """Regression: discard_fields must never mutate the published map in place."""
-
     N_READERS = 4
 
     def test_concurrent_discard_and_tree_builds(self) -> None:
@@ -94,7 +74,6 @@ class TestDiscardFieldsRace(unittest.TestCase):
         self.assertEqual(errors, [], f"thread(s) raised: {errors[:3]}")
 
     def test_discarded_fields_absent_after_discard(self) -> None:
-        """Single-threaded semantics: the swap-published map is fully scrubbed."""
         g = ModelGraph()
         dep, gone, kept = _field("dep"), _field("gone"), _field("kept")
         g.set_triggers(_staged_map([(dep, (), [gone, kept]), (gone, (), [kept])]))
@@ -106,8 +85,6 @@ class TestDiscardFieldsRace(unittest.TestCase):
 
 
 class TestSnapshotPublication(unittest.TestCase):
-    """set_triggers publishes map + derived caches as one atomic snapshot."""
-
     def test_map_and_derived_caches_are_one_snapshot(self) -> None:
         g = ModelGraph()
         f_old, t_old = _field("price"), _field("total")
@@ -131,7 +108,6 @@ class TestSnapshotPublication(unittest.TestCase):
         self.assertIs(state.modifying_relations, g._modifying_relations)
 
     def test_stale_tree_cannot_poison_a_newer_publication(self) -> None:
-        """Reader/writer stress: after the final publication, the served tree matches the final map."""
         f = _field("f")
         t_a, t_b = _field("target_a"), _field("target_b")
         g = ModelGraph()
@@ -182,8 +158,6 @@ class TestSnapshotPublication(unittest.TestCase):
 
 
 class TestEpochValidation(unittest.TestCase):
-    """begin/end_invalidation refuse stale epoch-validated publications."""
-
     def _map(self):
         return _staged_map([(_field("a"), (), [_field("b")])])
 
@@ -219,9 +193,6 @@ class TestEpochValidation(unittest.TestCase):
         self.assertIs(g._triggers, staged)
 
     def test_unvalidated_publish_always_wins(self) -> None:
-        """The authoritative writer (no epoch arg) publishes unconditionally,
-        even inside a teardown window (it is serialized by the registry lock).
-        """
         g = ModelGraph()
         g.begin_invalidation()
         staged = self._map()

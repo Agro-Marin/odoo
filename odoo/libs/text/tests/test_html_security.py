@@ -1,11 +1,3 @@
-"""Regression tests for the HTML-injection hardening in ``odoo.libs.text.html``.
-
-Pure-Python, no database: ``create_link``/``plaintext2html``/``html2plaintext``
-are framework-agnostic string utilities, so they are exercised directly against
-crafted payloads.  Each test pins a concrete escape/validation contract that a
-regression would visibly break.
-"""
-
 import unittest
 
 from markupsafe import Markup
@@ -35,15 +27,6 @@ class TestHtmlNormalizeEncodingStrip(unittest.TestCase):
 
 
 class TestSanitizeSvgLink(unittest.TestCase):
-    """``xlink:href`` must be URL-scheme checked, like a plain ``href``.
-
-    It is in neither lxml's ``defs.safe_attrs`` nor odoo's, yet the cleaner lets
-    it through; the ``defs.link_attrs`` registration in ``odoo.libs.text.html``
-    is the only thing that scrubs its scheme.  Dropping that one line silently
-    reopens stored XSS on every sanitized HTML field, which is invisible unless
-    a test pins it.
-    """
-
     def test_javascript_scheme_is_stripped(self):
         out = html_sanitize(
             '<svg><a xlink:href="javascript:alert(1)"><text>x</text></a></svg>'
@@ -133,19 +116,6 @@ if __name__ == "__main__":
 
 
 class TestSanitizeRemovesActiveContent(unittest.TestCase):
-    """``html_sanitize`` strips scripts and event handlers.
-
-    These are the sanitizer's core guarantee and, until recently, the only two
-    ``Cleaner`` options it did *not* state: ``scripts`` and ``javascript`` were
-    left to lxml's defaults while nine less important options were spelled out.
-    Both default to ``True``, so the behaviour was correct — but a security
-    function whose central promise rests on a third-party default not moving is
-    one library upgrade away from silently passing ``<script>`` through, and
-    nothing would have failed.
-
-    Pinned here so the guarantee is asserted rather than inherited.
-    """
-
     def test_script_element_is_removed(self):
         out = html_sanitize("<p>keep</p><script>alert(1)</script>")
         self.assertNotIn("script", out)
@@ -161,7 +131,6 @@ class TestSanitizeRemovesActiveContent(unittest.TestCase):
         self.assertNotIn("javascript:", out)
 
     def test_ordinary_markup_survives(self):
-        """The guarantee must not be met by stripping everything."""
         out = html_sanitize("<p><b>bold</b> and <i>italic</i></p>")
         self.assertIn("<b>bold</b>", out)
         self.assertIn("<i>italic</i>", out)

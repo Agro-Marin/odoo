@@ -1,17 +1,7 @@
-"""
-Odoo image processing utilities.
-
-This module wraps odoo.libs.image to provide Odoo-specific error handling
-(UserError instead of ValueError) for better user experience.
-
-For agnostic usage without Odoo dependencies, use odoo.libs.image directly.
-"""
-
 from PIL import Image
 
 from odoo.exceptions import UserError
 from odoo.libs.colors import hex_to_rgb
-
 from odoo.libs.image import (
     EXIF_TAG_ORIENTATION,
     FILETYPE_BASE64_MAGICWORD,
@@ -26,7 +16,6 @@ from odoo.libs.image import (
     image_guess_size_from_field_name,
     image_to_base64,
 )
-
 from odoo.libs.image import (
     ImageProcess as _ImageProcessBase,
 )
@@ -52,16 +41,7 @@ _lt = LazyTranslate("base")
 
 
 class ImageProcess(_ImageProcessBase):
-    """Odoo-specific ImageProcess that raises UserError instead of ValueError."""
-
     def __init__(self, source: bytes | None, verify_resolution: bool = True) -> None:
-        """Initialize the ``source`` image for processing.
-
-        :param source: the original image binary, or None
-        :param verify_resolution: if True, verify the image resolution is acceptable
-        :raise UserError: translated from any ValueError raised by the base implementation
-            (decode failure, oversized image, or other)
-        """
         try:
             super().__init__(source, verify_resolution)
         except ImageDecodeError as e:
@@ -90,10 +70,6 @@ def image_process(
     output_format: str = "",
     padding: bool | tuple[int, int, int, int] = False,
 ) -> bytes | None:
-    """Process the `source` image by executing the given operations.
-
-    Wrapper around libs.image.image_process that uses UserError.
-    """
     if not source or (
         (not size or (not size[0] and not size[1]))
         and not verify_resolution
@@ -130,12 +106,6 @@ def image_process(
 
 
 def binary_to_image(source: bytes) -> Image.Image:
-    """Convert binary data to a PIL Image.
-
-    :param source: binary image data
-    :return: PIL Image object
-    :raise: UserError if the source can't be decoded as an image
-    """
     try:
         return _binary_to_image_base(source)
     except ImageDecodeError as e:
@@ -143,12 +113,6 @@ def binary_to_image(source: bytes) -> Image.Image:
 
 
 def base64_to_image(base64_source: str | bytes) -> Image.Image:
-    """Return a PIL image from the given `base64_source`.
-
-    :param base64_source: the image base64 encoded
-    :return: PIL Image object
-    :raise: UserError if the base64 is incorrect or the image can't be identified by PIL
-    """
     try:
         return _base64_to_image_base(base64_source)
     except ImageDecodeError as e:
@@ -156,12 +120,6 @@ def base64_to_image(base64_source: str | bytes) -> Image.Image:
 
 
 def get_webp_size(source: bytes) -> tuple[int, int] | None:
-    """Return the size of the webp binary `source`.
-
-    :param source: binary source
-    :return: (width, height) tuple, or None if not supported
-    :raise: UserError if source is not a webp file
-    """
     try:
         return _get_webp_size_base(source)
     except NotWebpError as e:
@@ -171,10 +129,6 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
 def is_image_size_above(
     base64_source_1: str | bytes, base64_source_2: str | bytes
 ) -> bool:
-    """Return whether image `base64_source_1` is larger than `base64_source_2`.
-
-    Uses UserError for invalid images.
-    """
     try:
         return _is_image_size_above_base(base64_source_1, base64_source_2)
     except ValueError as e:

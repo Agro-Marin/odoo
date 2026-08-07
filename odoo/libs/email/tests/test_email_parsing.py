@@ -1,10 +1,3 @@
-"""Unit coverage for ``odoo.libs.email.parsing``.
-
-This leaf had no unit tests; the suite pins normalization, splitting,
-anonymization, domain extraction, and the RFC-2822 ``formataddr`` formatting
-(including the header-injection guard on the display name).
-"""
-
 import pytest
 
 from odoo.libs.email.parsing import (

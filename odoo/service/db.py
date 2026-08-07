@@ -410,10 +410,6 @@ def _duplicate_database(
                 )
             except (
                 psycopg.errors.DuplicateDatabase,
-                # A racing loser of concurrent database-creating DDL can get
-                # 23505 instead of 42P04 (pinned by
-                # tests/contract/test_pg_create_database_race.py), exactly as
-                # in _create_empty_database above.
                 psycopg.errors.UniqueViolation,
             ) as exc:
                 raise DatabaseExists(f"database {db_name!r} already exists!") from exc
@@ -572,7 +568,6 @@ def _source_size(dump_file: str | os.PathLike | IO[bytes]) -> int:
     """
     if isinstance(dump_file, (str, os.PathLike)):
         return Path(dump_file).stat().st_size
-    # an open binary file object
     pos = dump_file.tell()
     try:
         dump_file.seek(0, os.SEEK_END)
@@ -997,7 +992,8 @@ def dump_db(
         if stream:
             _write_zip_dump(db_name, stream, cmd, env, with_filestore)
         else:
-            t = tempfile.TemporaryFile()
+            # SIM115: `t` IS the return value — the caller owns and closes it.
+            t = tempfile.TemporaryFile()  # noqa: SIM115  `t` IS the return value; the caller owns and closes it
             try:
                 _write_zip_dump(db_name, t, cmd, env, with_filestore)
                 t.seek(0)
@@ -1010,7 +1006,7 @@ def dump_db(
         if stream:
             _run_pg_dump_streaming(cmd, env, stream)
         else:
-            t = tempfile.TemporaryFile()
+            t = tempfile.TemporaryFile()  # noqa: SIM115  returned to the caller, as above
             try:
                 _run_pg_dump_blocking(cmd, env, stdout=t)
                 t.seek(0)
@@ -1035,7 +1031,7 @@ def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
     _STRIP_WS = str.maketrans("", "", " \t\n\r\v\f")
     CHUNK = 8192
 
-    data_file = tempfile.NamedTemporaryFile(delete=False)
+    data_file = tempfile.NamedTemporaryFile(delete=False)  # noqa: SIM115  delete=False: the path outlives this scope
     try:
         accum = ""
         for i in range(0, len(data), CHUNK):
@@ -1131,11 +1127,6 @@ def restore_db(
 
                 pg_cmd = "psql"
                 pg_args = [
-                    # -X: ignore ~/.psqlrc and the system psqlrc. Those files run
-                    # AFTER option processing, so a stray `\set ON_ERROR_STOP off`
-                    # (or `\set AUTOCOMMIT`, `\connect`) on the host would silently
-                    # override the invariant the whole restore — and the dump
-                    # scanner's under-detection-is-loud argument — depends on.
                     "-X",
                     "-q",
                     "-v",
@@ -1145,10 +1136,6 @@ def restore_db(
                 ]
 
             else:
-                # ``pg_restore`` reads a file *path*; unlike the zip branch it
-                # cannot take an open file object. The CLI only ever routes a
-                # file object (a streamed download) to the zip branch, so this
-                # is a real precondition, enforced rather than assumed.
                 if not isinstance(dump_file, (str, os.PathLike)):
                     raise TypeError(
                         "a raw (non-zip) restore needs a file path, not an open "
@@ -1259,7 +1246,6 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                 )
             except (
                 psycopg.errors.DuplicateDatabase,
-                # Same 23505-instead-of-42P04 race as in _duplicate_database.
                 psycopg.errors.UniqueViolation,
             ) as exc:
                 raise DatabaseExists(f"database {new_name!r} already exists!") from exc
@@ -1561,7 +1547,7 @@ def _scan_countries() -> tuple[tuple[str, str], ...]:
     :func:`exp_list_countries` restores the list-of-lists its RPC contract
     promises.
     """
-    root = ET.parse(
+    root = ET.parse(  # noqa: S314  parses Odoo's own res_country_data.xml from root_path
         Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
     ).getroot()
     countries = []

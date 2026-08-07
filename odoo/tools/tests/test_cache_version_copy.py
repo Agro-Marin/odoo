@@ -1,12 +1,3 @@
-"""``@versioned`` must not mutate the dict the wrapped method returned.
-
-The stamp is derived from the dict's own contents, so writing ``__version`` back
-into the same object (a) would corrupt a shared/cached return value -- and its
-documented "already has ``__version`` -> no-op" branch would then pin that first
-digest forever -- and (b) leaves the returned dict no longer hashing to its own
-stamp.  The decorator now returns a shallow copy carrying the stamp.
-"""
-
 import unittest
 
 from odoo.tools.cache_version import versioned

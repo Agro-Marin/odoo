@@ -1,8 +1,3 @@
-"""Odoo-agnostic iteration utilities.
-
-Pure Python iteration helpers with no Odoo dependencies.
-"""
-
 from .grouping import groupby, unique, partition
 from .sorting import topological_sort, merge_sequences
 from .sentinel import Sentinel, SENTINEL, PENDING

@@ -47,17 +47,6 @@ def extract_python(
     comment_tags: Collection[str],
     options: _PyOptions,
 ) -> Generator[_ExtractionResult]:
-    """
-    Extract all translatable terms from a Python source file.
-
-    This function is modified from the official Babel extractor to support arbitrarily nested function calls.
-
-    :param fileobj: The Python source file
-    :param keywords: The translation keywords (function names) mapping
-    :param comment_tags: The keywords to extract translator comments
-    :param options: Extractor options for parsing the Python file
-    :yield: Tuples in the following form: `(lineno, funcname, message, comments)`
-    """
     encoding = parse_encoding(fileobj) or options.get("encoding", "utf-8")
     future_flags = parse_future_flags(fileobj, encoding)
 

@@ -1,20 +1,3 @@
-"""Tier-2 tests for the replica gating in ``Registry.cursor(readonly=True)``.
-
-Real ``import odoo``, stub connections, no database.
-
-``Registry.cursor`` used to record one replica failure and route *every*
-read-only request to the primary for a flat 20 minutes, with nothing
-re-checking.  A transient blip — a failover, a brief partition, one
-``PoolTimeout`` under load — therefore cost 20 minutes of unnecessary primary
-load, and recovery was waited out rather than detected.
-
-What replaces it is a :class:`~odoo.db.breaker.CircuitBreaker`, so these pin the
-behaviour that changed: the fallback still happens, it stops attempting a replica
-already known to be down, and it comes back on its own.  The breaker's schedule
-itself is covered in ``odoo/db/tests/test_breaker.py``; against a live streaming
-replica the round trip measured 5.1s where the flat window would have been 1200.
-"""
-
 import threading
 
 import psycopg
@@ -27,8 +10,6 @@ from odoo.orm.runtime.registry import _REPLICA_RETRY_TIME, Registry
 
 
 class _Conn:
-    """Stands in for ``odoo.db.Connection``; counts cursor attempts."""
-
     def __init__(self, label, fails=False):
         self.label = label
         self.fails = fails
@@ -76,8 +57,6 @@ def test_a_failing_replica_falls_back_and_opens_the_breaker():
 
 
 def test_a_downed_replica_is_not_re_attempted_while_the_breaker_is_open():
-    """The flat window did this too; what matters is that it still holds, so a
-    dead replica does not draw a connection attempt from every request."""
     reg = _make_registry(replica_fails=True)
     for _ in range(20):
         assert reg.cursor(readonly=True) == "primary-cursor"
@@ -107,8 +86,6 @@ def test_repeated_failures_do_not_exceed_the_old_flat_window():
 
 
 def test_pool_errors_are_treated_as_replica_failures():
-    """``PoolError`` is what saturation or an unreachable host actually raises
-    through the pool, so it must gate the replica like an OperationalError."""
 
     class _PoolFail(_Conn):
         def cursor(self):
@@ -122,8 +99,6 @@ def test_pool_errors_are_treated_as_replica_failures():
 
 
 def test_the_cursor_mode_marker_records_the_demotion():
-    """The HTTP layer reads ``cursor_mode`` to know a readonly route ran on the
-    primary, so the marker must survive the switch to the breaker."""
     reg = _make_registry(replica_fails=True)
     thread = threading.current_thread()
     thread.cursor_mode = "unset"
@@ -150,8 +125,6 @@ if __name__ == "__main__":
 
 
 class _LagConn(_Conn):
-    """A replica cursor that answers the lag query with a fixed measurement."""
-
     def __init__(self, label, lag=0.0):
         super().__init__(label)
         self.lag = lag
@@ -196,8 +169,6 @@ def test_a_lagging_replica_is_demoted_to_the_primary():
 
 
 def test_the_rejected_replica_cursor_is_closed_not_leaked():
-    """It was borrowed from the pool to take the measurement; dropping it on the
-    floor would hold a permit until garbage collection."""
     reg = _lag_registry(lag=120.0, max_lag=30.0)
     conn = reg._db_readonly
     opened = []
@@ -250,10 +221,6 @@ def test_an_unreadable_measurement_does_not_demote():
 
 
 def test_a_lag_demotion_does_not_consume_the_breakers_probe():
-    """``breaker.allow()`` *claims* the half-open probe, so it must be asked
-    only once the lag gate has already agreed to use the replica — otherwise a
-    demotion burns the claim without probing and wedges the breaker until the
-    claim is deemed abandoned."""
     reg = _lag_registry(lag=120.0, max_lag=30.0)
     breaker = reg._replica_breaker
     breaker.record_failure()

@@ -6,7 +6,6 @@ from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 class test_inherits(common.TransactionCase):
     def test_10_access_from_child_to_parent_model(self):
-        """check whether added field in model is accessible from children models (_inherits)"""
         mother = self.env["test.inherit.mother"]
         daughter = self.env["test_inherit_daughter"]
 
@@ -14,7 +13,6 @@ class test_inherits(common.TransactionCase):
         self.assertIn("field_in_mother", daughter._fields)
 
     def test_20_field_extension(self):
-        """check the extension of a field in an inherited model"""
         mother = self.env["test.inherit.mother"]
         daughter = self.env["test_inherit_daughter"]
 
@@ -38,7 +36,6 @@ class test_inherits(common.TransactionCase):
         self.assertTrue(field.required)
 
     def test_30_depends_extension(self):
-        """check that @depends on overridden compute methods extends dependencies"""
         mother = self.env["test.inherit.mother"]
         field = mother._fields["surname"]
 
@@ -47,7 +44,6 @@ class test_inherits(common.TransactionCase):
         )
 
     def test_40_selection_extension(self):
-        """check that attribute selection_add=... extends selection on fields."""
         mother = self.env["test.inherit.mother"]
 
         self.assertEqual(
@@ -56,7 +52,6 @@ class test_inherits(common.TransactionCase):
         )
 
     def test_41_selection_extension(self):
-        """check that attribute selection_add=... extends selection on fields."""
         model = self.env["test_orm.selection"]
         field = model._fields["other"]
         self.assertIsInstance(field.selection, str)
@@ -74,7 +69,6 @@ class test_inherits(common.TransactionCase):
 
 class test_inherits_demo(TransactionCaseWithUserDemo):
     def test_50_search_one2many(self):
-        """check search on one2many field based on inherited many2one field."""
         partner_demo = self.partner_demo
         daughter = self.env["test_inherit_daughter"].create(
             {"partner_id": partner_demo.id}
@@ -100,14 +94,12 @@ class test_inherits_demo(TransactionCaseWithUserDemo):
 
 class test_override_property(common.TransactionCase):
     def test_override_with_normal_field(self):
-        """test overriding a property field by a function field"""
         record = self.env["test_inherit_property"].create({"name": "Stuff"})
         self.assertFalse(record.property_foo)
         self.assertFalse(type(record).property_foo.company_dependent)
         self.assertTrue(type(record).property_foo.store)
 
     def test_override_with_computed_field(self):
-        """test overriding a property field by a computed field"""
         record = self.env["test_inherit_property"].create({"name": "Stuff"})
         self.assertEqual(record.property_bar, 42)
         self.assertFalse(type(record).property_bar.company_dependent)
@@ -123,7 +115,6 @@ class TestInherit(common.TransactionCase):
         self.assertFalse(imi.parent_field_id)
 
     def test_extend_parent(self):
-        """test whether a model extension is visible in its children models."""
         parent = self.env["test_inherit_parent"]
         child = self.env["test_inherit_child"]
 
@@ -144,18 +135,6 @@ class TestInherit(common.TransactionCase):
         self.assertEqual(len(child._constraint_methods), 1)
 
     def test_memoized_properties_not_leaked_to_child(self):
-        """Class-memoized model properties must be stored on each model's OWN
-        runtime class, never inherited via the MRO.
-
-        ``test_inherit_child`` prototype-inherits ``test_inherit_parent`` (new
-        ``_name``, parent runtime class among its bases).  The memos
-        (``_constraint_methods`` / ``_ondelete_methods`` / ``_onchange_methods``)
-        are stored under a distinct ``*__`` name read from the class's own
-        ``__dict__``; a plain attribute lookup would let the child reuse the
-        parent's memo and silently drop the child's own methods.  Here both
-        models happen to have one constraint, so a length check (above) cannot
-        detect a leak — assert the storage location instead.
-        """
         parent = self.env["test_inherit_parent"]
         child = self.env["test_inherit_child"]
         parent._constraint_methods
@@ -166,7 +145,6 @@ class TestInherit(common.TransactionCase):
 
 class TestXMLIDS(common.TransactionCase):
     def test_xml_ids(self):
-        """check XML ids of selection fields."""
         field = self.env["test_orm.selection"]._fields["state"]
         self.assertEqual(
             field.selection, [("foo", "Foo"), ("bar", "Bar"), ("baz", "Baz")]

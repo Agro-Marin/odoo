@@ -1,11 +1,3 @@
-"""Regression tests for ``get_barcode_check_digit`` input validation.
-
-``barcode.nomenclature`` exposes ``sanitize_ean``/``sanitize_upc`` as
-``@api.model`` methods, so any RPC caller reaches this helper with an arbitrary
-string.  Non-digit input used to surface as ``ValueError: invalid literal for
-int() with base 10: 'l'``.
-"""
-
 import unittest
 
 from odoo.libs.barcode import check_barcode_encoding, get_barcode_check_digit
@@ -47,8 +39,6 @@ class TestRejectsNonDigits(unittest.TestCase):
 
 
 class TestCheckDigitStillCorrect(unittest.TestCase):
-    """The GTIN algorithm itself must be untouched."""
-
     def test_known_ean13(self):
         self.assertEqual(get_barcode_check_digit("5449000096241"), 1)
 
@@ -66,9 +56,6 @@ class TestCheckDigitStillCorrect(unittest.TestCase):
 
 
 class TestCheckBarcodeEncodingUnaffected(unittest.TestCase):
-    """``check_barcode_encoding`` filters before calling, so it must still return
-    False (never raise) for the inputs the helper now rejects."""
-
     def test_letters_return_false(self):
         self.assertFalse(check_barcode_encoding("abcdefgh", "ean8"))
 

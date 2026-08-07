@@ -27,7 +27,6 @@ def _sub_replacement(match_obj: re.Match) -> str:
 
 
 def quote(s: str) -> str:
-    """Return quoted PO term string, with special PO characters escaped."""
     assert r"\n" not in s, (
         "Translation terms may not include escaped newlines ('\\n'), "
         "please use only literal newlines! (in '%s')" % s
@@ -36,7 +35,6 @@ def quote(s: str) -> str:
 
 
 def unquote(s: str) -> str:
-    """Return unquoted PO term string, with special PO characters unescaped."""
     return re_escaped_char.sub(_sub_replacement, s[1:-1])
 
 
@@ -50,14 +48,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertEqual(sorted(a), sorted(b), msg)
 
     def test_po_reader_tolerates_missing_module_comment(self):
-        """PoFileReader must not crash on a .po entry whose translator comment is
-        absent or not the Odoo ``module: X`` form.
-
-        Regression: ``re.match(...).groups()`` raised ``AttributeError`` on a
-        non-matching comment, aborting the import. The comment only supplies a
-        default module for ``code`` rows; model/model_terms rows take it from the
-        occurrence.
-        """
         from types import SimpleNamespace
 
         def entry(comment, xmlid):
@@ -101,7 +91,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_base(self):
-        """Test xml_translate() without formatting elements."""
         terms = []
         source = """<form string="Form stuff">
                         <h1>Blah blah blah</h1>
@@ -115,7 +104,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_text(self):
-        """Test xml_translate() on plain text."""
         terms = []
         source = "Blah blah blah"
         result = xml_translate(terms.append, source)
@@ -123,7 +111,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, [source])
 
     def test_translate_xml_unicode(self):
-        """Test xml_translate() on plain text with unicode characters."""
         terms = []
         source = "Un heureux évènement"
         result = xml_translate(terms.append, source)
@@ -131,7 +118,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, [source])
 
     def test_translate_xml_text_entity(self):
-        """Test xml_translate() on plain text with HTML escaped entities."""
         terms = []
         source = "Blah&amp;nbsp;blah&amp;nbsp;blah"
         result = xml_translate(terms.append, source)
@@ -139,7 +125,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, [source])
 
     def test_translate_xml_inline1(self):
-        """Test xml_translate() with formatting elements."""
         terms = []
         source = """<form string="Form stuff">
                         <h1>Blah <i>blah</i> blah</h1>
@@ -158,7 +143,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_inline2(self):
-        """Test xml_translate() with formatting elements embedding other elements."""
         terms = []
         source = """<form string="Form stuff">
                         <b><h1>Blah <i>blah</i> blah</h1></b>
@@ -177,7 +161,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_inline3(self):
-        """Test xml_translate() with formatting elements without actual text."""
         terms = []
         source = """<form string="Form stuff">
                         <div>
@@ -193,7 +176,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, ["Form stuff", "Blah blah blah"])
 
     def test_translate_xml_inline4(self):
-        """Test xml_translate() with inline elements with translated attrs only."""
         terms = []
         source = """<form string="Form stuff">
                         <div>
@@ -212,7 +194,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_inline5(self):
-        """Test xml_translate() with inline elements with empty translated attrs only."""
         terms = []
         source = """<form string="Form stuff">
                         <div>
@@ -225,7 +206,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, ["Form stuff"])
 
     def test_translate_xml_o_translate_inline_on_block(self):
-        """Test xml_translate() with non-inline elements with o_translate_inline."""
         terms = []
         source = """<div>
                         <h1 class="o_translate_inline">Blah</h1>more text
@@ -243,7 +223,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_o_translate_inline_on_parent(self):
-        """Test xml_translate() with non-inline elements inside o_translate_inline."""
         terms = []
         source = """<div>
                         <span class="o_translate_inline">Blah<h1>more text</h1></span>
@@ -261,7 +240,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_highlight(self):
-        """Test xml_translate() with highlight span (with o_translate_inline)."""
         terms = []
         source = """<div>
                         <span class="o_text_highlight o_translate_inline">
@@ -288,7 +266,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_o_translate_inline_with_groups(self):
-        """Test xml_translate() with groups attribute and with o_translate_inline."""
         terms = []
         source = """<div>
                         <a class="o_translate_inline" href="#" groups="anyone">Skip</a>
@@ -298,7 +275,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, ["Skip"])
 
     def test_translate_xml_groups(self):
-        """Test xml_translate() with groups attributes."""
         terms = []
         source = """<t t-name="stuff">
                         stuff before
@@ -310,7 +286,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, ["stuff before", "stuff after"])
 
     def test_translate_xml_t(self):
-        """Test xml_translate() with t-* attributes."""
         terms = []
         source = """<t t-name="stuff">
                         stuff before
@@ -322,7 +297,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, ["stuff before", "stuff after"])
 
     def test_translate_xml_off(self):
-        """Test xml_translate() with attribute translate="off"."""
         terms = []
         source = """<div>
                         stuff before
@@ -334,7 +308,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, ["stuff before", "stuff after"])
 
     def test_translate_xml_attribute(self):
-        """Test xml_translate() with <attribute> elements."""
         terms = []
         source = """<field name="foo" position="attributes">
                         <attribute name="string">Translate this</attribute>
@@ -345,7 +318,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, ["Translate this"])
 
     def test_translate_xml_a(self):
-        """Test xml_translate() with <a> elements."""
         terms = []
         source = """<t t-name="stuff">
                         <ul class="nav navbar-nav">
@@ -361,7 +333,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertItemsEqual(terms, ['<span class="oe_menu_text">Blah</span>'])
 
     def test_translate_xml_with_namespace(self):
-        """Test xml_translate() on elements with namespaces."""
         terms = []
         source = """<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
                         <cbc:UBLVersionID t-esc="version_id"/>
@@ -376,7 +347,6 @@ class TranslationToolsTestCase(BaseCase):
         self.assertEqual(result, source)
 
     def test_translate_xml_invalid_translations(self):
-        """Test xml_translate() with invalid translations."""
         source = """<form string="Form stuff">
                         <h1>Blah <i>blah</i> blah</h1>
                         Put some <b>more text</b> here
@@ -453,7 +423,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_xml_fstring(self):
-        """Test xml_translate() with formatted string (ruby or jinja)."""
         terms = []
         source = """<t t-name="stuff">
                         <t t-set="first" t-value="33"/>
@@ -489,13 +458,11 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_html(self):
-        """Test html_translate()."""
         source = """<blockquote>A <h2>B</h2> C</blockquote>"""
         result = html_translate(lambda term: term, source)
         self.assertEqual(result, source)
 
     def test_translate_html_nbsp(self):
-        """Test html_translate()."""
         source = """<blockquote>A&nbsp;<h2>B&#160</h2>\xa0C</blockquote>"""
         result = html_translate(lambda term: term, source)
         self.assertEqual(
@@ -503,7 +470,6 @@ class TranslationToolsTestCase(BaseCase):
         )
 
     def test_translate_html_i(self):
-        """Test xml_translate() and html_translate() with <i> elements."""
         source = """<p>A <i class="fa-check"></i> B</p>"""
         result = xml_translate(lambda term: term, source)
         self.assertEqual(result, """<p>A <i class="fa-check"/> B</p>""")
@@ -543,7 +509,6 @@ class TestLanguageInstall(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestTranslationExport(TransactionCase):
     def test_export_translatable_resources(self):
-        """Read files of installed modules and export translatable terms"""
         with self.assertNoLogs("odoo.tools.translate", "ERROR"):
             TranslationModuleReader(self.env.cr)
 
@@ -572,7 +537,6 @@ class TestTranslation(TransactionCase):
             translation_importer.save(overwrite=True)
 
     def test_101_translation_read(self):
-        """Check the record env.lang behavior"""
         category = self.customers
         self.env["res.lang"]._activate_lang("fr_FR")
         self.env["res.lang"]._activate_lang("nl_NL")
@@ -649,7 +613,6 @@ class TestTranslation(TransactionCase):
         )
 
     def test_104_orderby_translated_field(self):
-        """Test search ordered by a translated field."""
         padawans = self.env["res.partner.category"].create({"name": "Padawans"})
         padawans_fr = padawans.with_context(lang="fr_FR")
         padawans_fr.write({"name": "Apprentis"})
@@ -847,17 +810,6 @@ class TestTranslationWrite(TransactionCase):
         cls.category_xml_id = cls.category.export_data(["id"]).get("datas")[0][0]
 
     def test_flush_stale_flat_cache_entry_not_nulled(self):
-        """Regression: a translatable field whose value survives only in a stale
-        flat cache entry (``{id: scalar}``, the layout used before
-        ``field_depends_context`` is populated, e.g. during a
-        ``_load_module_terms`` flush) must not be flushed as SQL ``NULL``.
-
-        ``Field.get_column_update``'s ``translate is True`` branch skipped flat
-        entries unconditionally and returned ``None``. On a required field that
-        raised ``NotNullViolation`` and aborted ``-u`` (the
-        ``loyalty.reward.description`` crash); on others it silently cleared the
-        value.
-        """
         category = self.env["res.partner.category"].create({"name": "Reblochon"})
         field = category._fields["name"]
         core = self.env._core
@@ -1207,7 +1159,6 @@ class TestTranslationWrite(TransactionCase):
         self.assertEqual(comment, None)
 
     def test_field_selection(self):
-        """Test translations of field selections."""
         self.env["res.lang"]._activate_lang("fr_FR")
         field = self.env["ir.model"]._fields["state"]
         self.assertEqual([key for key, _ in field.selection], ["manual", "base"])
@@ -1227,7 +1178,6 @@ class TestTranslationWrite(TransactionCase):
         )
 
     def test_load_views(self):
-        """Test translations of field descriptions in get_view()."""
         self.env["res.lang"]._activate_lang("fr_FR")
 
         ir_model_field = self.env["ir.model.fields"]._get("ir.model", "name")
@@ -1281,7 +1231,6 @@ class TestXMLTranslation(TransactionCase):
         return view
 
     def test_copy(self):
-        """Create a simple view, fill in translations, and copy it."""
         archf = '<form string="%s"><div>%s</div><div>%s</div></form>'
         terms_en = ("Knife", "Fork", "Spoon")
         terms_fr = ("Couteau", "Fourchette", "Cuiller")
@@ -1307,14 +1256,12 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view3.with_env(env_fr).arch_db, archf % terms_fr)
 
     def test_spaces(self):
-        """Create translations where value has surrounding spaces."""
         archf = '<form string="%s"><div>%s</div><div>%s</div></form>'
         terms_en = ("Knife", "Fork", "Spoon")
         terms_fr = (" Couteau", "Fourchette ", " Cuiller ")
         self.create_view(archf, terms_en, fr_FR=terms_fr)
 
     def test_sync(self):
-        """Check translations after minor change in source terms."""
         archf = '<form string="X">%s</form>'
         terms_en = ("Bread and cheeze",)
         terms_fr = ("Pain et fromage",)
@@ -1352,7 +1299,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
     def test_sync_xml(self):
-        """Check translations of 'arch' after xml tags changes in source terms."""
         archf = '<form string="X">%s<div>%s</div></form>'
         terms_en = ("Bread and cheese", "Fork")
         terms_fr = ("Pain et fromage", "Fourchette")
@@ -1429,7 +1375,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
     def test_sync_xml_attribute(self):
-        """check translations with attribute can be cleaned up after write"""
         self.env["res.lang"]._activate_lang("fr_FR")
         archf = '<form><i title="%s"/></form>'
         terms_en = ("Fork",)
@@ -1443,7 +1388,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_context(lang="fr_FR").arch_db, archf % terms_en)
 
     def test_sync_text_to_xml(self):
-        """Check translations of 'arch' after xml tags changes in source terms."""
         archf = '<form string="X">%s</form>'
         terms_en = ("<span>Hi</span>",)
         terms_fr = ("<span>Salut</span>",)
@@ -1467,10 +1411,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_en)
 
     def test_sync_xml_collision(self):
-        """Check translations of 'arch' after xml tags changes in source terms
-        when the same term appears in different elements with different
-        styles.
-        """
         archf = """<form class="row">
     %s
     <div class="s_table_of_content_vertical_navbar" data-name="Navbar" contenteditable="false">
@@ -1538,9 +1478,6 @@ class TestXMLTranslation(TransactionCase):
         )
 
     def test_sync_xml_inline_modifiers(self):
-        """Check translations of 'arch' after xml tags changes in source terms
-        when source term had updated modifiers attributes
-        """
         archf = """<form class="row">
     %s
     <div class="s_table_of_content_vertical_navbar" data-name="Navbar" contenteditable="false">
@@ -1622,7 +1559,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
     def test_sync_xml_close_terms(self):
-        """Check translations of 'arch' after xml tags changes in source terms."""
         archf = '<form string="X">%s<div>%s</div>%s</form>'
         terms_en = ("RandomRandom1", "RandomRandom2", "RandomRandom3")
         terms_fr = (
@@ -1957,7 +1893,6 @@ class TestXMLTranslation(TransactionCase):
         )
 
     def test_update_field_translations_source_lang(self):
-        """call update_field_translations with source_lang"""
         archf = '<form string="%s"><div>%s</div><div>%s</div></form>'
         terms_en = ("Knife", "Fork", "Spoon")
         view1 = self.create_view(archf, terms_en)
@@ -2000,7 +1935,6 @@ class TestXMLTranslation(TransactionCase):
         )
 
     def test_update_field_translations_empty_str(self):
-        """translate a value to empty will fall back it to the source"""
         archf = '<form string="%s"><div>%s</div><div>%s</div></form>'
         terms_en = ("Knife", "Fork", "Spoon")
         terms_fr = ("Couteau", "Fourchette", "Cuiller")
@@ -2080,11 +2014,6 @@ class TestXMLTranslation(TransactionCase):
 
 
 class TestXMLDuplicateTranslations(TransactionCase):
-    """
-    duplicate translations are not supported
-    this test is only used to describe all tricky behaviours
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -2166,11 +2095,6 @@ class TestXMLDuplicateTranslations(TransactionCase):
         )
 
     def test_get_field_translations(self):
-        """open the translation dialog from the form view
-
-        the field value and the translation dialog / translation mapping are
-        not consistent
-        """
 
         self.assertItemsEqual(
             self.view1.get_field_translations("arch_db")[0],
@@ -2190,11 +2114,6 @@ class TestXMLDuplicateTranslations(TransactionCase):
         )
 
     def test_write(self):
-        """add one more div without changing any term
-
-        translations are lost when 2 other language terms are translated to the
-        same term in the current language value
-        """
 
         new_xml1 = "<form><div>%s</div><div>%s</div><div/></form>"
         self.view1_fr.arch = new_xml1 % ("un étudiant", "une étudiante")
@@ -2219,11 +2138,6 @@ class TestXMLDuplicateTranslations(TransactionCase):
         )
 
     def test_copy(self):
-        """copy record
-
-        translations are lost when 2 other language terms are translated to the
-        same term in the current language value
-        """
 
         view1_fr_copy = self.view1_fr.copy({"name": "view1_fr_copy"})
         self.assertEqual(
@@ -2294,7 +2208,6 @@ class TestHTMLTranslation(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestLanguageInstallPerformance(TransactionCase):
     def test_language_install(self):
-        """Install a language on a complete database."""
         fr_BE = self.env.ref("base.lang_fr_BE")
         self.assertFalse(fr_BE.active)
 
@@ -2361,20 +2274,10 @@ class TestTranslationTrigramIndexPatterns(BaseCase):
 
 
 class TestReconcileObsoleteTerms(TransactionCase):
-    """Unit tests for ``BaseString._reconcile_obsolete_terms``.
-
-    The fuzzy term re-keying that ``mark_dirty`` uses to carry a translation
-    across an edit of its source term. Exercised directly on the ``xml_translate``
-    field ``ir.ui.view.arch_db`` (``get_trans_terms`` / ``_reconcile_obsolete_terms``
-    are pure, so no view record is needed).
-    """
-
     def _field(self):
         return self.env["ir.ui.view"]._fields["arch_db"]
 
     def test_edited_term_carries_translation_over(self):
-        """A term edited but still >=0.9 similar keeps its translation, re-keyed
-        onto the surviving term."""
         field = self._field()
         old_terms = field.get_trans_terms("<div>Hello world</div>")
         new_terms = field.get_trans_terms("<div>Hello world!</div>")
@@ -2387,7 +2290,6 @@ class TestReconcileObsoleteTerms(TransactionCase):
         self.assertEqual(td.get(new_term), {"fr_FR": "Bonjour le monde"})
 
     def test_unchanged_term_is_left_in_place(self):
-        """A term still present in the new value is not touched."""
         field = self._field()
         terms = field.get_trans_terms("<div>Stable sentence here</div>")
         self.assertTrue(terms)
@@ -2397,9 +2299,6 @@ class TestReconcileObsoleteTerms(TransactionCase):
         self.assertEqual(td, {term: {"fr_FR": "Phrase stable"}})
 
     def test_removed_term_without_close_match_is_untouched(self):
-        """A term with no >=0.9 match in the new value is left as-is (it is
-        dropped later by the translate() pass, not re-keyed onto an unrelated
-        term)."""
         field = self._field()
         old_terms = field.get_trans_terms("<div>Completely unrelated paragraph</div>")
         new_terms = field.get_trans_terms("<div>Short note</div>")
@@ -2410,8 +2309,6 @@ class TestReconcileObsoleteTerms(TransactionCase):
         self.assertIn(old_term, td, "no close match -> must not be re-keyed")
 
     def test_closest_term_already_translated_is_not_overwritten(self):
-        """When the closest surviving term already carries a translation, the
-        obsolete term is skipped rather than clobbering it."""
         field = self._field()
         old_term = field.get_trans_terms("<div>Hello world</div>")[0]
         new_term = field.get_trans_terms("<div>Hello world!</div>")[0]

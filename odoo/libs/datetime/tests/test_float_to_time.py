@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.datetime.date_utils.float_to_time``."""
-
 import unittest
 from datetime import time
 
@@ -26,14 +24,6 @@ class TestFloatToTime(unittest.TestCase):
 
 
 class TestOutOfDomain(unittest.TestCase):
-    """Out-of-range input is rejected uniformly.
-
-    The three cases used to behave three different ways: a negative value leaked
-    "hour must be in 0..23, not -1" from ``time()``, NaN leaked "cannot convert
-    float NaN to integer" from ``int()``, and anything above 24 was silently
-    clamped to end-of-day.
-    """
-
     def test_negative(self):
         with self.assertRaises(ValueError) as ctx:
             float_to_time(-1.0)

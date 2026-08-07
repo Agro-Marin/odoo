@@ -13,8 +13,6 @@ def img_open(data):
 
 
 class TestImage(TransactionCase):
-    """Tests for the different image tools helpers."""
-
     def setUp(self):
         super().setUp()
         self.bg_color = (135, 90, 123)
@@ -64,7 +62,6 @@ class TestImage(TransactionCase):
         self.img_1080x1920_png = tools.image_apply_opt(image, "PNG")
 
     def test_00_base64_to_image(self):
-        """Test that base64 is correctly opened as a PIL image."""
         image = img_open(self.img_1x1_png)
         self.assertEqual(
             type(image),
@@ -86,13 +83,11 @@ class TestImage(TransactionCase):
             image = tools.base64_to_image(b"oazdazpodazdpokd")
 
     def test_01_image_to_base64(self):
-        """Test that a PIL image is correctly saved as base64."""
         image = Image.new("RGB", (1, 1))
         image_base64 = tools.image_to_base64(image, "PNG")
         self.assertEqual(image_base64, base64.b64encode(self.img_1x1_png))
 
     def test_02_image_fix_orientation(self):
-        """Test that the orientation of images is correct."""
 
         blue = (0, 0, 255)
         yellow = (255, 255, 0)
@@ -111,14 +106,12 @@ class TestImage(TransactionCase):
         self._orientation_test(8, (green, blue, pink, yellow), size, expected)
 
     def test_03_image_fix_orientation_exif(self):
-        """Test that a jpg image with exif orientation tag gets rotated"""
         image = img_open(self.img_exif_jpg)
         self.assertEqual(image.size, (6, 3))
         image = tools.image_fix_orientation(image)
         self.assertEqual(image.size, (3, 6))
 
     def test_10_image_process_source(self):
-        """Test the source parameter of image_process."""
         self.assertFalse(tools.image_process(False), "return False if source is falsy")
         self.assertEqual(
             tools.image_process(self.img_svg),
@@ -136,7 +129,6 @@ class TestImage(TransactionCase):
         self.assertEqual(image.size, (1920, 1080), "OK return the image")
 
     def test_11_image_process_size(self):
-        """Test the size parameter of image_process."""
 
         tests = [
             (
@@ -200,11 +192,10 @@ class TestImage(TransactionCase):
         for test in tests:
             image = img_open(tools.image_process(test[0], size=test[1]))
             self.assertEqual(image.size, test[2], test[3])
-            count = count + 1
+            count += 1
         self.assertEqual(count, 10, "ensure the loop is ran")
 
     def test_12_image_process_verify_resolution(self):
-        """Test the verify_resolution parameter of image_process."""
         res = tools.image_process(self.img_1920x1080_jpeg, verify_resolution=True)
         self.assertNotEqual(res, False, "size ok")
         image_excessive = tools.image_apply_opt(Image.new("RGB", (50001, 1000)), "PNG")
@@ -212,7 +203,6 @@ class TestImage(TransactionCase):
             tools.image_process(image_excessive, verify_resolution=True)
 
     def test_13_image_process_quality(self):
-        """Test the quality parameter of image_process."""
 
         image = tools.image_apply_opt(Image.new("RGBA", (1080, 1920)), "PNG")
         res = tools.image_process(image)
@@ -251,7 +241,6 @@ class TestImage(TransactionCase):
         self.assertLessEqual(len(res), len(image))
 
     def test_14_image_process_crop(self):
-        """Test the crop parameter of image_process."""
 
         fill = 0
         bg = 1
@@ -424,7 +413,7 @@ class TestImage(TransactionCase):
 
         count = 0
         for test in tests:
-            count = count + 1
+            count += 1
             image = img_open(
                 tools.image_process(test[0], size=test[1], crop=test[2], quality=95)
             )
@@ -465,7 +454,6 @@ class TestImage(TransactionCase):
         self.assertEqual(count, 2 * 10, "ensure the loop is ran")
 
     def test_15_image_process_colorize(self):
-        """Test the colorize parameter of image_process."""
 
         image_rgba = Image.new("RGBA", (1, 1))
         self.assertEqual(image_rgba.mode, "RGBA")
@@ -477,7 +465,6 @@ class TestImage(TransactionCase):
         self.assertNotEqual(image.getpixel((0, 0)), (0, 0, 0))
 
     def test_16_image_process_format(self):
-        """Test the format parameter of image_process."""
 
         image = img_open(
             tools.image_process(self.img_1920x1080_jpeg, output_format="PNG")
@@ -522,7 +509,6 @@ class TestImage(TransactionCase):
         self.assertEqual((800, 600), size, "Wrong resolution for extended webp")
 
     def test_20_image_data_uri(self):
-        """Test that image_data_uri is working as expected."""
         self.assertEqual(
             tools.image_data_uri(base64.b64encode(self.img_1x1_png)),
             "data:image/png;base64,"
@@ -582,7 +568,6 @@ class TestImage(TransactionCase):
         )
 
     def test_ptype_image_to_jpeg(self):
-        """converts to RGB when saving as JPEG"""
         image1 = Image.new("P", (1, 1), color="red")
         image2 = Image.new("RGB", (1, 1), color="red")
         self.assertEqual(
@@ -591,8 +576,6 @@ class TestImage(TransactionCase):
         )
 
     def test_30_image_mixin_resize_on_write(self):
-        """Writing image_1920 on an image.mixin consumer populates and resizes
-        the stored image_NNNN fields to their declared bounds."""
         partner = self.env["res.partner"].create(
             {
                 "name": "Image Mixin",

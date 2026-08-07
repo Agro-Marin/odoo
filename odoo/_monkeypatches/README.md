@@ -91,6 +91,7 @@ Brief description of what this patch fixes.
 
 More details about why this patch is needed and when it can be removed.
 """
+
 import target_module
 
 

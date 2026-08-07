@@ -1,27 +1,3 @@
-"""Typing-only declaration of the shared ``BaseModel`` surface.
-
-The model mixins (``WriteMixin``, ``CacheMixin``, …) are stateless
-``__slots__ = ()`` fragments composed onto :class:`BaseModel` by multiple
-inheritance. A type checker sees only the *defining* mixin class, which does not
-declare the cross-cutting members (``self.env``, ``self._fields``, …) that live
-on ``BaseModel``, producing spurious ``[attr-defined]`` errors.
-
-:class:`_ModelStubs` collects that shared surface in **one** place, giving mixins
-that inherit it a typed view of the recordset members they reach through. It is
-*purely* a typing aid:
-
-* ``__slots__ = ()`` — adds no instance layout, so it introduces no ``__dict__``
-  and costs nothing.
-* declarations live under ``if typing.TYPE_CHECKING:`` — at runtime the class body
-  is empty, contributing only a (deduplicated) MRO entry.
-
-The types here match what ``BaseModel`` declares (or the looser,
-override-compatible types the pre-existing mixin stubs used). Shared recordset
-*methods* (``browse``, ``filtered``, …) are declared too, so a mixin can call
-them on ``self`` and chain on the ``Self`` result; each signature mirrors the
-real implementation, keeping it a valid override.
-"""
-
 import typing
 
 if typing.TYPE_CHECKING:
@@ -44,8 +20,6 @@ if typing.TYPE_CHECKING:
 
 
 class _ModelStubs:
-    """Shared, typing-only view of the ``BaseModel`` recordset surface."""
-
     __slots__ = ()
 
     if typing.TYPE_CHECKING:

@@ -1,23 +1,3 @@
-"""DB-tier regression tests for the ORM audit fixes.
-
-Covers:
-
-- deprecated ``read_group()`` with ``groupby=[]`` and a dict ``fill_temporal``
-  context (used to crash with IndexError), and unknown ``fill_temporal`` keys
-  (used to crash with TypeError on ``**``-unpacking);
-- ``_read_group_having`` under-arity domains raising ``ValueError`` end-to-end
-  through the public ``formatted_read_group(having=...)``;
-- field-level access checks on the empty-query shortcut of ``_read_group`` /
-  ``_read_grouping_sets`` (must match the non-empty path);
-- ``_ensure_xml_ids`` determinism (oldest xmlid wins, agreeing with
-  ``get_metadata``);
-- ``with_company()`` rejecting unsaved (NewId) companies;
-- ``_search_display_name`` no longer propagating TypeError for unconvertible
-  scalar values;
-- ``copy_translations`` refusing to positionally misalign one2many lines when
-  ``copy_data`` dropped some of them (loud skip instead).
-"""
-
 import warnings
 
 from odoo.exceptions import AccessError
@@ -26,25 +6,7 @@ from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestReadGroupGroupKeyRoundTrip(TransactionCase):
-    """A group's key, fed back through the domain layer, must select that group.
-
-    The web client scopes a group by ``[(field, '=', key)]``
-    (``web_read_group._read_group_format`` builds ``__extra_domain`` that way),
-    so a key the domain layer resolves differently from the grouping shows a
-    count it cannot reproduce when the group is opened.
-    """
-
     def test_text_null_and_empty_string_are_one_group(self):
-        """NULL and ``''`` are the same value to the domain layer.
-
-        A text field's ``falsy_value`` is ``""``, and ``('ref', '=', '')`` and
-        ``('ref', '=', False)`` both select the NULL *and* the empty-string rows
-        (``_optimize_in_set_falsy_value``).  Grouping on the raw column split
-        them into two separate, visually identical "empty" groups of one record
-        each, while opening *either* showed both records.  Both spellings are
-        reachable through ordinary ORM writes: ``create({'ref': ''})`` stores
-        ``''`` and ``create({'ref': False})`` stores NULL.
-        """
         partner = self.env["res.partner"]
         records = partner.create(
             [
@@ -56,7 +18,6 @@ class TestReadGroupGroupKeyRoundTrip(TransactionCase):
         self.env.flush_all()
         domain = [("id", "in", records.ids)]
 
-        # the fixture must really hold both spellings, or the test proves nothing
         self.env.cr.execute(
             "SELECT COUNT(*) FROM res_partner WHERE id = ANY(%s) AND ref IS NULL",
             (records.ids,),
@@ -93,14 +54,12 @@ class TestReadGroupAuditFixes(TransactionCase):
             return model.read_group(domain, fields, groupby, **kwargs)
 
     def test_read_group_empty_groupby_with_dict_fill_temporal(self):
-        """groupby=[] + dict fill_temporal used to crash with IndexError."""
         model = self.env["test_orm.lesson"].with_context(fill_temporal={})
         rows = self._read_group_deprecated(model, [], ["__count"], [])
         self.assertEqual(len(rows), 1)
         self.assertIn("__count", rows[0])
 
     def test_read_group_fill_temporal_unknown_keys_ignored(self):
-        """Unknown fill_temporal keys used to TypeError on **-unpacking."""
         lessons = self.env["test_orm.lesson"].create(
             [
                 {"name": "jan", "date": "2024-01-15"},
@@ -120,18 +79,6 @@ class TestReadGroupAuditFixes(TransactionCase):
         self.assertEqual(len(rows), 4)
 
     def test_read_group_range_accumulates_across_temporal_groupbys(self):
-        """``__range`` is keyed BY GROUP and must survive a date *property*.
-
-        ``_read_group_format_result`` writes the date/datetime branch with
-        ``row.setdefault("__range", {})[group] = ...`` (accumulating), but
-        ``_read_group_format_result_properties`` assigned a fresh dict
-        (``row["__range"] = {group: ...}`` / ``= {}``). Grouping by a real date
-        field *and* a date property in one request therefore dropped the date
-        field's entry from every row -- and the null-property row lost
-        ``__range`` entirely. The web client reads ``__range`` to build the
-        date-range drill-down domain, so the entry silently going missing breaks
-        navigation rather than raising.
-        """
         discussion = self.env["test_orm.discussion"].create(
             {
                 "name": "range accumulation",
@@ -196,8 +143,6 @@ class TestReadGroupAuditFixes(TransactionCase):
         self.assertTrue(result)
 
     def test_read_group_empty_query_checks_field_access(self):
-        """The empty-query shortcut must apply the same field-level checks as
-        the non-empty path (cf. search_fetch's empty path)."""
         user = new_test_user(self.env, "audit_fix_user")
         course = self.env["test_orm.course"].with_user(user)
         empty_domain = [("id", "in", [])]
@@ -277,8 +222,6 @@ class TestSearchDisplayNameRobustness(TransactionCase):
 
 class TestCopyTranslationsAlignment(TransactionCase):
     def test_copy_translations_skips_on_o2m_length_mismatch(self):
-        """When old/new one2many lines cannot be paired positionally, the
-        translation copy for that field is skipped loudly, never misaligned."""
         Discussion = self.env["test_orm.discussion"]
         participants = [Command.link(self.env.user.id)]
         old = Discussion.create(

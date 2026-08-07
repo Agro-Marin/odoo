@@ -272,7 +272,6 @@ class ResGroups(models.Model):
         return res
 
     def _ensure_xml_id(self) -> dict[int, str]:
-        """Return each group's external identifier, creating one where missing."""
         result = self.get_external_id()
         missings = {
             group_id: f"__custom__.group_{group_id}"
@@ -322,13 +321,11 @@ class ResGroups(models.Model):
 
     @api.depends("implied_ids.all_implied_ids")
     def _compute_all_implied_ids(self) -> None:
-        """Compute the reflexive transitive closure of implied_ids."""
         group_definitions = self._get_group_definitions()
         for g in self:
             g.all_implied_ids = g.ids + group_definitions.get_superset_ids(g.ids)
 
     def _search_all_implied_ids(self, operator: str, value: Any) -> list:
-        """Compute the search on the reflexive transitive closure of implied_ids."""
         if operator not in ("in", "not in"):
             return NotImplemented
         group_definitions = self._get_group_definitions()
@@ -337,13 +334,11 @@ class ResGroups(models.Model):
 
     @api.depends("implied_by_ids.all_implied_by_ids")
     def _compute_all_implied_by_ids(self) -> None:
-        """Compute the reflexive transitive closure of implied_by_ids."""
         group_definitions = self._get_group_definitions()
         for g in self:
             g.all_implied_by_ids = g.ids + group_definitions.get_subset_ids(g.ids)
 
     def _search_all_implied_by_ids(self, operator: str, value: Any) -> list:
-        """Compute the search on the reflexive transitive closure of implied_by_ids."""
         if operator in ("any", "not any") and isinstance(value, Domain):
             value = self.search(value).ids
             operator = "in" if operator == "any" else "not in"
@@ -356,7 +351,6 @@ class ResGroups(models.Model):
         return [("id", operator, ids)]
 
     def _get_user_type_groups(self) -> Self:
-        """Return the (disjoint) user type groups (employee, portal, public)."""
         group_ids = [
             gid
             for xid in (
@@ -394,18 +388,10 @@ class ResGroups(models.Model):
         return res
 
     def _apply_group(self, implied_group: Self) -> None:
-        """Add the given group to the groups implied by the current group
-        :param implied_group: the implied group to add
-        """
         groups = self.filtered(lambda g: implied_group not in g.all_implied_ids)
         groups.write({"implied_ids": [Command.link(implied_group.id)]})
 
     def _remove_group(self, implied_group: Self) -> None:
-        """Unlink ``implied_group`` from every group in ``self``'s transitive
-        implied closure that directly implies it (not just ``self``'s own
-        direct links), mirroring how settings toggle a group off everywhere.
-        :param implied_group: the implied group to remove
-        """
         groups = self.all_implied_ids.filtered(lambda g: implied_group in g.implied_ids)
         groups.write({"implied_ids": [Command.unlink(implied_group.id)]})
 
@@ -456,14 +442,6 @@ class ResGroups(models.Model):
 
     @api.model
     def _sorted_privilege_group_ids(self, privilege: Any) -> list[int]:
-        """Return ``privilege``'s group ids ordered by implication depth
-        (number of the privilege's groups each group implies), then sequence,
-        then id.
-
-        The implication counts are precomputed into a dict so the recordset
-        intersection runs once per group instead of on every comparison of
-        the O(n log n) sort.
-        """
         privilege_groups = privilege.group_ids
         implied_count = {
             group.id: (
@@ -483,12 +461,6 @@ class ResGroups(models.Model):
     @api.model
     @tools.ormcache(cache="groups")
     def _get_group_definitions(self) -> SetDefinitions:
-        """Return the definition of all the groups as a :class:`~odoo.tools.SetDefinitions`.
-
-        Sudo is required: this cache-filling function can first be triggered in
-        a non-internal context (e.g. when _has_group() is called during auth).
-        All group definitions are system metadata — no sensitive data exposed.
-        """
         groups = self.sudo().search([], order="id")
         id_to_ref = groups.get_external_id()
         data = {
@@ -503,14 +475,6 @@ class ResGroups(models.Model):
 
     @api.model
     def _is_feature_enabled(self, group_reference: str) -> bool:
-        """Return whether the feature identified by ``group_reference`` is enabled.
-
-        A feature is enabled when the superuser belongs to its group, which is
-        the case as soon as the corresponding settings toggle implies the group
-        on ``base.group_user``.  Checking a single fixed user keeps the result
-        consistent for flows triggered by public/portal users and avoids cache
-        misses (upstream semantics — see odoo/odoo@d3e9e379ec9).
-        """
         return (
             self.env["res.users"]
             .sudo()

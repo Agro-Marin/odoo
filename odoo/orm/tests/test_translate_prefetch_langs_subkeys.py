@@ -1,20 +1,3 @@
-"""``translate=True`` prefetch_langs distribution writes full-shaped sub-keys.
-
-The model-translation cache layout is one flat ``{id: value}`` sub-dict per
-(lang + extra context) key, and *reads* always key by the full
-``env.cache_key(field)`` (see ``Field._get_cache_impl``).  The prefetch_langs
-distribution paths — ``BaseString._insert_cache`` (SQL fetched the whole JSONB)
-and ``BaseString._update_cache`` (a ``{lang: scalar}`` cache value) — used to
-build bare ``(lang,)`` 1-tuple sub-keys by hand: for a translated field with an
-extra context dependency they populated dead sub-caches no read ever consults.
-Both now derive their keys through ``BaseString._lang_cache_key`` — the same
-machinery as the en_US fallback key — i.e. the full cache key with the lang
-component (always first, normalized by ``get_depends``) swapped.
-
-For plain ``('lang',)`` fields the keys remain the exact 1-tuples they always
-were.
-"""
-
 from odoo import fields, models
 from odoo.orm.model_test_env import model_test_env
 
@@ -22,9 +5,6 @@ _MOD = "test_translate_prefetch_subkeys"
 
 
 class ResLang(models.AbstractModel):
-    """Minimal ``res.lang`` stub: ``_insert_cache``'s prefetch_langs branch
-    asks it which languages are installed."""
-
     _name = "res.lang"
     _module = _MOD
     _description = "res.lang (test stub)"

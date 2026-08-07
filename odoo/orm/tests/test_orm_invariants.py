@@ -1,26 +1,3 @@
-"""Regression guards for subtle ORM invariants (engine audit, June 2026).
-
-Each test locks in a behaviour that is correct today but easy to break, and
-whose breakage would be silent (a perf cliff, a stale optimisation, a test that
-passes while production misbehaves). Tier-2 suite: real ``import odoo``, no
-database — runs in its own pytest invocation like ``test_model_test_env``.
-
-Covers:
-
-* ``INVERSE_OPERATOR`` is the exact negation map (it is *derived* from
-  ``NEGATIVE_CONDITION_OPERATORS``; this pins the full result so the derivation
-  cannot drift);
-* ``Domain.optimize`` never mutates the original node — so reusing an
-  *un-optimised* domain across models is safe — while the optimised *output* is
-  model-specific and must not be reused across models;
-* the scalar read/traversal fast paths agree on the "no value" sentinel for
-  every fast-path scalar type (``convert_to_record(None, None)`` ==
-  ``convert_to_record(None, rec[:1])``);
-* ``model_test_env`` tolerates a missing comodel *visibly* and lets a real
-  dependency-resolution error propagate instead of degrading to no-triggers;
-* ``Monetary`` column conversion resolves its currency without prefetching.
-"""
-
 from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any
@@ -34,8 +11,6 @@ _MOD = "test_orm_invariants"
 
 
 class IScalars(models.Model):
-    """Host for every fast-path scalar field type."""
-
     _name = "i.scalars"
     _module = _MOD
     _description = "All fast-path scalar types"
@@ -53,8 +28,6 @@ class IScalars(models.Model):
 
 
 class IAlpha(models.Model):
-    """Non-stored searchable field whose optimisation is model-dependent."""
-
     _name = "i.alpha"
     _module = _MOD
     _description = "Non-stored searchable field"
@@ -62,18 +35,14 @@ class IAlpha(models.Model):
     ref = fields.Char(compute="_compute_ref", search="_search_ref", store=False)
 
     def _compute_ref(self) -> None:
-        """Assign a constant so the field is readable."""
         for rec in self:
             rec.ref = "x"
 
     def _search_ref(self, operator: str, value: object) -> list:
-        """Substitute a concrete id domain during optimisation."""
         return [("id", "in", [11, 22])]
 
 
 class IBeta(models.Model):
-    """Plain stored field of the same name as :class:`IAlpha` (no search)."""
-
     _name = "i.beta"
     _module = _MOD
     _description = "Plain stored field, different semantics"
@@ -82,8 +51,6 @@ class IBeta(models.Model):
 
 
 class ICurrency(models.Model):
-    """Minimal ``res.currency`` double so the Monetary path runs DB-free."""
-
     _name = "res.currency"
     _module = _MOD
     _description = "Currency (test double)"
@@ -92,15 +59,12 @@ class ICurrency(models.Model):
     rounding = fields.Float(default=0.01)
 
     def round(self, amount: float) -> float:
-        """Round ``amount`` to this currency's ``rounding`` precision."""
         self.ensure_one()
         prec = self.rounding or 0.01
         return round(amount / prec) * prec
 
 
 class IInvoice(models.Model):
-    """Monetary host with a currency."""
-
     _name = "i.invoice"
     _module = _MOD
     _description = "Monetary host"
@@ -123,10 +87,6 @@ _FASTPATH_SCALARS = (
 
 
 def test_inverse_operator_is_exact_negation_map() -> None:
-    """Pin the full negation map so the derivation cannot silently drift.
-
-    ``INVERSE_OPERATOR`` is derived from ``NEGATIVE_CONDITION_OPERATORS``.
-    """
     expected = {
         "not any": "any",
         "not any!": "any!",
@@ -152,10 +112,6 @@ def test_inverse_operator_is_exact_negation_map() -> None:
 
 
 def test_inverse_operator_is_an_involution_on_canonical_operators() -> None:
-    """Applying the inverse twice returns the original (canonical operators).
-
-    ``<>`` is a legacy alias of ``!=`` and is intentionally one-way.
-    """
     for op, inv in INVERSE_OPERATOR.items():
         if op == "<>":
             continue
@@ -163,10 +119,6 @@ def test_inverse_operator_is_an_involution_on_canonical_operators() -> None:
 
 
 def test_optimize_does_not_mutate_the_original_domain() -> None:
-    """The optimiser returns new nodes; the original is never advanced.
-
-    This is what makes reusing an *un-optimised* domain across models safe.
-    """
     with model_test_env(IAlpha, IBeta) as env:
         original = Domain([("ref", "=", "x")])
         level_before = original._opt_level
@@ -181,12 +133,6 @@ def test_optimize_does_not_mutate_the_original_domain() -> None:
 
 
 def test_optimized_output_is_model_specific_not_reusable_across_models() -> None:
-    """An optimised *output* is fully resolved for exactly ONE model.
-
-    Reusing it against another model returns the first model's (stale) result —
-    documented here so a future change that reuses optimised outputs
-    cross-model is caught.
-    """
     with model_test_env(IAlpha, IBeta) as env:
         out_alpha = Domain([("ref", "=", "x")]).optimize_full(env["i.alpha"])
         reused = out_alpha.optimize_full(env["i.beta"])
@@ -194,13 +140,6 @@ def test_optimized_output_is_model_specific_not_reusable_across_models() -> None
 
 
 def test_scalar_none_value_is_record_independent() -> None:
-    """The scalar fast paths must agree on the "no value" sentinel.
-
-    ``read._read_format`` passes ``convert_to_record(None, None)`` while
-    ``traversal.mapped``/``sorted`` pass ``(None, rec[:1])``. They MUST agree
-    for every fast-path scalar type, else the same empty value reads differently
-    depending on the access method.
-    """
     with model_test_env(IScalars, ICurrency) as env:
         model = env["i.scalars"]
         rec = model.create({})
@@ -212,11 +151,6 @@ def test_scalar_none_value_is_record_independent() -> None:
 
 
 def _fastpath_cache_to_record(field: fields.Field) -> Callable[[Any], Any] | None:
-    """Extract the ``cache_to_record`` lambda from a ``_make_scalar_get`` getter.
-
-    Returns the lambda baked into the field's ``__get__`` closure, or ``None``
-    if the field does not use that fast path.
-    """
     for klass in type(field).__mro__:
         fn = klass.__dict__.get("__get__")
         if fn is None:
@@ -240,16 +174,6 @@ _FASTPATH_CACHE_SAMPLES = {
 
 
 def test_scalar_fastpath_lambda_matches_convert_to_record() -> None:
-    """The fast-path getter's cache->record lambda MUST equal convert_to_record.
-
-    ``_make_scalar_get`` bakes a lambda (e.g. ``v or 0``) into ``__get__`` for a
-    singleton cache hit; a cache miss falls back to ``Field.__get__`` →
-    ``convert_to_record``. They are written separately per field type, so this
-    pins them together — otherwise the same cached value would read differently
-    via the Rust fast path than via the Python fallback (a silent, test-evading
-    divergence). The pre-existing sentinel test only compares ``convert_to_record``
-    to itself; this one compares it to the actual fast-path lambda.
-    """
     with model_test_env(IScalars, ICurrency) as env:
         model = env["i.scalars"]
         rec = model.create({})[:1]
@@ -271,14 +195,8 @@ def test_scalar_fastpath_lambda_matches_convert_to_record() -> None:
 
 
 def test_missing_comodel_is_tolerated_and_recorded() -> None:
-    """A missing comodel degrades the field but the degradation stays visible.
-
-    It is recorded in ``registry.degraded_fields``.
-    """
 
     class WithGhost(models.Model):
-        """Field pointing at an absent comodel."""
-
         _name = "i.withghost"
         _module = _MOD + ".ghost"
         _description = "Absent-comodel host"
@@ -293,15 +211,8 @@ def test_missing_comodel_is_tolerated_and_recorded() -> None:
 
 
 def test_real_dependency_error_propagates_not_swallowed() -> None:
-    """A genuine ``@depends`` failure must fail the build, not degrade silently.
-
-    Only a missing comodel is tolerated; otherwise tests would pass while a
-    stored computed field stops recomputing in production.
-    """
 
     class BadDepends(models.Model):
-        """A model whose dependency resolution raises by design."""
-
         _name = "i.bad"
         _module = _MOD + ".bad"
         _description = "Broken @depends"
@@ -311,7 +222,6 @@ def test_real_dependency_error_propagates_not_swallowed() -> None:
 
         @api.depends(lambda self: 1 / 0)
         def _compute_b(self) -> None:
-            """Never reached: dependency resolution fails first."""
             for rec in self:
                 rec.b = rec.a
 
@@ -325,10 +235,6 @@ def test_real_dependency_error_propagates_not_swallowed() -> None:
 
 
 def test_monetary_column_rounds_via_currency() -> None:
-    """``Monetary.convert_to_column`` rounds through the record's currency.
-
-    It falls back to a raw float when no currency is set.
-    """
     with model_test_env(ICurrency, IInvoice) as env:
         cur = env["res.currency"].create({"name": "USD", "rounding": 0.01})
         inv = env["i.invoice"].create({"currency_id": cur.id, "amount": 3.14159})
@@ -342,15 +248,6 @@ def test_monetary_column_rounds_via_currency() -> None:
 
 
 def test_every_construction_path_sets_all_slots() -> None:
-    """All recordset-construction paths populate the full ``__slots__`` set.
-
-    ``BaseModel._spawn`` is the single source of truth for the slots; a handful
-    of per-record hot loops (``__iter__``, ``__reversed__``, ``RecomputeMixin._flush``,
-    ``Environment.__getitem__``) inline the same assignments for speed. This
-    guards against a new slot being added to ``__slots__``/``_spawn`` while a
-    hot-loop mirror or a construction helper forgets to set it — which would
-    silently yield records missing state.
-    """
     from odoo.orm.models.base import BaseModel
 
     slots = tuple(BaseModel.__slots__)
@@ -377,15 +274,6 @@ def test_every_construction_path_sets_all_slots() -> None:
 
 
 def test_persistence_backend_seam_is_wired() -> None:
-    """CRUD dispatches through ``env.backend``, not ``transaction.storage``.
-
-    The DB-free tier opens its transaction with a storage backend, so
-    ``env.backend`` must resolve to an :class:`InMemoryBackend` (production opens
-    with no storage and gets ``None`` — the SQL fast path). This pins the seam
-    that ADR-0011 introduced; if the backend stopped being wired, the in-memory
-    CRUD paths would silently fall through to SQL and the whole Tier-2 suite
-    would break with obscure cursor errors instead of failing here clearly.
-    """
     from odoo.orm.runtime.backend import InMemoryBackend
 
     with model_test_env(IScalars) as env:
@@ -399,7 +287,6 @@ def test_persistence_backend_seam_is_wired() -> None:
 
 
 def test_all_cached_ids_spans_per_context_subdicts() -> None:
-    """A context-dependent field's ids are merged across per-context sub-dicts."""
     from odoo.orm.components.cache import FieldCache
 
     cache = FieldCache()
@@ -408,12 +295,6 @@ def test_all_cached_ids_spans_per_context_subdicts() -> None:
 
 
 def test_all_cached_ids_skips_stale_flat_entries() -> None:
-    """Stale flat entries coexisting with sub-dicts are not decoded as caches.
-
-    Key-based decode: even a *dict-valued* stale flat entry (company-dependent
-    Json written during the setup window) is excluded — its JSON keys must
-    never be reported as record ids.
-    """
     from odoo.orm.components.cache import FieldCache
 
     cache = FieldCache()
@@ -427,13 +308,6 @@ def test_all_cached_ids_skips_stale_flat_entries() -> None:
 
 
 def test_invalidate_mixed_state_never_reaches_into_json_values() -> None:
-    """Invalidating ids in the mixed state pops whole stale flat entries.
-
-    The old value-based decode treated a dict-valued stale flat entry as a
-    per-context sub-dict and popped *record ids inside the cached JSON value*.
-    The key-based decode pops the entry by its id key and trims real
-    (tuple-keyed) sub-dicts only.
-    """
     from odoo.orm.components.cache import FieldCache
 
     cache = FieldCache()

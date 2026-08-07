@@ -90,6 +90,11 @@ const COMMUNITY_MODULES = [
     "addons/mrp",
     "addons/purchase_stock",
     "addons/l10n_tw_edi_ecpay_website_sale",
+    // The framework package itself (not an addon): odoo/tools, odoo/tests and
+    // the JS shipped by the core test addons under odoo/addons. Onboarded
+    // wholesale — the full ruleset cost only 9 findings beyond what the
+    // repo-wide `js.configs.recommended` + prettier blocks already caught.
+    "odoo",
 ];
 
 // Enterprise modules live in a SEPARATE repo (addons/enterprise), so these
@@ -204,6 +209,16 @@ const COMMUNITY_IGNORES = [
 
     // Legacy tests
     "addons/web/static/tests/**/legacy/*",
+
+    // Asset-bundle fixtures, not code. Each is a single `var x = N;` whose
+    // MINIFIED text is asserted byte-for-byte in the concatenated bundle by
+    // test_assetsbundle/tests/test_assetsbundle.py (`var a=1;;` etc.), so the
+    // declaration is load-bearing: `no-unused-vars` wants it deleted and
+    // `no-var` wants `let`, and either "fix" rewrites the expected output of
+    // ~10 tests. Ignored at the config level rather than with an inline
+    // eslint-disable because a comment inside the file is minifier-dependent
+    // — the bundle these tests assert on is exactly what must not change.
+    "odoo/addons/test_assetsbundle/static/src/js/*.js",
 ];
 
 // Consumed by addons/enterprise/eslint.config.mjs — see ENTERPRISE_MODULES.
@@ -507,9 +522,16 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
     // the main block's browser globals — which is correct, they aren't browser
     // code; they just also lacked Node's. Declare the Node environment for them
     // so their `process`/`console` use stops tripping `no-undef`.
+    //
+    // tools/assets/js/ is the same situation outside tooling/: the asset
+    // pipeline spawns those files as a real Node child process (see
+    // `shutil.which("node")` in odoo/tools/assets/esm_lexer.py), so they talk
+    // over process.stdin/stdout. Note the worker there is `.mjs`, so the
+    // `**/*_worker.js` block below never applied to it — and that block grants
+    // WEB-worker globals, which are the wrong environment for it anyway.
     // =========================================================================
     {
-        files: ["**/tooling/**/*.{js,mjs,cjs}"],
+        files: ["**/tooling/**/*.{js,mjs,cjs}", "**/tools/assets/js/**/*.{js,mjs,cjs}"],
         languageOptions: {
             globals: {
                 ...globals.node,

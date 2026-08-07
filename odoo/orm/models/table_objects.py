@@ -1,18 +1,3 @@
-"""Declarative SQL table objects for ORM models.
-
-Descriptor classes (Constraint, Index, UniqueIndex) used as class attributes
-on model definitions to declare SQL constraints and indexes::
-
-    class MyModel(models.Model):
-        _name = "my.model"
-
-        _code_uniq = models.Constraint("unique(code)", "Code must be unique!")
-        _name_idx = models.Index("(name)")
-        _active_uniq = models.UniqueIndex(
-            "(name) WHERE active IS TRUE", "Active name must be unique!"
-        )
-"""
-
 import typing
 
 from odoo.db import schema as sql
@@ -32,11 +17,6 @@ if typing.TYPE_CHECKING:
 
 
 class TableObject:
-    """Declares a SQL object related to the model.
-
-    The identifier of the SQL object will be "{model._table}_{name}".
-    """
-
     name: str
     message: ConstraintMessageType = ""
     _module: str = ""
@@ -70,12 +50,6 @@ class TableObject:
     def get_error_message(
         self, model: BaseModel, diagnostics: Diagnostic | None = None
     ) -> str:
-        """Build an error message for the object/constraint.
-
-        :param model: Optional model on which the constraint is defined
-        :param diagnostics: Optional diagnostics from the raised exception
-        :return: Translated error for the user
-        """
         message = self.message
         if callable(message):
             return message(model.env, diagnostics)
@@ -89,25 +63,11 @@ class TableObject:
 
 
 class Constraint(TableObject):
-    """SQL table constraint.
-
-    The definition of the constraint is used to `ADD CONSTRAINT` on the table.
-    """
-
     def __init__(
         self,
         definition: str,
         message: ConstraintMessageType = "",
     ) -> None:
-        """Declare an SQL table constraint.
-
-        ``definition`` is the SQL added to the table; ``message`` is shown on
-        violation (empty for a default message). Example definitions::
-
-            CHECK (x > 0)
-            FOREIGN KEY (abc) REFERENCES some_table(id)
-            UNIQUE (user_id)
-        """
         super().__init__()
         self._definition = definition
         if message:
@@ -135,26 +95,13 @@ class Constraint(TableObject):
 
 
 class Index(TableObject):
-    """Index on the table.
-
-    ``CREATE INDEX ... ON model_table <your definition>``.
-    """
-
     unique: bool = False
 
     def __init__(self, definition: IndexDefinitionType):
-        """SQL index.
-
-        ``definition`` is the SQL used to create it. Examples::
-
-            (group_id, active) WHERE active IS TRUE
-            USING btree (group_id, user_id)
-        """
         super().__init__()
         self._index_definition = definition
 
     def _definition_clause(self, registry: Registry) -> str:
-        """Evaluate the (possibly callable) index definition to its SQL clause."""
         if callable(self._index_definition):
             return self._index_definition(registry)
         return self._index_definition
@@ -196,11 +143,6 @@ class Index(TableObject):
 
 
 class UniqueIndex(Index):
-    """Unique index on the table.
-
-    ``CREATE UNIQUE INDEX ... ON model_table <your definition>``.
-    """
-
     unique = True
 
     def __init__(
@@ -208,12 +150,6 @@ class UniqueIndex(Index):
         definition: IndexDefinitionType,
         message: ConstraintMessageType = "",
     ):
-        """Unique SQL index. ``definition`` is the SQL used to create it;
-        ``message`` is shown on violation. Examples::
-
-            (group_id, active) WHERE active IS TRUE
-            USING btree (group_id, user_id)
-        """
         super().__init__(definition)
         if message:
             self.message = message

@@ -1,10 +1,3 @@
-"""
-Odoo mail utilities.
-
-This module combines HTML utilities from odoo.libs.text.html with
-email utilities from odoo.libs.email for Odoo-specific mail handling.
-"""
-
 import random
 import socket
 import time
@@ -25,19 +18,14 @@ from odoo.libs.email import (
     email_split_tuples,
     encapsulate_email,
     formataddr,
+    getaddresses,
     mail_header_msgid_re,
     parse_contact_from_email,
     single_email_re,
     unfold_references,
     url_domain_extract,
 )
-
-from odoo.libs.email import getaddresses
-
-# Private, so the area deliberately does not export it; see
-# KNOWN_VIOLATIONS in tooling/architecture/libs_facade_check.py.
 from odoo.libs.email.parsing import _normalize_email
-
 from odoo.libs.text import (
     HTML_NEWLINES_REGEX,
     HTML_TAG_URL_REGEX,
@@ -83,11 +71,6 @@ __all__ = [
 
 
 def generate_tracking_message_id(res_id: int | str) -> str:
-    """Return a string usable as the Message-ID RFC822 header field.
-
-    Used to track replies related to a given object via the In-Reply-To
-    or References fields set by Mail User Agents.
-    """
     try:
         rnd = random.SystemRandom().random()
     except NotImplementedError:
@@ -102,5 +85,4 @@ def generate_tracking_message_id(res_id: int | str) -> str:
 
 
 def decode_message_header(message: object, header: str, separator: str = " ") -> str:
-    """Decode and join all values for the given message header."""
     return separator.join(h for h in message.get_all(header, []) if h)

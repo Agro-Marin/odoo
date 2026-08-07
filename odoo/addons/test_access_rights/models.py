@@ -60,10 +60,6 @@ class Test_Access_RightObj_Categ(models.Model):
 
 
 class Test_Access_RightTicket(models.Model):
-    """We want to simulate a record that would typically be accessed by a portal user,
-    with a relational field to records that could not be accessed by a portal user.
-    """
-
     _name = "test_access_right.ticket"
     _description = "Fake ticket For Test Access Right"
 
@@ -72,10 +68,6 @@ class Test_Access_RightTicket(models.Model):
 
 
 class ResPartner(models.Model):
-    """User inherits partner, so we are implicitly adding these fields to User
-    This essentially reproduces the (sad) situation introduced by account.
-    """
-
     _inherit = "res.partner"
 
     currency_id = fields.Many2one(

@@ -43,8 +43,7 @@
         <field name="model">ir.filters</field>
         <field name="arch" type="xml">
             <form string="Filters">
-                <field name="model_id" invisible="1" /> <!-- required for the domain widget model
-                option when the user is not in debug -->
+                <field name="model_id" invisible="1" />
                 <sheet>
                     <div class="ribbon ribbon-top-right" invisible="active">
                         <span class="text-bg-primary">Archived</span>

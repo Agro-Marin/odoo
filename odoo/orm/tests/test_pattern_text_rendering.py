@@ -1,24 +1,3 @@
-"""``like``/``ilike`` renders a value the same way PostgreSQL's ``::text`` does.
-
-A pattern operator on a non-text field compares against a *rendering* of the
-value, and the two evaluators used to produce different ones:
-``Field.condition_to_sql`` emits ``column::text`` while ``Field.filter_function``
-used ``str(x) if x else ""``.  They disagreed in two ways, both reachable from
-any RPC-supplied domain:
-
-* a falsy-but-present value rendered as ``""`` -- ``('color', 'ilike', '0')``
-  matched the record with ``color = 0`` under ``search()`` and nothing under
-  ``filtered_domain()``;
-* an integral float kept Python's ``.0`` -- ``('rounding', 'ilike', '1.0')``
-  matched 8 records under ``filtered_domain()`` and none under ``search()``,
-  because PostgreSQL prints a stored ``1.0`` as ``1``.
-
-:meth:`Field._pattern_text` is now the single authority, so the two cannot
-drift.  The rendering rules encoded here were verified against a live server
-(``int4``, ``float8`` and scale-less ``numeric`` over integral, fractional,
-negative-zero, ``1e20`` and ``1e-7`` values): zero mismatches.
-"""
-
 from odoo import fields, models
 from odoo.orm.model_test_env import model_test_env
 
@@ -44,7 +23,6 @@ def _fields_of(env):
 
 
 def test_null_renders_as_empty_for_every_type():
-    """SQL ``NULL LIKE ...`` is never a match; ``""`` matches no surviving pattern."""
     with model_test_env(Thing) as env:
         flds = _fields_of(env)
         for fname in ("name", "count", "ratio", "priced", "when"):
@@ -52,23 +30,16 @@ def test_null_renders_as_empty_for_every_type():
 
 
 def test_falsy_numeric_is_not_null():
-    """A stored zero renders as ``0``, the way ``0::int4::text`` does.
-
-    The ``if x else ""`` guard conflated "no value" with "falsy value", so a
-    real zero became unmatchable.
-    """
     with model_test_env(Thing) as env:
         flds = _fields_of(env)
         assert flds["count"]._pattern_text(0) == "0"
         assert flds["ratio"]._pattern_text(0.0) == "0"
         assert flds["priced"]._pattern_text(0.0) == "0"
-        # a Char's empty string and its NULL both render empty, as in SQL
         assert flds["name"]._pattern_text("") == ""
         assert flds["name"]._pattern_text(False) == ""
 
 
 def test_integral_floats_lose_the_python_dot_zero():
-    """PostgreSQL prints a stored float in shortest round-trip form."""
     with model_test_env(Thing) as env:
         flds = _fields_of(env)
         for fname in ("ratio", "priced"):
@@ -76,7 +47,6 @@ def test_integral_floats_lose_the_python_dot_zero():
             assert field._pattern_text(1.0) == "1", fname
             assert field._pattern_text(100.0) == "100", fname
             assert field._pattern_text(-1.0) == "-1", fname
-            # fractional values are already identical to repr()
             assert field._pattern_text(0.5) == "0.5", fname
             assert field._pattern_text(0.001) == "0.001", fname
             assert field._pattern_text(1e20) == "1e+20", fname

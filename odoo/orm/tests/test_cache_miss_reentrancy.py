@@ -1,17 +1,3 @@
-"""Regression: ``Field._get_cache_miss`` must re-resolve the cache dict.
-
-Every miss branch runs re-entrant code before its terminal read -- ``_fetch_field``
-(flush -> recompute -> a compute may call ``env.invalidate_all()``), reading an
-``_origin`` value, or ``default_get`` (arbitrary user code). ``invalidate_all``
-*detaches* the per-field cache dict (the outer ``_data`` map is cleared / the key
-deleted), so a dict captured before that code runs no longer receives the fresh
-value -- it lands in a new dict. Reading the captured dict then raises a spurious
-``MissingError`` (store branch), ``KeyError`` (origin branch) or silently returns
-the stale null pre-write (default branch). Only the compute branch re-resolved;
-these lock the fix for the other three. Tier-2 suite: real ``import odoo``, no
-database -- run like ``test_model_test_env``.
-"""
-
 import sys
 
 import pytest

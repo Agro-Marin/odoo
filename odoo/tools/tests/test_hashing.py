@@ -1,18 +1,3 @@
-"""Unit tests for :mod:`odoo.libs.hashing`.
-
-Two properties matter and are tested separately:
-
-* **The BLAKE3 path is really BLAKE3** — pinned against the official test
-  vectors, so a broken/stubbed wheel is caught rather than silently producing
-  self-consistent garbage.
-* **The fallback path reproduces the historical digests** — sha1 for content
-  addressing, sha256 for cache keys.  A deployment without the extension must
-  keep reading the filestore it already wrote, so this is a compatibility
-  contract, not a nicety.
-
-No Odoo ORM / database dependency — runs under the standalone pytest suite.
-"""
-
 import hashlib
 import tempfile
 import unittest
@@ -33,8 +18,6 @@ def _vector_input(length):
 
 
 class TestBlake3Path(unittest.TestCase):
-    """Properties of the BLAKE3 implementation itself."""
-
     def setUp(self):
         if not hashing.HAS_BLAKE3:
             self.skipTest("blake3 extension not installed")
@@ -45,7 +28,6 @@ class TestBlake3Path(unittest.TestCase):
                 self.assertEqual(hashing.content_hash(_vector_input(length)), expected)
 
     def test_content_and_cache_agree(self):
-        """Both families are the same primitive when BLAKE3 is available."""
         data = b"the quick brown fox"
         self.assertEqual(hashing.content_hash(data), hashing.cache_hash(data))
 
@@ -55,30 +37,16 @@ class TestBlake3Path(unittest.TestCase):
         self.assertEqual(len(hashing.content_hash(b"x")), 64)
 
     def test_persisted_digests_always_fit_the_column(self):
-        """The invariant `ir_attachment.checksum` is sized from.
-
-        A digest longer than the column shows up as an opaque
-        StringDataRightTruncation on the first upload, so the module refuses to
-        import instead. Both fallback vintages must fit too: an algorithm switch
-        is additive, and legacy rows keep their old digest.
-        """
         self.assertLessEqual(hashing.CONTENT_DIGEST_LEN, hashing.CONTENT_DIGEST_MAX_LEN)
         for length in (40, 64):
             self.assertLessEqual(length, hashing.CONTENT_DIGEST_MAX_LEN)
 
     def test_column_is_sized_from_the_invariant_not_the_algorithm(self):
-        """`checksum` must not be sized from the *current* digest length.
-
-        CONTENT_DIGEST_LEN drops to 40 on a node without the blake3 wheel; a
-        column sized from it would be too narrow for the 64-char digests
-        already on disk.
-        """
         from odoo.addons.base.models.ir_attachment import IrAttachment
 
         self.assertEqual(IrAttachment.checksum.size, hashing.CONTENT_DIGEST_MAX_LEN)
 
     def test_multithreaded_matches_single(self):
-        """Payloads over the threading threshold hash identically."""
         big = b"z" * (2 * hashing._MT_MIN_BYTES)
         self.assertGreater(len(big), hashing._MT_MIN_BYTES)
         hasher = hashing.content_hasher()
@@ -87,8 +55,6 @@ class TestBlake3Path(unittest.TestCase):
 
 
 class TestFallbackPath(unittest.TestCase):
-    """The extension-less path must reproduce the pre-BLAKE3 digests exactly."""
-
     def setUp(self):
         patcher = mock.patch.object(hashing, "HAS_BLAKE3", False)
         patcher.start()
@@ -110,7 +76,6 @@ class TestFallbackPath(unittest.TestCase):
         self.assertEqual(hashing.cache_hasher().name, "sha256")
 
     def test_empty_content_has_a_digest(self):
-        """``ir.attachment`` relies on empty content having a checksum."""
         self.assertEqual(
             hashing.content_hash(b""),
             hashlib.sha1(b"", usedforsecurity=False).hexdigest(),
@@ -118,8 +83,6 @@ class TestFallbackPath(unittest.TestCase):
 
 
 class TestIncrementalEquivalence(unittest.TestCase):
-    """Whatever the algorithm, the three entry points must agree."""
-
     def _all_forms(self, data):
         one_shot = hashing.content_hash(data)
         hasher = hashing.content_hasher()
@@ -153,7 +116,6 @@ class TestIncrementalEquivalence(unittest.TestCase):
             self._assert_all_equal(bytes(range(256)) * 500)
 
     def test_interleaved_update_from_file(self):
-        """``update_from_file`` mid-digest == feeding the same bytes inline."""
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "part"
             path.write_bytes(b"middle")

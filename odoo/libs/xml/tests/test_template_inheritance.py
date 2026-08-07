@@ -1,9 +1,3 @@
-"""Regression tests for ``odoo.libs.xml.template_inheritance``.
-
-Covers the ``<attribute remove=…>`` literal-vs-regex contract, which decides
-what ``invisible`` / ``readonly`` expressions survive view inheritance.
-"""
-
 import pytest
 from lxml import etree
 
@@ -11,7 +5,6 @@ from odoo.libs.xml.template_inheritance import apply_inheritance_specs, locate_n
 
 
 def _apply(original: str, *, remove: str, separator: str = "and", add: str = "") -> str:
-    """Apply ``<attribute name="invisible" remove=… >`` and return the new value."""
     arch = etree.fromstring(f'<form><field name="a" invisible="{original}"/></form>')
     add_attr = f' add="{add}"' if add else ""
     spec = etree.fromstring(
@@ -23,8 +16,6 @@ def _apply(original: str, *, remove: str, separator: str = "and", add: str = "")
 
 
 class TestAttributeRemoveIsLiteral:
-    """``remove`` is a literal expression, never a regex pattern."""
-
     def test_exact_match_clears_the_attribute(self):
         assert _apply("state == 'draft'", remove="state == 'draft'") == ""
 

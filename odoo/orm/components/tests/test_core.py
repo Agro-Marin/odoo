@@ -1,15 +1,5 @@
-"""Tests for the OrmCore Layer 1 facade.
-
-These tests verify that OrmCore faithfully delegates to FieldCache and
-ComputeEngine under the *same* method names, producing identical results to
-calling the underlying components directly. Operations not exposed on the facade
-(``set_value``, ``invalidate_field``, ``invalidate_all``, ``clear`` …) are
-reached via ``core.cache`` / ``core.engine`` and covered by ``test_cache.py`` /
-``test_compute.py``.
-"""
-
 import unittest
-from collections import namedtuple
+from typing import NamedTuple
 from unittest.mock import Mock
 
 from odoo.orm.components.cache import FieldCache
@@ -61,12 +51,13 @@ _KWARG_DELEGATIONS = [
     ("all_cached_ids", "cache", "all_cached_ids", 1, ("context_dependent",), True),
 ]
 
-FakeField = namedtuple("FakeField", ["model_name", "name"])
+
+class FakeField(NamedTuple):
+    model_name: str
+    name: str
 
 
 class TestOrmCoreCache(unittest.TestCase):
-    """Test cache operations through OrmCore."""
-
     def setUp(self) -> None:
         self.core = OrmCore()
         self.f1 = FakeField("res.partner", "name")
@@ -121,8 +112,6 @@ class TestOrmCoreCache(unittest.TestCase):
 
 
 class TestOrmCoreCompute(unittest.TestCase):
-    """Test compute operations through OrmCore."""
-
     def setUp(self) -> None:
         self.core = OrmCore()
         self.f1 = FakeField("sale.order", "amount")
@@ -201,12 +190,6 @@ class TestOrmCoreCompute(unittest.TestCase):
         self.assertIsNot(sched, self.core.new_scheduler())
 
     def test_new_scheduler_seeds_marked_from_live_pending_in_both_modes(self) -> None:
-        """Both scheduler modes prune against the engine's LIVE pending map.
-
-        Ids already pending from earlier modified() calls in the transaction
-        must never be re-traversed, whether the scheduler batches (default) or
-        schedules inline — the seed is the live map itself, not a snapshot.
-        """
         self.core.schedule(self.f1, [1, 2])
         batch = self.core.new_scheduler()
         inline = self.core.new_scheduler(inline=True)
@@ -221,7 +204,6 @@ class TestOrmCoreCompute(unittest.TestCase):
         self.assertTrue(self.core.new_scheduler(inline=True)._inline)
 
     def test_new_scheduler_propagates_engine_set_factory(self) -> None:
-        """to_recompute uses the engine's pending-set factory (determinism)."""
 
         class TrackingSet(set):
             pass
@@ -232,8 +214,6 @@ class TestOrmCoreCompute(unittest.TestCase):
 
 
 class TestOrmCoreFindPendingWrite(unittest.TestCase):
-    """``find_pending_write`` is the shared guard for every drop-without-flush."""
-
     def setUp(self) -> None:
         self.core = OrmCore()
         self.f_a = FakeField("res.partner", "a")
@@ -255,13 +235,6 @@ class TestOrmCoreFindPendingWrite(unittest.TestCase):
         )
 
     def test_iterator_ids_survive_a_clean_first_field(self) -> None:
-        """A one-shot *ids* iterator must not be drained by an earlier field.
-
-        ``f_a`` is dirty but disjoint from *ids*, so its ``intersection(ids)``
-        consumed the generator; ``f_b``'s real overlap was then checked against
-        an exhausted iterator and the guard silently returned ``None`` — exactly
-        the "pending write dropped without flushing" case it exists to prevent.
-        """
         self.core.mark_dirty(self.f_a, [99])
         self.core.mark_dirty(self.f_b, [1])
         found = self.core.find_pending_write([self.f_a, self.f_b], (i for i in (1, 2)))
@@ -278,8 +251,6 @@ class TestOrmCoreFindPendingWrite(unittest.TestCase):
 
 
 class TestOrmCoreLifecycle(unittest.TestCase):
-    """Test the clear_cache lifecycle operation."""
-
     def setUp(self) -> None:
         self.core = OrmCore()
         self.f1 = FakeField("x", "a")
@@ -293,8 +264,6 @@ class TestOrmCoreLifecycle(unittest.TestCase):
 
 
 class TestOrmCoreConstructor(unittest.TestCase):
-    """Test constructor variants."""
-
     def test_default_creates_components(self) -> None:
         core = OrmCore()
         self.assertIsInstance(core.cache, FieldCache)
@@ -318,10 +287,6 @@ class TestOrmCoreConstructor(unittest.TestCase):
 
 
 class TestOrmCoreDelegationConsistency(unittest.TestCase):
-    """Verify that OrmCore methods produce identical results to direct
-    component access — the facade must be a faithful, transparent pass-through.
-    """
-
     def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
@@ -401,14 +366,6 @@ class TestOrmCoreDelegationConsistency(unittest.TestCase):
 
 
 class TestOrmCoreDelegationDrift(unittest.TestCase):
-    """Drift guard (ADR-0010): every OrmCore pass-through delegates to the
-    same-named FieldCache / ComputeEngine method.
-
-    Uses ``Mock(spec=...)``, which raises ``AttributeError`` if OrmCore calls a
-    method the underlying class no longer has — so an upstream rename/removal
-    fails *here*, loudly, instead of silently breaking ``env._core``.
-    """
-
     def test_pass_throughs_delegate_by_same_name(self) -> None:
         for orm_method, target, underlying, arity, returns in _DELEGATIONS:
             with self.subTest(method=orm_method):
@@ -450,9 +407,6 @@ class TestOrmCoreDelegationDrift(unittest.TestCase):
                     self.assertIs(result, underlying_mock.return_value)
 
     def test_table_covers_every_pass_through(self) -> None:
-        """Guard the guard: a new public OrmCore method must be added to
-        ``_DELEGATIONS`` / ``_KWARG_DELEGATIONS`` (or ``_NON_PASSTHROUGH``),
-        or this fails."""
         documented = {row[0] for row in _DELEGATIONS}
         documented |= {row[0] for row in _KWARG_DELEGATIONS}
         public = {

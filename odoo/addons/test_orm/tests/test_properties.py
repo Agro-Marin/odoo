@@ -328,7 +328,6 @@ class PropertiesCase(TestPropertiesMixin):
             self.message_1.attributes = [{"name": "name", "definition_changed": True}]
 
     def test_properties_web_read(self):
-        """Test the web_read method when reading properties field."""
         self.message_1.write(
             {
                 "attributes": [
@@ -475,10 +474,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     @mute_logger("odoo.fields")
     def test_properties_field_write_batch(self):
-        """Test the behavior of the write called in batch.
-
-        Simulate a write operation done by the web client.
-        """
         properties_values = (self.message_1 | self.message_3).read(["attributes"])
         properties_values = (
             properties_values[0]["attributes"] + properties_values[1]["attributes"]
@@ -641,7 +636,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     @mute_logger("odoo.fields")
     def test_properties_field_delete(self):
-        """Test to delete a property using the flag "definition_deleted"."""
         self.message_1.attributes = [
             {
                 "name": "discussion_color_code",
@@ -1029,12 +1023,6 @@ class PropertiesCase(TestPropertiesMixin):
         self.assertNotIn("value", properties[0])
 
     def test_properties_field_read(self):
-        """Test the behavior of the read method.
-
-        In comparison with a simple "record.properties", the read method should not
-        record a recordset for the many2one, but a tuple with the record id and
-        the record display_name.
-        """
         properties_values = (self.message_1 | self.message_3).read(["attributes"])
 
         self.assertEqual(len(properties_values), 2)
@@ -1086,7 +1074,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
 
     def test_properties_field_html(self):
-        """Test that the HTML values are sanitized."""
         xss_payload = "<img src='x' onerror='alert(1)'/>"
         expected = '<img src="x">'
         self.message_2.attributes = [
@@ -1162,7 +1149,6 @@ class PropertiesCase(TestPropertiesMixin):
         self.assertEqual(sql_values.get("test_html"), expected)
 
     def test_properties_field_many2one_basic(self):
-        """Test the basic (read, write...) of the many2one property."""
         self.message_2.attributes = [
             {
                 "name": "discussion_color_code",
@@ -1220,7 +1206,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     @mute_logger("odoo.models.unlink", "odoo.fields")
     def test_properties_field_many2one_unlink(self):
-        """Test the case where we unlink the many2one record."""
         self.message_2.attributes = [
             {
                 "name": "moderator_partner_id",
@@ -1284,7 +1269,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
 
     def test_properties_field_many2one_model_removed(self):
-        """Test the case where we uninstall a module, and the model does not exist anymore."""
         self.message_1.attributes = [
             {
                 "name": "message",
@@ -1596,7 +1580,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
 
     def test_properties_field_separator(self):
-        """Test the separator properties."""
         self.message_1.attributes = [
             {
                 "name": "boolean_value",
@@ -1626,15 +1609,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
 
     def test_properties_field_tags(self):
-        """Test the behavior of the tag property.
-
-        The tags property is the same as the selection property,
-        but you can select multiple values. It should work like the selection
-        (if we remove a value on the definition record, it should remove the value on each
-        child the next time we read, etc).
-
-        Each tag has a color index defined on the definition record.
-        """
         self.discussion_1.attributes_definition = [
             {
                 "name": "my_tags",
@@ -1715,11 +1689,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     @mute_logger("odoo.models.unlink", "odoo.fields")
     def test_properties_field_many2many_basic(self):
-        """Test the basic operation on a many2many properties (read, write...).
-
-        Check also that if we remove some record,
-        those are filtered when we read the child.
-        """
         partners = self.env["test_orm.partner"].create(
             [{"name": f"Partner {i}"} for i in range(20)]
         )
@@ -1952,7 +1921,6 @@ class PropertiesCase(TestPropertiesMixin):
         self.assertEqual(values[0]["id"], self.message_1.id)
 
     def test_properties_field_change_definition(self):
-        """Test the behavior of the field when changing the definition."""
 
         attributes_definition = self.discussion_1.attributes_definition
         self.message_1.attributes = [
@@ -2012,7 +1980,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     @mute_logger("odoo.fields")
     def test_properties_field_onchange2(self):
-        """If we change the definition record, the onchange of the properties field must be triggered."""
         message_form = Form(self.env["test_orm.message"])
 
         with self.assertQueryCount(8):
@@ -2197,7 +2164,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     @mute_logger("odoo.fields")
     def test_properties_field_definition_update(self):
-        """Test the definition update from the child."""
         self.discussion_1.attributes_definition = []
 
         self.message_1.attributes = [
@@ -2253,7 +2219,6 @@ class PropertiesCase(TestPropertiesMixin):
     @mute_logger("odoo.fields")
     @users("test")
     def test_properties_field_security(self):
-        """Check the access right related to the Properties fields."""
 
         def _mocked_check_access(records, operation):
             if records.env.su:
@@ -2294,11 +2259,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     @users("test")
     def test_properties_field_update_parent(self):
-        """Check that the user does not get an `AccessError` when modifying the
-        parent of a record and thereby making it forbidden. The default values
-        of the new property definition should be added even if the record is
-        not accessible.
-        """
         self.env["ir.rule"].sudo().create(
             {
                 "name": "only discussion_1",
@@ -2321,14 +2281,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     @users("test")
     def test_properties_field_no_parent_access(self):
-        """We can read the child, but not the definition record.
-
-        Check that the user does not get an `AccessError` when creating a new
-        record having a property field whose property definition is stored on
-        a record the user does not have access to. The newly created record
-        should have the right schema and should be populated with the default
-        values stored on the property definition.
-        """
 
         def _mocked_check_access(records, operation):
             if records.env.su:
@@ -2759,11 +2711,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         )
         self.assertEqual(messages, self.message_2 | self.message_3)
 
-        # "has any of", like the ``in`` of an ordinary many2many field, and
-        # like the single-value assertions above.  This used to be ``<@``
-        # ("every id I hold is among these"), which excluded message_1 -- even
-        # though ``in partners[0].ids`` above matches it -- so widening the
-        # list dropped records.
         messages = self.env["test_orm.message"].search(
             [("attributes.mymany2many", "in", partners[0:2].ids)]
         )
@@ -2875,9 +2822,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
             [("attributes.mytags", "in", ["aa"])]
         )
         self.assertEqual(messages, self.message_3)
-        # message_1 holds ["a", "b"], so it has "b" and matches too -- as the
-        # ``in ["b", "a"]`` assertion above already shows.  The previous
-        # expectation excluded it, which is the ``<@`` subset semantics.
         messages = self.env["test_orm.message"].search(
             [("attributes.mytags", "in", ["aa", "b"])]
         )
@@ -2925,7 +2869,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.assertFalse(result)
 
     def test_properties_field_search_orderby_string(self):
-        """Test that we can order record by properties string values."""
         (
             self.message_1 | self.message_2 | self.message_3
         ).discussion = self.discussion_1
@@ -2957,7 +2900,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.assertEqual(result[2], self.message_2)
 
     def test_properties_field_search_order_integer(self):
-        """Test that we can order record by properties integer values."""
         (
             self.message_1 | self.message_2 | self.message_3
         ).discussion = self.discussion_1
@@ -2989,7 +2931,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.assertEqual(result[2], self.message_1)
 
     def test_properties_field_search_order_injection(self):
-        """Check the restriction on the property name."""
         self.message_1.attributes = [
             {
                 "name": "myinteger",
@@ -3301,7 +3242,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
 
     @mute_logger("odoo.fields")
     def test_properties_field_read_progress_bar(self):
-        """Test "_read_progress_bar" with a properties field."""
         Model = self.env["test_orm.message"]
 
         self.messages.discussion = self.discussion_1
@@ -4033,20 +3973,12 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             self._check_domains_count(result)
 
     def _check_domains_count(self, result):
-        """Check that the domains in the result match the __count key."""
         for line in result:
             records = self.env["test_orm.message"].search(line["__extra_domain"])
             count_key = next(key for key in line if "_count" in key)
             self.assertEqual(len(records), line[count_key])
 
     def _check_many_falsy_group(self, property_name, result):
-        """Check the falsy group from the many2many and tags read group result.
-
-        - if a record is in the falsy group, it can't be in another group
-          (that sentence is not true for non-falsy group, a record
-          with a non-falsy value can be in many other groups)
-        - read the value of all records and check if they belong to the correct group
-        """
         Model = self.env["test_orm.message"]
         falsy_group = result[-1]
         self.assertFalse(falsy_group[f"attributes.{property_name}"])
@@ -4201,12 +4133,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.subtest_properties_field_web_read_group_date_like("datetime")
 
     def test_unfold_read_specification_on_web_read_group(self):
-        """
-        - When 'unfold_read_specification' is provided, unfolded records
-        include the explicitly requested fields (here: 'author').
-        - When 'unfold_read_specification' is None, unfolding falls back to the
-        default behavior and only returns record 'id'.
-        """
         self.messages.discussion = self.discussion_1
         self.discussion_1.write({"participants": [Command.link(self.test_user.id)]})
         self.message_2.author = self.test_user
@@ -4255,23 +4181,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
 class PropertiesFilteredDomainParityCase(
     TransactionExpressionCase, TestPropertiesMixin
 ):
-    """``filtered_domain`` / ``search`` parity regressions on properties.
-
-    Two fixed divergences:
-
-    * many2one property + ``in [id]``: the relational branch of
-      ``Properties.filter_function`` was dead (it probed the getter on an
-      empty recordset, which can never expose a definition), so
-      ``filtered_domain`` fell through to a scalar comparison and returned
-      empty while ``search`` matched;
-    * integer property with a stored 0: ``Property.__getitem__`` collapsed 0
-      to False, so ``filtered_domain`` excluded 0-valued records from
-      ``>= 0`` while SQL included them.
-
-    ``self._search`` (TransactionExpressionCase) asserts that ``search`` and
-    ``filtered_domain`` agree, including on the complement domain.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -4323,22 +4232,6 @@ class PropertiesFilteredDomainParityCase(
         )
 
     def test_filtered_domain_tags_property_in(self):
-        """A tags property matches in memory, and ``in`` means "has any of".
-
-        ``Property.__getitem__`` renders a tags value as its joined display
-        LABELS (``"A, B"``), while the stored value -- and everything SQL
-        matches on -- is the list of KEYS (``["a", "b"]``).  ``selection`` has
-        the same split and ``expression_getter`` resolves it with the
-        ``property_selection_get_key`` context; tags had no equivalent, so
-        every in-memory domain on a tags property silently matched NOTHING
-        while ``search`` returned rows.
-
-        The multi-value cases also pin monotonicity: widening an ``in`` list
-        may only add records.  The SQL side used ``<@`` ("every key I hold is
-        among these") for two or more values but ``@>`` ("holds this one") for
-        exactly one, so ``in ["a"]`` matched a record that ``in ["a", "c"]``
-        then dropped.
-        """
         self.messages.discussion = self.discussion_1
         self.message_1.attributes = [
             {
@@ -4358,7 +4251,6 @@ class PropertiesFilteredDomainParityCase(
             ([("attributes.mytags", "in", ["a"])], self.message_1),
             ([("attributes.mytags", "in", ["b"])], self.message_1 | self.message_2),
             ([("attributes.mytags", "in", ["c"])], Message.browse()),
-            # widening never removes a match
             (
                 [("attributes.mytags", "in", ["a", "c"])],
                 self.message_1,
@@ -4405,8 +4297,6 @@ class PropertiesFilteredDomainParityCase(
         self.assertEqual(self.messages.filtered_domain(domain), self.message_1)
 
     def test_zero_scalar_property_reads_back_as_zero(self):
-        """Stored numeric 0 / 0.0 read back as numbers, not False; unset and
-        empty-string values keep collapsing to False."""
         self.message_1.attributes = [
             {
                 "name": "myint",
@@ -4441,23 +4331,6 @@ class PropertiesFilteredDomainParityCase(
 
 
 class PropertiesRecordsetWriteCase(TestPropertiesMixin):
-    """A relational property must accept back what reading it returns.
-
-    ``Property.__getitem__`` returns a RECORDSET for a many2one/many2many
-    property -- that is its documented contract ("individual properties are
-    returned in their expected type"). But ``Properties.convert_to_cache``
-    accepts four input formats and only the dict one stored its values
-    verbatim: ``Property`` carries pre-normalized ``_values`` and the list
-    format goes through ``_list_to_dict``. So a plain dict carrying a recordset
-    reached the JSONB column unconverted and died inside psycopg with
-    ``TypeError: Object of type test_orm.partner is not JSON serializable`` --
-    at flush time, far from the assignment.
-
-    The stored form is type-dependent (many2one keeps a scalar id, many2many a
-    list), which the recordset cannot tell us: a one-record many2many is a list
-    of one id, not a scalar. The definition decides.
-    """
-
     def _relational_definition(self):
         return [
             {
@@ -4485,14 +4358,12 @@ class PropertiesRecordsetWriteCase(TestPropertiesMixin):
         self.env.invalidate_all()
 
     def test_read_returns_recordsets(self):
-        """Premise: the record format hands back recordsets."""
         self.assertEqual(self.message_1.attributes["mym2o"], self.partner)
         self.assertEqual(
             self.message_1.attributes["mym2m"], self.partner | self.partner_2
         )
 
     def test_partial_dict_write_accepts_a_recordset(self):
-        """``rec.attributes = {name: rec.attributes[name]}`` must round-trip."""
         for name in ("mym2o", "mym2m"):
             with self.subTest(property=name):
                 value = self.message_1.attributes[name]
@@ -4502,7 +4373,6 @@ class PropertiesRecordsetWriteCase(TestPropertiesMixin):
                 self.assertEqual(self.message_1.attributes[name], value)
 
     def test_whole_property_write_still_works(self):
-        """No regression on the format that already worked."""
         values = self.message_1.attributes
         self.message_1.attributes = values
         self.env.flush_all()
@@ -4513,11 +4383,6 @@ class PropertiesRecordsetWriteCase(TestPropertiesMixin):
         )
 
     def test_single_record_many2many_stays_a_list(self):
-        """The length of the recordset must not decide the stored shape.
-
-        A one-record many2many is ``[id]``; storing a bare ``id`` makes the next
-        read return an empty recordset.
-        """
         self.message_1.attributes = {"mym2m": self.partner}
         self.env.flush_all()
         self.env.invalidate_all()
@@ -4527,7 +4392,6 @@ class PropertiesRecordsetWriteCase(TestPropertiesMixin):
         self.assertIsInstance(mym2m["value"], list, mym2m)
 
     def test_list_format_accepts_a_recordset_too(self):
-        """Every write format agrees: the list format used to raise ValueError."""
         self.message_1.attributes = [
             {
                 "name": "mym2o",
@@ -4542,7 +4406,6 @@ class PropertiesRecordsetWriteCase(TestPropertiesMixin):
         self.assertEqual(self.message_1.attributes["mym2o"], self.partner_2)
 
     def test_unresolvable_recordset_is_refused_by_name(self):
-        """With no definition to consult, refuse clearly instead of crashing."""
         self.message_1.discussion = False
         with self.assertRaises(ValueError) as capture:
             self.message_1.attributes = {"mym2o": self.partner}

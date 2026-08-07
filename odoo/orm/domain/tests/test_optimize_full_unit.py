@@ -1,21 +1,3 @@
-"""Pure-Python unit tests for the FULL-level domain optimization passes.
-
-Tier-1 suite (stubbed ``odoo.*`` packages, no framework import — run from the
-repo root as plain ``pytest``).  ``test_optimize_unit.py`` locks the BASIC
-algebra; this suite covers the FULL passes that were untested:
-
-* the eight-case rewrite table of ``_optimize_m2o_bypass_comodel_id_lookup``;
-* ``_optimize_any_with_rights`` (su / bypass_search_access gating);
-* the remaining ``_optimize_in_required`` gates (id-field, fast path,
-  falsy_value) — the strip/fallback/NewId cases live in
-  ``test_optimize_unit.TestInRequiredPredicateSafety``;
-* the fallback ladder of ``DomainCondition._optimize_field_search_method``
-  (direct → inverse-operator retry → ``any!`` sudo fallback → ``=``/``!=``
-  expansion → error propagation / final UserError).
-
-Every expected value below was captured from the live optimizer, not assumed.
-"""
-
 import types
 import unittest
 
@@ -26,8 +8,6 @@ from odoo.tools import OrderedSet
 
 
 class _StubField:
-    """Minimal structural stand-in carrying the attributes the FULL passes read."""
-
     def __init__(self, name, ftype="integer", *, relational=False, comodel=None):
         self.name = name
         self.type = ftype
@@ -70,13 +50,6 @@ class _StubModel:
 
 
 class TestM2oBypassComodelIdLookup(unittest.TestCase):
-    """The eight-case rewrite table documented on the pass itself.
-
-    Permissions are already bypassed (``any!``), so an ``id``-keyed sub-domain
-    can be folded into a direct comparison on the many2one column — with False
-    (NULL) handled explicitly, since a NULL m2o matches no comodel row.
-    """
-
     def _rewrite(self, outer_op, sub_op, sub_value):
         condition = DomainCondition(
             "rel", outer_op, DomainCondition("id", sub_op, sub_value)
@@ -163,10 +136,6 @@ class TestM2oBypassComodelIdLookup(unittest.TestCase):
 
 
 class TestAnyWithRights(unittest.TestCase):
-    """``any``/``not any`` escalate to their record-rule-bypassing ``!`` forms
-    exactly when the environment is superuser or the field opts out of search
-    access (``bypass_search_access``)."""
-
     SUB = Domain("a", "=", 7)
 
     def _model(self, *, su, bypass):
@@ -207,10 +176,6 @@ class TestAnyWithRights(unittest.TestCase):
 
 
 class TestInRequiredRemainingGates(unittest.TestCase):
-    """The ``_optimize_in_required`` gates not already covered by
-    ``test_optimize_unit.TestInRequiredPredicateSafety`` (which locks the
-    strip, the ``_predicate_fallback`` attachment and the NewId gate)."""
-
     def _model(self, field):
         model = _StubModel()
         model._fields[field.name] = field
@@ -252,16 +217,7 @@ class TestInRequiredRemainingGates(unittest.TestCase):
 
 
 class TestFieldSearchMethodLadder(unittest.TestCase):
-    """``_optimize_field_search_method`` resolves a searchable field through a
-    fallback ladder; each rung is pinned here, including the operator order in
-    which ``determine_domain`` is consulted."""
-
     def _field(self, handlers, calls):
-        """Stub field whose determine_domain serves ``handlers[op]``.
-
-        A handler may be a domain list, a callable(value) -> domain list, an
-        exception instance to raise, or absent (returns NotImplemented).
-        """
         field = _StubField("f", "char")
         field.search = True
 

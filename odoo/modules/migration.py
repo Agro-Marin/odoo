@@ -49,12 +49,6 @@ VERSION_RE = re.compile(
 
 
 def _convert_version(version: str) -> str:
-    """Normalize a migration-folder name to a comparable version string.
-
-    A bare ``x.y[.z]`` module version is prefixed with the server major version;
-    a name that already carries the server version (more than two dots) and the
-    special ``0.0.0`` marker are returned unchanged.
-    """
     if version == "0.0.0":
         return version
     if version.count(".") > 2:
@@ -65,12 +59,6 @@ def _convert_version(version: str) -> str:
 def _migration_applies(
     version: str, installed_version: str, target_version: str
 ) -> bool:
-    """Return whether the migration folder ``version`` must run for this upgrade.
-
-    :param version: migration folder name ('2.0', '0.0.0', '17.0.1.2', ...)
-    :param installed_version: module version currently recorded in the database
-    :param target_version: module version declared in the manifest being upgraded to
-    """
     parsed_installed = parse_version(installed_version or "")
     parsed_target = parse_version(_convert_version(target_version))
 
@@ -87,7 +75,6 @@ def _migration_applies(
 
 
 def _iter_upgrade_paths(pkg: str) -> Iterator[str]:
-    """Yield the existing ``odoo.upgrade/<pkg>`` directories on the upgrade path."""
     for path in odoo.upgrade.__path__:
         upgrade_path = Path(path, pkg)
         if upgrade_path.exists():
@@ -95,7 +82,6 @@ def _iter_upgrade_paths(pkg: str) -> Iterator[str]:
 
 
 def _is_upgrade_version_dir(path: str, version: str) -> bool:
-    """Return whether ``<path>/<version>`` is a valid migration version folder."""
     full_path = Path(path, version)
     if not full_path.is_dir():
         return False
@@ -108,7 +94,6 @@ def _is_upgrade_version_dir(path: str, version: str) -> bool:
 
 
 def _scripts_by_version(path: str) -> dict[str, list[str]]:
-    """Map each valid version folder under ``path`` to its list of ``.py`` scripts."""
     if not path:
         return {}
     p = Path(path)
@@ -120,7 +105,6 @@ def _scripts_by_version(path: str) -> dict[str, list[str]]:
 
 
 def _resolve_addon_path(path: str) -> str:
-    """Resolve an addon-relative path to an absolute one, or '' if it does not exist."""
     try:
         return file_path(path)
     except FileNotFoundError:
@@ -128,37 +112,6 @@ def _resolve_addon_path(path: str) -> str:
 
 
 class MigrationManager:
-    """Manages the migration of modules.
-
-    Migrations files must be python files containing a ``migrate(cr, version)``
-    function. These files must respect a directory tree structure: A 'migrations' folder
-    which contains a folder by version. Version can be 'module' version or 'server.module'
-    version (in this case, the files will only be processed by this version of the server).
-    Python file names must start by ``pre-`` or ``post-`` and will be executed, respectively,
-    before and after the module initialisation. ``end-`` scripts are run after all modules have
-    been updated.
-
-    A special folder named ``0.0.0`` can contain scripts that will be run on any version change.
-    In `pre` stage, ``0.0.0`` scripts are run first, while in ``post`` and ``end``, they are run last.
-
-    Example::
-
-        <moduledir>
-        `-- migrations
-            |-- 1.0
-            |   |-- pre-update_table_x.py
-            |   |-- pre-update_table_y.py
-            |   |-- post-create_plop_records.py
-            |   |-- end-cleanup.py
-            |   `-- README.txt                      # not processed
-            |-- 9.0.1.1                             # processed only on a 9.0 server
-            |   |-- pre-delete_table_z.py
-            |   `-- post-clean-data.py
-            |-- 0.0.0
-            |   `-- end-invariants.py               # processed on all version update
-            `-- foo.py                              # not processed
-    """
-
     migrations: dict[str, dict]
 
     def __init__(self, cr: Cursor, graph: module_graph.ModuleGraph) -> None:
@@ -168,17 +121,6 @@ class MigrationManager:
         self._get_files()
 
     def _needs_migration(self, pkg: module_graph.ModuleNode) -> bool:
-        """Whether ``pkg`` should have its migration scripts collected/run.
-
-        Divergence from upstream: upstream additionally runs scripts for
-        modules listed in ``Registry._force_upgrade_scripts``, a hook that
-        upgrade-util's ``force_upgrade_of_fresh_module`` uses during major
-        version upgrades to run upgrade scripts for modules freshly installed
-        mid-upgrade.  This fork removed that hook (nothing in the workspace
-        uses upgrade-util).  If a major upgrade is ever driven through
-        upgrade-util, reinstate the hook or scripts of freshly installed
-        modules will silently not run.
-        """
         return pkg.load_state == "to upgrade"
 
     def _get_files(self) -> None:
@@ -238,7 +180,6 @@ class MigrationManager:
         def _get_migration_files(
             pkg: module_graph.ModuleNode, version: str, stage: str
         ) -> list[str]:
-            """return a list of migration script files"""
             m = self.migrations[pkg.name]
 
             return sorted(
@@ -284,7 +225,6 @@ def exec_script(
     stage: str,
     version: str | None = None,
 ) -> None:
-    """Execute a single migration script file."""
     version = version or installed_version
     p = Path(pyfile)
     if p.suffix.lower() != ".py":

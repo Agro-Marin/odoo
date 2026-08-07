@@ -60,7 +60,6 @@ class One2manyCase(TransactionExpressionCase):
                 )
 
     def operations(self):
-        """Run operations on o2m fields to check all works fine."""
         self.assertItemsEqual(
             self.multi.lines.mapped("name"), [str(i) for i in range(10)]
         )
@@ -75,33 +74,28 @@ class One2manyCase(TransactionExpressionCase):
         self.assertIn("hello", self.multi.lines.mapped("name"))
 
     def test_new_one_by_one(self):
-        """Check lines created with ``new()`` and appended one by one."""
         for name in range(10):
             self.multi.lines |= self.Line.new({"name": str(name)})
         self.operations()
 
     def test_new_single(self):
-        """Check lines created with ``new()`` and added in one step."""
         self.multi.lines = self.Line.browse(
             [self.Line.new({"name": str(name)}).id for name in range(10)],
         )
         self.operations()
 
     def test_create_one_by_one(self):
-        """Check lines created with ``create()`` and appended one by one."""
         for name in range(10):
             self.multi.lines |= self.Line.create({"name": str(name)})
         self.operations()
 
     def test_create_single(self):
-        """Check lines created with ``create()`` and added in one step."""
         self.multi.lines = self.Line.browse(
             [self.Line.create({"name": str(name)}).id for name in range(10)],
         )
         self.operations()
 
     def test_rpcstyle_one_by_one(self):
-        """Check lines created with RPC style and appended one by one."""
         for name in range(10):
             self.multi.lines = [Command.create({"name": str(name)})]
         self.operations()
@@ -117,7 +111,6 @@ class One2manyCase(TransactionExpressionCase):
         self.operations()
 
     def test_rpcstyle_single(self):
-        """Check lines created with RPC style and added in one step"""
         self.multi.lines = [Command.create({"name": str(name)}) for name in range(10)]
         self.operations()
 
@@ -131,7 +124,6 @@ class One2manyCase(TransactionExpressionCase):
         self.operations()
 
     def test_many2one_integer(self):
-        """Test several models one2many with same inverse Integer field"""
 
         def t(records):
             return records.mapped(lambda r: (r.id, r.name))
@@ -227,7 +219,6 @@ class One2manyCase(TransactionExpressionCase):
         self.assertFalse(p3.exists())
 
     def test_partner_merge_wizard_more_than_one_user_error(self):
-        """Test that partners cannot be merged if linked to more than one user even if only one is active."""
         p1, p2, dst_partner = self.env["res.partner"].create(
             [{"name": f"test{idx + 1}"} for idx in range(3)]
         )
@@ -257,7 +248,6 @@ class One2manyCase(TransactionExpressionCase):
         self.assertEqual(u1.partner_id.id, dst_partner.id)
 
     def test_cache_invalidation(self):
-        """Cache invalidation for one2many with integer inverse."""
         record0 = self.env["test_orm.attachment.host"].create({})
         with self.assertQueryCount(0):
             self.assertFalse(record0.attachment_ids, "inconsistent cache")
@@ -299,7 +289,6 @@ class One2manyCase(TransactionExpressionCase):
             self.assertFalse(record0.attachment_ids, "inconsistent cache")
 
     def test_recompute(self):
-        """test recomputation of fields that indirectly depend on one2many"""
         discussion = self.env.ref("test_orm.discussion_0")
         self.assertTrue(discussion.messages)
 
@@ -307,8 +296,6 @@ class One2manyCase(TransactionExpressionCase):
         message.discussion = False
 
     def test_dont_write_the_existing_childs(self):
-        """test that the existing child should not be changed when adding a new child to the parent.
-        This is the behaviour of the form view."""
         parent = self.env["test_orm.model_parent_m2o"].create(
             {
                 "name": "parent",
@@ -351,7 +338,6 @@ class One2manyCase(TransactionExpressionCase):
         self.assertEqual(thief.line_ids, line1 + line2)
 
     def test_recomputation_ends(self):
-        """Regression test for neverending recomputation."""
         parent = self.env["test_orm.model_parent_m2o"].create({"name": "parent"})
         child = self.env["test_orm.model_child_m2o"].create(
             {"name": "A", "parent_id": parent.id}
@@ -408,11 +394,6 @@ class One2manyCase(TransactionExpressionCase):
             )
 
     def test_new_real_interactions(self):
-        """Test and specify the interactions between new and real records.
-        Through m2o and o2m, with real/unreal records on both sides, the behavior
-        varies greatly.  At least, the behavior will be clearly consistent and any
-        change will have to adapt the current test.
-        """
         parent = self.env["test_orm.model_parent_m2o"].create({"name": "parentB"})
         new_child = self.env["test_orm.model_child_m2o"].new(
             {"name": "B", "parent_id": parent.id}
@@ -568,14 +549,6 @@ class One2manyCase(TransactionExpressionCase):
         self.assertEqual(len(record.low_priority_line_ids.ids), 2)
 
     def test_convert_to_write_partial_cache_origin(self):
-        """Serialising a modified x2many whose line origins are only partially
-        cached must not raise "dictionary changed size during iteration".
-
-        ``_RelationalMulti.convert_to_write`` iterates ``rec._cache`` (a view
-        over the live field-cache dict) while reading ``origin[name]``, which
-        can fetch+prefetch the origin and insert new field keys into that very
-        dict. The field-name list must therefore be snapshotted before the loop.
-        """
         multi = self.env["test_orm.multi"].create(
             {"lines": [Command.create({"name": "L1"}), Command.create({"name": "L2"})]}
         )
@@ -597,22 +570,6 @@ class One2manyCase(TransactionExpressionCase):
 
 
 class One2manyCommandOrderCase(TransactionExpressionCase):
-    """A CLEAR/SET must not be skipped because a CREATE preceded it.
-
-    ``One2many.write_real`` carries ``allow_full_delete = not create``: a
-    CLEAR/SET runs its detach-everything-else pass unless we are building a
-    brand-new record, where there is nothing to detach. A ``CREATE`` (and a
-    ``LINK``) also reset that flag, which switched a plain ``write()`` into
-    creation-mode semantics from the first CREATE onwards -- so every later
-    CLEAR/SET silently skipped its delete.
-
-    ``write({'lines': [CREATE, CLEAR]})`` then kept BOTH the new line and the
-    pre-existing ones, and ``[CREATE, SET([a])]`` ignored the SET entirely,
-    while the very same commands split across two ``write()`` calls behaved
-    correctly. Found by an oracle fuzz over random command sequences (32 of 200
-    sequences disagreed with the Python model of Command semantics).
-    """
-
     def setUp(self):
         super().setUp()
         self.Multi = self.env["test_orm.multi"]
@@ -655,7 +612,6 @@ class One2manyCommandOrderCase(TransactionExpressionCase):
         self.assertEqual(self._names(parent), [])
 
     def test_one_write_agrees_with_split_writes(self):
-        """The same commands, applied together or one at a time, must agree."""
         commands = [Command.create({"name": "new"}), Command.clear()]
         together = self._parent("s0", "s1")
         together.write({"lines": commands})
@@ -667,18 +623,11 @@ class One2manyCommandOrderCase(TransactionExpressionCase):
         self.assertEqual(self._names(together), self._names(split))
 
     def test_commands_before_the_clear_still_apply_in_order(self):
-        """Only the delete was being skipped; ordering semantics are unchanged."""
         parent = self._parent("s0")
         parent.write({"lines": [Command.clear(), Command.create({"name": "after"})]})
         self.assertEqual(self._names(parent), ["after"])
 
     def test_creation_mode_is_unchanged(self):
-        """create() keeps its optimisation: no pre-existing lines to detach.
-
-        Pinned rather than endorsed -- a SET during create() still degenerates
-        to a LINK, so a line created earlier in the same call survives it. The
-        fix deliberately does not touch that path.
-        """
         orphan = self.env["test_orm.multi.line"].create({"name": "orphan"})
         self.env.flush_all()
         parent = self.Multi.create(

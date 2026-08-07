@@ -1,19 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.lag`.
-
-Two things have to hold or the ceiling is worse than not having one.
-
-It must not demote a *healthy* replica. ``pg_last_xact_replay_timestamp()``
-grows without bound on an idle primary — measured 43s against a standby with
-nothing left to apply — so a naive ``now() - last_replay`` sends reads back to
-the primary precisely when the system is quiet. :data:`~odoo.db.lag.LAG_SQL`
-reports zero when the standby has replayed everything it received, and the shape
-of that SQL is pinned here because it is the whole correctness argument.
-
-And it must not demote on a *failed measurement*: a replica that cannot answer
-the lag query is one whose failure the breaker sees, and refusing reads because
-the question failed would demote on no evidence.
-"""
-
 import contextlib
 import threading
 import unittest
@@ -32,7 +16,6 @@ class TestDisabled(unittest.TestCase):
         self.assertTrue(self.gate.allows())
 
     def test_it_never_asks_for_a_sample(self):
-        """So the lag query is never issued at all when the feature is off."""
         self.assertFalse(self.gate.due_for_sample())
 
     def test_even_a_huge_recorded_lag_allows(self):
@@ -75,7 +58,6 @@ class TestVerdict(unittest.TestCase):
         self.assertEqual(self.gate.last_lag, 0.0)
 
     def test_a_negative_measurement_is_clamped(self):
-        """Clock skew between ``now()`` and the replay timestamp can go negative."""
         self.gate.record(-3.0)
         self.assertEqual(self.gate.last_lag, 0.0)
         self.assertTrue(self.gate.allows())
@@ -97,19 +79,10 @@ class TestSampling(unittest.TestCase):
         self.assertFalse(gate.due_for_sample())
 
     def test_repeated_sequential_calls_are_throttled(self):
-        """Sequential, single-threaded throttling only.
-
-        This deliberately does *not* claim anything about concurrency: fifty
-        calls on one thread cannot race, so the assertion holds with or without
-        the lock that makes the claim exclusive. The concurrent guarantee is
-        pinned by :class:`TestSampleClaimIsExclusive`.
-        """
         gate = ReplicaLagGate(30.0)
         self.assertEqual(sum(1 for _ in range(50) if gate.due_for_sample()), 1)
 
     def test_a_demoted_gate_still_becomes_due(self):
-        """Sampling is the only thing that reopens a replica cursor while
-        demoted, so it is what lets the gate ever notice recovery."""
         gate = ReplicaLagGate(30.0, sample_interval=0.0)
         gate.due_for_sample()
         gate.record(90.0)
@@ -118,41 +91,10 @@ class TestSampling(unittest.TestCase):
 
 
 class TestSampleClaimIsExclusive(unittest.TestCase):
-    """The lock -- not bytecode luck -- is what keeps the one-sampler claim.
-
-    **This is fault injection, not a reproduction.** Read that before trusting
-    the assertion, because the distinction is the whole point.
-
-    On a GIL build the unlocked version was never wrong: between the
-    ``monotonic()`` call and the stamp, ``due_for_sample``'s bytecode contains
-    no call and no backward jump, and those are the only points CPython honours
-    a GIL drop request, so the read-and-stamp cannot be preempted. Racing the
-    unlocked version with plain floats -- 16 threads, 400 rounds, switch
-    intervals from 5 ms to 1 ns -- produced a duplicate claim zero times.
-
-    So a test that merely started threads would pass against the *broken* code
-    and prove nothing, which is exactly the trap the previous version of this
-    suite fell into (see ``test_repeated_sequential_calls_are_throttled``).
-
-    What this does instead is remove the accidental protection and check the
-    deliberate one. ``sample_interval`` is a plain attribute, so it can hold an
-    object whose ``__gt__`` blocks: ``float.__lt__`` returns ``NotImplemented``
-    against it, Python calls the reflected ``__gt__``, and every thread parks
-    *inside* the ``if`` test -- after the timestamp read, before the stamp. That
-    models a build where the compare can yield, which is precisely the
-    free-threaded case the lock exists for.
-
-    With the lock, one thread holds it, the barrier times out, and the rest are
-    serialised behind it -- so the timeout is not slack in the test, it *is* the
-    evidence of mutual exclusion. Without it, all of them claim.
-    """
-
     THREADS = 8
     BARRIER_TIMEOUT = 0.5
 
     class _BlockingInterval:
-        """Stands in for ``sample_interval``, parking threads in the compare."""
-
         def __init__(self, value, barrier):
             self.value = value
             self.barrier = barrier
@@ -195,14 +137,10 @@ class TestSampleClaimIsExclusive(unittest.TestCase):
 
 
 class TestLagSql(unittest.TestCase):
-    """The SQL is the correctness argument; pin its shape."""
-
     def test_it_reports_zero_when_everything_received_is_replayed(self):
         self.assertIn("pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn()", LAG_SQL)
 
     def test_it_reports_zero_on_a_primary(self):
-        """``test_enable`` and ``dev_mode=replica`` point the readonly
-        connection at the primary; that is zero seconds behind itself."""
         self.assertIn("NOT pg_is_in_recovery()", LAG_SQL)
 
     def test_it_falls_back_to_the_replay_timestamp_only_when_behind(self):
@@ -216,7 +154,6 @@ class TestLagSql(unittest.TestCase):
         )
 
     def test_it_never_returns_null(self):
-        """``pg_last_xact_replay_timestamp()`` is NULL just after startup."""
         self.assertIn("coalesce(", LAG_SQL)
 
     def test_it_never_returns_a_negative(self):

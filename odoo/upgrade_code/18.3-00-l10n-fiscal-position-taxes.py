@@ -2197,11 +2197,6 @@ FP_LOOKUP = {
 
 
 def upgrade(file_manager: FileManager) -> None:
-    """Attach fiscal positions to taxes in l10n CSV data.
-
-    Derives a domestic fiscal position per module and writes the
-    ``fiscal_position_ids``/``original_tax_ids`` columns on the tax files.
-    """
     log = logging.getLogger(__name__)
 
     MODS_WITH_DYNAMIC_DOMESTIC_FP = {"l10n_in"}

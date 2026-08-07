@@ -1,13 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.breaker`.
-
-The schedule is the whole point, so it is pinned here rather than inferred from
-a live replica: a blip must recover in about a second where the flat 20-minute
-window it replaces would have cost 20 minutes of primary load, and a genuinely
-dead endpoint must settle at a ceiling no worse than that old window.  Only one
-caller may probe at a time, or a dead replica draws a connection attempt from
-every request that arrives while it is out.
-"""
-
 import unittest
 
 from odoo.db.breaker import CircuitBreaker
@@ -40,16 +30,11 @@ class TestOpening(unittest.TestCase):
         self.assertAlmostEqual(self.breaker.cooldown_remaining, 60, delta=1)
 
     def _fail_a_probe(self, breaker):
-        """Drive one genuine probe *cycle*: let the window elapse, claim the
-        probe, and report it failed — the only thing that widens the window."""
         breaker._opened_at -= breaker._cooldown + 1
         assert breaker.allow(), "probe should be admitted once the window elapsed"
         breaker.record_failure()
 
     def test_repeated_probe_cycles_double_the_window(self):
-        # The window doubles once per *probe cycle*, not once per failure. The
-        # first failure trips it; each subsequent widening needs a probe to be
-        # admitted and to fail again.
         widths = [round(self.breaker.cooldown_remaining)]
         self.breaker.record_failure()
         widths.append(round(self.breaker.cooldown_remaining))
@@ -72,16 +57,7 @@ class TestOpening(unittest.TestCase):
         self.assertLessEqual(breaker.cooldown_remaining, 20 * 60)
 
     def test_a_burst_of_concurrent_failures_opens_only_the_initial_window(self):
-        """A single blip with N in-flight requests must not widen N times.
-
-        Every request that passed ``allow()`` while the breaker was closed is
-        already talking to the replica when it goes down; each fails and lands
-        in ``record_failure``. Only the first trips the breaker; the rest are
-        stragglers against no outstanding probe and must leave the window at the
-        initial cooldown — the pile-on that used to turn a 2-second outage into
-        a 20-minute one.
-        """
-        for _ in range(12):  # 12 concurrent failures from one blip
+        for _ in range(12):
             self.breaker.record_failure()
         self.assertEqual(self.breaker.trips, 1)
         self.assertEqual(self.breaker.failures, 12)
@@ -103,8 +79,6 @@ class TestProbing(unittest.TestCase):
         self.assertTrue(self.breaker.allow())
 
     def test_only_one_caller_probes(self):
-        """Otherwise every request arriving while the replica is out attempts
-        its own connection to a host already known to be failing."""
         self.breaker.record_failure()
         self.assertEqual(sum(1 for _ in range(50) if self.breaker.allow()), 1)
 
@@ -127,8 +101,6 @@ class TestProbing(unittest.TestCase):
         self.assertGreater(breaker.cooldown_remaining, first)
 
     def test_an_abandoned_probe_does_not_wedge_the_breaker(self):
-        """A caller that raises without reporting back would otherwise leave the
-        breaker half-open forever, silently disabling the endpoint."""
         breaker = CircuitBreaker(max_cooldown=1200, initial_cooldown=60)
         breaker.record_failure()
         breaker._opened_at -= 61
@@ -139,14 +111,6 @@ class TestProbing(unittest.TestCase):
 
 
 class TestConcurrentPileOn(unittest.TestCase):
-    """The pile-on reproduced with real threads, GIL-masked races and all.
-
-    ``test_a_burst_...`` drives the failures sequentially; this fires them from
-    N threads at once against the actual ``threading.Lock``, which is how the
-    bug manifests in production (every in-flight readonly request reporting its
-    own failure through ``Registry.cursor``).
-    """
-
     def test_a_thundering_herd_of_failures_still_opens_one_short_window(self):
         import threading
 
@@ -165,8 +129,6 @@ class TestConcurrentPileOn(unittest.TestCase):
 
         self.assertEqual(breaker.trips, 1, "exactly one closed→open transition")
         self.assertEqual(breaker.failures, 24)
-        # Before the fix this was 60 * 2**23, clamped to 1200 — the 20-minute
-        # window a single blip must never produce.
         self.assertAlmostEqual(breaker.cooldown_remaining, 60, delta=2)
 
 

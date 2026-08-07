@@ -1,27 +1,3 @@
-"""
-Lightweight profiler for identifying optimization opportunities in mixins.
-
-Usage:
-    from odoo.tools.mixin_profiler import profile_methods, get_profile_report
-
-    # Enable profiling for specific methods
-    profile_methods('res.partner', ['create', 'write', 'read', '_compute_display_name'])
-
-    # Do operations...
-    partners = env['res.partner'].create([...])
-
-    # Get report
-    _logger.info(get_profile_report())
-
-See Also
---------
-- ``odoo.libs.profiling.orm_profiler`` — Aggregate per-model/operation stats per transaction
-- ``odoo.libs.profiling.nplusone`` — N+1 CRUD detection (repeated single-record calls)
-- ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
-- ``odoo.tests.benchmark`` — Micro-benchmark statistical utilities
-- ``doc/coding_guidelines.rst`` §11 (Performance) — when to reach for which tool
-"""
-
 import functools
 import logging
 import threading
@@ -54,7 +30,6 @@ def _get_data():
 
 
 def _wrap_method(model_name, method_name, original_method):
-    """Wrap a method to collect profiling data."""
 
     @functools.wraps(original_method)
     def wrapper(self, *args, **kwargs):
@@ -108,12 +83,6 @@ def _wrap_method(model_name, method_name, original_method):
 
 
 def profile_methods(model_name, method_names, registry=None):
-    """Enable profiling for specific methods on a model.
-
-    :param model_name: model to profile (e.g. ``res.partner``)
-    :param method_names: method names to profile
-    :param registry: registry to use (defaults to the current thread's registry)
-    """
     if registry is None:
         from odoo.modules.registry import Registry
 
@@ -154,29 +123,6 @@ _DEFAULT_MODULE_METHODS = (
 
 
 def profile_module(env, module_name, method_names=None, extra_by_model=None):
-    """Enable profiling on the models introduced by ``module_name``.
-
-    Discovers every model whose definition is owned by ``module_name`` (via its
-    ``ir.model`` xml-ids) and wraps a default set of CRUD/read methods, so
-    profiling a whole business module is a single call; the caller then runs
-    representative operations under :func:`profiling_enabled` and reads
-    :func:`get_profile_report`.
-
-    :param env: an environment bound to the target registry
-    :param module_name: technical module name (e.g. ``stock``)
-    :param method_names: methods to profile on every discovered model
-        (defaults to :data:`_DEFAULT_MODULE_METHODS`)
-    :param extra_by_model: optional ``{model_name: [extra_methods]}`` to also
-        wrap module-specific hot methods (e.g. ``action_confirm``)
-    :return: the list of profiled model names
-
-    Abstract models are skipped for the default (record-level) methods: they
-    hold no records, so wrapping their ``create``/``write``/``read``/``search``
-    only catches ``super()``-chain pass-throughs from concrete inheritors and
-    double-counts those models' cost. Methods named explicitly in
-    ``extra_by_model`` are still wrapped on abstract models, so a mixin's own
-    logic (e.g. ``_set_next_sequence``) can be profiled deliberately.
-    """
     method_names = list(method_names or _DEFAULT_MODULE_METHODS)
     extra_by_model = extra_by_model or {}
 
@@ -203,7 +149,6 @@ def profile_module(env, module_name, method_names=None, extra_by_model=None):
 
 
 def unprofile_methods(model_name, method_names, registry=None):
-    """Remove profiling from methods."""
     if registry is None:
         from odoo.modules.registry import Registry
 
@@ -227,7 +172,6 @@ def unprofile_methods(model_name, method_names, registry=None):
 
 @contextmanager
 def profiling_enabled():
-    """Context manager to enable profiling collection."""
     data = _get_data()
     was_enabled = data.enabled
     data.enabled = True
@@ -238,17 +182,11 @@ def profiling_enabled():
 
 
 def clear_profile_data():
-    """Clear all collected profiling data."""
     data = _get_data()
     data.methods.clear()
 
 
 def get_profile_report(sort_by="total_time", top_n=20):
-    """Generate a profiling report.
-
-    :param sort_by: one of ``total_time``, ``calls``, ``queries``, ``self_time``, ``avg_time``
-    :param top_n: number of top methods to show
-    """
     data = _get_data()
 
     if not data.methods:
@@ -361,7 +299,6 @@ def get_profile_report(sort_by="total_time", top_n=20):
 
 
 def get_query_patterns():
-    """Analyze query patterns from samples."""
     data = _get_data()
     patterns = []
 

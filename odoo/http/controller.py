@@ -8,41 +8,6 @@ if TYPE_CHECKING:
 
 
 class Controller:
-    """
-    Class mixin that provides module controllers the ability to serve
-    content over http and to be extended in child modules.
-
-    Each class :ref:`inheriting <python:tut-inheritance>` from
-    :class:`~odoo.http.Controller` can use the :func:`~odoo.http.route`
-    decorator to route matching incoming web requests to decorated
-    methods.
-
-    Like models, controllers can be extended by other modules. The
-    extension mechanism is different because controllers can work in a
-    database-free environment and therefore cannot use
-    :class:`~odoo.api.Registry`.
-
-    To *override* a controller, :ref:`inherit <python:tut-inheritance>`
-    from its class, override relevant methods and re-expose them with
-    :func:`~odoo.http.route`. The decorators of all
-    methods are combined, if the overriding method's decorator has no
-    argument all previous ones will be kept, any provided argument will
-    override previously defined ones.
-
-    .. code-block:: python
-
-        class GreetingController(odoo.http.Controller):
-            @route("/greet", type="http", auth="public")
-            def greeting(self):
-                return "Hello"
-
-
-        class UserGreetingController(GreetingController):
-            @route(auth="user")  # override auth, keep path and type
-            def greeting(self):
-                return super().greeting()
-    """
-
     children_classes: collections.defaultdict[str, list[type[Controller]]] = (
         collections.defaultdict(list)
     )

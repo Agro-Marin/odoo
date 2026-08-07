@@ -1,17 +1,3 @@
-"""The ``properties`` field's model-side surface.
-
-Six methods that together implement one feature — reading a Properties
-definition, cleaning it, validating it, and converting it to cache/column form.
-They lived in ``BaseModel``'s class body, which is how a whole feature ends up
-invisible inside the composition root; ``get_property_definition`` also called
-``self.browse``, one of the ``self``-edges that kept ``base.py`` inside the
-nine-unit mixin cycle (see ``tooling/architecture/mixin_coupling_check.py``).
-
-Moved verbatim. They stay ordinary recordset methods reached as
-``self.get_property_definition(...)``; only the declaring class changes, which
-attribute lookup crosses through the MRO for free.
-"""
-
 import typing
 
 from odoo.tools import SQL
@@ -25,17 +11,10 @@ if typing.TYPE_CHECKING:
 
 
 class _PropertiesMixin(_ModelStubs):
-    """Model-side helpers for ``properties`` fields."""
-
     __slots__ = ()
 
     @api.model
     def get_property_definition(self, full_name: str) -> dict:
-        """Return the definition of the given property.
-
-        :param full_name: Name of the field / property
-            (e.g. "property.integer")
-        """
         self.browse().check_access("read")
         field_name, property_name = parse_field_expr(full_name)
         field = self._fields.get(field_name)
@@ -68,7 +47,6 @@ class _PropertiesMixin(_ModelStubs):
         return result[0]["definition"] if result else {}
 
     def _clean_properties(self) -> None:
-        """Remove all properties of ``self`` that are no longer in the related definition"""
         for fname, field in self._fields.items():
             if field.type != "properties":
                 continue
@@ -90,16 +68,13 @@ class _PropertiesMixin(_ModelStubs):
     def _validate_properties_definition(
         self, properties_definition: typing.Any, field: Field
     ) -> None:
-        """Allow to validate additional properties attributes."""
+        pass
 
     def _additional_allowed_keys_properties_definition(self) -> tuple[str, ...]:
-        """Allow to add more allowed key for properties."""
         return ()
 
     def _convert_to_cache_properties_definition(self, value: typing.Any) -> typing.Any:
-        """Allow to patch `convert_to_cache` of the properties definition."""
         return value
 
     def _convert_to_column_properties_definition(self, value: typing.Any) -> typing.Any:
-        """Allow to patch `convert_to_column` of the properties definition."""
         return value

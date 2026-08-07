@@ -13,7 +13,6 @@ EXTENSIONS = [".py", ".js", ".xml", ".less", ".sass"]
 
 class TestConflictMarkers(lint_case.LintCase):
     def test_conflict_markers(self):
-        """Test that there are no conflict markers left in Odoo files."""
         import odoo.addons
 
         roots = sorted(

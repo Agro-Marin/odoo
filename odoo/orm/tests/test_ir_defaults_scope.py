@@ -1,19 +1,3 @@
-"""``env._ir_defaults`` must resolve as the superuser, in the env's company.
-
-Company-dependent fields read their fallback from ``ir.default`` on three
-different paths — the write-side dedup (``convert_to_column_insert``), the
-read-side COALESCE (``get_company_dependent_fallback``) and the flush-side
-column fallbacks (``ir.default._get_field_column_fallbacks``).  They only agree
-if all three resolve in the same scope: resolving with the *current* user would
-let a user-scoped default alias a value to NULL that every other reader then
-resolves to the global default.
-
-That scope moved from a per-call expression in
-``Field._company_dependent_fallback_raw`` to a memoized ``Environment``
-property, so the invariant is pinned here rather than left implicit in a
-one-line expression.
-"""
-
 from odoo import fields, models
 from odoo.orm.model_test_env import model_test_env
 from odoo.orm.primitives import SUPERUSER_ID

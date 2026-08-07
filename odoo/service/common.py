@@ -28,7 +28,6 @@ RPC_VERSION_1: dict[str, Any] = {
 
 
 def exp_login(db: str, login: str, password: str) -> int | bool:
-    """Authenticate via login/password and return the user id or False."""
     return exp_authenticate(db, login, password, None)
 
 
@@ -38,34 +37,6 @@ def exp_authenticate(
     password: str,
     user_agent_env: dict | None,
 ) -> int | bool:
-    """Authenticate a user and return the uid, or False on failure.
-
-    Every failure path collapses to the same ``False`` so an unauthenticated
-    caller cannot use the exception type to enumerate which databases exist or
-    are Odoo-initialized:
-
-    * **Missing DB** — ``Registry(db)`` raises from the pool's connect path.
-    * **Existing-but-not-Odoo DB** — ``res.users`` absent from the registry, so
-      ``env["res.users"]`` would raise a telltale ``KeyError``.
-    * **Empty / non-string DB name** — ``db_connect`` does not validate it; a
-      blank name surfaces as a ``PoolError`` from the pool.
-    * **Malformed ``user_agent_env``** — non-dict raises ``TypeError`` from
-      ``{**user_agent_env, ...}``.
-
-    The connect-failure arm catches ``psycopg.Error``, NOT the narrower
-    ``psycopg.OperationalError`` it once did.  ``odoo.db.pool`` deliberately
-    *translates* a connect-phase failure into the precise SQLSTATE class
-    (``_probe_connectable`` / ``_database_absent``), and the one that matters
-    here — ``InvalidCatalogName``, "database does not exist" — is a
-    ``ProgrammingError``, not an ``OperationalError``.  So an absent database
-    used to propagate out of this function as an RPC Fault while an existing one
-    returned ``False``: a per-name existence oracle on an ``auth="none"`` verb
-    (``/jsonrpc``, ``/xmlrpc/common``), which is exactly the invariant above.
-    Measured before this change: absent -> ``InvalidCatalogName``; existing
-    non-Odoo -> ``False``; existing Odoo -> ``False``.  Catching the whole
-    ``psycopg.Error`` tree keeps the invariant from silently regressing again
-    the next time the pool classifies an error more precisely.
-    """
     if not isinstance(db, str) or not db:
         return False
     if not isinstance(login, str) or not isinstance(password, str):
@@ -111,24 +82,10 @@ def exp_authenticate(
 
 
 def exp_version() -> dict[str, Any]:
-    """Return the RPC version information dict.
-
-    A fresh shallow copy, since ``RPC_VERSION_1`` is a mutable module global a
-    downstream serializer/middleware could otherwise corrupt for later callers.
-    """
     return dict(RPC_VERSION_1)
 
 
 def dispatch(method: str, params: list | tuple) -> Any:
-    """Dispatch a common-service RPC call to the matching exposed function.
-
-    Only methods in the ``_DISPATCH`` allowlist are reachable — an ``exp_``
-    helper is not automatically an RPC endpoint, so a debug helper can't be
-    exposed to unauthenticated clients by accident.
-
-    Unknown methods raise ``AttributeError``, matching
-    ``odoo.service.db.dispatch`` and ``odoo.service.model.dispatch``.
-    """
     handler = _DISPATCH.get(method)
     if handler is None:
         raise AttributeError(f"Method not found: {method}")

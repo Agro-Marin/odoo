@@ -70,9 +70,6 @@ class TestHasGroup(TransactionCase):
         internal_user.browse(test_user.id).has_group(self.group0)
 
     def test_portal_creation(self):
-        """Portal user creation must fail when implied groups would also grant
-        group_user; otherwise it succeeds with the requested groups.
-        """
         grp_test_portal_xml_id = "test_user_has_group.portal_implied_group"
         grp_test_portal = self.env["res.groups"]._load_records(
             [
@@ -145,9 +142,6 @@ class TestHasGroup(TransactionCase):
             )
 
     def test_portal_write(self):
-        """Adding a group to a portal user works, unless it implies
-        group_user/public, in which case it raises.
-        """
         grp_test_portal = self.env["res.groups"].create({"name": "implied by portal"})
         self.grp_portal.implied_ids = grp_test_portal
 
@@ -208,10 +202,6 @@ class TestHasGroup(TransactionCase):
             self.grp_internal.user_ids = [Command.link(test_user.id)]
 
     def test_two_user_types_implied_groups(self):
-        """Unlike test_two_user_types, add an implied_id to a group, propagating
-        users to groups through the ORM. Bypassing the ORM (e.g. raw SQL) would
-        skip the constraints and recomputations this test covers.
-        """
         grp_test = self.env["res.groups"].create(
             {
                 "name": "test",
@@ -264,7 +254,6 @@ class TestHasGroup(TransactionCase):
         self.assertIn(test_user.name, grp_additional.x_user_names)
 
     def test_demote_user(self):
-        """Demoting a user to portal/public strips all previous rights."""
         group_0 = self.env.ref(self.group0)
         group_U = self.env["res.groups"].create(
             {"name": "U", "implied_ids": [Command.set([self.grp_internal.id])]}
@@ -316,17 +305,6 @@ class TestHasGroup(TransactionCase):
         )
 
     def test_implied_groups(self):
-        """Adding implied ids works for normal and portal users; for a portal
-        user it must raise if a group would grant 'group_user' rights.
-
-        The expected sets are written against ``all_implied_ids`` — the
-        reflexive closure this very field is supposed to produce — rather than
-        against a snapshot of what ``group_user`` happens to imply.  Optional
-        feature groups join that closure as soon as the corresponding setting
-        is switched on (enabling Multi-Currencies makes ``group_user`` imply
-        ``group_multi_currency``), which used to break the test on any database
-        where an administrator had done so.
-        """
         U = self.env["res.users"]
         G = self.env["res.groups"]
         group_user = self.env.ref("base.group_user")

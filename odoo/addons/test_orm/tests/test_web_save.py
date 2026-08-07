@@ -5,7 +5,6 @@ from odoo.addons.base.tests.test_mimetypes import JPG, SVG
 
 class TestWebSave(TransactionCase):
     def test_web_save_create(self):
-        """Test the web_save method on a new record."""
         self.env["test_orm.person"].search([]).unlink()
         result = self.env["test_orm.person"].web_save({"name": "ged"}, {})
         person = self.env["test_orm.person"].search([])
@@ -22,7 +21,6 @@ class TestWebSave(TransactionCase):
         self.assertEqual(result, [{"id": person.id, "display_name": "ged"}])
 
     def test_web_save_write(self):
-        """Test the web_save method on an existing record."""
 
         person = self.env["test_orm.person"].create({"name": "ged"})
 

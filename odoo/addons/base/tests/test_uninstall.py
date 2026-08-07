@@ -9,7 +9,6 @@ from odoo.tests.common import BaseCase
 
 @contextmanager
 def environment():
-    """Yield an environment with a fresh cursor, committed and closed on exit."""
     reg = Registry(common.get_db_name())
     with reg.cursor() as cr:
         yield api.Environment(cr, api.SUPERUSER_ID, {})
@@ -20,10 +19,7 @@ MODEL = "test_uninstall.model"
 
 
 class TestUninstall(BaseCase):
-    """Test install/uninstall of the ``test_uninstall`` module from the addons-path."""
-
     def test_01_install(self):
-        """Check a few things showing the module is installed."""
         with environment() as env:
             module = env["ir.module.module"].search([("name", "=", MODULE)])
             assert len(module) == 1
@@ -45,7 +41,6 @@ class TestUninstall(BaseCase):
             self.assertTrue(len(existing_constraints) == 4, existing_constraints)
 
     def test_02_uninstall(self):
-        """Check a few things showing the module is uninstalled."""
         with environment() as env:
             module = env["ir.module.module"].search([("name", "=", MODULE)])
             assert len(module) == 1

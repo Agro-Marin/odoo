@@ -24,38 +24,19 @@ class Base(models.AbstractModel):
     def _get_access_action(
         self, access_uid: int | None = None, force_website: bool = False
     ) -> dict[str, Any]:
-        """Return an action to open the document (its form view by default).
-
-        Meant to be overridden in addons giving specific access to the document.
-
-        :param access_uid: the user accessing the document, if different from the
-            current user (an access may be computed for someone else)
-        :param force_website: force frontend redirection if available on self;
-            used in portal / website overrides
-        """
         self.ensure_one()
         return self.get_formview_action(access_uid=access_uid)
 
     @api.model
     def get_empty_list_help(self, help_message: str) -> str:
-        """Hook to customize the help shown in empty list/kanban views.
-
-        :param help_message: ir.actions.act_window help content
-        :return: the help message to display (the action help by default)
-        """
         return help_message
 
     @api.model
     def view_header_get(self, view_id: int | None, view_type: str) -> str | bool:
-        """Return the window title for the given view, or False.
-
-        Override this method if you need a window title that depends on the context.
-        """
         return False
 
     @api.model
     def _get_default_form_view(self) -> _Element:
-        """Generate a default form view using all fields of the model."""
         sheet = E.sheet(string=self._description)
         main_group = E.group()
         left_group = E.group()
@@ -96,24 +77,20 @@ class Base(models.AbstractModel):
 
     @api.model
     def _get_default_search_view(self) -> _Element:
-        """Generate a single-field search view, based on _rec_name."""
         element = E.field(name=self._rec_name_fallback())
         return E.search(element, string=self._description)
 
     @api.model
     def _get_default_list_view(self) -> _Element:
-        """Generate a single-field list view, based on _rec_name."""
         element = E.field(name=self._rec_name_fallback())
         return E.list(element, string=self._description)
 
     @api.model
     def _get_default_pivot_view(self) -> _Element:
-        """Generate an empty pivot view."""
         return E.pivot(string=self._description)
 
     @api.model
     def _get_default_kanban_view(self) -> _Element:
-        """Generate a single-field kanban view, based on _rec_name."""
 
         field = E.field(name=self._rec_name_fallback())
         kanban_card = E.t(field, {"t-name": "card"})
@@ -122,20 +99,13 @@ class Base(models.AbstractModel):
 
     @api.model
     def _get_default_graph_view(self) -> _Element:
-        """Generate a single-field graph view, based on _rec_name."""
         element = E.field(name=self._rec_name_fallback())
         return E.graph(element, string=self._description)
 
     @api.model
     def _get_default_calendar_view(self) -> _Element:
-        """Generate a default calendar view, inferring calendar fields from a
-        set of pre-set attribute names.
-        """
 
         def set_first_of(seq: list[str], in_: dict, to: str) -> bool:
-            """Set the ``to`` attribute of the closed-over ``view`` to the first
-            value of ``seq`` also found in ``in_``; return whether one was found.
-            """
             for item in seq:
                 if item in in_ and in_[item]._description_searchable:
                     view.set(to, item)
@@ -189,26 +159,6 @@ class Base(models.AbstractModel):
         views: list[list[int | str]],
         options: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Return the fields_views of the given views, the model's fields, and
-        optionally its filters for the given action.
-
-        The result may only depend on the requested view types, access rights,
-        view access rules, options, context lang and TYPE_view_ref (no other
-        context values).
-
-        :param views: list of [view_id, view_type]
-        :param options: optional boolean flags:
-
-            ``toolbar``
-                include contextual actions when loading fields_views
-            ``load_filters``
-                return the model's filters
-            ``action_id``
-                id of the action to get the filters, else the global filters
-
-        :return: dict with ``views`` and ``models`` keys (filters, when
-            requested, are nested under ``views['search']['filters']``)
-        """
         options = options or {}
         result = {}
 
@@ -266,18 +216,6 @@ class Base(models.AbstractModel):
         view_type: str = "form",
         **options: Any,
     ) -> tuple[_Element, Any]:
-        """Return the view's combined architecture (view plus inheriting views)
-        and the ir.ui.view record used.
-
-        :param view_id: id of the view, or None
-        :param str view_type: view type when view_id is None (``'form'``,
-            ``'list'``, ...)
-        :param options: ``mobile`` (bool) uses kanban instead of list views for
-            x2many fields
-        :rtype: tuple[_Element, Any]
-        :raise UserError: if no view exists and no ``_get_default_<view_type>_view``
-            method exists for the type
-        """
         IrUiView = self.env["ir.ui.view"].sudo()
 
         if not view_id:
@@ -335,19 +273,6 @@ class Base(models.AbstractModel):
     def _get_view_postprocessed(
         self, view: Any, arch: _Element, **options: Any
     ) -> tuple[str, dict[str, set[str]]]:
-        """Return the post-processed view architecture and the fields it uses.
-
-        Delegates to the view's ``postprocess_and_fields``: applies access
-        control, field modifiers and tag logic, embeds x2many subviews, and
-        collects the fields used across the view and its subviews.
-
-        :param view: an ``ir.ui.view`` record
-        :param arch: the view architecture as an etree node
-        :param options: ``mobile`` (bool) uses kanban instead of list views for
-            x2many fields
-        :return: (post-processed arch as a string, {model: fields used})
-        :rtype: tuple[str, dict[str, set[str]]]
-        """
         return view.postprocess_and_fields(arch, model=self._name, **options)
 
     @api.model
@@ -357,16 +282,6 @@ class Base(models.AbstractModel):
         view_type: str = "form",
         **options: Any,
     ) -> tuple:
-        """Return the cache key for `_get_view_cache`.
-
-        Meant to be overridden by models needing additional keys.
-
-        :param view_id: id of the view, or None
-        :param str view_type: view type when view_id is None (``'form'``, ...)
-        :param options: ``mobile`` (bool) uses kanban instead of list views for
-            x2many fields
-        :rtype: tuple
-        """
         return (
             view_id,
             view_type,
@@ -394,19 +309,6 @@ class Base(models.AbstractModel):
         view_type: str = "form",
         **options: Any,
     ) -> frozendict:
-        """Return the cacheable view information.
-
-        The cached view is postprocessed for ALL groups, so group-restricted
-        blocks must be removed after this call for users not in those groups.
-
-        :param view_id: id of the view, or None
-        :param str view_type: view type when view_id is None (``'form'``, ...)
-        :param options: ``mobile`` (bool) uses kanban instead of list views for
-            x2many fields
-        :return: a frozendict with ``arch`` (postprocessed, all groups), ``id``,
-            ``model``, and ``models`` (fields per model, including sub-views)
-        :rtype: frozendict
-        """
         arch, view = self._get_view(view_id, view_type, **options)
         arch, view_models = self._get_view_postprocessed(view, arch, **options)
         view_models = self._get_view_fields(view_type or view.type, view_models)
@@ -429,25 +331,6 @@ class Base(models.AbstractModel):
         view_type: str = "form",
         **options: Any,
     ) -> dict[str, Any]:
-        """Return the detailed composition of the requested view (model, arch,
-        inherited views and extensions).
-
-        The result may only depend on the requested view types, access rights,
-        view access rules, options, context lang and TYPE_view_ref (no other
-        context values).
-
-        :param view_id: id of the view, or None
-        :param str view_type: view type when view_id is None (``'form'``, ...)
-        :param options: ``mobile`` (bool) uses kanban instead of list views for
-            x2many fields
-        :rtype: dict[str, Any]
-        :raise ValueError:
-
-            * if an inherited view has a position other than 'before', 'after',
-              'inside', 'replace'
-            * if a tag other than 'position' is found in a parent view
-        :raise ValidationError: if an inherited view has an invalid xpath
-        """
         self.browse().check_access("read")
 
         result = dict(self._get_view_cache(view_id, view_type, **options))
@@ -463,15 +346,6 @@ class Base(models.AbstractModel):
     def _get_view_fields(
         self, view_type: str, view_models: dict[str, Any]
     ) -> dict[str, Any]:
-        """Return the field names the web client needs to load the views, per view type.
-
-        Meant to be overridden by modules requiring additional fields.
-
-        :param str view_type: type of the view
-        :param dict[str, Any] view_models: models and fields used in the arch
-        :return: models and fields required by the web client for this view type
-        :rtype: dict[str, Any]
-        """
         match view_type:
             case "kanban" | "list" | "form":
                 for model, model_fields in view_models.items():
@@ -496,12 +370,6 @@ class Base(models.AbstractModel):
 
     @api.model
     def _get_view_field_attributes(self) -> list[str]:
-        """Return the field attributes the web client needs to load the views.
-
-        Meant to be overridden by modules requiring additional field attributes.
-
-        :rtype: list[str]
-        """
         return [
             "change_default",
             "context",
@@ -536,24 +404,10 @@ class Base(models.AbstractModel):
 
     @api.readonly
     def get_formview_id(self, access_uid: int | None = None) -> int | bool:
-        """Return a view id to open the document ``self`` with.
-
-        Meant to be overridden in addons giving specific view ids.
-
-        :param access_uid: the user accessing the form view, if different from
-            the current environment user
-        """
         return False
 
     @api.readonly
     def get_formview_action(self, access_uid: int | None = None) -> dict[str, Any]:
-        """Return an action to open the document ``self``.
-
-        Meant to be overridden in addons giving specific view ids.
-
-        :param access_uid: the user accessing the document, if different from the
-            current user
-        """
         view_id = self.sudo().get_formview_id(access_uid=access_uid)
         return {
             "type": "ir.actions.act_window",
@@ -565,9 +419,6 @@ class Base(models.AbstractModel):
         }
 
     def _get_records_action(self, **kwargs: Any) -> dict[str, Any]:
-        """Return an action to open the given records: a list for several, a
-        form otherwise. Keyword arguments override the defaults.
-        """
         match self.ids:
             case []:
                 length_dependent = {"views": [(False, "form")]}
@@ -594,9 +445,6 @@ class Base(models.AbstractModel):
     def _onchange_spec(
         self, view_info: dict[str, Any] | None = None
     ) -> dict[str, str | None]:
-        """Return the onchange spec from a view description; defaults to
-        ``self.get_view()`` when *view_info* is not given.
-        """
         result = {}
 
         def process(node: _Element, info: dict[str, Any] | None, prefix: str) -> None:
@@ -620,9 +468,6 @@ class Base(models.AbstractModel):
     def _get_fields_spec(
         self, view_info: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Return the fields specification from a view description; defaults to
-        ``self.get_view()`` when *view_info* is not given.
-        """
 
         def fill_spec(node: _Element, model: Any, fields_spec: dict[str, Any]) -> None:
             if node.tag == "field":

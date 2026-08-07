@@ -37,18 +37,12 @@ class TestTestSuite(TestCase):
     test_module = "base"
 
     def test_test_suite(self):
-        """Check that OdooSuite handles unittest.TestCase correctly."""
 
         def get_method_additional_tags(self, method):
             return []
 
 
 class TestRunnerLoggingCommon(TransactionCase):
-    """Metatesting: check that on error the runner logs it with the right file
-    reference (guards against errors in tests/common.py or tests/runner.py).
-    Tricky because the logs happen outside the test method, after teardown.
-    """
-
     def setUp(self):
         self.expected_logs = None
         self.expected_first_frame_methods = None
@@ -108,7 +102,6 @@ class TestRunnerLoggingCommon(TransactionCase):
             _logger.exception("unexpected exception in _feedErrorsToResult")
 
     def _check_first_frame(self, tb):
-        """Check that the first frame of the given traceback is the expected method name."""
         if self.expected_first_frame_methods is None:
             expected_first_frame_method = self._testMethodName
         else:
@@ -122,7 +115,6 @@ class TestRunnerLoggingCommon(TransactionCase):
             )
 
     def _check_log_records(self, log_records):
-        """Check that what was logged is what was expected."""
         for log_record in log_records:
             self._assert_log_equal(log_record, "logger", _logger)
             self._assert_log_equal(
@@ -138,7 +130,6 @@ class TestRunnerLoggingCommon(TransactionCase):
                 self._assert_log_equal(log_record, "msg", msg)
 
     def _assert_log_equal(self, log_record, key, expected):
-        """Check the content of a log record."""
         value = log_record[key]
         if key == "msg":
             value = self._clean_message(value)
@@ -154,7 +145,6 @@ class TestRunnerLoggingCommon(TransactionCase):
                 self._log_error(f"Key `{key}` did not matched expected:\n{diff}")
 
     def _log_error(self, message):
-        """Log an actual error (about a log in a test that doesn't match expectations)"""
         self.test_result.addError(self, (AssertionError, AssertionError(message), None))
 
     def _clean_message(self, message):
@@ -184,7 +174,6 @@ class TestRunnerLogging(TestRunnerLoggingCommon):
         raise Exception("This is an error")
 
     def test_raise_subtest(self):
-        """With subtest, expect multiple errors, one per subtest."""
 
         def make_message(message):
             return f"""ERROR: Subtest TestRunnerLogging.test_raise_subtest (<subtest>)
@@ -515,8 +504,6 @@ class TestClassTeardown(BaseCase):
 
 
 class Test01ClassCleanups(BaseCase):
-    """With Test02ClassCleanupsCheck, checks that class cleanups run."""
-
     executed = False
     cleanup = False
 
@@ -570,8 +557,6 @@ class TestRegistryRLock(BaseCase):
 
 class TestCursorStack(TransactionCase):
     def test_out_of_order_close(self):
-        """Closing a non-top TestCursor must remove *that* cursor, not evict
-        the still-open top of the stack."""
         lock = threading.RLock()
         cr1 = self.registry.cursor()
         cr2 = self.registry.cursor()
@@ -597,9 +582,6 @@ class TestCursorStack(TransactionCase):
         self.assertNotIn(tc2, TestCursor._cursors_stack)
 
     def test_readonly_nesting_enforced_lazily(self):
-        """A read/write cursor may open under a readonly one only until the
-        readonly cursor has actually started its transaction (its savepoint
-        is created lazily on first execute); afterwards it must be refused."""
         lock = threading.RLock()
         cr_ro = self.registry.cursor()
         cr_rw = self.registry.cursor()
@@ -624,8 +606,6 @@ class TestCursorStack(TransactionCase):
 
 class TestBenchmarkStats(BaseCase):
     def test_compute_stats_raw_extremes_joint_trim(self):
-        """min/max report raw extremes; query/DB samples are trimmed jointly
-        with the timing samples (same iterations dropped)."""
         times = [100.0] * 19 + [10000.0]
         db_times = [60.0] * 19 + [9990.0]
         query_counts = [3] * 19 + [50]
@@ -642,8 +622,6 @@ class TestBenchmarkStats(BaseCase):
         self.assertEqual(stats.query_count_max, 50)
 
     def test_compute_stats_ratio_bounded(self):
-        """With per-iteration db <= wall samples, db_ratio stays <= 1 because
-        both means are computed over the same iteration subset."""
         times = [100.0] * 9 + [1000.0]
         db_times = [99.0] * 9 + [999.0]
         stats = compute_stats("t", times, [1] * 10, db_times)
@@ -658,8 +636,6 @@ class TestBenchmarkStats(BaseCase):
 
 class TestEnvInt(BaseCase):
     def test_env_int(self):
-        """Unset, empty and whitespace-only values (CI commonly exports empty
-        vars) fall back to the default instead of dying with ValueError."""
         var = "ODOO_TEST_ENV_INT_PROBE"
         self.assertEqual(env_int(var, 3), 3)
         for raw, expected in [("", 3), (" ", 3), ("0", 0), ("42", 42), ("-1", -1)]:
@@ -670,8 +646,6 @@ class TestEnvInt(BaseCase):
 
 
 class TestRetryAccounting(BaseCase):
-    """``testsRun`` must count tests, not attempts (see OdooTestResult.retry)."""
-
     class _Case(BaseCase):
         test_tags = {"standard"}
         test_module = "base"
@@ -715,8 +689,6 @@ class TestRetryAccounting(BaseCase):
 
 
 class TestPatchExecuteStatementApi(TransactionCase):
-    """``assertQueries`` must see every statement the cursor can issue."""
-
     def test_every_marked_entry_point_is_recorded(self):
         marked = {
             name
@@ -785,8 +757,6 @@ class TestPatchExecuteStatementApi(TransactionCase):
 
 
 class TestReadonlyModeIsTestScoped(TransactionCase):
-    """A mid-test readonly change must not outlive the test that made it."""
-
     def test_a_disables_readonly(self):
         self.registry_enter_test_mode(register_cleanup=True)
         self.set_registry_readonly_mode(False)
@@ -800,13 +770,6 @@ class TestReadonlyModeIsTestScoped(TransactionCase):
 
 
 class Test03LeakPatchers(BaseCase):
-    """With Test04LeakedPatchersCheck, pins ``check_remaining_patchers``.
-
-    Three leaked patchers, because the bug it guards against — walking the live
-    ``_patch._active_patches`` while ``stop()`` removes entries from it — skips
-    every other one, so a single leaked patcher would pass either way.
-    """
-
     class Target:
         a = 1
         b = 2
@@ -831,8 +794,6 @@ class Test04LeakedPatchersCheck(BaseCase):
 
 
 class TestCompleteTraceback(BaseCase):
-    """The 'no common frame' fallback must return a traceback, not crash."""
-
     def test_detached_traceback_falls_back_to_the_full_stack(self):
         from odoo.tests.case import _Outcome
 
@@ -855,8 +816,6 @@ class TestCompleteTraceback(BaseCase):
 
 
 class TestBaseCaseDefaults(BaseCase):
-    """A BaseCase subclass outside ``odoo.addons`` must still be usable."""
-
     def test_subclass_outside_addons_is_constructible(self):
         outside = type(
             "Outside",

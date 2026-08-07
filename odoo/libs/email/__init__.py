@@ -1,9 +1,3 @@
-"""Email parsing and formatting utilities.
-
-Pure Python email helpers with no Odoo dependencies.
-Uses standard library email utilities, idna, and regex.
-"""
-
 from .parsing import (
     getaddresses,
     email_re,

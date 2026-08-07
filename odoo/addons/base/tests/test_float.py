@@ -12,10 +12,7 @@ from odoo.tools import (
 
 
 class TestFloatPrecision(TransactionCase):
-    """Tests on float precision."""
-
     def test_rounding_02(self):
-        """Test rounding methods with 2 digits."""
         currency = self.env.ref("base.EUR")
 
         def try_round(amount, expected, digits=2, method="HALF-UP"):
@@ -83,7 +80,6 @@ class TestFloatPrecision(TransactionCase):
         try_compare(-0.01, 0, -1)
 
     def test_rounding_03(self):
-        """Test rounding methods with 3 digits."""
 
         def try_round(amount, expected, digits=3, method="HALF-UP"):
             value = float_round(amount, precision_digits=digits, rounding_method=method)
@@ -226,7 +222,6 @@ class TestFloatPrecision(TransactionCase):
         try_round(-2.5, "-2.50", precision_rounding=0.05, method="DOWN")
 
     def test_rounding_04(self):
-        """check that proper rounding is performed for float persistence"""
         currency = self.env.ref("base.EUR")
         currency_rate = self.env["res.currency.rate"]
 
@@ -243,14 +238,6 @@ class TestFloatPrecision(TransactionCase):
         try_roundtrip(10000.999999, 10000.999999, "2000-01-03")
 
     def test_rounding_large_magnitude(self):
-        """Large clean values must not gain spurious digits from the tie epsilon.
-
-        The IEEE-754 tie-rescue epsilon is magnitude-relative: at large magnitude
-        the ULP approaches/exceeds ~1, so an uncapped epsilon (> 0.5) would flip a
-        clean value to the next step (e.g. float_round(1e13, precision_rounding=0.01)
-        -> 10000000000000.01). HALF-* methods cap the epsilon below the .5 tie
-        boundary while still rescuing genuine representation-error ties.
-        """
         rescued_145 = {"HALF-UP": "0.15", "HALF-DOWN": "0.14", "HALF-EVEN": "0.14"}
         for method in ("HALF-UP", "HALF-DOWN", "HALF-EVEN"):
             for value in (5.6e12, 1e13, 1.23456789e14, 1e15):
@@ -285,7 +272,6 @@ class TestFloatPrecision(TransactionCase):
         )
 
     def test_float_split_05(self):
-        """Test split method with 2 digits."""
         currency = self.env.ref("base.EUR")
 
         def try_split(value, expected, split_fun, rounding=None):
@@ -318,7 +304,6 @@ class TestFloatPrecision(TransactionCase):
         try_split(13.0, (13, 0), float_split, rounding=0)
 
     def test_rounding_invalid(self):
-        """verify that invalid parameters are forbidden"""
         with self.assertRaises(ValueError):
             float_is_zero(0.01, precision_digits=3, precision_rounding=0.01)
 
@@ -356,7 +341,6 @@ class TestFloatPrecision(TransactionCase):
             float_round(1.25, precision_digits=0.5)
 
     def test_amount_to_text_10(self):
-        """verify that amount_to_text works as expected"""
         currency = self.env.ref("base.EUR")
 
         amount_target = currency.amount_to_text(0.29)

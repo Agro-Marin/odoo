@@ -77,12 +77,6 @@ class TestHttpMisc(TestHttpBase):
         )
 
     def test_misc2_redirect_query_fragment_order(self):
-        """``?query`` must land before ``#fragment`` per RFC 3986.
-
-        Regression: before the fix, ``/foo#bar`` + ``?a=b`` produced
-        ``/foo#bar?a=b``, which browsers treat as a query living inside
-        the fragment — the server sees no query at all.
-        """
         captured = {}
 
         def fake_redirect(location, code=303, local=True):
@@ -259,11 +253,6 @@ class TestHttpMisc(TestHttpBase):
         self.assertEqual(set(res.json()), {"version", "version_info"})
 
     def test_misc10_cookie_default_expires_is_utc(self):
-        """The default cookie expiry must be timezone-aware UTC.
-
-        werkzeug's ``http_date`` treats a naive datetime as UTC, so a naive
-        ``datetime.now()`` shifted the Expires header by the host's UTC offset.
-        """
         import datetime as dt
 
         from odoo.http.wrappers import _apply_cookie_defaults
@@ -377,14 +366,6 @@ class TestHttpCors(TestHttpBase):
 
     @mute_logger("odoo.http")
     def test_cors4_error_response_keeps_cors_headers(self):
-        """An error response must still carry the route's CORS headers.
-
-        ``handle_error`` builds the response outside the normal dispatch flow,
-        so it used to bypass ``Dispatcher.post_dispatch`` entirely — the CORS
-        headers staged by ``pre_dispatch`` never reached it. A cross-origin
-        caller then saw an opaque browser CORS failure instead of the real
-        status/body, making every server-side error undiagnosable client-side.
-        """
         res = self.url_open("/test_http/cors_http_error")
         self.assertEqual(res.status_code, 422)
         self.assertEqual(
@@ -398,25 +379,12 @@ class TestHttpCors(TestHttpBase):
 @tagged("post_install", "-at_install")
 class TestHttpMethodsAllowList(TestHttpBase):
     def test_methods0_options_does_not_bypass_a_post_only_route(self):
-        """OPTIONS must be answered by the framework, never by a POST-only handler.
-
-        OPTIONS is a ``SAFE_HTTP_METHODS`` member, so if it ever reached the
-        endpoint a csrf-protected POST-only handler would run with its query
-        parameters and no CSRF check. ``pre_dispatch`` intercepts it with a 204
-        that advertises what the route really accepts.
-        """
         res = self.db_url_open("/test_http/echo-http-csrf?injected=1", method="OPTIONS")
         self.assertEqual(res.status_code, 204, res.text)
         self.assertNotIn("injected", res.text, "the endpoint must not have run")
         self.assertEqual(res.headers.get("Allow"), "POST, OPTIONS")
 
     def test_methods2_options_answer_is_uniform_across_routes(self):
-        """A route with and one without a ``methods=`` allow-list agree.
-
-        The allow-listed one used to 405 out of werkzeug while the unrestricted
-        one got a framework 204, so clients saw two different answers to the
-        same question depending on a detail of the route declaration.
-        """
         allow_listed = self.db_url_open("/test_http/echo-http-csrf", method="OPTIONS")
         unrestricted = self.db_url_open("/test_http/greeting", method="OPTIONS")
         self.assertEqual(allow_listed.status_code, 204)
@@ -425,12 +393,6 @@ class TestHttpMethodsAllowList(TestHttpBase):
         self.assertIn("OPTIONS", unrestricted.headers.get("Allow", ""))
 
     def test_methods3_trace_is_rejected_before_dispatch(self):
-        """TRACE must never reach a handler.
-
-        It is not a ``SAFE_HTTP_METHODS`` member any more, but a route without a
-        ``methods=`` allow-list still matches every verb, so the rejection has
-        to happen at the WSGI entry point rather than in the CSRF gate.
-        """
         res = self.db_url_open("/test_http/echo-http-csrf", method="TRACE")
         self.assertEqual(res.status_code, 405, res.text)
         res = self.db_url_open("/test_http/greeting", method="TRACE")
@@ -530,7 +492,6 @@ class TestHttpEnsureDb(TestHttpBase):
 
 class TestContentDisposition(BaseCase):
     def test_content_disposition(self):
-        """Test that content_disposition filename conforms to RFC 6266, RFC 5987"""
         assertions = [
             ("foo bar.xls", "foo%20bar.xls", "Space character"),
             ("foo(bar).xls", "foo%28bar%29.xls", "Parenthesis"),
@@ -559,14 +520,7 @@ class TestContentDisposition(BaseCase):
 
 
 class TestRewindUploadedFiles(BaseCase):
-    """Guards :func:`odoo.http.rewind_uploaded_files`, the single rewind
-    primitive shared by the serialization-retry loop
-    (``service.transaction.retrying``) and the RO→RW cursor-upgrade path
-    (``http._serve._rewind_input_files``).
-    """
-
     def test_rewind_single_file(self):
-        """A single seekable upload is rewound so the replay re-reads it whole."""
         builder = EnvironBuilder(
             method="POST", data={"ufile": (BytesIO(b"Hello world!"), "a.txt")}
         )
@@ -579,11 +533,6 @@ class TestRewindUploadedFiles(BaseCase):
         self.assertEqual(upload.read(), b"Hello world!")
 
     def test_rewind_multifile_same_field(self):
-        """Regression: ``<input type=file multiple>`` posts several files under
-        one field name. The old rewind used ``MultiDict.items()`` (one entry per
-        key), leaving every file after the first at EOF — a silent data loss on
-        any serialization retry. ``items(multi=True)`` must rewind them all.
-        """
         contents = [b"AAAAA-file-one", b"BBBBB-file-two", b"CCCCC-file-three"]
         builder = EnvironBuilder(
             method="POST",
@@ -608,7 +557,6 @@ class TestRewindUploadedFiles(BaseCase):
         self.assertEqual([u.read() for u in uploads], contents)
 
     def test_rewind_nonseekable_raises_chained(self):
-        """A non-seekable upload cannot be replayed: raise, chaining the cause."""
 
         class _NonSeekable:
             def seekable(self):
@@ -627,13 +575,6 @@ class TestRewindUploadedFiles(BaseCase):
 @tagged("post_install", "-at_install")
 class TestHttpJson2Params(TestHttpBase):
     def test_json2_0_query_string_reaches_the_handler(self):
-        """A ``json2`` route served over GET has no body to carry parameters.
-
-        Only the JSON body and the URL path arguments used to be merged, so the
-        query string was dropped silently: a GET json2 route was unreachable
-        with arguments, and a ``typed=True`` one answered 400 whatever the
-        caller sent.
-        """
         res = self.db_url_open("/test_http/echo-json2?q=hello&n=1")
         self.assertEqual(res.status_code, 200, res.text)
         self.assertEqual(res.json(), {"q": "hello", "n": "1"})
@@ -650,8 +591,6 @@ class TestHttpJson2Params(TestHttpBase):
 
 @tagged("post_install", "-at_install")
 class TestHttpCorsCredentials(TestHttpBase):
-    """``cors='*'`` with credentials is refused; a resolver narrows the echo."""
-
     def test_cors0_resolver_allows_an_origin_on_this_host(self):
         base = self.base_url()
         res = self.url_open(

@@ -428,7 +428,7 @@ def test_the_eight_original_contracts_are_clean_at_zero():
     """No pinned entry may attach to any of the pre-existing contracts."""
     assert len(ORIGINAL_EIGHT) == 8
     defined = {c.name for c in lc.CONTRACTS}
-    assert ORIGINAL_EIGHT <= defined, (
+    assert defined >= ORIGINAL_EIGHT, (
         f"original contract removed: {ORIGINAL_EIGHT - defined}"
     )
     core_sources = {

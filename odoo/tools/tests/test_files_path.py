@@ -1,11 +1,3 @@
-"""Tests for ``odoo.tools.files.file_path``.
-
-``file_path`` is a path-traversal barrier: it must only ever hand back paths
-that live under a known addons directory.  These tests pin that contract
-(including the symlink case, which a purely lexical check would miss) alongside
-the memoisation added for the ``resolve()`` hot path.
-"""
-
 import os
 import sys
 import tempfile
@@ -18,8 +10,6 @@ import odoo.addons
 
 
 class _AddonsRoot:
-    """A throwaway addons directory installed as the only search path."""
-
     def __init__(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
@@ -54,7 +44,7 @@ class TestFilePathContainment(unittest.TestCase):
     def test_resolves_a_file_inside_addons(self):
         with _AddonsRoot() as r:
             got = file_path("mymod/static/ok.txt")
-            self.assertEqual(Path(got).read_text(), "ok")
+            self.assertEqual(Path(got).read_text(encoding="utf-8"), "ok")
             self.assertTrue(Path(got).is_relative_to(r.addons))
 
     def test_dotdot_traversal_is_rejected(self):
@@ -68,8 +58,6 @@ class TestFilePathContainment(unittest.TestCase):
                 file_path("mymod/static/../../../outside/secret.txt")
 
     def test_symlink_escaping_addons_is_rejected(self):
-        """The reason the containment check resolves rather than comparing
-        lexically: ``mymod/escape`` is inside the tree, its target is not."""
         with _AddonsRoot() as r:
             self.assertTrue(r.escape.is_symlink())
             self.assertTrue((r.escape / "secret.txt").exists())
@@ -84,7 +72,9 @@ class TestFilePathContainment(unittest.TestCase):
     def test_absolute_path_inside_addons_is_accepted(self):
         with _AddonsRoot() as r:
             target = r.addons / "mymod" / "static" / "ok.txt"
-            self.assertEqual(Path(file_path(str(target))).read_text(), "ok")
+            self.assertEqual(
+                Path(file_path(str(target))).read_text(encoding="utf-8"), "ok"
+            )
 
     def test_missing_file_raises(self):
         with _AddonsRoot():

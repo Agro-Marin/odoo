@@ -1,26 +1,3 @@
-"""Error and lifecycle paths of :mod:`odoo.orm.registration`.
-
-Tier-2 suite (real ``import odoo``, no database — run as ``pytest
-odoo/orm/tests``).  The registration module's happy path is exercised by every
-harness-based test; this suite pins the *guard rails*:
-
-* the circular-``_inherits`` detection in ``_setup`` (``TypeError`` instead of
-  infinite recursion / stack overflow);
-* the abstract/transient transform rejections of ``_check_model_extension``
-  and the abstract-child rejection of ``_check_model_parent_extension``;
-* the ``_check_inherits`` delegate/required/ondelete validation errors;
-* the ``_validate_rec_name`` / ``_validate_active_name`` rejections (and their
-  auto-detection defaults);
-* the same-``_name``-without-``_inherit`` replacement warning in
-  ``add_to_registry``;
-* ``pop_field``'s ``_rec_name`` / display-name-depends fixup.
-
-Each failing scenario lives in its own ``_module`` so that a broken definition
-never leaks into another test's :class:`ModelRegistry` build (the harness
-auto-collects every definition registered under the modules of the classes it
-is given).
-"""
-
 import logging
 
 import pytest

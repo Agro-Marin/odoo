@@ -3,11 +3,6 @@ _soap_clients = {}
 
 def new_get_soap_client(wsdlurl, timeout=30):
     if (wsdlurl, timeout) not in _soap_clients:
-        # Bound before the try: the CachingClient fallback below reuses it, and
-        # an ImportError from `zeep.transports` (zeep present but incomplete)
-        # would otherwise reach that line with the name unbound and raise
-        # NameError -- which no `except ImportError` here catches, so the whole
-        # SOAP fallback chain would be skipped instead of degrading to suds.
         transport = None
         try:
             from zeep.transports import Transport
@@ -51,7 +46,6 @@ def new_get_soap_client(wsdlurl, timeout=30):
 
 
 def patch_module() -> None:
-    """Patch stdnum's SOAP client to properly set operation timeout."""
     try:
         from stdnum import util
     except ImportError:

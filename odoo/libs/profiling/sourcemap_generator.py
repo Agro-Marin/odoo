@@ -1,11 +1,3 @@
-"""Source map v3 generator for asset bundle debugging.
-
-Maps compiled/minified bundle positions back to original source files,
-enabling browser devtools to show the original code.
-
-See https://sourcemaps.info/spec.html for the specification.
-"""
-
 __all__ = ["SourceMapGenerator", "base64vlq_encode"]
 
 import json
@@ -14,23 +6,13 @@ from typing import Final, NamedTuple
 
 
 class _Mapping(NamedTuple):
-    """A single source mapping entry (generated_line, original_line, source)."""
-
     generated_line: int
     original_line: int
     source: str | None
 
 
 class SourceMapGenerator:
-    """Generate source map v3 JSON for asset bundles.
-
-    Performs line-by-line mapping with optional start offsets for headers
-    added during transpilation.  Adapted from the Mozilla source-map
-    library, simplified for Odoo's line-level (no column) use case.
-    """
-
     def __init__(self, source_root: str | None = None) -> None:
-        """Initialize an empty map, optionally rooted at ``source_root``."""
         self.file: str | None = None
         self._source_root: str | None = source_root
         self._sources: dict[str, int] = {}
@@ -39,7 +21,6 @@ class SourceMapGenerator:
         self._cache: dict[tuple[int, int], str] = {}
 
     def _serialize_mappings(self) -> str:
-        """Encode all mappings as a base64-VLQ string per source map v3 spec."""
         previous_generated_line = 1
         previous_original_line = 0
         previous_source = 0
@@ -75,7 +56,6 @@ class SourceMapGenerator:
         return "".join(parts)
 
     def to_json(self) -> dict[str, object]:
-        """Assemble the complete source map as a JSON-serializable dict."""
         result: dict[str, object] = {
             "version": 3,
             "sources": list(self._sources),
@@ -91,7 +71,6 @@ class SourceMapGenerator:
         return result
 
     def get_content(self) -> bytes:
-        """Serialize the source map to bytes with XSSI-prevention prefix."""
         return b")]}'\n" + json.dumps(self.to_json()).encode("utf-8")
 
     def add_source(
@@ -101,18 +80,6 @@ class SourceMapGenerator:
         last_index: int,
         start_offset: int = 0,
     ) -> None:
-        """Add a source file and generate line-by-line mappings.
-
-        Maps each line of *source_content* to the corresponding line in the
-        generated bundle starting at ``last_index + start_offset``.  Lines
-        between ``last_index`` and ``last_index + start_offset`` (e.g. a
-        transpilation header) are all mapped to line 1 of the source.
-
-        :param source_name: identifier for this source (usually a URL path)
-        :param source_content: full text of the source file
-        :param last_index: line in the generated bundle where this source starts
-        :param start_offset: extra lines (header) before content begins
-        """
         source_line_count = source_content.count("\n") + 1
 
         self._sources.setdefault(source_name, len(self._sources))
@@ -134,12 +101,6 @@ MASK: Final[int] = FLAG - 1
 
 @lru_cache(maxsize=64)
 def base64vlq_encode(*values: int) -> str:
-    """Encode integers as Base64 VLQ sequences.
-
-    Each value is encoded as a variable-length sequence of 6-bit groups.
-    The first group contains a sign bit; subsequent groups contain 5 data
-    bits each plus a continuation flag.
-    """
     results: list[int] = []
     add = results.append
     for v in values:

@@ -264,7 +264,6 @@
             </p>
         </field>
     </record>
-    <!-- link to stores -->
     <record id="action_third_party" model="ir.actions.act_url">
         <field name="name">Third-Party Apps</field>
         <field name="url">https://apps.odoo.com/apps/modules</field>

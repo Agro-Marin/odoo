@@ -1,36 +1,15 @@
-"""Annotation-driven coercion & validation for opt-in typed routes.
-
-A route marked ``@route(..., typed=True)`` declares each request parameter's type
-through the handler's annotations. This module reads those annotations once at
-decoration time (:func:`build_param_specs`) and, on every request, coerces the
-raw request values — query/form strings for ``type='http'`` routes, JSON scalars
-for ``jsonrpc``/``json2`` — to the declared types (:func:`coerce_params`), raising
-a clean ``400 Bad Request`` for a missing required parameter or a value that
-cannot be coerced.
-
-Only *annotated* parameters are touched: an unannotated parameter (the Odoo
-norm) passes through unchanged, so turning on ``typed=True`` never alters how an
-existing handler sees its other arguments. Supported annotations are the request
-primitives ``int``/``float``/``bool``/``str``, their ``X | None`` form (PEP 604),
-and ``list`` / ``list[<primitive>]``; any other annotation is left untouched (the
-value passes through as received). String annotations (a handler module using
-``from __future__ import annotations``) are evaluated against the handler's
-globals; an unresolvable one degrades to pass-through like any unsupported
-annotation.
-
-Pure module — only stdlib + werkzeug — so the coercion rules are unit-testable
-without an HTTP stack, a registry, or a database.
-"""
-
 from __future__ import annotations
 
 import inspect
+import logging
 import math
 import types
 import typing
 from typing import Any, NamedTuple
 
 from werkzeug.exceptions import BadRequest
+
+_logger = logging.getLogger(__name__)
 
 _PRIMITIVES: frozenset[type] = frozenset({int, float, bool, str})
 
@@ -39,15 +18,6 @@ _FALSE_TOKENS: frozenset[str] = frozenset({"false", "0", "off", "no", "f", ""})
 
 
 class ParamSpec(NamedTuple):
-    """How one keyword parameter is coerced.
-
-    :param target: the primitive to coerce to (``int``/``float``/``bool``/``str``)
-        or ``list`` for a sequence parameter.
-    :param item: element primitive for ``list[...]`` params, else ``None``.
-    :param allow_none: whether the annotation was ``X | None`` / ``Optional[X]``.
-    :param required: whether the parameter has no default (must be supplied).
-    """
-
     target: type
     item: type | None
     allow_none: bool
@@ -55,11 +25,6 @@ class ParamSpec(NamedTuple):
 
 
 def _resolve(annotation: Any) -> tuple[type | None, type | None, bool]:
-    """Reduce an annotation to ``(target, item, allow_none)``.
-
-    Returns ``(None, None, allow_none)`` for any annotation this module does not
-    coerce, so the caller leaves such parameters untouched.
-    """
     allow_none = False
     if isinstance(annotation, types.UnionType):
         args = typing.get_args(annotation)
@@ -84,13 +49,6 @@ def _resolve(annotation: Any) -> tuple[type | None, type | None, bool]:
 
 
 def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
-    """Map each annotated keyword parameter of ``endpoint`` to a :class:`ParamSpec`.
-
-    Mirrors :func:`odoo.http.routing._route_param_filter`'s notion of "accepted
-    by keyword" (POSITIONAL_OR_KEYWORD / KEYWORD_ONLY), skips the bound ``self``,
-    and skips parameters that are unannotated or annotated with an unsupported
-    type. Computed once, at decoration time.
-    """
     specs: dict[str, ParamSpec] = {}
     params = list(inspect.signature(endpoint).parameters.values())
     for param in params[1:]:
@@ -104,8 +62,16 @@ def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
         annotation = param.annotation
         if isinstance(annotation, str):
             try:
-                annotation = eval(annotation, getattr(endpoint, "__globals__", None))
+                # S307: resolving a STRING annotation is what typing.get_type_hints
+                # does too; the source is the route handler's own signature.
+                annotation = eval(annotation, getattr(endpoint, "__globals__", None))  # noqa: S307  see comment above
             except Exception:
+                _logger.debug(
+                    "%s: cannot resolve annotation %r for %r; parameter left uncoerced",
+                    endpoint,
+                    annotation,
+                    param.name,
+                )
                 continue
         target, item, allow_none = _resolve(annotation)
         if target is None:
@@ -134,18 +100,6 @@ def _to_bool(name: str, value: Any) -> bool:
 
 
 def _reject_non_json_number(name: str, value: Any, kind: str) -> None:
-    """Guard ``int``/``float`` string coercion against Python-only number spellings.
-
-    Python's ``int()``/``float()`` accept two things a JSON/HTTP number never is:
-    digit-group underscores (``"1_000"`` -> ``1000``) and non-ASCII digits (an
-    Arabic-Indic digit string -> its ASCII value). A typed route promises a clean
-    ``400`` for a value that isn't the declared type; silently parsing those leaks
-    Python's literal grammar into the request contract, so a client bug (or a
-    probe) that sends ``1_000`` reads as ``1000`` instead of being rejected. JSON
-    numbers are ASCII ``[-]?[0-9]+(...)`` -- reject any string that isn't.
-    Surrounding whitespace stays tolerated (``int()``/``float()`` strip it); only
-    these two Python-isms are refused.
-    """
     if isinstance(value, str) and ("_" in value or not value.isascii()):
         raise BadRequest(f"parameter {name!r} must be {kind}")
 
@@ -201,12 +155,6 @@ def _coerce_value(name: str, value: Any, spec: ParamSpec) -> Any:
 def coerce_params(
     params: dict[str, Any], specs: dict[str, ParamSpec]
 ) -> dict[str, Any]:
-    """Return ``params`` with each annotated entry coerced to its declared type.
-
-    Unannotated entries are passed through unchanged. A required parameter absent
-    from ``params``, or a value that cannot be coerced, raises ``BadRequest``
-    (→ HTTP 400). The input dict is not mutated.
-    """
     if not specs:
         return params
     coerced = dict(params)

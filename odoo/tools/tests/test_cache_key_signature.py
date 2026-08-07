@@ -1,19 +1,9 @@
-"""Regression tests for the cache-key lambda built by ``ormcache.determine_key``.
-
-The key lambda is generated as *source text* and ``eval``'d.  Rendering a
-parameter default via ``repr()`` (what ``str(Parameter)`` does) is only valid
-Python for a minority of objects, so a method with a non-literal default used to
-raise ``SyntaxError`` at decoration time -- i.e. at import, failing server start.
-"""
-
 import unittest
 
 from odoo.tools.cache import _render_signature, ormcache
 
 
 class _Opaque:
-    """Default value whose repr() is not valid Python source."""
-
     def __repr__(self):
         return "<opaque object at 0xdeadbeef>"
 
@@ -84,8 +74,6 @@ class TestRenderSignature(unittest.TestCase):
 
 
 class TestOrmcacheDeterminesKey(unittest.TestCase):
-    """The generated lambda must be syntactically valid and produce the key."""
-
     def _key_of(self, method, *args, **kwargs):
         deco = ormcache("a")
         deco.method = method

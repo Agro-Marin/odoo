@@ -1,10 +1,3 @@
-"""Shared location/artifact helpers for the test framework.
-
-Home of the pieces needed by both :mod:`odoo.tests.common` and
-:mod:`odoo.tests.browser` — a separate module so the browser layer does not
-have to import the (much heavier) ``common`` at runtime.
-"""
-
 import logging
 import os
 import pathlib
@@ -21,20 +14,11 @@ HOST = "127.0.0.1"
 
 
 def env_int(varname: str, default: int) -> int:
-    """Parse an integer environment variable, tolerating empty-but-set values.
-
-    CI environments commonly export variables with an empty value; a bare
-    ``int(os.environ.get(var, "0"))`` then dies with ``ValueError`` — at import
-    time when the result feeds a class attribute, taking the whole framework
-    down with it.  Unset and empty both mean ``default``; anything else must
-    parse as an int.
-    """
     raw = os.environ.get(varname, "")
     return int(raw) if raw.strip() else default
 
 
 def get_db_name() -> str:
-    """Return the configured test database name."""
     dbnames = odoo.tools.config["db_name"]
     if not dbnames and hasattr(threading.current_thread(), "dbname"):
         return threading.current_thread().dbname
@@ -56,7 +40,6 @@ def save_test_file(
     document_type: str = "Screenshot",
     date_format: str = "%Y%m%d_%H%M%S_%f",
 ) -> None:
-    """Save a test artifact (screenshot, screencast frame, etc.) to disk."""
     assert re.fullmatch(r"\w*_", prefix)
     assert re.fullmatch(r"[a-z]+", extension)
     assert re.fullmatch(r"\w+", test_name)

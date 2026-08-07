@@ -32,8 +32,6 @@ DATETIME_LENGTH = len(datetime.now().strftime(DATETIME_FORMAT))
 
 
 class BaseDate[T](Field[T | typing.Literal[False]]):
-    """Common field properties for Date and Datetime."""
-
     start_of = staticmethod(date_utils.start_of)
     end_of = staticmethod(date_utils.end_of)
     add = staticmethod(date_utils.add)
@@ -51,9 +49,6 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
     def _expression_property_getter(
         self, property_name: str
     ) -> Callable[[T], typing.Any]:
-        """Return a function that maps a field value (date or datetime) to the
-        given ``property_name``.
-        """
         match property_name:
             case "tz":
                 return lambda value: value
@@ -124,8 +119,6 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
 
 
 class Date(BaseDate[date]):
-    """Encapsulates a python :class:`date <datetime.date>` object."""
-
     type = "date"
     _column_type = ("date", "date")
 
@@ -134,26 +127,12 @@ class Date(BaseDate[date]):
 
     @staticmethod
     def today(*args) -> date:
-        """Return the current day in the format expected by the ORM.
-
-        .. note:: This function may be used to compute default values.
-        """
         return date.today()
 
     @staticmethod
     def context_today(
         record: BaseModel, timestamp: date | datetime | None = None
     ) -> date:
-        """Return the current date as seen in the client's timezone in a format
-        fit for date fields.
-
-        .. note:: This method may be used to compute default values.
-
-        :param record: recordset from which the timezone will be obtained.
-        :param timestamp: optional datetime value to use instead of
-            the current date and time (must be a datetime, regular dates
-            can't be converted between timezones).
-        """
         today = timestamp or datetime.now()
         tz = record.env.tz
         today_utc = today.replace(tzinfo=utc)
@@ -164,18 +143,6 @@ class Date(BaseDate[date]):
     def to_date(
         value: str | date | datetime | typing.Literal[False] | None,
     ) -> date | None:
-        """Attempt to convert ``value`` to a :class:`date` object.
-
-        .. warning::
-
-            If a datetime object is given as value,
-            it will be converted to a date object and all
-            datetime-specific information will be lost (HMS, TZ, ...).
-
-        :param value: value to convert.
-        :type value: str or date or datetime
-        :return: an object representing ``value``.
-        """
         if not value:
             return None
         if isinstance(value, date):
@@ -196,11 +163,6 @@ class Date(BaseDate[date]):
     def to_string(
         value: date | typing.Literal[False],
     ) -> str | typing.Literal[False]:
-        """Convert a :class:`date` or :class:`datetime` object to a string.
-
-        Returns ``value`` in the server's date format; a :class:`datetime` is
-        truncated (hours, minutes, seconds, tzinfo dropped).
-        """
         return value.strftime(DATE_FORMAT) if value else False
 
     @override
@@ -223,8 +185,6 @@ class Date(BaseDate[date]):
 
 
 class Datetime(BaseDate[datetime]):
-    """Encapsulates a python :class:`datetime <datetime.datetime>` object."""
-
     type = "datetime"
     _column_type = ("timestamp", "timestamp")
 
@@ -233,32 +193,14 @@ class Datetime(BaseDate[datetime]):
 
     @staticmethod
     def now(*args) -> datetime:
-        """Return the current day and time in the format expected by the ORM.
-
-        .. note:: This function may be used to compute default values.
-        """
         return datetime.now().replace(microsecond=0)
 
     @staticmethod
     def today(*args) -> datetime:
-        """Return the current day, at midnight (00:00:00)."""
         return Datetime.now().replace(hour=0, minute=0, second=0)
 
     @staticmethod
     def context_timestamp(record: ModelLike, timestamp: datetime) -> datetime:
-        """Return the given timestamp converted to the client's timezone.
-
-        .. note:: This method is *not* meant for use as a default initializer,
-            because datetime fields are automatically converted upon
-            display on client side. For default values, :meth:`now`
-            should be used instead.
-
-        :param record: recordset from which the timezone will be obtained.
-        :param datetime timestamp: naive datetime value (expressed in UTC)
-            to be converted to the client timezone.
-        :return: timestamp converted to timezone-aware datetime in context timezone.
-        :rtype: datetime
-        """
         assert isinstance(timestamp, datetime), "Datetime instance expected"
         tz = record.env.tz
         utc_timestamp = timestamp.replace(tzinfo=utc)
@@ -268,14 +210,6 @@ class Datetime(BaseDate[datetime]):
     def to_datetime(
         value: str | date | datetime | typing.Literal[False] | None,
     ) -> datetime | None:
-        """Convert an ORM ``value`` into a :class:`datetime` value.
-
-        Accepts timezone-aware UTC datetimes and converts them to naive UTC.
-
-        :param value: value to convert.
-        :type value: str or date or datetime
-        :return: an object representing ``value`` as a naive UTC datetime.
-        """
         if not value:
             return None
         if isinstance(value, date):
@@ -301,14 +235,6 @@ class Datetime(BaseDate[datetime]):
     def to_string(
         value: datetime | typing.Literal[False],
     ) -> str | typing.Literal[False]:
-        """Convert a :class:`datetime` or :class:`date` object to a string.
-
-        :param value: value to convert.
-        :type value: datetime or date
-        :return: a string representing ``value`` in the server's datetime format,
-            if ``value`` is of type :class:`date`,
-            the time portion will be midnight (00:00:00).
-        """
         return value.strftime(DATETIME_FORMAT) if value else False
 
     def expression_getter(self, field_expr: str) -> Callable[[BaseModel], typing.Any]:

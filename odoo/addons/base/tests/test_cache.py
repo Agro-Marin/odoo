@@ -11,7 +11,6 @@ from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 class TestRecordCache(TransactionCaseWithUserDemo):
     def test_cache(self):
-        """Check the record cache object."""
         Model = self.env["res.partner"]
         name = type(Model).name
         ref = type(Model).ref
@@ -31,7 +30,6 @@ class TestRecordCache(TransactionCaseWithUserDemo):
             )
 
         def check(record, name_val, ref_val):
-            """check the values of fields 'name' and 'ref' on record."""
             check1(record, name, name_val)
             check1(record, ref, ref_val)
 
@@ -95,7 +93,6 @@ class TestRecordCache(TransactionCaseWithUserDemo):
         "This test only makes sense on 64-bit Linux-like systems",
     )
     def test_memory(self):
-        """Check memory consumption of the cache."""
         NB_RECORDS = 100000
         MAX_MEMORY = 100
 

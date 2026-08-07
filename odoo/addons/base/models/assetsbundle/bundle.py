@@ -54,19 +54,10 @@ from .xml_pipeline import XmlTemplatePipeline
 
 @functools.cache
 def _check_external_libs_once() -> None:
-    """Cross-check ``ODOO_EXTERNAL_LIBS`` against esbuild's alias tables once.
-
-    Runs on the first :class:`AssetsBundle` construction rather than at import
-    time, so the filesystem probes see the real post-config ``addons_path``.
-    ``functools.cache`` does not memoize exceptions, so a failure re-raises on
-    every later construction until the tables are fixed.
-    """
     AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)
 
 
 class AssetsBundle:
-    """Compile, version and persist the JS/CSS/XML assets of one named bundle."""
-
     _STYLESHEET_TYPES = MappingProxyType(
         {
             "css": StylesheetAsset,
@@ -88,34 +79,6 @@ class AssetsBundle:
         bare_specifiers: Collection[str] = EXTERNAL_BARE_SPECIFIERS,
         lib_candidates: Mapping[str, tuple[str, ...]] = EsbuildCompiler._LIB_CANDIDATES,
     ) -> None:
-        """Cross-check ``ODOO_EXTERNAL_LIBS`` against the esbuild externals.
-
-        Fails fast at startup if the declaration sites drift apart in a way
-        that would break production builds. Four invariants:
-
-        * Every ``ODOO_EXTERNAL_LIBS`` entry must resolve under esbuild
-          (:meth:`EsbuildCompiler.resolves_specifier`), else production
-          bundling cannot resolve the specifier.
-        * Every ``EXTERNAL_BARE_SPECIFIERS`` entry must have an import-map URL;
-          esbuild emits those imports verbatim (``--external:<spec>``), so
-          without a map entry the browser fails to resolve the module.
-        * Every import-map URL must point at a file on disk (a typo would
-          surface only as a browser 404). URLs under an addon absent from the
-          configured ``addons_path`` are skipped.
-        * Every ``_LIB_CANDIDATES`` alias must point at a file on disk (same
-          addon-absent skip). The addon scan silently skips a missing alias,
-          so a typo would otherwise fail every build instead of raising once.
-
-        The ``_LIB_CANDIDATES``→import-map direction is intentionally NOT
-        enforced: those entries exist for esbuild to INLINE (e.g.
-        ``@odoo/o-spreadsheet``), so they need no production import-map entry.
-
-        :param import_map: import map to validate (``ODOO_EXTERNAL_LIBS`` at
-            load; tests pass fabricated mappings).
-        :param bare_specifiers: esbuild's external bare specifiers.
-        :param lib_candidates: esbuild's inline-alias table (bound once in the
-            signature so the cross-layer read is visible here).
-        """
         missing_alias = [
             spec for spec in import_map if not EsbuildCompiler.resolves_specifier(spec)
         ]
@@ -159,33 +122,10 @@ class AssetsBundle:
 
     @staticmethod
     def _url_extension(url: str) -> str:
-        """Return the asset-type extension of ``url``, without ``?…`` or ``#…``.
-
-        One reader for both member kinds. External assets already stripped the
-        query and the fragment; bundle files did not, so a cache-busted member
-        (``…/x.css?v=2``) yielded the extension ``"css?v=2"``, matched nothing,
-        and was dropped from the bundle with only a ``bundle_file_skipped``
-        warning to show for it.
-
-        Case-folded for the same reason: every table it is looked up in
-        (:attr:`_STYLESHEET_TYPES`, ``STYLE_EXTENSIONS``, …) is lowercase, so a
-        member shipped as ``Widget.CSS`` took that same silent-drop path. Such
-        a member does arrive in practice — an explicit ``ir.asset`` path
-        resolving to an attachment URL reaches here verbatim. It does NOT
-        arrive through a manifest glob: ``ir_asset_paths._glob_static_file``
-        applies its own case-sensitive ``ASSET_EXTENSIONS`` test and discards
-        it first, so that half of the gap is still open upstream.
-        """
         return url.partition("#")[0].partition("?")[0].rpartition(".")[2].lower()
 
     @staticmethod
     def _addon_relative_path_exists(rel: str) -> bool:
-        """Whether the addon-relative path ``rel`` exists on disk.
-
-        Returns ``True`` (do not flag) when ``rel``'s addon — its first
-        segment — is absent from ``addons_path``: the file is unreachable but
-        so is any code referencing it (optional addon on a slim deployment).
-        """
         try:
             file_path(rel)
         except ValueError:
@@ -212,14 +152,6 @@ class AssetsBundle:
         assets_params: dict[str, Any] | None = None,
         autoprefix: bool = False,
     ) -> None:
-        """
-        :param name: bundle name
-        :param files: files to be added to the bundle
-        :param env: environment the bundle reads and persists through
-            (required — the old ``request.env`` fallback hid a global)
-        :param css: if True, add the stylesheet files to the bundle
-        :param js: if True, add the javascript files to the bundle
-        """
         self.name = name
         self.env = env
         self.javascripts = []
@@ -310,31 +242,13 @@ class AssetsBundle:
 
     @property
     def _has_legacy_templates(self) -> bool:
-        """Whether templates ship *inside* the concatenated legacy JS bundle.
-
-        ESM bundles deliver templates as a separate ``<script type="module">``
-        (see :meth:`generate_esm_template_bundle`), so their templates never
-        enter the ``.min.js``; only a non-ESM bundle wraps them inline.
-        """
         return bool(self.templates and not self._is_esm_bundle)
 
     @property
     def has_js_content(self) -> bool:
-        """Whether :meth:`js` yields a non-empty legacy bundle worth linking.
-
-        Single source of truth for two decisions that must agree: whether
-        :meth:`get_links` emits a ``.js`` link and whether :meth:`js` wraps a
-        template block.
-        """
         return bool(self.javascripts or self._has_legacy_templates)
 
     def get_links(self) -> list[str]:
-        """Return the list of asset URLs for this bundle.
-
-        Native ESM modules are excluded from the concatenated bundle — they are
-        served individually and loaded via import map + ``<script type="module">``.
-        Use :meth:`get_native_module_data` to get their URLs and import map entries.
-        """
         response = []
 
         if self.has_css and self.stylesheets:
@@ -346,28 +260,6 @@ class AssetsBundle:
         return self.external_assets + response
 
     def get_native_module_data(self, with_bridges: bool = True) -> NativeModuleData:
-        """Return import map and preload data for native ESM modules.
-
-        Memoized per ``with_bridges``: the answer is a pure function of
-        ``native_modules``, which is fixed at construction, but ``ir_qweb``
-        asks for it from several places in one render. Recomputing walked all
-        1467 modules of ``web.assets_web`` and re-ran the bridge's regex
-        discovery — ~155 ms per repeat call, for a byte-identical result. The
-        returned dict is shared, so callers must treat it as immutable (the
-        ``ormcache``d wrapper in ``ir_qweb`` already states that contract).
-
-        Returns a dict with:
-
-        - ``import_map``: ``{specifier: url}`` for the import map
-        - ``preload_urls``: URLs for ``<link rel="modulepreload">``
-        - ``bridge_import_map``: ``{specifier: shim_url}`` for
-          legacy modules that native modules import from
-
-        :param with_bridges: when ``False``, skip building the
-            ``odoo.loader.modules`` bridge (``bridge_import_map`` comes back
-            empty). Callers that merge only ``import_map`` pass ``False`` to
-            skip the bridge's regex discovery and attachment persistence.
-        """
         if with_bridges not in self._native_module_data_cache:
             self._native_module_data_cache[with_bridges] = self._native_module_data(
                 with_bridges
@@ -439,26 +331,14 @@ class AssetsBundle:
 
     @classmethod
     def invalidate_addon_scan_cache(cls) -> None:
-        """Clear the per-process addons-on-disk caches.
-
-        Covers both the esbuild addon-flag scan (see EsbuildCompiler) and
-        the manifest-aggregated ESM bundle registry — they share the same
-        invalidation trigger (``ir.module.module.update_list``).
-        """
         EsbuildCompiler.invalidate_addon_scan_cache()
         invalidate_esm_registry()
 
     @classmethod
     def _get_esbuild_addon_flags(cls, odoo_root: Path) -> tuple[list, list]:
-        """Delegate to the esbuild layer; the per-bundle addon-flags seam.
-
-        ``_make_esbuild_compiler`` passes this as ``EsbuildCompiler``'s
-        ``addon_flags_provider``; tests/overrides patch it here to inject flags.
-        """
         return EsbuildCompiler._get_esbuild_addon_flags(odoo_root)
 
     def _make_esbuild_compiler(self) -> EsbuildCompiler:
-        """Build the subprocess-layer compiler from this bundle's state."""
         registry = esm_registry()
         return EsbuildCompiler(
             self.name,
@@ -478,12 +358,6 @@ class AssetsBundle:
         dynamic_child_specs: frozenset[str] | None = None,
         secondary_parent_stubs: dict[str, str] | None = None,
     ) -> EsbuildResult:
-        """Bundle native ESM modules into one minified file via esbuild.
-
-        Thin wrapper over :meth:`EsbuildCompiler.compile`. Returns the
-        :class:`EsbuildResult` verbatim — ``code`` plus the ``metafile`` /
-        ``sourcemap`` that ``ir_qweb`` persists as sibling attachments.
-        """
         return self._make_esbuild_compiler().compile(
             timeout_s=timeout_s,
             target=target,
@@ -494,42 +368,19 @@ class AssetsBundle:
 
     @functools.cached_property
     def _bridges(self) -> BridgeShimManager:
-        """Bridge-shim layer bound to this bundle's env, name and modules.
-
-        Cached: its three inputs are fixed for the bundle's lifetime, so one
-        instance serves every call.
-        """
         return BridgeShimManager(self.env, self.name, self.native_modules)
 
     _bridge_shim_source = staticmethod(_bridge_shim_source)
 
     def get_link(self, asset_type: str) -> str:
-        """Return the versioned (or ``debug``) URL for this bundle's ``asset_type``."""
         unique = self.get_version(asset_type) if not self.is_debug_assets else "debug"
         extension = asset_type if self.is_debug_assets else f"min.{asset_type}"
         return self.get_asset_url(unique=unique, extension=extension)
 
     def get_version(self, asset_type: str) -> str:
-        """Return the 7-hex version segment embedded in the bundle URL."""
         return self.get_checksum(asset_type)[0:7]
 
     def get_checksum(self, asset_type: str) -> str:
-        """Compute a SHA256 over the bundle's asset descriptors.
-
-        Native ESM modules are included in the JS checksum so a change to any
-        module invalidates the cache. Computed over the ``__init__`` version
-        snapshot (``self._version_assets``), not the live lists, so the version
-        is stable across compilation-time mutations.
-
-        Descriptors are NUL-separated. Straight concatenation is ambiguous —
-        descriptors embed their own ``,`` separators and a URL may contain one,
-        so two different asset lists could serialise to the same byte string and
-        share a version. NUL cannot occur in a URL or an mtime.
-
-        Seeded with :func:`_pipeline_fingerprint` so that changing *how* assets
-        compile invalidates the cached attachments too, not only changing the
-        assets themselves.
-        """
         if asset_type not in self._checksum_cache:
             if asset_type not in self._version_assets:
                 raise ValueError(f"Asset type {asset_type} not known")
@@ -544,11 +395,6 @@ class AssetsBundle:
 
     @functools.cached_property
     def _store(self) -> AssetAttachmentStore:
-        """Attachment persistence layer for this bundle, built once.
-
-        ``version_provider=self.get_version`` breaks the bundle↔store cycle:
-        the store reads the version on demand without owning checksum state.
-        """
         return AssetAttachmentStore(
             self.env,
             self.name,
@@ -559,25 +405,17 @@ class AssetsBundle:
         )
 
     def get_asset_url(self, unique: str, extension: str) -> str:
-        """Delegates to :meth:`AssetAttachmentStore.get_asset_url`."""
         return self._store.get_asset_url(unique, extension)
 
     def get_attachments(
         self, extension: str, ignore_version: bool = False
     ) -> IrAttachment:
-        """Delegates to :meth:`AssetAttachmentStore.get_attachments`."""
         return self._store.get_attachments(extension, ignore_version)
 
     def save_attachment(self, extension: str, content: str) -> IrAttachment:
-        """Delegates to :meth:`AssetAttachmentStore.save_attachment`."""
         return self._store.save_attachment(extension, content)
 
     def _is_module_js(self, asset: JavascriptAsset) -> bool:
-        """Whether ``asset`` is routed through the ESM pipeline.
-
-        File-backed assets go through the process-level classification cache;
-        inline assets (no filename) are probed directly.
-        """
         if asset._filename:
             return _cached_module_classification(
                 asset.url or "",
@@ -588,25 +426,13 @@ class AssetsBundle:
 
     @functools.cached_property
     def _js(self) -> JsPipeline:
-        """JS content-assembly pipeline bound to this bundle, built once.
-
-        Owns the legacy concatenation, the module-syntax guard and the debug
-        sourcemap body; ``js`` / ``js_with_sourcemap`` below keep the attachment
-        I/O. Mirrors :attr:`_css`.
-        """
         return JsPipeline(self)
 
     @functools.cached_property
     def _xml(self) -> XmlTemplatePipeline:
-        """OWL-template rendering pipeline bound to this bundle, built once.
-
-        Owns ``xml`` / ``generate_xml_bundle`` and the delivery wrappers; the
-        methods below stay thin façades for the public/test/``ir_qweb`` surface.
-        """
         return XmlTemplatePipeline(self)
 
     def js(self) -> IrAttachment:
-        """Return (generating and persisting if needed) the bundle's JS attachment."""
         is_minified = not self.is_debug_assets
         extension = "min.js" if is_minified else "js"
         js_attachment = self.get_attachments(extension)
@@ -628,17 +454,6 @@ class AssetsBundle:
         extension: str,
         body_builder: Callable[[SourceMapGenerator, str], str],
     ) -> IrAttachment:
-        """Persist a debug bundle body together with its linked sourcemap.
-
-        Shared by :meth:`js_with_sourcemap` and :meth:`css_with_sourcemap`:
-        get-or-create the ``<extension>.map`` attachment so its URL exists,
-        have *body_builder* build the body against that URL, save the body,
-        then point the generator at the saved URL and persist the map.
-
-        :param body_builder: called with ``(generator, sourcemap_url)``;
-            returns the full bundle body, sourceMappingURL link included
-        :return: the ir.attachment for the un-minified bundle
-        """
         map_attachment = self.get_attachments(
             f"{extension}.map"
         ) or self.save_attachment(f"{extension}.map", "")
@@ -654,10 +469,6 @@ class AssetsBundle:
         return attachment
 
     def js_with_sourcemap(self, template_bundle: str | None = None) -> IrAttachment:
-        """Create the un-minified JS bundle attachment and its linked sourcemap.
-
-        :return: the ir.attachment for the un-minified JS bundle
-        """
         return self._save_with_sourcemap(
             "js",
             lambda generator, sourcemap_url: self._js.sourcemap_bundle(
@@ -666,26 +477,18 @@ class AssetsBundle:
         )
 
     def xml(self) -> list[XMLBlock]:
-        """Delegates to :meth:`XmlTemplatePipeline.xml`."""
         return self._xml.xml()
 
     def generate_esm_template_bundle(self, use_import=True) -> str:
-        """Delegates to :meth:`XmlTemplatePipeline.generate_esm_template_bundle`."""
         return self._xml.generate_esm_template_bundle(use_import)
 
     @classmethod
     def _render_css_error_banner(
         cls, css_errors: Sequence[str], previous_css: str
     ) -> str:
-        """Delegates to :meth:`CssPipeline._render_css_error_banner`."""
         return CssPipeline._render_css_error_banner(css_errors, previous_css)
 
     def css(self) -> IrAttachment:
-        """Return (generating and persisting if needed) the bundle's CSS attachment.
-
-        Always a singleton record, mirroring :meth:`js` — callers read
-        ``.id`` / ``.raw`` directly.
-        """
         is_minified = not self.is_debug_assets
         extension = "min.css" if is_minified else "css"
         attachments = self.get_attachments(extension)
@@ -708,15 +511,6 @@ class AssetsBundle:
         return self.css_with_sourcemap("\n".join(import_rules))
 
     def css_with_sourcemap(self, content_import_rules: str) -> IrAttachment:
-        """Create the un-minified CSS bundle attachment and its linked sourcemap.
-
-        The body is assembled by :meth:`CssPipeline.sourcemap_bundle` from the
-        render list the :meth:`css` call to ``preprocess_css`` just populated.
-
-        :param content_import_rules: the @import rules to put at the start of
-            the bundle
-        :return: the ir.attachment for the un-minified CSS bundle
-        """
         return self._save_with_sourcemap(
             "css",
             lambda generator, sourcemap_url: self._css.sourcemap_bundle(
@@ -726,31 +520,13 @@ class AssetsBundle:
 
     @functools.cached_property
     def _css(self) -> CssPipeline:
-        """CSS preprocessor pipeline bound to this bundle, built once.
-
-        Reads this bundle's ``stylesheets``, rebuilds ``css_errors``, and
-        assembles output into its own render list (not the source list) that
-        ``sourcemap_bundle`` reads back. One instance keeps that render list
-        available across the ``preprocess`` → ``sourcemap_bundle`` sequence.
-        """
         return CssPipeline(self)
 
     def preprocess_css(self) -> str:
-        """Delegates to :meth:`CssPipeline.preprocess`."""
         return self._css.preprocess()
 
 
 def _check_extension_tables() -> None:
-    """Fail at import if the asset-type tables and the extension constants drift.
-
-    ``ir.asset`` collects bundle members by ``ASSET_EXTENSIONS`` and
-    ``ir_qweb_assets`` classifies debug links by the same three constants, but
-    only :class:`AssetsBundle` can actually *build* an asset. An extension
-    declared there and missing here is collected, linked — and then silently
-    dropped from the bundle with a ``bundle_file_skipped`` warning (this is how
-    ``sass`` behaved). The reverse is dead code: the file never reaches the
-    bundle. Both are cheap constant comparisons, so they run once at import.
-    """
     for label, declared, handled in (
         ("STYLE_EXTENSIONS", STYLE_EXTENSIONS, AssetsBundle._STYLESHEET_TYPES),
         ("SCRIPT_EXTENSIONS", SCRIPT_EXTENSIONS, AssetsBundle._SCRIPT_TYPES),

@@ -3,9 +3,7 @@ import { registry } from "@web/core/registry";
 
 function assertEqual(actual, expected) {
     if (actual !== expected) {
-        throw new Error(
-            `Assert failed: expected: ${expected} ; got: ${actual}`,
-        );
+        throw new Error(`Assert failed: expected: ${expected} ; got: ${actual}`);
     }
 }
 

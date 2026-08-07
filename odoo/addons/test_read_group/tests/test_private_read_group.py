@@ -198,7 +198,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             value2.name
 
     def test_ambiguous_field_name(self):
-        """Check that _read_group doesn't generate ambiguous (display_name) alias for PostgreSQL"""
         Model = self.env["test_read_group.aggregate"]
         partner_1 = self.env["res.partner"].create({"name": "z_one"})
         Model.create(
@@ -338,14 +337,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         )
 
     def test_flush_read_group_company_dependent_groupby(self):
-        """Grouping by a company-dependent field must flush its dirty cache.
-
-        The grouping key inlines its bound parameters (``SQL.inlined``, needed
-        for byte-identical SELECT/GROUP BY under psycopg3 binding); the inlined
-        expression must keep the wrapper's ``to_flush`` metadata, otherwise
-        ``execute_query`` never flushes the dirty field and the groupby
-        aggregates stale values.
-        """
         Model = self.env["test_read_group.order"]
         record = Model.create({"name": "a", "company_dependent_name": "before"})
         self.assertEqual(
@@ -530,7 +521,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             Model._read_group([], ["value"], order="value ASCCC")
 
     def test_groupby_date(self):
-        """Test what happens when grouping on date fields"""
         Model = self.env["test_read_group.fill_temporal"]
         Model.create({})
         Model.create({"date": "2022-01-29"})
@@ -641,7 +631,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         )
 
     def test_groupby_date_part_number(self):
-        """Test grouping by date part number (ex. month_number gives 1 for January)"""
         Model = self.env["test_read_group.fill_temporal"]
         Model.create({})
         Model.create({"date": "2022-01-29", "datetime": "2022-01-29 13:55:12"})
@@ -963,7 +952,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         )
 
     def test_field_bypass_search_access(self):
-        """Test what happens when grouping with a domain using a one2many field with bypass_search_access."""
         model = self.env["test_read_group.order"]
         records = model.create(
             [
@@ -1003,15 +991,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         self.assertEqual(result2, [(2,)])
 
     def test_groupby_many2many_field_access(self):
-        """Grouping by a ``groups``-restricted stored many2many must enforce
-        field-level read access, like every other groupby branch.
-
-        Regression: the many2many branch of ``_read_group_groupby`` built the
-        relation join directly and returned ``field.column2`` without going
-        through ``_field_to_sql`` / ``_check_field_access``. A user lacking the
-        field's group could therefore group by it and read its distinct values
-        and per-value record counts.
-        """
         Task = self.env["test_read_group.task"]
         Task.create({"name": "Super Mario Bros."})
         Model = self.env["ir.model"]
@@ -1588,7 +1567,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         )
 
     def test_many2many_aggregate(self):
-        """many2many fields are not aggregable"""
         Model = self.env["test_read_group.task"]
 
         Model._read_group([], [], ["name:array_agg"])

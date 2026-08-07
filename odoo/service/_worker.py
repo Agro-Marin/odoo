@@ -1,24 +1,3 @@
-"""Prefork worker classes.
-
-``PreforkServer`` (``_prefork.py``) forks one of these ``Worker`` subclasses
-per child process.  Workers reach the master through their ``multi`` attribute
-(typed as ``PreforkServer`` under ``TYPE_CHECKING`` to avoid a runtime import
-cycle).
-
-* ``CpuTimeLimitExceeded`` — typed exception so SIGXCPU is log-distinguishable.
-* ``Worker`` — base class: signal handling, watchdog pipe, RLIMIT_CPU update,
-  and the ``run`` / ``_runloop`` process cycle.
-* ``WorkerHTTP`` — accept and serve HTTP requests on the listening socket.
-* ``WorkerCron`` — LISTEN/NOTIFY cron processing with exponential-backoff
-  reconnect that survives PG outages.
-* ``WorkerJob`` — same machinery pointed at the ``job_queue`` channel to
-  execute background jobs (``ir.job``).
-
-Tests live in ``tests/service/test_server.py`` (``TestWorker*`` /
-``TestWorkerCron*``); they patch names in this module's namespace
-(``odoo.service._worker.X``).
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -70,7 +49,6 @@ from ._helpers import (
     empty_pipe,
     over_memory_soft_limit,
 )
-
 from .wsgi import BaseWSGIServerNoBind, http_socket_timeout
 
 if TYPE_CHECKING:
@@ -80,18 +58,10 @@ _logger = logging.getLogger("odoo.service.server")
 
 
 class CpuTimeLimitExceeded(Exception):
-    """Raised by ``Worker.signal_time_expired_handler`` on SIGXCPU.
-
-    A distinct class so log filters can tell it from a generic failure.  Plain
-    ``Exception`` (not ``SystemExit``) so it propagates to ``worker_spawn``'s
-    ``except BaseException``, which logs it and exits the child; the master
-    then replenishes the worker.
-    """
+    pass
 
 
 class Worker:
-    """Workers"""
-
     _CPU_LIMIT_JOIN_GRACE_S = 1.0
 
     def __init__(self, multi: PreforkServer) -> None:
@@ -118,11 +88,6 @@ class Worker:
         setproctitle(f"odoo: {self.__class__.__name__} {self.pid} {title}")
 
     def close(self) -> None:
-        """Close all pipe file descriptors held by this worker.
-
-        Each ``os.close`` is guarded individually so an already-invalid fd (e.g.
-        double-close on a racing shutdown) still lets the other three be released.
-        """
         for fd in (
             self.watchdog_pipe[0],
             self.watchdog_pipe[1],
@@ -141,7 +106,6 @@ class Worker:
         )
 
     def sleep(self) -> None:
-        """Wait for wakeup events or timeout, draining the wakeup pipe."""
         try:
             self._selector.select(timeout=self.multi.beat)
             empty_pipe(self.wakeup_fd_r)
@@ -174,7 +138,6 @@ class Worker:
             resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
 
     def process_work(self) -> None:
-        """Process one unit of work. Subclasses override this."""
         pass
 
     def start(self) -> None:
@@ -202,16 +165,10 @@ class Worker:
         self._selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
 
     def stop(self) -> None:
-        """Release resources held by this worker after the run loop exits."""
         if hasattr(self, "_selector"):
             self._selector.close()
 
     def run(self) -> None:
-        """Entry point for the forked worker process.
-
-        Wraps the join in try/finally so ``self.stop()`` runs whether the worker
-        exits cleanly or is interrupted by SIGXCPU / a runloop fault.
-        """
         self.start()
         self._runloop_exc: BaseException | None = None
         t = threading.Thread(
@@ -246,7 +203,6 @@ class Worker:
             self.stop()
 
     def _runloop(self) -> None:
-        """Main work loop run in a daemon thread inside the worker process."""
         signal.pthread_sigmask(
             signal.SIG_BLOCK,
             {
@@ -271,8 +227,6 @@ class Worker:
 
 
 class WorkerHTTP(Worker):
-    """HTTP Request workers"""
-
     def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
 
@@ -289,14 +243,6 @@ class WorkerHTTP(Worker):
             with contextlib.suppress(BrokenPipeError):
                 self.server.finish_request(client, addr)
         finally:
-            # Split out of socketserver's process_request, which is
-            # `finish_request(...)` then `shutdown_request(...)` with NO
-            # try/finally: any exception escaping the handler skips the close
-            # and leaks the accepted socket for the rest of the worker's life.
-            # BrokenPipeError -- suppressed right above, so routine here -- is
-            # exactly such an exception. Repeated, it ends at EMFILE, where
-            # accept() starts raising and the worker dies and respawns in a
-            # loop.
             self.server.shutdown_request(client)
         self.request_count += 1
 
@@ -315,8 +261,6 @@ class WorkerHTTP(Worker):
 
 
 class WorkerCron(Worker):
-    """Cron workers"""
-
     listen_channel = CRON_TRIGGER_CHANNEL
 
     def __init__(self, multi: PreforkServer) -> None:
@@ -328,14 +272,6 @@ class WorkerCron(Worker):
         self._reconnect_attempts: int = 0
 
     def _sleep_with_watchdog(self, total_seconds: float) -> None:
-        """Sleep for ``total_seconds`` while pinging the master watchdog.
-
-        ``_runloop`` pings once per outer cycle, so a long bare ``time.sleep``
-        (e.g. a 60s reconnect backoff) would trip the cron watchdog into a
-        SIGKILL → re-fork loop.  Splits the wait into ``tick``-sized chunks,
-        pinging between each.  Uses a decrementing counter (not
-        ``time.monotonic``) so tests that no-op ``time.sleep`` still terminate.
-        """
         tick = max(self.multi.beat / 2, 0.5)
         remaining = total_seconds
         while remaining > 0 and self.alive:
@@ -345,10 +281,6 @@ class WorkerCron(Worker):
             remaining -= chunk
 
     def _process_db(self, db_name: str) -> None:
-        """Run this worker's unit of work for one database.
-
-        Deferred import: base models must not load at service import time.
-        """
         from odoo.addons.base.models.ir_cron import IrCron
 
         IrCron._process_jobs(db_name)
@@ -384,14 +316,6 @@ class WorkerCron(Worker):
     def _backoff_after_failed_connect(
         self, attempt: int, what: str, exc: BaseException
     ) -> None:
-        """Warn and sleep with exponential backoff after a failed PG connect.
-
-        Shared by the boot connect loop (``start``) and the per-cycle reconnect
-        (``process_work``) so the backoff and watchdog-pinging cadence can't
-        drift.  The caller owns the attempt counter and control flow — and both
-        callers' counters are unbounded across a sustained outage, which is why
-        the exponent is clamped inside :func:`capped_backoff`.
-        """
         backoff = capped_backoff(attempt, SLEEP_INTERVAL)
         self.logger.warning(
             "%s failed (attempt %d): %s; sleeping %ds", what, attempt, exc, backoff
@@ -399,15 +323,6 @@ class WorkerCron(Worker):
         self._sleep_with_watchdog(backoff)
 
     def _connect_postgres(self) -> None:
-        """Open (or reopen) the persistent postgres connection used for LISTEN.
-
-        Atomic: the new cursor and selector are built in locals and published to
-        ``self.dbcursor`` / ``self._pg_selector`` only once every step succeeds.
-        If any step raises (PG restart mid-``LISTEN``), the half-open cursor is
-        torn down and ``self.dbcursor`` keeps its prior (closed) value, so the
-        next cycle re-enters the reconnect path — rather than being left with a
-        live-but-not-listening connection and a selector on a stale fd.
-        """
         dbconn = db.db_connect("postgres")
         cursor = dbconn.cursor()
         try:
@@ -433,7 +348,6 @@ class WorkerCron(Worker):
         self._pg_selector = selector
 
     def process_work(self) -> None:
-        """Process a single database."""
         self.logger.debug("polling for jobs")
 
         if not self.db_queue:
@@ -525,15 +439,6 @@ class WorkerCron(Worker):
 
 
 class WorkerJob(WorkerCron):
-    """Background job (``ir.job``) workers.
-
-    ``WorkerCron`` with the LISTEN channel and per-database unit of work swapped
-    out; everything hard (persistent LISTEN connection with backoff reconnect,
-    watchdog-pinging sleeps, notified-first queue, max-age recycling) is
-    inherited unchanged.  Jobs are claimed from ``ir_job`` with ``SKIP LOCKED``
-    and run in-process, each in its own transaction (see ``IrJob._process_jobs``).
-    """
-
     listen_channel = JOB_QUEUE_CHANNEL
 
     def _process_db(self, db_name: str) -> None:

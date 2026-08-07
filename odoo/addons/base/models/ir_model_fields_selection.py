@@ -44,12 +44,10 @@ class IrModelFieldsSelection(models.Model):
     )
 
     def _get_selection(self, field_id: int) -> list[tuple[str, str]]:
-        """Return the given field's selection as a list of pairs (value, string)."""
         self.flush_model(["value", "name", "field_id", "sequence"])
         return self._get_selection_data(field_id)
 
     def _get_selection_data(self, field_id: int) -> list[tuple[str, str]]:
-        """Return the field's selection from the database without translations."""
         self.env.cr.execute(
             """
             SELECT value, name->>'en_US'
@@ -62,7 +60,6 @@ class IrModelFieldsSelection(models.Model):
         return self.env.cr.fetchall()
 
     def _reflect_selections(self, model_names: list[str]) -> None:
-        """Reflect the selections of the fields of the given models."""
         selection_fields = [
             field
             for model_name in model_names
@@ -138,7 +135,6 @@ class IrModelFieldsSelection(models.Model):
     def _update_selection(
         self, model_name: str, field_name: str, selection: list[tuple[str, str]]
     ) -> None:
-        """Set a field's selection to the given list of ``(value, label)`` pairs."""
         field_id = self.env["ir.model.fields"]._get_ids(model_name)[field_name]
 
         cur_rows = self._existing_selection_data(model_name, field_name)
@@ -180,7 +176,6 @@ class IrModelFieldsSelection(models.Model):
     def _existing_selection_data(
         self, model_name: str, field_name: str
     ) -> dict[str, dict[str, Any]]:
-        """Return the field's selection rows from the database, keyed by value."""
         query = """
             SELECT s.*, s.name->>'en_US' AS name
             FROM ir_model_fields_selection s
@@ -191,7 +186,6 @@ class IrModelFieldsSelection(models.Model):
         return {row["value"]: row for row in self.env.cr.dictfetchall()}
 
     def _raise_base_field_error(self) -> None:
-        """Raise the standard error forbidding edits to non-manual selections."""
         raise UserError(
             _(
                 "Properties of base fields cannot be altered in this manner! "
@@ -202,7 +196,6 @@ class IrModelFieldsSelection(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Create selection rows and re-initialise the affected models in the registry."""
         field_ids = {vals["field_id"] for vals in vals_list}
         field_names = set()
         for field in self.env["ir.model.fields"].browse(field_ids):
@@ -229,19 +222,9 @@ class IrModelFieldsSelection(models.Model):
         return recs
 
     def _is_jsonb_stored(self, field) -> bool:
-        """Whether the column backing a selection/reference field is jsonb.
-
-        ``company_dependent`` fields are stored as ``{company_id: value}`` jsonb,
-        not a plain scalar. :meth:`write` and :meth:`_get_records_by_value` must
-        both branch on this predicate so their stored-column SQL cannot diverge
-        (SEL-C1).
-        """
         return bool(field.company_dependent)
 
     def write(self, vals: dict[str, Any]) -> bool:
-        """Write selection rows; rewrite stored column data on value change and
-        refresh the registry or selection caches accordingly.
-        """
         if not self:
             return True
 
@@ -314,7 +297,6 @@ class IrModelFieldsSelection(models.Model):
             self._raise_base_field_error()
 
     def unlink(self) -> bool:
-        """Unlink selection rows after applying each value's ondelete policy."""
         model_names = self.field_id.model_id.mapped("model")
         self._process_ondelete()
         result = super().unlink()
@@ -326,14 +308,6 @@ class IrModelFieldsSelection(models.Model):
         return result
 
     def _process_ondelete(self) -> None:
-        """Apply each deleted selection value's ondelete policy to its records.
-
-        Records are resolved once per ``(field, company)`` -- one flush and one
-        query for all of a field's deleted values -- rather than once per value
-        (SEL-P3). Resolution precedes any policy write, so each record is handled
-        according to the value it held at deletion time; a value whose policy
-        targets another value being deleted does not cascade into that bucket.
-        """
 
         def safe_write(records: Any, fname: str, value: Any) -> None:
             if not records:
@@ -416,16 +390,6 @@ class IrModelFieldsSelection(models.Model):
                         )
 
     def _bypass_assignment(self, records: Any, field: Any, value: Any) -> SQL:
-        """Return the ``SET`` expression writing ``value`` into ``field``'s column.
-
-        For a company-dependent field the column holds *every* company's value,
-        while the caller only means to change the current one:
-        ``convert_to_column_insert`` renders a whole ``{company: value}`` object
-        (and ``NULL`` for a falsy value), so assigning it wipes every other
-        company. The jsonb branch edits the single key instead -- the same
-        ``_is_jsonb_stored`` split :meth:`write` and :meth:`_get_records_by_value`
-        already make (SEL-C1).
-        """
         column = SQL.identifier(field.name)
         if not self._is_jsonb_stored(field):
             return SQL("%s", field.convert_to_column_insert(value, records))
@@ -441,17 +405,6 @@ class IrModelFieldsSelection(models.Model):
         )
 
     def _companies_with_stored_value(self, model: Any, field: Any) -> Any:
-        """Return the companies holding a value in ``field``'s jsonb column.
-
-        A deleted value must be cleaned wherever it is stored. ``env.companies``
-        is the acting user's UI scope, so driving the sweep from it leaves the
-        value behind for every company outside that scope -- unlike a value
-        *rename*, whose ``jsonb_object_agg`` covers every key (SEL-C1).
-
-        The rows are filtered on ``jsonb_typeof``, not on ``IS NOT NULL``: a
-        column holding the JSON scalar ``null`` is not SQL ``NULL``, and
-        ``jsonb_object_keys`` raises on any non-object.
-        """
         model.flush_model([field.name])
         rows = self.env.execute_query(
             SQL(
@@ -471,16 +424,6 @@ class IrModelFieldsSelection(models.Model):
     def _get_records_by_value(
         self, company_model: Any, field: Any, values: list
     ) -> dict:
-        """Return ``{value: recordset}`` for ``company_model`` records whose
-        stored ``field`` currently holds one of ``values``.
-
-        One flush and one query resolve the whole batch, scoped to the model's
-        company for a company-dependent (jsonb) field; the records are bound to
-        ``company_model`` so company-dependent writes land in the right context
-        (SEL-P3).
-
-        :param field: the ORM field backing the selection/reference column.
-        """
         fname = field.name
         company_model.flush_model([fname])
         if self._is_jsonb_stored(field):

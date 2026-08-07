@@ -1,5 +1,3 @@
-"""Tests for the N+1 CRUD detection system (odoo.libs.profiling.nplusone)."""
-
 from odoo.libs.profiling import nplusone
 from odoo.orm.models.mixins import create as _create_mod
 from odoo.orm.models.mixins import unlink as _unlink_mod
@@ -11,8 +9,6 @@ _CRUD_MODS = (_create_mod, _write_mod, _unlink_mod)
 
 @tagged("-standard", "nplusone")
 class TestNplusOneDetection(TransactionCase):
-    """Test N+1 CRUD detection when enabled."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -38,7 +34,6 @@ class TestNplusOneDetection(TransactionCase):
         self.tracker.clear()
 
     def test_write_n1_detected(self):
-        """Writing same fields to same model in a loop triggers detection."""
         categories = self.env["res.partner.category"].create(
             [{"name": f"N1 Test Cat {i}"} for i in range(5)]
         )
@@ -61,7 +56,6 @@ class TestNplusOneDetection(TransactionCase):
         self.assertEqual(len(entry.vals_fingerprints), 1, "Same fields every call")
 
     def test_batch_write_no_violation(self):
-        """A single batched write stays below threshold."""
         categories = self.env["res.partner.category"].create(
             [{"name": f"Batch Test Cat {i}"} for i in range(5)]
         )
@@ -74,7 +68,6 @@ class TestNplusOneDetection(TransactionCase):
                 self.fail("Batch write should not trigger N+1 detection")
 
     def test_create_n1_detected(self):
-        """Creating records one-by-one in a loop triggers detection."""
         self.tracker.clear()
 
         for i in range(5):
@@ -91,7 +84,6 @@ class TestNplusOneDetection(TransactionCase):
         self.assertEqual(violations[0][1].count, 5)
 
     def test_unlink_n1_detected(self):
-        """Unlinking records one-by-one in a loop triggers detection."""
         categories = self.env["res.partner.category"].create(
             [{"name": f"Unlink Cat {i}"} for i in range(5)]
         )
@@ -108,7 +100,6 @@ class TestNplusOneDetection(TransactionCase):
         self.assertTrue(violations, "N+1 unlink pattern should be detected")
 
     def test_batch_create_no_violation(self):
-        """A single batch create stays below threshold."""
         self.tracker.clear()
 
         self.env["res.partner.category"].create(
@@ -120,7 +111,6 @@ class TestNplusOneDetection(TransactionCase):
                 self.fail("Batch create should not trigger N+1 detection")
 
     def test_report_emits_warning(self):
-        """Report method emits a structured warning log."""
         self.tracker.clear()
 
         for i in range(5):
@@ -139,7 +129,6 @@ class TestNplusOneDetection(TransactionCase):
         )
 
     def test_different_fields_tracked(self):
-        """Different field sets from same call site are tracked as distinct fingerprints."""
         categories = self.env["res.partner.category"].create(
             [{"name": f"FP Cat {i}"} for i in range(4)]
         )
@@ -162,8 +151,6 @@ class TestNplusOneDetection(TransactionCase):
 
 @tagged("-standard", "nplusone")
 class TestNplusOneDisabled(TransactionCase):
-    """Test that detection is zero-cost when disabled."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -176,7 +163,6 @@ class TestNplusOneDisabled(TransactionCase):
         super().tearDownClass()
 
     def test_no_tracker_when_disabled(self):
-        """When disabled, tracker should be None on new transactions."""
         self.assertFalse(nplusone._n1_enabled)
         cat = self.env["res.partner.category"].create({"name": "Disabled Test"})
         cat.write({"name": "Updated"})

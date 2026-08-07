@@ -73,8 +73,6 @@ class TestPartnerFormatAddress(FormatAddressCase):
         self.assertAddressView("res.partner")
 
     def test_address_format_reorder_branch(self):
-        """The address_format elif branch reorders zip/city/state fields in the
-        o_address_format div to follow the country's address_format order."""
         country = self.env["res.country"].create(
             {
                 "name": "Reorder Land",
@@ -106,9 +104,6 @@ class TestPartnerFormatAddress(FormatAddressCase):
         self.assertLess(order.index("city"), order.index("state_id"))
 
     def test_non_partner_model_postprocess_fallback(self):
-        """When a non-res.partner model uses an address_view referencing fields
-        absent on the model, the postprocess_and_fields ValueError is caught and
-        the original arch is returned unchanged."""
         model = "res.country.state"
 
         address_view = self.View.create(
@@ -131,9 +126,6 @@ class TestPartnerFormatAddress(FormatAddressCase):
         self.assertNotIn('"city"', arch)
 
     def test_address_view_fresh_after_company_country_change(self):
-        """Changing the COMPANY's country serves a fresh address layout: the
-        cache key follows the country's layout values, so no path needs to
-        invalidate the view cache explicitly."""
         address_view = self.View.create(
             {
                 "name": "addr",
@@ -172,9 +164,6 @@ class TestPartnerFormatAddress(FormatAddressCase):
         self.assertNotIn('"city"', arch)
 
     def test_address_view_fresh_after_country_address_format_change(self):
-        """Changing a country's address_format re-runs the reorder branch on
-        the next get_view: the format value is part of the view cache key
-        (res.country.write no longer needs any templates-cache invalidation)."""
         country = self.env["res.country"].create(
             {
                 "name": "Fresh Format Land",
@@ -236,10 +225,6 @@ class TestPartnerFormatAddress(FormatAddressCase):
 
 class TestFormatVatLabel(ViewCase):
     def test_vat_label_cache_key_is_vat_label_keyed(self):
-        """format.vat.label.mixin extends _get_view_cache_key with the company
-        country's vat_label VALUE: companies with different labels get distinct
-        keys, while same-label companies share one cache entry (isolated: the
-        mixin's own override, not the address mixin)."""
         mixin = self.env["format.vat.label.mixin"]
         base_key = self.env["ir.ui.view"]._get_view_cache_key("form")
         vat_key = mixin._get_view_cache_key("form")
@@ -263,8 +248,6 @@ class TestFormatVatLabel(ViewCase):
         self.assertEqual(key_b, key_c)
 
     def test_vat_label_relabels_field_per_company_country(self):
-        """The vat field/label string follows the rendering company's country
-        vat_label (end-to-end through a real consumer, res.company)."""
         country_rfc = self.env["res.country"].create(
             {"name": "VAT RFC Land", "code": "VR", "vat_label": "RFC"}
         )
@@ -296,9 +279,6 @@ class TestFormatVatLabel(ViewCase):
         self.assertIn('string="TIN"', arch_b)
 
     def test_vat_label_fresh_after_country_or_label_change(self):
-        """The vat relabel follows vat_label changes and company country
-        changes without any explicit view-cache invalidation: the label value
-        itself is part of the cache key."""
         country = self.env["res.country"].create(
             {"name": "VAT Fresh Land", "code": "X8", "vat_label": "OLDVAT"}
         )

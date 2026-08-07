@@ -2,14 +2,6 @@ from odoo.tests.common import TransactionCase
 
 
 class TestTagTag(TransactionCase):
-    """TAG-T1: fork-specific tag.mixin logic exercised through tag.tag.
-
-    Covers the parent_path-based ``_compute_display_name`` (full ancestor path,
-    cycle-safe) and the hierarchical ``_search_display_name`` rewrite: positive
-    ``like`` expands to the subtree via ``child_of``; negative ``like`` returns
-    NotImplemented and falls back to negating the positive rewrite.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -43,12 +35,6 @@ class TestTagTag(TransactionCase):
         self.assertEqual(self.leaf.display_name, "Rootag / Midtag / Leaftag")
 
     def test_display_name_newid_cycle_terminates(self):
-        """TAG-T1: a parent cycle staged in cache (onchange) must not hang.
-
-        Regression: the level-by-level parent_id walk followed the cycle
-        forever, wedging the worker thread. Constraints do not run on
-        NewId records, so the guard has to live in the compute.
-        """
         Tag = self.env["tag.tag"]
         first = Tag.new({"name": "Firstag"})
         second = Tag.new({"name": "Secondtag"})
@@ -58,15 +44,9 @@ class TestTagTag(TransactionCase):
         self.assertEqual(second.display_name, "Firstag / Secondtag")
 
     def test_display_name_newid_without_parent(self):
-        """TAG-T1: a NewId record with no parent still gets its own name."""
         self.assertEqual(self.env["tag.tag"].new({"name": "Solo"}).display_name, "Solo")
 
     def test_display_name_resolved_in_constant_queries(self):
-        """TAG-T1: the ancestor path costs the same regardless of depth.
-
-        parent_path resolves the whole chain, so a deep tag must not issue one
-        query per hierarchy level.
-        """
         Tag = self.env["tag.tag"]
         parent = self.env["tag.tag"]
         deep_ids = []

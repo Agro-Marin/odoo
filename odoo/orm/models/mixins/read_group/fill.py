@@ -1,5 +1,3 @@
-"""Fill/expansion for read_group: empty groups, expansion, temporal gaps."""
-
 import collections
 import datetime
 
@@ -16,15 +14,12 @@ from ._empty import _ReadGroupEmptyMixin
 
 
 class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
-    """Fill empty groups, expand groups, and fill temporal gaps."""
-
     __slots__ = ()
 
     @api.model
     def _read_group_expand_full(
         self, groups: ModelType, domain: DomainType
     ) -> ModelType:
-        """Extend the group to include all target records by default."""
         return groups.search([])
 
     @api.model
@@ -36,19 +31,6 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         read_group_result: list[dict],
         read_group_order: str | None = None,
     ) -> list[dict]:
-        """Fill in empty groups for all possible values of the grouped field.
-
-        ``groupby`` must name a field of ``self`` (optionally with a granularity,
-        or a property sub-key): everything below resolves ``group_expand`` and the
-        comodel from the *head* of the spec while reading the group values out of
-        ``read_group_result[groupby]``, so the two only agree when the head IS the
-        grouped field.  A relational path (``"partner_id.country_id"``) would pair
-        the head's comodel with the LEAF's recordsets and browse the wrong model.
-        Unreachable today -- ``read_group`` rejects a non-property dotted spec
-        before it gets here, and it is the only caller -- so this is a contract
-        guard, not a fix: an addon calling this directly gets a clear error
-        instead of a silently mis-modelled expansion.
-        """
         field_name = groupby.split(".", maxsplit=1)[0].split(":", maxsplit=1)[0]
         field = self._fields[field_name]
         if not field.group_expand:
@@ -120,18 +102,6 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         return list(result.values())
 
     def _read_group_fill_temporal_bound(self, field, granularity, days_offset, bound):
-        """Parse and snap one ``fill_temporal`` bound to its granularity bucket.
-
-        Shared by :meth:`_read_group_fill_temporal` and the web layer's
-        ``_web_read_group_fill_temporal`` to keep bound parsing in one place.
-
-        ``bound`` is a date/datetime string (``%Y-%m-%d`` or
-        ``%Y-%m-%d %H:%M:%S``), parsed by the GROUPED FIELD's type (not the
-        argument's Python type) and kept naive: group keys are naive local-time
-        values (``date_trunc`` already applied the user's tz in SQL), so a
-        ``date``-typed or tz-aware bound would crash the naive ``datetime``
-        comparisons that follow.
-        """
         value = (Datetime.to_datetime if field.type == "datetime" else Date.to_date)(
             bound
         )
@@ -151,71 +121,6 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         fill_to: str | bool = False,
         min_groups: int | bool = False,
     ) -> list[dict]:
-        """Fill date/datetime 'holes' in a result set.
-
-        For data grouped by a date field (e.g. months) and shown in a chart.
-        With data only for June, September and December, plotting by default
-        gives::
-
-                                                ___
-                                      ___      |   |
-                                     |   | ___ |   |
-                                     |___||___||___|
-                                      Jun  Sep  Dec
-
-        December immediately following September is misleading; adding explicit
-        zeroes for the missing months gives::
-
-                                                           ___
-                             ___                          |   |
-                            |   |           ___           |   |
-                            |___| ___  ___ |___| ___  ___ |___|
-                             Jun  Jul  Aug  Sep  Oct  Nov  Dec
-
-        The context key "fill_temporal" customizes this via a dict with
-        ``fill_from``, ``fill_to``, ``min_groups`` (see params below).
-
-        Fill between bounds: ``fill_from`` and/or ``fill_to`` force at least
-        that date range to be returned as contiguous groups. Groups outside the
-        bounds are kept, but filling happens only between them; absent bounds
-        fall back to existing groups. This yields empty groups before/after any
-        group with data. Filling only between August (fill_from) and October
-        (fill_to)::
-
-                                                     ___
-                                 ___                |   |
-                                |   |      ___      |   |
-                                |___| ___ |___| ___ |___|
-                                 Jun  Aug  Sep  Oct  Dec
-
-        June and December remain. To drop them, match ``fill_from``/``fill_to``
-        with the domain, e.g. ``['&', ('date_field', '>=', 'YYYY-08-01'),
-        ('date_field', '<', 'YYYY-11-01')]``::
-
-                                         ___
-                                    ___ |___| ___
-                                    Aug  Sep  Oct
-
-        Minimal filling amount: ``min_groups`` requests at least that many
-        contiguous groups, counted from ``fill_from`` if set else the lowest
-        existing group, and not capped by ``fill_to``. An existing group before
-        ``fill_from`` does not shift the start. With neither bound and no
-        existing group, nothing is returned. With min_groups = 4::
-
-                                         ___
-                                    ___ |___| ___ ___
-                                    Aug  Sep  Oct Nov
-
-        :param list data: the data containing groups
-        :param list groupby: list of fields being grouped on
-        :param dict annotated_aggregates: dict of "<key_name>:<aggregate specification>"
-        :param str fill_from: (inclusive) start bound, as a date/datetime string
-            (``%Y-%m-%d`` or ``%Y-%m-%d %H:%M:%S``)
-        :param str fill_to: (inclusive) end bound, same formats as ``fill_from``
-        :param int min_groups: minimal number of groups for the range (>= 1)
-        :rtype: list[dict]
-        :return: list
-        """
         first_group = groupby[0]
         field_name = first_group.split(":")[0].split(".")[0]
         field = self._fields[field_name]

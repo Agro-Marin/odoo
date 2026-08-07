@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.barcode.check_barcode_encoding``."""
-
 import unittest
 
 from odoo.libs.barcode import check_barcode_encoding

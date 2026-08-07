@@ -1,5 +1,3 @@
-"""Test case implementation"""
-
 import contextlib
 import inspect
 import logging
@@ -105,10 +103,6 @@ class TestCase(_TestCase):
     _moduleSetUpFailed = False
 
     def __init__(self, methodName: str = "runTest") -> None:
-        """Create an instance of the class that will use the named test
-        method when executed. Raises a ValueError if the instance does
-        not have a method with the specified name.
-        """
         self._testMethodName = methodName
         self._outcome = None
         if methodName != "runTest" and not hasattr(self, methodName):
@@ -125,17 +119,10 @@ class TestCase(_TestCase):
         self.addTypeEqualityFunc(str, "assertMultiLineEqual")
 
     def addCleanup(self, function: Any, *args: Any, **kwargs: Any) -> None:
-        """Add a function, with arguments, to be called when the test is
-        completed. Functions added are called on a LIFO basis and are
-        called after tearDown on test failure or success.
-
-        Cleanup items are called even if setUp fails (unlike tearDown)."""
         self._cleanups.append((function, args, kwargs))
 
     @classmethod
     def addClassCleanup(cls, function: Any, *args: Any, **kwargs: Any) -> None:
-        """Same as addCleanup, except the cleanup items are called even if
-        setUpClass fails (unlike tearDownClass)."""
         cls._class_cleanups.append((function, args, kwargs))
 
     def shortDescription(self) -> None:
@@ -145,12 +132,6 @@ class TestCase(_TestCase):
     def subTest(
         self, msg: Any = _subtest_msg_sentinel, **params: Any
     ) -> Generator[None]:
-        """Return a context manager that will return the enclosed block
-        of code in a subtest identified by the optional message and
-        keyword parameters.  A failure in the subtest marks the test
-        case as failed but resumes execution at the end of the enclosed
-        block, allowing further test code to be executed.
-        """
         parent = self._subtest
         if parent:
             params = {
@@ -165,11 +146,6 @@ class TestCase(_TestCase):
             self._subtest = parent
 
     def _addError(self, result: Any, test: TestCase, exc_info: tuple | None) -> None:
-        """Route a single error/failure to the result.
-
-        Handles subtest errors the 3.7-3.10 way; kept on the test case so
-        test_test_suite can override it.
-        """
         if isinstance(test, _SubTest):
             result.addSubTest(test.test_case, test, exc_info)
         elif exc_info is not None:
@@ -232,8 +208,6 @@ class TestCase(_TestCase):
             self._outcome = None
 
     def doCleanups(self) -> None:
-        """Execute all cleanup functions. Normally called for you after
-        tearDown."""
 
         while self._cleanups:
             function, args, kwargs = self._cleanups.pop()
@@ -242,8 +216,6 @@ class TestCase(_TestCase):
 
     @classmethod
     def doClassCleanups(cls) -> None:
-        """Execute all class cleanup functions. Normally called for you after
-        tearDownClass."""
         cls.tearDown_exceptions = []
         while cls._class_cleanups:
             function, args, kwargs = cls._class_cleanups.pop()
@@ -262,7 +234,6 @@ class TestCase(_TestCase):
         return f"/{module}.py:{self.__class__.__name__}.{self._testMethodName}"
 
     def get_log_metadata(self) -> dict[str, str]:
-        """Return metadata dict for log records emitted by this test."""
         return {
             "canonical_tag": self.canonical_tag,
         }

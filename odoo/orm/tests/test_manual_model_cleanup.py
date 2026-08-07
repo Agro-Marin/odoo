@@ -1,19 +1,3 @@
-"""Regression test for ``registration._add_manual_models``'s registry cleanup.
-
-Tier-2 suite (real ``import odoo``, no database — run as ``pytest
-odoo/orm/tests``).  ``_add_manual_models`` first *removes* every custom model
-from the registry so the fresh definitions from ``ir_model`` re-register from
-scratch.  The cleanup discarded the removed model's name from its parents'
-``_inherit_children`` but never from ``_inherits_children`` (populated by
-``_init_model_class_attributes`` for delegation parents), so a delegating
-custom model left its stale name behind across successive registry setups —
-e.g. ``Registry.descendants(..., "_inherits")`` kept reporting a model that no
-longer exists.
-
-Exercised through the DB-free harness: the ``ir_model`` scan is fixture-backed
-(no manual rows), leaving only the cleanup half of the function to observe.
-"""
-
 from odoo import fields, models
 from odoo.orm import registration
 from odoo.orm.model_test_env import model_test_env

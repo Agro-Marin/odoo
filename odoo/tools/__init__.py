@@ -93,11 +93,6 @@ from .misc import (
 )
 from .query import Query
 
-# The SQL builder and string/trigram helpers moved to odoo.libs.sql (ADR-0004 /
-# C.2); re-exported here so `from odoo.tools import SQL` keeps working. The
-# cursor-DDL helpers (create_index, index_exists, drop_view_if_exists) moved to
-# odoo.db.schema and are NOT re-exported: odoo.tools cannot import odoo.db
-# (db imports tools -> cycle), so their few consumers import odoo.db.schema.
 from odoo.libs.sql import (
     SQL,
     escape_psql,
@@ -115,15 +110,6 @@ from .xml_utils import (
     validate_xml_from_attachment,
 )
 
-#: The public surface of ``odoo.tools`` -- the framework's largest utility
-#: façade (101 symbols re-exported from 5 ``odoo.libs`` areas and 20 local
-#: modules). Declared for the same reason ``odoo.api`` / ``odoo.fields`` /
-#: ``odoo.models`` declare theirs: addon code imports from here, so what is
-#: re-exported is API and should be stated rather than inferred from whatever
-#: happens to be bound at module level. ``_`` is the gettext helper -- private
-#: spelling, public intent (``from odoo.tools import _, config`` is used by
-#: addon code), so it is listed explicitly; ``import *`` would otherwise skip
-#: it. Pinned by ``base/tests/test_public_surfaces.py``.
 __all__ = [
     "DEFAULT_SERVER_DATETIME_FORMAT",
     "DEFAULT_SERVER_DATE_FORMAT",

@@ -12,13 +12,6 @@ class TabB(models.Model):
 
 
 class TabActionHolder(models.Model):
-    """Owns a real reference to an action, with a real ``ondelete`` policy.
-
-    ``ir_actions`` is a table-inheritance root, so PostgreSQL creates no
-    foreign key here and ``ir.actions.actions.unlink`` has to apply the
-    ``cascade`` itself.
-    """
-
     _name = "tab.action.holder"
     _description = "tab.action.holder"
 
@@ -26,14 +19,6 @@ class TabActionHolder(models.Model):
 
 
 class TabActionMirror(models.Model):
-    """Mirrors the holder's reference through a *stored related* field.
-
-    Its own ``ondelete`` is ``None``: a related field never reaches
-    ``Many2one.setup_nonrelated``. Treating that absence as ``set null``
-    schedules a write against rows the holder's ``cascade`` has already
-    destroyed.
-    """
-
     _name = "tab.action.mirror"
     _description = "tab.action.mirror"
 
@@ -44,12 +29,6 @@ class TabActionMirror(models.Model):
 
 
 class TabActionComputed(models.Model):
-    """Points at an action through a non-stored compute with no ``search``.
-
-    Nothing can be swept here: there is no column to null out, and the
-    ``search`` a sweep would issue has no way to resolve.
-    """
-
     _name = "tab.action.computed"
     _description = "tab.action.computed"
 

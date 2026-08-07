@@ -9,13 +9,6 @@ _REQUEST = "odoo.addons.base.models.res_users.request"
 
 @tagged("post_install", "-at_install")
 class TestChangePasswordWizardAudit(TransactionCase):
-    """Security-regression coverage for the change-password wizards (audit CPW).
-
-    Cross-user password setting via ``change.password.user`` is gated by the
-    ``base.group_erp_manager`` ACL (privilege-based, not a blanket block), and
-    ``change.password.own`` is hard-bound to ``self.env.user``.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -33,10 +26,6 @@ class TestChangePasswordWizardAudit(TransactionCase):
         )
 
     def _build_wizard(self, acting_user):
-        """Create a change.password.wizard the way the UI does: active_ids on
-        res.users seed a change.password.user line per target, acting as
-        ``acting_user``.
-        """
         return (
             self.env["change.password.wizard"]
             .with_user(acting_user)
@@ -45,16 +34,12 @@ class TestChangePasswordWizardAudit(TransactionCase):
         )
 
     def test_non_manager_cannot_change_other_user_password(self):
-        """A non-erp-manager internal user is denied use of the
-        change.password.user wizard to set another user's password."""
         with self.assertRaises(AccessError):
             wizard = self._build_wizard(self.internal)
             wizard.change_password_button()
         self.env["res.users"]._check_uid_passwd(self.target.id, "cpw_target_pw")
 
     def test_manager_can_change_other_user_password(self):
-        """Positive control: an erp manager CAN set another user's password,
-        proving the block above is privilege-based and not a total block."""
         wizard = self._build_wizard(self.manager)
         self.assertTrue(wizard.user_ids, "the target should seed a wizard line")
         wizard.user_ids.new_passwd = "cpw_manager_set_pw"
@@ -64,8 +49,6 @@ class TestChangePasswordWizardAudit(TransactionCase):
             self.env["res.users"]._check_uid_passwd(self.target.id, "cpw_target_pw")
 
     def test_change_password_own_has_no_user_id_field(self):
-        """change.password.own defines no ``user_id`` field: it cannot target
-        another user's record, only the acting session user."""
         self.assertNotIn(
             "user_id",
             self.env["change.password.own"]._fields,
@@ -73,9 +56,6 @@ class TestChangePasswordWizardAudit(TransactionCase):
         )
 
     def test_change_password_own_operates_on_env_user(self):
-        """change.password.own.change_password applies the new password to
-        self.env.user only. Bypasses the @check_identity re-auth by stamping a
-        fresh ``identity-check-last`` in a patched HTTP request session."""
         Users = self.env["res.users"]
         fake_request = SimpleNamespace(
             session={"identity-check-last": 9_999_999_999.0},

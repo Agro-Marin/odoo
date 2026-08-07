@@ -15,12 +15,6 @@ _logger = logging.getLogger(__name__)
 def _create_sequence(
     cr: Any, seq_name: str, number_increment: int, number_next: int
 ) -> None:
-    """Create a PostgreSQL sequence.
-
-    ``number_increment`` is trusted to be strictly positive; the invariant is
-    owned by ``ir.sequence._positive_increment``, which every caller flushes
-    through before reaching here.
-    """
     cr.execute(
         SQL(
             "CREATE SEQUENCE %s INCREMENT BY %s START WITH %s",
@@ -32,7 +26,6 @@ def _create_sequence(
 
 
 def _drop_sequences(cr: Any, seq_names: list[str]) -> None:
-    """Drop the PostgreSQL sequences if they exist."""
     if not seq_names:
         return
     names = SQL(",").join(map(SQL.identifier, seq_names))
@@ -45,10 +38,6 @@ def _alter_sequence(
     number_increment: int | None = None,
     number_next: int | None = None,
 ) -> None:
-    """Alter a PostgreSQL sequence.
-
-    See :func:`_create_sequence` on why ``number_increment`` needs no check.
-    """
     if number_increment is None and number_next is None:
         return
     cr.execute(
@@ -77,7 +66,6 @@ def _alter_sequence(
 
 
 def _select_nextval(cr: Any, seq_name: str) -> int:
-    """Return the next value from a PostgreSQL sequence as an integer."""
     cr.execute("SELECT nextval(%s)", [seq_name])
     return cr.fetchone()[0]
 
@@ -106,22 +94,6 @@ def _update_nogap(self: Any, number_increment: int) -> int:
 
 
 def _predict_nextvals(env: Any, seq_names: Collection[str]) -> dict[str, int]:
-    """Return ``{sequence name: next value}`` without consuming the sequences.
-
-    Two queries for the whole batch instead of one per sequence: rendering the
-    sequence list view issued a round-trip per row.  The first resolves which
-    of ``seq_names`` exist and their step; the second reads them all in a
-    single ``UNION ALL``.
-
-    The per-sequence value has to come from the sequence *relation*, not from
-    ``pg_sequences``: ``ALTER SEQUENCE ... RESTART WITH n`` moves the current
-    value while leaving ``start_value`` at the original START, so the view
-    cannot answer for a restarted sequence.
-
-    Sequences missing from the catalog are absent from the result rather than
-    raising, so a row whose backing sequence has been lost degrades to the
-    caller's fallback instead of aborting the transaction.
-    """
     if not seq_names:
         return {}
     increments = dict(
@@ -169,14 +141,6 @@ _INTERPOLATION_FORMATS = {
 
 
 class _InterpolationDict(dict):
-    """Lazy mapping for the legacy ``%(key)s`` prefix/suffix placeholders.
-
-    Values are strftime-formatted on first access via ``__missing__`` and
-    cached, so drawing a number avoids formatting the full 14 formats x 3 dates
-    matrix when a pattern references only a few keys. Unknown keys raise
-    ``KeyError``, which ``_get_prefix_suffix`` turns into a ``UserError``.
-    """
-
     def __init__(
         self, effective_date: datetime, range_date: datetime, now: datetime
     ) -> None:
@@ -200,31 +164,16 @@ class _InterpolationDict(dict):
 
 
 class IrSequence(models.Model):
-    """Sequence objects that generate unique identifiers in a transaction-safe way."""
-
     _name = "ir.sequence"
     _description = "Sequence"
     _order = "name, id"
     _allow_sudo_commands = False
 
     def _pg_sequence_name(self) -> str:
-        """Return the name of the PostgreSQL sequence backing this record."""
         return "ir_sequence_%03d" % self.id
 
     @api.depends("implementation", "number_next")
     def _get_number_next_actual(self) -> None:
-        """Return number from ir_sequence row when no_gap implementation,
-        and number from postgres sequence when standard implementation.
-
-        The declared dependencies cover the ``no_gap`` branch, which simply
-        mirrors ``number_next``: without them the field was computed once per
-        transaction cache and never invalidated, so writing ``number_next`` left
-        the *inversable* ``number_next_actual`` showing the old value.
-
-        The ``standard`` branch reads a PostgreSQL sequence, which no
-        ``@api.depends`` can track -- that value is volatile by nature (see the
-        field's own help text) and a stale read there is expected.
-        """
         standard = self.filtered(
             lambda seq: seq.id and seq.implementation == "standard"
         )
@@ -305,7 +254,6 @@ class IrSequence(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Create a sequence; the ``standard`` implementation is backed by a fast, gaps-allowed PostgreSQL sequence."""
         seqs = super().create(vals_list)
         for seq in seqs:
             if seq.implementation == "standard":
@@ -322,19 +270,6 @@ class IrSequence(models.Model):
         return super().unlink()
 
     def write(self, vals: dict[str, Any]) -> bool:
-        """Persist the change, then reconcile the backing PostgreSQL sequences.
-
-        The ORM write and its flush run *first* so the model's own invariants --
-        notably the strictly-positive ``number_increment`` -- reject a bad value
-        before any DDL is issued. Altering the sequence first meant an invalid
-        step reached PostgreSQL as a raw ``INCREMENT must not be zero`` that
-        aborted the whole transaction, and left the reconciliation of a rejected
-        write to be unwound by the rollback.
-
-        Reconciling is driven by the *transition*, not by the resulting state
-        alone, so the pre-write ``implementation`` and ``number_increment`` are
-        snapshotted before the write moves them.
-        """
         previous = {seq.id: (seq.implementation, seq.number_increment) for seq in self}
         res = super().write(vals)
         self.flush_model(vals.keys())
@@ -385,13 +320,6 @@ class IrSequence(models.Model):
         return res
 
     def _carry_over_pg_counters(self) -> None:
-        """Seed ``number_next`` from the PostgreSQL counters about to be dropped.
-
-        Called when a ``standard`` sequence becomes ``no_gap``: without it the
-        ``no_gap`` counter would resume from the stored ``number_next``, which
-        the PostgreSQL sequence has been outrunning, and re-issue numbers that
-        were already handed out.
-        """
         self.ensure_one()
         sub_seqs = self.date_range_ids
         predicted = _predict_nextvals(
@@ -474,20 +402,6 @@ class IrSequence(models.Model):
         )
 
     def _create_date_range_seq(self, date: Any) -> Any:
-        """Create the ``ir.sequence.date_range`` covering ``date``.
-
-        The new range defaults to the calendar year of ``date`` and is then
-        clamped to avoid overlapping any existing adjacent range.
-
-        The insert can still violate ``UNIQUE(sequence_id, date_from,
-        date_to)``; :func:`~odoo.db.insert_or_existing` resolves that race.
-        Returning the empty recordset a re-``search`` yields instead sent
-        ``_next`` on to draw with ``id = False`` (``operator does not exist:
-        integer = boolean``).
-
-        :param date: the date the new sub-sequence must cover
-        :return: the created ``ir.sequence.date_range`` record
-        """
         year = fields.Date.from_string(date).strftime("%Y")
         date_from = f"{year}-01-01"
         date_to = f"{year}-12-31"
@@ -536,12 +450,6 @@ class IrSequence(models.Model):
         return date_range
 
     def _get_current_sequence(self, sequence_date: Any = None) -> Any:
-        """Return the concrete record that holds this sequence's counter.
-
-        For a plain sequence that is ``self``; for a date-ranged one it is the
-        ``ir.sequence.date_range`` sub-sequence covering ``sequence_date`` (or
-        the contextual / current date), created on the fly if none exists yet.
-        """
         self.ensure_one()
         if not self.use_date_range:
             return self
@@ -559,7 +467,6 @@ class IrSequence(models.Model):
         return seq_date or self._create_date_range_seq(dt)
 
     def _next(self, sequence_date: Any = None) -> str:
-        """Return the next interpolated value for this sequence."""
         if not self.use_date_range:
             if sequence_date is None:
                 return self._next_do()
@@ -580,18 +487,10 @@ class IrSequence(models.Model):
         )._next()
 
     def next_by_id(self, sequence_date: Any = None) -> str:
-        """Draw an interpolated string using the specified sequence."""
         self.browse().check_access("read")
         return self._next(sequence_date=sequence_date)
 
     def preview_next(self, sequence_date: Any = None) -> str:
-        """Interpolated preview of the next value WITHOUT consuming it.
-
-        Unlike ``next_by_id`` this never increments the counter nor creates a
-        date range, so clients may call it freely to display the upcoming
-        value (e.g. serial/lot generators). The preview can go stale if a
-        concurrent transaction draws from the sequence in the meantime.
-        """
         self.browse().check_access("read")
         self.ensure_one()
         if not self.use_date_range:
@@ -629,11 +528,6 @@ class IrSequence(models.Model):
 
     @api.model
     def next_by_code(self, sequence_code: str, sequence_date: Any = None) -> str | bool:
-        """Draw an interpolated string using a sequence with the requested code.
-        If several sequences with the correct code are available to the user
-        (multi-company cases), the one from the user's current company will
-        be used.
-        """
         self.browse().check_access("read")
         company_id = self.env.company.id
         seq_ids = self.search(
@@ -665,19 +559,10 @@ class IrSequenceDate_Range(models.Model):
     )
 
     def _pg_sequence_name(self) -> str:
-        """Return the name of the PostgreSQL sequence backing this sub-sequence."""
         return "ir_sequence_%03d_%03d" % (self.sequence_id.id, self.id)
 
     @api.depends("number_next", "sequence_id.implementation")
     def _get_number_next_actual(self) -> None:
-        """Return number_next from the date_range row (no_gap parent) or from
-        the PostgreSQL sequence (standard parent).
-
-        Same reasoning as ``ir.sequence._get_number_next_actual``: the declared
-        dependencies cover the no_gap branch (which mirrors ``number_next``),
-        while the standard branch reads a PostgreSQL sequence that no
-        ``@api.depends`` can track.
-        """
         standard = self.filtered(
             lambda seq: seq.id and seq.sequence_id.implementation == "standard"
         )
@@ -718,7 +603,6 @@ class IrSequenceDate_Range(models.Model):
     )
 
     def _next(self) -> str:
-        """Draw the next interpolated value from this date-range sub-sequence."""
         if self.sequence_id.implementation == "standard":
             number_next = _select_nextval(self.env.cr, self._pg_sequence_name())
         else:
@@ -730,11 +614,6 @@ class IrSequenceDate_Range(models.Model):
         number_increment: int | None = None,
         number_next: int | None = None,
     ) -> None:
-        """Alter the PostgreSQL sub-sequence(s) backing these date ranges.
-
-        :param number_increment: new step, or ``None`` to leave unchanged
-        :param number_next: new restart value, or ``None`` to leave unchanged
-        """
         for seq in self:
             _alter_sequence(
                 self.env.cr,
@@ -745,7 +624,6 @@ class IrSequenceDate_Range(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Create a sequence; the ``standard`` implementation is backed by a fast, gaps-allowed PostgreSQL sequence."""
         seqs = super().create(vals_list)
         for seq in seqs:
             main_seq = seq.sequence_id

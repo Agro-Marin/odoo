@@ -1,24 +1,8 @@
-"""Contract tests for ``SQL.literal`` and the read_group sites that need it.
-
-``read_group`` cannot parameter-bind a granularity or a timezone: PostgreSQL
-matches a ``GROUP BY`` expression against the ``SELECT`` list by text, and a
-bound parameter takes a different ``$N`` in each position.  Those values are
-therefore carried in the query *text*, which makes the quoting a SQL-injection
-barrier rather than a formatting detail.
-
-These tests are pure-Python: they check the constructor's contract (accepted
-characters, rejection of quotes/backslashes/percent, type strictness) without
-exercising the read_group machinery, plus the one property the read_group sites
-actually depend on -- that the literal lands in the code, not the params.
-"""
-
 from odoo.tests import common
 from odoo.tools import SQL
 
 
 class TestSqlLiteral(common.TransactionCase):
-    """Contract tests for the SQL-string-literal constructor."""
-
     def test_returns_quoted_value(self):
         self.assertEqual(SQL.literal("UTC").code, "'UTC'")
 
@@ -52,7 +36,6 @@ class TestSqlLiteral(common.TransactionCase):
             SQL.literal("a\\b")
 
     def test_rejects_percent(self):
-        """A ``%`` in the code would be read as a printf directive downstream."""
         with self.assertRaises(ValueError):
             SQL.literal("100%")
 
@@ -68,13 +51,11 @@ class TestSqlLiteral(common.TransactionCase):
         self.assertEqual(SQL.literal("").code, "''")
 
     def test_composes_into_code_not_params(self):
-        """The whole point: no ``$N`` for the literal, so SELECT and GROUP BY match."""
         expr = SQL("date_trunc(%s, %s::timestamp)", SQL.literal("month"), SQL("col"))
         self.assertEqual(expr.code, "date_trunc('month', col::timestamp)")
         self.assertEqual(expr.params, ())
 
     def test_two_uses_of_one_literal_render_identically(self):
-        """The week branch splices the same interval twice."""
         interval = SQL.literal("-2 DAY")
         expr = SQL("(%s - INTERVAL %s + INTERVAL %s)", SQL("c"), interval, interval)
         self.assertEqual(expr.code, "(c - INTERVAL '-2 DAY' + INTERVAL '-2 DAY')")

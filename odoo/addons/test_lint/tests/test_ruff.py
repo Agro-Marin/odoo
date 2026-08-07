@@ -1,11 +1,3 @@
-"""Integration lint tests: custom AST checkers for Odoo-specific rules.
-
-Replaces the former ``test_pylint.py`` which shelled out to pylint with custom
-astroid-based plugins.  All custom rules are now checked in-process via stdlib
-``ast``.  Standard lint rules (formerly 6 pylint builtins) are delegated to
-ruff via ``core/ruff.toml`` and enforced in CI — not here.
-"""
-
 import ast
 import logging
 import re
@@ -32,22 +24,12 @@ _RULE_ALIASES: dict[str, frozenset[str]] = {
 
 
 def _is_core_path(path: str) -> bool:
-    """Return True if *path* is under the core Odoo directory tree.
-
-    Excludes addons_custom, enterprise, and other external addon directories
-    to focus integration tests on standard Odoo code.
-    """
     root = tools.config.root_path
     core_dir = str(Path(root).parent)
     return path.startswith(core_dir)
 
 
 def _is_suppressed(source: bytes | str, lineno: int, rule: str) -> bool:
-    """Return True if *lineno* has a ``# pylint: disable=`` covering *rule*.
-
-    Also respects bare ``# noqa`` (suppress all) and ``# noqa: <code>`` when
-    the code matches a known alias.
-    """
     lines = (source if isinstance(source, bytes) else source.encode()).split(b"\n")
     if lineno < 1 or lineno > len(lines):
         return False
@@ -74,10 +56,7 @@ def _is_suppressed(source: bytes | str, lineno: int, rule: str) -> bool:
 
 
 class TestRuff(lint_case.LintCase):
-    """Run custom AST checkers on core Odoo modules."""
-
     def _iter_core_python_files(self):
-        """Yield paths of core module Python files (excluding upgrades/migrations)."""
         for path in self.iter_module_files("*.py"):
             if not _is_core_path(path):
                 continue
@@ -86,7 +65,6 @@ class TestRuff(lint_case.LintCase):
             yield path
 
     def test_sql_injection(self):
-        """Run SQL injection checker on core module Python files."""
         violations = []
         for path in self._iter_core_python_files():
             try:
@@ -111,7 +89,6 @@ class TestRuff(lint_case.LintCase):
             self.fail(msg)
 
     def test_gettext(self):
-        """Run gettext checker on core module Python files."""
         violations = []
         for path in self._iter_core_python_files():
             try:
@@ -134,7 +111,6 @@ class TestRuff(lint_case.LintCase):
             self.fail(msg)
 
     def test_unlink_override(self):
-        """Run unlink override checker on core module Python files."""
         violations = []
         for path in self._iter_core_python_files():
             try:
@@ -157,12 +133,6 @@ class TestRuff(lint_case.LintCase):
             self.fail(msg)
 
     def test_batch_queries(self):
-        """Run N+1 query checker on core module Python files.
-
-        Currently advisory-only: logs violations at WARNING level without
-        failing.  As modules are cleaned up, add them to
-        ``_BATCH_FAIL_MODULES`` to enforce the rule strictly.
-        """
         violations = []
         for path in self._iter_core_python_files():
             try:

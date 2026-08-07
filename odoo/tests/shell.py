@@ -24,7 +24,6 @@ def run_tests(
     modules: list[str] | None = None,
     reload_tests: bool = False,
 ) -> OdooTestResult | None:
-    """Run tests for the given modules and test tags."""
 
     if odoo.cli.COMMAND != "shell":
         _logger.error("run_tests should be used only in odoo shell")
@@ -65,7 +64,6 @@ def run_tests(
 
 
 def _run_tests(db_name: str, modules: list[str]) -> OdooTestResult:
-    """Run at_install and post_install test suites for the given modules."""
     report = OdooTestResult()
 
     with Registry._lock:
@@ -90,7 +88,6 @@ def _run_tests(db_name: str, modules: list[str]) -> OdooTestResult:
 
 
 def _clear_loaded_test_modules() -> None:
-    """Clear loaded test modules that may have been modified."""
     for module_key in list(sys.modules):
         if TEST_MODULE_NAME_PATTERN.match(module_key):
             _logger.debug("Removing module from sys.modules for reload: %s", module_key)
@@ -98,7 +95,6 @@ def _clear_loaded_test_modules() -> None:
 
 
 def _log_test_report(report: OdooTestResult) -> None:
-    """Log a summary of the test report at the appropriate log level."""
     if not report.wasSuccessful():
         _logger.error("Tests failed: %s", report)
     elif not report.testsRun:

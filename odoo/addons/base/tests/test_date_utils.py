@@ -92,7 +92,6 @@ class TestDateUtils(TransactionCase):
         )
 
     def test_offset_utils(self):
-        """test date/datetime fields helpers"""
         d = date(2077, 10, 23)
         dt = datetime(2077, 10, 23, 9, 42)
 
@@ -266,10 +265,7 @@ class TestDateUtils(TransactionCase):
 
 
 class TestDateRangeFunction(BaseCase):
-    """Test on date_range generator."""
-
     def test_date_range_with_naive_datetimes(self):
-        """Check date_range with naive datetimes."""
         start = datetime(1985, 1, 1)
         end = datetime(1986, 1, 1)
 
@@ -293,7 +289,6 @@ class TestDateRangeFunction(BaseCase):
         self.assertEqual(dates, expected)
 
     def test_date_range_with_date(self):
-        """Check date_range with dates."""
         start = date(1985, 1, 1)
         end = date(1986, 1, 1)
 
@@ -316,7 +311,6 @@ class TestDateRangeFunction(BaseCase):
         self.assertEqual(list(date_range(start, end)), expected)
 
     def test_date_range_with_timezone_aware_datetimes_other_than_utc(self):
-        """Check date_range with timezone-aware datetimes other than UTC."""
         tz = ZoneInfo("Europe/Brussels")
 
         start = datetime(1985, 1, 1, tzinfo=tz)
@@ -344,7 +338,6 @@ class TestDateRangeFunction(BaseCase):
         self.assertEqual(expected, dates)
 
     def test_date_range_with_mismatching_zones(self):
-        """Check date_range with mismatching zone should raise an exception."""
         start_tz = ZoneInfo("Europe/Brussels")
         end_tz = ZoneInfo("America/Recife")
 
@@ -355,7 +348,6 @@ class TestDateRangeFunction(BaseCase):
             list(date_range(start, end))
 
     def test_date_range_with_inconsistent_datetimes(self):
-        """Check date_range with a timezone-aware datetime and a naive one."""
         tz = ZoneInfo("Europe/Brussels")
 
         start = datetime(1985, 1, 1)
@@ -365,7 +357,6 @@ class TestDateRangeFunction(BaseCase):
             list(date_range(start, end))
 
     def test_date_range_with_hour(self):
-        """Test date range with hour and naive datetime."""
         start = datetime(2018, 3, 25)
         end = datetime(2018, 3, 26)
         step = relativedelta(hours=1)

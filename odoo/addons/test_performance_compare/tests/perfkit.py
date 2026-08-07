@@ -1,25 +1,3 @@
-"""Self-contained benchmark harness for cross-version ORM comparison.
-
-This module intentionally depends on **nothing fork-specific**.  It uses only:
-
-* ``time.perf_counter_ns``    — wall-clock timing (portable);
-* ``cursor.sql_log_count``    — SQL query counter (present and identical on both
-  the fork and vanilla Odoo 19.0 — see ``BaseCase.assertQueryCount``);
-* the Python standard library.
-
-That is what makes the whole ``test_performance_compare`` module droppable into a
-vanilla 19.0 checkout: there is no import of ``odoo.tests.benchmark`` (fork-only)
-or of any refactored ORM internal.
-
-Two metrics are captured for every benchmark, per the comparison plan:
-
-* **timing**  — the headline signal (mean / median / p95 µs, with outlier
-  trimming and a coefficient-of-variation stability flag);
-* **queries** — a determinism guardrail (min == max means the SQL shape is
-  stable; a divergence in query count between builds is flagged by ``compare.py``
-  so a Python-time win that secretly costs extra round-trips cannot hide).
-"""
-
 import gc
 import importlib.util
 import json
@@ -58,7 +36,6 @@ def _trim_outliers(data):
 
 
 def _stats_us(times_us):
-    """Reduce a list of per-iteration µs timings to summary statistics."""
     clean = _trim_outliers(times_us)
     mean = statistics.mean(clean)
     std = statistics.stdev(clean) if len(clean) > 1 else 0.0
@@ -76,12 +53,6 @@ def _stats_us(times_us):
 
 
 def _driver_label():
-    """Best-effort name+version of the active PostgreSQL driver.
-
-    Works across both layouts: upstream exposes the driver module as an
-    attribute of ``odoo.sql_db``; the fork relocated that module, so we fall
-    back to a direct probe (psycopg v3 first, since that is what the fork uses).
-    """
     try:
         from odoo import sql_db
 
@@ -122,14 +93,6 @@ def environment_meta():
 
 
 class BenchmarkRecorder:
-    """Accumulates benchmark results and writes a single labelled JSON report.
-
-    A recorder is keyed only by *stable* benchmark names; no timestamps or other
-    nondeterministic values leak into the comparison keys (the timestamp lives in
-    the report header, not in the per-benchmark records), so two reports always
-    line up by name.
-    """
-
     DEFAULT_ITERATIONS = int(os.environ.get("BENCH_ITER", "60"))
     DEFAULT_WARMUP = int(os.environ.get("BENCH_WARMUP", "8"))
 
@@ -153,23 +116,6 @@ class BenchmarkRecorder:
         setup=None,
         invalidate=None,
     ):
-        """Time ``func`` and record timing + query-count statistics.
-
-        Parameters
-        ----------
-        name : str
-            Stable benchmark identifier (the comparison key).
-        func : callable
-            Zero-argument callable to measure.
-        group : str
-            Logical grouping for reporting (e.g. "read", "write", "search").
-        iterations, warmup : int
-            Measured / discarded iteration counts.
-        setup : callable | None
-            Called before each iteration (timed out), e.g. to (re)create a row.
-        invalidate : callable | None
-            Called before each iteration (timed out), e.g. ``env.invalidate_all``.
-        """
         iterations = iterations or self.DEFAULT_ITERATIONS
         warmup = self.DEFAULT_WARMUP if warmup is None else warmup
         cr = self.cr
@@ -215,9 +161,6 @@ class BenchmarkRecorder:
         return record
 
     def report(self, timestamp):
-        """Build the full report dict.  ``timestamp`` is supplied by the caller
-        (tests cannot rely on a wall clock for determinism, but the header is
-        purely informational and never part of a comparison key)."""
         meta = environment_meta()
         meta["timestamp"] = timestamp
         meta["report_version"] = REPORT_VERSION
@@ -225,8 +168,6 @@ class BenchmarkRecorder:
         return {"meta": meta, "results": self.results}
 
     def write(self, timestamp):
-        """Write the report to ``$BENCH_OUT`` (or ``./perf_compare_<label>.json``)
-        and return the path."""
         report = self.report(timestamp)
         label = report["meta"]["label"]
         out = os.environ.get("BENCH_OUT")

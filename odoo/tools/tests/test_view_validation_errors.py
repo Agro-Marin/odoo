@@ -1,16 +1,3 @@
-"""Regression tests for error normalization in ``view_validation``.
-
-Two defects: malformed *string* domains reached ``.elts`` on AST nodes that
-don't have it, raising a raw ``AttributeError`` (e.g. ``'Call' object has no
-attribute 'elts'``) that the function's ``except ValueError`` never normalized —
-so the raw Python message leaked into the user-facing view error instead of the
-intended "Wrong domain formatting." And unsupported expression nodes were
-reported with ``repr(ast_node)``, dumping the whole AST into that same error;
-``**``-spread dict entries additionally crashed on a ``None`` key.
-
-No Odoo ORM / database dependency — runs under the standalone pytest suite.
-"""
-
 import unittest
 
 from odoo.tools.view_validation import (

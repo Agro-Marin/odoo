@@ -1,20 +1,3 @@
-"""N+1 CRUD detection for Odoo ORM.
-
-Detects repeated single-record create/write/unlink calls from the same call
-site within a transaction — a pattern that is 5-15x slower than batching.
-
-Activation: set ``ODOO_NPLUSONE=1`` in the environment (dev-only, opt-in). The
-flag is read once at import (mirroring ``ODOO_ORM_PROFILE`` in
-:mod:`odoo.libs.profiling.orm_profiler`): consumers freeze it via
-``from odoo.libs.profiling import _n1_enabled``, so a rebind after those imports
-would not reach their copies — activation must be settled at import time, not by
-a later ``setup()`` call.
-
-When disabled, overhead is a single boolean check per CRUD call
-(``_n1_enabled``). Violations above the threshold are reported via the
-``odoo.orm.nplusone`` logger at ``Transaction.flush()``.
-"""
-
 import logging
 import os
 import sys
@@ -32,11 +15,6 @@ _n1_enabled: bool = os.environ.get("ODOO_NPLUSONE", "").lower() in (
 if _n1_enabled:
     _logger.info("N+1 CRUD detection enabled (ODOO_NPLUSONE=1)")
 
-# The odoo package root, which holds the orm/ and api/ trees whose frames are
-# skipped when locating the caller. This file lives at
-# odoo/libs/profiling/nplusone.py, so the root is three parents up (profiling ->
-# libs -> odoo). It MUST track this file's depth: the previous odoo/tools/ home
-# was one level shallower.
 _ODOO_DIR = Path(__file__).resolve().parents[2]
 _ORM_PREFIX: str = str(_ODOO_DIR / "orm") + os.sep
 
@@ -47,8 +25,6 @@ _SKIP_PREFIXES: tuple[str, ...] = (
 
 
 class _NplusOneEntry:
-    """Accumulator for a single (operation, model, file, line) call site."""
-
     __slots__ = ("count", "total_records", "vals_fingerprints")
 
     def __init__(self) -> None:
@@ -61,14 +37,11 @@ type _Key = tuple[str, str, str, int]
 
 
 class NplusOneTracker:
-    """Collects N+1 CRUD call patterns within a single transaction."""
-
     __slots__ = ("_data",)
 
     THRESHOLD = 3
 
     def __init__(self) -> None:
-        """Start with an empty per-callsite N+1 accumulator."""
         self._data: dict[_Key, _NplusOneEntry] = {}
 
     def record(
@@ -78,7 +51,6 @@ class NplusOneTracker:
         record_count: int,
         field_fingerprint: frozenset[str],
     ) -> None:
-        """Record a CRUD call from the create/write/unlink ORM mixins."""
         frame: types.FrameType | None = sys._getframe(2)
         while frame is not None:
             code = frame.f_code
@@ -109,7 +81,6 @@ class NplusOneTracker:
         entry.vals_fingerprints.add(field_fingerprint)
 
     def report(self) -> None:
-        """Emit warnings for call sites that reach the threshold."""
         if not _logger.isEnabledFor(logging.WARNING):
             return
 
@@ -137,5 +108,4 @@ class NplusOneTracker:
         _logger.warning("\n".join(lines))
 
     def clear(self) -> None:
-        """Drop all accumulated call-site records (called after :meth:`report`)."""
         self._data.clear()

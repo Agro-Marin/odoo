@@ -3,7 +3,7 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from odoo import api, fields, models, tools
+from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.exceptions import AccessError
 from odoo.http import (
@@ -81,12 +81,6 @@ class ResDeviceLog(models.Model):
 
     @api.depends("session_identifier")
     def _compute_is_current(self) -> None:
-        """Flag the device backing the current HTTP session.
-
-        Only the record-side input is declarable: the comparison is against the
-        live ``request.session.sid``, which no dependency can track (a different
-        request is a different transaction anyway).
-        """
         for device in self:
             device.is_current = request and request.session.sid.startswith(
                 device.session_identifier
@@ -135,17 +129,12 @@ class ResDeviceLog(models.Model):
         return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
 
     def _is_mobile(self, platform: str | None) -> bool:
-        """Return whether ``platform`` denotes a known mobile platform."""
         if not platform:
             return False
         return platform.lower() in _MOBILE_PLATFORMS
 
     @api.model
     def _update_device(self, request: Any) -> None:
-        """Update the device for the current request, leaving a trace in the session.
-
-        :param request: Request or WebsocketRequest object
-        """
         trace = request.session.update_trace(request)
         if not trace:
             return
@@ -216,7 +205,6 @@ class ResDeviceLog(models.Model):
 
     @api.autovacuum
     def _update_revoked(self) -> None:
-        """Flag ``revoked`` on device logs whose session file is gone from disk."""
         batch_size = 100_000
         offset = 0
 
@@ -267,14 +255,6 @@ class ResDevice(models.Model):
         return self._revoke()
 
     def _revoke(self) -> None:
-        """Revoke the sessions of the devices in ``self`` (privileged action).
-
-        Deletes the matching session files, flags the device logs ``revoked``,
-        and logs out the current session if it is among them.
-
-        :raises AccessError: when a non-system caller passes a device that does
-            not belong to ``self.env.user``.
-        """
         if not self:
             return
         if not self.env.is_system() and self.mapped("user_id") != self.env.user:
@@ -298,23 +278,14 @@ class ResDevice(models.Model):
 
     @api.model
     def _select(self) -> str:
-        """Return the SELECT clause of the ``res.device`` view query."""
         return "SELECT D.*"
 
     @api.model
     def _from(self) -> str:
-        """Return the FROM clause of the ``res.device`` view query."""
         return "FROM res_device_log D"
 
     @api.model
     def _where(self) -> str:
-        """Return the WHERE clause keeping the latest non-revoked log per device.
-
-        The identity join derives from ``_DEVICE_IDENTITY_COLUMNS`` (RDEV-P4), the
-        same constant ``_gc_device_log`` partitions on, so view and GC can't
-        de-dup on diverging columns. All interpolated fragments are module-level
-        literals, not user input (SQL wrapper rule, coding_guidelines §10.4).
-        """
         identity_join = "\n                        AND ".join(
             f"D2.{column} IS NOT DISTINCT FROM D.{column}"
             if nullable

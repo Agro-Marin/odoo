@@ -18,12 +18,6 @@ _RUST_UNDERSCORE_PAT = r"""\b_\(\s*['"]"""
 
 class TestJsTranslations(lint_case.LintCase):
     def check_text(self, text):
-        """Search for translation errors in the text.
-
-        :param text: The js text to search
-        :return: A list of tuple with line number and invalid template string,
-                 or None for underscore errors
-        """
         error_list = []
         for m in TSTRING_RE.finditer(text):
             template_string = m.group(0)
@@ -74,9 +68,6 @@ class TestJsTranslations(lint_case.LintCase):
         self.assertEqual(self.check_text(bad_js), [(2, None), (4, None)])
 
     def test_js_translations(self):
-        """Test that there are no translation of JS template strings or underscore
-        calls misused as translation markers.
-        """
         roots = self._module_roots()
 
         results = scan_regex_patterns(

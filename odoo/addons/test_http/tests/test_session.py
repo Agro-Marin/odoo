@@ -1,5 +1,4 @@
 import datetime
-import glob
 import json
 import os
 from pathlib import Path
@@ -113,16 +112,6 @@ class TestHttpSession(TestHttpBase):
 
     @mute_logger("odoo.http", "odoo.http.application")
     def test_session02d_expiry_rotates_a_connected_session(self):
-        """A SessionExpired raised while ``session.uid`` is set must rotate the sid.
-
-        This is the ``was_connected`` branch — reached in production by
-        ``auth_timeout``'s inactivity logout and ``web.home``'s session-token
-        check. It used to be implemented inline in ``HttpDispatcher.handle_error``
-        (and only there). Rotation now happens in ``Request._save_session``, run
-        over the error response by ``Application._finalize_error_response``, so
-        this pins that the security-relevant behaviour survived the move — and
-        that it is no longer HTTP-dispatcher-only.
-        """
         session = self.authenticate("admin", "admin")
         old_sid = session.sid
         self.assertIsNotNone(session.uid)
@@ -141,20 +130,6 @@ class TestHttpSession(TestHttpBase):
 
     @mute_logger("odoo.http", "odoo.http.application")
     def test_session02e_jsonrpc_expiry_must_not_log_out(self):
-        """jsonrpc SessionExpired must NOT log out — the bus depends on it.
-
-        Characterization, not a fix. It is tempting to "unify" the
-        SessionExpired handling that ``HttpDispatcher.handle_error`` implements
-        (logout + rotate) across all three dispatchers. That would be wrong:
-        ``bus`` overloads ``SessionExpiredException`` on the *public* jsonrpc
-        route ``/websocket/peek_notifications`` to mean "your session predates
-        my websocket handshake, re-handshake" — a routine signal on ordinary
-        polling traffic, not an authentication event. Logging out there would
-        sign out every polling visitor on a benign reconnect.
-
-        So: the JSON dispatchers report the expiry (code 100) and leave the
-        session alone. This test fails the moment someone unifies them.
-        """
         session = self.authenticate("admin", "admin")
         old_sid = session.sid
 
@@ -279,19 +254,10 @@ class TestHttpSession(TestHttpBase):
             self.url_open(f"/test_http/{milky_way.id}").raise_for_status()
 
     def test_session07_serializable(self):
-        """
-        Test (non-)serializable values in the session in JSON format.
-        """
         session = self.authenticate(None, None)
         self.assertNotIn("foo", session)
 
         def check_session_attr(value):
-            """
-            :return:
-                - True: can be used
-                - False: cannot be used
-                - None: not recommended (can be used, but the value is modified)
-            """
             try:
                 session["foo"] = value
                 try:
@@ -345,16 +311,6 @@ class TestHttpSession(TestHttpBase):
             self.assertEqual(check_session_attr(value), None)
 
     def test_session07b_load_does_not_revalidate(self):
-        """Loading a session from its store file must NOT re-run the
-        per-value JSON validation/coercion that ``__setitem__`` applies.
-
-        That validation polices *application* writes; the load payload is
-        already JSON-native (the store just parsed it), so re-walking it is
-        pure overhead on every authenticated request. This pins the trusted
-        fast path: a refactor that reintroduces ``self.update(data)`` in
-        ``Session.__init__`` would coerce the tuple below to a list and fail
-        here. It also confirms writes are still validated/coerced/isolated.
-        """
         sid = "a" * STORED_SESSION_BYTES * 2
 
         data = {"uid": 5, "context": {"lang": "en_US", "ids": [1, 2, 3]}}
@@ -377,12 +333,6 @@ class TestHttpSession(TestHttpBase):
         self.assertEqual(session["iso"], {"k": [1]})
 
     def test_session07c_is_modified_detects_nested_mutation(self):
-        """``is_modified`` catches in-place nested writes that bypass __setitem__.
-
-        The request lifecycle baselines via ``mark_clean`` after load and gates
-        persistence on ``is_modified``, so an application doing
-        ``session.context[...] = ...`` no longer has to remember ``touch()``.
-        """
         sid = "a" * STORED_SESSION_BYTES * 2
         session = Session({"uid": 5, "context": {"lang": "en_US"}}, sid)
         session.mark_clean()
@@ -651,13 +601,6 @@ class TestSessionStore(HttpCaseWithUserDemo):
             )
 
     def test05_session_save_logs_on_failure(self):
-        """A failed session rename must log a WARNING, not silently drop.
-
-        Regression: the vendored werkzeug `save` used `except OSError: pass`,
-        meaning NFS stale-handle or ENOSPC failures resulted in a client
-        cookie pointing to a session that never landed on disk, with zero
-        ops-visible signal.
-        """
         session = odoo.http.root.session_store.new()
         session["sentinel"] = "value"
 
@@ -681,11 +624,10 @@ class TestSessionRotation(HttpCase):
         def get_amount_sessions(session):
             identifier = session[:STORED_SESSION_BYTES]
             self.assertTrue(_session_identifier_re.match(identifier))
-            normalized_path = str(
-                Path(root.session_store.path, identifier[:2], identifier + "*")
-            )
+            directory = Path(root.session_store.path, identifier[:2])
+            normalized_path = str(directory / (identifier + "*"))
             self.assertTrue(normalized_path.startswith(root.session_store.path))
-            return len(glob.glob(normalized_path))
+            return len(list(directory.glob(identifier + "*")))
 
         self.authenticate("admin", "admin")
         self.url_open("/odoo")
@@ -714,13 +656,6 @@ class TestSessionRotation(HttpCase):
         self.assertEqual(get_amount_sessions(session_three), 0)
 
     def test_session_rotation_excluded_on_websocket_poll(self):
-        """Rotation must NOT fire on websocket polling endpoints.
-
-        Regression: the fork's `_save_session` used to rotate any session
-        past SESSION_ROTATION_INTERVAL on any request, including the
-        high-frequency websocket polls. Upstream excluded those paths
-        specifically; the fork dropped the constant during refactor.
-        """
         from odoo.http import SESSION_ROTATION_EXCLUDED_PATHS
 
         self.assertIn("/websocket/peek_notifications", SESSION_ROTATION_EXCLUDED_PATHS)
@@ -750,14 +685,6 @@ class TestSessionRotation(HttpCase):
         root.session_store.delete_from_identifiers([session_two[:STORED_SESSION_BYTES]])
 
     def test_session_token_lookup_does_not_clear_cache(self):
-        """An invalid-uid session-token lookup must NOT wipe the cache.
-
-        Regression: `_session_token_get_values` used to call
-        `registry.clear_cache()` on `rowcount != 1`. Because this path is
-        reachable from any incoming session cookie pointing to a deleted
-        or non-existent user, untrusted traffic could force fleet-wide
-        invalidation of the "default" ormcache category.
-        """
         with patch.object(self.env.registry, "clear_cache") as mock_clear:
             result = self.env["res.users"].browse(99999999)._session_token_get_values()
 

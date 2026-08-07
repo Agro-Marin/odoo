@@ -1,22 +1,3 @@
-"""Domain expression processing package.
-
-A domain is a first-order logical predicate filtering records, represented as an
-AST of boolean operators:
-
-- n-ary operators: AND, OR
-- unary operator: NOT
-- boolean constants: TRUE, FALSE
-- conditions: ``(expression, operator, value)``
-
-In a condition, *expression* is usually a field name, optionally using
-dot-notation to traverse relationships (equivalent to the ``any`` operator) or
-access field properties; *operator* is one of ``CONDITION_OPERATORS`` (described
-there); *value* is a Python value the operator supports.
-
-Layout: ``constants.py`` (operators/mappings), ``ast.py`` (Domain classes),
-``optimizations.py`` (optimization functions).
-"""
-
 from .constants import (
     STANDARD_CONDITION_OPERATORS,
     CONDITION_OPERATORS,

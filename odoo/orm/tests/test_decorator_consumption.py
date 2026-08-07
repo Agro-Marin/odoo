@@ -1,23 +1,3 @@
-"""Consumption of ``@api.constrains`` / ``@api.depends`` specs by the ORM.
-
-Tier-2 suite (real ``import odoo``, no database — run as ``pytest
-odoo/orm/tests``).  ``test_decorator_spec_validation.py`` pins what the
-decorators *store* at decoration time; this suite pins how the ORM *consumes*
-those markers:
-
-* a callable ``@api.constrains`` spec is resolved against the model when
-  ``_constraint_methods`` is built, and the constraint fires when a resolved
-  field is written (``_validate_fields`` via create/write);
-* a callable ``@api.depends`` spec is resolved into the registry dependency
-  graph (``registry.field_depends``), so modifying a resolved dependency
-  triggers recompute of the stored computed field;
-* constraints run in a sudo environment by default and in the *user*
-  environment with ``sudo=False`` (observable DB-free through ``env.su`` seen
-  inside the constraint from a non-superuser environment);
-* an unknown field name in a ``@api.constrains`` spec logs the
-  "not a field name" warning while still registering the method.
-"""
-
 import logging
 
 import pytest
@@ -30,7 +10,6 @@ _MOD = "test_decorator_consumption"
 
 
 def _amount_fields(model):
-    """Callable @api.constrains spec, resolved against the model at build time."""
     assert model._name == "deccons.order"
     return ["amount", "amount_limit"]
 

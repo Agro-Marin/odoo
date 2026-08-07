@@ -1,14 +1,3 @@
-"""Assigning an empty value to an x2many must still seed the cache on new
-records.
-
-Regression: write_batch dropped empty command lists as "guaranteed no-ops";
-true for real records (the DB is the source of truth) but not for NewIds,
-whose cache IS the value — a compute assigning ``[]`` on a new record (e.g.
-res.groups.all_implied_by_ids, whose compute assigns ``g.ids + ...`` where
-``.ids`` is empty for a NewId) then died with "Compute method failed to
-assign" in every onchange.
-"""
-
 from odoo import api, fields, models
 from odoo.orm.model_test_env import model_test_env
 

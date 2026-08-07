@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.set_expression`` canonicalization."""
-
 import itertools
 import random
 import unittest

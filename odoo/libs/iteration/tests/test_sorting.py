@@ -1,12 +1,3 @@
-"""Contract tests for ``topological_sort`` / ``merge_sequences``.
-
-The two share an implementation but not a contract, and the difference is the
-whole point of the ``strict`` flag: a dependency graph with a cycle is bad data
-and should say so, while merging partial orders is best-effort and a conflict is
-routine. Pinning both directions here because collapsing them is an easy and
-very expensive mistake -- ``merge_sequences`` runs during registry build.
-"""
-
 import unittest
 
 from odoo.libs.iteration.sorting import merge_sequences, topological_sort
@@ -63,12 +54,6 @@ class TestMergeSequences(unittest.TestCase):
         self.assertEqual(merge_sequences(["A", "B", "C"]), ["A", "B", "C"])
 
     def test_contradictory_orders_do_not_raise(self):
-        """A module reordering existing selection values must not kill the registry.
-
-        ``Selection._setup`` merges ``selection`` with ``selection_add`` through
-        here while the registry is being built, so raising on a conflict would
-        turn a cosmetic manifest quirk into a server that will not start.
-        """
         seq = merge_sequences(["a", "b", "c"], ["c", "b"])
         self.assertCountEqual(seq, ["a", "b", "c"])
 

@@ -35,7 +35,6 @@ class TestACL(TransactionCaseWithUserDemo):
         self.env.registry.clear_cache("templates")
 
     def test_field_visibility_restriction(self):
-        """Field-level ``groups`` restricts the field to members of the allowed groups."""
         currency = self.env["res.currency"].with_user(self.user_demo)
 
         primary = self.env["ir.ui.view"].create(
@@ -126,7 +125,6 @@ class TestACL(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.models")
     def test_field_crud_restriction(self):
-        """Read/Write RPC access to a restricted field must be forbidden."""
         partner = self.env["res.partner"].browse(1).with_user(self.user_demo)
 
         has_group_test = self.user_demo.has_group(self.TEST_GROUP)
@@ -159,7 +157,6 @@ class TestACL(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.models")
     def test_fields_browse_restriction(self):
-        """Test access to records having restricted fields"""
         partner = self.env["res.partner"].with_user(self.user_demo)
         self._set_field_groups(partner, "email", self.TEST_GROUP)
 
@@ -170,11 +167,6 @@ class TestACL(TransactionCaseWithUserDemo):
                 _ = partner.email
 
     def test_view_create_edit_button(self):
-        """Create/Edit/Delete button visibility follows the model's access rights.
-
-        Exercises a user with and without access in one transaction to check the
-        views cache.
-        """
         methods = ["create", "edit", "delete"]
         company = self.env["res.company"].with_user(self.user_demo)
         company_view = company.get_view(False, "form")
@@ -190,11 +182,6 @@ class TestACL(TransactionCaseWithUserDemo):
             self.assertIsNone(view_arch.get(method))
 
     def test_m2o_field_create_edit(self):
-        """Many2one Create/Edit option visibility follows the relation's access rights.
-
-        Exercises a user with and without access in one transaction to check the
-        views cache.
-        """
         methods = ["create", "write"]
         company = self.env["res.company"].with_user(self.user_demo)
         company_view = company.get_view(False, "form")
@@ -214,7 +201,6 @@ class TestACL(TransactionCaseWithUserDemo):
             self.assertEqual(field_node[0].get("can_" + method), "True")
 
     def test_get_views_fields(self):
-        """``get_views`` hides group-restricted fields from demo but not from admin."""
         Partner = self.env["res.partner"]
         self._set_field_groups(Partner, "email", self.TEST_GROUP)
         views = Partner.with_user(self.user_demo).get_views([(False, "form")])
@@ -323,10 +309,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
         self.assertTrue(partners, "Demo user should see some partners.")
 
     def test_ir_rule_superuser_bypass(self):
-        """Pin the env.su superuser bypass: a restrictive global rule yields no
-        rules and an unrestricted (TRUE) domain under sudo, but is restrictive
-        for a non-superuser user. (IRU-T1)
-        """
         model_res_partner = self.env.ref("base.model_res_partner")
         self.env["ir.rule"].create(
             {
@@ -357,9 +339,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
         )
 
     def test_ir_rule_get_rules_modes(self):
-        """``_get_rules`` selects the rule for the requested perm mode only and
-        rejects an invalid mode. (IRU-T2)
-        """
         model_res_partner = self.env.ref("base.model_res_partner")
         group_user = self.env.ref("base.group_user")
         unlink_rule = self.env["ir.rule"].create(
@@ -393,9 +372,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_ir_rule_access_error_message(self):
-        """Forcing a denial raises AccessError; the debug (group_no_one +
-        internal) message names the blaming rule. (IRU-T3, IRU-C3)
-        """
         model_res_partner = self.env.ref("base.model_res_partner")
         group_user = self.env.ref("base.group_user")
 
@@ -434,7 +410,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
 
 class TestIrModelAccess(TransactionCaseWithUserDemo):
     def test_invalid_access_mode(self):
-        """The three mode guards reject an invalid access mode. (IMA-T1)"""
         Access = self.env["ir.model.access"]
         with self.assertRaises(ValueError):
             Access._get_allowed_models("foo")
@@ -445,9 +420,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_model_access", "odoo.db.cursor")
     def test_create_missing_name_raises_field_error(self):
-        """A group-less access-granting ACL without ``name`` raises the
-        required-field validation, not a KeyError from the warning. (IMA-C3)
-        """
         model_partner = self.env.ref("base.model_res_partner")
         with self.assertRaises(Exception) as cm:
             self.env["ir.model.access"].create(
@@ -464,9 +436,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         )
 
     def test_create_omitted_group_warns(self):
-        """An access-granting ACL that OMITS ``group_id`` is a global grant,
-        exactly like an explicit falsy ``group_id``, and must warn too. (IMA-C4)
-        """
         model_partner = self.env.ref("base.model_res_partner")
         with self.assertLogs(
             "odoo.addons.base.models.ir_model_access", level="WARNING"
@@ -484,11 +453,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         )
 
     def test_cache_clearing_invalidates_both_acl_caches(self):
-        """``call_cache_clearing_methods`` must evict BOTH ``_get_allowed_models``
-        (in the 'default' cache bucket) and ``_get_access_groups`` (in the
-        'stable' bucket). Pins the invariant that clearing 'stable' cascades to
-        'default'; narrowing it would silently serve stale ACLs. (IMA-C5)
-        """
         Access = self.env["ir.model.access"]
         registry = self.env.registry
         caches = registry.ormcache_lrus
@@ -523,11 +487,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         )
 
     def test_allowed_models_cache_shared_across_same_group_users(self):
-        """``_get_allowed_models`` is keyed on the user's group set (plus the
-        mode), not on the uid: two users with identical groups must share the
-        same cache entry, so per-user churn cannot evict each other's ACL
-        computation. (W2)
-        """
         self.addCleanup(self.env.registry.clear_cache)
         group_user = self.env.ref("base.group_user")
         user_a, user_b = self.env["res.users"].create(
@@ -554,9 +513,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         )
 
     def test_check_unknown_model_warns(self):
-        """``check`` on an unknown model denies, logs a WARNING, and does not
-        raise when ``raise_exception=False``. (IMA-C2)
-        """
         Access = self.env["ir.model.access"].with_user(self.user_demo)
         with self.assertLogs(
             "odoo.addons.base.models.ir_model_access", level="WARNING"
@@ -569,9 +525,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         )
 
     def test_group_names_with_access_localized_ordering(self):
-        """``group_names_with_access`` orders groups alphabetically by their
-        localized (translated) name, not by raw jsonb structure. (IMA-C1)
-        """
         self.env["res.lang"]._activate_lang("fr_FR")
         model_partner = self.env.ref("base.model_res_partner")
         Groups = self.env["res.groups"]
@@ -602,12 +555,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
 
 
 class TestIrExportsLineAcl(TransactionCaseWithUserDemo):
-    """Audit finding IEXP-L1: ``ir.exports.line`` must be gated on
-    ``base.group_allow_export`` (same as its parent ``ir.exports``), not on
-    ``base.group_user``. A plain internal user without the export privilege must
-    not be able to create/write/unlink export-line rows; an export-group user can.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -658,15 +605,6 @@ class TestIrExportsLineAcl(TransactionCaseWithUserDemo):
 
 
 class TestIrModelAccessUnknownModel(TransactionCaseWithUserDemo):
-    """check() on a non-existent model (IMA-C5).
-
-    A typo'd/unknown model name is a programming error: with
-    raise_exception=True check() raises a clear ValueError naming the model
-    instead of the generic AccessError. The lenient path is preserved for
-    raise_exception=False callers (ir.ui.menu / ir.actions probe models that
-    may not be loaded) and for the superuser fast-path.
-    """
-
     def test_unknown_model_raises_clear_error(self):
         Access = self.env["ir.model.access"].with_user(self.user_demo)
         with self.assertRaises(ValueError) as capture:
@@ -683,15 +621,6 @@ class TestIrModelAccessUnknownModel(TransactionCaseWithUserDemo):
 
 
 class TestIrModelAccessCacheInvalidation(TransactionCaseWithUserDemo):
-    """The ACL ormcache must be dropped AFTER a create/write/unlink is applied.
-
-    ``super().write()`` runs its own ``check_access`` on ir.model.access, which
-    repopulates ``_get_allowed_models`` from the not-yet-changed rows.  Clearing
-    the cache *before* the mutation therefore left the pre-change ACL set cached
-    in this worker (the cross-worker invalidation signal having already been
-    emitted), so a revoked access kept being granted here.
-    """
-
     def _granting_acls(self, model_name, user, mode="write"):
         group_ids = set(user._get_group_ids())
         return (
@@ -752,17 +681,6 @@ class TestIrModelAccessCacheInvalidation(TransactionCaseWithUserDemo):
 
 
 class TestResGroupsCacheInvalidation(TransactionCaseWithUserDemo):
-    """RG-L4: ``res.groups.write`` must bust the ``default`` cache family AFTER
-    the write, not only before.
-
-    ``"groups"`` does not cascade to ``"default"`` (``_CACHES_BY_KEY``), and
-    ``super().write()`` runs its own access check, repopulating
-    ``res.users._get_group_ids`` from the pre-write graph. When the writer is
-    themselves affected — an admin editing a group they hold — the stale entry
-    survived, so they kept an implication they had just revoked from themselves.
-    ``create()``/``unlink()`` already clear after ``super()``.
-    """
-
     def test_self_affecting_implication_revoke_takes_effect(self):
         admin = self.env.ref("base.user_admin")
         holder = self.env["res.groups"].sudo().create({"name": "rgl4_holder"})

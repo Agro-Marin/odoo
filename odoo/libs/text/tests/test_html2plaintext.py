@@ -1,10 +1,3 @@
-"""Regression tests for ``odoo.libs.text.html.html2plaintext``.
-
-The parser hands back ``None`` for a document that carries no element at all,
-which used to surface as an ``AttributeError`` on ``NoneType`` from deep inside
-the mail pipeline -- on content an inbound message can trivially carry.
-"""
-
 import unittest
 
 from odoo.libs.text.html import html2plaintext
@@ -36,8 +29,6 @@ class TestFalsyInput(unittest.TestCase):
 
 
 class TestStillConvertsRealContent(unittest.TestCase):
-    """The guard must not swallow documents that do have content."""
-
     def test_bare_text(self):
         self.assertEqual(html2plaintext("hello"), "hello")
 

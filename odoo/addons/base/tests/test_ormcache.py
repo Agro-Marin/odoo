@@ -6,26 +6,12 @@ from odoo.tools.cache import get_cache_size
 
 
 def _cleared_by(*cache_names: str) -> str:
-    """The sub-caches ``clear_cache(*cache_names)`` empties, as logged.
-
-    Derived from ``_CACHES_BY_KEY`` rather than spelled out: the composite
-    groups gain sub-caches over time (``assets.links``, ``routing.rewrites``),
-    and a literal list here turns every such addition into a failure of a test
-    that is about signalling, not about cache membership.
-    """
     cleared = {sub for name in cache_names for sub in _CACHES_BY_KEY[name]}
     return repr(sorted(cleared))
 
 
 class TestCacheSize(BaseCase):
     def test_get_cache_size_traverses_instance_dict(self):
-        """``get_cache_size`` must descend into instance ``__dict__`` values.
-
-        Regression: it previously appended ``object.__dict__`` (the builtin
-        type's empty mappingproxy) instead of ``cur_obj.__dict__``, so every
-        ``__dict__``-based cached object was reported as a few hundred bytes
-        regardless of payload — making the SIGUSR2 memory report blind.
-        """
 
         class Holder:
             pass
@@ -59,7 +45,6 @@ class TestOrmCache(TransactionCase):
         _cache_mod._TX_STATS_ENABLED = True
 
     def test_ormcache(self):
-        """Test the effectiveness of the ormcache() decorator."""
         IMD = self.env["ir.model.data"]
         XMLID = "base.group_no_one"
 

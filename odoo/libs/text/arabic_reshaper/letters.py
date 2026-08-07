@@ -1,5 +1,3 @@
-"""Arabic letter presentation-form lookup tables and letter-connection predicates."""
-
 UNSHAPED: int = 255
 ISOLATED: int = 0
 INITIAL: int = 1
@@ -258,7 +256,6 @@ LETTERS_KURDISH = {
 def connects_with_letter_before(
     letter: str, LETTERS: dict[str, tuple[str, str, str, str]]
 ) -> str:
-    """Return the final or medial form if the letter connects with a preceding letter."""
     if letter not in LETTERS:
         return ""
     forms = LETTERS[letter]
@@ -268,7 +265,6 @@ def connects_with_letter_before(
 def connects_with_letter_after(
     letter: str, LETTERS: dict[str, tuple[str, str, str, str]]
 ) -> str:
-    """Return the initial or medial form if the letter connects with a following letter."""
     if letter not in LETTERS:
         return ""
     forms = LETTERS[letter]
@@ -278,7 +274,6 @@ def connects_with_letter_after(
 def connects_with_letters_before_and_after(
     letter: str, LETTERS: dict[str, tuple[str, str, str, str]]
 ) -> str:
-    """Return the medial form if the letter connects with letters on both sides."""
     if letter not in LETTERS:
         return ""
     forms = LETTERS[letter]

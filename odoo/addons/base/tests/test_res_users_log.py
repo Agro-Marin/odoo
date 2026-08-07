@@ -3,13 +3,6 @@ from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestResUsersLogGC(TransactionCase):
-    """Coverage for the res.users.log autovacuum GC (RUL-T1).
-
-    The GC keeps only the most recent log per user (create_date, then id tie-break)
-    and never collects rows with NULL create_uid (RUL-L2). Raw SQL is used because
-    _gc_user_logs runs a raw DELETE and create_uid/create_date are magic columns.
-    """
-
     def test_gc_keeps_latest_per_user(self):
         user = new_test_user(self.env, login="rul_gc_user")
         cr = self.env.cr

@@ -27,20 +27,6 @@ reaches the browser -- ``get_views`` ships the rest of the dict as a toolbar.
 
 
 def _safe_eval_dict(expr: str | None, eval_ctx: dict[str, Any], default: Any) -> Any:
-    """safe_eval a stored expression expected to yield a dict, degrading to
-    ``default`` when it is missing, un-evaluable, or not a dict.
-
-    Stored expressions come from data files, imports or manual edits; a corrupt
-    value must degrade rather than make the action unreadable/un-launchable.
-
-    Deliberately silent, and not a place to add a log line: most failures here
-    are healthy.  ``ir.actions.act_window.read`` evaluates ``context`` with
-    nothing but the environment's own context bound, so every action whose
-    context mentions ``active_id`` or ``active_ids`` — 10 of the 134 shipped by
-    ``base``, ``web`` and ``mail`` alone — raises ``NameError`` on every read
-    and degrades exactly as intended.  Warning on that buries the rare real
-    corruption under a flood of correct behaviour.
-    """
     try:
         result = safe_eval(expr or "{}", eval_ctx)
     except Exception:
@@ -99,18 +85,6 @@ class IrActionsActions(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _inheritance_tree_model_names(self) -> frozenset[str]:
-        """Every model stored in the ``ir_actions`` inheritance tree.
-
-        Wider than :meth:`_root_model_names`, which holds only the models whose
-        own ``_table`` *is* ``ir_actions``; the subtypes live in child tables.
-
-        The distinction is what makes anything spanning the tree awkward: each
-        subtype is an ordinary table, so a constraint declared on the root is
-        created once per subtype rather than once for the tree (PostgreSQL does
-        not inherit ``UNIQUE`` at all — the ORM builds one index per model's
-        own ``_table``), and ``flush_model`` writes out one table at a time.
-        ``ir.actions.path`` exists because of the first half of that.
-        """
         root_table = self.env.registry["ir.actions.actions"]._table
         return frozenset(
             name
@@ -120,22 +94,6 @@ class IrActionsActions(models.Model):
 
     @api.constrains("type")
     def _check_type(self) -> None:
-        """``type`` must name the model whose table the record lives in.
-
-        It is a denormalised copy of the model name, stored as a free ``Char``
-        with a per-subtype default and nothing keeping the two in sync, yet
-        every consumer dispatches on it: ``clean_action`` does
-        ``env[action["type"]]``, ``ir.actions.todo.action_launch`` browses
-        through it, and :meth:`_unlink_as_concrete_types` used to delete
-        through it — an act_window claiming ``ir.actions.client`` had its
-        ``unlink`` routed to ``ir_act_client``, where the row is not, so
-        nothing was deleted and ``unlink`` still returned ``True``.
-
-        Making the two agree at the source is what keeps that unreachable, and
-        it is why the dispatch below reads ``tableoid`` instead: the invariant
-        holds for every row written from now on, the storage answers for the
-        rest.
-        """
         for action in self:
             if action.type != action._name:
                 raise ValidationError(
@@ -149,14 +107,6 @@ class IrActionsActions(models.Model):
 
     @api.constrains("binding_model_id")
     def _check_binding_model(self) -> None:
-        """The model an action is bound to must still be in the registry.
-
-        On the root because ``binding_model_id`` is a root field: every subtype
-        can be bound and every one of them reaches :meth:`_get_bindings`, yet
-        only ``ir.actions.act_window`` used to check it.  ``ir.model`` outlives
-        the registry entry — a row survives its module's uninstall until the
-        registry is rebuilt — so the reference can be valid and the model gone.
-        """
         for action in self:
             model = action.binding_model_id.model
             if model and model not in self.env:
@@ -166,13 +116,6 @@ class IrActionsActions(models.Model):
 
     @api.constrains("path")
     def _check_path(self) -> None:
-        """Validate the shape of an action path.
-
-        Uniqueness is not checked here any more: it belongs to
-        ``ir.actions.path``, whose single unique index spans the tree and holds
-        against a concurrent transaction, neither of which a Python re-check
-        can do.
-        """
         for action in self:
             if not action.path:
                 continue
@@ -191,11 +134,6 @@ class IrActionsActions(models.Model):
                 )
 
     def _reserve_paths(self) -> None:
-        """Make ``ir.actions.path`` agree with this recordset's ``path``.
-
-        One row per pathed action, none for the rest, so that the reservation
-        table's unique index is what decides whether a path is free.
-        """
         Reservation = self.env["ir.actions.path"].sudo()
         reserved = {
             reservation.action_id.id: reservation
@@ -224,31 +162,12 @@ class IrActionsActions(models.Model):
         return res
 
     def _is_cached_registry_wide(self) -> bool:
-        """Whether this action's data can be inside a registry-level cache.
-
-        Only bound actions reach :meth:`_get_bindings`, and only pathed ones
-        reach ``ir.ui.menu.load_menus``; an action that is neither cannot
-        invalidate anything, so renaming it must not flush every worker's
-        caches.  The companion of :meth:`_cache_invalidating_fields`, which
-        answers the same question for a ``vals`` dict.
-        """
         self.ensure_one()
         return bool(self.binding_model_id or self.path)
 
     @api.model
     @tools.ormcache(cache="stable")
     def _cache_invalidating_fields(self) -> frozenset[str]:
-        """Fields whose value ends up inside a registry-level (ormcache) entry.
-
-        Writing one of them must clear that cache; writing anything else must
-        not, or renaming a single action flushes the ACL, xml-id and menu
-        caches of every worker.
-
-        ``base`` memoises the inputs of :meth:`_get_bindings`, plus ``path``,
-        which ``ir.ui.menu.load_menus`` embeds as each menu's ``action_path``.
-        A module that memoises further action data extends this set rather
-        than editing a core list of everything it is *not* allowed to cache.
-        """
         return frozenset(
             (
                 *self._BINDING_SQL_FIELDS,
@@ -259,54 +178,15 @@ class IrActionsActions(models.Model):
         )
 
     def _menu_access_model_field(self) -> str:
-        """Field naming the model whose read access gates this action.
-
-        One question with three spellings — ``res_model``, ``model``,
-        ``model_name`` — and three consumers that each need the answer:
-        ``ir.ui.menu._visible_menu_ids`` hides a menu whose action opens a
-        model the user cannot read, :meth:`get_bindings` hides such a binding,
-        and :meth:`_unconditional_clear_fields` clears the cached decision when
-        it changes.  All three carried their own literal copy of the mapping (a
-        fourth lived in the test asserting two of them agreed), and the copies
-        had drifted apart in both directions: menus never checked
-        ``ir.actions.client`` while bindings did, and bindings never checked
-        ``ir.actions.server``/``ir.actions.report`` while menus did.
-
-        An empty name means no model gates the action, which is the honest
-        answer for ``ir.actions.act_url`` and ``ir.actions.act_window_close``.
-        """
         return ""
 
     @api.model
     @tools.ormcache(cache="stable")
     def _unconditional_clear_fields(self) -> frozenset[str]:
-        """Fields whose write must clear the cache whatever the action is in.
-
-        Two ways to defeat the membership test in :meth:`write`.
-        ``binding_model_id`` and ``path`` *change* which caches hold the
-        action, so the test would answer for the wrong side of the write.
-
-        The model gating menu visibility is the subtler one, and the reason
-        this is not simply the two of them: the decision is cached for every
-        action a menu points at — bound or not, pathed or not — so gating on
-        membership leaves a menu on screen after its action is repointed at a
-        model the user cannot read.  Its name comes from
-        :meth:`_menu_access_model_field` rather than a per-subtype override, so
-        that a subtype declaring it cannot forget to invalidate it.
-        """
         gating = self._menu_access_model_field()
         return frozenset(("binding_model_id", "path", *filter(None, [gating])))
 
     def write(self, vals: dict[str, Any]) -> bool:
-        """Write, clearing registry caches only when this action is in one.
-
-        Writing a field that no cache stores never invalidates anything, and
-        neither does writing a cached field of an action no cache holds.
-        :meth:`_unconditional_clear_fields` collects the exceptions.
-
-        A write that reaches no record changes nothing at all, whichever field
-        it names; ``ir.ui.menu.write`` guards its own clear the same way.
-        """
         clear = bool(self) and (
             not vals.keys().isdisjoint(self._unconditional_clear_fields())
             or (
@@ -324,17 +204,6 @@ class IrActionsActions(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _window_view_types(self) -> frozenset[str]:
-        """The view types an action can display, as a comma-separated field.
-
-        Read off ``ir.actions.act_window.view.view_mode`` rather than off
-        ``ir.ui.view.type`` minus :data:`NON_WINDOW_VIEW_TYPES`: that selection
-        is the list a module extends when it adds a view type an action window
-        can render — ``web_gantt``, ``web_cohort``, ``mail`` and the rest each
-        do — so it states the vocabulary directly, where the subtraction only
-        approximates it and happens to agree because a post-install test says
-        it must.  The comma-separated fields and the ``view_ids`` lines then
-        cannot offer different modes.
-        """
         view_modes = (
             self.env["ir.actions.act_window.view"]
             ._fields["view_mode"]
@@ -343,16 +212,6 @@ class IrActionsActions(models.Model):
         return frozenset(view_modes)
 
     def _check_view_type_vocabulary(self, field_name: str) -> None:
-        """Reject view types the client has no view to render for.
-
-        ``view_mode`` and its siblings are free ``Char`` fields, so a typo or a
-        name from an earlier version reaches the browser intact and the web
-        client throws ``View types not defined`` on a payload it cannot render
-        — for ``binding_view_types`` that means a sidebar entry that simply
-        never appears, with nothing to see server-side.  Validating them here
-        turns both into an error at the write, where the offending record is
-        still named.
-        """
         allowed = self._window_view_types()
         for action in self:
             unknown = [
@@ -377,8 +236,6 @@ class IrActionsActions(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _root_model_names(self) -> frozenset[str]:
-        """Models sharing the ``ir_actions`` table, i.e. valid comodels of a
-        reference to "any action"."""
         root = self.env.registry["ir.actions.actions"]
         return frozenset(
             name
@@ -389,32 +246,6 @@ class IrActionsActions(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _unenforced_reference_fields(self) -> tuple[tuple[str, str, str], ...]:
-        """``(model, field, ondelete)`` triples PostgreSQL cannot cascade for us.
-
-        ``ir_actions`` is a table-inheritance root: an FK pointing at it would
-        not see the rows that actually live in ``ir_act_window`` & co, so the
-        ORM creates none (see ``BaseModel._is_table_inheritance_root``) and
-        every ``ondelete`` declared on a field targeting ``ir.actions.actions``
-        is inert. :meth:`unlink` applies them in Python.
-
-        Derived from the registry so that references declared by any module
-        (embedded actions, filters, studio approvals, a user's home action)
-        are honoured without listing them here.
-
-        Anchored on the root table rather than ``self._table``: every subtype
-        shares the ``ir_actions`` id space, so deleting an act_window has to
-        sweep the references that point at ``ir.actions.actions``.
-
-        Restricted to the fields that own their column, exactly as the m2m
-        companion is: only those carry an ``ondelete`` policy, so only those
-        can have one applied.  A *related* field's ``ondelete`` is ``None`` —
-        an absence, not a policy — because it never reaches
-        ``Many2one.setup_nonrelated``; coercing that to ``set null`` and
-        writing it would blank a derived column while its source field, which
-        is listed here in its own right, still holds the real policy.  A
-        non-stored one has no column to sweep at all and would make the
-        ``search`` below raise for want of a ``search=`` method.
-        """
         root_models = self._root_model_names()
         return tuple(
             sorted(
@@ -432,19 +263,6 @@ class IrActionsActions(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _unenforced_reference_relations(self) -> tuple[tuple[str, str], ...]:
-        """``(relation_table, column)`` pairs of many2many links to an action.
-
-        Same root-table problem as :meth:`_unenforced_reference_fields`, but a
-        relation row is not a record: nothing owns it, so :meth:`unlink` deletes
-        it in SQL rather than through a policy.
-
-        Both ends are collected, because ``update_db_foreign_keys`` skips a
-        root at either of them: ``column2`` of a many2many *pointing at* an
-        action, and ``column1`` of one *declared on* an action, which would
-        otherwise leave its rows behind on exactly the same reasoning.  Neither
-        end has such a field today; the asymmetry only shows up once one
-        appears, which is late to discover it.
-        """
         root_models = self._root_model_names()
         return tuple(
             sorted(
@@ -466,32 +284,6 @@ class IrActionsActions(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _unenforced_reference_selections(self) -> tuple[tuple[str, str], ...]:
-        """``(model, field)`` pairs of stored ``Reference`` fields naming an action.
-
-        A ``Reference`` keeps ``"model,id"`` in a varchar, so PostgreSQL has no
-        foreign key to offer for it against *any* comodel — not just against a
-        table-inheritance root.  ``Reference`` checks that its target exists
-        when the value is written and never again: ``ir.ui.menu.action`` went
-        on naming a deleted act_window, and the menu survived only because
-        ``ir.ui.menu._visible_menu_ids`` re-resolves the action on every load
-        and drops the ones that have gone.
-
-        Matched on the whole tree, not :meth:`_root_model_names`: the subtypes
-        are ordinary tables and do get their foreign keys, but a reference is
-        not a foreign key, so a menu pointing at an ``ir.actions.act_window``
-        dangles exactly like one pointing at the root.
-
-        There is no policy to read — ``ondelete`` on a ``Reference`` selects
-        between selection *values*, not deletion behaviours — so the sweep
-        applies the one a nullable foreign key gets when its field declares
-        nothing, ``set null``.
-
-        A selection given as a list is read here to skip the references that
-        can never hold an action; one given as a method name is kept without
-        calling it, both because it may name any model — ``resource_ref`` does
-        — and because resolving it would run arbitrary model code while a
-        registry-level cache entry is being filled.
-        """
         tree_models = self._inheritance_tree_model_names()
         return tuple(
             sorted(
@@ -509,16 +301,6 @@ class IrActionsActions(models.Model):
         )
 
     def unlink(self) -> bool:
-        """Apply the unenforceable ``ondelete`` rules, then unlink.
-
-        The sweep runs inside a savepoint so that a reference the ORM refuses to
-        delete — an ``@api.ondelete`` guard on a cascade target, an access
-        error, a constraint — undoes the deletions already made instead of
-        leaving the caller with an action that still exists and referencing
-        records that no longer do.  A real foreign key is atomic; this has to be
-        too, because ``ValidationError``/``UserError`` leave the transaction
-        usable and callers do catch them.
-        """
         if self._name == "ir.actions.actions":
             return self._unlink_as_concrete_types()
         with self.env.cr.savepoint():
@@ -530,43 +312,12 @@ class IrActionsActions(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _tree_model_names_by_table(self) -> frozendict:
-        """Map each table of the ``ir_actions`` tree to the models stored in it.
-
-        One entry per table rather than one model: the root table holds both
-        ``ir.actions.actions`` and ``ir.actions.act_window_close``, which is
-        precisely the ambiguity :meth:`_concrete_model_names` has to resolve
-        some other way.
-        """
         by_table = defaultdict(list)
         for model_name in self._inheritance_tree_model_names():
             by_table[self.env[model_name]._table].append(model_name)
         return frozendict({table: tuple(sorted(n)) for table, n in by_table.items()})
 
     def _concrete_model_names(self) -> dict[int, str]:
-        """Map each action id to the model whose table actually holds its row.
-
-        ``tableoid`` names the child table a row lives in, which is exactly
-        what decides whether a ``DELETE`` aimed at that table reaches it — so
-        it, not the ``type`` column, is what the dispatch has to follow.  The
-        constraint on ``type`` keeps the two in agreement, but a row written
-        before it existed is only reachable through the storage.
-
-        The root table is the only one holding more than one model, so it is
-        the only place ``type`` gets a say — and a harmless one, since both
-        models there share a table and differ only in ORM-side cleanup.  Every
-        other table names exactly one model, which therefore wins outright: a
-        ``type`` that lies must not demote the row to the root, or the dispatch
-        deletes it through ``ir_actions`` after all and skips the very cleanup
-        it exists to reach.  Ids the query does not return are gone already:
-        they map to the root, whose ``unlink`` is a no-op on them, exactly as
-        an ordinary model's is.
-
-        Only the tree is flushed, not the transaction: a record created and
-        deleted without an intervening flush has no row for ``tableoid`` to
-        report on, and that is the whole of what this query needs.  ``unlink``
-        flushes everything a few lines later anyway, so a wider flush here only
-        moves where an unrelated pending write would fail.
-        """
         if not self:
             return {}
         root = self.env.registry["ir.actions.actions"]
@@ -591,27 +342,11 @@ class IrActionsActions(models.Model):
         return {action_id: found.get(action_id, root._name) for action_id in self.ids}
 
     def _as_concrete(self) -> Self:
-        """This action browsed through the model that actually stores its row.
-
-        ``ir.actions.actions`` is a view onto the subtypes: reading a record
-        through it yields only the root's fields, so every caller wanting the
-        real action re-browses.  Three did it by hand off ``type`` — this
-        method, ``web``'s URL-path resolver and ``ir.actions.todo`` — which is
-        one denormalised column standing between a URL and the right model.
-        """
         self.ensure_one()
         [model_name] = self._concrete_model_names().values()
         return self.env[model_name].browse(self.id)
 
     def _unlink_as_concrete_types(self) -> bool:
-        """Unlink through each action's own model rather than the root one.
-
-        Deleting an ``ir_act_window`` row as an ``ir.actions.actions`` works in
-        PostgreSQL — the row is visible through the inherited table and the
-        DELETE reaches it — but every ORM-side cleanup keyed on the model name
-        misses: the ``ir.model.data`` row keeps a dangling xml id, and the
-        subtype's ``@api.ondelete`` guards never run.
-        """
         by_model = defaultdict(list)
         for action_id, model_name in self._concrete_model_names().items():
             by_model[model_name].append(action_id)
@@ -628,19 +363,6 @@ class IrActionsActions(models.Model):
         return result
 
     def _apply_unenforced_ondelete(self) -> None:
-        """Enforce, in policy order, the ``ondelete`` rules of every reference.
-
-        ``restrict`` is resolved for all models before anything is destroyed:
-        the alternative is to discover it midway and abort having already
-        cascaded, and the alphabetical order the registry sweep happens to
-        produce is not a deletion order.
-
-        Three kinds of reference, three ways of clearing one: a many2one owns
-        an ``ondelete`` policy and is a record, so the policy is applied to it;
-        a ``Reference`` (:meth:`_unenforced_reference_selections`) is a record
-        too but has no policy to own; a many2many row is not a record at all
-        and goes in SQL.
-        """
         if not self:
             return
         found = defaultdict(list)
@@ -705,18 +427,6 @@ class IrActionsActions(models.Model):
 
     @api.model
     def _get_eval_context(self, action: Any) -> dict[str, Any]:
-        """Evaluation context to pass to safe_eval.
-
-        ``action`` is unused here but required in the signature for the
-        ``ir.actions.server`` override, which derives a record-aware context
-        from it; callers pass it uniformly.
-
-        It is required rather than defaulting to ``None`` so that the base and
-        that override stay call-compatible. An optional parameter here would
-        let a caller holding an ``ir.actions.actions`` reference invoke this
-        argument-less and fail on a server action, which is the narrowing the
-        override-signature lint rejects.
-        """
         return {
             "uid": self.env.uid,
             "user": self.env.user,
@@ -732,21 +442,6 @@ class IrActionsActions(models.Model):
 
     @api.model
     def get_bindings(self, model_name: str) -> dict[str, list[dict[str, Any]]]:
-        """Retrieve the actions bound to the given model.
-
-        Two access checks, both on read: the model the action is bound to, and
-        the model the action opens.  The second used to be spelled ``res_model``
-        and so reached only ``ir.actions.act_window`` and ``ir.actions.client``
-        — an ``ir.actions.server`` or ``ir.actions.report`` names it
-        ``model_id``/``model``, so a binding whose destination differed from the
-        model it was bound to showed its name and domain to anyone who could
-        read the latter.  It now asks :meth:`_menu_access_model_field`, the same
-        question ``ir.ui.menu`` asks about menus, so the two agree and the
-        server and report types are covered.
-
-        :return: dict mapping each binding type to a list of action dicts (as
-                 returned by ``read`` on the action record).
-        """
         Access = self.env["ir.model.access"]
         if model_name not in self.env or not Access.check(
             model_name, mode="read", raise_exception=False
@@ -774,28 +469,6 @@ class IrActionsActions(models.Model):
 
     @tools.ormcache("model_name", "self.env.lang")
     def _get_bindings(self, model_name: str) -> frozendict:
-        """Retrieve bound actions for a model, batch-reading per action type.
-
-        Ordered by ``(sequence, id)``: reading per action type rather than per
-        action makes the accumulation order group by model, so id is what
-        restores the ``ORDER BY a.id`` the query already asks for.  Only
-        ``ir.actions.server`` declares ``sequence``, so every other type sorts
-        on the ``0`` default and stays in id order among itself.
-
-        ``group_ids`` stays a tuple of database ids.  Translating it to external
-        identifiers here — as the per-user filter used to need — makes this
-        cached *read* create an ``ir.model.data`` row for every group that has
-        none, and the two live in different cache groups: ``ir.model.data``
-        clears only ``groups`` on insert, so a request that rolls back after
-        populating this entry leaves the identifier cached here and nowhere
-        else, and the binding disappears for every user until ``default`` is
-        cleared.
-
-        The model each action opens is resolved here, under sudo, and stored
-        under :data:`_BINDING_ACCESS_MODEL` for :meth:`get_bindings` to check
-        per user; the field it came from never reaches the payload, which is
-        shipped to the browser as a view toolbar.
-        """
         cr = self.env.cr
         result = defaultdict(list)
 
@@ -855,12 +528,6 @@ class IrActionsActions(models.Model):
 
     @api.model
     def _for_xml_id(self, full_xml_id: str) -> dict[str, Any]:
-        """Return the action content for the provided xml_id
-
-        :param full_xml_id: the fully qualified external id of the action,
-            i.e. ``module.name``
-        :return: A read() view of the ir.actions.action safe for web use
-        """
         record = self.env.ref(full_xml_id)
         if not isinstance(self.env[record._name], self.env.registry[self._name]):
             raise ValidationError(
@@ -869,21 +536,10 @@ class IrActionsActions(models.Model):
         return record._get_action_dict()
 
     def _get_action_dict(self) -> dict[str, Any]:
-        """Return the action content for this action record.
-
-        Sudo because ir.actions.* is restricted to group_system yet any user
-        must load action definitions to render the UI.
-        """
         self.ensure_one()
         return self.sudo().read(sorted(self._get_readable_fields()))[0]
 
     def _get_readable_fields(self) -> frozenset[str]:
-        """ORM field names safe to send to the web client.
-
-        Only web-client fields belong here; server-side content must be
-        accessed manually with superuser. Every name must be a real field:
-        this set is passed to ``read()``.
-        """
         return frozenset(
             {
                 "binding_model_id",
@@ -900,14 +556,6 @@ class IrActionsActions(models.Model):
         )
 
     def _get_client_only_keys(self) -> frozenset[str]:
-        """Keys the web client understands that are not ORM fields.
-
-        Action dicts built in Python may carry them — ``effect`` for the
-        rainbow man, ``infos``, ``close`` — so ``clean_action`` has to keep
-        them and must not report them as stray custom properties. They are
-        deliberately absent from :meth:`_get_readable_fields`, which feeds
-        ``read()``.
-        """
         return frozenset()
 
 
@@ -935,14 +583,6 @@ class IrActionsPath(models.Model):
     )
 
     def init(self) -> None:
-        """Reserve a row for every action that already has a path.
-
-        ``ON CONFLICT DO NOTHING`` because a database written before this table
-        existed may hold the very duplicates it is meant to prevent; one of
-        them wins the reservation and the other keeps its ``path`` column
-        unbacked, which is what the warning is for — nothing here can guess
-        which of the two should be renamed.
-        """
         self.env.cr.execute(
             SQL(
                 """
@@ -1106,18 +746,6 @@ class IrActionsAct_Window(models.Model):
     @api.depends("all_embedded_action_ids.is_visible")
     @api.depends_context("active_id", "active_model", "uid")
     def _compute_embedded_actions(self) -> None:
-        """Embedded actions of this action that are visible in the current context.
-
-        Visibility is entirely context-derived (``is_visible`` depends on the
-        active record and the user), so without the ``depends_context`` above
-        the first record's result would be served for every other record of
-        the same transaction.
-
-        Depends on the plain one2many rather than searching: a ``search`` gives
-        the ORM no dependency to invalidate, so an embedded action created in
-        this transaction stayed invisible until something else flushed the
-        field cache.
-        """
         for action in self:
             action.embedded_action_ids = action.all_embedded_action_ids.filtered(
                 "is_visible"
@@ -1131,15 +759,6 @@ class IrActionsAct_Window(models.Model):
         "view_id.type",
     )
     def _compute_views(self) -> None:
-        """Compute the ordered ``(view_id, view_mode)`` pairs for this action.
-
-        Resolves the precedence between the ``view_mode`` string, the
-        ``view_ids`` o2m, and the ``view_id`` m2o.
-
-        Re-sorts ``view_ids`` instead of trusting its order: writing a line's
-        ``sequence`` invalidates this compute but not the cached one2many, so
-        the recomputation would otherwise read the pre-write ordering.
-        """
         for act in self:
             lines = act.view_ids.sorted(lambda view: (view.sequence, view.id))
             views = [(view.view_id.id, view.view_mode) for view in lines]
@@ -1154,12 +773,6 @@ class IrActionsAct_Window(models.Model):
             act.views = views
 
     def _empty_list_help(self, stored_help: str | bool) -> str | bool:
-        """The target model's placeholder for an empty list, from ``help``.
-
-        Evaluated with the action's own ``context`` merged in, because
-        ``get_empty_list_help`` implementations read it — ``mail`` builds an
-        alias out of ``default_*`` keys, for one.
-        """
         self.ensure_one()
         if self.res_model not in self.env:
             return stored_help
@@ -1193,16 +806,6 @@ class IrActionsAct_Window(models.Model):
         }
 
     def _get_action_dict(self) -> dict[str, Any]:
-        """Expand embedded actions, and fill ``help`` in for an empty list.
-
-        The placeholder belongs to the payload the client launches, not to
-        ``read``.  It used to be a ``read`` override, so every reader got it —
-        including the action's own form, where ``help`` is an editable field:
-        it displayed the model's generated text instead of the stored one, and
-        saving the form wrote that text back over whatever its author had
-        written.  Nothing else asks ``read`` for an action's help, so nothing
-        else loses the placeholder by moving it here.
-        """
         result = super()._get_action_dict()
         if embedded_action_ids := result["embedded_action_ids"]:
             embedded = self.env["ir.embedded.actions"].browse(embedded_action_ids)
@@ -1356,13 +959,6 @@ class IrActionsClient(models.Model):
     @api.depends("params_store")
     @api.depends_context("uid")
     def _compute_params(self) -> None:
-        """Evaluate the stored params expression, degrading to ``False``.
-
-        Same contract as :func:`_safe_eval_dict`: the expression comes from data
-        files, imports or manual edits, and a corrupt one must not make the
-        action un-launchable.  ``params`` is not required to be a dict, so it
-        cannot use that helper.
-        """
         self_bin = self.with_context(bin_size=False, bin_size_params_store=False)
         for record, record_bin in zip(self, self_bin, strict=True):
             stored = record_bin.params_store
@@ -1370,12 +966,6 @@ class IrActionsClient(models.Model):
                 record.params = stored
                 continue
             if isinstance(stored, bytes):
-                # `params_store` is a non-attachment Binary, so it reads back as
-                # bytes even though `_inverse_params` wrote `repr(dict)`, a str.
-                # `safe_eval` then raised TypeError and the `except` below turned
-                # every well-formed params dict into False -- the round-trip was
-                # broken for years behind a guard meant for *corrupt* input.
-                # Decoding here keeps that guard for what it is actually for.
                 stored = stored.decode()
             try:
                 record.params = safe_eval(stored, {"uid": self.env.uid})
@@ -1388,15 +978,6 @@ class IrActionsClient(models.Model):
             record.params_store = repr(params) if isinstance(params, dict) else params
 
     def _menu_access_model_field(self) -> str:
-        """``res_model`` gates a client action too, wherever it is set.
-
-        It is optional here and documented as "mostly used for needactions",
-        which is why menus never checked it while ``get_bindings`` did — the
-        one difference between the two access gates, and an accidental one.
-        Declaring it makes both check it: no shipped client action is bound and
-        none of the menus pointing at one sets it, so nothing changes today,
-        and the next one to set it is gated rather than half-gated.
-        """
         return "res_model"
 
     def _get_readable_fields(self) -> frozenset[str]:
@@ -1445,12 +1026,6 @@ class IrActionsTodo(models.Model):
         return res
 
     def unlink(self) -> bool:
-        """Unlink, but restore ``base.open_menu`` to its original action instead.
-
-        ``suppress`` covers only the two lookups: a database where either xml id
-        is missing has nothing to preserve, whereas a failure of the write below
-        is a real error and must not be swallowed into a silent full delete.
-        """
         todos = self
         try:
             todo_open_menu = self.env.ref("base.open_menu")
@@ -1464,18 +1039,6 @@ class IrActionsTodo(models.Model):
         return super(IrActionsTodo, todos).unlink()
 
     def _close_other_open_todos(self) -> None:
-        """Keep a single open todo: the one just opened wins.
-
-        Closing every open todo but the lowest-``sequence`` one instead would
-        include the record whose write triggered this, so opening a wizard
-        would report success and leave it done.
-
-        Which of ``self`` survives is decided by ``_order``, not by recordset
-        order, so it is the record ``ir.module.module._next_todo_action`` will
-        actually run — its ``search(..., limit=1)`` reads the same order.
-        Opening several at once used to keep whichever happened to come first
-        out of ``create``, and the queue then ran a different one.
-        """
         keep = self.filtered(lambda todo: todo.state == "open").sorted()[:1]
         if not keep:
             return
@@ -1484,7 +1047,6 @@ class IrActionsTodo(models.Model):
         )
 
     def action_launch(self) -> dict[str, Any]:
-        """Mark the wizard done and return its action for the web client."""
         self.ensure_one()
         self.state = "done"
 
@@ -1502,5 +1064,4 @@ class IrActionsTodo(models.Model):
         return result
 
     def action_open(self) -> bool:
-        """Reopen the configuration wizard (state ``open``)."""
         return self.write({"state": "open"})

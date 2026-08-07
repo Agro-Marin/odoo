@@ -1,5 +1,3 @@
-"""Patcher for any change not strictly related to an stdlib module"""
-
 import codecs
 import encodings.aliases
 import re
@@ -19,10 +17,6 @@ odoo.evented = False
 
 
 def patch_evented() -> None:
-    """Running mode flags (evented, prefork)
-
-    This should be executed early. It will initialize the `odoo.evented` variable.
-    """
     if odoo.evented or not (len(sys.argv) > 1 and sys.argv[1] == "evented"):
         return
     sys.argv.remove("evented")

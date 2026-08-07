@@ -1,12 +1,3 @@
-"""DB-free unit tests for CORS negotiation, OPTIONS handling and dispatcher
-inference on the no-route-matched path.
-
-These pin behaviours that are otherwise only observable through a full request:
-what a cross-origin caller is allowed to do, whether a bare ``OPTIONS`` reaches
-a handler, and which dispatcher answers a request that matched no route. Run via
-``pytest odoo/http/tests``.
-"""
-
 from types import SimpleNamespace
 
 import pytest
@@ -46,7 +37,6 @@ def _rule(**routing):
 
 
 def _pre_dispatch(request, rule):
-    """Run pre_dispatch, returning the aborted response when it short-circuits."""
     dispatcher = HttpDispatcher(request)
     try:
         dispatcher.pre_dispatch(rule, {})
@@ -56,9 +46,6 @@ def _pre_dispatch(request, rule):
 
 
 def test_credentialed_cors_echoes_the_origin_a_resolver_allows():
-    """``Allow-Origin: *`` is forbidden by the CORS spec once credentials are
-    sent, so a ``cors_credentials`` route echoes the caller's Origin — but only
-    the ones its ``cors`` resolver actually names."""
     req = _request(headers={"Origin": "https://app.example"})
     _pre_dispatch(
         req,
@@ -84,7 +71,6 @@ def test_a_resolver_that_declines_grants_nothing():
 
 
 def test_a_resolver_varies_on_origin_even_without_credentials():
-    """The answer now depends on the caller, so a shared cache must key on it."""
     req = _request(headers={"Origin": "https://app.example"})
     _pre_dispatch(req, _rule(cors=lambda r: "https://app.example"))
 
@@ -104,14 +90,6 @@ def test_plain_cors_still_emits_the_declared_value():
 
 
 def test_credentialed_cors_emits_nothing_without_an_origin():
-    """No Origin (same-origin, or a non-browser caller) means nothing to grant.
-
-    Falling back to the declared ``cors='*'`` here would publish a wildcard
-    variant of an otherwise Origin-dependent response, which a shared cache
-    could then hand to a credentialed cross-origin caller — who would find no
-    ``Allow-Credentials`` and fail. ``Vary: Origin`` is still declared so the
-    two variants are cached apart.
-    """
     req = _request()
     _pre_dispatch(req, _rule(cors="https://app.example", cors_credentials=True))
 
@@ -131,8 +109,6 @@ def test_credentialed_cors_refuses_an_origin_it_does_not_allow():
 
 
 def test_credentialed_preflight_varies_on_both_reasons():
-    """``Vary`` is single-valued: the Origin echo and the reflected
-    request-headers allow-list must not overwrite one another."""
     req = _request(
         method="OPTIONS",
         headers={
@@ -151,9 +127,6 @@ def test_credentialed_preflight_varies_on_both_reasons():
 
 
 def test_options_does_not_run_the_handler_on_an_unrestricted_route():
-    """A route with no ``methods=`` accepts every verb, so OPTIONS used to run
-    the handler in full — and ``OPTIONS`` is a SAFE method, so CSRF was skipped
-    on the way in. Answer the capability question instead."""
     req = _request(method="OPTIONS")
     response = _pre_dispatch(req, _rule())
 
@@ -189,8 +162,6 @@ def test_options_on_a_cors_route_is_still_the_preflight():
     ],
 )
 def test_unmatched_dispatcher_is_inferred_from_content_type(mimetype, expected):
-    """Nothing revised the ``http`` seed when no route matched, so every 404 was
-    HTML regardless of what the caller sent."""
     assert infer_dispatcher_for_unmatched(_request(mimetype=mimetype)) is expected
 
 
@@ -200,12 +171,6 @@ def test_json_dispatchers_both_claim_application_json():
 
 
 def test_unmatched_json_error_keeps_the_status_code():
-    """The whole point of the tie-break: a 404 must stay a 404.
-
-    ``JsonRPCDispatcher`` answers 200 with the error in the body (the JSON-RPC
-    convention), which for a path that does not exist would hide a broken
-    integration from any client keying on the status.
-    """
     from werkzeug.exceptions import NotFound
 
     captured = {}

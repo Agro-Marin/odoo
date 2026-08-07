@@ -1,8 +1,3 @@
-"""Locale format conversion utilities.
-
-Pure Python locale helpers with no Odoo dependencies.
-"""
-
 import re
 
 import babel
@@ -19,26 +14,6 @@ XPG_LOCALE_RE = re.compile(
 
 
 def py_to_js_locale(locale: str) -> str:
-    """Convert a locale from Python (XPG) to JavaScript (BCP 47) format.
-
-    Most of the time the conversion is simply to replace _ with -.
-    Example: fr_BE -> fr-BE
-
-    Exception: Serbian can be written in both Latin and Cyrillic scripts
-    interchangeably, therefore its locale includes a special modifier
-    to indicate which script to use.
-    Example: sr@latin -> sr-Latn
-
-    BCP 47 (JS):
-        language[-extlang][-script][-region][-variant][-extension][-privateuse]
-        https://www.ietf.org/rfc/rfc5646.txt
-    XPG syntax (Python):
-        language[_territory][.codeset][@modifier]
-        https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html
-
-    :param locale: The locale formatted for use on the Python-side.
-    :return: The locale formatted for use on the JavaScript-side.
-    """
     match_ = XPG_LOCALE_RE.match(locale)
     if not match_:
         return locale
@@ -78,20 +53,6 @@ POSIX_TO_LDML = {
 
 
 def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
-    """Convert a POSIX/strftime pattern into an LDML date format pattern.
-
-    LDML is the Unicode locale-data standard used by Babel and ICU.
-
-    :param fmt: non-extended C89/C90 strftime pattern
-    :param locale: babel locale used for locale-specific conversions (e.g. %x and %X)
-    :return: LDML date format pattern
-
-    Example::
-
-        >>> from babel import Locale
-        >>> posix_to_ldml('%Y-%m-%d', Locale.parse('en_US'))
-        'yyyy-MM-dd'
-    """
     buf = []
     pc = False
     minus = False

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- report.paperformat -->
     <record id="paperformat_view_tree" model="ir.ui.view">
         <field name="name">paper_format_view_tree</field>
         <field name="model">report.paperformat</field>

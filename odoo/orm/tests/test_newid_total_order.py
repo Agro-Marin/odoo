@@ -1,13 +1,3 @@
-"""The documented total-order and identity table of :class:`odoo.orm.primitives.NewId`.
-
-Tier-2 suite (real ``import odoo``, no database — run as ``pytest
-odoo/orm/tests``).  The ordering contract — ``NewId(N)`` sorts as ``N + 0.5``,
-``NewId()`` as ``+infinity``, two distinct ``NewId()`` mutually incomparable —
-was previously locked only by the DB-backed ``test_orm.test_sort``; this pins
-it DB-free, together with the equality/hash rules for origin- and
-ref-carrying NewIds that record sorting and cache keying rely on.
-"""
-
 import pytest
 
 from odoo.orm.primitives import NewId
@@ -134,6 +124,5 @@ class TestEqualityHashAndOrigin:
         assert not NewId(ref="r")
 
     def test_comparison_with_unsupported_type_raises(self):
-        """The comparison itself is the subject, hence the bare expression."""
         with pytest.raises(TypeError):
-            NewId() < "abc"  # noqa: B015
+            NewId() < "abc"

@@ -1,12 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.stats` and :mod:`odoo.db.budget`.
-
-Both are pure bookkeeping, so they need no pool, socket or server.  What matters
-is that the numbers mean what an operator will read them as: the wait histogram
-is cumulative (the shape every scraper expects), totals are monotonic so rates
-come from differencing, and budget saturation is counted on the budget itself
-because one budget is shared by the read/write and read-only pools.
-"""
-
 import unittest
 from time import monotonic
 

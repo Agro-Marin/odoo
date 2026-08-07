@@ -42,36 +42,6 @@ _dispatchers: dict[str, type[Dispatcher]] = {}
 
 
 def infer_dispatcher_for_unmatched(request: Request) -> type[Dispatcher]:
-    """The dispatcher to answer a request that matched no route.
-
-    A matched request gets its dispatcher from ``@route(type=...)``. An unmatched
-    one has no route to ask, and :meth:`Request.__init__` seeds ``HttpDispatcher``
-    "until we match" — but nothing ever revised it, so *every* unmatched URL was
-    answered in HTML no matter what the client sent. A JSON caller hitting a
-    typo'd path got ``404`` with ``Content-Type: text/html``; the web client's rpc
-    layer can only classify that as a generic ``InvalidResponseError``, unable to
-    tell "this route does not exist" from "the server returned garbage".
-
-    Selection is by request ``Content-Type``, most specific first:
-
-    * ``application/json-rpc`` — claimed only by :class:`JsonRPCDispatcher`.
-    * ``application/json`` — claimed by BOTH JSON dispatchers, so the tie is
-      broken toward :class:`Json2Dispatcher`, because it is the one that
-      PRESERVES THE STATUS CODE. ``JsonRPCDispatcher`` follows the JSON-RPC
-      convention of answering ``200`` with the error in the body; for a path that
-      does not exist that would turn a ``404`` into a ``200``, hiding a broken
-      integration from any client that (correctly) keys on the status. ``json2``
-      answers ``404`` with a JSON body, which fixes the actual defect — an HTML
-      body sent to a JSON caller — without trading away HTTP semantics.
-      The web client is no worse off than before: ``rpc.js`` classifies a non-2xx
-      JSON body without an ``error`` key as ``InvalidResponseError``
-      (``!parsed.error && !response.ok``), exactly as it already did for the HTML
-      one.
-    * anything else — :class:`HttpDispatcher`, as before.
-
-    Explicit precedence, not ``_dispatchers`` iteration order: registration order
-    is an accident of import order and must not decide what a client is sent.
-    """
     mimetype = request.httprequest.mimetype
     for routing_type in ("json2", "jsonrpc"):
         dispatcher = _dispatchers.get(routing_type)
@@ -106,19 +76,9 @@ class Dispatcher(ABC):
     @classmethod
     @abstractmethod
     def is_compatible_with(cls, request: Request) -> bool:
-        """
-        Determine if the current request is compatible with this
-        dispatcher.
-        """
+        pass
 
     def pre_dispatch(self, rule: Any, args: dict[str, Any]) -> None:
-        """
-        Prepare the system before dispatching the request to its
-        controller. Modules customize this step by overriding the
-        ``ir.http._pre_dispatch`` hook, which calls this method, e.g. to
-        read info from the request query-string or headers into the
-        session or context.
-        """
         routing = rule.endpoint.routing
         self.request.session.can_save &= routing.get("save_session", True)
 
@@ -186,18 +146,9 @@ class Dispatcher(ABC):
 
     @abstractmethod
     def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
-        """
-        Extract the params from the request's body and call the
-        endpoint. While it is preferred to override ir.http._pre_dispatch
-        and ir.http._post_dispatch, this method can be overridden to have
-        a tight control over the dispatching.
-        """
+        pass
 
     def post_dispatch(self, response: Response) -> None:
-        """
-        Manipulate the HTTP response to inject various headers, also
-        save the session when it is dirty.
-        """
         root = self.request.app
 
         self.request._save_session()
@@ -205,19 +156,6 @@ class Dispatcher(ABC):
         root.set_csp(response)
 
     def _call_endpoint(self, endpoint: Callable) -> Any:
-        """Coerce ``typed=`` parameters, then invoke ``endpoint`` with them.
-
-        With a database, route through ``ir.http._dispatch`` (which layers
-        captcha/recaptcha and module overrides); without one (``auth='none'``)
-        call the endpoint directly. Shared so the db/no-db branch lives in one
-        place rather than each ``dispatch``.
-
-        Coercion belongs here rather than inside ``route_wrapper`` because the
-        specs are a property of the matched endpoint — a per-routing-map-build
-        object — and only the dispatcher holds it. It also means a
-        ``super().handler(...)`` chain coerces once, at the boundary, instead of
-        re-validating already-coerced values at every override level.
-        """
         specs = getattr(endpoint, "_param_specs", None)
         if specs:
             self.request.params = coerce_params(self.request.params, specs)
@@ -227,10 +165,7 @@ class Dispatcher(ABC):
 
     @abstractmethod
     def handle_error(self, exc: Exception) -> collections.abc.Callable:
-        """
-        Transform the exception into a valid HTTP response. Called upon
-        any exception while serving a request.
-        """
+        pass
 
 
 class HttpDispatcher(Dispatcher):
@@ -247,14 +182,6 @@ class HttpDispatcher(Dispatcher):
         return True
 
     def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
-        """
-        Perform http-related actions such as deserializing the request
-        body and query-string and checking csrf while dispatching a
-        request to a ``type='http'`` route.
-
-        See :meth:`~odoo.http.Response.load` method for the compatible
-        endpoint return types.
-        """
         self.request.params = self.request.get_http_params() | args
 
         list_params = getattr(endpoint, "typed_list_params", None)
@@ -293,16 +220,6 @@ class HttpDispatcher(Dispatcher):
         return self._call_endpoint(endpoint)
 
     def handle_error(self, exc: Exception) -> collections.abc.Callable:
-        """
-        Handle any exception that occurred while dispatching a request
-        to a `type='http'` route. Also handle exceptions that occurred
-        when no route matched the request path, when no fallback page
-        could be delivered and that the request ``Content-Type`` was not
-        json.
-
-        :param Exception exc: the exception that occurred.
-        :returns: a WSGI application
-        """
         if isinstance(exc, SessionExpiredException):
             session = self.request.session
             was_connected = session.uid is not None
@@ -341,36 +258,6 @@ class JsonRPCDispatcher(Dispatcher):
         return request.httprequest.mimetype in cls.mimetypes
 
     def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
-        """
-        `JSON-RPC 2 <http://www.jsonrpc.org/specification>`_ over HTTP.
-
-        Our implementation differs from the specification on two points:
-
-        1. The ``method`` member of the JSON-RPC request payload is
-           ignored as the HTTP path is already used to route the request
-           to the controller.
-        2. We only support parameter structures by-name, i.e. the
-           ``params`` member of the JSON-RPC request payload MUST be a
-           JSON Object and not a JSON Array.
-
-        There is NO framework-level ``context`` handling: every ``params`` key is
-        forwarded by name, so ``context`` is just an ordinary argument. Callers
-        that need it (e.g. ``call_kw``) read it from their own kwargs and apply it
-        at the ORM layer.
-
-        Successful request::
-
-          --> {"jsonrpc": "2.0", "method": "call", "params": {"arg1": "val1" }, "id": null}
-
-          <-- {"jsonrpc": "2.0", "result": { "res1": "val1" }, "id": null}
-
-        Request producing an error::
-
-          --> {"jsonrpc": "2.0", "method": "call", "params": {"arg1": "val1" }, "id": null}
-
-          <-- {"jsonrpc": "2.0", "error": {"code": 1, "message": "End user error message.", "data": {"code": "codestring", "debug": "traceback" } }, "id": null}
-
-        """
         try:
             self.jsonrequest = self.request.get_json_data()
         except ValueError:
@@ -390,15 +277,6 @@ class JsonRPCDispatcher(Dispatcher):
         return self._response(result)
 
     def handle_error(self, exc: Exception) -> collections.abc.Callable:
-        """
-        Handle any exception that occurred while dispatching a request to
-        a `type='jsonrpc'` route. Also handle exceptions that occurred when
-        no route matched the request path, that no fallback page could
-        be delivered and that the request ``Content-Type`` was json.
-
-        :param exc: the exception that occurred.
-        :returns: a WSGI application
-        """
         error = {
             "code": 0,
             "message": "Odoo Server Error",
@@ -414,15 +292,6 @@ class JsonRPCDispatcher(Dispatcher):
         return self._response(error=error)
 
     def _abort_bad_request(self, message: str) -> typing.NoReturn:
-        """Abort with a ``400`` carrying a JSON-RPC error *in JSON*.
-
-        A body the caller cannot parse is not an error report. These two aborts
-        used to build a bare ``Response``, whose ``text/html`` default mimetype
-        answered an ``application/json`` request with HTML — the same defect
-        :func:`infer_dispatcher_for_unmatched` fixes for unmatched paths. The
-        status stays ``400`` rather than the JSON-RPC ``200``: the envelope was
-        never read, so there is no ``id`` to correlate a protocol-level reply to.
-        """
         body = {
             "jsonrpc": "2.0",
             "id": None,
@@ -461,16 +330,6 @@ class Json2Dispatcher(Dispatcher):
         )
 
     def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
-        """Deserialize a plain-JSON request body and call the endpoint.
-
-        Parameters come from three places, each overriding the previous: the
-        query string, the JSON body, then the URL path arguments. The query
-        string is included because a ``json2`` route may legitimately be served
-        over ``GET``, where there is no body to carry parameters — it used to be
-        dropped silently, so a ``GET`` json2 route was unreachable with
-        arguments and a ``typed=True`` one answered 400 no matter what the
-        caller sent. The ordering matches :meth:`HttpDispatcher.dispatch`.
-        """
         httprequest = self.request.httprequest
         if (
             httprequest.method not in SAFE_HTTP_METHODS

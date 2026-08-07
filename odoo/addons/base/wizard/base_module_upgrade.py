@@ -13,7 +13,6 @@ class BaseModuleUpgrade(models.TransientModel):
 
     @api.model
     def _get_pending_modules(self) -> Self:
-        """Return modules in state ``to upgrade`` / ``to remove`` / ``to install``."""
         states = ["to upgrade", "to remove", "to install"]
         return self.env["ir.module.module"].search([("state", "in", states)])
 
@@ -91,5 +90,4 @@ class BaseModuleUpgrade(models.TransientModel):
         return {"type": "ir.actions.act_window_close"}
 
     def config(self) -> dict[str, Any]:
-        """Advance to the next pending configuration action."""
         return self.env["res.config"]._next_todo_action()

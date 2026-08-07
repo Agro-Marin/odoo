@@ -1,27 +1,3 @@
-"""Self-tests for the DB-free ORM harness (:mod:`odoo.orm.model_test_env`).
-
-This is a **Tier-2** suite (real ``import odoo``, no database).  Unlike the
-Tier-1 component suites under ``orm/components/tests`` and
-``libs/_field_access/tests`` — which register ``sys.modules`` stubs so they can
-import leaf modules without the framework — this suite imports the *real* ORM.
-The stubs are process-global, so this directory **must run in its own pytest
-invocation**, separate from the stubbed suites::
-
-    pytest odoo/orm/tests          # Tier-2: real import, no stubs
-
-It is intentionally lightweight: it exercises the harness against **synthetic**
-models (``h.*``) rather than the real ``addons/base`` models, so it needs no
-database fixtures and stays fast and hermetic.
-
-Coverage:
-
-* the harness's documented contract (create/persist, write, search,
-  filtered/mapped/sorted, lazy compute on ``new()``);
-* a regression guard for the ``ir.default`` create() fix (``default_get`` calls
-  ``self.env["ir.default"]`` on every create — the harness must provide it);
-* model composition: ``_inherit`` (extension) and ``_inherits`` (delegation).
-"""
-
 import pytest
 
 from odoo import Command, api, fields, models
@@ -279,13 +255,6 @@ def test_inherits_delegation_exposes_parent_fields():
 
 
 def test_raw_sql_fails_loud_instead_of_returning_empty():
-    """A model method that drops to raw SQL must raise, not silently read ``[]``.
-
-    Returning an empty result would let the test pass while the same code reads
-    real rows on PostgreSQL — exactly the false confidence a fast DB-free tier
-    must not introduce.  ``read_group`` is the common offender (it builds and
-    executes ``SELECT ... GROUP BY`` directly).
-    """
     with model_test_env(HWidget) as env:
         env["h.widget"].create({"name": "A", "price": 10.0, "qty": 1})
         with pytest.raises(InMemorySqlNotSupported):
@@ -295,7 +264,6 @@ def test_raw_sql_fails_loud_instead_of_returning_empty():
 
 
 def test_fixtures_opt_in_for_raw_sql():
-    """``fixtures=`` lets a test that genuinely needs a raw query opt in."""
     with model_test_env(HWidget, fixtures={"SELECT 1": [(42,)]}) as env:
         env.cr.execute("SELECT 1")
         assert env.cr.fetchall() == [(42,)]
@@ -304,13 +272,6 @@ def test_fixtures_opt_in_for_raw_sql():
 
 
 def test_dict_cursor_api_fails_loud_for_tuple_fixture():
-    """The dict cursor API must not silently return ``[]`` / ``None`` when a
-    tuple-shaped fixture holds rows.
-
-    Fixtures carry no column names, so ``dictfetchall`` / ``dictfetchone`` cannot
-    rebuild dict rows; returning empty would be a false green for a model method
-    that consumes the dict API (the same failure mode ``execute`` guards).
-    """
     with model_test_env(HWidget, fixtures={"SELECT 1": [(42,)], "SELECT 0": []}) as env:
         env.cr.execute("SELECT 1")
         assert env.cr.fetchall() == [(42,)]
@@ -325,7 +286,6 @@ def test_dict_cursor_api_fails_loud_for_tuple_fixture():
 
 
 def _fresh(env, records):
-    """Flush pending writes and drop the cache, forcing re-reads from storage."""
     env.flush_all()
     env.invalidate_all()
     return records
@@ -481,8 +441,6 @@ def test_discard_fields_works_without_attributeerror():
 
 
 class HAudit(models.Model):
-    """Default _log_access: exercises the injected res.users stub."""
-
     _name = "h.audit"
     _module = _MOD
     _description = "log-access model"
@@ -491,10 +449,6 @@ class HAudit(models.Model):
 
 
 def test_now_is_transaction_stable():
-    """cr.now() mirrors production's transaction-stable timestamp: cached on
-    first call (production caches PostgreSQL's ``now()``, which is fixed for
-    the whole transaction), so records created in one transaction share their
-    create_date; commit() resets the cache for the next transaction."""
     with model_test_env(HAudit) as env:
         first = env.cr.now()
         assert env.cr.now() is first
@@ -509,10 +463,6 @@ def test_now_is_transaction_stable():
 
 
 def test_write_after_invalidate_with_log_access():
-    """Regression: with default _log_access, a write() after invalidate_all()
-    crashed with KeyError 'res.users' in Many2one._update_inverses because the
-    magic create_uid/write_uid comodel had no model class. The harness now
-    injects _TestResUsers (backed by the seeded superuser row)."""
     with model_test_env(HAudit) as env:
         record = env["h.audit"].create({"name": "a"})
         env.invalidate_all()

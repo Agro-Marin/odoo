@@ -60,7 +60,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
     @users("__system__", "demo")
     @warmup
     def test_read_base(self):
-        """Read records."""
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 5)
 
@@ -103,7 +102,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
 
     @warmup
     def test_read_base_depends_context(self):
-        """Compute in batch even when in cache in another context."""
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 5)
 
@@ -120,7 +118,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
                 self.assertEqual(record.with_context(key=3).value_ctx, 3)
 
     def test_fetch(self):
-        """Fetch only when necessary."""
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 5)
 
@@ -173,7 +170,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
 
     @warmup
     def test_search_fetch(self):
-        """Search and fetch all at once."""
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 5)
 
@@ -194,7 +190,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
 
     @warmup
     def test_search_read(self):
-        """Search and fetch all at once."""
         Model = self.env["test_performance.base"]
         records = Model.search([])
         self.assertEqual(len(records), 5)
@@ -217,8 +212,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
 
     @warmup
     def test_name_search(self):
-        """Test that `name` is fetched in the same query as the search
-        to compute `display_name` without any additional query"""
         Model = self.env["test_performance.base"]
         record = Model.create({"name": "blablu"})
         record.invalidate_recordset()
@@ -229,7 +222,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
     @users("__system__", "demo")
     @warmup
     def test_write_base(self):
-        """Write records (no recomputation)."""
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 5)
 
@@ -243,7 +235,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
     @users("__system__", "demo")
     @warmup
     def test_write_base_with_recomputation(self):
-        """Write records (with recomputation)."""
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 5)
 
@@ -254,7 +245,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
     @users("__system__", "demo")
     @warmup
     def test_write_base_one2many(self):
-        """Write on one2many field."""
         rec1 = self.env["test_performance.base"].create({"name": "X"})
 
         with self.assertQueryCount(3):
@@ -377,7 +367,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
 
     @mute_logger("odoo.models.unlink")
     def test_write_base_one2many_with_constraint(self):
-        """Write on one2many field with lines being deleted and created."""
         rec = self.env["test_performance.base"].create({"name": "Y"})
         rec.write({"line_ids": [Command.create({"value": val}) for val in range(12)]})
 
@@ -393,7 +382,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
     @users("__system__", "demo")
     @warmup
     def test_write_base_many2many(self):
-        """Write on many2many field."""
         rec1 = self.env["test_performance.base"].create({"name": "X"})
 
         with self.assertQueryCount(4):
@@ -505,22 +493,12 @@ class TestPerformance(SavepointCaseWithUserDemo):
     @users("__system__", "demo")
     @warmup
     def test_create_base(self):
-        """Create records."""
         with self.assertQueryCount(__system__=2, demo=2):
             self.env["test_performance.base"].create({"name": "X"})
 
     @users("__system__", "demo")
     @warmup
     def test_create_base_with_lines(self):
-        """Create records with one2many lines.
-
-        7 queries: INSERT parent, LOCK lines + pg_attribute (binary-COPY column
-        types, read under COPY's own lock once per transaction), sequence
-        lookup, nextval (COPY ID pre-generation), COPY lines, UPDATE parent
-        (flush computed fields).  The three catalog/lock queries used to be
-        memoized process-globally; that is what let a concurrent or rolled-back
-        ALTER feed stale types to a later COPY (see odoo/db/schema_cache.py).
-        """
         with self.assertQueryCount(__system__=7, demo=7):
             self.env["test_performance.base"].create(
                 {
@@ -532,7 +510,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
     @users("__system__", "demo")
     @warmup
     def test_create_base_with_tags(self):
-        """Create records with many2many tags."""
         with self.assertQueryCount(2):
             self.env["test_performance.base"].create({"name": "X"})
 
@@ -753,14 +730,6 @@ class TestMapped(TransactionCase):
 
 @tagged("increment_perf")
 class TestIncrementFieldsSkipLock(TransactionCase):
-    """Test the behavior of the function `increment_fields_skiplock`.
-
-    Note that, per-design, the function will not always update the requested
-    records in case of a (table/row-level) lock. This is reflected in these
-    tests as we make sure to check the integrity of the results whether
-    any record was updated or not.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -783,14 +752,6 @@ class TestIncrementFieldsSkipLock(TransactionCase):
         )
 
     def test_increment_fields_skiplock_one_field(self):
-        """Test that we can increment the value of a single field of a record
-        with `increment_fields_skiplock` and that it doesn't trigger _compute
-        methods of fields depending on it.
-
-        If the test fails because of changes making that _compute **are**
-        triggered, be sure to also check `increment_fields_skiplock` uses on the
-        codebase when updating this test class.
-        """
         with self.assertQueryCount(1):
             did_update = self.record._increment_fields_skiplock("value")
             _logger.info(
@@ -832,7 +793,6 @@ class TestIncrementFieldsSkipLock(TransactionCase):
         )
 
     def test_increment_fields_skiplock_multiple_fields(self):
-        """Test that we can update several fields on the same rows with one request."""
         with self.assertQueryCount(1):
             did_update = self.record._increment_fields_skiplock(
                 "value", "value_plus_one"
@@ -880,10 +840,6 @@ class TestIncrementFieldsSkipLock(TransactionCase):
         )
 
     def test_increment_fields_skiplock_null_field(self):
-        """Test that incrementing a field with a NULL value in database works.
-        When an integer is NULL in database, the ORM automatically converts it to 0.
-        However, increment_fields_skiplock is a special tool using raw sql and by-passing the ORM
-        """
         self.env.cr.execute(
             "SELECT value_null_by_default FROM test_performance_mozzarella WHERE id = %s",
             (self.record.id,),

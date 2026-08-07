@@ -1,10 +1,3 @@
-"""Process-control and cron helpers shared by the server and worker modules.
-
-A leaf module (``_worker → _helpers → db``) so those modules can share these
-names without an import cycle.  Private: import directly from
-``odoo.service._helpers``.
-"""
-
 from __future__ import annotations
 
 import os
@@ -20,43 +13,14 @@ CRON_NOTIFY_JITTER_MAX_S = 0.1
 
 
 def capped_backoff(attempts: int, ceiling: int = SLEEP_INTERVAL) -> int:
-    """Return an exponential backoff in seconds for ``attempts``, clamped to
-    ``ceiling``.
-
-    The exponent is clamped BEFORE the shift, not after.  Every caller counts a
-    sustained outage, so ``attempts`` is unbounded by construction, and
-    ``2**attempts`` on an unbounded exponent builds an integer whose width grows
-    with every single retry: quadratic CPU and unbounded memory inside the loop
-    that exists precisely to survive a long outage.  Clamping only the *result*
-    (``min(2**attempts, ceiling)``) still pays to build the operand first.
-
-    No returned value changes: any exponent at or above ``ceiling.bit_length()``
-    already saturates the clamp.
-    """
     return min(2 ** min(attempts, ceiling.bit_length()), ceiling)
 
 
 def memory_info(process: Any) -> int:
-    """Return the process's resident memory (RSS) in bytes.
-
-    RSS, not VMS: on Python 3.13+ the allocator and GC reserve large virtual
-    ranges that never become resident, so VMS over-reports.  This feeds a soft
-    limit for orderly worker recycling; the hard cap belongs to a cgroup v2
-    limit on the systemd unit (``MemoryMax=`` + ``MemorySwapMax=0``), not an
-    in-process ``RLIMIT_AS`` (which would deny ``pthread_create`` on healthy
-    workers given all that never-resident virtual space).
-    """
     return process.memory_info().rss
 
 
 def over_memory_soft_limit(process: Any, soft_limit: int) -> int | None:
-    """Return the current RSS when it exceeds ``soft_limit``, else ``None``.
-
-    Shared soft-limit decision for ``Worker.check_limits``,
-    ``ThreadedServer.process_limit`` and ``EventServer.process_limits``; each
-    caller takes its own recycle action.  ``soft_limit`` of 0 disables the check
-    and skips the ``/proc`` RSS read.
-    """
     if not soft_limit:
         return None
     memory = memory_info(process)
@@ -64,11 +28,6 @@ def over_memory_soft_limit(process: Any, soft_limit: int) -> int | None:
 
 
 def empty_pipe(fd: int) -> None:
-    """Drain all pending data from a non-blocking pipe file descriptor.
-
-    Reads in 4 KiB blocks so a backlog drains in few syscalls (in practice the
-    backlog is tiny — the prefork signal handler dedups to one pending slot).
-    """
     try:
         while os.read(fd, 4096):
             pass
@@ -77,7 +36,6 @@ def empty_pipe(fd: int) -> None:
 
 
 def cron_database_list() -> list[str]:
-    """Return the list of databases to consider for cron processing."""
     return config["db_name"] or list_dbs(True)
 
 

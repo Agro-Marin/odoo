@@ -5,12 +5,6 @@ from odoo.tests.common import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestIrModelDataCacheInvalidation(TransactionCase):
-    """ir.model.data CRUD overrides own the `_xmlid_lookup` and `groups` cache
-    contracts. Regression test for audit finding IMD-L1: write() must clear the
-    `groups` cache when the *pre-image* of a written row points at res.groups,
-    not only when the new vals set `model = 'res.groups'`.
-    """
-
     def test_write_on_existing_groups_xmlid_clears_groups_cache(self):
         group = self.env.ref("base.group_user")
         imd = self.env["ir.model.data"].search(

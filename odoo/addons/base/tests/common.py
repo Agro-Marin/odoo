@@ -50,7 +50,6 @@ class BaseCommon(TransactionCase):
 
     @classmethod
     def default_env_context(cls):
-        """Override to reactivate tracking."""
         return {**DISABLED_MAIL_CONTEXT}
 
     @classmethod
@@ -154,7 +153,6 @@ class BaseCommon(TransactionCase):
 
     @classmethod
     def quick_ref(cls, xmlid):
-        """Find the matching record, without an existence check."""
         model, id = cls.env["ir.model.data"]._xmlid_to_res_model_res_id(xmlid)
         return cls.env[model].browse(id)
 
@@ -543,12 +541,6 @@ class HttpCaseWithUserPortal(HttpCase):
 
 
 class MockSmtplibCase:
-    """Mock smtplib to test email sending in depth.
-
-    Unlike MockEmail, which mocks the ir.mail_server methods, this mocks smtplib
-    itself so the ir.mail_server model can be tested.
-    """
-
     @contextmanager
     def mock_smtplib_connection(self):
         self.emails = []
@@ -556,8 +548,6 @@ class MockSmtplibCase:
         origin = self
 
         class TestingSMTPSession:
-            """Fake SMTP session returned in tests to avoid connecting to a real server."""
-
             def quit(self):
                 pass
 
@@ -656,22 +646,6 @@ class MockSmtplibCase:
         msg_cc_lst=None,
         msg_to_lst=None,
     ):
-        """Assert an email matching the given parameters was sent; ``None``
-        parameters are ignored when matching.
-
-        :param smtp_from: FROM used for the authentication to the mail server
-        :param smtp_to_list: List of destination email address
-        :param message_from: FROM used in the SMTP headers
-        :param mail_server: used to compare the 'from_filter' as an alternative
-          to using the from_filter parameter
-        :param from_filter: from_filter of the <ir.mail_server> used to send the
-          email. False means 'match everything'.
-        :param emails_count: the number of emails which should match the condition
-        :param msg_cc_lst: optional check msg_cc value of email;
-        :param msg_to_lst: optional check msg_to value of email;
-
-        :return: True if at least one email has been found with those parameters
-        """
         if from_filter is not None and mail_server:
             msg = "Invalid usage: use either from_filter either mail_server"
             raise ValueError(msg)

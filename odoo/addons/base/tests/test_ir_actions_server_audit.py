@@ -1,8 +1,3 @@
-"""Audit tests for ir.actions.server: the required ``action`` parameter of
-``_get_eval_context`` and the immutability of the ormcached
-``_selection_target_model`` result.
-"""
-
 import inspect
 
 from odoo.exceptions import AccessError
@@ -14,8 +9,6 @@ from odoo.addons.base.models.ir_actions_server import IrActionsServer
 
 @tagged("post_install", "-at_install")
 class TestServerActionEvalContext(TransactionCase):
-    """_get_eval_context requires the server action it is evaluated for."""
-
     def test_eval_context_requires_action(self):
         parameter = inspect.signature(IrActionsServer._get_eval_context).parameters[
             "action"
@@ -43,9 +36,6 @@ class TestServerActionEvalContext(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSelectionTargetModelCache(TransactionCase):
-    """The ormcached model-selection list must be an immutable tuple, since the
-    cached value is shared across callers."""
-
     def test_returns_immutable_tuple_of_tuples(self):
         ServerAction = self.env["ir.actions.server"]
         result = ServerAction._selection_target_model()
@@ -59,16 +49,6 @@ class TestSelectionTargetModelCache(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestServerActionModelAccessGate(TransactionCase):
-    """A group-less server action requires the caller's write access on its model.
-
-    Regression: ``run()`` sudo()s the action so its group_system-only
-    configuration can be read, which also made
-    ``_can_execute_action_on_records``'s model gate a no-op (``check_access``
-    returns immediately under ``su``). With no target records nothing else
-    enforced access, so cron-triggered actions and onchange automations on new
-    records ran entirely ungated.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

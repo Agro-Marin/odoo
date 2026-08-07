@@ -115,7 +115,6 @@ class TestOrmDiscussion(models.Model):
     attributes_definition = fields.PropertiesDefinition("Message Properties")
 
     def _domain_very_important(self):
-        """Ensure computed O2M domains work as expected."""
         return [("important", "=", True)]
 
     @api.onchange("name")
@@ -250,7 +249,7 @@ class TestOrmMessage(models.Model):
         for message in self:
             message.double_size = 0
             size = message.size
-            message.double_size = message.double_size + size
+            message.double_size += size
 
     @api.depends("author", "author.partner_id")
     def _compute_author_partner(self):
@@ -286,12 +285,6 @@ class TestOrmEmailmessage(models.Model):
 
 
 class TestOrmPartner(models.Model):
-    """
-    Simplified model for partners. Having a specific model avoids all the
-    overrides from other modules that may change which fields are being read,
-    how many queries it takes to use that model, etc.
-    """
-
     _name = "test_orm.partner"
     _description = "Discussion Partner"
 
@@ -299,10 +292,6 @@ class TestOrmPartner(models.Model):
 
 
 class TestOrmMulti(models.Model):
-    """Model for testing multiple onchange methods in cascade that modify a
-    one2many field several times.
-    """
-
     _name = "test_orm.multi"
     _description = "Test ORM Multi"
 
@@ -686,8 +675,6 @@ class TestOrmComputeSudo(models.Model):
 
 
 class TestOrmMulti_Compute_Inverse(models.Model):
-    """Model with the same inverse method for several fields."""
-
     _name = "test_orm.multi_compute_inverse"
     _description = "Test ORM Multi Compute Inverse"
 
@@ -1985,8 +1972,6 @@ class TestOrmComputeMember(models.Model):
 
 
 class TestOrmComputeCreator(models.Model):
-    """This model has a computed field that creates a new record."""
-
     _name = "test_orm.compute.creator"
     _description = "test_orm.compute.creator"
 
@@ -2005,11 +1990,6 @@ class TestOrmComputeCreator(models.Model):
 
 
 class TestOrmComputeCreated(models.Model):
-    """This model has records created by another model, and has a stored
-    computed field. The purpose of that field is to make sure that flushing the
-    field above creates a record here and also flushes its computed field.
-    """
-
     _name = "test_orm.compute.created"
     _description = "test_orm.compute.created"
 
@@ -2850,16 +2830,6 @@ class CalendarTest(models.Model):
 
 
 class TestOrmInverseWithUnlink(models.Model):
-    """Parent with children and a non-stored inversed field.
-
-    Writing the inversed field in the same ``write()`` that deletes a child
-    exercises the flush ``One2many.write_real`` performs before deleting: the
-    inverse must still be applied afterwards. ``res.company.country_id`` used to
-    play this role, but a company cannot be deleted once modules that reference
-    it with ``ondelete='restrict'`` are installed (40 such constraints on a full
-    database), which made the test depend on the module set.
-    """
-
     _name = "test_orm.inverse.with.unlink"
     _description = "Parent with a non-stored inversed field and children"
 

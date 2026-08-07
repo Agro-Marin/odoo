@@ -13,7 +13,6 @@ import odoo.addons
 @tagged("post_install", "-at_install", "neutralize")
 class TestNeutralize(TransactionCase):
     def test_10_neutralize(self):
-        """None of the neutralization SQL queries crash."""
         installed_modules = neutralize.get_installed_modules(self.cr)
         queries = neutralize.get_neutralization_queries(installed_modules)
         for query in queries:
@@ -21,12 +20,6 @@ class TestNeutralize(TransactionCase):
 
 
 class TestNeutralizeQueries(BaseCase):
-    """get_neutralization_queries must skip whitespace-only neutralize.sql
-    files: an empty string is not a query, and consumers must not need to
-    filter it out (psycopg 3 tolerates executing "", so this is a contract
-    guarantee, not crash prevention).
-    """
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory(prefix="odoo_test_neutralize_")
         self.addCleanup(self._tmp.cleanup)

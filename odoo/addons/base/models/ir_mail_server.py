@@ -36,14 +36,8 @@ from odoo.tools import (
 _logger = logging.getLogger(__name__)
 _test_logger = logging.getLogger("odoo.tests")
 
-# Fallback for the --smtp-timeout option, used when the option is absent (a unit
-# test running without a parsed configuration).
 SMTP_TIMEOUT = 60
 
-# Loading admin-supplied PEM material fails with a different exception per backend:
-# `cryptography` raises ValueError (binascii.Error for bad base64), pyOpenSSL raises
-# SSLCryptoError, and PyOpenSSLContext.load_cert_chain re-raises as ssl.SSLError.
-# All of them mean "bad certificate/key" and must surface as a UserError.
 CERTIFICATE_LOAD_ERRORS = (
     SSLCryptoError,
     SSLError,
@@ -54,13 +48,6 @@ CERTIFICATE_LOAD_ERRORS = (
 
 
 class MailDeliveryError(Exception):
-    """Mail delivery error.
-
-    Message and optional detail are passed as separate positional args; ``str()``
-    joins them with newlines so ``str(exc)`` (stored as ``mail.mail.failure_reason``)
-    is clean multi-line text, not a tuple repr. ``.args`` is left untouched.
-    """
-
     def __str__(self) -> str:
         return "\n".join(str(arg) for arg in self.args)
 
@@ -69,27 +56,12 @@ MailDeliveryException = MailDeliveryError
 
 
 class OutgoingEmailError(UserError):
-    """User-facing error raised while resolving/preparing an outgoing email.
-
-    Carries a stable, non-translated ``code`` (one of the ``NO_*`` constants on
-    :class:`IrMail_Server`) so queue processors like ``mail.mail`` can classify
-    the failure without matching on the display text (which may be translated or
-    detail-augmented).
-    """
-
     def __init__(self, message: str, code: str | None = None) -> None:
         self.code = code or message
         super().__init__(message)
 
 
 def _log_smtp_debug(*args: Any) -> None:
-    """Drop-in replacement for ``smtplib.SMTP._print_debug``.
-
-    smtplib ``print()``s the session transcript straight to ``sys.stderr``,
-    which bypasses ``--logfile``, the log level and every handler -- so on a
-    server that logs to a file, enabling ``smtp_debug`` produced nothing in the
-    log and leaked the AUTH exchange to stderr instead.
-    """
     _logger.debug("%s", " ".join(str(arg) for arg in args))
 
 
@@ -102,12 +74,6 @@ def _verify_check_hostname_callback(
     *,
     hostname: str,
 ) -> bool:
-    """Callback for pyOpenSSL's verify_mode.
-
-    By default pyOpenSSL only checks ``err_no``; we also verify that the SMTP
-    server ``hostname`` matches the ``x509`` certificate's Common Name (CN) or
-    Subject Alternative Name (SAN).
-    """
     if err_no:
         return False
 
@@ -122,15 +88,6 @@ def _verify_check_hostname_callback(
 
 
 class _SmtpTransport(NamedTuple):
-    """Fully-resolved SMTP transport parameters, output of
-    :meth:`IrMail_Server._resolve_smtp_transport`.
-
-    Separating resolution (which config source wins, which SSL context to build)
-    from the socket I/O in ``_connect__`` makes it unit-testable without a
-    connection and funnels both config sources through one place so their
-    SSL/verify handling cannot drift apart.
-    """
-
     server: str | None
     port: int | None
     user: str | None
@@ -144,16 +101,6 @@ class _SmtpTransport(NamedTuple):
 
 
 class _FromFilter(NamedTuple):
-    """A ``from_filter`` reduced to the normalized senders it authorizes.
-
-    ``emails`` holds whole addresses and ``domains`` whole domains; ``unparsed``
-    counts the entries that are neither (e.g. ``"@@@"``). A filter is
-    *unrestricted* only when it holds nothing at all -- separators and
-    whitespace alone are not a restriction, but an entry that cannot be
-    interpreted must never widen what a server may send as, so it is kept as a
-    restriction that matches nothing.
-    """
-
     emails: frozenset[str]
     domains: frozenset[str]
     unparsed: int = 0
@@ -172,28 +119,11 @@ class _FromFilter(NamedTuple):
 
 
 class _SmtpSessionContext(NamedTuple):
-    """Per-connection routing context, consulted by
-    :meth:`IrMail_Server._prepare_email_message__` when deciding whether the
-    envelope FROM may be rewritten so bounces come back (VERP / bounce alias).
-
-    - ``from_filter``: which senders the selected server / CLI config may send as.
-    - ``smtp_from``: envelope sender resolved while choosing the server.
-
-    Carried as flat attributes on the smtp connection (not a wrapper) because
-    ``send_email`` accepts a caller-supplied session whose ``quit()`` etc. must
-    run on the real connection ``_connect__`` returns; test doubles in
-    ``base/tests/common.py`` read these names too. Access goes through
-    :meth:`_stash_session_context` / :meth:`_read_session_context` to keep the
-    contract in one place.
-    """
-
     from_filter: str | bool = False
     smtp_from: str | bool = False
 
 
 class IrMail_Server(models.Model):
-    """Represents an SMTP server, able to send outgoing emails, with SSL and TLS capabilities."""
-
     _name = "ir.mail_server"
     _description = "Mail Server"
     _order = "sequence, id"
@@ -345,30 +275,15 @@ class IrMail_Server(models.Model):
                 mail_server._load_certificate_material()
 
     def write(self, vals: dict[str, Any]) -> bool:
-        """Prevent archiving a server that is still in use."""
         if not vals.get("active", True):
             self._check_archivable()
         return super().write(vals)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_in_use(self) -> None:
-        """Prevent deleting a server that is still in use.
-
-        Every reference to this model is a plain many2one with the default
-        ``ondelete='set null'``, so without this guard deleting a server that
-        :meth:`write` refuses to *archive* silently unhooks it from the mail
-        templates and mailings that were sending through it. ``at_uninstall``
-        is off so uninstalling the module that declared the usage still works.
-        """
         self._check_archivable(deleting=True)
 
     def _check_archivable(self, deleting: bool = False) -> None:
-        """Raise if any server in ``self`` is still referenced by an active usage.
-
-        Only the servers actually being archived are reported: an override of
-        :meth:`_active_usages_compute` that also describes servers outside
-        ``self`` must not block the write, nor pluralize the message.
-        """
         usages_per_server = self._active_usages_compute()
         servers = sorted(
             (server for server in self if usages_per_server.get(server.id)),
@@ -389,8 +304,6 @@ class IrMail_Server(models.Model):
                 )
             usage_details.extend(f"- {u}" for u in usages_per_server[server.id])
 
-        # The four variants are spelled out because the translation extractor
-        # only collects string literals passed directly to _().
         details = {
             "server_usage": ", ".join(server.display_name for server in servers),
             "usage_details": "\n".join(usage_details),
@@ -418,31 +331,9 @@ class IrMail_Server(models.Model):
         raise UserError(message)
 
     def _active_usages_compute(self) -> dict[int, list[str]]:
-        """Map each server id to user-friendly descriptions of its active usages.
-
-        Override in modules that use this model to list the active elements that
-        could send mail through a server in this recordset.
-
-        :return: ``{ir_mail_server.id: usage_str_list}``
-        :rtype: dict[int, list[str]]
-        """
         return {}
 
     def _get_max_email_size(self, smtp_session: smtplib.SMTP | None = None) -> float:
-        """Return the maximum size, in MB, of an email sent through this server.
-
-        Callable on the empty recordset (no server selected), which falls back to
-        the ``base.default_max_email_size`` parameter.
-
-        When a session is given, the smaller of the configured value and the size
-        the peer advertised in EHLO (RFC 1870) wins. Both bounds are real and
-        neither subsumes the other: ``max_email_size`` is a policy an admin may
-        deliberately set below what the provider accepts (it decides when
-        attachments become links), while the advertised value is what the
-        provider will enforce *now* -- the stored one is a snapshot somebody had
-        to refresh by hand, and once the provider tightens its limit, every mail
-        above it fails at DATA instead of being converted to links.
-        """
         configured = self.max_email_size or (
             self.env["ir.config_parameter"]
             .sudo()
@@ -453,12 +344,6 @@ class IrMail_Server(models.Model):
 
     @staticmethod
     def _session_max_email_size(smtp_session: smtplib.SMTP | None) -> float | None:
-        """Size limit, in MB, the session advertised in EHLO, if any.
-
-        ``SIZE`` is optional and may be advertised without a value ("this server
-        supports the extension but declares no limit"), which is not a limit of
-        zero.
-        """
         size = (getattr(smtp_session, "esmtp_features", None) or {}).get("size")
         try:
             return float(size) / 1024**2 or None
@@ -466,12 +351,6 @@ class IrMail_Server(models.Model):
             return None
 
     def _from_filter_sender(self) -> str | None:
-        """First whole address this server's ``from_filter`` authorizes.
-
-        Order follows the admin-typed filter, so the answer is stable; parts
-        that are not parseable addresses are skipped rather than handed to
-        ``MAIL FROM`` on the strength of containing an ``@``.
-        """
         self.ensure_one()
         return next(
             (
@@ -483,7 +362,6 @@ class IrMail_Server(models.Model):
         )
 
     def _from_filter_domain(self) -> str | None:
-        """First whole domain this server's ``from_filter`` authorizes."""
         self.ensure_one()
         return next(
             (
@@ -516,20 +394,6 @@ class IrMail_Server(models.Model):
     def test_smtp_connection(
         self, autodetect_max_email_size: bool = False
     ) -> dict[str, Any]:
-        """Test the connection and if autodetect_max_email_size, set auto-detected max email size.
-
-        :param bool autodetect_max_email_size: whether to autodetect the max email size
-        :return: client action to notify the user of the result of the operation (connection test or
-            auto-detection successful depending on the ``autodetect_max_email_size`` parameter)
-        :rtype: dict[str, Any]
-
-        :raises UserError: if the connection fails and if ``autodetect_max_email_size`` and
-            the server doesn't support the auto-detection of email max size
-        """
-        # Read access is granted well beyond system users (mass mailing users
-        # get it, for instance) and this opens an authenticated session using
-        # credentials those users cannot read, reporting reachability and
-        # certificate details back to them. Autodetection also writes.
         self.check_access("write")
         if self._disable_send():
             raise UserError(
@@ -617,20 +481,6 @@ class IrMail_Server(models.Model):
         }
 
     def _connection_test_error(self, exc: Exception, server: Self) -> UserError:
-        """Translate a raw connection-test exception into a user-facing UserError.
-
-        Ordered most-specific first: SMTP subclasses must precede
-        ``smtplib.SMTPException`` so their tailored message wins. An unmatched
-        exception is logged with traceback and wrapped in a generic message.
-
-        ``UnicodeError`` covers the whole ``idna`` family (``idna.IDNAError``
-        derives from it), which is what a non-encodable SMTP username domain
-        raises out of :meth:`_open_smtp_connection`.
-
-        The trailing ``OSError`` entry must stay last: ``smtplib.SMTPException``
-        and ``ssl.SSLError`` both derive from it, so hoisting it would swallow
-        every tailored message above.
-        """
         handlers = (
             (
                 UnicodeError,
@@ -716,7 +566,6 @@ class IrMail_Server(models.Model):
 
     @classmethod
     def _disable_send(cls) -> bool:
-        """Whether email sending is disabled (during testing or registry init)."""
         return modules.module.current_test or cls.pool._init
 
     def _connect__(
@@ -734,28 +583,6 @@ class IrMail_Server(models.Model):
         allow_archived: bool = False,
         resolve_server: bool = True,
     ) -> smtplib.SMTP | smtplib.SMTP_SSL | None:
-        """Return a new SMTP connection to the given server, or ``None`` in test mode.
-
-        :param str | None host: host or IP of the SMTP server, if mail_server_id not passed
-        :param str | None encryption: ``'none'`` | ``'ssl'`` | ``'ssl_strict'`` | ``'starttls'`` | ``'starttls_strict'``.
-            The 'strict' variants verify the server certificate against the OS trust store.
-        :param smtp_from: FROM SMTP envelope, used to find the best mail server
-        :param ssl_certificate: SSL certificate filename; used when no mail server
-            is given, overrides ``--smtp-ssl-certificate-filename``
-        :param ssl_private_key: SSL private key filename; used when no mail server
-            is given, overrides ``--smtp-ssl-private-key-filename``
-        :param mail_server_id: id of a specific mail server (overrides other parameters)
-        :param bool allow_archived: if True, don't raise on an archived record
-            (for testing)
-        :param bool resolve_server: whether a falsy ``mail_server_id`` means "not
-            resolved yet, pick a server now". Callers that already ran
-            :meth:`_find_mail_server` -- ``mail.mail`` groups its batches by the
-            outcome -- pass False, so a falsy id keeps its other meaning,
-            "resolved: no server applies, use the CLI/config transport". Without
-            it the search runs again for every batch, and agrees with the
-            grouping only for as long as the caller keeps re-supplying the exact
-            context it resolved under.
-        """
         if self._disable_send():
             return None
 
@@ -794,16 +621,6 @@ class IrMail_Server(models.Model):
         ssl_private_key: str | None = None,
         smtp_debug: bool = False,
     ) -> _SmtpTransport:
-        """Resolve the effective SMTP transport (host/port/auth/encryption/SSL
-        context) from a mail-server record *or* from CLI/config/explicit params.
-
-        Opens no connection, so it is directly unit-testable. Both config sources
-        funnel their encryption->SSL-context decision through here, keeping the
-        'strict' verification semantics from drifting between them.
-
-        :param mail_server: resolved ``ir.mail_server`` record, or the empty
-            recordset when the transport comes from CLI/config/params.
-        """
         if mail_server and mail_server.smtp_authentication != "cli":
             is_certificate = mail_server.smtp_authentication == "certificate"
             encryption = mail_server.smtp_encryption
@@ -874,35 +691,15 @@ class IrMail_Server(models.Model):
 
     @staticmethod
     def _get_smtp_timeout() -> float | None:
-        """Socket timeout, in seconds, applied to every SMTP command.
-
-        ``None`` (from ``--smtp-timeout 0``) blocks indefinitely. The timeout is
-        per command, not per session, so a batch of N mails on one session can
-        legitimately take far longer than this.
-        """
         return tools.config.get("smtp_timeout", SMTP_TIMEOUT) or None
 
     @staticmethod
     def _get_smtp_local_hostname() -> str | None:
-        """Hostname to announce in HELO/EHLO, or ``None`` to let smtplib decide.
-
-        smtplib derives it from ``socket.getfqdn()``, which on a container or
-        any host whose name does not resolve to a dotted FQDN degrades to a
-        domain literal such as ``[172.17.0.2]``. MTAs that require a
-        fully-qualified HELO reject the whole session for it, and the lookup
-        also happens with the socket already open, outside ``--smtp-timeout``.
-        """
         return tools.config.get("smtp_helo_name") or None
 
     def _open_smtp_connection(
         self, transport: _SmtpTransport, smtp_from: str | None
     ) -> smtplib.SMTP | smtplib.SMTP_SSL:
-        """Open, secure and authenticate a socket for a resolved transport.
-
-        Stashes ``from_filter`` / ``smtp_from`` on the returned connection for
-        :meth:`_prepare_email_message__` (deciding whether the envelope FROM may
-        be spoofed to receive bounces).
-        """
         if not transport.server:
             raise UserError(
                 _(
@@ -959,18 +756,11 @@ class IrMail_Server(models.Model):
     def _stash_session_context(
         connection: smtplib.SMTP, context: _SmtpSessionContext
     ) -> None:
-        """Record :class:`_SmtpSessionContext` on an SMTP connection."""
         connection.from_filter = context.from_filter
         connection.smtp_from = context.smtp_from
 
     @staticmethod
     def _session_supports_smtputf8(smtp_session: smtplib.SMTP | None) -> bool:
-        """Whether the session can carry non-ASCII envelope addresses (RFC 6531).
-
-        A session with no ESMTP feature map -- ``None`` in test mode, or a test
-        double -- is assumed capable, so the ASCII rule only ever fires on a
-        real connection that has told us, via EHLO, that it is not.
-        """
         features = getattr(smtp_session, "esmtp_features", None)
         if features is None:
             return True
@@ -978,11 +768,6 @@ class IrMail_Server(models.Model):
 
     @staticmethod
     def _read_session_context(smtp_session: smtplib.SMTP) -> _SmtpSessionContext:
-        """Read the :class:`_SmtpSessionContext` stashed on a session.
-
-        A never-stashed session (e.g. a raw smtplib connection passed straight to
-        ``send_email``) yields the default ``(False, False)``.
-        """
         return _SmtpSessionContext(
             from_filter=getattr(smtp_session, "from_filter", False),
             smtp_from=getattr(smtp_session, "smtp_from", False),
@@ -990,10 +775,6 @@ class IrMail_Server(models.Model):
 
     @staticmethod
     def _ssl_load_error(exc: Exception) -> UserError:
-        """Translate a low-level certificate/key loading error into a UserError.
-
-        Shared by every certificate-loading path so the messages live in one place.
-        """
         if isinstance(exc, (SSLCryptoError, ssl.SSLError, ValueError)):
             return UserError(
                 _(
@@ -1009,12 +790,6 @@ class IrMail_Server(models.Model):
     def _client_ssl_context(
         encryption: str | None, smtp_server: str | None
     ) -> PyOpenSSLContext:
-        """Build the client-auth SSL context implied by ``encryption``, before any
-        certificate material is loaded into it.
-
-        Single source of truth for the peer/hostname verification policy, so the
-        stored-certificate and certificate-file paths cannot drift apart.
-        """
         ssl_context = PyOpenSSLContext(ssl.PROTOCOL_TLS_CLIENT)
         if encryption in ("ssl_strict", "starttls_strict"):
             ssl_context.set_default_verify_paths()
@@ -1030,19 +805,6 @@ class IrMail_Server(models.Model):
         return ssl_context
 
     def _load_certificate_material(self) -> tuple[list[Any], Any]:
-        """Parse this server's stored PEM material into ``(chain, private_key)``.
-
-        The whole PEM is loaded, not just its first block: CAs and ACME clients
-        hand out ``fullchain.pem`` (leaf followed by the intermediates), and a
-        server that cannot build a path to its trust anchor from the leaf alone
-        rejects the client certificate. This mirrors what ``load_cert_chain``
-        already does for the certificate-file path.
-
-        Called from :meth:`_check_smtp_ssl_files` as well as from the SSL
-        context builder, so material that cannot be used is refused when it is
-        saved rather than hours later, from inside a cron send, as a delivery
-        failure nobody is watching.
-        """
         self.ensure_one()
         try:
             chain = load_pem_x509_certificates(
@@ -1065,11 +827,6 @@ class IrMail_Server(models.Model):
     def _ssl_context_from_certificate(
         self, mail_server: Self, smtp_server: str
     ) -> PyOpenSSLContext:
-        """Build a client-auth SSL context from a mail server's stored PEM
-        certificate/private key (``smtp_authentication == 'certificate'``).
-
-        'strict' variants verify the peer and its hostname; lax variants don't.
-        """
         ssl_context = self._client_ssl_context(mail_server.smtp_encryption, smtp_server)
         (leaf, *intermediates), private_key = mail_server._load_certificate_material()
         try:
@@ -1088,12 +845,6 @@ class IrMail_Server(models.Model):
         encryption: str | None = None,
         smtp_server: str | None = None,
     ) -> PyOpenSSLContext:
-        """Build a client-auth SSL context from certificate/key files on disk
-        (CLI/config ``--smtp-ssl-*-filename`` arguments).
-
-        'strict' variants verify the peer and its hostname (mirroring
-        :meth:`_ssl_context_from_certificate`); lax variants don't.
-        """
         ssl_context = self._client_ssl_context(encryption, smtp_server)
         try:
             ssl_context.load_cert_chain(cert_filename, keyfile=key_filename)
@@ -1104,11 +855,6 @@ class IrMail_Server(models.Model):
 
     @staticmethod
     def _ssl_context_for_encryption(encryption: str) -> ssl.SSLContext:
-        """Build a standard TLS context for a (non-certificate) encrypted transport.
-
-        'strict' variants validate the server certificate and hostname against
-        the OS trust store; lax variants encrypt only.
-        """
         ssl_context = ssl.create_default_context()
         if encryption in ("ssl_strict", "starttls_strict"):
             ssl_context.check_hostname = True
@@ -1121,14 +867,6 @@ class IrMail_Server(models.Model):
     def _check_forced_mail_server(
         self, mail_server: Self, allow_archived: bool, smtp_from: str | None
     ) -> None:
-        """Validate that a forced outgoing mail server may be used.
-
-        :param mail_server: the server explicitly forced by the caller.
-        :param allow_archived: whether an archived server is acceptable.
-        :param smtp_from: envelope sender; unused here but part of the override
-            hook contract (the ``mail`` module uses it to forbid forcing a
-            user-owned server whose ``from_filter`` does not match the sender).
-        """
         if not allow_archived and not mail_server.active:
             raise UserError(
                 _(
@@ -1140,15 +878,6 @@ class IrMail_Server(models.Model):
     def _smtp_login__(
         self, connection: smtplib.SMTP, smtp_user: str, smtp_password: str
     ) -> None:
-        """Authenticate the SMTP connection.
-
-        Can be overridden in other modules for different authentication methods.
-        Can be called on the model itself or on a singleton.
-
-        :param connection: the SMTP connection to authenticate
-        :param smtp_user: the user for the authentication
-        :param smtp_password: the password for the authentication
-        """
         connection.login(smtp_user, smtp_password)
 
     def _build_email__(
@@ -1169,35 +898,6 @@ class IrMail_Server(models.Model):
         body_alternative: str | None = None,
         subtype_alternative: str = "plain",
     ) -> EmailMessage:
-        """Construct an RFC2822 email message from the given arguments.
-
-        :param str | None email_from: sender email address
-        :param str | list[str] email_to: list of recipient addresses (to be joined with commas)
-        :param str subject: email subject (no pre-encoding/quoting necessary)
-        :param str body: email body, of the type ``subtype`` (by default, plaintext).
-                            If html subtype is used, the message will be automatically converted
-                            to plaintext and wrapped in multipart/alternative, unless an explicit
-                            ``body_alternative`` version is passed.
-        :param str | None body_alternative: optional alternative body, of the type specified in ``subtype_alternative``
-        :param str | bool reply_to: optional value of Reply-To header
-        :param str | bool object_id: optional tracking identifier, to be included in the message-id for
-                                 recognizing replies. Suggested format for object-id is "res_id-model",
-                                 e.g. "12345-crm.lead".
-        :param str subtype: optional mime subtype for the text body (usually 'plain' or 'html'),
-                               must match the format of the ``body`` parameter. Default is 'plain',
-                               making the content part of the mail "text/plain".
-        :param str subtype_alternative: optional mime subtype of ``body_alternative`` (usually 'plain'
-                                           or 'html'). Default is 'plain'.
-        :param list[tuple[str, bytes, str]] | None attachments: list of (filename, content, mimetype) tuples
-        :param str | None message_id: optional value for the Message-Id header; generated when omitted
-        :param str | None references: optional value for the References header (parent message ids)
-        :param list[str] | None email_cc: optional list of string values for CC header (to be joined with commas)
-        :param list[str] | None email_bcc: optional list of string values for BCC header (to be joined with commas)
-        :param dict[str, str] | None headers: optional map of headers to set on the outgoing mail (may override the
-                             other headers, including Subject, Reply-To, Message-Id, etc.)
-        :rtype: EmailMessage
-        :return: the new RFC2822 email message
-        """
         email_from = (
             email_from
             or self.env.context.get("domain_notifications_email")
@@ -1210,8 +910,6 @@ class IrMail_Server(models.Model):
         email_cc = email_cc or []
         email_bcc = email_bcc or []
 
-        # odoo._monkeypatches.email replaces the stdlib policy with one that never
-        # folds identification headers and folds user headers only at 998 chars.
         msg = EmailMessage(policy=email.policy.SMTP)
         if not message_id:
             if object_id:
@@ -1232,13 +930,6 @@ class IrMail_Server(models.Model):
         msg["Date"] = datetime.datetime.now(datetime.UTC)
         for key, value in headers.items():
             del msg[key]
-            # A header with no value is not a header: it serializes to a bare
-            # "Key:" line, which is a syntax error the recipient's parser must
-            # guess its way around. Callers build these dicts with patterns like
-            # ``headers.setdefault("Return-Path", a.bounce_email or b.bounce_email)``,
-            # so an unset source lands here as False rather than as an absent key.
-            # Every falsy value is dropped, not just False/None/"": the header
-            # registry renders a non-string falsy value (0) to an empty header too.
             if not value:
                 continue
             msg[key] = value
@@ -1278,24 +969,14 @@ class IrMail_Server(models.Model):
 
     @api.model
     def _get_default_bounce_address(self) -> str | None:
-        """Return the default bounce (envelope) address, used when the message
-        provides none. Defaults to the ``--email-from`` CLI/config parameter.
-        """
         return tools.config.get("email_from")
 
     @api.model
     def _get_default_from_address(self) -> str | None:
-        """Return the default "header from" address, used when none is received.
-        Defaults to the ``--email-from`` CLI/config parameter.
-        """
         return tools.config.get("email_from")
 
     @api.model
     def _get_default_from_filter(self) -> str | None:
-        """Return the default from_filter, used when no specific ir.mail_server
-        is selected. Defaults to the ``mail.default.from_filter`` ICP, then the
-        ``--from-filter`` CLI/config parameter.
-        """
         return (
             self.env["ir.config_parameter"]
             .sudo()
@@ -1305,21 +986,6 @@ class IrMail_Server(models.Model):
     def _prepare_email_message__(
         self, message: EmailMessage, smtp_session: smtplib.SMTP
     ) -> tuple[str, list[str], EmailMessage]:
-        """Prepare the SMTP information (from, to, message) before sending.
-
-        The returned message is a *copy*: the envelope-only headers are consumed
-        destructively (``Bcc`` and ``Return-Path`` are read, then dropped), so
-        preparing the caller's own object twice would silently lose the blind
-        recipients and the bounce address on the second pass -- exactly what a
-        caller retrying after a ``MailDeliveryError``, as ``send_email``'s
-        docstring invites, would do.
-
-        :param message: the email to send; its Return-Path, From, etc. determine
-            smtp_from and smtp_to. Left untouched.
-        :param smtp_session: the opened SMTP session authenticating the sender
-        :return: ``(smtp_from, smtp_to_list, message)`` — envelope sender
-            (MAIL FROM), recipient addresses, and the message to send
-        """
         bounce_address = (
             self.env.context.get("domain_bounce_address")
             or message["Return-Path"]
@@ -1371,16 +1037,6 @@ class IrMail_Server(models.Model):
 
     @api.model
     def _check_ascii_envelope(self, smtp_from: str, smtp_to_list: list[str]) -> None:
-        """Reject envelope addresses a non-SMTPUTF8 session cannot carry.
-
-        ``extract_rfc2822_addresses`` punycodes the *domain* but passes a
-        non-ASCII local part through unchanged, so an address reaches here still
-        needing RFC 6531. Rejecting it now, with the same stable codes as any
-        other bad address, turns what ``smtplib`` would otherwise raise from the
-        middle of ``send_message`` -- an ``SMTPNotSupportedError`` that
-        ``mail.mail`` files under the retry-forever ``unknown`` bucket -- into
-        the permanent, correctly-classified failure it actually is.
-        """
         if not smtp_from.isascii():
             raise OutgoingEmailError(
                 f"Malformed 'Return-Path' or 'From' address: {smtp_from} - "
@@ -1397,15 +1053,6 @@ class IrMail_Server(models.Model):
 
     @staticmethod
     def _detached_copy(message: EmailMessage) -> EmailMessage:
-        """Return a copy of ``message`` that can be edited without touching it.
-
-        ``copy.copy`` shares both mutable containers of an ``EmailMessage``, so
-        each is rebound: ``_headers`` (only ``__delitem__`` rebinds it, so a
-        plain ``msg[key] = value`` would append to the list the original still
-        holds) and ``_payload`` when it is a list of parts (``attach()``
-        appends to it). Both are cheap -- the parts themselves are shared, not
-        cloned, so an 8 MiB attachment costs no extra memory.
-        """
         detached = copy.copy(message)
         detached._headers = list(message._headers)
         if isinstance(message._payload, list):
@@ -1414,16 +1061,6 @@ class IrMail_Server(models.Model):
 
     @api.model
     def _alter_message__(self, message: EmailMessage, smtp_from: str) -> None:
-        """Rewrite the visible headers, then drop every header that only exists
-        to feed the SMTP envelope.
-
-        ``Bcc`` and ``Return-Path`` are *inputs* to
-        :meth:`_prepare_email_message__` (recipients and envelope sender), just
-        like ``X-Forge-To`` / ``X-Msg-To-Add`` are inputs to the ``To`` rewrite
-        above. None of them may reach the wire: RFC 5321 §4.4 reserves
-        ``Return-Path`` for the *delivering* MTA, which prepends its own from
-        the envelope, so transmitting ours yields two conflicting ones.
-        """
         if x_forge_to := message["X-Forge-To"]:
             del message["To"]
             message["To"] = x_forge_to
@@ -1437,8 +1074,6 @@ class IrMail_Server(models.Model):
                 not in to_normalized
             ]
             del message["To"]
-            # Join only non-empty parts: an absent To or a fully-redundant addition
-            # would otherwise emit a dangling comma (``To: , x@y`` / ``To: x@y,``).
             if new_to := ", ".join(part for part in [str(to), *additions] if part):
                 message["To"] = new_to
 
@@ -1455,18 +1090,6 @@ class IrMail_Server(models.Model):
     def _prepare_smtp_to_list(
         self, message: EmailMessage, smtp_session: smtplib.SMTP
     ) -> list[str]:
-        """Prepare the SMTP To address list from To / Cc / Bcc.
-
-        Deduplication is global (not per header) and case-insensitive: an address
-        listed in both To and Cc is one mailbox and must get exactly one RCPT TO,
-        otherwise the recipient receives the message once per listing.
-
-        Context key 'send_validated_to' restricts addresses to that list, matching
-        the raw *and* normalized form so a caller that vets addresses in normalized
-        form (as ``mail.mail`` does) does not silently drop a recipient whose header
-        spells the same mailbox with different casing. 'send_smtp_skip_to' holds a
-        recipients block list, matched on the normalized form.
-        """
         validated_to = set(self.env.context.get("send_validated_to") or ())
         skip_to = set(self.env.context.get("send_smtp_skip_to") or ())
 
@@ -1502,29 +1125,6 @@ class IrMail_Server(models.Model):
         smtp_debug: bool = False,
         smtp_session: smtplib.SMTP | None = None,
     ) -> str:
-        """Send an email directly (no queuing, no retries).
-
-        The caller should handle MailDeliveryException to ensure the mail is
-        never lost. Server selection: ``mail_server_id`` wins and ignores the
-        ``smtp_*`` args; else an explicit ``smtp_server``; else the default
-        (highest priority) server; else the ``smtp_server`` config value (fails
-        if unset).
-
-        :param message: the email to send. The envelope sender comes from
-            ``Return-Path`` or the default bounce address; recipients come from
-            the combined ``To``/``CC``/``BCC`` headers. It is not modified, so
-            the same object may be handed to a retry.
-        :param smtp_session: optional pre-established session; overrides
-            ``mail_server_id`` and the ``smtp_*`` args. Caller disconnects it.
-        :param mail_server_id: optional id of ir.mail_server; overrides ``smtp_*`` args
-        :param smtp_encryption: 'none', 'starttls', 'starttls_strict', 'ssl', or
-            'ssl_strict'; 'strict' variants verify the server certificate against
-            the OS trust store.
-        :param smtp_ssl_certificate: SSL certificate filename for authentication
-        :param smtp_ssl_private_key: SSL private key filename for authentication
-        :return: the Message-ID of the sent message; otherwise raises
-            MailDeliveryException and logs the root cause.
-        """
         smtp = smtp_session
         owns_connection = not smtp_session
         if not smtp:
@@ -1574,29 +1174,13 @@ class IrMail_Server(models.Model):
                         smtp.close()
 
     def _find_mail_server_allowed_domain(self) -> fields.Domain:
-        """Overridable domain getter for all mail servers that may be used as default."""
         return fields.Domain.TRUE
 
     def _find_mail_server(
         self, email_from: str | None, mail_servers: Self | None = None
     ) -> tuple[Self | None, str | None]:
-        """Find the appropriate mail server for the given email address.
-
-        :rtype: tuple[Self | None, str]
-        :returns: A two-elements tuple: ``(Record<ir.mail_server>, email_from)``
-
-          1. Mail server to use to send the email (``None`` if we use the odoo-bin arguments)
-          2. Email FROM to use to send the email (in some case, it might be impossible
-             to use the given email address directly if no mail server is configured for)
-        """
         email_from_normalized = email_normalize(email_from)
         email_from_domain = email_domain_extract(email_from_normalized)
-        # Normalized like every other address matched below, and like
-        # _prepare_email_message__ normalizes the same context key. The value
-        # comes from mail.alias.domain.default_from_email, whose own _check_name
-        # validates the domain but deliberately never rewrites it -- so
-        # "notifications@Example.COM" reaches here verbatim and, compared raw
-        # against the normalized from_filter index, matched no server at all.
         notifications_email = email_normalize(
             self.env.context.get("domain_notifications_email")
             or self._get_default_from_address()
@@ -1604,11 +1188,6 @@ class IrMail_Server(models.Model):
         notifications_domain = email_domain_extract(notifications_email)
 
         if mail_servers is None:
-            # _order ("sequence, id") rather than "sequence" alone: sequence
-            # defaults to 10 on every server, so without the id tie-break the
-            # winner among equal-priority servers is whatever physical row order
-            # Postgres happens to return -- it changes after any update to a
-            # competing row, a VACUUM FULL or a dump/restore.
             mail_servers = self.sudo().search(self._find_mail_server_allowed_domain())
         mail_servers = mail_servers.filtered("active")
 
@@ -1681,29 +1260,16 @@ class IrMail_Server(models.Model):
 
     @api.model
     def _filter_mail_servers_fallback(self, servers: Self) -> Self:
-        """Filter the mail servers that can be used as fallback, or for default email from."""
         return servers
 
     @api.model
     def _match_from_filter(
         self, email_from: str | None, from_filter: str | None
     ) -> bool:
-        """Return True if the given email address matches the "from_filter" field.
-
-        The from filter can be falsy (always match), a domain name, or a full
-        email address; a comma-separated list of those matches on any entry.
-        """
         return self._from_filter_index(from_filter).matches(email_normalize(email_from))
 
     @api.model
     def _from_filter_index(self, from_filter: str | None) -> _FromFilter:
-        """Reduce a raw ``from_filter`` to the normalized senders it authorizes.
-
-        Normalizing once per filter -- instead of once per (filter part, sender)
-        pair -- is what keeps :meth:`_find_mail_server`'s four matching passes
-        linear in the number of servers, and it is the single place that decides
-        whether a part means an address or a domain.
-        """
         emails, domains, unparsed = set(), set(), 0
         for part in self._parse_from_filter(from_filter):
             if "@" in part:

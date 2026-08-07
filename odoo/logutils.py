@@ -1,9 +1,3 @@
-"""Logging infrastructure for the Odoo server.
-
-Provides the log handlers (file, PostgreSQL), formatters (colored console,
-JSON), performance filters, and the ``init_logger`` setup.
-"""
-
 import contextlib
 import json
 import logging
@@ -42,10 +36,6 @@ class WatchedFileHandler(logging.handlers.WatchedFileHandler):
 
 
 class PostgreSQLHandler(logging.Handler):
-    """PostgreSQL Logging Handler will store logs in the database, by default
-    the current database, can be set using --log-db=DBNAME
-    """
-
     def __init__(self) -> None:
         super().__init__()
         self._support_metadata: bool = False
@@ -76,7 +66,7 @@ class PostgreSQLHandler(logging.Handler):
             cr.execute("SET LOCAL statement_timeout = 1000")
             msg = str(record.msg)
             if record.args:
-                msg = msg % record.args
+                msg %= record.args
             traceback = getattr(record, "exc_text", "")
             if traceback:
                 msg = f"{msg}\n{traceback}"
@@ -164,7 +154,7 @@ class PerfFilter(logging.Filter):
                 record.perf_info = (
                     f"{record.perf_info} {self.format_cursor_mode(cursor_mode)}"
                 )
-            delattr(worker, "query_count")
+            del worker.query_count
         elif tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
             record.perf_info = "- - - -"
         else:
@@ -217,12 +207,6 @@ class ColoredFormatter(logging.Formatter):
 
 
 class JSONFormatter(logging.Formatter):
-    """Format log records as JSON, for structured/ingestible logs.
-
-    Reference it from a ``--log-config`` dictConfig as a handler's formatter,
-    e.g. ``{"()": "odoo.logutils.JSONFormatter"}``.
-    """
-
     def __init__(
         self, *args, record_keys=None, ignore_record_keys=None, **kwargs
     ) -> None:
@@ -319,7 +303,7 @@ showwarning: object = None
 
 
 def init_logger() -> None:
-    global showwarning
+    global showwarning  # noqa: PLW0603  saves the stdlib hook we replace, once per process
     if logging.getLogRecordFactory() is LogRecord:
         return
 
@@ -513,10 +497,6 @@ def showwarning_with_traceback(
 
     filtered = []
     for frame in traceback.extract_stack():
-        # The WSGI entry point, i.e. the start of the request. Everything above
-        # it is server plumbing and only pushes the interesting frames off the
-        # top of the warning.  This lived on "/odoo/http.py" until http.py
-        # became the http/ package, after which it matched nothing.
         if frame.name == "__call__" and frame.filename.endswith(
             "/odoo/http/application.py"
         ):

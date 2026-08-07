@@ -38,8 +38,6 @@ class IrConfig_Parameter(models.Model):
 
     @mute_logger("odoo.addons.base.models.ir_config_parameter")
     def init(self, force: bool = False) -> None:
-        """Initialize the parameters in _default_parameters, overriding
-        existing ones when ``force`` is True."""
         self = self.with_context(prefetch_fields=False)
         for key, func in _default_parameters.items():
             params = self.sudo().search([("key", "=", key)])
@@ -48,32 +46,12 @@ class IrConfig_Parameter(models.Model):
 
     @api.model
     def get_param(self, key: str, default: str | bool = False) -> str | bool:
-        """Retrieve the value for a given key.
-
-        :param str key: The key of the parameter value to retrieve.
-        :param str | bool default: default value if parameter is missing.
-        :return: The value of the parameter, or ``default`` if it does not exist.
-        :rtype: str | bool
-        """
         self.browse().check_access("read")
         value = self._get_param(key)
         return default if value is None else value
 
     @api.model
     def get_param_int(self, key: str, default: int) -> int:
-        """Retrieve *key* as an ``int``, falling back to *default* when unusable.
-
-        Parameter values are free-form text an administrator can edit, so every
-        numeric parameter needs the same guard: a non-numeric (or absent) value
-        must degrade to the default rather than raise out of whatever request
-        happens to read it. That guard was open-coded at each call site, each
-        with its own ``try``/``except`` and its own idea of what to log.
-
-        :param str key: the parameter key
-        :param int default: value returned when the parameter is missing or is
-            not a valid integer (the bad value is logged once per read)
-        :return: the parameter as an ``int``, or *default*
-        """
         raw = self.get_param(key)
         if raw is False or raw is None or raw == "":
             return default
@@ -87,17 +65,6 @@ class IrConfig_Parameter(models.Model):
 
     @api.model
     def get_param_float(self, key: str, default: float) -> float:
-        """Retrieve *key* as a ``float``, falling back to *default* when unusable.
-
-        Float counterpart of :meth:`get_param_int`, with the same rationale: a
-        parameter an administrator can type into must never raise out of the
-        reader (``base.default_max_email_size`` is read on every outgoing mail).
-
-        :param str key: the parameter key
-        :param float default: value returned when the parameter is missing or is
-            not a valid float (the bad value is logged once per read)
-        :return: the parameter as a ``float``, or *default*
-        """
         raw = self.get_param(key)
         if raw is False or raw is None or raw == "":
             return default
@@ -121,21 +88,6 @@ class IrConfig_Parameter(models.Model):
 
     @api.model
     def set_param(self, key: str, value: Any) -> str | bool:
-        """Set the value of a parameter.
-
-        :param str key: The key of the parameter value to set.
-        :param Any value: The value to set.
-        :return: the previous value of the parameter or False if it did
-                 not exist.
-        :rtype: str | bool
-
-        The insert can still violate ``ir_config_parameter_key_uniq``;
-        :func:`~odoo.db.insert_or_existing` resolves that race, and a row it
-        recovers takes the update path below.  Retrying the ``create`` instead
-        only violated the constraint a second time, and ``retrying`` turns an
-        ``IntegrityError`` into a ``ValidationError`` rather than replaying — so
-        the caller got "Key must be unique." and lost the write.
-        """
         param = self.search([("key", "=", key)])
         if not param:
             if value is False or value is None:

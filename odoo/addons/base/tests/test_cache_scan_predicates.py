@@ -1,18 +1,3 @@
-"""Every field a raw-cache scan admits must actually be safe to scan.
-
-``mapped``/``filtered``/``grouped``/``sorted``/``_read_format`` bypass
-``Field.__get__`` and read the raw cache dict when
-:mod:`odoo.orm.models.mixins._cache_scan` says the field type allows it.  The
-predicates are allow-lists of ``field.type`` strings, so they are only correct
-for the types someone thought of -- a field type defined outside core is
-classified by whoever last edited that module, not by its own author.  That is
-how ``vector`` came to be scanned under the old denylist.
-
-This sweeps the whole registry and checks the *contract* of each mode against
-``Field.__get__`` on real rows, so a newly admitted type is verified rather than
-assumed.
-"""
-
 import logging
 
 from odoo.orm.models.mixins._cache_scan import (
@@ -30,8 +15,6 @@ SCALAR_TYPES = (str, int, float, bool, type(None))
 
 
 class TestCacheScanPredicates(TransactionCase):
-    """The raw cache value must satisfy each scan mode's contract."""
-
     def test_scan_predicates_agree_with_field_get(self):
         env = self.env
         violations = []

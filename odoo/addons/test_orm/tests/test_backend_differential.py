@@ -1,15 +1,3 @@
-"""Differential tests: DB-free harness backend vs. the real SQL backend.
-
-Runs the same scripted ORM scenario through both the in-memory harness
-(:mod:`odoo.orm.model_test_env`) and PostgreSQL and asserts the observable
-results are identical, so an undeclared divergence between the parallel
-in-memory row I/O (:class:`~odoo.orm.components.storage.DictBackend` /
-:class:`~odoo.orm.runtime.backend.InMemoryBackend`) and the SQL path fails a
-test instead of silently going green. Expected divergences (record rules, raw
-SQL, savepoints, ``ilike`` unaccent, ``_parent_store``) are pinned as explicit
-``test_divergence_*`` methods.
-"""
-
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -46,8 +34,6 @@ _STUB_MODULE = "test_orm_diff_stub"
 
 
 class _StubIrModelData(models.Model):
-    """Minimal ``ir.model.data`` so ``unlink()`` runs DB-free."""
-
     _name = "ir.model.data"
     _module = _STUB_MODULE
     _description = "ir.model.data (differential test stub)"
@@ -55,8 +41,6 @@ class _StubIrModelData(models.Model):
 
 
 class _StubIrAttachment(models.Model):
-    """Minimal ``ir.attachment`` so ``unlink()`` runs DB-free (see stub above)."""
-
     _name = "ir.attachment"
     _module = _STUB_MODULE
     _description = "ir.attachment (differential test stub)"
@@ -64,14 +48,6 @@ class _StubIrAttachment(models.Model):
 
 
 def _isolated_registry(*classes):
-    """Build a Tier-2-style harness registry for *classes* under a live server.
-
-    Hides ``MetaModel._module_to_models__`` during the build so the harness uses
-    its lightweight ``base`` stubs (instead of pulling the fully-imported real
-    ``base`` module, which runs raw SQL and crashes), then swaps in ``LRU``
-    ormcache stores so ``ormcache``'s ``.generation`` read works.  Restores the
-    global metamodel state before returning, whatever happens.
-    """
     saved = MetaModel._module_to_models__
     try:
         MetaModel._module_to_models__ = defaultdict(list)
@@ -84,16 +60,7 @@ def _isolated_registry(*classes):
 
 @tagged("post_install", "-at_install")
 class TestBackendDifferential(TransactionCase):
-    """Run identical scenarios through the harness and the real SQL backend."""
-
     def _diff(self, classes, script, msg=""):
-        """Run *script* on both backends and assert identical observations.
-
-        *classes* are the model definition classes the harness registry needs
-        (must include every comodel the scenario touches).  *script* is a
-        side-agnostic callable ``env -> observations``; it must return only
-        normalised, business-key-based data (never raw ids).
-        """
         registry = _isolated_registry(*classes)
         with model_test_env(registry=registry) as env_a:
             obs_a = script(env_a)
@@ -464,7 +431,6 @@ class TestBackendDifferential(TransactionCase):
         self._diff((CalendarTest,), script, "date boundaries")
 
     def test_divergence_record_rules_not_enforced(self):
-        """Harness has no ``ir.rule`` model: record rules are NOT enforced."""
         registry = _isolated_registry(TestOrmFoo)
         with model_test_env(registry=registry) as env_a:
             self.assertFalse(env_a.backend.supports_record_rules)
@@ -474,7 +440,6 @@ class TestBackendDifferential(TransactionCase):
         self.assertIn("ir.rule", self.env.registry)
 
     def test_divergence_raw_sql_fails_loud(self):
-        """Raw SQL runs on the DB but fails loud in the harness (no false green)."""
         registry = _isolated_registry(TestOrmFoo)
         with model_test_env(registry=registry) as env_a:
             with self.assertRaises(InMemorySqlNotSupported):
@@ -485,7 +450,6 @@ class TestBackendDifferential(TransactionCase):
         self.assertGreaterEqual(self.env.cr.fetchone()[0], 1)
 
     def test_divergence_rollback_and_savepoint_fail_loud(self):
-        """DictBackend keeps no snapshot, so rollback/savepoint fail loud."""
         registry = _isolated_registry(TestOrmFoo)
         with model_test_env(registry=registry) as env_a:
             with self.assertRaises(InMemorySqlNotSupported):
@@ -499,13 +463,6 @@ class TestBackendDifferential(TransactionCase):
         self.assertFalse(F.search([("name", "=", "temp")]))
 
     def test_divergence_ilike_unaccent(self):
-        """``ilike`` is accent-INsensitive on PostgreSQL (unaccent) but accent-
-        SENSITIVE in the harness (``ModelRegistry.unaccent`` is the identity).
-
-        This is the documented ``ilike`` unaccent divergence.  Pinned so that if
-        the harness ever gains unaccent (or the DB loses it) the mismatch is
-        caught instead of silently flipping a fast-tier result.
-        """
 
         def script(env):
             F = env["test_orm.foo"]
@@ -525,19 +482,6 @@ class TestBackendDifferential(TransactionCase):
         self.assertNotEqual(obs_a, obs_b)
 
     def test_divergence_parent_store_and_child_of(self):
-        """The harness does not maintain ``parent_path`` (``InMemoryBackend.
-        supports_parent_store is False``), so ``_parent_store`` bookkeeping and
-        ``child_of`` diverge from the DB.
-
-        FIXME(coordinator): the harness leaves ``parent_path`` unset (``False``)
-        and a subsequent ``child_of`` search then *crashes* with a ``TypeError``
-        (``bool`` vs ``str`` while building the ``parent_path LIKE`` domain),
-        rather than failing loud with an explanatory ``NotImplemented`` message
-        the way ``ir.rule`` / raw-SQL / savepoints do.  Consider either
-        maintaining ``parent_path`` in ``InMemoryBackend`` or raising a clear
-        "parent_store not supported" error in ``odoo/orm/runtime/backend.py``.
-        Declared-and-expected for now; not a false-green (it is a hard error).
-        """
 
         def build_tree(env):
             C = env["test_orm.category"]

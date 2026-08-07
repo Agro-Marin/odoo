@@ -12,10 +12,6 @@ from odoo.tools.image import image_process
 
 @functools.cache
 def _get_default_logo():
-    """Return the default company logo as base64.
-
-    Cached because the static PNG never changes at runtime.
-    """
     with file_open("base/static/img/res_company_logo.png", "rb") as file:
         return base64.b64encode(file.read())
 
@@ -210,7 +206,6 @@ class ResCompany(models.Model):
     )
 
     def init(self) -> None:
-        """Set default paperformat on companies missing one."""
         paperformat_euro = self.env.ref("base.paperformat_euro", False)
         if paperformat_euro:
             companies_without = self.search([("paperformat_id", "=", False)])
@@ -397,25 +392,14 @@ class ResCompany(models.Model):
         return res
 
     def unlink(self) -> bool:
-        """Unlink, then clear the cache so res.users._get_company_ids returns only existing company ids."""
         res = super().unlink()
         self.env.registry.clear_cache()
         return res
 
     def _get_company_root_delegated_field_names(self) -> list[str]:
-        """Return the field names delegated to the root company.
-
-        These fields must be identical on all branches: they are copied from the
-        root and shown readonly in the form view.
-        """
         return ["currency_id"]
 
     def _get_company_address_field_names(self) -> list[str]:
-        """Return the address field names shared by company and its partner.
-
-        The names are identical on both models, so they double as the copy map
-        between company and partner.
-        """
         return ["street", "street2", "city", "zip", "state_id", "country_id"]
 
     def _get_company_address_update(self, partner: Any) -> dict[str, Any]:
@@ -653,11 +637,6 @@ class ResCompany(models.Model):
         )
 
     def _all_branches_selected(self) -> bool:
-        """Return whether exactly all branches of self's companies are selected.
-
-        Useful for actions that only make sense on whole companies, branches
-        included.
-        """
         return self == self.sudo().search([("id", "child_of", self.root_id.ids)])
 
     def action_all_company_branches(self) -> dict[str, Any]:
@@ -675,7 +654,6 @@ class ResCompany(models.Model):
         }
 
     def _get_public_user(self) -> models.Model:
-        """Return (creating if needed) the company's public ``res.users``."""
         self.ensure_one()
         login = f"public-user@company-{self.id}.com"
         existing = (

@@ -1,8 +1,3 @@
-"""Color manipulation utilities.
-
-Pure Python color helpers with no Odoo dependencies.
-"""
-
 from .conversions import (
     get_saturation,
     get_lightness,

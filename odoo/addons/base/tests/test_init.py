@@ -54,7 +54,6 @@ class TestInit(BaseCase):
                         yield f"odoo.{parent.name}.{module.stem}"
 
     def test_import(self):
-        """Test that importing a sub-module in any order works."""
         EXPECT_UTC = (
             "init",
             "cli",

@@ -1,9 +1,3 @@
-"""Unit tests for field cache access accelerator.
-
-Tests both the Rust extension and pure-Python fallback with mock
-dicts and sentinel objects — no Odoo ORM dependency.
-"""
-
 import enum
 import unittest
 from datetime import date, datetime
@@ -60,11 +54,6 @@ PENDING = MockSentinel.PENDING
 
 
 class _FakeNewId:
-    """Stand-in for ``odoo.orm.primitives.NewId``: falsy and not an int.
-
-    Defined here rather than imported so the suite keeps its no-ORM contract.
-    """
-
     __slots__ = ()
 
     def __bool__(self) -> bool:
@@ -75,8 +64,6 @@ class _FakeNewId:
 
 
 class _FieldAccessTestMixin:
-    """Shared tests — subclassed once for Rust, once for fallback."""
-
     batch_cache_fill: Callable | None = None
     batch_cache_get: Callable | None = None
     batch_cache_filter: Callable | None = None
@@ -88,18 +75,15 @@ class _FieldAccessTestMixin:
     to_prefetch_ids: Callable | None = None
 
     def test_prefetch_basic(self) -> None:
-        """Uncached positive ids follow the record's own id."""
         self.assertEqual(self.to_prefetch_ids(1, (1, 2, 3), {}, 10), (1, 2, 3))
 
     def test_prefetch_record_id_always_first(self) -> None:
-        """The record that triggered the miss is never dropped or reordered."""
         self.assertEqual(self.to_prefetch_ids(7, (2, 3), {}, 10), (7, 2, 3))
 
     def test_prefetch_skips_cached(self) -> None:
         self.assertEqual(self.to_prefetch_ids(1, (2, 3, 4), {3: "v"}, 10), (1, 2, 4))
 
     def test_prefetch_record_id_kept_even_when_cached(self) -> None:
-        """A cached record_id is still returned -- the caller asked for it."""
         self.assertEqual(self.to_prefetch_ids(1, (2,), {1: "v"}, 10), (1, 2))
 
     def test_prefetch_dedups(self) -> None:
@@ -118,7 +102,6 @@ class _FieldAccessTestMixin:
         self.assertEqual(self.to_prefetch_ids(1, (), {}, 10), (1,))
 
     def test_prefetch_new_record_returns_none(self) -> None:
-        """A NewId/0 record_id signals the caller to take its own path."""
         self.assertIsNone(self.to_prefetch_ids(0, (1, 2), {}, 10))
         self.assertIsNone(self.to_prefetch_ids(_FakeNewId(), (1, 2), {}, 10))
 
@@ -126,17 +109,14 @@ class _FieldAccessTestMixin:
         self.assertIsNone(self.to_prefetch_ids(-1, (1, 2), {}, 10))
 
     def test_prefetch_drops_non_positive_ids(self) -> None:
-        """0 and negatives are not record ids and must never be prefetched."""
         self.assertEqual(self.to_prefetch_ids(1, (0, -5, 2), {}, 10), (1, 2))
 
     def test_prefetch_drops_non_int_ids(self) -> None:
-        """str ids and NewIds cannot appear in an ``id IN (...)`` query."""
         self.assertEqual(
             self.to_prefetch_ids(1, ("7", _FakeNewId(), 2), {}, 10), (1, 2)
         )
 
     def test_prefetch_drops_ids_beyond_i64(self) -> None:
-        """Ints past i64 would overflow the accelerator's extract."""
         self.assertEqual(self.to_prefetch_ids(1, (2**63, 2**70, 2), {}, 10), (1, 2))
 
     def test_fill_all_hit(self) -> None:
@@ -179,7 +159,6 @@ class _FieldAccessTestMixin:
         self.assertEqual(results[1]["name"], "ok")
 
     def test_fill_skips_empty_dict(self) -> None:
-        """Empty dicts (cleared = missing records) are skipped."""
         cache = {1: "a", 2: "b"}
         results = [{"id": 1}, {}, {"id": 3}]
         misses = self.batch_cache_fill(
@@ -192,7 +171,6 @@ class _FieldAccessTestMixin:
         self.assertIn(2, misses)
 
     def test_fill_false_is_valid_value(self) -> None:
-        """False is a valid cache value, not a miss."""
         cache = {1: False}
         results = [{"id": 1}]
         misses = self.batch_cache_fill(cache, (1,), results, "active", PENDING, True)
@@ -200,7 +178,6 @@ class _FieldAccessTestMixin:
         self.assertIs(results[0]["active"], False)
 
     def test_fill_zero_is_valid_value(self) -> None:
-        """0 is a valid cache value, not a miss."""
         cache = {1: 0}
         results = [{"id": 1}]
         misses = self.batch_cache_fill(cache, (1,), results, "qty", PENDING, 0)
@@ -249,14 +226,12 @@ class _FieldAccessTestMixin:
         self.assertEqual(list(misses), [])
 
     def test_batch_get_false_is_valid(self) -> None:
-        """False is a valid cache value, not a miss."""
         cache = {1: False}
         results, misses = self.batch_cache_get(cache, (1,), PENDING, False)
         self.assertEqual(list(results), [False])
         self.assertEqual(list(misses), [])
 
     def test_batch_get_zero_is_valid(self) -> None:
-        """0 is a valid cache value, not a miss."""
         cache = {1: 0}
         results, misses = self.batch_cache_get(cache, (1,), PENDING, 0)
         self.assertEqual(list(results), [0])
@@ -328,19 +303,16 @@ class _FieldAccessTestMixin:
         self.assertEqual(list(result), [])
 
     def test_values_none_is_valid(self) -> None:
-        """None is a valid cache value — not a miss."""
         cache = {1: None, 2: "x"}
         result = self.batch_cache_values(cache, (1, 2), PENDING)
         self.assertEqual(list(result), [None, "x"])
 
     def test_values_false_is_valid(self) -> None:
-        """False is a valid cache value — not a miss."""
         cache = {1: False, 2: 0}
         result = self.batch_cache_values(cache, (1, 2), PENDING)
         self.assertEqual(list(result), [False, 0])
 
     def test_values_early_bailout(self) -> None:
-        """Should bail on first miss, not process remaining IDs."""
         cache = {1: "a"}
         result = self.batch_cache_values(cache, (1, 2, 3), PENDING)
         self.assertIsNone(result)
@@ -373,14 +345,12 @@ class _FieldAccessTestMixin:
         self.assertIs(result, SENTINEL)
 
     def test_scalar_none_is_valid(self) -> None:
-        """None is a valid cache value, not a miss."""
         field = object()
         env_dict = {"_field_cache_memo": {field: {42: None}}}
         result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
         self.assertIsNone(result)
 
     def test_scalar_false_is_valid(self) -> None:
-        """False is a valid cache value, not a miss."""
         field = object()
         env_dict = {"_field_cache_memo": {field: {42: False}}}
         result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
@@ -411,7 +381,6 @@ class _FieldAccessTestMixin:
         self.assertEqual(result, (20, 40, 30, 10))
 
     def test_sort_stable_equal_values(self) -> None:
-        """Equal values preserve original order (stable sort)."""
         ids = (1, 2, 3)
         values = ["x", "x", "x"]
         result = self.sort_ids_by_values(ids, values, False)
@@ -426,28 +395,24 @@ class _FieldAccessTestMixin:
         self.assertEqual(result, ())
 
     def test_sort_null_high_false_sorts_nulls_first(self) -> None:
-        """null_high=False → None/False sort before non-nulls in ASC."""
         ids = (1, 2, 3)
         values = ["b", None, "a"]
         result = self.sort_ids_by_values(ids, values, False, null_high=False)
         self.assertEqual(result, (2, 3, 1))
 
     def test_sort_null_high_true_sorts_nulls_last(self) -> None:
-        """null_high=True → None/False sort after non-nulls in ASC."""
         ids = (1, 2, 3)
         values = ["b", None, "a"]
         result = self.sort_ids_by_values(ids, values, False, null_high=True)
         self.assertEqual(result, (3, 1, 2))
 
     def test_sort_false_treated_as_null(self) -> None:
-        """False is treated as null like None."""
         ids = (1, 2, 3)
         values = ["b", False, "a"]
         result = self.sort_ids_by_values(ids, values, False, null_high=False)
         self.assertEqual(result, (2, 3, 1))
 
     def test_sort_null_high_none_ignores_none(self) -> None:
-        """null_high=None does not treat None specially."""
         ids = (1, 2)
         values = [2, 1]
         result = self.sort_ids_by_values(ids, values, False, null_high=None)
@@ -476,13 +441,11 @@ class _FieldAccessTestMixin:
         self.assertEqual(self.sort_ids_by_cache({}, (), PENDING, False), ())
 
     def test_sort_cache_miss_returns_none(self) -> None:
-        """A missing id abandons the fast path (caller does record-based sort)."""
         ids = (1, 2, 3)
         cache = {1: "a", 3: "c"}
         self.assertIsNone(self.sort_ids_by_cache(cache, ids, PENDING, False))
 
     def test_sort_cache_pending_returns_none(self) -> None:
-        """A PENDING value is treated as a miss → None."""
         ids = (1, 2, 3)
         cache = {1: "a", 2: PENDING, 3: "c"}
         self.assertIsNone(self.sort_ids_by_cache(cache, ids, PENDING, False))
@@ -525,7 +488,6 @@ class _FieldAccessTestMixin:
         self.assertEqual(result[2], [20])
 
     def test_group_none_key(self) -> None:
-        """None is a valid group key."""
         ids = (1, 2, 3)
         values = [None, "a", None]
         result = self.batch_group_ids(ids, values)
@@ -538,8 +500,6 @@ class _FieldAccessTestMixin:
 
 
 class TestFallback(_FieldAccessTestMixin, unittest.TestCase):
-    """Test pure-Python fallback implementations."""
-
     @classmethod
     def setUpClass(cls) -> None:
         cls.batch_cache_fill = staticmethod(batch_cache_fill)
@@ -554,14 +514,6 @@ class TestFallback(_FieldAccessTestMixin, unittest.TestCase):
 
 
 class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
-    """Test the Rust extension against the same cases as the Python oracle.
-
-    odoo_rust is a hard dependency (imported at module scope), so a missing or
-    broken extension fails this suite rather than skipping it.  scalar_cache_get
-    always uses the Python impl (PyO3 boundary overhead exceeds savings on the
-    hit path), so only the batch functions come from Rust.
-    """
-
     @classmethod
     def setUpClass(cls) -> None:
         cls.batch_cache_fill = staticmethod(_rust_batch_cache_fill)
@@ -576,15 +528,6 @@ class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
 
 
 class TestSortDifferential(unittest.TestCase):
-    """Differential: the Rust native sort must agree with the Python oracle on
-    edge cases the shared mixin does not exercise (NaN, -0.0, big ints beyond
-    i64, dates, datetimes, mixed/incomparable columns, non-ASCII strings).
-
-    Each case compares the *outcome* of both implementations — either the
-    returned ordering or the raised exception type — so a divergence in result
-    OR in error behaviour fails loudly.
-    """
-
     @staticmethod
     def _capture(fn, *args, **kw):
         try:
@@ -616,12 +559,10 @@ class TestSortDifferential(unittest.TestCase):
             )
 
     def test_diff_big_ints(self) -> None:
-        """Ints beyond i64 must not overflow the Rust path."""
         self._assert_values_match([2**63, 2**63 + 1, 1, 2**70, -(2**63) - 5])
         self._assert_cache_match([2**63, 2**63 + 1, 1, 2**70])
 
     def test_diff_floats_signed_zero(self) -> None:
-        """-0.0 and 0.0 compare equal; stable order must be preserved."""
         self._assert_values_match([1.0, -0.0, 0.0, 2.0, -1.5])
         self._assert_cache_match([1.0, -0.0, 0.0, 2.0, -1.5])
 
@@ -646,11 +587,6 @@ class TestSortDifferential(unittest.TestCase):
         )
 
     def test_diff_mixed_date_datetime(self) -> None:
-        """Documented benign divergence: a real single-field column is never a
-        mix of date and datetime, so the two implementations are allowed to
-        differ here. The Python oracle raises TypeError (date vs datetime is
-        not orderable), while the Rust native sort treats datetime as a date
-        subclass and orders by the date component. Not reachable in the ORM."""
         ids = (1, 2, 3)
         values = [date(2021, 1, 2), datetime(2021, 1, 1, 12, 0), date(2021, 1, 1)]
         with self.assertRaises(TypeError):
@@ -658,7 +594,6 @@ class TestSortDifferential(unittest.TestCase):
         self.assertEqual(_rust_sort_ids_by_values(ids, list(values), False), (3, 2, 1))
 
     def test_diff_mixed_int_str(self) -> None:
-        """int vs str is not orderable in Python; Rust must agree."""
         self._assert_values_match([3, "a", 1])
 
     def test_diff_non_ascii(self) -> None:

@@ -1,9 +1,3 @@
-"""Post-processing and formatting for read_group results.
-
-Converts raw PostgreSQL values into the format returned by ``_read_group()``
-and formats the deprecated ``read_group()`` result dicts.
-"""
-
 import datetime
 import typing
 
@@ -35,18 +29,11 @@ if typing.TYPE_CHECKING:
 
 
 class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
-    """Post-processing and formatting for read_group results."""
-
     __slots__ = ()
 
     def _read_group_postprocess_groupby(
         self, groupby_spec: str, raw_values: list
     ) -> Generator:
-        """Convert raw ``groupby_spec`` values into the ``_read_group()`` format.
-
-        Relational groupby values become recordsets (with a correct prefetch
-        set); NULL becomes the spec's empty value.
-        """
         empty_value = self._read_group_empty_value(groupby_spec)
 
         fname, chain_fnames, granularity = parse_read_group_spec(groupby_spec)
@@ -78,11 +65,6 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
     def _read_group_postprocess_aggregate(
         self, aggregate_spec: str, raw_values: list
     ) -> Generator:
-        """Convert raw ``aggregate_spec`` values into the ``_read_group()`` format.
-
-        ``'recordset'`` aggregates become recordsets (with a correct prefetch
-        set); NULL becomes the spec's empty value.
-        """
         empty_value = self._read_group_empty_value(aggregate_spec)
 
         if aggregate_spec == "__count":
@@ -122,8 +104,6 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
     def _read_group_format_result(
         self, rows_dict: list[dict], lazy_groupby: list[str]
     ) -> None:
-        """Refine each row's ``__domain`` and format date/datetime values
-        (adding ``__range`` for date/datetime groups) in *rows_dict*."""
         for group in lazy_groupby:
             field_name = group.split(":")[0].split(".")[0]
             field = self._fields[field_name]
@@ -217,13 +197,6 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
             row["__domain"] = list(row["__domain"])
 
     def _read_group_format_result_properties(self, rows_dict, group):
-        """Format the properties groups in the read_group result.
-
-        Replace relational property ids with ``(id, display_name)`` tuples, and
-        raw tags/selection values with their labels. The falsy group cannot use
-        a plain ``(spec, =, False)`` domain because the database may hold values
-        for options removed from the parent.
-        """
         if "." not in group:
             msg = "You must choose the property you want to group by."
             raise ValueError(msg)

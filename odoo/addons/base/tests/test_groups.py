@@ -228,16 +228,11 @@ class TestGroupsObject(common.BaseCase):
         self.assertEqual(str(~~((A & B) | A1)), "('A' & 'B') | 'A1'")
 
     def test_groups_invert_blowup_is_guarded(self):
-        """Inverting a large disjunction must raise SetExpressionError fast.
-
-        De Morgan expands ``~((A1 & A2) | ...)`` to ``2**N`` terms for N two-leaf
-        disjuncts, so a pathological expression must be guarded, not materialized.
-        """
         defs = SetDefinitions({i: {"ref": f"g{i}"} for i in range(1, 41)})
         groups = [defs.parse(f"g{i}") for i in range(1, 41)]
         expr = defs.empty
         for i in range(0, 40, 2):
-            expr = expr | (groups[i] & groups[i + 1])
+            expr |= groups[i] & groups[i + 1]
 
         with self.assertRaises(SetExpressionError):
             _ = ~expr
@@ -558,18 +553,6 @@ class TestGroupsObject(common.BaseCase):
 
 @common.tagged("at_install", "groups")
 class TestGroupsOdoo(common.TransactionCase):
-    """Exercise the group algebra against the database's real group graph.
-
-    The assertions below only hold for a known graph, so the two shapes they
-    need — a group implying ``group_user`` and a group implying nothing and
-    implied by nothing — are created here rather than borrowed from the addon
-    data.  ``base.group_multi_currency`` used to play the second role, but it
-    is an optional *feature* group: switching Multi-Currencies on makes
-    ``group_user`` imply it, at which point every expression mentioning it
-    legitimately simplifies away and a dozen assertions fail on a database
-    whose only sin is having the setting enabled.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -599,11 +582,6 @@ class TestGroupsOdoo(common.TransactionCase):
         cls.definitions = cls.env["res.groups"]._get_group_definitions()
 
     def parse_repr(self, group_repr):
-        """Return the group object parsed from its repr string.
-
-        ``group_repr`` uses ``|`` (union), ``&`` (intersection, binds tighter),
-        and ``~`` (inversion), like the Python object's repr.
-        """
         if not group_repr:
             return self.definitions.universe
         res = None
@@ -1345,13 +1323,6 @@ class TestGroupsOdoo(common.TransactionCase):
 
 @common.tagged("post_install", "-at_install", "groups")
 class TestGroupsCacheInvalidation(common.TransactionCase):
-    """The cached `groups` family (res.groups._get_view_group_hierarchy) must be
-    invalidated when group or privilege metadata feeding it changes.
-
-    RG-L1 (group rename) / RG-L2 (privilege edit): the cache was previously
-    busted only on implied_ids/implied_by_ids changes, serving a stale hierarchy.
-    """
-
     def setUp(self):
         super().setUp()
         self.addCleanup(self.env.registry.clear_cache, "groups")
@@ -1388,10 +1359,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         )
 
     def test_unlink_invalidates_default_group_cache(self):
-        """RG-T1: res.groups.unlink must bust the `default`-family caches
-        (res.users._get_group_ids) so a deleted group's id is not left stale in
-        a user who held it.
-        """
         Groups = self.env["res.groups"]
         group = Groups.create({"name": "Audit RG-T1 Group"})
         user = self.env["res.users"].create(
@@ -1419,10 +1386,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         )
 
     def test_is_feature_enabled(self):
-        """RG-T2: _is_feature_enabled is True iff the feature group is
-        transitively implied by base.group_user, False for a standalone group
-        and for an unknown reference.
-        """
         Groups = self.env["res.groups"]
 
         feature = Groups.create({"name": "Audit RG-T2 Feature"})
@@ -1460,9 +1423,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         )
 
     def test_privilege_create_unlink_invalidates_view_group_hierarchy(self):
-        """RGP-T1: privilege create and unlink must bust the `groups` family so
-        the cached view_group_hierarchy reflects the privilege set.
-        """
         Groups = self.env["res.groups"]
         Privilege = self.env["res.groups.privilege"]
 
@@ -1487,13 +1447,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
 
 
 class TestAllUsersCount(common.TransactionCase):
-    """all_users_count computed via search_count (RG-P2).
-
-    The count must not materialize the whole implied-user population into the ORM
-    cache, and must keep matching len(all_user_ids) under the caller's active_test
-    (archived users are filtered out at access time in the default context).
-    """
-
     def test_count_includes_implied_users(self):
         Groups = self.env["res.groups"]
         group_base = Groups.create({"name": "auc base"})
@@ -1552,12 +1505,6 @@ class TestAllUsersCount(common.TransactionCase):
 
 
 class TestPrivilegeGroupSorting(common.TransactionCase):
-    """_sorted_privilege_group_ids precomputes the implication counts (RG-P3).
-
-    Order contract: by number of the privilege's groups each group implies (self
-    included), then sequence, then id.
-    """
-
     def test_sorted_by_implication_depth_then_sequence(self):
         privilege = self.env["res.groups.privilege"].create({"name": "sort priv"})
         Groups = self.env["res.groups"]

@@ -14,12 +14,6 @@ class TestGraph(BaseCase):
         modules_list: list[list[str]],
         expected: list[str],
     ) -> None:
-        """Assert the load order of modules added in successive rounds.
-
-        :param dependency: module -> its depends, e.g. {module_a: [module_b]}
-        :param modules_list: modules to add per round, e.g. [['a', 'b'], ['c']]
-        :param expected: expected graph order
-        """
 
         def make_manifest(name, **kw):
             if name not in dependency:
@@ -182,20 +176,8 @@ class TestGraph(BaseCase):
 
 
 class TestCycleDetection(BaseCase):
-    """Unit tests for ModuleGraph._find_cycle_members (Tarjan SCC).
-
-    Exercised directly, before ``extend`` removes the offending nodes: an
-    end-to-end order test cannot tell a correct detector from a buggy one, since
-    ``_remove`` cascades to dependents and would prune a missed node anyway.
-    """
-
     @staticmethod
     def _graph(edges: dict[str, list[str]]) -> ModuleGraph:
-        """Build a graph of bare ModuleNodes with the given depends edges.
-
-        Bypasses __init__ (no manifest/DB needed): _find_cycle_members only
-        reads ``.name`` and ``.depends``.
-        """
         graph = ModuleGraph.__new__(ModuleGraph)
         graph._modules = {}
         graph.mode = "load"
@@ -229,12 +211,6 @@ class TestCycleDetection(BaseCase):
 
     @mute_logger("odoo.modules.module_graph")
     def test_update_from_database_skips_cascaded_removed_module(self):
-        """A module removed by cascade must be skipped, not re-``_remove``d.
-
-        B depends on A; both are ``uninstallable`` in the DB.  Processing A's row
-        cascades ``_remove('a')`` — which also removes B — so B's own row must be
-        skipped before ``_remove``'s unguarded ``pop()`` would ``KeyError`` on it.
-        """
         graph = self._graph({"a": [], "b": ["a"]})
 
         class _Cursor:

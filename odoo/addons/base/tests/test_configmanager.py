@@ -327,11 +327,6 @@ class TestConfigManager(TransactionCase):
                 self.assertEqual(config_content.splitlines(), save_content.splitlines())
 
     def test_03b_save_tightens_permissions_on_resave(self):
-        """``save()`` must re-tighten the config to 0o600 on every save.
-
-        The file holds db/admin/smtp passwords; restricting perms only on first
-        creation left a re-save over a world-readable config exposing them.
-        """
         with file_open_temporary_directory(self.env) as temp_dir:
             config_path = f"{temp_dir}/save_perms.conf"
             cfg = Path(config_path)
@@ -518,7 +513,6 @@ class TestConfigManager(TransactionCase):
         )
 
     def test_05_repeat_parse_config(self):
-        """Emulate multiple calls to parse_config()"""
         with self.assertLogs("odoo.tools.config", "WARNING") as capture:
             config = configmanager()
             config._parse_config()

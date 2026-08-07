@@ -44,7 +44,7 @@ _proxy_fix = ProxyFix_(
 
 
 def _noop_start_response(status: str, headers: list[tuple[str, str]]) -> None:
-    """No-op start_response for ProxyFix."""
+    pass
 
 
 _UNSET = object()
@@ -52,22 +52,6 @@ _UNSET = object()
 
 @functools.lru_cache(maxsize=4096)
 def _resolve_static_resource(static_path: str, resource: str) -> str:
-    """Resolve ``resource`` under a module's validated ``static_path``, cached.
-
-    ``file_path`` costs ~150-300µs (it ``Path.resolve()``s every ``addons_path``
-    entry to reject symlink/``..`` escapes) and its url→file mapping is stable for
-    a deployment, so cache *positive* resolutions. ``FileNotFoundError`` is not
-    cached (``lru_cache`` skips exceptions), so a file added in dev mode is seen
-    next request and missing-path probes can't evict useful entries; a later
-    *deleted* file still 404s because :meth:`Stream._from_trusted_path` stats it
-    per request. Keyed by ``static_path`` so a manifest swap changes the key.
-
-    ``file_path`` only enforces the *addons-tree* boundary, so a ``..`` in
-    ``resource`` could escape ``static/`` while staying in the addon, disclosing
-    Python source. Re-assert the resolved file is contained in ``static_path``
-    (``resolve()`` vs ``resolve()``, so a symlinked ``static/`` isn't defeated),
-    matching ``werkzeug.security.safe_join`` on the cold path.
-    """
     resolved = file_path(f"{static_path}/{resource}")
     if not Path(resolved).resolve().is_relative_to(Path(static_path).resolve()):
         raise FileNotFoundError(resolved)
@@ -75,20 +59,6 @@ def _resolve_static_resource(static_path: str, resource: str) -> str:
 
 
 class _locked_cached_property(functools.cached_property):
-    """Thread-safe :func:`functools.cached_property`.
-
-    Python 3.12 dropped the stdlib lock, so under concurrent first-access (a cold
-    worker hit by parallel requests) the factory can run twice — for :data:`root`
-    that rebuilds ``nodb_routing_map`` and leaks a second GeoIP ``Reader`` handle.
-    This subclass double-checks the instance ``__dict__`` under a per-descriptor
-    lock so the factory runs exactly once.
-
-    It *subclasses* (rather than reimplements) so stdlib-type introspection still
-    works — notably :func:`odoo.tools.reset_cached_properties`, which the test
-    suite uses to swap in test doubles. It stays a non-data descriptor, so once
-    cached the ``__dict__`` shadows it and the lock is never taken on the hot read.
-    """
-
     def __init__(self, func: Callable) -> None:
         super().__init__(func)
         self.lock = threading.Lock()
@@ -110,38 +80,17 @@ class _locked_cached_property(functools.cached_property):
 
 
 class Application:
-    """Odoo WSGI application"""
-
     def initialize(self) -> None:
-        """
-        Called when setting up a WSGI application, after initializing the
-        configuration values.
-        """
         module_manager.initialize_sys_path()
         from odoo.service.server import load_server_wide_modules
 
         load_server_wide_modules()
 
     def static_path(self, module_name: str) -> str | None:
-        """
-        Map module names to their absolute ``static`` path on the file
-        system.
-        """
         manifest = module_manager.Manifest.for_addon(module_name, display_warning=False)
         return manifest.static_path if manifest is not None else None
 
     def get_static_file(self, url: str, host: str = "") -> str | None:
-        """
-        Get the full-path of the file if the url resolves to a local
-        static file, otherwise return None.
-
-        Without the second host parameter, ``url`` must be an absolute
-        path; other URLs are considered faulty.
-
-        With the second host parameter, ``url`` can also be a full URI
-        and the authority found in the URL (if any) is validated against
-        the given ``host``.
-        """
 
         netloc, path = urlparse(url)[1:3]
         try:
@@ -187,28 +136,12 @@ class Application:
         return FilesystemSessionStore(path, session_class=Session, renew_missing=True)
 
     def get_db_router(self, db: str | None, env: Any = None) -> werkzeug.routing.Map:
-        """Return the routing map serving ``db``, or the db-less one.
-
-        A db-backed routing map can only be built from an ``Environment`` (it is
-        an ORM-cached model method needing a cursor), so ``db`` alone cannot
-        produce one -- it only selects *which* map. Callers that already hold an
-        env should pass it: relying on the implicit ``request.env`` makes an
-        otherwise pure routing lookup unusable outside an HTTP request, and
-        silently ignores the caller's env (user, company, website context).
-        """
         if not db:
             return self.nodb_routing_map
         return (env if env is not None else request.env)["ir.http"].routing_map()
 
     @_locked_cached_property
     def geoip_city_db(self):
-        """A geoip2 City ``Reader``, or ``None`` when one cannot be opened.
-
-        Returning ``None`` lets ``_locked_cached_property`` cache the *failure*,
-        so a missing/invalid database (or absent geoip2) is opened and logged at
-        most once per worker. IP resolution is optional, so the caller
-        (:meth:`GeoIP._city_record`) treats ``None`` as "no GeoIP context".
-        """
         if geoip2 is None:
             return None
         try:
@@ -223,12 +156,6 @@ class Application:
 
     @_locked_cached_property
     def geoip_country_db(self):
-        """A geoip2 Country ``Reader``, or ``None`` when one cannot be opened.
-
-        Like :meth:`geoip_city_db`, the ``None`` failure is cached (opened once
-        per worker). The caller (:meth:`GeoIP._country_record`) falls back to the
-        City database.
-        """
         if geoip2 is None:
             return None
         try:
@@ -254,15 +181,6 @@ class Application:
         headers["Content-Security-Policy"] = "default-src 'none'"
 
     def _reset_thread_state(self) -> None:
-        """Reset per-request bookkeeping on the pooled worker thread.
-
-        Threads are pooled, so every field of
-        :class:`~odoo.libs.worker_thread.WorkerThread` must be reset here: a
-        request that fails before populating one would otherwise report the
-        PREVIOUS request's value. Fields set only later in the request are
-        cleared rather than zeroed, so a reader can tell "not reached yet" from
-        a real value.
-        """
         current_thread = current_worker_thread()
         current_thread.query_count = 0
         current_thread.query_time = 0
@@ -277,14 +195,6 @@ class Application:
         current_thread.rpc_model_method = ""
 
     def _apply_proxy_fix(self, environ: dict[str, object]) -> None:
-        """Rewrite ``REMOTE_ADDR`` / scheme / host from trusted ``X-Forwarded-*``.
-
-        Runs only under ``proxy_mode`` with at least one trusted ``X-Forwarded-*``
-        header. The gate covers For/Proto/Host (not just Host): a proxy forwarding
-        only For/Proto (e.g. an AWS ALB) would otherwise leave ``REMOTE_ADDR`` /
-        scheme wrong, breaking GeoIP, device traces and ``is_secure``. ``ProxyFix``
-        mutates ``environ`` as a side effect; see pallets/werkzeug#2184.
-        """
         if odoo.tools.config["proxy_mode"] and (
             environ.get("HTTP_X_FORWARDED_FOR")
             or environ.get("HTTP_X_FORWARDED_PROTO")
@@ -295,7 +205,6 @@ class Application:
     def _recover_from_registry_error(
         self, request: Request, httprequest: HTTPRequest, exc: RegistryError
     ) -> Any:
-        """Serve a request db-less after its database/registry became unusable."""
         _logger.warning(
             "Database or registry unusable, trying without",
             exc_info=exc.__cause__,
@@ -319,13 +228,6 @@ class Application:
         return request._serve_nodb()
 
     def _log_request_exception(self, exc: Exception) -> None:
-        """Log ``exc`` at the entrypoint so the traceback starts at ``__call__``.
-
-        The level depends on the kind: framework exceptions carry their own
-        ``loglevel``; an ``HTTPException`` is the controller's deliberate status
-        choice and is not logged; auth/user errors are warnings; anything else
-        is an unexpected 500 logged with a full traceback.
-        """
         if hasattr(exc, "loglevel"):
             _logger.log(
                 exc.loglevel,
@@ -341,15 +243,9 @@ class Application:
         elif isinstance(exc, UserError):
             _logger.warning(exc)
         else:
-            _logger.exception("Exception during request handling.")
+            _logger.error("Exception during request handling.", exc_info=exc)
 
     def _ensure_error_response(self, exc: Exception, request: Request | None) -> None:
-        """Guarantee ``exc`` carries a WSGI ``error_response`` handler.
-
-        In the normal path the dispatcher's ``handle_error`` builds it; when the
-        request was never constructed (e.g. a bad environ before ``Request`` was
-        built) there is no dispatcher, so fall back to a generic 500.
-        """
         if hasattr(exc, "error_response"):
             return
         if isinstance(exc, AccessDenied):
@@ -362,33 +258,6 @@ class Application:
             exc.error_response = InternalServerError(str(exc) or None)
 
     def _finalize_error_response(self, exc: Exception, request: Request | None) -> None:
-        """Run the post-dispatch pipeline over ``exc.error_response``.
-
-        Error responses are built by ``handle_error`` and returned straight to
-        the WSGI server, so they used to skip :meth:`Dispatcher.post_dispatch`
-        entirely. Everything that step contributes was therefore silently lost
-        on *every* failing request:
-
-        * the CORS headers ``pre_dispatch`` staged on ``future_response`` — so a
-          cross-origin caller of a ``cors=`` route saw an opaque browser CORS
-          failure instead of the 400/500 the server actually sent, making the
-          error unreadable and undebuggable from the client;
-        * the ``session_id`` cookie, so a session created (or rotated) during a
-          request that then failed never reached the client — the next request
-          minted yet another session;
-        * ``set_csp``'s ``X-Content-Type-Options: nosniff``.
-
-        ``handle_error`` may hand back an ``HTTPException`` rather than a
-        ``Response`` (``HttpDispatcher`` returns HTTP exceptions as-is), so
-        materialise it first — ``get_response`` is the same conversion
-        ``HTTPException.__call__`` would perform at WSGI time, only earlier, so
-        the headers have something to land on.
-
-        Best-effort by construction: this runs inside the entrypoint's ``except``
-        block, where the cursor is already closed and the registry may be gone. A
-        failure here must never replace the error being reported, so it is logged
-        and the un-decorated response is kept.
-        """
         if request is None or not request._post_init_done:
             return
         try:
@@ -407,16 +276,6 @@ class Application:
     def __call__(
         self, environ: dict[str, object], start_response: Callable
     ) -> Iterable[bytes]:
-        """
-        WSGI application entry point.
-
-        :param dict environ: container for CGI environment variables
-            such as the request HTTP headers, the source IP address and
-            the body as an io file.
-        :param callable start_response: function provided by the WSGI
-            server that this application must call to send the HTTP
-            response status line and the response headers.
-        """
         self._reset_thread_state()
         self._apply_proxy_fix(environ)
 

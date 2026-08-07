@@ -24,7 +24,6 @@ class TestESLint(lint_case.LintCase):
     longMessage = True
 
     def _test_eslint(self, modules, eslintrc_path):
-        """Test that there are no eslint errors in javascript files"""
 
         files_to_check = [
             p

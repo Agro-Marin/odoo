@@ -34,18 +34,6 @@ class IrBinary(models.AbstractModel):
         access_token: str | None = None,
         field: str | None = None,
     ) -> Any:
-        """Find a record by xmlid or model+id, for ``/web/content`` and
-        ``/web/image`` only.
-
-        :param str res_model: model of the record, ir.attachment by default.
-        :param str | None access_token: token used instead of access rights.
-        :param str | None field: image field whose access is checked. Mandatory
-            with ``access_token``: a binary token is bound to a concrete field
-            name, so one verified against ``field=None`` never matches and is
-            silently ignored (IRB-L2).
-        :returns: single record
-        :raises MissingError: when no record was found.
-        """
         record = None
         if xmlid:
             record = self.env.ref(xmlid, False)
@@ -65,13 +53,6 @@ class IrBinary(models.AbstractModel):
         return record
 
     def _record_to_stream(self, record: Any, field_name: str) -> Stream:
-        """Convert a record's binary field to a stream.
-
-        Low-level extensible hook; not meant to be called from outside
-        ir.binary.
-
-        :rtype: Stream
-        """
         if record._name == "ir.attachment" and field_name in (
             "raw",
             "datas",
@@ -110,18 +91,6 @@ class IrBinary(models.AbstractModel):
         mimetype: str | None = None,
         default_mimetype: str = "application/octet-stream",
     ) -> Stream:
-        """Create a :class:`odoo.http.Stream` from a record's binary field.
-
-        :param str field_name: the binary field to load from.
-        :param str | None filename: download filename; defaults to
-            ``{table}-{id}-{field}.{extension}`` (extension from mimetype).
-        :param str filename_field: char field to use as the download filename.
-        :param str | None mimetype: mimetype to use instead of the stored or
-            magic-detected one.
-        :param str default_mimetype: fallback mimetype
-            (``application/octet-stream``).
-        :rtype: Stream
-        """
         with replace_exceptions(
             ValueError,
             by=UserError(f"Expected singleton: {record}"),
@@ -185,24 +154,6 @@ class IrBinary(models.AbstractModel):
         crop: bool = False,
         quality: int = 0,
     ) -> Stream:
-        """Image variant of :meth:`_get_stream_from`.
-
-        When the record is missing or inaccessible, ``placeholder`` is served
-        instead (defaulting to
-        :meth:`~odoo.models.BaseModel._get_placeholder_filename`, ultimately
-        ``web/static/img/placeholder.png``). When ``width``, ``height`` or
-        ``crop`` is given the image is post-processed (at the requested
-        ``quality``) and its ETag updated accordingly (see
-        :func:`odoo.tools.image.image_process`).
-
-        :param str | None placeholder: image path served when the record image
-            is missing or inaccessible.
-        :param int width: resized width, or 0 to keep.
-        :param int height: resized height, or 0 to keep.
-        :param bool crop: crop instead of resize.
-        :param int quality: resized quality, or 0 for default.
-        :rtype: Stream
-        """
         stream = None
         try:
             stream = self._get_stream_from(
@@ -253,10 +204,10 @@ class IrBinary(models.AbstractModel):
 
         if modified and (width or height or crop):
             if stream.type == "path":
-                with pathlib.Path(stream.path).open("rb") as file:
-                    stream.type = "data"
-                    stream.path = None
-                    stream.data = file.read()
+                data = pathlib.Path(stream.path).read_bytes()
+                stream.type = "data"
+                stream.path = None
+                stream.data = data
             stream.data = image_process(
                 stream.data,
                 size=(width, height),
@@ -268,21 +219,11 @@ class IrBinary(models.AbstractModel):
         return stream
 
     def _get_placeholder_stream(self, path: str | None = None) -> Stream:
-        """Return a placeholder image as a stream, defaulting to the web placeholder.
-
-        :param str | None path: image path; ``web/static/img/placeholder.png`` when falsy.
-        :rtype: Stream
-        """
         if not path:
             path = DEFAULT_PLACEHOLDER_PATH
         return Stream.from_path(path, filter_ext=(".png", ".jpg"))
 
     def _placeholder(self, path: str | bool = False) -> bytes:
-        """Return the raw bytes of a placeholder image, defaulting to the web placeholder.
-
-        :param str | bool path: image path; ``web/static/img/placeholder.png`` when falsy.
-        :rtype: bytes
-        """
         if not path:
             path = DEFAULT_PLACEHOLDER_PATH
         with file_open(path, "rb", filter_ext=(".png", ".jpg")) as file:

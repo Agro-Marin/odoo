@@ -15,15 +15,6 @@ PNG_1x1_B64 = b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAA
 
 @tagged("post_install", "-at_install")
 class TestIrBinaryNoRequest(TransactionCase):
-    """IRB-L1: _get_image_stream_from must not dereference the thread-local
-    `request` proxy on the no-request path (cron/worker resolving /web/image
-    server-side); previously it raised AttributeError, downgrading the
-    deadlock-avoidance fast path to an HTTP self-fetch.
-
-    Stream resolution is mocked to a ready data stream to isolate the
-    request-handling branch from the attachment-streaming path.
-    """
-
     def test_get_image_stream_from_without_request(self):
         raw_png = base64.b64decode(PNG_1x1_B64)
         data_stream = Stream(
@@ -50,12 +41,6 @@ class TestIrBinaryNoRequest(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrAttachmentNoRequest(TransactionCase):
-    """NEW-1 (found while testing IRB-L1): a filestore attachment's
-    _to_http_stream must resolve the filestore path without an HTTP request
-    (cron / server-side rendering), where `request` is unbound; previously it
-    raised on request.db.
-    """
-
     def test_to_http_stream_without_request(self):
         att = self.env["ir.attachment"].create({"name": "audit-new1", "raw": b"hello"})
         self.assertTrue(att.store_fname, "expected a filestore-backed attachment")
@@ -67,12 +52,6 @@ class TestIrAttachmentNoRequest(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrBinaryImageMissing(TransactionCase):
-    """IRB-C1: _get_image_stream_from must degrade to the placeholder when
-    _get_stream_from raises MissingError (e.g. a dangling attachment-backed
-    binary field) instead of escaping to a 500; previously only UserError was
-    caught.
-    """
-
     def test_missing_error_falls_back_to_placeholder(self):
         ir_binary = self.env["ir.binary"]
         partner = self.env["res.partner"].create({"name": "Audit IRB-C1"})
@@ -94,11 +73,6 @@ class TestIrBinaryImageMissing(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrBinaryFindRecordAccess(TransactionCaseWithUserDemo):
-    """IRB-T1: exercise the access-control branches of _find_record -- a valid
-    field-scoped token grants sudo, a mismatched token does not, and an
-    unreadable record falls through to check_access and raises.
-    """
-
     def test_valid_field_token_grants_sudo(self):
         partner = self.env["res.partner"].create({"name": "Audit IRB-T1 token"})
         token = limited_field_access_token(partner, "image_1920", scope="binary")
@@ -142,13 +116,6 @@ class TestIrBinaryFindRecordAccess(TransactionCaseWithUserDemo):
 
 @tagged("post_install", "-at_install")
 class TestIrBinaryImageBranches(TransactionCase):
-    """IRB-C2 + branch coverage for _get_image_stream_from.
-
-    Pins the previously untested branches: the swallowed-exception DEBUG trace,
-    the explicit-download re-raise, the ETag augmentation on post-processing,
-    and the empty-stream placeholder fallback.
-    """
-
     @property
     def _binary(self):
         return self.env["ir.binary"]
@@ -167,9 +134,6 @@ class TestIrBinaryImageBranches(TransactionCase):
         )
 
     def test_swallowed_error_is_logged_at_debug(self):
-        """The placeholder fallback must leave a DEBUG trace naming the
-        swallowed exception, or genuine programming errors (typo'd
-        field_name) are undiagnosable."""
         partner = self._partner("Audit IRB-C2 log")
 
         def raise_user_error(*args, **kwargs):
@@ -190,7 +154,6 @@ class TestIrBinaryImageBranches(TransactionCase):
         self.assertIn("res.partner", joined)
 
     def test_explicit_download_re_raises(self):
-        """?download requests must surface the error, not a placeholder."""
         partner = self._partner("Audit IRB-C2 download")
         fake_request = SimpleNamespace(params={"download": "1"})
 
@@ -207,7 +170,6 @@ class TestIrBinaryImageBranches(TransactionCase):
                 self._binary._get_image_stream_from(partner, "image_1920")
 
     def test_empty_stream_falls_back_to_placeholder(self):
-        """A zero-size stream degrades to the placeholder like an error."""
         partner = self._partner("Audit IRB-C2 empty")
         empty = Stream(type="data", data=b"", mimetype="image/png", size=0)
         with (
@@ -219,8 +181,6 @@ class TestIrBinaryImageBranches(TransactionCase):
         self.assertTrue(stream.size, "placeholder must carry actual bytes")
 
     def test_etag_augmented_with_processing_params(self):
-        """Post-processing parameters must be baked into the ETag, or a
-        resized variant would be served from the cache of another size."""
         partner = self._partner("Audit IRB-C2 etag")
         with (
             patch("odoo.addons.base.models.ir_binary.request", None),

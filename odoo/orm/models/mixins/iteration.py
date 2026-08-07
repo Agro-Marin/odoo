@@ -1,9 +1,3 @@
-"""Iteration and set-operation mixin for BaseModel.
-
-Iterating over recordsets, combining them, and set operations (union,
-intersection, difference).
-"""
-
 import typing
 import warnings
 from itertools import batched
@@ -25,8 +19,6 @@ if typing.TYPE_CHECKING:
 
 
 class IterationMixin(_ModelStubs):
-    """Mixin providing iteration and set operations for recordsets."""
-
     __slots__ = ()
 
     def __init__(
@@ -35,21 +27,6 @@ class IterationMixin(_ModelStubs):
         ids: tuple[IdType, ...],
         prefetch_ids: Reversible[IdType],
     ):
-        """Create a recordset instance.
-
-        :param env: an environment
-        :param ids: a tuple of record ids
-        :param prefetch_ids: a reversible iterable of record ids (for prefetching)
-
-        .. note::
-            Recordsets are normally built via :meth:`_spawn` (or :meth:`browse`),
-            which bypass this ``__init__``.  ``_spawn`` is the single source of
-            truth for the slot set; a handful of per-record hot loops still
-            inline the same three assignments for speed (``__iter__``,
-            ``__reversed__``, ``RecomputeMixin._flush``, ``Environment.__getitem__``)
-            and are marked as such.  Any new slot must be set in ``_spawn`` and
-            those marked mirrors, or empty recordsets will lack it.
-        """
         self.env = env
         self._ids = ids
         self._prefetch_ids = prefetch_ids
@@ -61,14 +38,6 @@ class IterationMixin(_ModelStubs):
         ids: tuple[IdType, ...],
         prefetch_ids: Reversible[IdType],
     ) -> Self:
-        """Build a recordset without the ``__init__`` dispatch overhead.
-
-        Single source of truth for recordset construction: it sets exactly the
-        :attr:`BaseModel.__slots__`.  Use it instead of hand-rolling
-        ``object.__new__(cls)`` + slot assignments, so adding a slot is a
-        one-line change here rather than a hunt across every construction site.
-        Hot per-record loops may still inline the body (see ``__init__``).
-        """
         record = object.__new__(cls)
         record.env = env
         record._ids = ids
@@ -77,14 +46,6 @@ class IterationMixin(_ModelStubs):
 
     @api.private
     def browse(self, ids: int | typing.Iterable[IdType] = ()) -> Self:
-        """Return a recordset for the ids provided as parameter in the current
-        environment.
-
-        .. code-block:: python
-
-            self.browse([7, 18, 12])
-            res.partner(7, 18, 12)
-        """
         if not ids:
             ids = ()
         elif ids.__class__ is int:
@@ -95,35 +56,21 @@ class IterationMixin(_ModelStubs):
 
     @property
     def ids(self) -> list[int]:
-        """Return the list of actual record ids corresponding to ``self``."""
         if all(self._ids):
             return list(self._ids)
         return list(_origin_ids(self._ids))
 
     @property
     def _new_records(self) -> Self:
-        """The subset of ``self`` that has no database id yet.
-
-        The complement of ``filtered("id")``, which has its own fast path in
-        :meth:`~odoo.orm.models.mixins.traversal.TraversalMixin.filtered` for the
-        same reason this exists: the spelling it replaces --
-        ``filtered(lambda r: not r.id)`` -- materializes one singleton recordset
-        per record and dispatches ``Id.__get__`` on each, to compute a predicate
-        that is ``bool`` of the id.  A ``NewId`` is falsy whatever its ``origin``,
-        so the two agree by construction.
-        """
         return self.browse([id_ for id_ in self._ids if not id_])
 
     def __bool__(self) -> bool:
-        """Test whether ``self`` is nonempty."""
         return bool(self._ids)
 
     def __len__(self) -> int:
-        """Return the size of ``self``."""
         return len(self._ids)
 
     def __iter__(self) -> Iterator[Self]:
-        """Return an iterator over ``self``."""
         ids = self._ids
         size = len(ids)
         if size <= 1:
@@ -151,7 +98,6 @@ class IterationMixin(_ModelStubs):
                 yield rs
 
     def __reversed__(self) -> Iterator[Self]:
-        """Return a reversed iterator over ``self``."""
         ids = self._ids
         size = len(ids)
         if size <= 1:
@@ -180,15 +126,6 @@ class IterationMixin(_ModelStubs):
                 yield rs
 
     def __contains__(self, item) -> bool:
-        """Test whether ``item`` (record or field name) is an element of ``self``.
-
-        In the first case, the test is fully equivalent to::
-
-            any(item == record for record in self)
-
-        In the second case, we check whether the model has a field named
-        ``item``.
-        """
         try:
             if self._name == item._name:
                 return len(item) == 1 and item.id in self._ids
@@ -202,12 +139,6 @@ class IterationMixin(_ModelStubs):
 
     @api.private
     def index(self, item, start: int = 0, stop: int | None = None) -> int:
-        """Return the first index where the singleton ``item`` is found in ``self``.
-
-        Honors the standard ``Sequence.index`` contract: raises ``ValueError``
-        when not found.  ``item`` must be a singleton recordset of the same
-        model as ``self``.
-        """
         try:
             if self._name != item._name:
                 raise TypeError(f"inconsistent models in: {item}.index({self})")
@@ -233,11 +164,6 @@ class IterationMixin(_ModelStubs):
 
     @api.private
     def count(self, item) -> int:
-        """Return the number of occurrences of the singleton ``item`` in ``self``.
-
-        Honors the standard ``Sequence.count`` contract.  ``item`` must be a
-        singleton recordset of the same model as ``self``.
-        """
         try:
             if self._name != item._name:
                 raise TypeError(f"inconsistent models in: {item}.count({self})")
@@ -251,14 +177,10 @@ class IterationMixin(_ModelStubs):
         return sum(1 for id_ in self._ids if id_ == target)
 
     def __add__(self, other) -> Self:
-        """Return the concatenation of two recordsets."""
         return self.concat(other)
 
     @api.private
     def concat(self, *args: Self) -> Self:
-        """Return the concatenation of ``self`` with all the arguments (in
-        linear time complexity).
-        """
         ids = list(self._ids)
         for arg in args:
             try:
@@ -272,9 +194,6 @@ class IterationMixin(_ModelStubs):
         return self.browse(ids)
 
     def __sub__(self, other) -> Self:
-        """Return the recordset of all the records in ``self`` that are not in
-        ``other``. Note that recordset order is preserved.
-        """
         try:
             if self._name != other._name:
                 raise TypeError(f"inconsistent models in: {self} - {other}")
@@ -288,9 +207,6 @@ class IterationMixin(_ModelStubs):
             ) from None
 
     def __and__(self, other) -> Self:
-        """Return the intersection of two recordsets.
-        Note that first occurrence order is preserved.
-        """
         try:
             if self._name != other._name:
                 raise TypeError(f"inconsistent models in: {self} & {other}")
@@ -304,16 +220,10 @@ class IterationMixin(_ModelStubs):
             ) from None
 
     def __or__(self, other) -> Self:
-        """Return the union of two recordsets.
-        Note that first occurrence order is preserved.
-        """
         return self.union(other)
 
     @api.private
     def union(self, *args: Self) -> Self:
-        """Return the union of ``self`` with all the arguments (in linear time
-        complexity, with first occurrence order preserved).
-        """
         if len(args) == 1:
             arg = args[0]
             try:
@@ -344,7 +254,6 @@ class IterationMixin(_ModelStubs):
         return self.browse(OrderedSet(ids))
 
     def __eq__(self, other: object) -> bool:
-        """Test whether two recordsets are equivalent (up to reordering)."""
         try:
             if self._name != other._name:
                 return False
@@ -416,9 +325,6 @@ class IterationMixin(_ModelStubs):
     def __getitem__(self, key: str) -> typing.Any: ...
 
     def __getitem__(self, key: int | slice | str) -> Self | typing.Any:
-        """Index with an int/slice to select records, or with a field name to
-        read that field's value (``self`` must then be a single record).
-        """
         if isinstance(key, str):
             return self._fields[key].__get__(self)
         elif isinstance(key, slice):
@@ -429,5 +335,4 @@ class IterationMixin(_ModelStubs):
             return self._spawn(self.env, ids, self._prefetch_ids)
 
     def __setitem__(self, key: str, value: typing.Any):
-        """Assign the field ``key`` to ``value`` in record ``self``."""
         return self._fields[key].__set__(self, value)

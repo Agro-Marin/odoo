@@ -1,16 +1,3 @@
-"""The DB-free harness fails loud on ``env["ir.rule"]`` access.
-
-``model_test_env`` does not enforce record rules: ``search()`` dispatches to
-the in-memory backend *before* the ``ir.rule`` security domain
-(``DictBackend.supports_record_rules = False``), and no ``ir.rule`` model is
-registered.  A bare ``KeyError`` — or worse, a silently-permissive stub —
-would let a security-adjacent test go green while production filters records,
-so :meth:`ModelRegistry.__getitem__` raises the intentional
-:class:`InMemoryRecordRulesNotSupported` instead (same fail-loud contract as
-``InMemoryCursor.rollback`` / ``savepoint``).  A caller-registered ``ir.rule``
-model bypasses the marker and is served normally.
-"""
-
 import pytest
 
 from odoo import fields, models
@@ -32,9 +19,6 @@ class Widget(models.Model):
 
 
 class IrRuleStub(models.AbstractModel):
-    """Caller-provided ``ir.rule`` replacement (``_register = False`` keeps it
-    out of the module registry, so only tests passing it explicitly get it)."""
-
     _name = "ir.rule"
     _description = "ir.rule (caller stub)"
     _register = False

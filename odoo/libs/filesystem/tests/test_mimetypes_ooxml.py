@@ -1,10 +1,3 @@
-"""Regression tests for OOXML sniffing in ``odoo.libs.filesystem.mimetypes``.
-
-Builds minimal in-memory OOXML zips and asserts the discriminant-directory
-lookup identifies each Office format.  Guards the ``ppt/`` PowerPoint marker,
-which was mistyped ``pt/`` and so never matched a real ``.pptx``.
-"""
-
 import io
 import unittest
 import zipfile

@@ -171,7 +171,15 @@ select = [
     "PLE4703",    # modified-iterating-set (0)
     "PLW0244",    # redefined-slots-in-subclass (0) — silently defeats __slots__
     "PLW1514",    # unspecified-encoding (8) — open() without encoding is locale-dependent
-    "PLW3201",    # bad-dunder-method-name (11) — misspelled dunder is never called
+    # PLW3201 (bad-dunder-method-name) was selected here for "a misspelled dunder is
+    # never called", then RETIRED 2026-08-06: it collides head-on with the fork's
+    # `_name__` convention for framework-internal members (`_setup_models__`,
+    # `_setup_done__`, `_base_fields__`, `_wrapped__`, … — 25 distinct names and 250+
+    # uses across orm/, http/ and base/). Ten of its eleven hits were that convention,
+    # and every new `_foo__` method would have added one more; the eleventh
+    # (`_apply_onchange_` in tests/form.py, a stray single trailing underscore) was
+    # renamed instead of suppressed. Same rationale as PLC2701 below: a rule that
+    # fights the architecture is noise, not a floor. See "Rejected preview rules".
     "RUF027",     # missing-f-string-syntax (0) — "{x}" that was meant to be an f-string
     "RUF036",     # none-not-at-end-of-union (1)
     "RUF038",     # redundant-bool-literal (0)
@@ -202,7 +210,6 @@ select = [
     "PLR0203",    # no-staticmethod-decorator (0)
     "PLR1712",    # swap-with-temporary-variable (0)
     "PLR6104",    # non-augmented-assignment (23) — `x = x + y` -> `x += y`
-    "PLC2801",    # unnecessary-dunder-call (21) — `x.__len__()` -> `len(x)`
     "FURB101",    # read-whole-file (7) — pairs with the PTH family already enforced
     "FURB103",    # write-whole-file (3)
     "FURB131",    # delete-full-slice (0)
@@ -227,6 +234,16 @@ select = [
     # -- Rejected preview rules (measured, deliberately NOT selected) --
     # "FURB113",  # repeated-append — loses inter-append comments; rarely a real perf issue
     # "FURB189",  # subclass-builtin (17) — UserDict/UserList are slower; subclassing dict is deliberate here
+    # "PLC2801",  # unnecessary-dunder-call — SELECTED then RETIRED 2026-08-06. All 21 hits
+    #             # were deliberate, and each of the three shapes is structural here, not a slip:
+    #             # (1) `object.__setattr__(self, ...)` inside types that OVERRIDE `__setattr__`
+    #             # to be immutable or to proxy (Domain, lazy, Form) — the bypass is the only way
+    #             # to write the attribute at all, so "mutate directly" is not a fix, it is a
+    #             # recursion; (2) tests calling `__lt__`/`__eq__` explicitly to assert they
+    #             # return `NotImplemented` — the operator would swallow the sentinel and test
+    #             # nothing; (3) manual context-manager lifecycle where enter and exit are not in
+    #             # one scope (`ml.__enter__(); self.addCleanup(ml.__exit__)` in setUp, and
+    #             # QwebTracker pushing entered contexts on a stack) — unwritable as `with`.
     # "PLC2701",  # import-private-name (321) — the fork uses `_module.py` as a package-private
     #             # convention (_recordset, _serve, _prefork); this rule fights that architecture
     # "PLR6201",  # literal-membership (315) — tuple->set micro-optimisation, no correctness value
@@ -399,6 +416,29 @@ ignore = [
 # alternation branch); a raw `\x20` would instead match a space and change matching.
 "odoo/libs/filesystem/mimetypes.py" = ["RUF039"]
 
+# Re-export façades. These modules are `__init__.py` in everything but name: the
+# `odoo/libs/*` split moved the implementations out, and each of these keeps the
+# historical `odoo.tools.<x>` / `odoo.service.<x>` import path alive by importing
+# the names back in. Their `__all__` is the *documented* public API and is
+# deliberately narrower than the compat surface, so the extra names read as unused
+# — 86 of them — while being exactly what the file exists to provide. Verified
+# consumed: `odoo.tools.misc.PENDING/SENTINEL` (31 call sites), `submap`,
+# `ReadonlyDict`, `Collector`, `unquote`; `odoo.service.db._find_disallowed_psql_
+# meta_command` and friends are reached as module attributes by
+# tests/service/test_dump_scanner.py; `odoo.service.server._ON_STOP_FUNCS` /
+# `_SIGHUP_AVAILABLE` / `FSWatcherBase` predate the `_base_server`/`_watcher` split.
+# F401 only, so a genuinely dead non-import stays visible here.
+"odoo/tools/misc.py" = ["F401"]
+"odoo/tools/mail.py" = ["F401"]
+"odoo/tools/image.py" = ["F401"]
+"odoo/tools/json.py" = ["F401"]
+"odoo/tools/i18n.py" = ["F401"]
+"odoo/tools/xml_utils.py" = ["F401"]
+"odoo/service/db.py" = ["F401"]
+"odoo/service/server.py" = ["F401"]
+"odoo/tests/test_cursor.py" = ["F401"]
+"odoo/tests/test_module_operations.py" = ["F401"]
+
 # __init__.py: Re-exports are the whole point; import ORDER is model load order in Odoo.
 # E402 (import-not-at-top): module __init__.py deliberately defines post-init hooks and
 # helper functions before the `from . import ...` re-exports to avoid dependency cycles
@@ -421,6 +461,32 @@ ignore = [
     "A001",       # builtin shadowing in test helpers (hash, type, etc.)
     "A002",       # builtin shadowing in test helpers (str, etc.)
     "RUF069",     # float-equality assertions of exact, deterministic test values are fine
+    # FURB152 (math-constant) is a TRAP in fixtures, not a cleanup. `3.14` here is an
+    # arbitrary non-round float chosen to exercise Float digits/rounding — it is not an
+    # approximation of pi, and `--fix` rewrites it to `math.pi` "safely". That silently
+    # broke real assertions when measured: `assertEqual(round(lazy(3.14159), 2), 3.14)`
+    # became `round(pi, 2) == pi`, and `abs(convert_to_column(3.14159) - 3.14) < 1e-9`
+    # — the whole point of which is the 2-digit currency rounding — collapsed to
+    # `abs(pi - pi)`. Off in tests; still enforced in production code, where a
+    # hand-written pi IS the bug the rule is for.
+    "FURB152",    # math-constant (3.14 is fixture data, not pi)
+    # B018/B015: in an ORM test a bare `record.field` or `x in recordset` IS the
+    # subject — the value is irrelevant, the SIDE EFFECT is what is asserted:
+    # the fetch it forces inside `assertQueryCount`, the AccessError it raises
+    # inside `assertRaises`/`suppress`, the compute it triggers before checking
+    # the cache. All 54 hits measured are that idiom, spread over prefetch,
+    # ACL-feedback, inherits and read_group suites. Prefixing each with `_ =`
+    # would hide the intent behind noise; production code keeps both rules, and
+    # the three real side-effect reads there are written explicitly instead.
+    "B018",       # useless-expression (field touch is the assertion)
+    "B015",       # useless-comparison (`x in recordset` under assertRaises)
+    # RUF075: in `assertQueryCount`/`_patchExecute` the code after `yield` is the
+    # ASSERTION, not cleanup — the real cleanup is an `ExitStack`/`with` around
+    # the yield and already unwinds on GeneratorExit. Wrapping the yield in
+    # try/finally would run the query-count check on a body that already raised
+    # and report that instead of the actual failure. All 5 hits are that shape,
+    # including the deliberately-raising fixture in test_test_suite.
+    "RUF075",     # fallible-context-manager (post-yield code is the assertion)
 ]
 
 # --- Strict-package scoping -------------------------------------------------
@@ -446,8 +512,23 @@ ignore = [
 # convention that tests carry neither docstrings nor full annotations. Structural
 # globs (not hand-listed dirs) so EVERY nested tests/ dir inherits the exemption —
 # e.g. odoo/libs/_field_access/tests — with no drift.
-"odoo/libs/**/tests/**" = ["D", "ANN", "ARG", "FBT003"]
-"odoo/orm/components/**/tests/**" = ["D", "ANN", "ARG", "FBT003"]
+# RUF012 is in this list too: it is kept in the two strict packages as a
+# free-threading guard on SHARED runtime state, and a test class holding a
+# fixture list is neither shared nor runtime.
+"odoo/libs/**/tests/**" = ["D", "ANN", "ARG", "FBT003", "RUF012", "S301"]
+"odoo/orm/components/**/tests/**" = ["D", "ANN", "ARG", "FBT003", "RUF012", "S301"]
+
+# Test-addon models/ are fixtures too — `odoo/addons/test_*` exists only to be
+# installed by the suites, so its field defaults are test data under a `models/`
+# name. Same FURB152 rationale as `**/tests/**` above (test_orm.number and
+# test_performance.f_float both default to a bare 3.14).
+#
+# F811: these addons exist to exercise `_inherit`, and Odoo's own idiom for
+# extending a model is a second class with the SAME Python name — the registry
+# keys on `_name`, not on the class binding, so the "redefinition" is the
+# feature under test (test_inherit is literally named for it). All 15 hits are
+# that shape; renaming the second class would make the fixtures unidiomatic.
+"odoo/addons/test_*/models/**" = ["FURB152", "F811"]
 
 # __manifest__.py: Standalone dict expression is the whole file
 "**/__manifest__.py" = ["B018"]
@@ -471,10 +552,19 @@ ignore = [
 "tooling/hoot/hoot-shard" = ["E402", "EXE003"]
 "tooling/hoot/hoot-affected" = ["E402", "EXE003"]
 "odoo/cli/**" = ["T201"]           # print() is legitimate user output in CLI commands
+# compare.py is a standalone `#!/usr/bin/env python3` report generator with its own
+# argparse main() — it happens to live inside an addon, but it is a CLI script like
+# everything else in this list, and its 25 print() calls ARE the report.
+"odoo/addons/test_performance_compare/compare.py" = ["T201"]
 "doc/**/*.py" = ["T201"]           # CLA stats script: print() is user-facing output
 "tools/**" = ["T201"]              # FA4 migration scripts: print() is user-facing output
 "**/tooling/**" = ["T201"]         # architecture/dev tooling (root + per-addon, e.g. addons/web/tooling)
 "setup.py" = ["E402"]
+# odoo/init.py IS the bootstrap: the import ORDER is the behaviour. It retunes the
+# gc thresholds, applies `_monkeypatches` and enables gc timing before anything
+# imports `odoo`, then binds SUPERUSER_ID/_/_lt onto the package. Every one of its
+# E402s is a step in that sequence, not a stray import.
+"odoo/init.py" = ["E402"]
 
 # Security-critical path validation — os.path is intentional
 "**/tools/files.py" = ["PTH"]

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Rewrite the entire source code using the scripts found at
 /odoo/upgrade_code
@@ -274,17 +275,6 @@ class UpgradeCode(Command):
             self.parser.error(
                 f"--to {options.to_version} is older than --from {options.from_version}"
             )
-        # Rewrite ONLY the paths the caller named.  This used to fall back to
-        # odoo.addons.__path__, whose first element is always the framework's
-        # own odoo/addons -- so the default `--glob '**/*'` rewrote every
-        # bundled module in place, with no backup, whatever the user asked for.
-        #
-        # The fallback is config["addons_path"], not odoo.addons.__path__: when
-        # run through odoo-bin the bootstrap parser has already consumed
-        # --addons-path out of argv (it is a global option), so this
-        # subcommand's own copy of the flag arrives empty and the value is only
-        # in the config.  That is what made the framework's tree the effective
-        # default here in the first place.
         requested = [p for p in options.addons_path if p]
         if not requested and initialize_sys_path:
             requested = [p for p in config["addons_path"] if p]
@@ -302,10 +292,6 @@ class UpgradeCode(Command):
             script=options.script,
             dry_run=options.dry_run,
         )
-        # Exit 0 on success.  `int(is_dirty)` made a successful rewrite exit 1,
-        # so any `odoo-bin upgrade_code ... && next-step` shell chain read a
-        # completed migration as a failure.  --dry-run keeps the old meaning:
-        # non-zero means "there are changes to make".
         sys.exit(int(is_dirty) if options.dry_run else 0)
 
 

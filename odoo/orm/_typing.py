@@ -1,14 +1,3 @@
-"""Composite ORM type aliases that depend on multiple ORM layers.
-
-- DomainType: search domain (Domain object or list of tuples)
-- ModelType: generic type for model classes
-
-Simple aliases (Self, ContextType, ValuesType, IdType) live in
-``odoo.orm.primitives`` (zero ORM dependencies). Named ``_typing.py`` to avoid
-shadowing the stdlib ``types`` module. At runtime imports only ``primitives``
-(Layer 0); cross-layer imports are deferred to TYPE_CHECKING.
-"""
-
 import typing
 from typing import Self
 

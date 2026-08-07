@@ -44,14 +44,6 @@ class InitChecker(ast.NodeVisitor):
 
 
 class TestTestHoles(LintCase):
-    """
-    Tries to catch common test issues:
-
-    - test files which are never imported
-    - double imports (not harmful but useless)
-    - nonsense in `tests/__init__` files (e.g. anything other than trivial relative imports)
-    """
-
     def test_check_tests(self):
         checker = InitChecker()
 

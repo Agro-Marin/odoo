@@ -7,8 +7,6 @@ from odoo.tools import file_open
 
 
 class TestAvatarMixin(TransactionCase):
-    """Test the avatar mixin."""
-
     def setUp(self):
         super().setUp()
         partner_without_image = self.env["res.partner"].create(
@@ -89,8 +87,6 @@ class TestAvatarMixin(TransactionCase):
         )
 
     def test_placeholder_bytes_are_cached(self):
-        """The placeholder image is read from disk once and served from the
-        module-level cache afterwards (same object identity)."""
         partner = self.external_partner
         first = partner._avatar_get_placeholder()
         second = partner._avatar_get_placeholder()
@@ -99,8 +95,6 @@ class TestAvatarMixin(TransactionCase):
             self.assertEqual(first, file.read())
 
     def test_partner_placeholder_per_type(self):
-        """Non-user, non-contact partners each fall back to the placeholder
-        matching their own type/path."""
         parent = self.env["res.partner"].create(
             {"name": "Placeholder Corp", "is_company": True}
         )
@@ -116,8 +110,6 @@ class TestAvatarMixin(TransactionCase):
             self.assertEqual(invoice.avatar_128, b64encode(file.read()))
 
     def test_hostile_name_avatar_is_escaped_well_formed_svg(self):
-        """A hostile name renders as escaped entities in a well-formed SVG,
-        with no markup breakout (locks the html_escape injection guard)."""
         partner = self.env["res.partner"].create(
             {
                 "name": '"><script>alert(1)</script>',

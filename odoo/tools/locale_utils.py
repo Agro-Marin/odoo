@@ -1,7 +1,3 @@
-"""
-Language and locale utilities for Odoo.
-"""
-
 import csv
 import functools
 import logging
@@ -33,19 +29,6 @@ def get_iso_codes(lang: str) -> str:
 
 @functools.cache
 def _scan_languages() -> tuple[tuple[str, str], ...]:
-    """Parse ``base/data/res.lang.csv`` once per process.
-
-    The file is shipped data resolved through the addons path, which is fixed
-    after startup, so the result is a constant of the installation.  It is worth
-    memoizing because ``scan_languages`` backs the ``list_lang`` RPC verb, which
-    is reachable with no authentication and no master password.
-
-    Deliberately lets a read failure PROPAGATE instead of returning the English
-    fallback itself: ``functools.cache`` stores return values, not exceptions, so
-    handling the error in here would pin a transient failure — a half-deployed
-    addons directory, a momentary EIO — as this process's permanent answer.
-    :func:`scan_languages` owns the fallback, and the next call retries the read.
-    """
     with file_open("base/data/res.lang.csv") as csvfile:
         reader = csv.reader(csvfile, delimiter=",", quotechar='"')
         fields = next(reader)
@@ -57,13 +40,6 @@ def _scan_languages() -> tuple[tuple[str, str], ...]:
 
 
 def scan_languages() -> list[tuple[str, str]]:
-    """Return all languages supported by Odoo for translation.
-
-    :returns: a list of (lang_code, lang_name) pairs
-
-    A fresh list over the memoized :func:`_scan_languages` parse, so callers keep
-    the mutable sequence the signature promises without sharing the cached value.
-    """
     try:
         return list(_scan_languages())
     except Exception:
@@ -72,14 +48,6 @@ def scan_languages() -> list[tuple[str, str]]:
 
 
 def get_lang(env: Environment, lang_code: str | None = None) -> LangData:
-    """Return the first installed lang, checking lang_code, then the context, then the company.
-
-    Defaults to English, or the first installed lang, if none of those match.
-
-    :param env: environment used to look up installed languages
-    :param str lang_code: the locale (e.g. en_US)
-    :return LangData: the first lang found that is installed on the system.
-    """
     langs = [code for code, _ in env["res.lang"].get_installed()]
     lang = "en_US" if "en_US" in langs else langs[0]
     if lang_code and lang_code in langs:
@@ -98,7 +66,7 @@ def babel_locale_parse(lang_code: str | None) -> babel.Locale:
     if lang_code:
         try:
             return babel.Locale.parse(lang_code)
-        except Exception:
+        except Exception:  # noqa: S110  an unknown lang_code falls through to Locale.default() below
             pass
     try:
         return babel.Locale.default()

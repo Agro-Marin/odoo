@@ -9,9 +9,6 @@ from odoo.addons.base.models.res_company import ResCompany
 
 class TestCompany(TransactionCase):
     def test_check_active(self):
-        """A company can be archived only with no active users, and an archived
-        user in an archived company cannot be unarchived without first moving it
-        to an active company."""
         company = self.env["res.company"].create({"name": "foo"})
         user = self.env["res.users"].create(
             {
@@ -43,8 +40,6 @@ class TestCompany(TransactionCase):
         user.action_unarchive()
 
     def test_check_active_aggregates_all_offending_companies(self):
-        """Archiving several companies with active users reports ALL offenders
-        in a single ValidationError instead of only the first one."""
         company_a, company_b = self.env["res.company"].create(
             [{"name": "arch co A"}, {"name": "arch co B"}]
         )
@@ -64,7 +59,6 @@ class TestCompany(TransactionCase):
         self.assertIn("arch co B", message)
 
     def test_logo_check(self):
-        """Ensure uses_default_logo is properly (re-)computed."""
         company = self.env["res.company"].create({"name": "foo"})
 
         self.assertTrue(company.logo, "Should have a default logo")
@@ -85,7 +79,6 @@ class TestCompany(TransactionCase):
         self.assertFalse(branch.partner_id.parent_id)
 
     def test_color_follows_root_partner_color(self):
-        """Branch color must be recomputed when the root partner color changes."""
         root = self.env["res.company"].create({"name": "color root"})
         branch = self.env["res.company"].create(
             {"name": "color branch", "parent_id": root.id}
@@ -102,8 +95,6 @@ class TestCompany(TransactionCase):
             )
 
     def test_company_partner_ids_cache_invalidation(self):
-        """Changing a company's partner_id must invalidate the ormcached
-        _get_company_partner_ids (feeds the own-company bank account guard)."""
         Company = self.env["res.company"]
         company = Company.create({"name": "cache co"})
         self.assertIn(company.partner_id.id, Company._get_company_partner_ids())
@@ -119,8 +110,6 @@ class TestCompany(TransactionCase):
         )
 
     def test_compute_address_calls_update_hook(self):
-        """_compute_address must resolve values via the overridable
-        _get_company_address_update() extension point."""
         company = self.env["res.company"].create({"name": "hook co"})
         company.partner_id.write({"street": "1 Hook St", "city": "Hookville"})
         original = ResCompany._get_company_address_update
@@ -141,14 +130,7 @@ class TestCompany(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCompanyPublicUser(TransactionCase):
-    """RC-L3: res.company._get_public_user() probes the public user by its
-    per-company login before copying base.public_user, so it does not raise on
-    the global login-uniqueness constraint when an existing public user is
-    missing from base.group_public.
-    """
-
     def test_get_public_user_creates_one_per_company(self):
-        """First call copies base.public_user with the per-company login."""
         company = self.env["res.company"].create({"name": "Public Co"})
         public_user = company._get_public_user()
         self.assertTrue(public_user)
@@ -156,16 +138,12 @@ class TestCompanyPublicUser(TransactionCase):
         self.assertEqual(public_user.login, f"public-user@company-{company.id}.com")
 
     def test_get_public_user_is_idempotent(self):
-        """A second call returns the same record, not a duplicate."""
         company = self.env["res.company"].create({"name": "Public Co 2"})
         first = company._get_public_user()
         second = company._get_public_user()
         self.assertEqual(first, second)
 
     def test_get_public_user_found_without_group_public_membership(self):
-        """RC-L3: an existing public user whose base.group_public membership was
-        removed out of band is still found by login and returned, instead of the
-        copy raising on the global login-uniqueness constraint."""
         company = self.env["res.company"].create({"name": "Public Co 3"})
         public_user = company._get_public_user()
         public_group = self.env.ref("base.group_public")

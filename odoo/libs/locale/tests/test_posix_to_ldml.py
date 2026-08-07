@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.locale.conversions.posix_to_ldml``."""
-
 import unittest
 
 from babel import Locale

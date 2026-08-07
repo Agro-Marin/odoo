@@ -201,10 +201,6 @@ class Deploy(Command):
             default="admin",
             help="Password (default=admin)",
         )
-        # Verification is the default: this command POSTs --login/--password in
-        # the request body, so an unverified TLS session hands the credentials
-        # to whoever answered.  --verify-ssl is kept as an accepted no-op so
-        # existing invocations that pass it explicitly keep working.
         parser.add_argument(
             "--no-verify-ssl",
             dest="verify_ssl",

@@ -40,7 +40,6 @@ class TestResConfig(TransactionCase):
         }
 
     def test_00_get_option_path(self):
-        """The get_option_path() method should return a tuple containing a string and an integer"""
         res = self.ResConfig.get_option_path(self.menu_xml_id)
 
         self.assertIsInstance(res, tuple)
@@ -52,7 +51,6 @@ class TestResConfig(TransactionCase):
         self.assertEqual(res[1], self.expected_action_id)
 
     def test_10_get_option_name(self):
-        """The get_option_name() method should return a string"""
         res = self.ResConfig.get_option_name(self.full_field_name)
 
         self.assertIsInstance(res, str)
@@ -60,7 +58,6 @@ class TestResConfig(TransactionCase):
         self.assertEqual(res, self.expected_name)
 
     def test_20_get_config_warning(self):
-        """The get_config_warning() method should return a RedirectWarning"""
         res = self.ResConfig.get_config_warning(self.error_msg)
 
         self.assertIsInstance(res, exceptions.RedirectWarning)
@@ -69,7 +66,6 @@ class TestResConfig(TransactionCase):
         self.assertEqual(res.args[1], self.expected_action_id)
 
     def test_30_get_config_warning_wo_menu(self):
-        """The get_config_warning() method should return a Warning exception"""
         res = self.ResConfig.get_config_warning(self.error_msg_wo_menu)
 
         self.assertIsInstance(res, exceptions.UserError)
@@ -77,11 +73,6 @@ class TestResConfig(TransactionCase):
         self.assertEqual(res.args[0], self.expected_final_error_msg_wo_menu)
 
     def test_40_view_expected_architecture(self):
-        """Ensure the res.config.settings form view sent to the web client has
-        the structure its custom widget expects (blocks, classes, order).
-
-        Tested extensively in JS unit tests; this is the server-side check.
-        """
         view = self.env["ir.ui.view"].create(
             {
                 "name": "foo",
@@ -110,8 +101,6 @@ class TestResConfig(TransactionCase):
         )
 
     def test_50_view_expected_architecture_t_node_groups(self):
-        """Form view postprocessing when an `app` block is wrapped in a
-        `<t groups="...">` (used to gate a section on two groups at once)."""
         view = self.env["ir.ui.view"].create(
             {
                 "name": "foo",
@@ -149,20 +138,10 @@ class TestResConfig(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestResConfigClassification(TransactionCase):
     def _patched_fields(self, **fake_fields):
-        """Temporarily extend res.config.settings' ``_fields`` mapping.
-
-        ``_fields`` is a mappingproxy on the registry model class, so
-        ``patch.dict`` cannot mutate it; replace the whole attribute with a
-        plain dict copy instead.
-        """
         cls = self.env["res.config.settings"].__class__
         return patch.object(cls, "_fields", {**cls._fields, **fake_fields})
 
     def test_module_field_must_be_boolean(self):
-        """RCFG-M1: selection-typed module_ fields were documented but broken
-        (truthiness on '0', bool values from default_get); support is dropped:
-        classification rejects any non-boolean module_ field.
-        """
         Settings = self.env["res.config.settings"]
         selection_field = fields.Selection([("0", "No"), ("1", "Yes")])
         with self._patched_fields(module_fake_selection=selection_field):
@@ -174,9 +153,6 @@ class TestResConfigClassification(TransactionCase):
         self.assertFalse(classified["module"])
 
     def test_group_selection_fields_still_accepted(self):
-        """RCFG-M1: dropping selection support for module_ fields must not
-        affect group_ fields, where boolean and selection are both valid.
-        """
         Settings = self.env["res.config.settings"]
         group_field = fields.Selection([("0", "No"), ("1", "Yes")])
         group_field.implied_group = "base.group_multi_currency"
@@ -189,10 +165,6 @@ class TestResConfigClassification(TransactionCase):
         self.assertEqual(implied_group, self.env.ref("base.group_multi_currency"))
 
     def test_execute_classifies_fields_once(self):
-        """RCFG-P1: one settings save must classify the settings fields once;
-        set_values() (and its restricted default_get) reuse the classification
-        computed by execute() instead of re-deriving it.
-        """
         Settings = self.env["res.config.settings"]
         settings = Settings.create({})
         original = Settings.__class__._get_classified_fields
@@ -214,9 +186,6 @@ class TestResConfigClassification(TransactionCase):
         )
 
     def test_set_values_standalone_falls_back_lazily(self):
-        """RCFG-P1: set_values() called outside execute() (no stash, no
-        argument) computes the classification itself and still works.
-        """
         settings = self.env["res.config.settings"].create({})
         settings.set_values()
 
@@ -224,9 +193,6 @@ class TestResConfigClassification(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestResConfigExecute(TransactionCase):
     def test_01_execute_res_config(self):
-        """Create and execute every res.config.settings model, surfacing any
-        that can't be loaded or saved.
-        """
         all_config_settings = self.env["ir.model"].search(
             [("name", "like", "config.settings")]
         )
@@ -235,12 +201,6 @@ class TestResConfigExecute(TransactionCase):
             self.env[config_settings.name].create({}).execute()
 
     def test_settings_access(self):
-        """Check that settings user are able to open & save settings
-
-        Also check that user with settings rights + any one of the groups restricting
-        a conditional view inheritance of res.config.settings view is also able to
-        open & save the settings (considering the added conditional content)
-        """
         ResUsers = self.env["res.users"]
         group_system = self.env.ref("base.group_system")
         self.settings_view = self.env.ref("base.res_config_settings_view_form")
@@ -271,7 +231,6 @@ class TestResConfigExecute(TransactionCase):
             )
 
     def _test_user_settings_fields_access(self, user):
-        """Verify that settings user are able to create & save settings."""
         settings = self.env["res.config.settings"].with_user(user).create({})
 
         settings.set_values()
@@ -301,7 +260,6 @@ class TestResConfigExecute(TransactionCase):
         return forbidden_models_fields
 
     def _test_user_settings_view_save(self, user):
-        """Verify that settings user are able to save the settings form."""
         ResConfigSettings = self.env["res.config.settings"].with_user(user)
 
         settings_form = Form(ResConfigSettings)

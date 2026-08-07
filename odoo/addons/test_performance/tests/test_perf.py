@@ -1,25 +1,3 @@
-"""ORM Internal Hot-Path Micro-Benchmark Suite.
-
-Benchmarks the internal functions that dominate ORM Python time:
-- Field convert_to_cache() per type (Phase 1)
-- Record iteration / object creation (Phase 2)
-- Cache modified() / flush() internals (Phase 3)
-- Domain construction / optimization (Phase 6)
-- Read group operations (Phase 7)
-
-Each test uses PerfTimer (perf_counter_ns) over 200+ iterations
-with 10 warmup rounds and outlier removal.
-
-Run with:
-    > ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
-        --test-tags '/test_performance:TestFieldConversion,/test_performance:TestIteration,\
-/test_performance:TestCacheInternals,/test_performance:TestDomainPerf,/test_performance:TestReadGroupPerf,\
-/test_performance:TestUnlink' \\
-        -u test_performance --stop-after-init --workers=0
-
-Results logged to odoo.log with tag [ORM_PERF].
-"""
-
 import base64
 import gc
 import json
@@ -39,7 +17,6 @@ BATCH_SIZES = (1, 10, 100)
 
 
 def _bench(func, n=ITERATIONS, warmup=WARMUP):
-    """Run func n+warmup times and return PerfTimer stats."""
     timer = PerfTimer()
     for _ in range(warmup):
         func()
@@ -56,8 +33,6 @@ def _log_result(stats: dict):
 
 @tagged("standard", "orm_perf")
 class TestFieldConversion(TransactionCase):
-    """Benchmark convert_to_cache() for every field type."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -71,7 +46,6 @@ class TestFieldConversion(TransactionCase):
         gc.collect()
 
     def _bench_convert(self, field_name, value, name=None):
-        """Benchmark convert_to_cache for a specific field."""
         field = self.Model._fields[field_name]
         record = self.record
         label = name or f"convert_to_cache({field.type}:{field_name})"
@@ -164,7 +138,6 @@ class TestFieldConversion(TransactionCase):
         self._bench_convert("f_html", html, "convert_to_cache(html:small)")
 
     def test_90_convert_to_record(self):
-        """Benchmark convert_to_record for key field types."""
         record = self.record
         for fname, cache_val, label in [
             ("f_integer", 42, "convert_to_record(integer)"),
@@ -180,7 +153,6 @@ class TestFieldConversion(TransactionCase):
             self.results.append(stats)
 
     def test_91_convert_to_read(self):
-        """Benchmark convert_to_read for key field types."""
         record = self.record
         for fname, cache_val, label in [
             ("f_integer", 42, "convert_to_read(integer)"),
@@ -205,15 +177,6 @@ class TestFieldConversion(TransactionCase):
 
 @tagged("standard", "orm_perf", "field_get")
 class TestFieldGet(TransactionCase):
-    """Benchmark Field.__get__ (record.field_name) for every scalar type.
-
-    This directly measures the hot path optimized by the per-class __get__
-    specialization (Change 3 in the Python 3.12+ modernization plan).
-    Each access goes through the descriptor protocol: access check → cache
-    lookup → convert_to_record.  The specialized overrides inline the
-    conversion for the cache-hit case.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -248,7 +211,6 @@ class TestFieldGet(TransactionCase):
         self.results.append(stats)
 
     def _bench_get(self, field_name, label=None, n=ITERATIONS):
-        """Benchmark record.field_name (Field.__get__) with warm cache."""
         record = self.record
         label = label or f"__get__({field_name})"
 
@@ -297,11 +259,9 @@ class TestFieldGet(TransactionCase):
         self._bench_get("f_html")
 
     def test_13_name(self):
-        """Char field (translated)."""
         self._bench_get("name", "__get__(name/char)")
 
     def test_20_multi_field_access(self):
-        """Benchmark accessing 9 scalar fields in sequence (form view pattern)."""
         record = self.record
 
         def bench():
@@ -319,7 +279,6 @@ class TestFieldGet(TransactionCase):
         self._log(timer.stats("__get__(9_scalars_seq)", warmup=0))
 
     def test_21_multi_record_access(self):
-        """Benchmark field access across 100 records (list view pattern)."""
         Base = self.env["test_performance.base"]
         records = Base.search([], limit=100)
         if len(records) < 100:
@@ -337,12 +296,6 @@ class TestFieldGet(TransactionCase):
         self._log(timer.stats("__get__(integer×100_records)", warmup=0))
 
     def test_30_specialized_vs_base(self):
-        """A/B comparison: specialized __get__ vs base Field.__get__.
-
-        Temporarily removes each scalar class's __get__ override, measures the
-        base class path, then restores.  Compares against the specialized times
-        collected earlier in this test class.
-        """
         from odoo.orm.fields import misc, numeric, selection, temporal
         from odoo.orm.fields.base import Field
 
@@ -413,8 +366,6 @@ class TestFieldGet(TransactionCase):
 
 @tagged("standard", "orm_perf")
 class TestIteration(TransactionCase):
-    """Benchmark recordset iteration, browse, __hash__, __eq__."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -438,7 +389,6 @@ class TestIteration(TransactionCase):
         self.results.append(stats)
 
     def test_01_iter_sizes(self):
-        """Benchmark __iter__ for different recordset sizes."""
         for size in (1, 10, 100, 1000):
             records = self.Model.search([], limit=size)
 
@@ -450,7 +400,6 @@ class TestIteration(TransactionCase):
             self._log(timer.stats(f"__iter__({size} records)", warmup=0))
 
     def test_02_browse(self):
-        """Benchmark browse() for different input types."""
         records = self.Model.search([], limit=100)
         ids = records.ids
         single_id = ids[0]
@@ -465,7 +414,6 @@ class TestIteration(TransactionCase):
         self._log(timer.stats("browse(100_tuple)", warmup=0))
 
     def test_03_hash(self):
-        """Benchmark __hash__ for recordsets."""
         records = self.Model.search([], limit=100)
         single = records[0]
 
@@ -476,7 +424,6 @@ class TestIteration(TransactionCase):
         self._log(timer.stats("__hash__(100)", warmup=0))
 
     def test_04_eq(self):
-        """Benchmark __eq__ for recordsets."""
         r1 = self.Model.search([], limit=100)
         r2 = self.Model.search([], limit=100)
         r3 = self.Model.search([], limit=50)
@@ -488,21 +435,18 @@ class TestIteration(TransactionCase):
         self._log(timer.stats("__eq__(diff_100v50)", warmup=0))
 
     def test_05_ids_property(self):
-        """Benchmark .ids property access."""
         records = self.Model.search([], limit=100)
 
         timer = _bench(lambda: records.ids)
         self._log(timer.stats(".ids(100)", warmup=0))
 
     def test_06_len(self):
-        """Benchmark len() on recordsets."""
         records = self.Model.search([], limit=100)
 
         timer = _bench(lambda: len(records))
         self._log(timer.stats("len(100)", warmup=0))
 
     def test_07_bool(self):
-        """Benchmark bool() on recordsets."""
         records = self.Model.search([], limit=100)
         empty = self.Model.browse()
 
@@ -513,7 +457,6 @@ class TestIteration(TransactionCase):
         self._log(timer.stats("bool(empty)", warmup=0))
 
     def test_08_contains(self):
-        """Benchmark __contains__ (in operator)."""
         records = self.Model.search([], limit=100)
         target = records[50]
 
@@ -521,7 +464,6 @@ class TestIteration(TransactionCase):
         self._log(timer.stats("__contains__(100)", warmup=0))
 
     def test_09_concat(self):
-        """Benchmark recordset concatenation."""
         r1 = self.Model.search([], limit=50)
         r2 = self.Model.search([], limit=50, offset=50)
 
@@ -539,8 +481,6 @@ class TestIteration(TransactionCase):
 
 @tagged("standard", "orm_perf")
 class TestCacheInternals(TransactionCase):
-    """Benchmark modified(), flush_model(), _flush(), cache operations."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -565,7 +505,6 @@ class TestCacheInternals(TransactionCase):
         self.results.append(stats)
 
     def test_01_modified_simple(self):
-        """Benchmark modified() for a simple scalar field."""
         record = self.Model.search([], limit=1)
         field = self.Model._fields["value"]
 
@@ -576,7 +515,6 @@ class TestCacheInternals(TransactionCase):
         self._log(timer.stats("modified(scalar_field)", warmup=0))
 
     def test_02_modified_relational(self):
-        """Benchmark modified() for a relational field."""
         record = self.Model.search([("partner_id", "!=", False)], limit=1)
         if not record:
             return
@@ -588,7 +526,6 @@ class TestCacheInternals(TransactionCase):
         self._log(timer.stats("modified(many2one_field)", warmup=0))
 
     def test_03_modified_computed_chain(self):
-        """Benchmark modified() for a field triggering stored compute."""
         record = self.Model.search([], limit=1)
 
         def bench():
@@ -598,7 +535,6 @@ class TestCacheInternals(TransactionCase):
         self._log(timer.stats("modified(computed_chain)", warmup=0))
 
     def test_04_flush_model_clean(self):
-        """Benchmark flush_model() when nothing is dirty."""
         records = self.Model.search([], limit=100)
         self.env.flush_all()
 
@@ -609,18 +545,16 @@ class TestCacheInternals(TransactionCase):
         self._log(timer.stats("flush_model(clean)", warmup=0))
 
     def test_05_flush_model_dirty(self):
-        """Benchmark flush_model() with dirty records."""
         record = self.Model.search([], limit=1)
 
         def bench():
-            record.value = record.value + 1
+            record.value += 1
             record.flush_model()
 
         timer = _bench(bench, n=50)
         self._log(timer.stats("flush_model(1_dirty)", warmup=0))
 
     def test_06_flush_all_clean(self):
-        """Benchmark flush_all() when nothing is dirty."""
         self.env.flush_all()
 
         def bench():
@@ -630,7 +564,6 @@ class TestCacheInternals(TransactionCase):
         self._log(timer.stats("flush_all(clean)", warmup=0))
 
     def test_07_invalidate_all(self):
-        """Benchmark invalidate_all()."""
         records = self.Model.search([], limit=100)
         _ = records.mapped("name")
 
@@ -641,7 +574,6 @@ class TestCacheInternals(TransactionCase):
         self._log(timer.stats("invalidate_all()", warmup=0))
 
     def test_08_invalidate_recordset(self):
-        """Benchmark invalidate_recordset()."""
         records = self.Model.search([], limit=100)
         _ = records.mapped("name")
 
@@ -652,7 +584,6 @@ class TestCacheInternals(TransactionCase):
         self._log(timer.stats("invalidate_recordset(100)", warmup=0))
 
     def test_09_get_cache(self):
-        """Benchmark Field._get_cache() — the inner cache dict lookup."""
         field = self.Model._fields["name"]
         env = self.env
 
@@ -660,7 +591,6 @@ class TestCacheInternals(TransactionCase):
         self._log(timer.stats("Field._get_cache()", warmup=0))
 
     def test_10_update_cache(self):
-        """Benchmark Field._update_cache() — single record cache write."""
         field = self.Model._fields["name"]
         record = self.Model.search([], limit=1)
 
@@ -681,8 +611,6 @@ class TestCacheInternals(TransactionCase):
 
 @tagged("standard", "orm_perf")
 class TestUnlink(TransactionCase):
-    """Benchmark unlink() operations missing from test_orm_benchmark."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -698,7 +626,6 @@ class TestUnlink(TransactionCase):
         self.results.append(stats)
 
     def test_01_unlink_single(self):
-        """Benchmark unlink() single record."""
 
         def bench():
             rec = self.Model.create({"name": "unlinkme"})
@@ -708,7 +635,6 @@ class TestUnlink(TransactionCase):
         self._log(timer.stats("unlink(single)", warmup=0))
 
     def test_02_unlink_batch(self):
-        """Benchmark unlink() batch."""
 
         def bench():
             recs = self.Model.create([{"name": f"unlinkme_{i}"} for i in range(10)])
@@ -727,8 +653,6 @@ class TestUnlink(TransactionCase):
 
 @tagged("standard", "orm_perf")
 class TestDomainPerf(TransactionCase):
-    """Benchmark Domain construction, optimization, and SQL generation."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -744,14 +668,12 @@ class TestDomainPerf(TransactionCase):
         self.results.append(stats)
 
     def test_01_domain_construct_simple(self):
-        """Benchmark Domain() construction from a simple leaf list."""
         leaf = [("name", "=", "test")]
 
         timer = _bench(lambda: Domain(leaf))
         self._log(timer.stats("Domain(simple_leaf)", warmup=0))
 
     def test_02_domain_construct_multi(self):
-        """Benchmark Domain() with multiple leaves."""
         leaves = [
             ("name", "=", "test"),
             ("value", ">", 10),
@@ -762,7 +684,6 @@ class TestDomainPerf(TransactionCase):
         self._log(timer.stats("Domain(3_leaves)", warmup=0))
 
     def test_03_domain_construct_nested(self):
-        """Benchmark Domain() with nested boolean operators."""
         nested = [
             "|",
             ("name", "=", "a"),
@@ -775,7 +696,6 @@ class TestDomainPerf(TransactionCase):
         self._log(timer.stats("Domain(nested_or_and)", warmup=0))
 
     def test_04_domain_combine_and(self):
-        """Benchmark Domain AND combination."""
         d1 = Domain([("name", "=", "test")])
         d2 = Domain([("value", ">", 10)])
 
@@ -783,7 +703,6 @@ class TestDomainPerf(TransactionCase):
         self._log(timer.stats("Domain AND (&)", warmup=0))
 
     def test_05_domain_combine_or(self):
-        """Benchmark Domain OR combination."""
         d1 = Domain([("name", "=", "test")])
         d2 = Domain([("value", ">", 10)])
 
@@ -791,24 +710,20 @@ class TestDomainPerf(TransactionCase):
         self._log(timer.stats("Domain OR (|)", warmup=0))
 
     def test_06_domain_negate(self):
-        """Benchmark Domain negation."""
         d = Domain([("name", "=", "test")])
 
         timer = _bench(lambda: ~d)
         self._log(timer.stats("Domain NOT (~)", warmup=0))
 
     def test_07_domain_bool_true(self):
-        """Benchmark Domain TRUE constant."""
         timer = _bench(lambda: Domain(True))
         self._log(timer.stats("Domain(True)", warmup=0))
 
     def test_08_domain_bool_false(self):
-        """Benchmark Domain FALSE constant."""
         timer = _bench(lambda: Domain(False))
         self._log(timer.stats("Domain(False)", warmup=0))
 
     def test_10_domain_to_sql(self):
-        """Benchmark Domain to SQL conversion via _search."""
         domain = [("name", "like", "bench"), ("value", ">", 10)]
         model = self.Model.sudo()
         model.search(domain, limit=1)
@@ -820,7 +735,6 @@ class TestDomainPerf(TransactionCase):
         self._log(timer.stats("_search(2_leaf_domain)", warmup=0))
 
     def test_11_domain_to_sql_complex(self):
-        """Benchmark complex domain SQL generation."""
         domain = [
             "|",
             "&",
@@ -850,8 +764,6 @@ class TestDomainPerf(TransactionCase):
 
 @tagged("standard", "orm_perf")
 class TestReadGroupPerf(TransactionCase):
-    """Benchmark _read_group() operations."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -875,7 +787,6 @@ class TestReadGroupPerf(TransactionCase):
         self.results.append(stats)
 
     def test_01_read_group_simple(self):
-        """Benchmark _read_group() with single grouping."""
         model = self.Model.sudo()
 
         def bench():
@@ -885,7 +796,6 @@ class TestReadGroupPerf(TransactionCase):
         self._log(timer.stats("_read_group(group_by_value)", warmup=0))
 
     def test_02_read_group_with_domain(self):
-        """Benchmark _read_group() with domain filter."""
         model = self.Model.sudo()
 
         def bench():
@@ -897,7 +807,6 @@ class TestReadGroupPerf(TransactionCase):
         self._log(timer.stats("_read_group(domain+group)", warmup=0))
 
     def test_03_read_group_multi_agg(self):
-        """Benchmark _read_group() with multiple aggregates."""
         model = self.Model.sudo()
 
         def bench():
@@ -920,11 +829,6 @@ class TestReadGroupPerf(TransactionCase):
 
 @tagged("standard", "orm_perf")
 class TestHotPaths(TransactionCase):
-    """Benchmark the specific internal methods optimized during the ORM
-    acceleration project: _read_format fast path, grouped() traversal,
-    _to_prefetch set-based filtering, and ensure_computed().
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -946,7 +850,6 @@ class TestHotPaths(TransactionCase):
         self.results.append(stats)
 
     def test_01_read_format_10_records(self):
-        """Benchmark _read_format (via read()) for 10 records, 3 fields."""
         records = self.Model.search([], limit=10)
         fnames = ["name", "value", "partner_id"]
 
@@ -958,7 +861,6 @@ class TestHotPaths(TransactionCase):
         self._log(timer.stats("read(10rec×3fields)", warmup=0))
 
     def test_02_read_format_100_records(self):
-        """Benchmark _read_format (via read()) for 100 records, 3 fields."""
         records = self.Model.search([], limit=100)
         fnames = ["name", "value", "partner_id"]
 
@@ -970,7 +872,6 @@ class TestHotPaths(TransactionCase):
         self._log(timer.stats("read(100rec×3fields)", warmup=0))
 
     def test_03_read_format_cached(self):
-        """Benchmark _read_format when cache is already warm (fast path)."""
         records = self.Model.search([], limit=100)
         fnames = ["name", "value", "partner_id"]
         records.read(fnames)
@@ -982,7 +883,6 @@ class TestHotPaths(TransactionCase):
         self._log(timer.stats("read(100rec×3fields,cached)", warmup=0))
 
     def test_10_grouped_by_field(self):
-        """Benchmark grouped() by field name."""
         records = self.Model.search([], limit=100)
         _ = records.mapped("value")
 
@@ -993,7 +893,6 @@ class TestHotPaths(TransactionCase):
         self._log(timer.stats("grouped(field,100)", warmup=0))
 
     def test_11_grouped_by_lambda(self):
-        """Benchmark grouped() with lambda key."""
         records = self.Model.search([], limit=100)
         _ = records.mapped("value")
 
@@ -1004,7 +903,6 @@ class TestHotPaths(TransactionCase):
         self._log(timer.stats("grouped(lambda,100)", warmup=0))
 
     def test_20_to_prefetch(self):
-        """Benchmark Field._to_prefetch — set-based filtering of prefetch IDs."""
         records = self.Model.search([], limit=200)
         field = self.Model._fields["name"]
         record = records[0]
@@ -1017,7 +915,6 @@ class TestHotPaths(TransactionCase):
         self._log(timer.stats("_to_prefetch(200,all_cached)", warmup=0))
 
     def test_21_to_prefetch_cold(self):
-        """Benchmark Field._to_prefetch with cold cache (all IDs must be checked)."""
         records = self.Model.search([], limit=200)
         field = self.Model._fields["name"]
         record = records[0]
@@ -1030,7 +927,6 @@ class TestHotPaths(TransactionCase):
         self._log(timer.stats("_to_prefetch(200,cold)", warmup=0))
 
     def test_30_ensure_computed_noop(self):
-        """Benchmark ensure_computed() when field is not pending (no-op)."""
         records = self.Model.search([], limit=100)
         field = self.Model._fields["value_pc"]
         self.env.flush_all()
@@ -1042,7 +938,6 @@ class TestHotPaths(TransactionCase):
         self._log(timer.stats("ensure_computed(noop)", warmup=0))
 
     def test_31_ensure_computed_non_stored(self):
-        """Benchmark ensure_computed() for a non-stored computed field (no-op)."""
         records = self.Model.search([], limit=100)
         field = self.Model._fields["computed_value"]
 
@@ -1063,8 +958,6 @@ class TestHotPaths(TransactionCase):
 
 @tagged("standard", "orm_perf")
 class TestFullPipeline(TransactionCase):
-    """End-to-end benchmarks measuring complete ORM pipelines."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1080,7 +973,6 @@ class TestFullPipeline(TransactionCase):
         self.results.append(stats)
 
     def test_01_create_all_types(self):
-        """Benchmark create() with all field types populated."""
         partner = self.env["res.partner"].search([], limit=1)
         vals = {
             "name": "fullpipe",
@@ -1108,7 +1000,6 @@ class TestFullPipeline(TransactionCase):
         self._log(timer.stats("create(all_types)", warmup=0))
 
     def test_02_write_all_types(self):
-        """Benchmark write() with multiple field types."""
         record = self.Model.create({"name": "write_bench"})
 
         counter = [0]
@@ -1128,7 +1019,6 @@ class TestFullPipeline(TransactionCase):
         self._log(timer.stats("write(4_mixed_fields)", warmup=0))
 
     def test_03_read_all_types(self):
-        """Benchmark read() with all field types."""
         record = self.Model.create(
             {
                 "name": "read_bench",
@@ -1159,7 +1049,6 @@ class TestFullPipeline(TransactionCase):
         self._log(timer.stats("read(9_fields)", warmup=0))
 
     def test_04_search_fetch(self):
-        """Benchmark search_fetch() — search + cache population."""
         for i in range(20):
             self.Model.create({"name": f"sf_{i}", "f_integer": i})
         model = self.Model.sudo()
@@ -1220,8 +1109,6 @@ class TestFullPipeline(TransactionCase):
 
 @tagged("standard", "accel_baseline")
 class TestAccelClone(TransactionCase):
-    """Baseline: fast_clone vs copy.deepcopy on representative JSON data."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1351,8 +1238,6 @@ class TestAccelClone(TransactionCase):
 
 @tagged("standard", "accel_baseline")
 class TestAccelMappedFiltered(TransactionCase):
-    """Baseline: mapped/filtered with string field names at scale."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1460,8 +1345,6 @@ class TestAccelMappedFiltered(TransactionCase):
 
 @tagged("standard", "accel_baseline")
 class TestAccelFieldCache(TransactionCase):
-    """Baseline: FieldCache standalone operations (no ORM layer)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1585,8 +1468,6 @@ class TestAccelFieldCache(TransactionCase):
 
 @tagged("standard", "accel_baseline")
 class TestAccelPrimitives(TransactionCase):
-    """Baseline: NewId primitive and origin-id extraction."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

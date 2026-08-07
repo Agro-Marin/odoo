@@ -13,13 +13,6 @@ class FormatAddressMixin(models.AbstractModel):
     _description = "Address Format"
 
     def _extract_fields_from_address(self, address_line: str) -> list[str]:
-        """Return the address field keys found in a single ``address_format``
-        line, ordered by first occurrence.
-
-        :param str address_line: e.g. ``"zip: %(zip)s, city: %(city)s."`` yields
-            ``['zip', 'city']``
-        :rtype: list[str]
-        """
         address_fields = [
             "%(" + field + ")s"
             for field in ADDRESS_FIELDS + ("state_code", "state_name")
@@ -30,12 +23,6 @@ class FormatAddressMixin(models.AbstractModel):
         )
 
     def _view_get_address(self, arch: etree._Element) -> etree._Element:
-        """Rewrite ``arch`` in place to follow the company country's address
-        layout, and return it.
-
-        Either swap in the country's ``address_view_id`` arch when set, else
-        reorder zip/city/state fields per the country ``address_format``.
-        """
         address_view_id = self.env.company.country_id.address_view_id.sudo()
         address_format = self.env.company.country_id.address_format
         if (
@@ -103,12 +90,6 @@ class FormatAddressMixin(models.AbstractModel):
     def _get_view_cache_key(
         self, view_id: int | None = None, view_type: str = "form", **options
     ) -> tuple:
-        """Key the view cache on the address-layout inputs of _view_get_address.
-
-        Keying on the country's ``address_view_id``/``address_format`` VALUES
-        (not the company identity) both dedupes across same-country companies
-        and stays fresh when those fields change, with no explicit invalidation.
-        """
         key = super()._get_view_cache_key(view_id, view_type, **options)
         country = self.env.company.country_id
         return key + (

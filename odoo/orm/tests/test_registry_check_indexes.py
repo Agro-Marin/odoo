@@ -1,16 +1,3 @@
-"""Regression tests for ``check_indexes`` staleness detection.
-
-Tier-2 suite: real ``import odoo``, stub cursor, no database.
-
-The fork emits partial ``WHERE ... IS NOT NULL`` indexes for
-``index='btree_not_null'`` (including the company-dependent variant), but both
-plain btree and the partial variant use the ``btree`` access method — so
-staleness detection must also compare **predicate presence**, not only the
-access method, or a ``'btree'`` <-> ``'btree_not_null'`` change never rebuilds
-the index. Also pins the ``ValueError`` on an invalid ``index=`` value
-(converted from ``assert`` so it holds under ``python -O``).
-"""
-
 from contextlib import contextmanager
 
 import pytest
@@ -50,8 +37,6 @@ def _make_registry(*fields):
 
 
 class _IdxCursor:
-    """Stub cursor: canned introspection rows, records every executed query."""
-
     def __init__(self, existing_rows):
         self._rows = existing_rows
         self.executed = []
@@ -72,7 +57,6 @@ _IDX = sql.make_index_name("fake_model", "state")
 
 
 def test_btree_to_btree_not_null_marks_stale():
-    """Existing plain btree + field now btree_not_null => drop and recreate."""
     reg = _make_registry(_Field("state", "btree_not_null"))
     cr = _IdxCursor([(_IDX, "fake_model", "btree", False)])
 
@@ -85,7 +69,6 @@ def test_btree_to_btree_not_null_marks_stale():
 
 
 def test_btree_not_null_to_btree_marks_stale():
-    """Existing partial index + field now plain btree => recreate without WHERE."""
     reg = _make_registry(_Field("state", True))
     cr = _IdxCursor([(_IDX, "fake_model", "btree", True)])
 
@@ -110,7 +93,6 @@ def test_company_dependent_btree_not_null_expects_predicate():
 
 
 def test_matching_partial_index_not_rebuilt():
-    """btree_not_null field with an existing predicated btree index: no-op."""
     reg = _make_registry(_Field("state", "btree_not_null"))
     cr = _IdxCursor([(_IDX, "fake_model", "btree", True)])
 
@@ -129,7 +111,6 @@ def test_matching_plain_index_not_rebuilt():
 
 
 def test_access_method_mismatch_still_stale():
-    """The pre-existing method check keeps working (gin left behind)."""
     reg = _make_registry(_Field("state", True))
     cr = _IdxCursor([(_IDX, "fake_model", "gin", False)])
 
@@ -141,7 +122,6 @@ def test_access_method_mismatch_still_stale():
 
 
 def test_invalid_index_value_raises_value_error():
-    """Module-author input is validated with ValueError (holds under -O)."""
     reg = _make_registry(_Field("state", "bogus"))
     cr = _IdxCursor([])
 

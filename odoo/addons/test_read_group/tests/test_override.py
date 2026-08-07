@@ -37,15 +37,6 @@ class TestReadGroupOverride(TransactionCase):
                     )
 
     def test_order_by_m2o_chaining_to_id_ordered_comodel(self):
-        """Grouped read ordered by a many2one whose comodel ``_order`` chains
-        through another many2one to an ``id``-ordered model must not raise
-        GroupingError 42803.
-
-        The chained column (here ``country_id`` of the ordered-by
-        ``partner_id``) is not part of the GROUP BY, so ``_order_field_to_sql``
-        must wrap it in ``ANY_VALUE()`` in its ``coorder == "id"`` branch rather
-        than emit it bare into ORDER BY.
-        """
         Partner = self.env.registry["res.partner"]
         Country = self.env.registry["res.country"]
         self.addCleanup(setattr, Partner, "_order", Partner._order)

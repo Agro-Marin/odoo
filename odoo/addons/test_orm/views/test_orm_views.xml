@@ -34,7 +34,6 @@
         </record>
         <menuitem id="menu_categories" action="action_categories" parent="menu_config"/>
 
-        <!-- Discussion form view -->
         <record id="discussion_form" model="ir.ui.view">
             <field name="name">discussion form view</field>
             <field name="model">test_orm.discussion</field>
@@ -44,11 +43,6 @@
                     <sheet>
                         <group>
                             <field name="name"/>
-                            <!--
-                                Bug if the view contains at least 5 fields.
-                                The order of the dic values changes and the _check_author constraint raise.
-                                <field name="categories" widget="many2many_tags" options="{'color_field': 'color'}"/>
-                            -->
                             <field name="moderator"/>
                         </group>
                         <notebook>
@@ -108,7 +102,6 @@
             </field>
         </record>
 
-        <!-- Discussion form view with editable list -->
         <record id="discussion_form_2" model="ir.ui.view">
             <field name="name">discussion form view</field>
             <field name="model">test_orm.discussion</field>
@@ -153,7 +146,6 @@
         </record>
         <menuitem id="menu_discussions_2" action="action_discussions_2" parent="menu_sub" sequence="10"/>
 
-        <!-- Discussion form view with embedded list -->
         <record id="discussion_form_3" model="ir.ui.view">
             <field name="name">discussion form view</field>
             <field name="model">test_orm.discussion</field>
@@ -189,7 +181,6 @@
         <menuitem id="menu_discussions_3" action="action_discussions_3" parent="menu_sub" sequence="11"/>
 
 
-        <!-- Message list view -->
         <record id="message_tree" model="ir.ui.view">
             <field name="name">message list view</field>
             <field name="model">test_orm.message</field>
@@ -203,7 +194,6 @@
             </field>
         </record>
 
-        <!-- Message form view -->
         <record id="message_form" model="ir.ui.view">
             <field name="name">message form view</field>
             <field name="model">test_orm.message</field>
@@ -224,7 +214,6 @@
             </field>
         </record>
 
-        <!-- Category list view -->
         <record id="category_tree" model="ir.ui.view">
             <field name="name">category list view</field>
             <field name="model">test_orm.category</field>
@@ -235,7 +224,6 @@
             </field>
         </record>
 
-        <!-- Category form view -->
         <record id="category_form" model="ir.ui.view">
             <field name="name">category form view</field>
             <field name="model">test_orm.category</field>
@@ -254,7 +242,6 @@
             </field>
         </record>
 
-        <!-- Multi list view -->
         <record id="multi_tree" model="ir.ui.view">
             <field name="name">multi list view</field>
             <field name="model">test_orm.multi</field>
@@ -265,7 +252,6 @@
             </field>
         </record>
 
-        <!-- Multi form view -->
         <record id="multi_form" model="ir.ui.view">
             <field name="name">multi form view</field>
             <field name="model">test_orm.multi</field>
@@ -299,7 +285,6 @@
             </field>
         </record>
 
-        <!-- Multi form view -->
         <record id="model_parent_form" model="ir.ui.view">
             <field name="name">model parent form view</field>
             <field name="model">test_orm.model_parent_m2o</field>
@@ -344,7 +329,6 @@
             </field>
         </record>
 
-        <!-- compute_editable view -->
         <record id="compute_editable_form" model="ir.ui.view">
             <field name="name">test_orm.compute_editable.form</field>
             <field name="model">test_orm.compute_editable</field>
@@ -360,7 +344,6 @@
                                 <field name="one_compute"/>
                             </list>
                             <form>
-                                <!-- this view makes sure that field "same" is not considered -->
                                 <field name="value"/>
                                 <field name="edit"/>
                                 <field name="count"/>
@@ -372,7 +355,6 @@
             </field>
         </record>
 
-        <!-- python expression in view and groups -->
         <record id="view_model_some_access" model="ir.ui.view">
             <field name="name">Test attrs and groups</field>
             <field name="model">test_orm.model.some_access</field>
@@ -380,7 +362,7 @@
             <field name="arch" type="xml">
                 <form>
                     <field name="a" readonly="not d" groups="base.group_erp_manager"/>
-                    <field name="a" readonly="not k" groups="base.group_public"/>  <!-- valid from 'ir.model.access': 'base.group_public' -->
+                    <field name="a" readonly="not k" groups="base.group_public"/>
                     <field name="b" readonly="not d" groups="base.group_system"/>
                     <field name="c" readonly="d" groups="base.group_erp_manager,base.group_system"/>
                     <field name="d" readonly="a" groups="base.group_portal"/>
@@ -433,7 +415,7 @@
                     <field name="cd" readonly="ab"/>
                     <field name="cd" readonly="ab" groups="base.group_system"/>
                     <field name="cd" readonly="ab" groups="!base.group_system"/>
-                    <field name="ab" readonly="cd"/>  <!-- allowed because they are no access rights -->
+                    <field name="ab" readonly="cd"/>
                 </form>
             </field>
         </record>

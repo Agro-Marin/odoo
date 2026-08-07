@@ -1,21 +1,3 @@
-"""WSGI request handlers and the threaded WSGI server.
-
-Extracted from ``server.py`` (which re-exports every public name here) so
-``server.py`` stays focused on processes/threads and this module on the request
-side of the wire.
-
-* ``LoggingBaseWSGIServerMixIn`` — turns request-handling exceptions into log
-  records (skipping benign client-disconnects).
-* ``BaseWSGIServerNoBind`` — werkzeug ``BaseWSGIServer`` that skips its bind;
-  ``WorkerHTTP`` replaces ``self.socket`` before each request.
-* ``CommonRequestHandler`` / ``RequestHandler`` — prefork and threaded request
-  handlers, with ANSI styling, websocket-upgrade tweaks, and a timeout-vs-error
-  log distinction.
-* ``ThreadedWSGIServerReloadable`` — ``ThreadedServer``'s WSGI server: bounded
-  handler thread pool, semaphore-balanced accept loop, daemon-thread fallback
-  when ``pthread_create`` returns EAGAIN.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -43,18 +25,6 @@ _logger = logging.getLogger("odoo.service.server")
 
 
 def http_socket_timeout() -> float:
-    """Per-operation socket timeout for one served HTTP connection.
-
-    Single source of truth for every server flavor, so deployments cannot drift
-    into different DoS postures: without it a handler thread blocks forever in
-    ``rfile.readline()`` while holding one of the bounded ``max_http_threads``
-    slots, which a handful of slowloris connections turns into an
-    unauthenticated denial of service.
-
-    Per-operation, not per-request: a slow upload keeps resetting it as long as
-    bytes keep arriving.  Floor 0.1s — ``0`` would put the socket in
-    non-blocking mode and break every request.
-    """
     return env_float("ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger)
 
 
@@ -62,22 +32,12 @@ _ANSI_ENABLED = sys.stderr.isatty()
 
 
 def _maybe_style(msg: str, *styles: str) -> str:
-    """Apply werkzeug ANSI styles when stderr is a TTY, otherwise return as-is."""
     if not _ANSI_ENABLED:
         return msg
     return werkzeug.serving._ansi_style(msg, *styles)
 
 
 def _parse_http_date(value: str) -> datetime | None:
-    """Parse an HTTP-date header value to an aware ``datetime``, or ``None``.
-
-    ``None`` on any malformed value: ``parsedate_to_datetime`` raises
-    ``ValueError`` on garbage.  The result is always tz-AWARE — an RFC-legal
-    ``-0000`` ("unknown local offset") parses NAIVE, and subtracting a naive
-    from an aware datetime raises ``TypeError``; both operands are pinned to UTC
-    here so the caller can always compare them.  Comparing two Date headers is a
-    cosmetic dedup, so a value we cannot parse must never turn into a 500.
-    """
     try:
         dt = parsedate_to_datetime(value)
     except TypeError, ValueError:
@@ -87,19 +47,17 @@ def _parse_http_date(value: str) -> datetime | None:
 
 class LoggingBaseWSGIServerMixIn:
     def handle_error(self, request: Any, client_address: tuple[str, int]) -> None:
-        if isinstance(sys.exception(), BrokenPipeError):
+        exc = sys.exception()
+        if isinstance(exc, BrokenPipeError):
             return
-        _logger.exception(
+        _logger.error(
             "Exception happened during processing of request from %s",
             client_address,
+            exc_info=exc,
         )
 
 
 class BaseWSGIServerNoBind(LoggingBaseWSGIServerMixIn, werkzeug.serving.BaseWSGIServer):
-    """werkzeug Base WSGI Server patched to skip socket binding. WorkerHTTP
-    uses this class, sets the socket and calls process_request() manually.
-    """
-
     def __init__(self, app: Any) -> None:
         werkzeug.serving.BaseWSGIServer.__init__(
             self, "127.0.0.1", 0, app, handler=CommonRequestHandler
@@ -220,16 +178,6 @@ class RequestHandler(CommonRequestHandler):
         return environ
 
     def _is_websocket_upgrade(self) -> bool:
-        """Whether the in-flight request asked for a websocket upgrade.
-
-        Reads ``self.headers`` defensively: a malformed request line makes
-        ``BaseHTTPRequestHandler`` call ``send_error(400)`` — and so
-        ``send_header``/``end_headers`` — before ``self.headers`` is assigned,
-        and werkzeug's ``__getattr__`` forwards the lookup to a ``super()`` that
-        has none either.  The resulting ``AttributeError`` killed the 400
-        half-written, reachable by anyone who can open a socket.
-        ``log_request`` guards ``self.path`` the same way.
-        """
         headers = getattr(self, "headers", None)
         return headers is not None and headers.get("Upgrade") == "websocket"
 
@@ -264,14 +212,6 @@ class RequestHandler(CommonRequestHandler):
 class ThreadedWSGIServerReloadable(
     LoggingBaseWSGIServerMixIn, werkzeug.serving.ThreadedWSGIServer
 ):
-    """werkzeug ThreadedWSGIServer patched to adopt a listen socket handed in via
-    systemd socket activation (``LISTEN_FDS`` — see ``server_bind``).
-
-    Not the autoreload path: threaded ``--dev=reload`` re-execs and rebinds a
-    fresh socket.  Only ``PreforkServer`` carries its socket across a reload
-    (via ``ODOO_HTTP_SOCKET_FD``, which this class never reads).
-    """
-
     def __init__(self, host: str, port: int, app: Any) -> None:
         auto_limit = max(
             (config["db_maxconn"] - config["max_cron_threads"] - config["job_workers"])
@@ -310,11 +250,6 @@ class ThreadedWSGIServerReloadable(
             super().server_activate()
 
     def process_request(self, request: Any, client_address: tuple[str, int]) -> None:
-        """Start a request-handling thread.
-
-        Overrides ``socketserver.ThreadingMixIn`` to capture the thread object
-        and stamp its start time as an attribute.
-        """
         t = threading.Thread(
             target=self.process_request_thread, args=(request, client_address)
         )
@@ -337,13 +272,6 @@ class ThreadedWSGIServerReloadable(
         super()._handle_request_noblock()
 
     def get_request(self) -> Any:
-        """Forward to upstream, releasing the HTTP-threads semaphore on failure.
-
-        CPython's ``_handle_request_noblock`` catches ``OSError`` from this call
-        and returns without ``shutdown_request`` (the only release point), so
-        under fd exhaustion or connection-reset storms the semaphore would drain
-        and never recover.  Releasing here on ``OSError`` keeps it balanced.
-        """
         try:
             return super().get_request()
         except OSError:
@@ -352,30 +280,11 @@ class ThreadedWSGIServerReloadable(
             raise
 
     def _release_http_slot(self, request: Any) -> None:
-        """Idempotently return ``request``'s bounded-thread slot.
-
-        A request can legitimately reach a release point twice: a duplicate
-        ``shutdown_request`` on the inline-fail + SystemExit path (see
-        ``__init__`` next to ``_sem_released_requests``), or an early
-        websocket-upgrade release followed by the connection's eventual
-        ``shutdown_request``.  WeakSet membership is GIL-atomic and a request
-        is handled by one thread at a time, so no lock is needed.
-        """
         if request not in self._sem_released_requests:
             self.http_threads_sem.release()
             self._sem_released_requests.add(request)
 
     def release_upgraded_request_slot(self, request: Any) -> None:
-        """Free ``request``'s bounded-thread slot after a protocol upgrade.
-
-        Called by ``RequestHandler.send_response`` when it commits a 101
-        response: the handler thread then parks on the long-lived websocket
-        serve loop for the connection's lifetime, and keeping its slot would
-        let a handful of idle websocket tabs starve the accept loop (see
-        ``_handle_request_noblock``).  The later ``shutdown_request`` for the
-        same connection is a no-op thanks to ``_release_http_slot``'s
-        idempotence.
-        """
         if self.max_http_threads:
             self._release_http_slot(request)
 

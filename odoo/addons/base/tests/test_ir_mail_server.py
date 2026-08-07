@@ -22,9 +22,6 @@ from odoo.addons.base.tests.common import MockSmtplibCase
 
 
 def _generate_self_signed_cert(common_name="smtp.example.com"):
-    """Return ``(cert_pem, key_pem)`` bytes for a fresh self-signed RSA cert,
-    so the SSL-context builders can run without a live SMTP server or fixtures.
-    """
     import datetime
 
     from cryptography import x509
@@ -58,8 +55,6 @@ def _generate_self_signed_cert(common_name="smtp.example.com"):
 
 
 class _FakeSMTP:
-    """SMTP stub"""
-
     def __init__(self):
         self.messages = []
         self.from_filter = "example.com"
@@ -84,7 +79,6 @@ class _FakeSMTP:
 class EmailConfigCase(TransactionCase):
     @patch.dict(config.options, {"email_from": "settings@example.com"})
     def test_default_email_from(self):
-        """Email from setting is respected and comes from configuration."""
         message = self.env["ir.mail_server"]._build_email__(
             False,
             "recipient@example.com",
@@ -94,11 +88,6 @@ class EmailConfigCase(TransactionCase):
         self.assertEqual(message["From"], "settings@example.com")
 
     def test_build_email_missing_from_raises_coded_error(self):
-        """No resolvable sender must raise an OutgoingEmailError with a stable
-        ``.code`` (NO_FOUND_FROM), which mail.mail uses to classify failures.
-        Regression: these were plain UserError, degrading classification to
-        'unknown'.
-        """
         IrMailServer = self.env["ir.mail_server"]
         with patch.dict(config.options, {"email_from": False}):
             with self.assertRaises(OutgoingEmailError) as capture:
@@ -108,8 +97,6 @@ class EmailConfigCase(TransactionCase):
         self.assertEqual(capture.exception.code, IrMailServer.NO_FOUND_FROM)
 
     def test_build_email_attachment_malformed_mimetype(self):
-        """A mimetype with extra slashes ("application/pdf/x") must be split on
-        the first '/' only and must not crash attachment handling."""
         message = self.env["ir.mail_server"]._build_email__(
             "sender@example.com",
             "recipient@example.com",
@@ -126,11 +113,6 @@ class EmailConfigCase(TransactionCase):
         self.assertEqual(attachments[0].get_filename(), "weird.bin")
 
     def test_build_email_headers_override_standard_headers(self):
-        """A ``headers`` entry must *override* an already-set standard header,
-        not append a duplicate. Under EmailMessage/SMTP_POLICY singleton headers
-        cap at one occurrence, so a plain append raised ValueError and aborted
-        the send (reachable via the free-form ``mail.mail.headers`` field).
-        """
         IrMailServer = self.env["ir.mail_server"]
         for header, override in [
             ("Subject", "Overridden Subject"),
@@ -153,12 +135,6 @@ class EmailConfigCase(TransactionCase):
             )
 
     def test_build_email_rejects_header_injection(self):
-        """MS-T3: CR/LF in a header value or name must raise (no header smuggling).
-
-        The defense lives in CPython's ``email.policy``
-        (``verify_generated_headers``, preserved by the cloned no-fold policy);
-        this catches a future policy/clone change that disables it.
-        """
         IrMailServer = self.env["ir.mail_server"]
 
         with self.assertRaises(ValueError):
@@ -203,10 +179,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         self.assertFalse(self.env["ir.mail_server"]._get_default_from_address())
 
     def test_send_email_delivery_failure_reason_is_readable(self):
-        """A delivery failure (send_message raising) must surface a clean
-        multi-line message, never a Python tuple repr: ``mail.mail`` stores
-        ``str(exc)`` verbatim into the admin-visible ``failure_reason``.
-        """
         IrMailServer = self.env["ir.mail_server"]
         message = self._build_email("admin@example.com")
 
@@ -232,8 +204,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         self.assertIn("SMTPDataError", rendered)
 
     def test_find_mail_server_parses_each_from_filter_once(self):
-        """``_find_mail_server`` must not re-split the same ``from_filter``
-        repeatedly across its match passes (perf regression guard)."""
         IrMailServer = self.env["ir.mail_server"]
         servers = IrMailServer.create(
             [
@@ -264,7 +234,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         self.assertFalse(repeats, f"from_filter re-parsed: {repeats}")
 
     def test_bpo_34424_35805(self):
-        """Ensure all email sent are bpo-34424 and bpo-35805 free"""
         fake_smtp = _FakeSMTP()
         msg = email.message.EmailMessage(policy=email.policy.SMTP)
         msg["From"] = '"Joé Doe" <joe@example.com>'
@@ -288,16 +257,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         )
 
     def test_content_alternative_correct_order(self):
-        """
-        RFC-1521 7.2.3. The Multipart/alternative subtype
-        > the alternatives appear in an order of increasing faithfulness
-        > to the original content. In general, the best choice is the
-        > LAST part of a type supported by the recipient system's local
-        > environment.
-
-        Also, the MIME-Version header should be present in BOTH the
-        envelope AND the parts
-        """
         fake_smtp = _FakeSMTP()
         msg = self._build_email(
             "test@example.com", body="<p>Hello world</p>", subtype="html"
@@ -367,8 +326,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
 
     @users("admin")
     def test_mail_server_get_test_email_from(self):
-        """Test the email used to test the mail server connection. Check
-        from_filter parsing / default fallback value."""
         self.env.user.email = "mitchell.admin@example.com"
         test_server = self.env["ir.mail_server"].create(
             {
@@ -401,7 +358,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
                 self.assertEqual(email_from, expected_test_email)
 
     def test_mail_server_match_from_filter(self):
-        """Test the from_filter field on the "ir.mail_server"."""
         tests = [
             ("admin@mail.example.com", "mail.example.com"),
             ("admin@mail.example.com", "mail.EXAMPLE.com"),
@@ -447,9 +403,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
 
     @mute_logger("odoo.models.unlink")
     def test_mail_server_priorities(self):
-        """Test if we choose the right mail server to send an email. Simulates
-        simple Odoo DB so we have to spoof the FROM otherwise we cannot send
-        any email."""
         for email_from, (expected_mail_server, expected_email_from) in zip(
             [
                 "specific_user@test.mycompany.com",
@@ -472,8 +425,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
 
     @mute_logger("odoo.models.unlink")
     def test_mail_server_send_email(self):
-        """Test main 'send_email' usage: check mail_server choice based on from
-        filters, encapsulation, spoofing."""
         IrMailServer = self.env["ir.mail_server"]
 
         for mail_from, (
@@ -557,9 +508,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
 
     @mute_logger("odoo.models.unlink", "odoo.addons.base.models.ir_mail_server")
     def test_mail_server_send_email_context_force(self):
-        """Allow to force notifications_email / bounce_address from context
-        to allow higher-level apps to send values until end of mail stack
-        without hacking too much models."""
         context_server = self.env["ir.mail_server"].create(
             {
                 "from_filter": "context.example.com",
@@ -604,7 +552,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
 
     @mute_logger("odoo.models.unlink")
     def test_mail_server_send_email_IDNA(self):
-        """Test that the mail from / recipient envelop are encoded using IDNA"""
         with self.mock_smtplib_connection():
             message = self._build_email(mail_from="test@ééééééé.com")
             self.env["ir.mail_server"].send_email(message)
@@ -626,13 +573,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         },
     )
     def test_mail_server_config_bin(self):
-        """Test the configuration provided in the odoo-bin arguments. This config
-        is used when no mail server exists. Test with and without giving a
-        pre-configured SMTP session, should not impact results.
-
-        Also check "mail.default.from_filter" parameter usage that should overwrite
-        odoo-bin argument "--from-filter".
-        """
         IrMailServer = self.env["ir.mail_server"]
 
         IrMailServer.search([]).unlink()
@@ -714,11 +654,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         {"from_filter": "fake.com", "smtp_server": "cli_example.com"},
     )
     def test_mail_server_config_cli(self):
-        """Test the mail server configuration when the "smtp_authentication" is
-        "cli". It should take the configuration from the odoo-bin argument. The
-        "from_filter" of the mail server should overwrite the one set in the CLI
-        arguments.
-        """
         IrMailServer = self.env["ir.mail_server"]
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.default.from_filter", "fake.com"
@@ -767,7 +702,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
                 )
 
     def test_eml_attachment_encoding(self):
-        """Test that message/rfc822 attachments are encoded using 7bit, 8bit, or binary encoding per RFC."""
         IrMailServer = self.env["ir.mail_server"]
 
         eml_content = b"From: user@example.com\nTo: user2@example.com\nSubject: Test Email\n\nThis is a test email."
@@ -802,7 +736,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         )
 
     def test_eml_message_serialization_with_non_ascii(self):
-        """Ensure an email with a message/rfc822 attachment containing non-ASCII chars can be serialized."""
         IrMailServer = self.env["ir.mail_server"]
 
         eml_content = "From: user@example.com\nTo: user2@example.com\nSubject: Test\n\nBody with é"
@@ -827,14 +760,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
 
 @tagged("mail_server")
 class TestSslContexts(TransactionCase):
-    """Unit coverage for the SSL-context builders.
-
-    These paths lean on private urllib3/pyOpenSSL internals (``PyOpenSSLContext.
-    _ctx``, ``match_hostname``, …) previously only exercised by the live-SMTPD
-    suite; building the contexts directly guards against an upstream change
-    silently breaking outgoing TLS.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -854,7 +779,6 @@ class TestSslContexts(TransactionCase):
         )
 
     def test_ssl_context_for_encryption_modes(self):
-        """Strict variants validate host+peer; lax variants encrypt only."""
         IrMailServer = self.env["ir.mail_server"]
         for encryption in ("ssl_strict", "starttls_strict"):
             ctx = IrMailServer._ssl_context_for_encryption(encryption)
@@ -866,7 +790,6 @@ class TestSslContexts(TransactionCase):
             self.assertEqual(ctx.verify_mode, ssl.CERT_NONE, encryption)
 
     def test_ssl_context_from_cert_files(self):
-        """A cert/key pair on disk yields a client-auth context."""
         import tempfile
         from pathlib import Path
 
@@ -881,12 +804,6 @@ class TestSslContexts(TransactionCase):
             self.assertEqual(type(ctx).__name__, "PyOpenSSLContext")
 
     def test_ssl_context_from_cert_files_strict_verifies_peer(self):
-        """Strict encryption with cert/key files builds a *verifying* context.
-
-        Regression: verify_mode was hardcoded to CERT_NONE regardless of the
-        requested encryption, silently downgrading ssl_strict/starttls_strict
-        to no server-certificate validation on the CLI/config path.
-        """
         import tempfile
         from pathlib import Path
 
@@ -914,9 +831,6 @@ class TestSslContexts(TransactionCase):
                 self.assertEqual(ctx._ctx.get_verify_mode(), VERIFY_NONE, encryption)
 
     def test_connect_cert_files_strict_encryption_verifies(self):
-        """End-to-end: strict encryption + client cert/key files must reach
-        smtplib with a peer-verifying pyOpenSSL context, mirroring the
-        record-based certificate path."""
         import tempfile
         from pathlib import Path
 
@@ -942,8 +856,6 @@ class TestSslContexts(TransactionCase):
             )
 
     def test_ssl_context_from_certificate_builds_for_all_variants(self):
-        """Both strict and lax certificate transports build a context whose
-        private key is validated against the certificate."""
         IrMailServer = self.env["ir.mail_server"]
         for encryption in ("starttls", "starttls_strict", "ssl", "ssl_strict"):
             server = self._make_cert_server(encryption)
@@ -951,17 +863,10 @@ class TestSslContexts(TransactionCase):
             self.assertEqual(type(ctx).__name__, "PyOpenSSLContext", encryption)
 
     def test_ssl_context_from_certificate_key_mismatch_raises_usererror(self):
-        """A private key that does not match the certificate surfaces as a
-        clean UserError, and does so when the server is saved rather than at
-        the first send through it."""
         with self.assertRaises(UserError):
             self._make_cert_server("starttls_strict", key_pem=self.mismatched_key_pem)
 
     def _capture_connect_context(self, **connect_kwargs):
-        """Open a connection through the raw-parameter path and return the
-        ssl context that reached smtplib (SMTP_SSL ``context=`` or the one
-        passed to ``starttls``). No socket is opened.
-        """
         captured = {}
 
         class _FakeConn:
@@ -987,11 +892,6 @@ class TestSslContexts(TransactionCase):
         return captured
 
     def test_connect_raw_param_strict_encryption_verifies(self):
-        """Regression: strict encryption passed as a raw parameter (no mail
-        server record, no client cert) must build a *verifying* context.
-        Previously the context stayed None, so smtplib fell back to an
-        unverified stdlib context and silently downgraded 'strict'.
-        """
         captured = self._capture_connect_context(
             host="smtp.example.test", port=465, encryption="ssl_strict"
         )
@@ -1009,7 +909,6 @@ class TestSslContexts(TransactionCase):
         self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
 
     def test_connect_raw_param_lax_encryption_unchanged(self):
-        """Lax variants stay encryption-only (no server-cert validation)."""
         captured = self._capture_connect_context(
             host="smtp.example.test", port=465, encryption="ssl"
         )
@@ -1019,13 +918,7 @@ class TestSslContexts(TransactionCase):
 
 
 class TestResolveTransport(TransactionCase):
-    """Direct unit coverage for _resolve_smtp_transport — the socket-free half of
-    _connect__. These pin the source-precedence rules (record vs CLI/config vs
-    explicit params) that used to be untestable without opening a connection.
-    """
-
     def test_resolve_from_record(self):
-        """A login mail-server record fully describes the transport."""
         IrMailServer = self.env["ir.mail_server"]
         server = IrMailServer.create(
             {
@@ -1050,8 +943,6 @@ class TestResolveTransport(TransactionCase):
         self.assertTrue(t.ssl_context.check_hostname)
 
     def test_resolve_cli_auth_record_ignores_record_transport(self):
-        """A 'cli'-authenticated record contributes ONLY its from_filter; its
-        host/port/user go through the CLI/config path instead."""
         IrMailServer = self.env["ir.mail_server"]
         server = IrMailServer.create(
             {
@@ -1071,7 +962,6 @@ class TestResolveTransport(TransactionCase):
         self.assertEqual(t.login_server, server)
 
     def test_resolve_explicit_params_win_over_config(self):
-        """Explicit host/port/user beat config on the param path."""
         IrMailServer = self.env["ir.mail_server"]
         empty = IrMailServer.browse()
         with patch.dict(
@@ -1086,10 +976,6 @@ class TestResolveTransport(TransactionCase):
         self.assertFalse(t.login_server, "no record -> empty login_server")
 
     def test_session_context_roundtrip(self):
-        """Routing context stashed on a session reads back through the typed
-        accessors; a bare session (never stashed) yields the (False, False)
-        default, matching the old getattr(..., False) semantics.
-        """
         from odoo.addons.base.models.ir_mail_server import _SmtpSessionContext
 
         IrMailServer = self.env["ir.mail_server"]

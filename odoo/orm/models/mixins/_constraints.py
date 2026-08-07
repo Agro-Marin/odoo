@@ -1,18 +1,3 @@
-"""Python constraint machinery (``@api.constrains``).
-
-Extracted from ``base.py``. It is *behaviour*, not composition: ``create`` and
-``write`` both call ``_validate_fields`` after applying their values, and while
-it lived on the composition root those calls were edges back into it. Combined
-with ``base.py``'s own ``self.create(...)`` in ``name_create``, that formed the
-one cycle left in the mixin graph once recordset-mediated edges were counted
-(see ``tooling/architecture/mixin_coupling_check.py``). A leaf that nothing in
-the composition depends *on* cannot participate in a cycle.
-
-This continues the split that moved model metadata out to ``_metadata`` /
-``_properties`` / ``_magic_fields``: ``base.py`` holds the composition and the
-model-setup hooks, and each behaviour lives with the code that performs it.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -29,19 +14,14 @@ if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
 _logger = logging.getLogger("odoo.models")
-#: Same logger name base.py used, so the constraint timing lines keep their
-#: existing identity for anyone filtering on it.
 _orm_crud = logging.getLogger("odoo.orm.crud")
 
 
 class _ConstraintsMixin(_ModelStubs):
-    """``@api.constrains`` discovery and invocation."""
-
     __slots__ = ()
 
     @property
     def _constraint_methods(self) -> list:
-        """Return a list of methods implementing Python constraints."""
 
         def is_constraint(func):
             return callable(func) and hasattr(func, "_constrains")
@@ -86,9 +66,6 @@ class _ConstraintsMixin(_ModelStubs):
     def _validate_fields(
         self, field_names: Iterable[str], excluded_names: Iterable[str] = ()
     ) -> None:
-        """Invoke the constraint methods for which at least one field name is
-        in ``field_names`` and none is in ``excluded_names``.
-        """
         methods = self._constraint_methods
         if not methods:
             return

@@ -71,7 +71,6 @@ class TestRules(TransactionCase):
             self.assertEqual(allowed.val, 1)
 
     def test_many2many(self):
-        """Test assignment of many2many field where rules apply."""
         ids = [self.allowed.id, self.forbidden.id]
 
         container_admin = self.env["test_access_right.container"].create(
@@ -107,14 +106,6 @@ class TestRules(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_check_access_newid_bypasses_ir_rule(self):
-        """``ir.rule`` predicates apply only to records with a database row.
-
-        ``NewId`` records have no DB row, so a rule's domain predicate
-        evaluates against whatever the cache happens to hold (often the
-        field's default).  That is not a meaningful basis for a permission
-        decision, so ``_check_access`` restricts the rule check to records
-        with a real (truthy) id; NewIds always pass.
-        """
         env = self.env(user=self.env.ref("base.public_user"))
         SomeObj = env["test_access_right.some_obj"]
 
@@ -145,7 +136,6 @@ class TestRules(TransactionCase):
         self.assertNotIn(forbidden_user, filtered)
 
     def test_no_context_in_ir_rules(self):
-        """The context should not impact the ir rules."""
         ObjCateg = self.env["test_access_right.obj_categ"]
         SomeObj = self.env["test_access_right.some_obj"]
 
@@ -163,10 +153,6 @@ class TestRules(TransactionCase):
         self.assertTrue(records)
 
     def test_check_access_rule_with_inherits(self):
-        """
-        For models in `_inherits`, verify that both methods `check_access`
-        and `_search` check the rules from parent models.
-        """
         ChildModel = self.env["test_access_right.inherits"]
         allowed_child, __ = children = ChildModel.create(
             [
@@ -185,10 +171,6 @@ class TestRules(TransactionCase):
         self.assertEqual(filter_result, allowed_child)
 
     def test_flush_with_inherits(self):
-        """
-        For models with `_inherits`, verify that fields of the rules from inherited models
-        are flushed correctly.
-        """
         ChildModel = self.env["test_access_right.inherits"]
         child = ChildModel.create([{"some_id": self.allowed.id}])
         self.env.flush_all()
@@ -215,7 +197,6 @@ class TestRules(TransactionCase):
         self.assertEqual(search_result, ChildModel)
 
     def test_domain_constrains(self):
-        """An error should be raised if domain is not correct"""
 
         rule = self.env["ir.rule"].create(
             {

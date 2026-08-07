@@ -73,9 +73,6 @@ class TestImport(common.TransactionCase):
         )
 
     def test_noupdate(self):
-        """
-        Make sure no update do not overwrite translations
-        """
         menu = self.env.ref("test_translation_import.menu_test_translation_import")
         self.assertEqual(menu.name, "Test translation model1")
         self.env["res.lang"]._activate_lang("fr_FR")
@@ -125,7 +122,6 @@ class TestImport(common.TransactionCase):
         )
 
     def test_import_from_po_file(self):
-        """Test the import from a single po file works"""
         with file_open("test_translation_import/i18n/tlh.po", "rb") as f:
             po_file = base64.encodebytes(f.read())
 
@@ -153,7 +149,6 @@ class TestImport(common.TransactionCase):
         self.assertEqual(record.with_context(lang="tlh").name, "Tableware, Klingon")
 
     def test_lazy_translation(self):
-        """Test the import from a single po file works"""
         with file_open("test_translation_import/i18n/tlh.po", "rb") as f:
             po_file = base64.encodebytes(f.read())
 
@@ -212,11 +207,14 @@ class TestImport(common.TransactionCase):
         self.env["res.lang"]._activate_lang("fr_FR")
         context = {"lang": "en_US"}
         self.assertEqual(str(BOOLEAN_TRANSLATIONS[0]), "yes")
-        context = {"lang": "fr_FR"}
+        # These `context` locals look dead but are read by frame inspection:
+        # `_lt.__str__` resolves the language through `translate._get_lang`,
+        # which reads `frame.f_locals["context"]` of its CALLER. Deleting them
+        # would silently fall back to `self.env.lang` and test nothing.
+        context = {"lang": "fr_FR"}  # noqa: F841  read via caller-frame inspection, see above
         self.assertEqual(str(BOOLEAN_TRANSLATIONS[0]), "oui")
 
     def test_import_from_csv_file(self):
-        """Test the import from a single CSV file works"""
         with file_open("test_translation_import/i18n/dot.csv", "rb") as f:
             po_file = base64.encodebytes(f.read())
 
@@ -244,7 +242,6 @@ class TestImport(common.TransactionCase):
         self.assertEqual(record.with_context(lang="dot").name, "Tableware, Dot")
 
     def test_translation_placeholder(self):
-        """Verify placeholder use in _()"""
         self.env["res.lang"]._activate_lang("fr_BE")
 
         model_fr_BE = self.env["test.translation.import.model1"].with_context(
@@ -322,7 +319,6 @@ class TestTranslationFlow(common.TransactionCase):
                 self.assertEqual(line1, line2)
 
     def test_export_import(self):
-        """Ensure export+import gives the same result as loading a language"""
         self.env["base.language.install"].create(
             {
                 "overwrite": True,
@@ -447,7 +443,6 @@ class TestTranslationFlow(common.TransactionCase):
         )
 
     def test_export_import_csv(self):
-        """Ensure can reimport exported csv"""
         self.env.ref("base.lang_fr").active = True
 
         module = self.env.ref("base.module_test_translation_import")

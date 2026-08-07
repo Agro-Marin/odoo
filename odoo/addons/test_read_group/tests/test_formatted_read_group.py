@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, time, timezone
+from datetime import UTC, datetime, time
 from zoneinfo import ZoneInfo
 
 import babel
@@ -8,9 +8,6 @@ from odoo.tests import common, new_test_user
 
 
 class TestFormattedReadGroup(common.TransactionCase):
-    """Test formatted_read_group, similar tests are done in test_private_read_group
-    for _read_group."""
-
     maxDiff = None
 
     @classmethod
@@ -399,7 +396,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             Model.formatted_read_group([], ["value"], order="value ASCCC")
 
     def test_groupby_date(self):
-        """Test what happens when grouping on date fields"""
         Model = self.env["test_read_group.fill_temporal"]
         Model.create({})
         Model.create({"date": "2022-01-29"})
@@ -966,7 +962,6 @@ class TestFormattedReadGroup(common.TransactionCase):
         }
 
         def set_context(lang):
-            """Add `lang` & `tz` to context, and add localized `datetime` values."""
             tz = tz_by_lang[lang]
             tzinfo = ZoneInfo(tz)
             for record in records:
@@ -1206,7 +1201,6 @@ class TestFormattedReadGroup(common.TransactionCase):
                 self.assertEqual(groups, excepted)
 
     def test_groupby_date_part_number(self):
-        """Test grouping by date part number (ex. month_number gives 1 for January)"""
         Model = self.env["test_read_group.fill_temporal"]
         Model.create({})
         Model.create({"date": "2022-01-29", "datetime": "2022-01-29 13:55:12"})

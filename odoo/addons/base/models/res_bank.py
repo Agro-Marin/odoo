@@ -178,18 +178,6 @@ class ResPartnerBank(models.Model):
         allow_company_account_creation=False,
         extra_create_vals=None,
     ):
-        """Find a bank account for ``partner`` and ``account_number``, creating it if absent.
-
-        Handles two corner cases: the account may already exist restricted to
-        another company (unique constraint), and accounts for the database's own
-        companies are not created unless ``allow_company_account_creation``.
-
-        :param account_number: account number to search for (or create)
-        :param partner: partner linked to the account number
-        :param company: company the account must be accessible from (search only)
-        :param allow_company_account_creation: allow creating an account for our own companies
-        :param extra_create_vals: values to set on create only, not written to a found account
-        """
         bank_account = (
             self.env["res.partner.bank"]
             .sudo()
@@ -248,7 +236,6 @@ class ResPartnerBank(models.Model):
 
     @api.model
     def retrieve_acc_type(self, acc_number: str) -> str:
-        """Override in subclasses to support other account types."""
         return "bank"
 
     @api.depends("acc_number", "bank_id.name")
@@ -279,12 +266,10 @@ class ResPartnerBank(models.Model):
         return super().write(self._sanitize_vals(vals))
 
     def action_archive_bank(self) -> dict[str, str]:
-        """Archive the account and reload the client view."""
         self.ensure_one()
         self.action_archive()
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def unlink(self) -> bool:
-        """Archive instead of deleting; bank accounts may be linked to accounting entries."""
         self.action_archive()
         return True

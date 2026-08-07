@@ -26,17 +26,6 @@ _SVG_MAGIC_BYTES = frozenset({b"P", b"<"})
 
 
 class Binary(Field[bytes | typing.Literal[False]]):
-    """Encapsulates binary content (e.g. a file).
-
-    :param bool attachment: whether the field should be stored as `ir_attachment`
-        or in a column of the model's table (default: ``True``).
-    :param str bin_size_field: name of an integer field already holding the
-        content's byte length. Under ``bin_size`` it is read instead of
-        computing the content — see :meth:`compute_value`. The field must be
-        listed in the ``depends`` of the compute, so the reported size is
-        invalidated with the content it describes.
-    """
-
     type = "binary"
 
     prefetch = False
@@ -52,19 +41,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
     def get_depends(
         self, model: BaseModel
     ) -> tuple[typing.Iterable[str], typing.Iterable[str]]:
-        """Add the field-scoped ``bin_size_<name>`` flag to the cache key.
-
-        ``read``, :meth:`compute_value`, :meth:`convert_to_cache` and
-        :meth:`get_column_update` all honour ``bin_size_<name>`` alongside the
-        global ``bin_size``, but only the global one was declared here — so both
-        contexts shared ONE cache entry. Reading a field under
-        ``bin_size_<name>`` therefore wrote the human size string into the entry
-        every plain reader uses: after one such read, ``record.raw`` returned
-        ``b"1.96 Kb"`` for a caller with no ``bin_size`` in context at all.
-
-        Contexts that set neither flag key exactly as before, so this only
-        separates the entries that were being conflated.
-        """
         depends, depends_context = super().get_depends(model)
         return depends, (*depends_context, "bin_size_" + self.name)
 
@@ -115,7 +91,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def get_column_update(self, record: ModelLike) -> bytes | None:
-        """Return the raw binary bytes for ``record``, bypassing bin_size."""
         bin_size_name = "bin_size_" + self.name
         record = record.with_context(**{"bin_size": False, bin_size_name: False})
         value = self._get_cache(record.env)[record.id]
@@ -147,29 +122,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def compute_value(self, records: ModelLike) -> None:
-        """Compute the field, reporting a human size instead under ``bin_size``.
-
-        By default the size is derived FROM the value: it is computed in full,
-        then discarded in favour of its length. Two costs come with that.
-
-        The value still has to be produced, which is what ``bin_size`` exists to
-        avoid — reading ``ir.attachment.datas`` on 20 half-megabyte rows read all
-        10 MB back off the filestore to report a number the ``file_size`` column
-        already held (30 ms against 0.5 ms).
-
-        And its encoding has to be guessed to size it: base64 for a computed
-        field (the ``datas`` convention), raw bytes for a column. The guess is
-        wrong for ``ir.attachment.raw``, whose raw bytes decode as base64
-        whenever their length is a multiple of four and they contain nothing
-        else, so a 5000-byte file reported ``3.66 Kb`` while a 4999-byte one
-        reported ``4.88 Kb`` — under-reporting by a quarter, or not, depending on
-        the payload.
-
-        ``bin_size_field`` removes both: the size is read from the field holding
-        it and the compute never runs. A compute cannot do this for itself —
-        :meth:`mark_dirty` strips ``bin_size`` before caching, so anything it
-        assigns lands in the full-value cache instead.
-        """
         bin_size_name = "bin_size_" + self.name
         under_bin_size = records.env.context.get("bin_size") or records.env.context.get(
             bin_size_name
@@ -205,26 +157,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def read(self, records: BaseModel) -> None:
-        """Read an attachment-backed field out of its ``ir.attachment`` rows.
-
-        The size flags are read from the HOST field's context and answered from
-        ``file_size``; the attachment is then read through
-        ``ir.attachment._unsized()``, which clears every ``bin_size`` axis.
-
-        Both halves were missing. The per-field flag ``bin_size_<name>`` was
-        ignored here although :meth:`compute_value` and ``_fetch_query`` both
-        honour it, so the same flag shortened a column-stored or computed binary
-        field and did nothing to an attachment-backed one — while
-        :meth:`get_depends` still keyed a separate cache entry on it. And the
-        attachment was read under whatever context the host carried, so
-        ``bin_size_datas`` — a flag scoped to ``ir.attachment.datas``, naming a
-        field the caller never asked for — made ``partner.image_1920`` return
-        ``b"70.00 bytes"``. That value lands in the entry keyed by ``bin_size``
-        and ``bin_size_image_1920``, neither of which is set, so it is served to
-        every later plain reader in the transaction: the cross-field poisoning
-        :meth:`get_depends` fixed for one field, arriving through the storage
-        model instead.
-        """
 
         def _encode(s: str | bool) -> bytes | bool:
             if isinstance(s, str):
@@ -343,23 +275,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
 
 class Image(Binary):
-    """Encapsulates an image, extending :class:`Binary`.
-
-    If image size is greater than the ``max_width``/``max_height`` limit of pixels, the image will be
-    resized to the limit by keeping aspect ratio.
-
-    :param int max_width: the maximum width of the image (default: ``0``, no limit)
-    :param int max_height: the maximum height of the image (default: ``0``, no limit)
-    :param bool verify_resolution: whether the image resolution should be verified
-        to ensure it doesn't go over the maximum image resolution (default: ``True``).
-        See :class:`odoo.tools.image.ImageProcess` for maximum image resolution (default: ``50e6``).
-
-    .. note::
-
-        If no ``max_width``/``max_height`` is specified (or is set to 0) and ``verify_resolution`` is False,
-        the field content won't be verified at all and a :class:`Binary` field should be used.
-    """
-
     max_width = 0
     max_height = 0
     verify_resolution = True
@@ -472,7 +387,6 @@ class Image(Binary):
     def _process_related(
         self, value: typing.Any, env: typing.Any
     ) -> bytes | typing.Literal[False]:
-        """Override to resize the related value before saving it on self."""
         try:
             return self._image_process(super()._process_related(value, env), env)
         except UserError:

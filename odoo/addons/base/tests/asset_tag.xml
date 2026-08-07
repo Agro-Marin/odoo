@@ -21,7 +21,6 @@
         <bundle>test_asset_bundle</bundle>
         <path>base/tests/something.scss</path>
         <field name="active">True</field>
-        <!-- Take into account during update -->
     </asset>
 
     <asset

@@ -1,5 +1,3 @@
-"""Date and time utilities: re-exports from odoo.libs.datetime plus Odoo-specific helpers."""
-
 import re
 import typing
 from datetime import UTC, date, datetime, timedelta
@@ -32,11 +30,6 @@ from odoo.libs.datetime import (
 
 
 def utcnow() -> datetime:
-    """Return the current UTC time as a naive datetime.
-
-    Non-deprecated replacement for ``datetime.utcnow()`` that is compatible
-    with Odoo's naive-UTC-datetime convention used by ``fields.Datetime``.
-    """
     return datetime.now(UTC).replace(tzinfo=None)
 
 
@@ -90,41 +83,6 @@ __all__ = [
 
 
 def resolve_date(value: str, env: Environment) -> date | datetime:
-    r"""Parse a technical date string into a date or datetime.
-
-    This supports ISO formatted dates and dates relative to now.
-    `parse_iso_date` is used if the input starts with r'\d+-'.
-    Otherwise, the date is computed by starting from now at user's timezone.
-    We can also start 'today' (resulting in a date type). Then we apply offsets:
-
-    - we can add 'd', 'w', 'm', 'y', 'H', 'M', 'S':
-      days, weeks, months, years, hours, minutes, seconds
-      - "+3d" to add 3 days
-      - "-1m" to subtract one month
-    - we can set a part of the date which will reset to midnight or only lower
-      date parts
-      - "=1d" sets first day of month at midnight
-      - "=6m" sets June and resets to midnight
-      - "=3H" sets time to 3:00:00
-    - weekdays are handled similarly
-      - "=tuesday" sets to Tuesday of the current week at midnight
-      - "+monday" goes to next Monday (no change if we are on Monday)
-      - "=week_start" sets to the first day of the current week, according to the locale
-
-    The DSL for relative dates is as follows::
-
-        relative_date := ('today' | 'now')? offset*
-        offset := date_rel | time_rel | weekday
-        date_rel := (regex) [=+-]\d+[dwmy]
-        time_rel := (regex) [=+-]\d+[HMS]
-        weekday := [=+-] ('monday' | ... | 'sunday' | 'week_start')
-
-    An equivalent function in JavaScript is `parseSmartDateInput`.
-
-    :param value: The string to parse
-    :param env: The environment to get the current date (in user's tz)
-    :returns: A date or datetime object
-    """
     if re.match(r"\d+-", value):
         return parse_iso_date(value)
     terms = value.split()

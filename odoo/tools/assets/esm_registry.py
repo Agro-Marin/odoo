@@ -1,49 +1,3 @@
-"""Declarative ESM bundle registry, aggregated from addon manifests.
-
-Modules declare which of their asset bundles are esbuild-compiled (and how
-they relate to parent bundles) in their own ``__manifest__.py`` under an
-``esm`` key, instead of editing hardcoded frozensets in
-``base/models/assetsbundle.py``::
-
-    'esm': {
-        # Bundles of THIS module that go through esbuild: native ESM
-        # modules are pulled out of the concatenated legacy JS and
-        # bundled separately.
-        'bundles': ['point_of_sale._assets_pos'],
-
-        # Parent -> lazy children. The children's specifiers are
-        # pre-registered in the parent's import map so that runtime
-        # ``import()`` (via ``loadBundle``) can resolve them; ``@web/*``
-        # dependencies are bridged through ``odoo.loader.modules`` shims
-        # to preserve singleton identity.  Declared by the CHILD's
-        # module (web_tour declares its children under web.assets_web).
-        'dynamic_children': {'web.assets_web': ['web_tour.automatic']},
-
-        # Parent -> satellite bundles whose specifiers piggyback on the
-        # parent's import map.  Skips esbuild entirely — used for
-        # test-runner bundles that load individual test files on demand.
-        'import_map_includes': {
-            'web.assets_unit_tests_setup': ['web.assets_unit_tests'],
-        },
-
-        # Parent -> satellites loaded as a SEPARATE <script> later in
-        # the document.  Only the satellite's NEW import-map specifiers
-        # are merged into the parent's map (``?debug=assets`` mode; in
-        # production the satellite's esbuild bundle is self-contained).
-        'secondary_import_map_includes': {
-            'web.assets_web': ['web.assets_tests'],
-        },
-    }
-
-The aggregate is built once per process from
-``Manifest.all_addon_manifests()`` (installed or not — membership checks
-for bundles of unavailable modules are simply never asked) and validated
-with the same invariants the old class-level ``_validate_esm_config``
-enforced.  ``invalidate_esm_registry()`` is wired into
-``AssetsBundle.invalidate_addon_scan_cache`` — the canonical "addons on
-disk changed" signal called from ``ir.module.module.update_list()``.
-"""
-
 import logging
 import threading
 from collections import Counter
@@ -74,8 +28,6 @@ _ESM_MANIFEST_KEYS = frozenset(
 
 
 class EsmRegistry(NamedTuple):
-    """Immutable snapshot of the aggregated ESM bundle taxonomy."""
-
     bundles: frozenset
     dynamic_children: Mapping
     import_map_includes: Mapping
@@ -92,13 +44,6 @@ _cache: list = [None]
 
 
 def esm_registry() -> EsmRegistry:
-    """Return the process-wide registry, building it on first access.
-
-    Built lazily (not at import time) because the manifest walk needs
-    ``odoo.addons.__path__`` fully populated from the server config.
-    A validation failure raises out of whatever render or bundle
-    construction touched the registry first — loud by design.
-    """
     if _cache[0] is None:
         with _lock:
             if _cache[0] is None:
@@ -107,13 +52,11 @@ def esm_registry() -> EsmRegistry:
 
 
 def invalidate_esm_registry() -> None:
-    """Drop the cached aggregate; the next access re-scans the manifests."""
     with _lock:
         _cache[0] = None
 
 
 def _merge_mapping(target: dict, declared: Mapping, *, module: str, key: str) -> None:
-    """Fold one manifest's parent->children mapping into the aggregate."""
     if not isinstance(declared, Mapping):
         raise TypeError(
             f"Module {module!r}: manifest 'esm.{key}' must be a dict "
@@ -129,7 +72,6 @@ def _merge_mapping(target: dict, declared: Mapping, *, module: str, key: str) ->
 
 
 def _build() -> EsmRegistry:
-    """Aggregate every addon manifest's ``esm`` declaration and validate."""
     from odoo.modules import Manifest
 
     bundles: set = set()
@@ -238,24 +180,6 @@ def validate_esm_config(
     *,
     standalone_bundles: set = frozenset(),
 ) -> None:
-    """Sanity-check the aggregated ESM bundle classification.
-
-    Catches the common mistake of declaring a bundle in a relationship
-    mapping without registering it in ``bundles`` — an oversight that
-    silently produces a non-ESM build for that bundle and breaks bridge
-    resolution at runtime, far from the root cause.
-
-    Invariants enforced (ported from the old class-level validator):
-      • Every parent and child in every relationship mapping is a
-        registered ESM bundle.
-      • No bundle is both a dynamic child AND an import-map-include
-        target of the same parent (would double-process its specs).
-      • No bundle name is duplicated within a parent's merged children
-        (two modules declaring the same child is a config error).
-
-    Raises ``ValueError`` on first violation.  Pure function so tests
-    can probe fabricated configurations without touching manifests.
-    """
     for mapping_name, mapping in (
         ("dynamic_children", dynamic_children),
         ("import_map_includes", import_map_includes),

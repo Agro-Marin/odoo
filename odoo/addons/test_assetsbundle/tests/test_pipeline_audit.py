@@ -1,34 +1,3 @@
-"""Regressions for the 2026-07-27 assetsbundle pipeline audit.
-
-Four defects and two recomputations, all found by reading the package against
-what it claims to do:
-
-* The pipeline-source list counted ``__file__.parents`` one level short, so
-  the two ``odoo/tools`` entries named directories that exist nowhere. They
-  were skipped without a log line, and the digest meant to invalidate bundles
-  when the *compiler* changes covered only the assetsbundle package — not
-  esbuild, the ESM graph or the Sass driver. This is the only one of the four
-  that changes what a real deployment serves.
-* ``_autoprefix_css`` consumed both the leading boundary character and the
-  trailing ``;``, so the second of two consecutive ``appearance`` declarations
-  had no boundary left and went unprefixed — in compressed (production) output
-  specifically, since expanded output leaves a space as the lead.
-* ``_minify_css_body`` deleted ordinary comments outright, fusing the tokens
-  they separated: ``@media/*c*/screen`` became the at-keyword
-  ``@mediascreen`` and the browser dropped the block.
-* ``JavascriptAsset.minify`` bypassed rjsmin for any file containing both a
-  backtick and a ``${`` — 2158 files across the workspace's addons roots —
-  when the rjsmin defect it guards needs a *nested* template literal (49
-  files, of which 11 really break, 0 missed; validated with acorn).
-* ``get_native_module_data`` and ``generate_xml_bundle`` are pure functions of
-  a list fixed at construction, yet ``ir_qweb`` calls each several times per
-  render and each recomputed in full.
-
-Both CSS fixes are latent: verified byte-identical output on the real
-``web.assets_frontend`` and ``web.assets_web``, and the same ``appearance``
-match count old vs new. They close gaps, they do not change what ships today.
-"""
-
 from unittest.mock import patch
 
 from odoo.tests.common import BaseCase, TransactionCase
@@ -49,7 +18,6 @@ from odoo.addons.base.models.assetsbundle.css_pipeline import CssPipeline
 
 
 def _file(url, content, last_modified=1.0):
-    """Build the files-dict entry shape produced by ir_qweb._get_asset_content."""
     return {
         "url": url,
         "filename": None,
@@ -59,8 +27,6 @@ def _file(url, content, last_modified=1.0):
 
 
 class TestPipelineFingerprintSources(BaseCase):
-    """The digest must actually read the files it claims to cover."""
-
     def test_every_declared_source_exists(self):
         missing = [s for s in _pipeline_sources() if not (s.is_dir() or s.is_file())]
         self.assertFalse(
@@ -70,11 +36,6 @@ class TestPipelineFingerprintSources(BaseCase):
         )
 
     def test_the_compiler_layer_is_covered(self):
-        """esbuild / the ESM graph / the Sass driver must be inside the digest.
-
-        These are exactly the files whose behaviour a version hash of URLs and
-        mtimes cannot see, which is why the fingerprint exists.
-        """
         covered = set()
         for source in _pipeline_sources():
             if source.is_dir():
@@ -104,13 +65,6 @@ class TestPipelineFingerprintSources(BaseCase):
         self.assertNotEqual(before, after)
 
     def test_an_unresolvable_package_degrades_instead_of_crashing(self):
-        """``__file__`` is ``None`` for a namespace package or a frozen build.
-
-        Resolving the sources at import turned that into a ``TypeError`` on
-        ``import base``; it must reach the coarse release-version fallback the
-        fingerprint documents instead. Not academic — ``odoo`` itself is a
-        namespace package in this fork.
-        """
         from odoo import release
 
         from odoo.addons.base.models.assetsbundle import common
@@ -125,27 +79,16 @@ class TestPipelineFingerprintSources(BaseCase):
 
 
 class TestAutoprefixDeclarationBoundary(BaseCase):
-    """``appearance`` must be prefixed wherever it is a declaration, once each."""
-
     def test_consecutive_declarations_are_both_prefixed(self):
-        """The defect, in the shape production actually emits.
-
-        Compressed Sass separates declarations with a bare ``;``. The old
-        pattern consumed that ``;`` as part of the first match, leaving the
-        second declaration with no boundary character, so it went unprefixed.
-        Expanded output escaped this only because Sass indents with spaces.
-        """
         out = CssPipeline._autoprefix_css(".b{appearance:auto;appearance:textfield}")
         self.assertIn("-webkit-appearance:auto", out)
         self.assertIn("-webkit-appearance:textfield", out)
 
     def test_a_bare_newline_is_a_declaration_boundary(self):
-        """Unindented hand-written CSS: ``\\n`` was not in the old lead class."""
         out = CssPipeline._autoprefix_css(".a{\nappearance:none}")
         self.assertIn("-webkit-appearance:none", out)
 
     def test_indented_output_still_prefixed(self):
-        """Guards the case the old pattern already handled, via the space lead."""
         out = CssPipeline._autoprefix_css(".a {\n  appearance: none;\n}")
         self.assertIn("-webkit-appearance:none", out)
         self.assertIn("-moz-appearance:none", out)
@@ -161,7 +104,6 @@ class TestAutoprefixDeclarationBoundary(BaseCase):
         self.assertEqual(out.count("!important"), 3)
 
     def test_non_declarations_are_left_alone(self):
-        """The boundary must not fire on a selector, an attribute or a prefix."""
         for source in (
             ".appearance:hover{color:red}",
             "[appearance]{color:red}",
@@ -171,19 +113,12 @@ class TestAutoprefixDeclarationBoundary(BaseCase):
             self.assertEqual(CssPipeline._autoprefix_css(source), source, source)
 
     def test_a_hand_written_prefix_is_not_re_prefixed_in_place(self):
-        """The author's own ``-webkit-appearance`` must survive verbatim.
-
-        A duplicate standard-value declaration is emitted (documented bloat),
-        but the prefixed property itself must never be rewritten.
-        """
         out = CssPipeline._autoprefix_css(".a{-webkit-appearance:none;appearance:none}")
         self.assertNotIn("-webkit--webkit", out)
         self.assertNotIn("--webkit", out)
 
 
 class TestCssCommentIsATokenSeparator(BaseCase):
-    """Dropping a comment must not fuse the two tokens it separated."""
-
     def test_at_rule_keeps_its_media_query(self):
         self.assertEqual(
             StylesheetAsset._minify_css_body("@media/*c*/screen{a{b:c}}"),
@@ -197,11 +132,6 @@ class TestCssCommentIsATokenSeparator(BaseCase):
         )
 
     def test_a_compound_selector_stays_compound(self):
-        """``.a/*x*/.b`` really is ``.a.b`` — a comment is not whitespace.
-
-        The separator is inserted only between two identifier characters, so
-        this must NOT become the descendant selector ``.a .b``.
-        """
         self.assertEqual(
             StylesheetAsset._minify_css_body(".a/*x*/.b{color:red}"),
             ".a.b{color:red}",
@@ -221,8 +151,6 @@ class TestCssCommentIsATokenSeparator(BaseCase):
 
 
 class TestNestedTemplateLiteralDetection(BaseCase):
-    """The rjsmin bypass must ask about nesting, not about backtick presence."""
-
     def test_nesting_is_detected(self):
         self.assertTrue(has_nested_template_literal("const a = `A${`B  ${1}  C`}D`;"))
 
@@ -241,13 +169,6 @@ class TestNestedTemplateLiteralDetection(BaseCase):
         self.assertFalse(has_nested_template_literal("const a = '${notatemplate}';"))
 
     def test_every_file_rjsmin_corrupts_is_flagged(self):
-        """The 11 real corruptions found by an acorn sweep of all addons roots.
-
-        Reduced to the construct each one hinges on. A miss here means the
-        bundle ships JS whose template literals lost content, so this is the
-        one direction that must never regress; over-flagging only costs a
-        subprocess.
-        """
         must_flag = [
             "const a = `A${`B  ${1}  C`}D`;",
             "expect(`${a}`).toBe(`x  ${`y  z`}`);",
@@ -259,14 +180,12 @@ class TestNestedTemplateLiteralDetection(BaseCase):
             self.assertTrue(has_nested_template_literal(source), source)
 
     def test_rjsmin_really_does_break_what_is_flagged(self):
-        """Pin the defect this guard exists for, so it can be retired safely."""
         from rjsmin import jsmin
 
         source = "const a = `A${`B  ${1}  C`}D`;"
         self.assertNotIn("B  ${1}  C", jsmin(source, keep_bang_comments=True))
 
     def test_the_minifier_takes_the_in_process_path(self):
-        """A merely-interpolated file must not reach the esbuild subprocess."""
         bundle = AssetsBundle(
             "test.audit.tpl",
             [_file("/m/a.js", "const a = `x ${y}   z`;\nconst b   =   1;")],
@@ -297,8 +216,6 @@ class TestNestedTemplateLiteralDetection(BaseCase):
 
 
 class TestBundleProductsAreMemoized(TransactionCase):
-    """Pure products of a fixed asset list must be computed once per bundle."""
-
     TEMPLATE = '<templates><t t-name="test.audit.tpl"><div/></t></templates>'
 
     def test_generate_xml_bundle_renders_once(self):
@@ -341,8 +258,6 @@ class TestBundleProductsAreMemoized(TransactionCase):
 
 
 class TestDeterministicSplitMarker(TransactionCase):
-    """The Sass compile input must be a pure function of the bundle's files."""
-
     SPEC = [
         _file("/m/a.scss", "$c: red; .a{color:$c}"),
         _file("/m/b.scss", ".b{color:blue}"),
@@ -353,7 +268,6 @@ class TestDeterministicSplitMarker(TransactionCase):
         return "\n".join(a.get_source() for a in bundle.stylesheets)
 
     def test_two_bundles_over_the_same_files_compile_the_same_bytes(self):
-        """A random marker made every compile input unique, so none was reusable."""
         self.assertEqual(self._source(), self._source())
 
     def test_markers_are_unique_within_a_bundle(self):
@@ -363,12 +277,6 @@ class TestDeterministicSplitMarker(TransactionCase):
         self.assertEqual(ids, ["0000", "0001"])
 
     def test_identical_content_still_gets_distinct_markers(self):
-        """Two assets with the same bytes must not collapse onto one marker.
-
-        They would share an ``assets_by_id`` entry, leaving one of them without
-        a compiled fragment — and its ``minify()`` would then emit raw,
-        uncompiled SCSS into the stylesheet.
-        """
         same = [
             _file("/m/x.scss", ".x{color:red}"),
             _file("/m/y.scss", ".x{color:red}"),
@@ -377,7 +285,6 @@ class TestDeterministicSplitMarker(TransactionCase):
         self.assertEqual(len({a.id for a in bundle.stylesheets}), 2)
 
     def test_the_direction_and_prefix_variants_share_one_compile_input(self):
-        """RTL and autoprefixing are post-compile passes; the SCSS is the same."""
         variants = [
             self._source(),
             self._source(rtl=True),
@@ -388,8 +295,6 @@ class TestDeterministicSplitMarker(TransactionCase):
 
 
 class TestCompileMemoContract(TransactionCase):
-    """The stylesheet memo must reuse successes and never retain a failure."""
-
     def setUp(self):
         super().setUp()
         CssPipeline._compiled_cache.clear()
@@ -407,12 +312,6 @@ class TestCompileMemoContract(TransactionCase):
         self.assertEqual(len(calls), 1)
 
     def test_a_failure_is_not_retained(self):
-        """One transient subprocess failure must not poison the input forever.
-
-        Caching it would re-serve the degraded bundle for every later build of
-        the same stylesheets until the worker restarts — which is why
-        ``run_rtlcss`` validates inside the memoized callable.
-        """
         attempts = []
 
         def flaky(source):
@@ -436,7 +335,6 @@ class TestCompileMemoContract(TransactionCase):
         self.assertEqual(out, ["first", "second"])
 
     def test_dev_mode_bypasses_the_memo(self):
-        """A ``@use``-only dependency is outside the key, so dev must recompile."""
         calls = []
 
         def transform(source):
@@ -451,8 +349,6 @@ class TestCompileMemoContract(TransactionCase):
 
 
 class TestBundleChangedBroadcastDedup(TransactionCase):
-    """One rebuild tells clients once, however many artifacts it saved."""
-
     def setUp(self):
         super().setUp()
         if "bus.bus" not in self.env:
@@ -480,12 +376,6 @@ class TestBundleChangedBroadcastDedup(TransactionCase):
         )
 
     def test_a_debug_rebuild_broadcasts_once_not_per_artifact(self):
-        """Debug saves the bundle AND its sourcemap; that is one rebuild.
-
-        Both went through ``save_attachment``, so each inserted its own
-        ``bus.bus`` row with an identical payload and every client was told
-        twice to reload the same bundle.
-        """
         self._bundle(debug_assets=True).js()
         self.assertEqual(len(self.sent), 1, self.sent)
 
@@ -504,7 +394,6 @@ class TestBundleChangedBroadcastDedup(TransactionCase):
         self.assertEqual(self.sent, [])
 
     def test_the_guard_is_scoped_to_the_transaction(self):
-        """A later transaction must notify again — the cursor clears the key."""
         self._bundle(debug_assets=True).js()
         self.assertEqual(len(self.sent), 1)
         self.env.cr.precommit.data.pop(AssetAttachmentStore._BROADCAST_KEY, None)

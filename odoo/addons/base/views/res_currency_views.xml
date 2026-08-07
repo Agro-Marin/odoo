@@ -56,7 +56,6 @@
         <field name="view_id" ref="view_currency_rate_tree" />
         <field name="domain">[('currency_id','=', active_id)]</field>
         <field name="context">{'default_currency_id': active_id}</field>
-        <!-- <field name="target">fullscreen</field> -->
         <field name="binding_model_id" ref="model_res_currency" />
         <field name="binding_view_types">form</field>
     </record>

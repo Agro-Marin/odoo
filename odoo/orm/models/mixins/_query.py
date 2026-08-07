@@ -1,28 +1,3 @@
-"""SQL query construction: the primitives both reading and searching need.
-
-These eight methods were on :class:`~odoo.orm.models.mixins.search.SearchMixin`,
-and they were the whole of the last cycle left in the mixin graph. ``read`` needs
-``_search`` / ``_as_query`` / ``_field_to_sql`` / ``exists`` to turn a domain into
-rows; ``search`` needs ``_fetch_query`` / ``_determine_fields_to_fetch`` /
-``fields_get`` from ``read`` to implement ``search_fetch`` and ``search_read``.
-So the two mixins each called into the other and neither could be read in
-dependency order (``tooling/architecture/mixin_coupling_check.py``).
-
-The tangle was not really "read vs search" — it was that *query construction* is
-a third concern that both build on, with no home of its own. Given one, the
-dependency straightens out: ``read`` and ``search`` both sit above this module,
-``search`` still sits above ``read``, and nothing points back up.
-
-Membership is not a judgement call: it is the transitive closure, inside
-``search.py``, of the four members ``read`` reached for. That closure needs
-nothing from ``read`` or ``search`` — only ``_metadata``, ``access``, ``env``
-and ``iteration`` — which is why it can be a leaf at all.
-
-``search`` keeps everything that is *searching* rather than query-building:
-``search``, ``search_count``, ``search_fetch``, ``search_read``, ``name_search``,
-the ``_search_display_name*`` family, and the row locks.
-"""
-
 import logging
 import typing
 from typing import Self
@@ -48,8 +23,6 @@ _orm_read = logging.getLogger("odoo.orm.read")
 
 
 class _QueryMixin(_ModelStubs):
-    """Domain-to-SQL construction shared by the read and search paths."""
-
     __slots__ = ()
 
     def _check_qorder(self, word: str) -> None:
@@ -70,10 +43,6 @@ class _QueryMixin(_ModelStubs):
         alias: str | None = None,
         reverse: bool = False,
     ) -> SQL:
-        """Return an :class:`SQL` object that represents the given ORDER BY
-        clause, without the ORDER BY keyword.  The method also checks whether
-        the fields in the order are accessible for reading.
-        """
         order = order or self._order
         if not order:
             return SQL.EMPTY
@@ -119,26 +88,6 @@ class _QueryMixin(_ModelStubs):
         nulls: SQL,
         query: Query,
     ) -> SQL:
-        """Return an :class:`SQL` object that represents the ordering by the
-        given field.  The method also checks whether the field is accessible for
-        reading.
-
-        A term the user may not read is **dropped** (empty result), not
-        refused.  Sequencing rows on a value the caller cannot see leaks it --
-        weakly, as relative order, but ``limit``/``offset`` walks that order
-        out record by record -- so the term must not reach the SQL.  Raising
-        instead is not an option here: this runs for the model's own
-        ``_order`` on a model-level (empty) recordset, and
-        ``_has_field_access`` may be record-sensitive (``res.users`` grants
-        ``SELF_READABLE_FIELDS`` only when ``self._origin == self.env.user``),
-        so an empty recordset fails closed and a user could no longer sort, or
-        open the preferences form for, their own record.  Dropping keeps those
-        flows working and still exposes nothing; :meth:`_search` restores a
-        deterministic order when this leaves nothing to sort by.
-
-        :param direction: one of ``SQL("ASC")``, ``SQL("DESC")``, ``SQL()``
-        :param nulls: one of ``SQL("NULLS FIRST")``, ``SQL("NULLS LAST")``, ``SQL()``
-        """
         fname, property_name = parse_field_expr(field_name)
         field = self._fields.get(fname)
         if not field:
@@ -210,20 +159,6 @@ class _QueryMixin(_ModelStubs):
         active_test: bool = True,
         bypass_access: bool = False,
     ) -> Query:
-        """Private implementation of :meth:`search`.
-
-        No default order is applied when called without ``order``.
-
-        :return: a :class:`Query` representing the matching records
-
-        May be overridden to modify the domain or post-filter the query. Beware:
-        the returned query is not executed by default (it can be injected into a
-        domain to generate sub-queries), so post-filtering may hurt performance.
-
-        :param active_test: whether to filter only active records
-        :param bypass_access: whether to skip model permission and record-rule
-            checks
-        """
         prof = _OrmProfile(_orm_read)
 
         check_access = not (self.env.su or bypass_access)
@@ -248,12 +183,6 @@ class _QueryMixin(_ModelStubs):
             return self.browse()._as_query()
 
         if (backend := self.env.backend) is not None:
-            # Consult the capability rather than trusting the tier: this returns
-            # before the ir.rule block below, so a backend that does NOT enforce
-            # record rules must not be handed a rule-checked search silently.
-            # Today only the in-memory tier reaches here and it declares False;
-            # the assertion is what keeps a future backend from inheriting the
-            # bypass by default.
             if check_access and not backend.supports_record_rules:
                 raise NotImplementedError(
                     f"{type(backend).__name__} does not enforce ir.rule record "
@@ -279,13 +208,6 @@ class _QueryMixin(_ModelStubs):
         prof.mark("rules")
 
         if order:
-            # Every term may be dropped -- unreadable fields
-            # (:meth:`_order_field_to_sql`) or a many2one ordering cycle.  An
-            # unordered query makes limit/offset pagination repeat and skip
-            # rows, so fall back to the primary key rather than to whatever
-            # the database happens to return.  Only here: ``_order_to_sql``
-            # also serves read_group, where a bare id would not be in the
-            # GROUP BY.
             query.order = self._order_to_sql(order, query) or SQL.identifier(
                 self._table, "id"
             )
@@ -309,10 +231,6 @@ class _QueryMixin(_ModelStubs):
         return query
 
     def _as_query(self, ordered: bool = True) -> Query:
-        """Return a :class:`Query` corresponding to the recordset ``self``.
-
-        :param ordered: whether the recordset order must be enforced by the query
-        """
         if (backend := self.env.backend) is not None:
             return backend.as_query(self, ordered)
         query = Query(self.env, self._table, self._table_sql)
@@ -322,12 +240,6 @@ class _QueryMixin(_ModelStubs):
     def _traverse_related_sql(
         self, alias: str, field: Field, query: Query
     ) -> tuple[typing.Any, Field, str]:
-        """Traverse the related `field` and add needed join to the `query`.
-
-        :returns: tuple ``(model, field, alias)``, where ``field`` is the last
-            field in the sequence, ``model`` is that field's model, and
-            ``alias`` is the model's table alias
-        """
         if not (field.related and not field.store):
             raise ValueError(
                 f"_traverse_related_sql expects a non-stored related field, got {field!r}"
@@ -352,25 +264,6 @@ class _QueryMixin(_ModelStubs):
     def _field_to_sql(
         self, alias: str, field_expr: str, query: Query | None = None
     ) -> SQL:
-        """Return an :class:`SQL` object that represents the value of the given
-        field from the given table alias, in the context of the given query.
-        The method also checks that the field is accessible for reading.
-
-        The query object is necessary for inherited fields, many2one fields and
-        properties fields, where joins are added to the query.
-
-        A non-stored *related* field is resolved by recursing onto its target,
-        so the access check below applies to the target, never to the related
-        field's own ``groups``.  Do not "fix" that by checking here first: this
-        runs for ORDER BY too, on a **model-level (empty) recordset**, and
-        ``_has_field_access`` may be record-sensitive -- ``res.users`` grants
-        ``SELF_READABLE_FIELDS`` only when ``self._origin == self.env.user``, so
-        an empty recordset fails closed and a user can no longer sort, or open
-        the preferences form for, their own record.  Disclosure is blocked at
-        the entry points that actually return values instead: domain conditions
-        (``DomainCondition._optimize_step``) and read_group
-        (``_read_group_select`` / ``_read_group_groupby``).
-        """
         fname, property_name = parse_field_expr(field_expr)
         field = self._fields.get(fname)
         if not field:
@@ -401,14 +294,6 @@ class _QueryMixin(_ModelStubs):
 
     @api.private
     def exists(self) -> Self:
-        """The subset of records in ``self`` that exist.
-        It can be used as a test on records::
-
-            if record.exists():
-                ...
-
-        By convention, new records are returned as existing.
-        """
         new_ids, ids = partition(lambda i: isinstance(i, NewId), self._ids)
         if not ids:
             return self

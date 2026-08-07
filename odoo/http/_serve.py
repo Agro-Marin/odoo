@@ -1,12 +1,3 @@
-"""Routing methods for :class:`~odoo.http.Request`.
-
-This mixin holds the request-routing logic — `_serve_static`, `_serve_db`,
-`_serve_nodb` and their helpers — split out of ``request_class.py`` for
-file-size hygiene. The methods rely on attributes set in
-``Request.__init__`` (``httprequest``, ``session``, ``db``, ``env``,
-``registry``, ``dispatcher``, ``params``); they are not standalone.
-"""
-
 from __future__ import annotations
 
 import functools
@@ -43,12 +34,6 @@ _logger = logging.getLogger(__name__)
 
 
 class _RequestServeMixin(RequestState):
-    """Routing methods mixed into :class:`~odoo.http.Request` (see module docstring).
-
-    No state of its own; the ``Request`` state it reads and writes is declared by
-    :class:`~odoo.http._protocols.RequestState`.
-    """
-
     def _set_request_dispatcher(self, rule: Any) -> None:
         routing = rule.endpoint.routing
         dispatcher_cls = _dispatchers[routing["type"]]
@@ -71,14 +56,6 @@ class _RequestServeMixin(RequestState):
         self.dispatcher = dispatcher_cls(self)
 
     def _serve_static(self, filepath: str | None = None) -> Response:
-        """Serve a static file from the file system.
-
-        ``filepath`` is the absolute, pre-validated path resolved by
-        :meth:`Application.get_static_file` at the WSGI static gate. When supplied
-        (the hot path) it is trusted and streamed directly, skipping a redundant
-        manifest lookup + ``safe_join`` + ``file_path`` resolution; when omitted
-        (a direct call) the path is resolved from the request.
-        """
         root = self.app
 
         try:
@@ -105,22 +82,11 @@ class _RequestServeMixin(RequestState):
             raise NotFound(f'File "{path}" not found in module {module}.\n') from None
 
     def _serve_aborted(self, exc: HTTPException) -> Response:
-        """Recover the Response carried by a code-less ``HTTPException``.
-
-        ``abort(Response(...))`` raises an ``HTTPException`` with ``code is None``
-        carrying a ready-made Response (CORS 204 preflight, ``Invalid JSON`` 400,
-        ...). Run ``post_dispatch`` so CORS / CSP / session-save headers land on
-        it, then return it. Shared by :meth:`_serve_nodb` and :meth:`_serve_db`.
-        """
         response = exc.get_response()
         HttpDispatcher(self).post_dispatch(response)
         return response
 
     def _serve_nodb(self) -> Response:
-        """
-        Dispatch the request to its matching controller in a
-        database-free environment.
-        """
         root = self.app
 
         try:
@@ -147,7 +113,6 @@ class _RequestServeMixin(RequestState):
             return self._serve_aborted(exc)
 
     def _acquire_registry_cursor(self) -> Any:
-        """Open the database registry and return its initial read-only cursor."""
         cr = None
         try:
             registry = Registry(self.db)
@@ -181,18 +146,11 @@ class _RequestServeMixin(RequestState):
             err.transient = not isinstance(e, psycopg.ProgrammingError)
             raise err from e
         except BaseException:
-            # Any error the typed handler above did not expect — an
-            # InternalError/DataError from check_signaling, a bug in a
-            # signaling override, a KeyboardInterrupt — must still not leak the
-            # read-only cursor: _serve_db's own ``finally`` cannot close it,
-            # because its local ``cr`` was never assigned (this call raised
-            # instead of returning). Close and re-raise unchanged.
             if cr is not None:
                 cr.close()
             raise
 
     def _serve_db(self) -> Response:
-        """Load the ORM and use it to process the request."""
         cr = None
         try:
             cr = self._acquire_registry_cursor()
@@ -233,8 +191,6 @@ class _RequestServeMixin(RequestState):
                     )
                     current_worker_thread().cursor_mode = "ro->rw"
                     self._rewind_input_files(exc)
-                    # By the session's current sid, not the cookie's: the first
-                    # attempt may have rotated it (see _get_session_and_dbname).
                     self.session = self._get_session_and_dbname(
                         sid=getattr(self.session, "sid", None)
                     )[0]
@@ -270,28 +226,9 @@ class _RequestServeMixin(RequestState):
                 cr.close()
 
     def _rewind_input_files(self, cause: Exception | None = None) -> None:
-        """Rewind uploaded files before re-dispatching on the RO→RW cursor swap.
-
-        Thin wrapper over :func:`~odoo.http.helpers.rewind_uploaded_files`, the
-        single rewind primitive shared with the serialization-retry path in
-        :func:`~odoo.service.transaction.retrying`, so the two cannot drift.
-        ``cause`` is chained onto the raised error.
-        """
         rewind_uploaded_files(self.httprequest, cause=cause)
 
     def _update_served_exception(self, exc: Exception) -> None:
-        """Attach an ``error_response`` to ``exc`` in place (side effect only).
-
-        Callers re-raise with a bare ``raise`` to preserve the traceback, so this
-        returns nothing. Two cases are left untouched to bubble up:
-
-        * the abort+Response path (``HTTPException``, ``code is None``), recovered
-          by :meth:`_serve_db`;
-        * ``--dev werkzeug`` on non-JSON routes — skip the styled
-          ``ir.http._handle_error`` page so :meth:`Application.__call__` logs the
-          traceback and builds a plain response (this fork has no interactive
-          debugger, so ``__call__`` is the handler of last resort).
-        """
         if isinstance(exc, HTTPException) and exc.code is None:
             return
         if (
@@ -305,12 +242,6 @@ class _RequestServeMixin(RequestState):
             exc.error_response = self.registry["ir.http"]._handle_error(exc)
 
     def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
-        """Serve the request when no controller matched its path.
-
-        Delegate to ``ir.http._serve_fallback`` so modules can serve the request
-        another way. If none does, raise a 404 Not Found carrying the rendered
-        error page.
-        """
         self.registry["ir.http"]._apply_max_upload_size()
         self.params = self.get_http_params()
         self.registry["ir.http"]._auth_method_public()
@@ -325,7 +256,6 @@ class _RequestServeMixin(RequestState):
         raise no_fallback
 
     def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
-        """Serve the request via ``ir.http`` when a controller matched its path."""
         self.registry["ir.http"]._authenticate(rule.endpoint)
         self.registry["ir.http"]._pre_dispatch(rule, args)
         response = self.dispatcher.dispatch(rule.endpoint, args)

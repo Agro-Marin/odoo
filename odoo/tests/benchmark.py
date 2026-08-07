@@ -1,16 +1,3 @@
-"""Shared benchmark statistical utilities.
-
-Used by test_benchmark, test_sql_benchmark, and test_perf to compute
-consistent statistics from timing data.
-
-See Also
---------
-- ``odoo.libs.profiling.orm_profiler`` — Aggregate per-model/operation stats per transaction
-- ``odoo.libs.profiling.nplusone`` — N+1 CRUD detection (repeated single-record calls)
-- ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
-- ``.claude/rules/profiling.md`` — Decision tree: which tool to use when
-"""
-
 import json
 import math
 import statistics
@@ -29,7 +16,6 @@ OUTLIER_PERCENTILE = 5
 
 
 def percentile(data: list[float], p: float) -> float:
-    """Calculate percentile using linear interpolation."""
     if not data:
         return 0.0
     sorted_data = sorted(data)
@@ -44,20 +30,12 @@ def percentile(data: list[float], p: float) -> float:
 def remove_outliers(
     data: list[float], percentile_cutoff: float = OUTLIER_PERCENTILE
 ) -> list[float]:
-    """Remove outliers outside the given percentile range."""
     return [data[i] for i in _inlier_indices(data, percentile_cutoff)]
 
 
 def _inlier_indices(
     data: list[float], percentile_cutoff: float = OUTLIER_PERCENTILE
 ) -> list[int]:
-    """Return the indices of ``data`` within the given percentile range.
-
-    Index-based so parallel sample lists (query counts, DB times) can be
-    trimmed *jointly* with the timing list they were measured with —
-    trimming each list on its own percentiles decorrelates them and produces
-    impossible aggregates (DB ratio above 1, negative Python time).
-    """
     if len(data) < 10:
         return list(range(len(data)))
     lower = percentile(data, percentile_cutoff)
@@ -67,12 +45,6 @@ def _inlier_indices(
 
 @dataclass(slots=True)
 class BenchmarkStats:
-    """Statistical summary of benchmark results.
-
-    All timing values are stored in **microseconds** (µs).  Use the ``_ms``
-    properties for millisecond access.
-    """
-
     name: str
     iterations: int
     total_samples: int
@@ -158,11 +130,6 @@ class BenchmarkStats:
         return d
 
     def summary(self, unit: str = "auto") -> str:
-        """Return a human-readable summary.
-
-        *unit*: ``"us"`` for microseconds, ``"ms"`` for milliseconds,
-        ``"auto"`` picks ms when mean > 1000 µs.
-        """
         if unit == "auto":
             unit = "ms" if self.mean_us > 1000 else "us"
         if unit == "ms":
@@ -230,15 +197,6 @@ def compute_stats(
     query_counts: list[int],
     db_times_us: list[float],
 ) -> BenchmarkStats:
-    """Compute comprehensive statistics from benchmark timing data.
-
-    All input lists must be in **microseconds**.
-
-    Mean/median/std/percentiles are computed on outlier-trimmed samples;
-    ``min_us``/``max_us`` report the *raw* extremes.  Query counts and DB
-    times are trimmed jointly with the timing samples they belong to (same
-    iterations dropped), keeping ``db_ratio``/``python_time_us`` coherent.
-    """
     indices = _inlier_indices(times_us) or range(len(times_us))
     clean_times = [times_us[i] for i in indices]
     clean_db_times = (
@@ -295,17 +253,6 @@ def run_benchmark(
     teardown: Callable[[], None] | None = None,
     invalidate: Callable[[], None] | None = None,
 ) -> BenchmarkStats:
-    """Run a benchmark function and return statistical results.
-
-    :param name: descriptive name for the benchmark
-    :param func: function to benchmark (no arguments)
-    :param iterations: number of measured iterations
-    :param warmup: number of warmup iterations (excluded from stats)
-    :param setup: called before each iteration (including warmup)
-    :param teardown: called after each iteration (including warmup)
-    :param invalidate: called before each iteration to clear caches (e.g.
-        ``env.invalidate_all``); ``None`` to skip
-    """
     times_us: list[float] = []
     query_counts: list[int] = []
     db_times_us: list[float] = []
@@ -333,19 +280,6 @@ def run_benchmark(
 
 
 class PerfTimer:
-    """Minimal timer for micro-benchmarks.  Measures only wall-clock time
-    using ``time.perf_counter_ns`` for sub-microsecond precision.
-
-    Usage::
-
-        timer = PerfTimer()
-        for _ in range(N):
-            timer.start()
-            func()
-            timer.stop()
-        print(timer.stats("my_func"))
-    """
-
     __slots__ = ("_t0", "samples_ns")
 
     def __init__(self) -> None:
@@ -359,12 +293,6 @@ class PerfTimer:
         self.samples_ns.append(time.perf_counter_ns() - self._t0)
 
     def stats(self, name: str = "", *, warmup: int = 0) -> dict:
-        """Compute statistics from collected samples.
-
-        Returns a dict with p50/p95/p99/mean/min/max in **microseconds**
-        (samples are collected in ns, converted here) and a human-readable
-        ``summary`` string.
-        """
         raw = self.samples_ns[warmup:]
         if not raw:
             return {"name": name, "n": 0}
@@ -401,18 +329,6 @@ class PerfTimer:
 
 
 class BenchmarkTimer:
-    """Context manager for precise timing with query tracking.
-
-    Stores raw seconds internally; exposes both millisecond and microsecond
-    accessors so SQL-level and ORM-level benchmarks can share the same timer.
-
-    Usage::
-
-        with BenchmarkTimer() as t:
-            do_something()
-        print(f"{t.elapsed_us:.1f} µs, {t.query_count} queries")
-    """
-
     def __init__(self) -> None:
         self.start_time: float = 0
         self.end_time: float = 0
@@ -441,49 +357,40 @@ class BenchmarkTimer:
 
     @property
     def elapsed_us(self) -> float:
-        """Total elapsed time in microseconds."""
         return (self.end_time - self.start_time) * 1_000_000
 
     @property
     def elapsed_ms(self) -> float:
-        """Total elapsed time in milliseconds."""
         return (self.end_time - self.start_time) * 1000
 
     @property
     def query_count(self) -> int:
-        """Number of SQL queries executed."""
         return self.end_query_count - self.start_query_count
 
     @property
     def db_time_us(self) -> float:
-        """Time spent waiting for database in microseconds."""
         return (self.end_query_time - self.start_query_time) * 1_000_000
 
     @property
     def db_time_ms(self) -> float:
-        """Time spent waiting for database in milliseconds."""
         return (self.end_query_time - self.start_query_time) * 1000
 
     @property
     def orm_overhead_us(self) -> float:
-        """Time spent in Python (non-DB) in microseconds."""
         return self.elapsed_us - self.db_time_us
 
     @property
     def python_time_ms(self) -> float:
-        """Time spent in Python (non-DB) in milliseconds."""
         return self.elapsed_ms - self.db_time_ms
 
 
 def save_results(results: list[dict], path: str) -> None:
-    """Append benchmark results to a JSON-lines file for before/after comparison."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with Path(path).open("a") as f:
+    with Path(path).open("a", encoding="utf-8") as f:
         f.writelines(json.dumps(r, default=str) + "\n" for r in results)
 
 
 def compare_results(baseline: list[dict], current: list[dict]) -> str:
-    """Compare two sets of benchmark results and return a report."""
     base_map = {r["name"]: r for r in baseline if r.get("name")}
     lines = []
     lines.extend(

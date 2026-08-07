@@ -1,14 +1,3 @@
-"""Regression tests for ``odoo.tools.security.verify_limited_field_access_token``.
-
-``access_token`` is attacker-controllable (``/web/content`` is ``auth="public"``,
-mail mention tokens arrive in a JSON body, presence tokens over the websocket),
-so every malformed shape must be a plain ``False``, never an exception.
-
-The non-ASCII case used to escape as ``TypeError: comparing strings with
-non-ASCII characters is not supported`` out of ``hmac.compare_digest`` and
-surfaced as an HTTP 500 on an unauthenticated request.
-"""
-
 import unittest
 
 from odoo.tools.security import (
@@ -30,8 +19,6 @@ class _FakeEnv:
 
 
 class _FakeRecord:
-    """Minimal stand-in for the BaseModel surface the token helpers touch."""
-
     _name = "res.partner"
     id = 42
 

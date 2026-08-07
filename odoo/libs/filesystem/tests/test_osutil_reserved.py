@@ -1,9 +1,3 @@
-"""Regression tests for ``odoo.libs.filesystem.osutil.WINDOWS_RESERVED``.
-
-The pattern uses ``(?:...)`` (non-capturing); the previous ``(:?...)`` was a
-capturing group beginning with an optional colon, so ``":CON"`` matched.
-"""
-
 import unittest
 
 from odoo.libs.filesystem.osutil import WINDOWS_RESERVED

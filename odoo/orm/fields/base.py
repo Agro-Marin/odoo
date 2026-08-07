@@ -1,5 +1,3 @@
-"""High-level objects for fields."""
-
 import collections
 import functools
 import itertools
@@ -47,9 +45,6 @@ if typing.TYPE_CHECKING:
 
 
 def expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
-    """Return an iterator of unique ids from the concatenation of ``[id0]`` and
-    ``ids``, and of the same kind (all real or all new).
-    """
     yield id0
     seen = {id0}
     kind = bool(id0)
@@ -60,13 +55,6 @@ def expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
 
 
 def _recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
-    """Build a recordset over *ids* sharing *records*' env and prefetch group.
-
-    Inlines ``object.__new__`` + slot assignment to skip ``__init__`` (hot path).
-    Unlike ``browse``, the original ``_prefetch_ids`` is preserved so later reads
-    keep the broader prefetch group — hence ``Field._assign_*`` cannot use
-    ``browse``.
-    """
     rs = object.__new__(records.__class__)
     rs.env = records.env
     rs._ids = tuple(ids)
@@ -103,10 +91,6 @@ _orm_compute = logging.getLogger("odoo.orm.compute")
 def resolve_mro(
     model: BaseModel, name: str, predicate: Callable[[typing.Any], bool]
 ) -> list[typing.Any]:
-    """Return the list of successively overridden values of attribute ``name``
-    in mro order on ``model`` that satisfy ``predicate``.  Model registry
-    classes are ignored.
-    """
     result = []
     for cls in model._model_classes__:
         value = cls.__dict__.get(name, SENTINEL)
@@ -123,15 +107,6 @@ def determine(
     records: ModelLike,
     *args: object,
 ) -> typing.Any:
-    """Simple helper for calling a method given as a string or a function.
-
-    :param needle: callable or name of method to call on ``records``
-    :param BaseModel records: recordset to call ``needle`` on or with
-    :param args: additional arguments to pass to the determinant
-    :returns: the determined value if the determinant is a method name or callable
-    :raise TypeError: if ``records`` is not a recordset, or ``needle`` is not
-                      a callable or valid method name
-    """
     if not is_recordset(records):
         msg = "Determination requires a subject recordset"
         raise TypeError(msg)
@@ -151,163 +126,6 @@ _global_seq = itertools.count()
 
 
 class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
-    """The field descriptor contains the field definition, and manages accesses
-    and assignments of the corresponding field on records. The following
-    attributes may be provided when instantiating a field:
-
-    :param str string: the label of the field seen by users; if not
-        set, the ORM takes the field name in the class (capitalized).
-
-    :param str help: the tooltip of the field seen by users
-
-    :param bool readonly: whether the field is readonly (default: ``False``)
-
-        This only has an impact on the UI. Any field assignation in code will work
-        (if the field is a stored field or an inversable one).
-
-    :param bool required: whether the value of the field is required (default: ``False``)
-
-    :param str index: whether the field is indexed in database, and the kind of index.
-        Note: this has no effect on non-stored and virtual fields.
-        The possible values are:
-
-        * ``"btree"`` or ``True``: standard index, good for many2one
-        * ``"btree_not_null"``: BTREE index without NULL values (useful when most
-                                values are NULL, or when NULL is never searched for)
-        * ``"trigram"``: Generalized Inverted Index (GIN) with trigrams (good for full-text search)
-        * ``None`` or ``False``: no index (default)
-
-    :param default: the default value for the field; this is either a static
-        value, or a function taking a recordset and returning a value; use
-        ``default=None`` to discard default values for the field
-    :type default: value or callable
-
-    :param str groups: comma-separated list of group xml ids (string); this
-        restricts the field access to the users of the given groups only
-
-    :param bool company_dependent: whether the field value is dependent of the current company;
-
-        The value is stored on the model table as jsonb dict with the company id as the key.
-
-        The field's default values stored in model ir.default are used as fallbacks for
-        unspecified values in the jsonb dict.
-
-    :param bool copy: whether the field value should be copied when the record
-        is duplicated (default: ``True`` for normal fields, ``False`` for
-        ``one2many`` and computed fields, including property fields and
-        related fields)
-
-    :param bool store: whether the field is stored in database
-        (default:``True``, ``False`` for computed fields)
-
-    :param bool default_export_compatible: whether the field must be exported
-        by default in an import-compatible export
-
-    :param str search: name of a method that implements search on the field.
-        The method takes an operator and value. Basic domain optimizations are
-        ran before calling this function.
-        For instance, all ``'='`` are transformed to ``'in'``, and boolean
-        fields conditions are made such that operator is ``'in'``/``'not in'``
-        and value is ``[True]``.
-
-        The method should ``return NotImplemented`` if it does not support the
-        operator.
-        In that case, the ORM can try to call it with other, semantically
-        equivalent, operators. For instance, try with the positive operator if
-        its corresponding negative operator is not implemented.
-        The method must return a :ref:`reference/orm/domains` that replaces
-        ``(field, operator, value)`` in its domain.
-
-        A stored field can also have a search method; it is invoked to rewrite
-        the condition, which is useful e.g. for sanitizing the values used.
-
-        .. code-block:: python
-
-            def _search_partner_ref(self, operator, value):
-                if operator not in ("in", "like"):
-                    return NotImplemented
-                ...  # add your logic here, example
-                return Domain("partner_id.ref", operator, value)
-
-    .. rubric:: Aggregation
-
-    :param str aggregator: default aggregate function used by the webclient
-        on this field when using "Group By" feature.
-
-        Supported aggregators are:
-
-        * ``count`` : number of rows
-        * ``count_distinct`` : number of distinct rows
-        * ``bool_and`` : true if all values are true, otherwise false
-        * ``bool_or`` : true if at least one value is true, otherwise false
-        * ``max`` : maximum value of all values
-        * ``min`` : minimum value of all values
-        * ``avg`` : the average (arithmetic mean) of all values
-        * ``sum`` : sum of all values
-
-    :param str group_expand: function used to expand results when grouping on the
-        current field for kanban/list/gantt views. For selection fields,
-        ``group_expand=True`` automatically expands groups for all selection keys.
-
-        .. code-block:: python
-
-            @api.model
-            def _read_group_selection_field(self, values, domain):
-                return ["choice1", "choice2", ...]  # available selection choices.
-
-
-            @api.model
-            def _read_group_many2one_field(self, records, domain):
-                return records + self.search([custom_domain])
-
-    .. rubric:: Computed Fields
-
-    :param str compute: name of a method that computes the field
-
-        .. seealso:: :ref:`Advanced Fields/Compute fields <reference/fields/compute>`
-
-    :param bool precompute: whether the field should be computed before record insertion
-        in database.  Should be used to specify manually some fields as precompute=True
-        when the field can be computed before record insertion.
-        (e.g. avoid statistics fields based on search/_read_group), many2one
-        linking to the previous record, ... (default: `False`)
-
-        .. warning::
-
-            Precomputation only happens when no explicit value and no default
-            value is provided to create().  This means that a default value
-            disables the precomputation, even if the field is specified as
-            precompute=True.
-
-            Precomputing a field can be counterproductive if the records of the
-            given model are not created in batch.  Consider the situation were
-            many records are created one by one.  If the field is not
-            precomputed, it will normally be computed in batch at the flush(),
-            and the prefetching mechanism will help making the computation
-            efficient.  On the other hand, if the field is precomputed, the
-            computation will be made one by one, and will therefore not be able
-            to take advantage of the prefetching mechanism.
-
-            Following the remark above, precomputed fields can be interesting on
-            the lines of a one2many, which are usually created in batch by the
-            ORM itself, provided that they are created by writing on the record
-            that contains them.
-
-    :param bool compute_sudo: whether the field should be recomputed as superuser
-        to bypass access rights (by default ``True`` for stored fields, ``False``
-        for non stored fields)
-
-    :param bool recursive: whether the field has recursive dependencies (the field
-        ``X`` has a dependency like ``parent_id.X``); declaring a field recursive
-        must be explicit to guarantee that recomputation is correct
-
-    :param str inverse: name of a method that inverses the field (optional)
-
-    :param str related: sequence of field names
-
-        .. seealso:: :ref:`Advanced fields/Related fields <reference/fields/related>`
-    """
-
     type: str
     relational: bool = False
     translate: bool = False
@@ -434,11 +252,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         cls.description_attrs = tuple(cls.description_attrs)
 
     def __set_name__(self, owner: type[BaseModel], name: str) -> None:
-        """Perform the base setup of a field.
-
-        :param owner: the owner class of the field (the model's definition or registry class)
-        :param name: the name of the field
-        """
         assert base_model() is None or is_model_class(owner)
         self.model_name = owner._name
         self.name = name
@@ -458,7 +271,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _get_attrs(
         self, model_class: type[BaseModel], name: str
     ) -> dict[str, typing.Any]:
-        """Return the field parameter attributes as a dictionary."""
         attrs = {}
         modules: list[str] = []
         for field in self._args__.get("_base_fields__", ()):
@@ -549,7 +361,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         return attrs
 
     def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
-        """Initialize the field parameter attributes."""
         attrs = self._get_attrs(model_class, name)
 
         extra_keys = tuple(key for key in attrs if not hasattr(self, key))
@@ -573,11 +384,9 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             self.default = lambda model: value
 
     def prepare_setup(self) -> None:
-        """Reset the setup done flag so the field will be set up again."""
         self._setup_done = False
 
     def setup(self, model: BaseModel) -> None:
-        """Perform the complete setup of a field."""
         if not self._setup_done:
             for key in self._extra_keys__:
                 if not model._valid_field_parameter(self, key):
@@ -610,11 +419,9 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             reset_cached_properties(self)
 
     def setup_nonrelated(self, model: BaseModel) -> None:
-        """Determine the dependencies and inverse field(s) of ``self``."""
         pass
 
     def get_depends(self, model: BaseModel) -> tuple[Iterable[str], Iterable[str]]:
-        """Return the field's dependencies and cache dependencies."""
         if self._depends is not None:
             return self._depends, self._depends_context or ()
 
@@ -650,7 +457,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         return depends, depends_context
 
     def setup_related(self, model: BaseModel) -> None:
-        """Setup the attributes of a related field."""
         assert isinstance(self.related, str), self.related
 
         self._related_names = related_names = tuple(self.related.split("."))
@@ -704,15 +510,12 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             )
 
     def traverse_related(self, record: BaseModel) -> tuple[BaseModel, Field]:
-        """Traverse the fields of the related field `self` except for the last
-        one, and return it as a pair `(last_record, last_field)`."""
         for name in self._related_names[:-1]:
             corecord = record[name]
             record = next(iter(corecord), corecord)
         return record, self.related_field
 
     def _compute_related(self, records: BaseModel) -> None:
-        """Compute the related field ``self`` on ``records``."""
         values = list(records)
         for name in self._related_names[:-1]:
             try:
@@ -742,11 +545,9 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             records.browse(ids)[self.name] = processed
 
     def _process_related(self, value, env: Environment) -> typing.Any:
-        """No transformation by default, but allows override."""
         return value
 
     def _inverse_related(self, records: BaseModel) -> None:
-        """Inverse the related field ``self`` on ``records``."""
         record_value = {record: record[self.name] for record in records}
         for record in records:
             target, field = self.traverse_related(record)
@@ -754,7 +555,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 target[field.name] = record_value[record]
 
     def _search_related(self, records: BaseModel, operator: str, value) -> DomainType:
-        """Determine the domain to search on field ``self``."""
 
         falsy_value = self.falsy_value
         if isinstance(value, COLLECTION_TYPES):
@@ -789,7 +589,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     @functools.cached_property
     def column_type(self) -> tuple[str, str] | None:
-        """Return the actual column type for this field, if stored as a column."""
         return (
             ("jsonb", "jsonb")
             if self.company_dependent or self.translate
@@ -798,28 +597,17 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     @functools.cached_property
     def is_column(self) -> bool:
-        """Return whether this field is stored as a database column."""
         return bool(self.store and self.column_type)
 
     @functools.cached_property
     def is_stored_computed(self) -> bool:
-        """Return whether this field is computed and stored in the database."""
         return bool(self.compute and self.store)
 
     @property
     def base_field(self) -> Self:
-        """Return the base field of an inherited field, or ``self``."""
         return self.inherited_field.base_field if self.inherited_field else self
 
     def _company_dependent_fallback_raw(self, records: BaseModel) -> typing.Any:
-        """Raw ``ir.default`` fallback for ``self`` on ``records``'s company.
-
-        Single authority for the fallback lookup, resolved through
-        ``env._ir_defaults`` so that the write-side dedup
-        (``convert_to_column_insert``), the read-side COALESCE
-        (:meth:`get_company_dependent_fallback`) and the flush-side fallbacks
-        (``ir.default._get_field_column_fallbacks``) all share one scope.
-        """
         return records.env._ir_defaults._get_model_defaults(records._name).get(
             self.name
         )
@@ -831,7 +619,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         return self.convert_to_record(fallback, records)
 
     def resolve_depends(self, registry: Registry) -> Iterator[tuple[Field, ...]]:
-        """Return the dependencies of `self` as a collection of field tuples."""
         Model0 = registry[self.model_name]
 
         for dotnames in registry.field_depends[self]:
@@ -916,12 +703,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def update_db(
         self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> bool:
-        """Update the database schema to implement this field.
-
-        :param model: an instance of the field's model
-        :param columns: a dict mapping column names to their configuration in database
-        :return: ``True`` if the field must be recomputed on existing rows
-        """
         if not self.column_type:
             return False
 
@@ -953,11 +734,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         return not column
 
     def update_db_column(self, model: ModelLike, column: dict[str, typing.Any]) -> None:
-        """Create/update the column corresponding to ``self``.
-
-        :param model: an instance of the field's model
-        :param column: the column's configuration (dict) if it exists, or ``None``
-        """
         if not column:
             sql.create_column(
                 model.env.cr,
@@ -972,17 +748,11 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         self._convert_db_column(model, column)
 
     def _convert_db_column(self, model: ModelLike, column: dict[str, typing.Any]):
-        """Convert the given database column to the type of the field."""
         sql.convert_column(model.env.cr, model._table, self.name, self.column_type[1])
 
     def update_db_notnull(
         self, model: ModelLike, column: dict[str, typing.Any]
     ) -> None:
-        """Add or remove the NOT NULL constraint on ``self``.
-
-        :param model: an instance of the field's model
-        :param column: the column's configuration (dict) if it exists, or ``None``
-        """
         has_notnull = column and column["is_nullable"] == "NO"
 
         if not column or (self.required and not has_notnull):
@@ -1054,7 +824,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             sql.drop_not_null(model.env.cr, model._table, self.name)
 
     def update_db_related(self, model: ModelLike) -> None:
-        """Compute a stored related field directly in SQL."""
         comodel = model.env[self.related_field.model_name]
         join_field, comodel_field = self._related_names
         model.env.cr.execute(
@@ -1072,36 +841,14 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         )
 
     def read(self, records: BaseModel) -> None:
-        """Read the value of ``self`` on ``records``, and store it in cache."""
         if not self.column_type:
             raise NotImplementedError(f"Method read() undefined on {self}")
 
     def create(self, record_values: Collection[tuple[BaseModel, typing.Any]]) -> None:
-        """Write the value of ``self`` on the given records, which have just
-        been created.
-
-        :param record_values: a list of pairs ``(record, value)``, where
-            ``value`` is in the format of method :meth:`BaseModel.write`
-        """
         for record, value in record_values:
             self.mark_dirty(record, value)
 
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
-        """Apply a write value for ``self`` on ``records``.  For stored scalar
-        fields this converts the value, updates the cache, and marks it dirty
-        (actual SQL happens at flush time).  Relational and attachment field
-        overrides may execute immediate database operations.
-
-        This is the field-level counterpart of :meth:`BaseModel.write`.
-
-        Overrides MUST start by calling :meth:`_mark_dirty_prologue` (or
-        delegate to ``super().mark_dirty()``): skipping it leaves a pending
-        recomputation alive, which later silently overwrites the explicit
-        write (enforced by ``test_mark_dirty_prologue``).
-
-        :param records: recordset to update
-        :param value: a value in any format
-        """
         records, cache_value = self._mark_dirty_prologue(records, value)
         if not records:
             return
@@ -1111,12 +858,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _mark_dirty_prologue(
         self, records: BaseModel, value: typing.Any
     ) -> tuple[BaseModel, typing.Any]:
-        """Shared entry sequence of every ``mark_dirty`` implementation:
-        cancel the pending recomputation of ``self`` on ``records`` (an
-        explicit write always wins over a scheduled compute), convert the
-        value to cache format, and narrow ``records`` to those actually
-        modified.  Returns ``(records, cache_value)``.
-        """
         records.env.remove_to_compute(self, records)
 
         cache_value = self.convert_to_cache(value, records)
@@ -1124,20 +865,9 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         return records, cache_value
 
     def _is_context_dependent(self, env: Environment) -> bool:
-        """Whether this field's cache is keyed per context in ``env``.
-
-        See the shape note above. ``True`` for translatable, company-dependent,
-        and any field whose value varies with the environment context.
-        """
         return self in env._field_depends_context
 
     def _get_cache(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
-        """Return the field's cache: a ``{record_id: cache_value}`` mapping
-        (possibly environment-specific).
-
-        Returns the same mapping instance for a given environment across calls,
-        unless the transaction was entirely invalidated.
-        """
         field_cache = env._field_cache_memo.get(self)
         if field_cache is not None:
             return field_cache
@@ -1146,9 +876,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         return field_cache
 
     def _get_cache_impl(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
-        """Implementation of :meth:`_get_cache`.  This method may provide a
-        view to the actual cache, depending on the needs of the field.
-        """
         cache = env._core.get_field_data(self)
         if self._is_context_dependent(env):
             cache = cache.setdefault(env.cache_key(self), {})
@@ -1161,15 +888,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         *,
         keep_dirty: bool = False,
     ) -> None:
-        """Invalidate cached values for the given ids (all if ``None``).
-
-        Delegates to :meth:`FieldCache.invalidate` with the shape bit (see the
-        shape note above): the cache owns the nested-shape decode, including
-        the mixed setup-window state and dict-valued flat caches.
-
-        Pass ``keep_dirty=True`` when the invalidation is a consistency side
-        effect rather than a caller request; see :meth:`FieldCache.invalidate`.
-        """
         env._core.invalidate(
             self,
             ids,
@@ -1178,21 +896,11 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         )
 
     def _get_all_cache_ids(self, env: Environment) -> Mapping[IdType, typing.Any]:
-        """Return all the record ids that have a value in cache in any environment.
-
-        Delegates to :meth:`FieldCache.all_cached_ids` with the shape bit (see
-        the shape note above). The result is a read-only mapping view.
-        """
         return env._core.all_cached_ids(
             self, context_dependent=self._is_context_dependent(env)
         )
 
     def _cache_missing_ids(self, records: ModelLike) -> Iterator[IdType]:
-        """Generator of ids that have no value in cache.
-
-        Records with :data:`PENDING` (stored computed fields awaiting
-        recomputation) are treated as missing.
-        """
         field_cache = self._get_cache(records.env)
         _pending = PENDING
         return (
@@ -1204,9 +912,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _filter_not_equal(
         self, records: ModelType, cache_value: typing.Any
     ) -> ModelType:
-        """Return the subset of ``records`` for which the value of ``self`` is
-        either not in cache, or different from ``cache_value``.
-        """
         field_cache = self._get_cache(records.env)
         ids = records._ids
         if len(ids) == 1:
@@ -1220,7 +925,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         )
 
     def _to_prefetch(self, record: ModelType) -> ModelType:
-        """Return a recordset including ``record`` to prefetch the field."""
         field_cache = self._get_cache(record.env)
         prefetch_ids = record._prefetch_ids
         record_id = record.id
@@ -1242,10 +946,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         return record.browse(result)
 
     def _insert_cache(self, records: BaseModel, values: Iterable) -> None:
-        """Update the cache of the given records with the corresponding values,
-        ignoring the records that already have a value in cache.  This enables
-        to keep the pending updates of those records, and flush them later.
-        """
         field_cache = self._get_cache(records.env)
         collections.deque(
             map(field_cache.setdefault, records._ids, values, strict=True), maxlen=0
@@ -1254,24 +954,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _update_cache_items(
         self, env: Environment, items: Iterable[tuple[IdType, typing.Any]]
     ) -> None:
-        """Cache a *different* value per record, in one pass.
-
-        The many-values counterpart of :meth:`_update_cache`, which broadcasts a
-        single value: it resolves the field cache and runs the dirty guard once
-        for the whole batch instead of once per record.  Callers that own a
-        ``[(id, value), ...]`` result -- ``UPDATE ... RETURNING`` in the
-        ``parent_path`` maintenance, above all -- were looping
-        ``field._update_cache(self.browse(id_), value)``, which builds a
-        throwaway singleton, re-resolves the cache and re-checks the dirty set
-        for every row of the hierarchy.
-
-        Values are taken as already in cache format (as :meth:`_update_cache`
-        takes ``cache_value``); ``items`` is consumed once.
-
-        :raises ValueError: when any of the ids currently holds a pending write
-            for ``self`` -- same contract as :meth:`_update_cache` without
-            ``dirty=True``.
-        """
         items = list(items)
         if not items:
             return
@@ -1292,19 +974,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _update_cache(
         self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
-        """Update the value in the cache for the given records, and optionally
-        make the field dirty for those records (for stored column fields only).
-
-        One can normally make a clean field dirty but not the other way around.
-        Updating a dirty field without ``dirty=True`` is a programming error and
-        raises ``ValueError`` — silently overwriting a dirty value would lose
-        the pending write at the next flush.
-
-        :param dirty: whether ``field`` must be made dirty on ``record`` after
-            the update
-        :raises ValueError: when ``dirty=False`` and at least one of ``records``
-            currently has a dirty value for ``self``
-        """
         env = records.env
 
         if self.is_column and not dirty:
@@ -1336,7 +1005,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def __get__(self, record: object, owner: typing.Any = None) -> typing.Any: ...
 
     def __get__(self, record: typing.Any, owner: typing.Any = None) -> T | Self:
-        """return the value of field ``self`` on ``record``"""
         if record is None:
             return self
 
@@ -1386,15 +1054,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         record_id: IdType,
         field_cache: MutableMapping[IdType, typing.Any],
     ) -> T:
-        """Resolve ``self`` on a single ``record`` whose value is not cached.
-
-        Tail of :meth:`__get__`, invoked after the cache-hit fast path and
-        PENDING eviction. Fetches (from DB or origin), computes, builds a
-        delegate parent, or falls back to the default — updating the cache along
-        the way — then returns the value in record format. ``field_cache`` is the
-        already-resolved cache dict for ``self`` in ``env`` (it may be re-read
-        here, since a compute can invalidate the whole cache).
-        """
         if self.store and record_id:
             recs = self._to_prefetch(record)
             try:
@@ -1509,18 +1168,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         return self.convert_to_record(value, record)
 
     def __set__(self, records: BaseModel, value: typing.Any) -> None:
-        """Set the value of field ``self`` on ``records``.
-
-        Records are partitioned into three buckets, each with different
-        semantics (see the ``_assign_*`` methods for details):
-
-        - **Protected**: currently being computed — direct cache write, no
-          business logic, no recomputation triggers.
-        - **New**: unsaved records (``NewId``) — cache write with dependency
-          tracking via ``modified()``, but no access checks or validation.
-        - **Real**: saved records with a database id — full ``write()`` flow
-          including access checks, audit, validation, and constraints.
-        """
         record_ids = records._ids
         core = records.env._core
         if len(record_ids) == 1:
@@ -1557,24 +1204,11 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _assign_protected(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
-        """Assign ``value`` to protected records (being computed).
-
-        Minimal path: direct cache write via :meth:`mark_dirty`, no access
-        checks, ``modified()`` triggers, or recomputation. Used inside compute
-        methods that set the field as part of their own computation.
-        """
         self.mark_dirty(_recordset_like(records, ids), value)
 
     def _assign_new(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
-        """Assign ``value`` to new (unsaved) records.
-
-        Updates the cache and triggers ``modified()`` for dependency tracking,
-        but skips access checks and validation (new records are built in
-        onchange/``new()`` where the full ``write()`` flow is inappropriate).
-        For inherited fields, also propagates to a new parent record.
-        """
         new_records = _recordset_like(records, ids)
         with records.env.protecting(
             records.pool.field_computed.get(self, [self]), new_records
@@ -1591,59 +1225,26 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _assign_real(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
-        """Assign ``value`` to real (saved) records.
-
-        Full ``write()`` path: round-trips through :meth:`convert_to_write` then
-        :meth:`BaseModel.write` (access checks, audit, validation, recompute).
-        """
         records = _recordset_like(records, ids)
         write_value = self.convert_to_write(value, records)
         records.write({self.name: write_value})
 
     def ensure_access(self, record: ModelLike) -> None:
-        """Check that the current user has read access to this field.
-
-        Must be called before reading from the field cache when bypassing
-        :meth:`__get__`.  No-op when ``env.su`` is True or the field has
-        no ``groups`` restriction.
-        """
         env = record.env
         if not (not self.groups or env.su or record._has_field_access(self, "read")):
             record._check_field_access(self, "read")
 
     def read_cache(self, record_id: int, env: Environment) -> tuple[bool, typing.Any]:
-        """Read a single value from this field's cache.
-
-        Returns ``(True, value)`` on cache hit, ``(False, SENTINEL)`` on miss.
-        Treats :data:`PENDING` as a miss (stored computed field awaiting
-        recomputation).
-
-        Callers must ensure :meth:`ensure_computed` has been called first —
-        this method does NOT trigger recomputation.
-        """
         value = self._get_cache(env).get(record_id, SENTINEL)
         if value is SENTINEL or value is PENDING:
             return False, SENTINEL
         return True, value
 
     def ensure_computed(self, records: ModelLike) -> None:
-        """Ensure pending recomputations of ``self`` are processed.
-
-        Must be called before reading from the field cache for stored computed
-        fields.  This is automatically handled by :meth:`__get__`, but code
-        that bypasses ``__get__`` (e.g. direct cache access in
-        ``_read_format``) must call this explicitly.
-
-        No-op when the field is not stored-computed or has no pending entries
-        in ``compute_engine``.
-        """
         if self.is_stored_computed and records.env._core.has_pending_field(self):
             self.recompute(records)
 
     def recompute(self, records: ModelLike) -> None:
-        """Process the pending computations of ``self`` on ``records``. This
-        should be called only if ``self`` is computed and stored.
-        """
         to_compute_ids = records.env._core.pending_ids(self)
         if not to_compute_ids:
             return
@@ -1658,7 +1259,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 return _pending_before - len(remaining or ())
 
         def apply_except_missing(func, records):
-            """Apply `func` on `records`, ignoring non-existent records."""
             try:
                 func(records)
                 return
@@ -1711,7 +1311,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             )
 
     def compute_value(self, records: ModelLike) -> None:
-        """Invoke the compute method on ``records``; the results are in cache."""
         _debug = _orm_compute.isEnabledFor(logging.DEBUG)
         if _debug:
             _t0 = time.perf_counter()
@@ -1745,7 +1344,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             )
 
     def determine_inverse(self, records: ModelLike) -> None:
-        """Given the value of ``self`` on ``records``, inverse the computation."""
         _debug = _orm_compute.isEnabledFor(logging.DEBUG)
         if _debug:
             _t0 = time.perf_counter()
@@ -1764,40 +1362,17 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def determine_domain(
         self, records: BaseModel, operator: str, value: typing.Any
     ) -> typing.Any:
-        """Return a domain representing a condition on ``self``."""
         return determine(self.search, records, operator, value)
 
     def determine_group_expand(
         self, records: BaseModel, values: typing.Any, domain: DomainType
     ) -> typing.Any:
-        """Expand the groups for ``self`` when grouping (via ``group_expand``)."""
         return determine(self.group_expand, records, values, domain)
 
 
 def _make_scalar_get(
     cache_to_record: Callable[[typing.Any], typing.Any],
 ) -> Callable[..., typing.Any]:
-    """Generate a ``__get__`` override for scalar field types.
-
-    The generated closure inlines the :meth:`Field.__get__` optimizations: the
-    ``not self.groups`` ACL short-circuit, the triple dict lookup
-    (memo->cache->id), the ``has_pending()`` guard before ``recompute()``, and
-    the PENDING check. Used as::
-
-        __get__ = _make_scalar_get(lambda v: v or 0)
-
-    The lookup is written out rather than delegated to
-    :func:`~odoo.libs._field_access.scalar_cache_get`, which stays the readable
-    reference implementation (and the oracle its own suite pins).  There is no
-    Rust counterpart -- the crate documents why it would lose on this shape --
-    so the helper was a plain Python call on the hottest path in the ORM,
-    costing ~26 ns of pure call overhead per scalar read (71 ns delegated vs
-    45 ns inlined).  ``KeyError`` and ``PENDING`` both mean "fall through to the
-    canonical path", exactly as the helper's ``SENTINEL`` return does, and this
-    is the shape :meth:`Field.__get__` itself already uses.
-
-    :param cache_to_record: ``callable(cache_value) -> record_value``.
-    """
     _PENDING = PENDING
     _base_get = Field.__get__
 

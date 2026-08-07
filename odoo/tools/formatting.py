@@ -1,13 +1,11 @@
-"""Date, time, and number formatting utilities for Odoo."""
-
 import datetime
 import re
 import typing
 
 import babel.dates
 
-from odoo.libs.datetime import utc
 from odoo.libs.datetime import timezone as get_timezone
+from odoo.libs.datetime import utc
 from odoo.libs.locale import format_number, posix_to_ldml
 from odoo.libs.numbers import float_round
 
@@ -76,24 +74,6 @@ def formatLang(
         "decimals", "units", "thousands", "lakhs", "millions"
     ] = "decimals",
 ) -> str:
-    """Format ``value`` to the appropriate number format of the language in use.
-
-    :param env: The environment.
-    :param value: The value to format.
-    :param digits: The number of decimal digits.
-    :param grouping: Whether to use language grouping.
-    :param dp: Name of the decimal precision to use; overrides ``digits`` and
-        ``currency_obj`` precision.
-    :param currency_obj: Currency to use; overrides ``digits`` precision.
-    :param rounding_method: The rounding method:
-        **'HALF-UP'**/**'HALF-DOWN'**/**'HALF-EVEN'** round to the closest number,
-        ties going away from zero / towards zero / to the closest even number;
-        **'UP'**/**'DOWN'** always round away from / towards zero.
-    :param rounding_unit: The unit to round to: **decimals** (``digits``/``dp``
-        precision), or **units**/**thousands**/**lakhs**/**millions** (no decimals).
-
-    :returns: The formatted value.
-    """
     if value == "":
         return ""
 
@@ -131,15 +111,6 @@ def format_date(
     lang_code: str | None = None,
     date_format: str | typing.Literal[False] = False,
 ) -> str:
-    """Format a date in a given format.
-
-    :param env: an environment.
-    :param value: the date to format (date, datetime or string).
-    :param lang_code: the lang code; if omitted, taken from the environment context.
-    :param date_format: the LDML format; if omitted, the lang's default format.
-    :return: the date formatted in the specified format.
-    :rtype: str
-    """
     if not value:
         return ""
     from odoo.fields import Datetime
@@ -167,14 +138,6 @@ def format_date(
 def parse_date(
     env: Environment, value: str, lang_code: str | None = None
 ) -> datetime.date | str:
-    """Parse a localized date string, returning the original string if invalid.
-
-    :param env: an environment.
-    :param value: the date to parse.
-    :param lang_code: the lang code; if omitted, taken from the environment context.
-    :return: date object from the localized string
-    :rtype: datetime.date
-    """
     lang = get_lang(env, lang_code)
     locale = babel_locale_parse(lang.code)
     try:
@@ -190,15 +153,6 @@ def format_datetime(
     dt_format: str = "medium",
     lang_code: str | None = None,
 ) -> str:
-    """Format the datetime in a given format.
-
-    :param env: supplies the fallback timezone (``env.user.tz``) and language
-    :param str|datetime value: naive datetime to format either in string or in datetime
-    :param str tz: name of the timezone in which the given datetime should be localized
-    :param str dt_format: one of "full", "long", "medium", or "short", or a custom date/time pattern compatible with `babel` lib
-    :param str lang_code: ISO code of the language to use to render the given datetime
-    :rtype: str
-    """
     if not value:
         return ""
     if isinstance(value, str):
@@ -234,17 +188,6 @@ def format_time(
     time_format: str = "medium",
     lang_code: str | None = None,
 ) -> str:
-    """Format the given time (hour, minute, second) per the user's preferences (language, format, ...).
-
-    :param env: supplies the fallback timezone (``env.user.tz``) and language
-    :param value: the time to format; a naive ``datetime.time`` is used as-is (may
-        be timezoned to display tzinfo in formats that show it, e.g. 'full'), a
-        ``datetime.datetime`` or string is localized to ``tz`` first
-    :param tz: name of the timezone in which the given datetime should be localized
-    :param time_format: one of "full", "long", "medium", or "short", or a custom time pattern
-    :param lang_code: ISO language code
-    :rtype: str
-    """
     if not value:
         return ""
 
@@ -294,24 +237,6 @@ def _format_time_ago(
 
 
 def format_decimalized_number(number: float, decimal: int = 1) -> str:
-    """Format a number with the nearest metric unit appended.
-
-    Omit decimals when all visible digits are zero. Cap at "Tera"; most people
-    don't know what a "Yotta" is.
-
-    ::
-
-        >>> format_decimalized_number(123_456.789)
-        '123.5k'
-        >>> format_decimalized_number(123_000.789)
-        '123k'
-        >>> format_decimalized_number(-123_456.789)
-        '-123.5k'
-        >>> format_decimalized_number(0.789)
-        '0.8'
-        >>> format_decimalized_number(999_999.9)
-        '1M'
-    """
     units = ("", "k", "M", "G", "T")
     for unit in units[:-1]:
         rounded = round(number, decimal)
@@ -322,13 +247,6 @@ def format_decimalized_number(number: float, decimal: int = 1) -> str:
 
 
 def format_decimalized_amount(amount: float, currency: typing.Any = None) -> str:
-    """Format an amount with its currency symbol and metric unit.
-
-    ::
-
-        >>> format_decimalized_amount(123_456.789, env.ref("base.USD"))  # doctest: +SKIP
-        '$123.5k'
-    """
     formated_amount = format_decimalized_number(amount)
 
     if not currency:
@@ -371,7 +289,6 @@ def format_amount(
 
 
 def format_duration(value: float) -> str:
-    """Format a float as a human-readable time span (e.g. 1.5 as "01:30")."""
     hours, minutes = divmod(abs(value) * 60, 60)
     minutes = round(minutes)
     if minutes == 60:

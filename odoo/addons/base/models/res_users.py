@@ -57,13 +57,6 @@ consulting this set.
 
 
 def _is_private_address(source: str | None) -> bool:
-    """Whether *source* is an RFC 1918-style address, for the proxy hint.
-
-    ``REMOTE_ADDR`` is not guaranteed to be an IP literal -- a unix socket
-    leaves it empty and some front-ends put a host name there -- and this is
-    reached while *rejecting* a login, so a parse failure here would turn a
-    rate-limit response into a 500 for the very traffic being throttled.
-    """
     try:
         return ipaddress.ip_address(source).is_private
     except ValueError:
@@ -82,11 +75,6 @@ def _jsonable(o: object) -> bool:
 def check_identity(
     fn: Callable[..., dict[str, Any]],
 ) -> Callable[..., dict[str, Any]]:
-    """Require a recent identity (password) check before running the wrapped
-    action method (called from a ``type=object`` button). Pops up an
-    identity-check wizard if the password was not verified in the last 10min.
-    Only usable in an interactive (request) context.
-    """
 
     @wraps(fn)
     def wrapped(self: ResUsers, *args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -129,8 +117,6 @@ def check_identity(
 
 
 class ResUsers(models.Model):
-    """An Odoo user account (not an employee); login/technical data delegating partner data to a linked res.partner."""
-
     _name = "res.users"
     _description = "User"
     _inherits = {"res.partner": "partner_id"}
@@ -139,7 +125,6 @@ class ResUsers(models.Model):
 
     @property
     def SELF_READABLE_FIELDS(self) -> list[str]:
-        """Fields a user may read on their own record; override to extend."""
         return [
             "signature",
             "company_id",
@@ -172,22 +157,6 @@ class ResUsers(models.Model):
 
     @property
     def SELF_WRITEABLE_FIELDS(self) -> list[str]:
-        """Fields a user may write on their own record; override to extend.
-
-        Listing a field here grants a ``sudo()`` write of the user's own row,
-        so prefer scalars. A relational field is accepted but only partly
-        served: :meth:`_escapes_own_record` withholds the escalation from any
-        write that would mutate a comodel record, which is every one2many
-        command and the destructive many2many ones. Relational self-service
-        that must create or delete belongs in a dedicated method doing its own
-        access check, the way ``res.users.apikeys`` does with
-        :meth:`~ResUsersApikeys.remove`.
-
-        ``api_key_ids`` is deliberately absent: it is a one2many with no
-        legitimate write path (keys are minted by ``api_key_wizard`` and
-        revoked by ``remove()``, both identity-checked), and while it was
-        listed any user could destroy or re-parent another user's key by id.
-        """
         return [
             "signature",
             "action_id",
@@ -203,20 +172,12 @@ class ResUsers(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _self_accessible_fields(self) -> tuple[frozenset[str], frozenset[str]]:
-        """Readable and writable fields on a user's own record."""
         readable = frozenset(self.SELF_READABLE_FIELDS)
         writeable = frozenset(self.SELF_WRITEABLE_FIELDS)
         return readable, writeable
 
     @api.model
     def context_get(self) -> frozendict:
-        """Return the user's context (lang, tz, uid).
-
-        Only the DB-derived part is memoised (per uid); the request's
-        ``Accept-Language`` is overlaid uncached because caching it under the
-        uid-wide key would pin one request's locale for every session of that
-        uid (e.g. all visitors sharing the public user).
-        """
         context, user_lang_valid = self._context_get_cached()
         if context and not user_lang_valid and request:
             best_lang = request.best_lang
@@ -228,28 +189,11 @@ class ResUsers(models.Model):
     @api.model
     @tools.ormcache()
     def _get_installed_lang_codes(self) -> frozenset[str]:
-        """Installed language codes, memoised as a frozenset.
-
-        Hit on every request of users without a valid own lang (e.g. the shared
-        public user), so it must not be rebuilt each time. Cached in the
-        ``default`` group: installing/removing a language clears ``stable``
-        (res.lang caches), which cascades to ``default``.
-        """
         return frozenset(code for code, _name in self.env["res.lang"].get_installed())
 
     @api.model
     @tools.ormcache("self.env.uid")
     def _context_get_cached(self) -> tuple[frozendict, bool]:
-        """DB-derived part of :meth:`context_get`, memoised per uid.
-
-        Must never consult ``request``: the result is cached under a
-        request-independent key.
-
-        :return: ``(context, user_lang_valid)``; ``user_lang_valid`` is whether
-            the context lang is the user's own installed preference. When
-            ``False`` the lang is a fallback that :meth:`context_get` may
-            override with the request language.
-        """
         try:
             context = self.env.user.with_context(prefetch_fields=False).read(
                 ["lang", "tz"], load=False
@@ -289,13 +233,6 @@ class ResUsers(models.Model):
     def _check_uid_passwd_cached(
         self, uid: int, passwd: str, passwd_hash: str
     ) -> datetime.datetime | None:
-        """Cache-backed credential verification keyed on a hash, not plaintext.
-
-        Returns the API key's ``expiration_date`` (naive UTC) when the auth used
-        an expiring key, else None. The caller re-checks that expiry on every
-        call (see ``_check_uid_passwd``): time advances but this memoised result
-        does not, so an expiring key must not be trusted on cache hits alone.
-        """
         user = self.with_user(uid).env.user
         if not user.active:
             raise AccessDenied
@@ -313,42 +250,20 @@ class ResUsers(models.Model):
 
     @tools.ormcache("self.id", "sid")
     def _compute_session_token(self, sid: str) -> str | bool:
-        """Compute the session token for a (session id, user) pair.
-
-        ``self.id`` is in the cache key because the result depends on ``self``
-        (via ``_session_token_get_values``, which queries per-user fields);
-        omitting it would let two users collide on a shared session id. Cost is
-        one entry per (user, session), effectively per-session anyway.
-        """
         field_values = self._session_token_get_values()
         return self._session_token_hash_compute(sid, field_values)
 
     @tools.ormcache("self.id")
     def _get_group_ids(self) -> tuple[int, ...]:
-        """Return ``self``'s effective (implied) group ids as a tuple.
-
-        These are ``all_group_ids`` (the transitive closure), not the direct
-        ``group_ids`` field.
-        """
         self.ensure_one()
         return self.with_context({}).all_group_ids._ids
 
     def _effective_group_ids(self) -> tuple[int, ...]:
-        """Return ``self``'s effective (implied) group ids.
-
-        Persisted records use the ``@ormcache``-backed :meth:`_get_group_ids`;
-        a NewId (unsaved) record has no stable cache key, so it falls back to
-        the origin's already-computed implied groups.
-        """
         self.ensure_one()
         return self._get_group_ids() if self.id else self.all_group_ids._origin._ids
 
     @tools.ormcache(cache="stable")
     def _crypt_context(self) -> CryptContext:
-        """Passlib CryptContext used to hash and verify passwords. Override to
-        use different KDFs; the default KDF's work factor comes from the
-        ``password.hashing.rounds`` ICP.
-        """
         cfg = self.env["ir.config_parameter"].sudo()
         return CryptContext(
             ["pbkdf2_sha512", "plaintext"],
@@ -367,9 +282,6 @@ class ResUsers(models.Model):
         return Domain("company_ids", "in", company_ids)
 
     def _default_groups(self) -> Self:
-        """Default groups for a new employee: ``base.group_user`` plus the
-        Default User Group's implied groups.
-        """
         groups = self.env.ref("base.group_user")
         default_group = self.env.ref(
             "base.default_user_group", raise_if_not_found=False
@@ -599,9 +511,6 @@ class ResUsers(models.Model):
 
     @api.constrains("group_ids")
     def _check_disjoint_groups(self) -> None:
-        """Forbid a user from being in mutually exclusive user-type groups
-        (e.g. portal and internal), which implied groups can cause.
-        """
         user_type_groups = self.env["res.groups"]._get_user_type_groups()
         for user in self:
             disjoint_groups = user.all_group_ids & user_type_groups
@@ -641,14 +550,6 @@ class ResUsers(models.Model):
                 user._set_empty_password()
 
     def _set_empty_password(self) -> None:
-        """Remove the stored password hash so the user cannot log in.
-
-        Invalidation contract (see _check_uid_passwd_cached): reachable only via
-        write()/field assignment carrying ``password``, which already triggers
-        registry.clear_cache(). A raw-SQL caller bypassing write() MUST clear the
-        registry cache itself. Note: auth_ldap defines an identical override
-        that harmlessly shadows this one when installed.
-        """
         self.ensure_one()
         self.flush_recordset(["password"])
         self.env.cr.execute(
@@ -665,37 +566,11 @@ class ResUsers(models.Model):
         self.browse(uid).invalidate_recordset(["password"])
 
     def _rpc_api_keys_only(self) -> bool:
-        """To be overridden if RPC access needs to be restricted to API keys, e.g. for 2FA"""
         return False
 
     def _check_credentials(
         self, credential: dict[str, Any], env: dict[str, Any]
     ) -> dict[str, Any]:
-        """Validate the current user's password and return its auth info.
-
-        Always validates ``self.env.user``, not the ``self`` recordset passed
-        in (RU-M2): callers must bind the env to the user being checked (e.g.
-        ``user.with_user(user)``).
-
-        Override to add authentication methods. Overrides should ``super()`` to
-        delegate to parents, catch :class:`~odoo.exceptions.AccessDenied` and
-        run their own check, (re)raise it if still invalid, and return the
-        ``auth_info``. Credentials are untrusted input (see :meth:`authenticate`).
-
-        :returns: ``auth_info`` with keys:
-
-          - ``uid``: the authenticated user's id
-          - ``auth_method``: the method used
-          - ``mfa``: ``enforce`` (force, not yet implemented) / ``default``
-            (delegate to auth_totp) / ``skip``
-
-          Examples:
-
-          - ``{ 'uid': 20, 'auth_method': 'password',      'mfa': 'default' }``
-          - ``{ 'uid': 17, 'auth_method': 'impersonation', 'mfa': 'enforce' }``
-          - ``{ 'uid': 32, 'auth_method': 'webauthn',      'mfa': 'skip'    }``
-        :rtype: dict[str, Any]
-        """
         if not (credential["type"] == "password" and credential.get("password")):
             raise AccessDenied
 
@@ -850,18 +725,6 @@ class ResUsers(models.Model):
 
     @api.depends("all_group_ids")
     def _compute_accesses_count(self) -> None:
-        """Count the ACLs and record rules reachable from each user's groups.
-
-        Resolved per *group* in two queries and combined per user, rather than
-        two ``search_count`` calls per user: users overwhelmingly share groups,
-        so the per-user form re-counted the same groups once per user and cost
-        two round trips each (measured 7.4x slower over 81 users).
-
-        ACLs carry a single ``group_id``, so their per-group counts add up.
-        Record rules do not -- ``ir.rule.groups`` is many2many, and a rule
-        granted to two of a user's groups must still count once -- so those are
-        unioned by id, matching what ``search_count`` returned.
-        """
         all_groups = self.all_group_ids
         accesses_per_group = dict.fromkeys(all_groups.ids, 0)
         rules_per_group: dict[int, set[int]] = {gid: set() for gid in all_groups.ids}
@@ -943,10 +806,6 @@ class ResUsers(models.Model):
         )
 
     def _sync_partner_company(self) -> None:
-        """Propagate each user's ``company_id`` to its (company-specific,
-        out-of-sync) partner, grouping writes by target company so a bulk
-        change issues one write per distinct company, not one per user.
-        """
         by_company = collections.defaultdict(lambda: self.env["res.partner"])
         for user in self:
             partner = user.partner_id
@@ -976,23 +835,6 @@ class ResUsers(models.Model):
         return users
 
     def _escapes_own_record(self, vals: dict[str, Any]) -> bool:
-        """Whether writing *vals* would reach past the user's own row.
-
-        :meth:`write` escalates a self-service write to ``sudo()``, but an
-        x2many command is applied to the *comodel*: without this guard, listing
-        a relational field in ``SELF_WRITEABLE_FIELDS`` silently upgrades a
-        field permission into unchecked create/update/delete on another model's
-        records, chosen by id. Only the commands that touch the relation itself
-        stay inside the grant, and only on a many2many -- every one2many command
-        writes the comodel row carrying the inverse, and ``CREATE``/``UPDATE``/
-        ``DELETE`` (plus their ``dict`` and bare-id shorthands) mutate comodel
-        records by definition.
-
-        Escaping writes are not refused here, only denied the escalation: they
-        fall through to the caller's own rights, so a user who legitimately may
-        write ``res.users`` still succeeds and everyone else gets the usual
-        :class:`~odoo.exceptions.AccessError`.
-        """
         for fname, value in vals.items():
             field = self._fields.get(fname)
             if field is None or field.type not in ("one2many", "many2many"):
@@ -1012,15 +854,6 @@ class ResUsers(models.Model):
         return False
 
     def write(self, vals: dict[str, Any]) -> bool:
-        """Write, escalating a user's own row to ``sudo()`` for the self-service
-        field set (see :meth:`SELF_WRITEABLE_FIELDS`).
-
-        A ``company_id`` outside the user's ``company_ids`` is left in *vals*
-        for :meth:`_check_user_company` to reject. It used to be dropped here,
-        which made ``write()`` return ``True`` having ignored the request --
-        undetectable by the caller, and masking the very invariant that already
-        covers it, whose error names the companies actually allowed.
-        """
         if vals.get("active") and SUPERUSER_ID in self._ids:
             raise UserError(_("You cannot activate the superuser."))
         if vals.get("active") is False and self.env.uid in self._ids:
@@ -1190,19 +1023,6 @@ class ResUsers(models.Model):
     def authenticate(
         self, credential: dict[str, Any], user_agent_env: dict[str, Any]
     ) -> dict[str, Any]:
-        """Verify ``credential`` and return the authentication info for the
-        matching user.
-
-        :param dict[str, Any] credential: a dictionary where the `type` key defines the authentication method and
-            additional keys are passed as required per authentication method.
-            For example:
-            - { 'type': 'password', 'login': 'username', 'password': '123456' }
-            - { 'type': 'webauthn', 'webauthn_response': '{json data}' }
-        :param dict[str, Any] user_agent_env: environment dictionary describing any
-            relevant environment attributes
-        :return: auth_info
-        :rtype: dict[str, Any]
-        """
         auth_info = self._login(credential, user_agent_env=user_agent_env)
         if user_agent_env and user_agent_env.get("base_location"):
             env = self.env(user=auth_info["uid"])
@@ -1220,7 +1040,6 @@ class ResUsers(models.Model):
 
     @api.model
     def _check_uid_passwd(self, uid: int, passwd: str) -> None:
-        """Verify that (uid, password) is authorized; raise AccessDenied if not."""
         if not passwd:
             raise AccessDenied
         with self._assert_can_auth(user=uid):
@@ -1278,14 +1097,6 @@ class ResUsers(models.Model):
 
     @api.model
     def change_password(self, old_passwd: str, new_passwd: str) -> bool:
-        """Change current user password. Old password must be provided explicitly
-        to prevent hijacking an existing user session, or for cases where the cleartext
-        password is not used to authenticate requests.
-
-        :return: True
-        :raise: odoo.exceptions.AccessDenied when old password is wrong
-        :raise: odoo.exceptions.UserError when new password is not set or empty
-        """
         if not old_passwd:
             raise AccessDenied
 
@@ -1319,11 +1130,6 @@ class ResUsers(models.Model):
         self.password = new_passwd
 
     def _deactivate_portal_user(self, **post: Any) -> None:
-        """Try to remove the current portal user.
-
-        Portal users can self-create accounts, so this lets them delete their
-        own account instead of contacting the website or support.
-        """
         non_portal_users = self.filtered(lambda user: not user.share)
         if non_portal_users:
             raise AccessDenied(
@@ -1411,10 +1217,6 @@ class ResUsers(models.Model):
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def _assert_group_query_allowed(self) -> None:
-        """Guard for :meth:`has_group`/:meth:`has_groups`: a user may query only
-        their own group membership; querying another's requires superuser or an
-        internal user, blocking non-internal RPC callers from probing others.
-        """
         if not (
             self.env.su
             or self == self.env.user
@@ -1426,17 +1228,6 @@ class ResUsers(models.Model):
 
     @api.readonly
     def has_groups(self, group_spec: str) -> bool:
-        """Return whether user ``self`` satisfies the given group restrictions
-        ``group_spec``, i.e., whether it is member of at least one of the groups,
-        and is not a member of any of the groups preceded by ``!``.
-
-        The group ``"base.group_no_one"`` is only effective in debug mode,
-        like :meth:`~.has_group`.
-
-        :param str group_spec: comma-separated list of fully-qualified group
-            external IDs, optionally preceded by ``!``.
-            Example:``"base.group_user,base.group_portal,!base.group_system"``.
-        """
         if group_spec == ".":
             return False
 
@@ -1466,13 +1257,6 @@ class ResUsers(models.Model):
 
     @api.readonly
     def has_group(self, group_ext_id: str) -> bool:
-        """Return whether user ``self`` belongs to the given group (given by its
-        fully-qualified external ID).
-
-        The group ``"base.group_no_one"`` is only effective in debug mode: it
-        returns ``True`` only if the user belongs to the group and the current
-        request is in debug mode.
-        """
         self.ensure_one()
         self._assert_group_query_allowed()
 
@@ -1482,23 +1266,10 @@ class ResUsers(models.Model):
         return result
 
     def _has_group(self, group_ext_id: str) -> bool:
-        """Return whether user ``self`` belongs to the given group.
-
-        :param str group_ext_id: fully-qualified external ID (``module.ext_id``);
-            there is no implicit module.
-        """
         group_id = self.env["res.groups"]._get_group_definitions().get_id(group_ext_id)
         return group_id in self._effective_group_ids()
 
     def has_any_group_id(self, group_ids: collections.abc.Collection[int]) -> bool:
-        """Return whether user ``self`` belongs to any of the groups, by id.
-
-        Equivalent to ``any(self.has_group(x) for x in xml_ids)`` including the
-        debug-mode gate on ``base.group_no_one``, for callers that already hold
-        group ids.  Those callers must not route through :meth:`has_group`:
-        turning an id into an external id means *creating* one for groups that
-        have none (``res.groups._ensure_xml_id``), so a read ends up writing.
-        """
         self.ensure_one()
         self._assert_group_query_allowed()
 
@@ -1511,7 +1282,6 @@ class ResUsers(models.Model):
         return not group_ids.isdisjoint(self._effective_group_ids())
 
     def _action_show(self) -> dict[str, Any]:
-        """If self is a singleton, directly access the form view. If it is a recordset, open a list view"""
         view_id = self.env.ref("base.view_users_form").id
         action = {
             "type": "ir.actions.act_window",
@@ -1603,21 +1373,6 @@ class ResUsers(models.Model):
 
     @contextlib.contextmanager
     def _assert_can_auth(self, user: int | str | None = None) -> Generator[None]:
-        """Check that the current environment allows this auth attempt.
-
-        Baseline: a linear login cooldown. After a number of failures, the
-        source (by remote address) is put on cooldown; further attempts during
-        the window are ignored and logged.
-
-        :param user: user id or login, for logging
-
-        .. warning::
-
-            The counter is per-worker and not thread-safe; it exists mainly to
-            rate-limit brute-force attempts, so that is acceptable. Override for
-            a shared/more complex strategy, or override :meth:`_on_login_cooldown`
-            to change only the cooldown criteria.
-        """
         if not request:
             yield
             return
@@ -1679,17 +1434,6 @@ class ResUsers(models.Model):
             reg._login_failures.pop(source, None)
 
     def _on_login_cooldown(self, failures: int, previous: datetime.datetime) -> bool:
-        """Return whether the source is currently on cooldown (login attempt
-        not even allowed).
-
-        Default: cooldown for ``login_cooldown_duration`` seconds after each
-        failure past ``login_cooldown_after`` (0 to disable). Override for
-        more complex backoff strategies.
-
-        :param int failures: recorded failures since last success
-        :param datetime.datetime previous: timestamp of the previous failure
-        :rtype: bool
-        """
         cfg = self.env["ir.config_parameter"].sudo()
         min_failures = int(cfg.get_param("base.login_cooldown_after", 5))
         if min_failures == 0:
@@ -1701,11 +1445,9 @@ class ResUsers(models.Model):
         ) < datetime.timedelta(seconds=delay)
 
     def _mfa_type(self) -> str | None:
-        """If an MFA method is enabled, returns its type as a string."""
         return
 
     def _mfa_url(self) -> str | None:
-        """If an MFA method is enabled, returns the URL for its second step."""
         return
 
     @api.model
@@ -1756,14 +1498,6 @@ class UsersMultiCompany(models.Model):
     _inherit = "res.users"
 
     def _multi_company_group_command(self, group_id: int) -> Any | None:
-        """Return the ``group_multi_company`` membership command for ``self``.
-
-        :param int group_id: the resolved ``base.group_multi_company`` id.
-        :return: a ``Command.link`` when the singleton has >1 company and is not
-            yet a member, a ``Command.unlink`` when it has <=1 company and is a
-            member, else ``None`` (already in the correct state).
-        :rtype: Command | None
-        """
         self.ensure_one()
         company_count = len(self.sudo().company_ids)
         is_member = group_id in self.group_ids.ids
@@ -1774,12 +1508,6 @@ class UsersMultiCompany(models.Model):
         return None
 
     def _sync_multi_company_group(self) -> None:
-        """Add/remove group_multi_company based on the number of companies.
-
-        Users with >1 company get the group; users with <=1 lose it.
-        Sudo required: the global res.users record rule hides share users
-        whose company_ids don't overlap with the admin's companies.
-        """
         group_multi_company_id = self.env["ir.model.data"]._xmlid_to_res_id(
             "base.group_multi_company", raise_if_not_found=False
         )

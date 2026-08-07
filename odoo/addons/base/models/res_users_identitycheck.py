@@ -8,8 +8,6 @@ from odoo.libs.json import loads as json_loads
 
 
 class ResUsersIdentitycheck(models.TransientModel):
-    """Wizard that re-checks the user's password before running a security-sensitive (``check_identity``) action."""
-
     _name = "res.users.identitycheck"
     _description = "Password Check Wizard"
 
@@ -39,14 +37,6 @@ class ResUsersIdentitycheck(models.TransientModel):
             ) from None
 
     def run_check(self) -> Any:
-        """Run the deferred method after re-verifying the user's password.
-
-        Requires an HTTP request and only runs methods flagged by the
-        ``check_identity`` decorator.
-
-        :return: the deferred method's return value (typically an
-            ``ir.actions.*`` dict).
-        """
         if not request:
             raise UserError(_("This method can only be accessed over HTTP."))
         self._check_identity()

@@ -1,13 +1,3 @@
-"""Unlink override checker using stdlib ``ast``.
-
-Detects ``raise`` statements inside ``unlink()`` methods on ORM model
-classes.  The recommended pattern is ``@api.ondelete(at_uninstall=False)``
-on a separate method.
-
-Replaces the former ``_odoo_checker_unlink_override.py`` (which required
-``astroid`` + ``pylint``).
-"""
-
 import ast
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -24,8 +14,6 @@ _MODEL_BASE_NAMES = frozenset(
 
 @dataclass
 class Violation:
-    """A single unlink-override warning."""
-
     lineno: int
     col_offset: int
     message: str = (
@@ -34,11 +22,6 @@ class Violation:
 
 
 def _looks_like_model_class(node: ast.ClassDef) -> bool:
-    """Heuristic: does *node* look like an ORM model class?
-
-    Checks whether any base class expression mentions a known model name.
-    Handles patterns like ``models.Model``, ``Model``, ``BaseModel``.
-    """
     for base in node.bases:
         match base:
             case ast.Attribute(attr=attr) if attr in _MODEL_BASE_NAMES:
@@ -49,7 +32,6 @@ def _looks_like_model_class(node: ast.ClassDef) -> bool:
 
 
 def check(tree: ast.Module) -> Iterator[Violation]:
-    """Walk *tree* and yield unlink-override violations."""
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue

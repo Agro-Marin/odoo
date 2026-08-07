@@ -1,5 +1,3 @@
-"""Test result object"""
-
 import collections
 import contextlib
 import inspect
@@ -57,13 +55,6 @@ $
 
 
 class OdooTestResult:
-    """Holder for test result information, based on unittest's TestResult.
-
-    Logs each failure immediately rather than stashing it, so it keeps only
-    counts, not a list of failures. Results are managed automatically by
-    TestCase and TestSuite; tests never manipulate them directly.
-    """
-
     _previousTestClass = None
     _moduleSetUpFailed = False
 
@@ -91,7 +82,6 @@ class OdooTestResult:
         ) or False
 
     def total_errors_count(self) -> int:
-        """Return the combined error and failure count, including any global report."""
         result = self.errors_count + self.failures_count
         if self.global_report:
             result += self.global_report.total_errors_count()
@@ -110,10 +100,9 @@ class OdooTestResult:
             self.shouldStop = True
 
     def printErrors(self) -> None:
-        """Called by TestRunner after test run."""
+        pass
 
     def startTest(self, test: case.TestCase) -> None:
-        """Called when the given test is about to be run."""
         if not self._is_retry:
             self.testsRun += 1
         self.log(
@@ -126,7 +115,6 @@ class OdooTestResult:
         self.queries_start = db.sql_counter
 
     def stopTest(self, test: case.TestCase) -> None:
-        """Called when the given test has been run."""
         if stats_logger.isEnabledFor(logging.INFO):
             self.stats[test.id()] = Stat(
                 time=time.monotonic() - self.time_start,
@@ -134,9 +122,6 @@ class OdooTestResult:
             )
 
     def addError(self, test: case.TestCase, err: tuple) -> None:
-        """Called when an error has occurred. 'err' is a tuple of values as
-        returned by sys.exc_info().
-        """
         if self._soft_fail:
             self.had_failure = True
         else:
@@ -145,8 +130,6 @@ class OdooTestResult:
         self._checkShouldStop()
 
     def addFailure(self, test: case.TestCase, err: tuple) -> None:
-        """Called when an error has occurred. 'err' is a tuple of values as
-        returned by sys.exc_info()."""
         if self._soft_fail:
             self.had_failure = True
         else:
@@ -164,10 +147,9 @@ class OdooTestResult:
                 self.addError(subtest, err)
 
     def addSuccess(self, test: case.TestCase) -> None:
-        """Called when a test has completed successfully."""
+        pass
 
     def addSkip(self, test: case.TestCase, reason: str) -> None:
-        """Called when a test is skipped."""
         self.skipped += 1
         self.log(
             logging.INFO,
@@ -178,11 +160,9 @@ class OdooTestResult:
         )
 
     def wasSuccessful(self) -> bool:
-        """Return whether the run had no failures and no errors."""
         return self.failures_count == self.errors_count == 0
 
     def _exc_info_to_string(self, err: tuple, test: case.TestCase) -> str:
-        """Converts a sys.exc_info()-style tuple of values into a string."""
         exctype, value, tb = err
         while tb and self._is_relevant_tb_level(tb):
             tb = tb.tb_next
@@ -216,14 +196,6 @@ class OdooTestResult:
 
     @contextlib.contextmanager
     def retry(self) -> Generator[None]:
-        """Context manager: the enclosed run repeats a test already counted.
-
-        ``testsRun`` counts *tests*, not attempts. Gating the counter on
-        :meth:`soft_fail` instead looked equivalent but was not: a test that
-        passes on its first (soft) attempt breaks out of the retry loop having
-        never run un-soft, so with ``ODOO_TEST_FAILURE_RETRIES`` set an
-        all-green suite reported ``0 tests``.
-        """
         previous = self._is_retry
         self._is_retry = True
         try:
@@ -233,13 +205,6 @@ class OdooTestResult:
 
     @contextlib.contextmanager
     def soft_fail(self) -> Generator[None]:
-        """Context manager: failures inside do not increment counters but set had_failure.
-
-        ``had_failure`` is reset on entry and must survive the block so the
-        caller can tell whether a soft failure occurred; resetting it in the
-        ``finally`` would erase that signal and make a failed retry look clean
-        whenever the test's logger is muted below ERROR.
-        """
         self.had_failure = False
         self._soft_fail = True
         try:
@@ -248,7 +213,6 @@ class OdooTestResult:
             self._soft_fail = False
 
     def update(self, other: OdooTestResult) -> None:
-        """Merge another result's counts and stats into this one."""
         self.failures_count += other.failures_count
         self.errors_count += other.errors_count
         self.testsRun += other.testsRun
@@ -266,11 +230,6 @@ class OdooTestResult:
         stack_info: bool = False,
         caller_infos: tuple | None = None,
     ) -> None:
-        """
-        ``test`` is the running test case, ``caller_infos`` is
-        (fn, lno, func, sinfo) (logger.findCaller format), see logger.log for
-        the other parameters.
-        """
         test = test or self
         while isinstance(test, case._SubTest) and test.test_case:
             test = test.test_case
@@ -296,7 +255,6 @@ class OdooTestResult:
             logger.handle(record)
 
     def log_stats(self) -> None:
-        """Log per-module timing and query statistics."""
         if not stats_logger.isEnabledFor(logging.INFO):
             return
 
@@ -345,7 +303,6 @@ class OdooTestResult:
 
     @contextlib.contextmanager
     def collectStats(self, test_id: str) -> Generator[None]:
-        """Context manager that accumulates timing and query stats for the given test id."""
         queries_before = db.sql_counter
         time_start = time.monotonic()
 
@@ -374,11 +331,6 @@ class OdooTestResult:
     def getErrorCallerInfo(
         self, error: tuple, test: case.TestCase
     ) -> tuple[str, int, str, None] | None:
-        """
-        :param error: A tuple (exctype, value, tb) as returned by sys.exc_info().
-        :param test: A TestCase that created this error.
-        :returns: a tuple (fn, lno, func, sinfo) matching the logger findCaller format or None
-        """
 
         if not isinstance(test, case.TestCase):
             return None

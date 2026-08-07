@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.logging`` context managers."""
-
 import logging
 import unittest
 

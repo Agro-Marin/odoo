@@ -16,11 +16,6 @@ _LOCALE_LOCK = threading.Lock()
 
 
 class LangData(ReadonlyDict):
-    """A ``dict``-like class which can access field value like a ``res.lang`` record.
-    Note: This data class cannot store data for fields with the same name as
-    ``dict`` methods, like ``dict.keys``.
-    """
-
     __slots__ = ()
 
     def __bool__(self) -> bool:
@@ -34,10 +29,6 @@ class LangData(ReadonlyDict):
 
 
 class LangDataDict(ReadonlyDict):
-    """A ``dict`` of :class:`LangData` objects indexed by some key, which returns
-    a special dummy :class:`LangData` for missing keys.
-    """
-
     __slots__ = ()
 
     def __getitem__(self, key: Any) -> LangData:
@@ -140,15 +131,6 @@ class ResLang(models.Model):
 
     @api.depends("code", "flag_image")
     def _compute_field_flag_image_url(self) -> None:
-        """Point at the uploaded flag if there is one, else at the country flag.
-
-        Existence is read under ``bin_size``. ``flag_image`` is an
-        attachment-backed Image, so asking for it plainly fetches every
-        language's image and base64-encodes it to answer a yes/no — and
-        ``flag_image_url`` is in :attr:`CACHED_FIELDS`, so that ran on every cold
-        warm-up of the language cache. The ORM reads ``file_size`` instead, and
-        ``human_size`` maps 0 to ``False``, so truthiness is unchanged.
-        """
         has_flag = set(self.with_context(bin_size=True).filtered("flag_image")._ids)
         for lang in self:
             if lang.id in has_flag:
@@ -230,38 +212,26 @@ class ResLang(models.Model):
             _logger.error("No language is active.")
 
     def _find_lang_by_code(self, code: str) -> Self:
-        """Return the (possibly inactive) language record matching ``code``,
-        or an empty recordset.
-        """
         return self.with_context(active_test=False).search([("code", "=", code)])
 
     def _activate_lang(self, code: str) -> Self:
-        """Activate the language matching ``code`` without loading translations."""
         lang = self._find_lang_by_code(code)
         if lang and not lang.active:
             lang.active = True
         return lang
 
     def _activate_and_install_lang(self, code: str) -> Self:
-        """Activate the language matching ``code`` and load its translations.
-
-        Unlike :meth:`_activate_lang`, this routes through
-        :meth:`action_unarchive`, which also triggers ``_update_translations``.
-        """
         lang = self._find_lang_by_code(code)
         if lang and not lang.active:
             lang.action_unarchive()
         return lang
 
     def _create_lang(self, lang: str, lang_name: str | None = None) -> Self:
-        """Create the given language and make it active."""
         iso_lang = tools.get_iso_codes(lang)
         if not lang_name:
             lang_name = lang
 
         def fix_datetime_format(format):
-            """Map libc-specific strftime directives to the always-available
-            C89 ones, for cross-platform format strings."""
             format = format.replace("%-", "%")
             for pattern, replacement in tools.misc.DATETIME_FORMATS_MAP.items():
                 format = format.replace(pattern, replacement)
@@ -306,7 +276,6 @@ class ResLang(models.Model):
 
     @api.model
     def install_lang(self) -> bool:
-        """Load the default language and set it as the default partner language."""
         lang_code = (tools.config.get("load_language") or "en_US").split(",")[0]
         self._activate_lang(lang_code) or self._create_lang(lang_code)
         IrDefault = self.env["ir.default"]
@@ -338,14 +307,6 @@ class ResLang(models.Model):
     )
 
     def _get_data(self, **kwargs) -> LangData:
-        """Return the LangData for a single ``{field_name: field_value}`` pair.
-
-        E.g. ``_get_data(code='en_US')``. Prefer a cached ``field_name`` ('id',
-        'code', 'url_code'). Returns a dummy LangData (all ``CACHED_FIELDS`` are
-        ``False``) when no **active** language matches.
-
-        :raise UserError: if ``field_name`` is not in ``self.CACHED_FIELDS``
-        """
         if len(kwargs) != 1:
             raise TypeError(
                 f"_get_data() requires exactly one keyword argument, got {len(kwargs)}"
@@ -354,26 +315,18 @@ class ResLang(models.Model):
         return self._get_active_by(field_name)[field_value]
 
     def _lang_get(self, code: str) -> Self:
-        """Return the language using this code if it is active"""
         return self.browse(self._get_data(code=code).id)
 
     def _get_code(self, code: str) -> str | Literal[False]:
-        """Return the given language code if active, else return ``False``"""
         return self._get_data(code=code).code
 
     @api.model
     @api.readonly
     def get_installed(self) -> list[tuple[str, str]]:
-        """Return installed languages' (code, name) pairs sorted by name."""
         return [(code, data.name) for code, data in self._get_active_by("code").items()]
 
     @tools.ormcache("field", cache="stable")
     def _get_active_by(self, field: str) -> LangDataDict:
-        """Return a LangDataDict mapping active languages' **unique required**
-        ``self.CACHED_FIELDS`` values to their LangData, ordered by name.
-
-        Prefer a reused ``field``: 'id', 'code', 'url_code'.
-        """
         if field not in self.CACHED_FIELDS:
             raise UserError(_('Field "%s" is not cached', field))
         if field == "code":
@@ -516,11 +469,6 @@ class ResLang(models.Model):
         return vals_list
 
     def _get_unique_copy_value(self, fname: str, value: str) -> str:
-        """Return a URL-safe copy suffix of ``value`` unique for ``fname``.
-
-        Tries ``<value>_copy`` first, then ``<value>_copy2``, ``_copy3``, …
-        until the candidate is free (``fname`` carries a unique constraint).
-        """
         Lang = self.with_context(active_test=False)
         candidate = f"{value}_copy"
         counter = 2
@@ -530,14 +478,6 @@ class ResLang(models.Model):
         return candidate
 
     def format(self, percent: str, value, grouping: bool = False) -> str:
-        """Format ``value`` using the ``percent`` ``%char`` specifier with this
-        language's locale.
-
-        Thin registry-facing wrapper around the pure :func:`format_number`: it
-        only resolves this record's :class:`LangData` and checks the language is
-        installed. Callers that already hold a ``LangData`` (e.g. ``formatLang``)
-        should call :func:`format_number` directly to skip the cache hops.
-        """
         self.ensure_one()
         data = self._get_data(id=self.id)
         if not data:
@@ -545,7 +485,6 @@ class ResLang(models.Model):
         return format_number(percent, value, data, grouping=grouping)
 
     def action_activate_langs(self) -> dict[str, Any]:
-        """Activate the selected languages"""
         self.action_unarchive()
         message = _(
             "The languages that you selected have been successfully installed. Users can choose their favorite language in their preferences."

@@ -1,8 +1,3 @@
-"""JSON utilities.
-
-Pure Python JSON helpers with no Odoo dependencies.
-"""
-
 from .fast_clone import fast_clone
 from .orjson_wrapper import (
     OPT_SORT_KEYS,

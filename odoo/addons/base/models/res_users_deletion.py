@@ -6,8 +6,6 @@ _logger = logging.getLogger(__name__)
 
 
 class ResUsersDeletion(models.Model):
-    """Queue of user-deletion requests, processed by a CRON."""
-
     _name = "res.users.deletion"
     _description = "Users Deletion Request"
     _rec_name = "user_id"
@@ -32,15 +30,6 @@ class ResUsersDeletion(models.Model):
 
     @api.model
     def _gc_portal_users(self, batch_size: int = 50) -> None:
-        """Remove portal users that asked to deactivate their account.
-
-        Done in a CRON because deleting a user is heavy on large databases
-        (unindexed create_uid/write_uid on every model). See
-        ``res.users._deactivate_portal_user``.
-
-        :param int batch_size: max queued deletions attempted per run; the rest
-            stay ``todo`` for the next run.
-        """
         delete_requests = self.search([("state", "=", "todo")])
 
         done_requests = delete_requests.filtered(lambda request: not request.user_id)

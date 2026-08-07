@@ -1,5 +1,3 @@
-"""DB-free tests for small ``odoo.tools.config`` helpers."""
-
 import unittest
 
 from odoo.tools.config import _deduplicate_loggers

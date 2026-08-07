@@ -1,19 +1,3 @@
-"""Mechanical checks for the invariants ``odoo/db/README.md`` states in prose.
-
-Every rule here is one the package already documents and depends on, but that
-nothing enforced — so violating it produced a silent behaviour change rather
-than a failing test.  That gap is not hypothetical: the savepoint seam's guard
-read ``_restores_orm_state`` off a class that never declared it, ``copy_from``
-resolved one table name two incompatible ways, and ``binary=True`` was
-documented as "faster" while being 2-3x slower on numeric-heavy rows.
-
-The checks are deliberately structural (what calls what, what a pure function
-guarantees) rather than behavioural — behaviour is covered by the rest of the
-tier-1 suite and by ``odoo/addons/base/tests/test_db_cursor.py``.  A structural
-check fails on the edit that breaks the invariant, not three layers away at
-runtime, which is the whole point.
-"""
-
 import ast
 import inspect
 import pathlib
@@ -26,17 +10,10 @@ _DB_PACKAGE = pathlib.Path(pool.__file__).parent
 
 
 def _callees(func) -> set[str]:
-    """Names referenced in *func*'s body (attribute and global names)."""
     return set(func.__code__.co_names)
 
 
 def _calls_on(func, receiver: str) -> set[str]:
-    """Methods invoked on ``self.<receiver>`` inside *func*.
-
-    ``co_names`` is too coarse here: ``discard_cached_plans`` calls ``.clear()``
-    on both the prepared-statement cache and (formerly) the schema cache, so
-    only the attribute chain distinguishes them.
-    """
     tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
     found = set()
     for node in ast.walk(tree):
@@ -54,7 +31,6 @@ def _calls_on(func, receiver: str) -> set[str]:
 
 
 def _instance_attrs(cls) -> set[str]:
-    """Names assigned to ``self`` anywhere in *cls*'s own methods."""
     tree = ast.parse(textwrap.dedent(inspect.getsource(cls)))
     found = set()
     for node in ast.walk(tree):
@@ -74,7 +50,6 @@ def _instance_attrs(cls) -> set[str]:
 
 
 def _methods_calling(cls, name: str) -> set[str]:
-    """Methods of *cls* whose body references *name*."""
     found = set()
     for attr in dir(cls):
         member = inspect.getattr_static(cls, attr, None)
@@ -86,15 +61,6 @@ def _methods_calling(cls, name: str) -> set[str]:
 
 
 class TestBudgetAccounting(unittest.TestCase):
-    """ "Semaphore accounting lives ENTIRELY in borrow/_borrow_direct/give_back."
-
-    The permit is taken on the two borrow paths, released there on failure, and
-    otherwise travels with the connection to be released exactly once by
-    ``give_back``.  A helper that took or released one would make the permit
-    leak or double-release, which a bounded semaphore only reports at the moment
-    of imbalance — far from the edit that caused it.
-    """
-
     def test_only_the_borrow_paths_acquire_a_permit(self):
         acquirers = {
             m
@@ -120,13 +86,6 @@ class TestBudgetAccounting(unittest.TestCase):
 
 
 class TestMaintenanceDatabasesAreNeverPooled(unittest.TestCase):
-    """ "borrow routes them to _borrow_direct; give_back closes them outright."
-
-    One idle connection to a template blocks ``CREATE DATABASE ... TEMPLATE``,
-    and a psycopg_pool structurally cannot keep a database connection-free: it
-    replaces every discarded connection to hold its count.
-    """
-
     def test_borrow_consults_is_maintenance_db_and_diverts(self):
         names = _callees(pool.ConnectionPool.borrow)
         self.assertIn("is_maintenance_db", names)
@@ -137,13 +96,6 @@ class TestMaintenanceDatabasesAreNeverPooled(unittest.TestCase):
 
 
 class TestPasswordNeverReachesAPoolKey(unittest.TestCase):
-    """ "pool keys carry only a BLAKE2s fingerprint."
-
-    A URI stores its secret inside the ``dsn`` string rather than under a
-    ``password`` key, so a bare ``pop("password")`` leaks it into whatever logs
-    the key.
-    """
-
     SECRET = "s3cr3t-do-not-log"
 
     def _assert_absent(self, key):
@@ -171,12 +123,6 @@ class TestPasswordNeverReachesAPoolKey(unittest.TestCase):
 
 
 class TestEveryDsnConsumerExpandsConninfo(unittest.TestCase):
-    """ "Every DSN consumer routes through dsn._expand_conninfo."
-
-    Skipping it is exactly what leaks a URI's password into a pool key or a log,
-    so the raw psycopg parser must have a single caller.
-    """
-
     def test_conninfo_to_dict_is_imported_only_by_dsn(self):
         importers = []
         for path in sorted(_DB_PACKAGE.glob("*.py")):
@@ -191,13 +137,6 @@ class TestEveryDsnConsumerExpandsConninfo(unittest.TestCase):
 
 
 class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
-    """ "0 means skip this connect, never a value to hand libpq."
-
-    libpq reads ``connect_timeout=0`` as *wait indefinitely*, so passing a
-    shrinking budget through would make the tail of a deadline unbounded — the
-    exact overrun the clamp exists to prevent.
-    """
-
     def test_it_returns_zero_or_at_least_one_never_between(self):
         now = pool.monotonic()
         for offset in (-5, -1, -0.5, 0, 0.2, 0.9, 1.0, 1.5, 3, 10, 900):
@@ -232,13 +171,6 @@ class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
 
 
 class TestSchemaCacheClearsHaveDistinctCallSites(unittest.TestCase):
-    """ "The cache holds two lifetimes."
-
-    DDL invalidates the memoized catalog reads but not the ``ROW EXCLUSIVE``
-    lock, which PostgreSQL holds to the end of a transaction that DDL does not
-    end.  ``ROLLBACK TO SAVEPOINT`` *does* release it, so that path clears both.
-    """
-
     def test_ddl_invalidation_keeps_the_lock_ledger(self):
         self.assertEqual(
             _calls_on(cursor.Cursor.discard_cached_plans, "_schema_cache"),
@@ -264,14 +196,6 @@ class TestSchemaCacheClearsHaveDistinctCallSites(unittest.TestCase):
 
 
 class TestDdlDetectionCannotMissAHiddenStatement(unittest.TestCase):
-    """ "_changes_schema scans EVERY statement, not just the leading one."
-
-    ``BEGIN; ALTER TABLE t ...; COMMIT`` leads with ``BEGIN``, so a
-    leading-keyword test misses it and the next ``SELECT *`` on a cached plan
-    raises ``FeatureNotSupported`` — sqlstate 0A000, not retryable, so the RPC
-    loop turns it into a 500.
-    """
-
     HIDDEN = (
         "BEGIN; ALTER TABLE t ADD COLUMN c int; COMMIT",
         "SELECT 1; CREATE TABLE t (a int)",
@@ -306,13 +230,6 @@ class TestDdlDetectionCannotMissAHiddenStatement(unittest.TestCase):
 
 
 class TestCursorSatisfiesItsMixinContracts(unittest.TestCase):
-    """The mixins declare the host surface they need; ``Cursor`` must have it.
-
-    ``cursor.py`` asserts this for a type checker, which only helps when mypy is
-    run.  Checking it at import time turns drift into a failing test instead of
-    a latent ``AttributeError`` on a bulk path that only some deployments reach.
-    """
-
     def _protocol_members(self, name):
         source = inspect.getsource(bulk)
         tree = ast.parse(source)
@@ -338,14 +255,6 @@ class TestCursorSatisfiesItsMixinContracts(unittest.TestCase):
 
 
 class TestEveryCheckoutIsTracked(unittest.TestCase):
-    """ "What is left in the tracker is by definition still out."
-
-    The saturation error and the leak warning both read the tracker, so an
-    untracked borrow makes a connection invisible to both, and an unreleased
-    return makes a healthy pool look leaky.  Both mistakes are silent — the
-    numbers simply drift — so the wiring is pinned rather than trusted.
-    """
-
     def test_both_borrow_paths_track(self):
         for path in ("borrow", "_borrow_direct"):
             with self.subTest(path=path):
@@ -358,8 +267,6 @@ class TestEveryCheckoutIsTracked(unittest.TestCase):
         self.assertIn("release", _calls_on(pool.ConnectionPool.give_back, "_checkouts"))
 
     def test_give_back_releases_before_it_can_return_early(self):
-        """``give_back`` has three exits (untracked, direct, pooled); the
-        release must precede the first, or a direct connection stays counted."""
         tree = ast.parse(
             textwrap.dedent(inspect.getsource(pool.ConnectionPool.give_back))
         )
@@ -398,15 +305,6 @@ class TestEveryCheckoutIsTracked(unittest.TestCase):
 
 
 class TestBudgetBelongsToAServer(unittest.TestCase):
-    """ "db_maxconn is the cap for one PostgreSQL server."
-
-    The cap has been wrong in both directions — per-pool let one server be
-    handed ``2 * db_maxconn``, shared-across-pools bounded the sum of two — so
-    what matters structurally is that the discriminator is the *resolved
-    endpoint* and never the mere presence of ``db_replica_host``.  The
-    behavioural coverage is in ``test_budget_endpoints.py``.
-    """
-
     def _package(self):
         import odoo.db as package
 

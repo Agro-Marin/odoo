@@ -21,17 +21,14 @@ manual = {
 
 
 def template2country(template: str) -> str:
-    """Convert a tax template name prefix to its country XML ID."""
     return f"base.{template[:2]}"
 
 
 def data_file_module_name(f: object) -> str:
-    """Extract the module name from a data file's path."""
     return f.path.parts[f.path.parts.index("data") - 1]
 
 
 def tax_grouper(row_iter: Iterator[dict[str, str]]) -> Iterator[list[dict[str, str]]]:
-    """Group CSV rows into batches where each new batch starts at a non-empty id."""
     current_batch = [next(row_iter)]
     for row in row_iter:
         if row["id"]:
@@ -43,7 +40,6 @@ def tax_grouper(row_iter: Iterator[dict[str, str]]) -> Iterator[list[dict[str, s
 
 
 def tag_factor(tax_rows: list[dict[str, str]]) -> defaultdict:
-    """Build a mapping of {document_type: {tag: cumulative_factor_percent}}."""
     tag2factor: defaultdict[str, defaultdict[str, float]] = defaultdict(
         lambda: defaultdict(float)
     )
@@ -57,7 +53,6 @@ def tag_factor(tax_rows: list[dict[str, str]]) -> defaultdict:
 
 
 def test_tag_signs(tag_signs: dict[str, dict[str, int | str]]) -> None:
-    """Assert known Belgium and Italy tag signs for regression testing."""
     assert tag_signs["base.be"]["03"] == -1, tag_signs["base.be"]
     assert tag_signs["base.be"]["49"] == 1, tag_signs["base.be"]
     assert tag_signs["base.be"]["54"] == -1, tag_signs["base.be"]
@@ -106,7 +101,6 @@ def remove_sign(
 
 
 def upgrade(file_manager: FileManager) -> None:
-    """Move +/- signs off tax-tag ``tag_ids`` onto the tax-report expression formulas."""
     tax_template_files = [
         f
         for f in file_manager

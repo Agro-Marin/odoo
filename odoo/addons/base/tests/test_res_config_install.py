@@ -10,8 +10,6 @@ def just_raise(*args):
 
 @tagged("post_install", "-at_install")
 class TestResConfigInstall(TransactionCase):
-    """Tests for res.config.settings module installation logic."""
-
     def setUp(self):
         super().setUp()
         self.user = self.env.ref("base.user_admin")
@@ -26,7 +24,6 @@ class TestResConfigInstall(TransactionCase):
         self.config = Settings.create({})
 
     def test_no_install(self):
-        """When saving settings with no changes, no modules should be installed."""
         config_fields = self.config._get_classified_fields()
         for module in config_fields["module"]:
             if self.config[f"module_{module.name}"]:
@@ -41,7 +38,6 @@ class TestResConfigInstall(TransactionCase):
             self.config.execute()
 
     def test_install(self):
-        """Saving settings with a new module toggled ON should trigger installation."""
         config_fields = self.config._get_classified_fields()
         module_to_install = next(
             (m for m in config_fields["module"] if m.state == "uninstalled"),

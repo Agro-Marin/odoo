@@ -7,8 +7,6 @@ from odoo.tools.pdf import reshape_text
 
 
 class TestPdf(TransactionCase):
-    """Tests on pdf."""
-
     def setUp(self):
         super().setUp()
         with file_open("base/tests/minimal.pdf", "rb") as f:
@@ -101,7 +99,6 @@ class TestPdf(TransactionCase):
         self.minimal_reader_buffer.close()
 
     def test_reshaping_non_arabic_text(self):
-        """Reshaper doesn't alter non-Arabic text."""
         english_text = "Hello, I'm just an English text"
         processed_text = reshape_text(english_text)
         self.assertEqual(
@@ -117,7 +114,6 @@ class TestPdf(TransactionCase):
         )
 
     def test_reshaping_arabic_text(self):
-        """Reshaping is applied properly on Arabic text."""
         text = "بث مباشر"
         processed_text = reshape_text(text)
         expected_shapes = ["ﺮ", "ﺷ", "ﺎ", "ﺒ", "ﻣ", " ", "ﺚ", "ﺑ"]

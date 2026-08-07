@@ -1,14 +1,3 @@
-"""Characterization tests pinning the current behaviour of res.partner field
-sync (``_fields_sync`` / ``_children_sync`` / commercial-field propagation /
-``_commercial_sync_to_descendants``) so it can be refactored safely.
-
-Several pinned behaviours are subtle -- most notably that commercial sync
-reaches a cross-company child the acting user cannot see, because child
-discovery in ``_children_sync`` runs under ``sudo()`` even though the record
-rule still hides the child from direct access. Each such case is called out in
-its test docstring; a refactor changing one must update the test on purpose.
-"""
-
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, new_test_user, tagged
@@ -31,8 +20,6 @@ class TestPartnerSyncCharacterization(TransactionCase):
         )
 
     def test_downstream_commercial_sync_is_recursive(self):
-        """A commercial-field write on the commercial entity propagates to every
-        non-company descendant, however deep (3 levels here)."""
         co = self.Partner.create(
             {
                 "name": "Recur Co",
@@ -66,9 +53,6 @@ class TestPartnerSyncCharacterization(TransactionCase):
             )
 
     def test_upstream_sync_asymmetry(self):
-        """Only ``_synced_commercial_fields`` (vat) propagate UP to the commercial
-        entity (and thus siblings); commercial-only fields (company_registry,
-        industry_id) do NOT."""
         co = self.Partner.create(
             {
                 "name": "Asym Co",
@@ -95,8 +79,6 @@ class TestPartnerSyncCharacterization(TransactionCase):
         )
 
     def test_upstream_address_sync_to_parent(self):
-        """Editing a contact-type child's address propagates the address up to
-        its parent (contact address == company address)."""
         company = self.Partner.create({"name": "Addr Co", "is_company": True})
         contact = self.Partner.create(
             {
@@ -117,13 +99,6 @@ class TestPartnerSyncCharacterization(TransactionCase):
         )
 
     def test_cross_company_hidden_child_is_synced_via_sudo(self):
-        """Commercial sync reaches a cross-company child even when the acting
-        user cannot see it: child discovery in ``_children_sync`` runs under
-        ``sudo()``. The record rule still hides the child and blocks direct
-        writes; only the sudo-elevated commercial propagation reaches it.
-        (Historically the old ``if not self.child_ids`` guard read child_ids
-        under the user's rules and silently no-oped.)
-        """
         co = self.Partner.with_user(self.user_a).create(
             {
                 "name": "XCo",
@@ -163,9 +138,6 @@ class TestPartnerSyncCharacterization(TransactionCase):
         )
 
     def test_cross_company_visible_child_is_synced(self):
-        """Contrast to the hidden-child case: a shared child (company_id=False)
-        is visible to the acting user, so the guard passes and commercial sync
-        reaches it normally."""
         co = self.Partner.with_user(self.user_a).create(
             {
                 "name": "YCo",
@@ -185,9 +157,6 @@ class TestPartnerSyncCharacterization(TransactionCase):
         )
 
     def test_load_import_inherits_from_parent(self):
-        """CSV/XML import (``_load_records_create``) batches the parent→child
-        sync: children inherit commercial fields (vat, company_registry,
-        industry) and the parent's address, matching the normal create() path."""
         industry = self.env["res.partner.industry"].create({"name": "Load Char Ind"})
         fnames = [
             "id",
@@ -233,9 +202,6 @@ class TestPartnerSyncCharacterization(TransactionCase):
             self.assertEqual(child.city, "ParentCity")
 
     def test_load_import_first_contact_populates_empty_company(self):
-        """The first-contact-creation rule still fires during import: a company
-        imported with no address alongside its first contact (which has one)
-        gets that address copied up."""
         fnames = ["id", "name", "is_company", "parent_id/id", "type", "street", "city"]
         data = [
             ["load_char_co2", "Load Char Co2", "1", "", "contact", "", ""],

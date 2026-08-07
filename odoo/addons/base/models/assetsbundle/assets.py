@@ -42,8 +42,6 @@ from .common import (
 
 
 class WebAsset:
-    """Base class for all asset types (JS, CSS, XML)."""
-
     def __init__(
         self,
         bundle: AssetsBundle,
@@ -66,29 +64,12 @@ class WebAsset:
             )
 
     def generate_error(self, msg: str) -> str:
-        """Log and return an error message contextualized with the asset URL."""
         msg = f"{msg!r} in file {self.url!r}"
         _logger.error(msg)
         return msg
 
     @functools.cached_property
     def id(self) -> str:
-        """Identity used to split compiled CSS back into per-file fragments.
-
-        :class:`AssetsBundle` overwrites this with the asset's index in
-        ``stylesheets`` (``0000``, ``0001``, …), which is what makes the
-        concatenated Sass document a pure function of the bundle's file list.
-        With a random value here, two bundles over the very same sources
-        produced two byte-different compile inputs, so an identical ~600 ms
-        Dart Sass compile could never be reused between them — and the LTR,
-        RTL, autoprefixed and RTL+autoprefixed variants of one bundle all
-        compile the *same* SCSS (direction and prefixing are post-compile
-        passes).
-
-        The random fallback covers assets built outside a bundle
-        (:meth:`ScssStylesheetAsset.for_inline_compile`, the synthesised
-        at-rules fragment), which are never split.
-        """
         return str(uuid.uuid4())
 
     @functools.cached_property
@@ -100,11 +81,6 @@ class WebAsset:
         return "<inline asset>" if self.inline else self.url
 
     def _resolve_attachment(self) -> None:
-        """Resolve a url-only asset to its backing ``ir.attachment`` record.
-
-        No-op for inline or file-backed assets; raises ``AssetNotFoundError``
-        when no attachment serves the URL.
-        """
         if not (self.inline or self._filename or self._ir_attach):
             try:
                 self._ir_attach = (
@@ -139,17 +115,9 @@ class WebAsset:
         return self._content
 
     def _raw_source(self) -> str:
-        """The asset's unprocessed source: inline if present, else fetched.
-
-        Uncached — :attr:`content` layers caching on top, and
-        ``StylesheetAsset.get_source`` re-reads through this to recompile from
-        the original source. ``inline`` is the empty string for file-backed
-        assets, so the ``or`` falls through to the fetch when there is no body.
-        """
         return self.inline or self._fetch_content()
 
     def _fetch_content(self) -> str:
-        """Fetch content from file or database."""
         try:
             self._resolve_attachment()
             if self._filename:
@@ -167,11 +135,6 @@ class WebAsset:
             raise AssetError(f"Could not get content for {self.name}.") from e
 
     def minify(self) -> str:
-        """Return this asset's bundle-ready fragment.
-
-        Subclasses compress the content and prepend the per-file header; the base
-        implementation passes the content through untouched.
-        """
         return self.content
 
     def with_header(self, content: str | None = None) -> str:
@@ -181,18 +144,10 @@ class WebAsset:
 
 
 class JavascriptAsset(WebAsset):
-    """JS file asset: legacy concatenation member or native-ESM module."""
-
     _HEADER_LINE_COUNT = 5
 
     @functools.cached_property
     def parsed_header(self) -> re.Match[str] | None:
-        """Parsed ``@odoo-module`` header match (cached), or ``None``.
-
-        The header is consulted at several points in the bundle lifecycle
-        (native/legacy classification, import-map alias, esbuild flags); caching
-        parses the file's first 500 chars once.
-        """
         return _parse_odoo_module_header(self.raw_content)
 
     def generate_error(self, msg: str) -> str:
@@ -201,38 +156,18 @@ class JavascriptAsset(WebAsset):
 
     @functools.cached_property
     def is_native(self) -> bool:
-        """Whether this file uses ``@odoo-module native`` (browser-native ESM)."""
         header = self.parsed_header
         return bool(header and header["native"])
 
     @functools.cached_property
     def module_path(self) -> str:
-        """The ``@module/path`` identifier (e.g. ``@web/core/registry``).
-
-        Cached — a pure function of the immutable ``self.url``, read several
-        times per module (import map, esbuild entry, both bridge builders).
-        """
         return url_to_module_path(self.url)
 
     @property
     def raw_content(self) -> str:
-        """The file's source (cached by ``WebAsset``).
-
-        Public alias of :attr:`content` for call sites that read a JS asset's
-        source explicitly (``ir_qweb``, the bridge builders). For JS the two are
-        identical — there is no transpilation step.
-        """
         return super().content
 
     def minify(self) -> str:
-        """Minify in-process, falling back to esbuild only where rjsmin breaks.
-
-        The bypass used to trigger on any file holding both a backtick and a
-        ``${`` — a quarter of the JS in this tree — spending an esbuild
-        subprocess per file to protect against a defect that needs a NESTED
-        template literal. :func:`has_nested_template_literal` asks the precise
-        question instead.
-        """
         content = self.content
         if not has_nested_template_literal(content):
             return self.with_header(rjsmin(content, keep_bang_comments=True))
@@ -267,15 +202,8 @@ class JavascriptAsset(WebAsset):
 
 
 class XMLAsset(WebAsset):
-    """OWL template (.xml) asset, consumed as parsed elements by ``xml()``."""
-
     @property
     def _parsed_root(self) -> etree._Element:
-        """The asset's parsed root element, or raise the cached parse error.
-
-        ``template_elements`` (the only production consumer) derives from this
-        single parse, avoiding a parse/serialize/parse round-trip per file.
-        """
         result = self._parse_result
         if isinstance(result, XMLAssetError):
             raise result
@@ -283,17 +211,6 @@ class XMLAsset(WebAsset):
 
     @functools.cached_property
     def _parse_result(self) -> etree._Element | XMLAssetError:
-        """Parse once, caching the FAILURE as well as the success.
-
-        ``functools.cached_property`` does not memoize an exception, so a
-        raising ``_parsed_root`` re-read the file, re-parsed it and re-logged
-        the error on *every* access — and a broken template is read several
-        times per request (``generate_xml_bundle`` is reached from the legacy
-        IIFE and from each ESM template-bundle call site). Returning the error
-        instead of raising it makes the cache hold both outcomes, so the file is
-        read once and the operator gets one log line per bundle build, not one
-        per call site.
-        """
         try:
             raw = self._raw_source()
         except AssetError as e:
@@ -308,29 +225,16 @@ class XMLAsset(WebAsset):
 
     @functools.cached_property
     def template_elements(self) -> list[etree._Element]:
-        """Return the individual template elements parsed from this asset.
-
-        For a ``<templates>``/``<template>``/``<odoo>`` wrapper the children are
-        the templates; any other root tag is itself a single template element.
-        """
         root = self._parsed_root
         if root.tag in ("templates", "template", "odoo"):
             return [el for el in root if isinstance(el.tag, str)]
         return [root]
 
     def _error(self, msg: str) -> XMLAssetError:
-        """Log and build the contextualized error; the caller raises it.
-
-        Unlike ``JavascriptAsset.generate_error`` (which returns an embedded JS
-        stub), XML template problems abort the whole bundle — keeping the
-        ``raise`` at the call site makes that control flow visible.
-        """
         return XMLAssetError(super().generate_error(msg))
 
 
 class StylesheetAsset(WebAsset):
-    """Plain CSS asset with relative-URL rewriting and regex minification."""
-
     rx_import = re.compile(
         r"""@import\s+(?P<q>'|")(?!'|"|/|https?://)(?P<path>[^'"]*)(?P=q)"""
     )
@@ -431,29 +335,6 @@ class StylesheetAsset(WebAsset):
 
     @classmethod
     def _minify_css_body(cls, content: str) -> str:
-        """Minify CSS text, leaving string literals and legal comments intact.
-
-        Strategy: mask the spans minification must not touch — string literals
-        and ``/*! … */`` legal comments (license headers) — behind inert
-        NUL-delimited placeholders, drop ordinary comments, run the legacy
-        whitespace-collapse + brace-tighten, then restore the masked spans. The
-        placeholders carry no whitespace or braces, so the structural output is
-        byte-identical to the legacy pipeline; the only change is that string /
-        legal-comment interiors are no longer corrupted (the old string-unaware
-        regexes lost a space in ``content: "a  b"``).
-
-        :attr:`_CSS_TOKEN_RE`'s alternation order makes the masking correct
-        across interleaving: a ``"`` inside a comment is consumed by the comment
-        arm, and a ``/*`` inside a string by the string arm.
-
-        A pre-existing ``/*# sourceMappingURL=… */`` needs no separate pass: it
-        is an ordinary block comment the mask step drops, while a
-        ``sourceMappingURL`` inside a ``content: "…"`` value survives (the old
-        whole-text ``rx_sourceMap.sub`` reached into strings).
-
-        Header-less for unit-testing against the legacy pipeline; :meth:`minify`
-        adds the header.
-        """
         content = content.replace("\x00", "")
 
         protected: list[str] = []
@@ -481,51 +362,29 @@ class StylesheetAsset(WebAsset):
 
 
 class PreprocessedCSS(StylesheetAsset):
-    """Base for stylesheet dialects compiled through an external CLI."""
-
     rx_import = None
     _SOURCE_TOKEN_RE = _SCSS_STRING_OR_COMMENT
 
     _COMPILE_TIMEOUT_S: int = 180
 
     def get_command(self) -> list[str]:
-        """Return the compiler argv reading source on stdin."""
         raise NotImplementedError
 
     def compile(self, source: str) -> str:
-        """Compile ``source`` through :meth:`get_command`; raise ``CompileError``."""
         return _run_cli_pipe(self.get_command(), source, self._COMPILE_TIMEOUT_S)
 
 
 class ScssStylesheetAsset(PreprocessedCSS):
-    """Compile SCSS (.scss) using Dart Sass (embedded protocol or CLI)."""
-
     @classmethod
     def for_inline_compile(
         cls, source: str = "// inline compile"
     ) -> ScssStylesheetAsset:
-        """Build a bundle-less asset whose sole purpose is :meth:`compile`.
-
-        The document-layout preview (``base_document_layout``) compiles wizard
-        SCSS outside any bundle; this is the ONE sanctioned bundle-less
-        construction. ``bundle=None`` selects the production ``compressed``
-        output style (see :attr:`output_style`).
-
-        :param source: placeholder inline content satisfying the inline-or-url
-            invariant; :meth:`compile` takes the real SCSS explicitly.
-        """
         return cls(None, inline=source)
 
     _embedded_fallback_warned = False
 
     @classmethod
     def _warn_embedded_fallback(cls, exc: Exception) -> None:
-        """Surface the embedded-Sass → CLI degrade: WARNING once, then DEBUG.
-
-        A broken sass-embedded install otherwise logs the much slower
-        per-compile CLI fallback only at DEBUG, hiding the regression. Later
-        fallbacks stay at DEBUG so a persistent failure doesn't flood the log.
-        """
         if cls._embedded_fallback_warned:
             _logger.debug("Dart Sass embedded unavailable, using CLI", exc_info=exc)
             return
@@ -545,7 +404,6 @@ class ScssStylesheetAsset(PreprocessedCSS):
 
     @property
     def output_style(self) -> str:
-        """Use compressed output in production for AST-aware minification."""
         return (
             "expanded" if self.bundle and self.bundle.is_debug_assets else "compressed"
         )
@@ -554,16 +412,9 @@ class ScssStylesheetAsset(PreprocessedCSS):
     """Dart Sass syntax identifier; see :class:`SassStylesheetAsset`."""
 
     def minify(self) -> str:
-        """Dart Sass output needs no regex pass.
-
-        Production output is already ``compressed``; in debug the join this
-        feeds is consumed only for ``@import`` extraction, so regex-minifying
-        the expanded output would be wasted work.
-        """
         return self.with_header()
 
     def compile(self, source: str) -> str:
-        """Compile SCSS: embedded Dart Sass -> Dart Sass CLI."""
         import odoo.addons
 
         try:
@@ -595,30 +446,6 @@ class ScssStylesheetAsset(PreprocessedCSS):
         return super().compile(source)
 
     def get_command(self) -> list[str]:
-        """Build the Dart Sass CLI command.
-
-        ``--no-charset`` makes the CLI agree with the embedded compiler, which
-        emits no charset marker at all. Left on, the CLI prefixes a UTF-8 BOM
-        in ``compressed`` and ``@charset "UTF-8";`` in ``expanded`` as soon as
-        the stylesheet holds one non-ASCII byte — and this tree's do.
-
-        The primary reason is parity: ``compile`` degrades from the embedded
-        protocol to this CLI on any protocol failure, and both results are
-        stored under one ``_compiled_cache`` key (compiler class + output style
-        + source digest), which cannot tell them apart. Whichever backend
-        happened to run therefore decided the bundle's bytes.
-
-        The marker also outlives the pipeline: it lands in the pre-marker
-        fragment ``CssPipeline.preprocess`` turns into an inline asset, which
-        gets a ``/* … */`` header prepended, so it reaches the browser
-        mid-stylesheet where a leading-BOM strip no longer applies. Measured in
-        Chrome rather than argued from the spec: a mid-file ``@charset`` is
-        inert (ignored, both neighbouring rules still apply), but the BOM is an
-        ident code point (U+FEFF > U+007F), so it is absorbed into the *first
-        following selector* — ``:root{--x:9px}`` parses as ``\\uFEFF :root`` and
-        silently matches nothing. The blast radius is exactly one selector, not
-        the rest of the sheet.
-        """
         import odoo.addons
 
         sass = find_sass()
@@ -650,19 +477,4 @@ class ScssStylesheetAsset(PreprocessedCSS):
 
 
 class SassStylesheetAsset(ScssStylesheetAsset):
-    """Compile indented-syntax Sass (.sass) using Dart Sass.
-
-    ``sass`` was already advertised in ``STYLE_EXTENSIONS`` (so ``ir.asset``
-    globs collect ``.sass`` files and ``ir_qweb_assets`` links them as
-    stylesheets) and ``OdooSassImporter`` already switches syntax on the
-    ``.sass`` suffix — only the bundle-side entry point was missing, so such a
-    file reached :class:`AssetsBundle` and was dropped with a
-    ``bundle_file_skipped`` warning.
-
-    A bundle may not mix ``.sass`` and ``.scss``: the dialect's files are
-    concatenated into ONE document per bundle and neither the embedded
-    compiler nor the CLI reads two syntaxes in one document
-    (``CssPipeline.preprocess`` reports that as a CSS error).
-    """
-
     _sass_syntax = "indented"

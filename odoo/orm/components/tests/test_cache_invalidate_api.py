@@ -1,23 +1,3 @@
-"""Tests for the canonical shape-explicit FieldCache invalidation API.
-
-``FieldCache.invalidate`` / ``FieldCache.all_cached_ids`` take the cache shape
-from the caller (``Field._is_context_dependent``) instead of probing, and own
-the single decode of the context-dependent shape — keyed on
-``isinstance(key, tuple)`` (cache keys are tuples, record ids never are).
-These tests pin:
-
-* flat and context-dependent invalidation, including the *mixed* setup-window
-  state (stale flat entries coexisting with per-context sub-dicts);
-* that dict-valued caches (Json, Properties) are never mistaken for
-  per-context sub-dicts — record ids are never popped inside cached values;
-* identity preservation: per-context sub-dicts are trimmed/cleared in place
-  and kept when emptied (``Field._get_cache`` memoizes their identity in
-  ``env._field_cache_memo``);
-* dirty preservation is untouched (dirty tracking lives outside ``invalidate``);
-* the legacy probing wrapper ``invalidate_field`` delegates to the canonical
-  decode (kept for shape-unaware callers such as standalone benchmarks).
-"""
-
 import unittest
 
 from odoo.orm.components.cache import FieldCache
@@ -43,8 +23,6 @@ class TestInvalidateFlat(unittest.TestCase):
         self.assertTrue(self.cache.has_value("email", 1))
 
     def test_flat_clear_preserves_dict_identity(self) -> None:
-        """The flat cache dict is cleared in place — ``Field._get_cache``
-        memoizes it per environment, so rebinding would orphan the memo."""
         live = self.cache.get_field_data("name")
         self.cache.invalidate("name", None, context_dependent=False)
         self.assertIs(self.cache.get_field_data("name"), live)
@@ -55,7 +33,6 @@ class TestInvalidateFlat(unittest.TestCase):
         self.cache.invalidate("missing", [1], context_dependent=True)
 
     def test_dict_valued_flat_cache_pops_whole_entries(self) -> None:
-        """Json/Properties: flat shape with dict VALUES, popped by id key."""
         cache = FieldCache()
         cache._data["json_f"] = {1: {"k": "v1"}, 2: {"k": "v2"}}
         cache.invalidate("json_f", [1], context_dependent=False)
@@ -82,10 +59,6 @@ class TestInvalidateContextDependent(unittest.TestCase):
         self.assertEqual(cache._data["G"][("es_MX",)], {3: "three_es"})
 
     def test_emptied_subdict_is_kept_in_place(self) -> None:
-        """Sub-dicts are trimmed in place and kept when emptied: their
-        identity is memoized by ``Field._get_cache`` per environment, and a
-        dropped sub-dict would orphan that memo (writes through the memo would
-        stop being visible to the outer cache)."""
         cache = self._make()
         en_sub = cache._data["G"][("en_US",)]
         cache.invalidate("G", [1, 2], context_dependent=True)
@@ -103,10 +76,6 @@ class TestInvalidateContextDependent(unittest.TestCase):
         self.assertEqual(es_sub, {})
 
     def test_mixed_state_pops_stale_flat_entries(self) -> None:
-        """Setup-window mixed state: flat entries written before
-        ``field_depends_context`` was populated are keyed by record id and are
-        invalidated wholesale — including dict-valued ones (company-dependent
-        Json), whose *contents* must never be treated as record ids."""
         cache = self._make()
         cache._data["G"][5] = "stale-scalar"
         cache._data["G"][1] = {3: "json-payload"}
@@ -117,9 +86,6 @@ class TestInvalidateContextDependent(unittest.TestCase):
         self.assertEqual(cache._data["G"][("es_MX",)], {3: "three_es"})
 
     def test_mixed_state_never_pops_inside_json_values(self) -> None:
-        """Invalidating id 3 must not reach inside the stale Json value keyed
-        by id 1, even though that value contains the key 3 — the regression
-        the value-based discriminator (``isinstance(value, dict)``) had."""
         cache = self._make()
         cache._data["G"][1] = {3: "json-payload"}
         cache.invalidate("G", [3], context_dependent=True)
@@ -158,8 +124,6 @@ class TestAllCachedIds(unittest.TestCase):
         self.assertTrue(ids)
 
     def test_context_dependent_ignores_stale_flat_entries(self) -> None:
-        """Stale flat entries (setup window) are excluded from the id view —
-        including dict-valued ones whose JSON keys must never leak as ids."""
         cache = FieldCache()
         cache._data["G"][("en_US",)] = {1: "a"}
         cache._data["G"][7] = {"json-key": "v"}
@@ -176,8 +140,6 @@ class TestAllCachedIds(unittest.TestCase):
 
 
 class TestLegacyProbingWrapper(unittest.TestCase):
-    """invalidate_field keeps probing semantics but shares the canonical decode."""
-
     def test_flat_delegates_without_touching_values(self) -> None:
         cache = FieldCache()
         cache._data["json_f"] = {1: {"k": "v1"}, 2: {"k": "v2"}}
@@ -185,9 +147,6 @@ class TestLegacyProbingWrapper(unittest.TestCase):
         self.assertEqual(cache._data["json_f"], {2: {"k": "v2"}})
 
     def test_context_dependent_drops_emptied_cache_key(self) -> None:
-        """The wrapper (and only the wrapper) additionally drops emptied
-        sub-dicts — safe for shape-unaware standalone callers, which have no
-        ``env._field_cache_memo`` aliasing the sub-dicts."""
         cache = FieldCache()
         cache._data["G"][("en_US",)] = {1: "one_en"}
         cache._data["G"][("es_MX",)] = {1: "one_es", 2: "two_es"}
@@ -197,15 +156,6 @@ class TestLegacyProbingWrapper(unittest.TestCase):
 
 
 class TestKeepDirty(unittest.TestCase):
-    """``keep_dirty=True`` spares the values a pending write still needs.
-
-    The default drops values regardless of the dirty flag, and the caller-facing
-    paths refuse up front instead (``_check_no_pending_write``).  The
-    inverse-field pass of ``CacheMixin._invalidate_cache`` has no such guard --
-    it drops a whole field as a side effect of invalidating its counterpart --
-    so it opts in here.
-    """
-
     def test_flat_all_ids_keeps_dirty_values(self) -> None:
         cache = FieldCache()
         cache.set_value("partner_id", 1, 10)
@@ -251,7 +201,6 @@ class TestKeepDirty(unittest.TestCase):
         self.assertEqual(cache._data["G"][("en_US",)], {1: "one_en"})
 
     def test_context_dependent_stale_flat_entry_is_kept_when_dirty(self) -> None:
-        """The setup-window mixed state: a flat leftover keyed by a dirty id."""
         cache = FieldCache()
         cache._data["G"][8] = "stale-scalar"
         cache._data["G"][9] = "stale-scalar-2"
@@ -260,7 +209,6 @@ class TestKeepDirty(unittest.TestCase):
         self.assertEqual(cache._data["G"], {8: "stale-scalar"})
 
     def test_default_still_drops_dirty_values(self) -> None:
-        """Unchanged for every caller that does not opt in."""
         cache = FieldCache()
         cache.set_value("partner_id", 1, 10)
         cache.mark_dirty("partner_id", [1])

@@ -34,47 +34,6 @@ _schema = logging.getLogger("odoo.schema")
 
 
 class Many2many(_RelationalMulti):
-    """Many2many field; the value of such a field is the recordset.
-
-    :param str comodel_name: name of the target model (string)
-        mandatory except in the case of related or extended fields
-
-    :param str relation: optional name of the table that stores the relation in
-        the database
-
-    :param str column1: optional name of the column referring to "these" records
-        in the table ``relation``
-
-    :param str column2: optional name of the column referring to "those" records
-        in the table ``relation``
-
-    The attributes ``relation``, ``column1`` and ``column2`` are optional.
-    If not given, names are automatically generated from model names,
-    provided ``model_name`` and ``comodel_name`` are different!
-
-    Having several fields with implicit relation parameters on a given model
-    with the same comodel is not accepted by the ORM, since those fields would
-    use the same table. The ORM prevents two many2many fields from using the
-    same relation parameters, except if
-
-    - both fields use the same model, comodel, and relation parameters are
-      explicit; or
-
-    - at least one field belongs to a model with ``_auto = False``.
-
-    :param domain: an optional domain to set on candidate values on the
-        client side (domain or a python expression that will be evaluated
-        to provide domain)
-
-    :param dict context: an optional context to use on the client side when
-        handling that field
-
-    :param bool check_company: Mark the field to be verified in
-        :meth:`~odoo.models.Model._check_company`. Add a default company
-        domain depending on the field attributes.
-
-    """
-
     type = "many2many"
 
     _explicit: bool = True
@@ -204,7 +163,6 @@ class Many2many(_RelationalMulti):
         return False
 
     def update_db_foreign_keys(self, model: BaseModel) -> None:
-        """Add the foreign keys corresponding to the field's relation table."""
         comodel = model.env[self.comodel_name]
         if model._is_an_ordinary_table() and not model._is_table_inheritance_root():
             model.pool.add_foreign_key(
@@ -296,15 +254,6 @@ class Many2many(_RelationalMulti):
         *,
         store: bool,
     ) -> None:
-        """Persist and propagate the change from *old_relation* to *new_relation*.
-
-        Shared tail of :meth:`write_real` and :meth:`write_new`: refresh self's
-        cache, add/remove the ``(record, corecord)`` pairs (writing the relation
-        table only when *store*), keep inverse-field caches in sync, and notify
-        dependents on the affected corecords. *records* are the (real or new)
-        records whose relation changed; ``*_relation`` map each record id to its
-        ``OrderedSet`` of corecord ids.
-        """
         for record in records:
             self._update_cache(record, tuple(new_relation[record.id]))
 
@@ -510,7 +459,6 @@ class Many2many(_RelationalMulti):
         self,
         records_commands_list: Sequence[tuple[BaseModel, list[CommandValue]]],
     ) -> None:
-        """Update self on new records."""
         if not records_commands_list:
             return
 

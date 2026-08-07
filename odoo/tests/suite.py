@@ -1,13 +1,3 @@
-"""
-Vendor unittest.TestSuite
-
-This is a modified version of Python's unittest.TestSuite, simplified
-to minimise the code to maintain:
-
-- Removes expected failure support
-- Removes module setUp/tearDown support
-"""
-
 import logging
 import sys
 from typing import Any
@@ -23,16 +13,7 @@ __unittest = True
 
 
 class TestSuite(BaseTestSuite):
-    """A test suite is a composite test consisting of a number of TestCases.
-    For use, create an instance of TestSuite, then add test case instances.
-    When all tests have been added, the suite can be passed to a test
-    runner, such as TextTestRunner. It will run the individual test cases
-    in the order in which they were added, aggregating the results. When
-    subclassing, do not forget to call the base class constructor.
-    """
-
     def run(self, result: OdooTestResult, debug: bool = False) -> OdooTestResult:
-        """Run all tests in the suite, managing class setup and teardown."""
         for test in self:
             if result.shouldStop:
                 break
@@ -49,7 +30,6 @@ class TestSuite(BaseTestSuite):
         return result
 
     def _handleClassSetUp(self, test: TestCase, result: OdooTestResult) -> None:
-        """Set up the test class if it differs from the previous test's class."""
         previousClass = result._previousTestClass
         currentClass = test.__class__
         if currentClass == previousClass:
@@ -84,7 +64,6 @@ class TestSuite(BaseTestSuite):
         parent: str,
         info: Any = None,
     ) -> None:
-        """Record a class- or module-level setup/teardown exception in the result."""
         errorName = f"{method_name} ({parent})"
         error = _ErrorHolder(errorName)
         if isinstance(exception, case.SkipTest):
@@ -97,7 +76,6 @@ class TestSuite(BaseTestSuite):
     def _tearDownPreviousClass(
         self, test: TestCase | None, result: OdooTestResult
     ) -> None:
-        """Tear down the previous test class if the current test belongs to a different class."""
         previousClass = result._previousTestClass
         currentClass = test.__class__
         if currentClass == previousClass:
@@ -126,23 +104,15 @@ class TestSuite(BaseTestSuite):
 
 
 class _ErrorHolder:
-    """Placeholder for a TestCase inside a result.
-
-    As far as a TestResult is concerned, this looks exactly like a unit test.
-    Used to insert arbitrary errors into a test suite run.
-    """
-
     failureException = None
 
     def __init__(self, description: str) -> None:
         self.description = description
 
     def id(self) -> str:
-        """Return the description as the test id."""
         return self.description
 
     def shortDescription(self) -> None:
-        """Return None (no short description available)."""
         return
 
     def __repr__(self) -> str:
@@ -152,21 +122,17 @@ class _ErrorHolder:
         return self.id()
 
     def run(self, result: OdooTestResult) -> None:
-        """No-op: error holders are not meant to be run directly."""
+        pass
 
     def __call__(self, result: OdooTestResult) -> None:
         return self.run(result)
 
     def countTestCases(self) -> int:
-        """Return zero — error holders contain no test cases."""
         return 0
 
 
 class OdooSuite(TestSuite):
-    """TestSuite subclass that records timing statistics per class setup/teardown."""
-
     def _handleClassSetUp(self, test: TestCase, result: OdooTestResult) -> None:
-        """Set up the test class, recording stats if the stats logger is enabled."""
         previous_test_class = result._previousTestClass
         if not (
             previous_test_class is not type(test)
@@ -184,7 +150,6 @@ class OdooSuite(TestSuite):
     def _tearDownPreviousClass(
         self, test: TestCase | None, result: OdooTestResult
     ) -> None:
-        """Tear down the previous class, recording stats if the stats logger is enabled."""
         previous_test_class = result._previousTestClass
         if not (
             previous_test_class
@@ -200,5 +165,4 @@ class OdooSuite(TestSuite):
             super()._tearDownPreviousClass(test, result)
 
     def has_http_case(self) -> bool:
-        """Return True if the suite contains at least one HttpCase test."""
         return any(isinstance(test_case, HttpCase) for test_case in self)

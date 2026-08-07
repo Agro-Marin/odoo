@@ -1,23 +1,3 @@
-"""
-PyO3 Acceleration Candidate Benchmark Suite.
-
-Profiles pure-Python hot paths to identify candidates for Rust PyO3 extensions.
-Each benchmark isolates a specific function/operation with clean input/output
-boundaries and no ORM callbacks.
-
-Candidates profiled:
-1. safe_eval — bytecode validation (assert_valid_codeobj, compile)
-2. Iteration utilities — groupby, unique, partition, topological_sort
-3. OrderedSet — creation, intersection, union, membership
-4. frozendict — creation, hashing
-5. HTML/text processing — plaintext2html, html_sanitize
-
-Run with:
-    > ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
-        --test-tags '/test_performance:TestPyO3Candidates' \
-        -u test_performance --stop-after-init --workers=0
-"""
-
 import gc
 import logging
 
@@ -39,8 +19,6 @@ def _log_result(timer: PerfTimer, name: str):
 
 @tagged("standard", "pyo3_benchmark")
 class TestPyO3Candidates(TransactionCase):
-    """Profile pure-Python hot paths for PyO3 acceleration candidates."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -63,14 +41,12 @@ class TestPyO3Candidates(TransactionCase):
         return stats
 
     def test_01_safe_eval_compile(self):
-        """compile() for a typical domain expression string."""
         from odoo.tools.safe_eval import compile_codeobj
 
         expr = "[(name, '=', 'test'), (value, '>', 50)]"
         self._bench("safe_eval: compile (domain expr)", lambda: compile_codeobj(expr))
 
     def test_01_safe_eval_validate(self):
-        """assert_valid_codeobj for a compiled expression (cache miss)."""
         from odoo.tools.safe_eval import (
             _SAFE_OPCODES,
             _validated_bytecode_cache,
@@ -90,7 +66,6 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("safe_eval: validate bytecode (cold)", bench)
 
     def test_01_safe_eval_validate_cached(self):
-        """assert_valid_codeobj with cache hit."""
         from odoo.tools.safe_eval import (
             _SAFE_OPCODES,
             assert_valid_codeobj,
@@ -106,7 +81,6 @@ class TestPyO3Candidates(TransactionCase):
         )
 
     def test_01_safe_eval_full(self):
-        """Full safe_eval() call with a realistic expression."""
         from odoo.tools.safe_eval import safe_eval
 
         ctx = {"name": "test", "value": 42, "active": True}
@@ -117,7 +91,6 @@ class TestPyO3Candidates(TransactionCase):
         )
 
     def test_02_safe_eval_complex(self):
-        """safe_eval with a more complex expression (list comprehension)."""
         from odoo.tools.safe_eval import safe_eval
 
         ctx = {"records": list(range(100))}
@@ -128,7 +101,6 @@ class TestPyO3Candidates(TransactionCase):
         )
 
     def test_02_safe_eval_domain_str(self):
-        """safe_eval of a domain string (most common use case)."""
         from odoo.tools.safe_eval import safe_eval
 
         ctx = {"uid": 2, "active_id": 1}
@@ -139,7 +111,6 @@ class TestPyO3Candidates(TransactionCase):
         )
 
     def test_10_groupby_small(self):
-        """groupby on 20 items with 5 groups."""
         from odoo.tools import groupby
 
         items = [(i % 5, f"item_{i}") for i in range(20)]
@@ -149,7 +120,6 @@ class TestPyO3Candidates(TransactionCase):
         )
 
     def test_10_groupby_large(self):
-        """groupby on 500 items with 10 groups."""
         from odoo.tools import groupby
 
         items = [(i % 10, f"item_{i}") for i in range(500)]
@@ -159,21 +129,18 @@ class TestPyO3Candidates(TransactionCase):
         )
 
     def test_11_unique_small(self):
-        """unique on 50 items with ~25 duplicates."""
         from odoo.tools import unique
 
         items = list(range(25)) * 2
         self._bench("unique: 50 items (25 unique)", lambda: list(unique(items)))
 
     def test_11_unique_large(self):
-        """unique on 1000 items with ~200 unique."""
         from odoo.tools import unique
 
         items = list(range(200)) * 5
         self._bench("unique: 1000 items (200 unique)", lambda: list(unique(items)))
 
     def test_12_partition_small(self):
-        """partition on 50 items."""
         from odoo.tools import partition
 
         items = list(range(50))
@@ -183,7 +150,6 @@ class TestPyO3Candidates(TransactionCase):
         )
 
     def test_12_partition_large(self):
-        """partition on 500 items."""
         from odoo.tools import partition
 
         items = list(range(500))
@@ -193,7 +159,6 @@ class TestPyO3Candidates(TransactionCase):
         )
 
     def test_13_topological_sort_small(self):
-        """topological_sort on 10 nodes."""
         from odoo.tools import topological_sort
 
         deps = {
@@ -211,14 +176,12 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("topo_sort: 10 nodes", lambda: topological_sort(deps))
 
     def test_13_topological_sort_large(self):
-        """topological_sort on 100 nodes (linear chain)."""
         from odoo.tools import topological_sort
 
         deps = {f"n{i}": [f"n{i - 1}"] if i > 0 else [] for i in range(100)}
         self._bench("topo_sort: 100 nodes (chain)", lambda: topological_sort(deps))
 
     def test_13_topological_sort_wide(self):
-        """topological_sort on 100 nodes (wide graph — module loading pattern)."""
         from odoo.tools import topological_sort
 
         deps = {"base": []}
@@ -229,28 +192,24 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("topo_sort: 100 nodes (wide)", lambda: topological_sort(deps))
 
     def test_20_orderedset_create_small(self):
-        """OrderedSet creation from 10 items."""
         from odoo.tools import OrderedSet
 
         items = list(range(10))
         self._bench("OrderedSet: create(10)", lambda: OrderedSet(items))
 
     def test_20_orderedset_create_large(self):
-        """OrderedSet creation from 500 items."""
         from odoo.tools import OrderedSet
 
         items = list(range(500))
         self._bench("OrderedSet: create(500)", lambda: OrderedSet(items))
 
     def test_20_orderedset_create_with_dupes(self):
-        """OrderedSet creation from 500 items with duplicates."""
         from odoo.tools import OrderedSet
 
         items = list(range(100)) * 5
         self._bench("OrderedSet: create(500, 100 unique)", lambda: OrderedSet(items))
 
     def test_21_orderedset_contains(self):
-        """OrderedSet membership test (500 lookups)."""
         from odoo.tools import OrderedSet
 
         s = OrderedSet(range(500))
@@ -263,7 +222,6 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("OrderedSet: 500 contains checks", bench)
 
     def test_21_orderedset_intersection(self):
-        """OrderedSet intersection of two 200-element sets."""
         from odoo.tools import OrderedSet
 
         a = OrderedSet(range(200))
@@ -271,7 +229,6 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("OrderedSet: intersect(200, 200)", lambda: a & b)
 
     def test_21_orderedset_union(self):
-        """OrderedSet union of two 200-element sets."""
         from odoo.tools import OrderedSet
 
         a = OrderedSet(range(200))
@@ -279,7 +236,6 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("OrderedSet: union(200, 200)", lambda: a | b)
 
     def test_21_orderedset_difference(self):
-        """OrderedSet difference of two 200-element sets."""
         from odoo.tools import OrderedSet
 
         a = OrderedSet(range(200))
@@ -287,7 +243,6 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("OrderedSet: diff(200, 200)", lambda: a - b)
 
     def test_30_frozendict_create(self):
-        """frozendict creation from a typical env.context dict."""
         from odoo.tools import frozendict
 
         ctx = {
@@ -301,7 +256,6 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("frozendict: create(6 keys)", lambda: frozendict(ctx))
 
     def test_30_frozendict_hash(self):
-        """frozendict hash computation."""
         from odoo.tools import frozendict
 
         fd = frozendict(
@@ -320,7 +274,6 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("frozendict: hash(4 keys)", bench)
 
     def test_31_frozendict_lookup(self):
-        """frozendict key lookup (10 lookups)."""
         from odoo.tools import frozendict
 
         fd = frozendict(
@@ -341,14 +294,12 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("frozendict: 10 key lookups", bench)
 
     def test_40_plaintext2html_short(self):
-        """plaintext2html on a short text."""
         from odoo.tools import plaintext2html
 
         text = "Hello, this is a test.\nSecond line here."
         self._bench("plaintext2html: 2 lines", lambda: plaintext2html(text))
 
     def test_40_plaintext2html_long(self):
-        """plaintext2html on a longer text."""
         from odoo.tools import plaintext2html
 
         text = "\n".join(
@@ -358,14 +309,12 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("plaintext2html: 50 lines + URLs", lambda: plaintext2html(text))
 
     def test_41_html_sanitize_short(self):
-        """html_sanitize on a short HTML fragment."""
         from odoo.tools import html_sanitize
 
         html = '<p>Hello <b>world</b></p><script>alert("xss")</script>'
         self._bench("html_sanitize: short fragment", lambda: html_sanitize(html))
 
     def test_41_html_sanitize_long(self):
-        """html_sanitize on a longer HTML (email body)."""
         from odoo.tools import html_sanitize
 
         html = (
@@ -380,7 +329,6 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("html_sanitize: 20-paragraph email", lambda: html_sanitize(html))
 
     def test_50_clean_context(self):
-        """clean_context — strip default_ and search_ keys."""
         from odoo.tools import clean_context
 
         ctx = {
@@ -398,7 +346,6 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("clean_context: 10 keys", lambda: clean_context(ctx))
 
     def test_51_str2bool(self):
-        """str2bool — convert string to boolean (used in import)."""
         from odoo.tools import str2bool
 
         values = ["true", "false", "1", "0", "yes", "no", "True", "False"]
@@ -410,11 +357,10 @@ class TestPyO3Candidates(TransactionCase):
         self._bench("str2bool: 8 conversions", bench)
 
     def test_99_summary(self):
-        """Print summary table sorted by median time."""
         if not self.all_stats:
             return
 
-        _logger.info("\n" + "=" * 110)
+        _logger.info("\n%s", "=" * 110)
         _logger.info("%s SUMMARY — sorted by p50 (descending)", TAG)
         _logger.info("=" * 110)
         _logger.info(
@@ -462,7 +408,7 @@ class TestPyO3Candidates(TransactionCase):
                 if any(k in s.get("name", "") for k in ("plaintext", "html_sanitize"))
             ],
         }
-        _logger.info("\n" + "-" * 110)
+        _logger.info("\n%s", "-" * 110)
         _logger.info("%s CANDIDATE RANKING (by max p50):", TAG)
         ranked = sorted(
             categories.items(),

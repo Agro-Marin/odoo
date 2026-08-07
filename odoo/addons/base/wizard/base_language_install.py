@@ -9,9 +9,6 @@ class BaseLanguageInstall(models.TransientModel):
 
     @api.model
     def _default_lang_ids(self) -> list[int] | bool:
-        """Display the selected language when using the 'Update Terms' action
-        from the language list view
-        """
         if self.env.context.get("active_model") == "res.lang":
             if ids := self.env.context.get("active_ids"):
                 return ids

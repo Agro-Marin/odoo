@@ -10,7 +10,7 @@ if sys.version_info[:2] < MIN_PY_VERSION:
     )
 
 try:
-    import odoo_rust
+    import odoo_rust  # noqa: F401  hard dependency probe; the ImportError below is the message
 except ImportError as exc:
     raise ImportError(
         "The required 'odoo_rust' native extension is not importable. This fork "

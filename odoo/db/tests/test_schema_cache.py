@@ -1,17 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.schema_cache`.
-
-:class:`TransactionSchemaCache` is pure dict bookkeeping; what makes it
-*correct* — that its entries are read under the ``ROW EXCLUSIVE`` lock
-``copy_from`` takes, and never outlive the transaction holding that lock —
-needs a live backend and is covered by ``TestBulkCatalogFactScope`` and
-``TestConcurrentDdlDuringBinaryCopy`` in
-``odoo/addons/base/tests/test_db_cursor.py``.
-
-The rules the previous process-global cache needed (dbname keying,
-never-cache-temp, race-free clear) are gone by construction: one instance per
-cursor cannot be shared between databases, sessions, or a concurrent clear.
-"""
-
 import unittest
 
 from odoo.db.schema_cache import TransactionSchemaCache
@@ -57,14 +43,6 @@ class TestTransactionSchemaCache(unittest.TestCase):
 
 
 class TestClearSeparatesTwoLifetimes(unittest.TestCase):
-    """Catalog facts and the lock ledger expire on different events.
-
-    A ``ROW EXCLUSIVE`` lock is held to the end of the transaction, so DDL —
-    which does not end one — invalidates what was read from the catalog but not
-    the fact that the lock was taken.  Clearing both on DDL made the next
-    ``copy_from`` re-issue a ``LOCK TABLE`` it already held.
-    """
-
     def setUp(self):
         self.cache = TransactionSchemaCache()
         self.cache.set_id_sequence("t", "t_id_seq")

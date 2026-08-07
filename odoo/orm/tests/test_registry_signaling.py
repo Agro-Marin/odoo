@@ -1,46 +1,3 @@
-"""Regression tests for registry signaling monotonicity and guards.
-
-Tier-2 suite: real ``import odoo``, stub cursors, no database.
-
-Covers the July 2026 audit fixes on ``odoo.orm.runtime.registry``:
-
-* ``check_signaling`` compares sequences **strictly monotonically**: a db read
-  *ahead* of the local sequence triggers the reload / cache-clear path, while a
-  db read *behind* it (a lagging replica, read through the readonly cursor,
-  racing the optimistic local bump in ``signal_changes``) is ignored — no
-  reload, no cache clear, and the stored sequences are never regressed;
-* ``check_signaling`` adopts a registry another thread already rebuilt and
-  published in ``Registry.registries`` instead of rebuilding again;
-* ``clear_cache`` validates every cache name up front and raises a ``ValueError``
-  listing the valid names (instead of a mid-loop ``KeyError``);
-* ``Registry.new`` failure cleanup uses the membership-guarded ``delete`` so a
-  nested ``Registry.new`` that already removed the LRU entry cannot mask the
-  original exception with a ``KeyError``;
-* ``Registry(db_name)`` returns an already-ready registry without taking the
-  class-global lock (cross-database fast path), while a not-ready (in-flight)
-  registry still goes through the locked path.
-
-And the follow-up audit round on the same file:
-
-* whenever the registry sequence advanced (rebuild AND adopt branches),
-  ``check_signaling`` discards the checked-out cursor's cached statement plans
-  (``discard_cached_plans``) — the pool drain only recycles *idle* connections,
-  so without this the borrowed request cursor keeps stale auto-prepared plans
-  and the next re-execution fails with the non-retryable 0A000 "cached plan
-  must not change result type";
-* the cache-sequence check runs on whichever registry the reload branch
-  produced — in particular an *adopted* registry whose ormcaches went stale
-  after it was published still gets them cleared;
-* the dead-DB cleanup keys on whether ``check_signaling`` opened the cursor
-  itself (captured before the ``with`` resolves the cursor), so a mid-query
-  connection death on a self-opened cursor evicts the stale registry while a
-  caller-provided cursor's failure never does;
-* ``get_sequences`` zips strictly, turning any future drift between
-  ``_SIGNALING_TABLES`` and ``_CACHES_BY_KEY`` into an immediate error;
-* ``setup_signaling`` creates the signaling tables with ``IF NOT EXISTS``
-  (fresh-DB cross-process race) and only seeds tables it found missing.
-"""
-
 import threading
 
 import psycopg
@@ -57,7 +14,6 @@ from odoo.orm.runtime.registry import (
 
 
 def _make_registry(db_name, registry_sequence, cache_sequence, *, ready=True):
-    """Build a minimal Registry instance without touching a database."""
     reg = object.__new__(Registry)
     reg.db_name = db_name
     reg.ready = ready
@@ -69,8 +25,6 @@ def _make_registry(db_name, registry_sequence, cache_sequence, *, ready=True):
 
 
 class _SeqCursor:
-    """Stub cursor: ``get_sequences()`` reads canned signaling values."""
-
     def __init__(self, registry_sequence, cache_sequences):
         self._row = (
             registry_sequence,
@@ -102,7 +56,6 @@ def _db_caches(value, **overrides):
 
 
 def test_reload_when_db_registry_sequence_ahead(monkeypatch):
-    """db > local: the reload path runs (drain + Registry.new)."""
     reg = _make_registry("_sig_ahead_db", 5, 3)
     rebuilt = _make_registry("_sig_ahead_db", 6, 4)
     calls = []
@@ -125,7 +78,6 @@ def test_reload_when_db_registry_sequence_ahead(monkeypatch):
 
 
 def test_no_reload_when_db_registry_sequence_behind(monkeypatch):
-    """db < local (replica lag): no reload, local sequence and caches kept."""
     reg = _make_registry("_sig_lag_db", 7, 5)
     reg._caches.lrus["default"]["k"] = "v"
     monkeypatch.setattr(odoo.db, "drain_db", _fail("drain_db"))
@@ -142,7 +94,6 @@ def test_no_reload_when_db_registry_sequence_behind(monkeypatch):
 
 
 def test_adopt_registry_published_by_other_thread(monkeypatch):
-    """A newer registry already in ``registries`` is adopted, not rebuilt."""
     name = "_sig_adopt_db"
     stale = _make_registry(name, 5, 3)
     published = _make_registry(name, 6, 4)
@@ -161,7 +112,6 @@ def test_adopt_registry_published_by_other_thread(monkeypatch):
 
 
 def test_no_adopt_when_published_registry_too_old(monkeypatch):
-    """A published registry older than the db read still forces a rebuild."""
     name = "_sig_noadopt_db"
     stale = _make_registry(name, 5, 3)
     published = _make_registry(name, 5, 3)
@@ -188,7 +138,6 @@ def test_no_adopt_when_published_registry_too_old(monkeypatch):
 
 
 def test_cache_cleared_when_db_cache_sequence_ahead():
-    """db > local for one cache: its group is cleared, sequence advanced."""
     reg = _make_registry("_sig_cache_db", 5, 3)
     reg._caches.lrus["assets"]["a"] = 1
     reg._caches.lrus["templates.cached_values"]["t"] = 1
@@ -205,7 +154,6 @@ def test_cache_cleared_when_db_cache_sequence_ahead():
 
 
 def test_cache_kept_when_db_cache_sequence_behind():
-    """db < local (replica lag): no clear, stored sequence not regressed."""
     reg = _make_registry("_sig_cache_lag_db", 5, 6)
     reg._caches.lrus["assets"]["a"] = 1
 
@@ -217,13 +165,6 @@ def test_cache_kept_when_db_cache_sequence_behind():
 
 
 def test_adopted_registry_with_lagging_cache_sequences_is_invalidated(monkeypatch):
-    """The cache-sequence check runs on an ADOPTED registry too.
-
-    The published registry is new enough on the registry sequence (6 >= 6) but
-    its cache sequences (4) lag the db read (5): its ormcaches went stale after
-    the other thread rebuilt it.  Adoption must not skip the cache check, or
-    the stale entries get served for the whole request.
-    """
     name = "_sig_adopt_stale_cache_db"
     stale = _make_registry(name, 5, 3)
     published = _make_registry(name, 6, 4)
@@ -245,13 +186,6 @@ def test_adopted_registry_with_lagging_cache_sequences_is_invalidated(monkeypatc
 
 
 def test_cache_check_is_noop_on_freshly_rebuilt_registry(monkeypatch):
-    """After a rebuild the cache check must not clear the fresh registry.
-
-    ``Registry.new`` -> ``setup_signaling`` seeds the rebuilt registry's cache
-    sequences from a DB read at least as new as this check's; the (now
-    unconditional) cache-sequence loop is monotonic, so it leaves the fresh
-    caches and sequences alone.
-    """
     reg = _make_registry("_sig_rebuild_fresh_db", 5, 3)
     rebuilt = _make_registry("_sig_rebuild_fresh_db", 6, 4)
     rebuilt._caches.lrus["assets"]["fresh"] = 1
@@ -266,8 +200,6 @@ def test_cache_check_is_noop_on_freshly_rebuilt_registry(monkeypatch):
 
 
 class _DyingCursor:
-    """Cursor that opens fine but dies on first execute (pooled dead conn)."""
-
     def execute(self, query, params=None, **kwargs):
         raise psycopg.OperationalError("server closed the connection unexpectedly")
 
@@ -276,13 +208,6 @@ class _DyingCursor:
 
 
 def test_dead_db_mid_query_on_own_cursor_deletes_registry(monkeypatch):
-    """Self-opened cursor dying mid-query evicts the stale registry.
-
-    ``cr is None`` must mean "we opened the cursor ourselves", captured BEFORE
-    the ``with`` resolves the cursor — historically the ``as cr`` rebinding
-    made the guard mean "opening failed", so a pooled connection dying on the
-    first query left the stale registry cached (repeated hangs).
-    """
     name = "_sig_dead_mid_query_db"
     reg = _make_registry(name, 5, 3)
     Registry.registries[name] = reg
@@ -300,7 +225,6 @@ def test_dead_db_mid_query_on_own_cursor_deletes_registry(monkeypatch):
 
 
 def test_dead_db_at_open_deletes_registry(monkeypatch):
-    """Control: failure while OPENING the self-opened cursor also deletes."""
     name = "_sig_dead_at_open_db"
     reg = _make_registry(name, 5, 3)
     Registry.registries[name] = reg
@@ -322,11 +246,6 @@ def test_dead_db_at_open_deletes_registry(monkeypatch):
 
 
 def test_dead_caller_cursor_keeps_registry(monkeypatch):
-    """A caller-provided cursor's failure never evicts the registry.
-
-    The caller's transaction dying mid-request is not proof the database is
-    gone; deleting here would force a full reload on the next request.
-    """
     name = "_sig_dead_caller_cr_db"
     reg = _make_registry(name, 5, 3)
     Registry.registries[name] = reg
@@ -339,12 +258,6 @@ def test_dead_caller_cursor_keeps_registry(monkeypatch):
 
 
 def test_get_sequences_rejects_row_length_drift():
-    """A row not matching ``_CACHES_BY_KEY`` raises instead of dropping keys.
-
-    The SELECT is generated from ``_SIGNALING_TABLES``; if that constant ever
-    drifts from ``_CACHES_BY_KEY`` the strict zip must fail immediately rather
-    than silently losing a cache group's sequence.
-    """
 
     class _ShortRowCursor:
         def execute(self, query, params=None, **kwargs):
@@ -359,8 +272,6 @@ def test_get_sequences_rejects_row_length_drift():
 
 
 class _SetupCursor:
-    """Records executed statements; answers ``get_sequences``' one SELECT."""
-
     def __init__(self):
         self.queries = []
         self._row = (1, *([1] * len(_CACHES_BY_KEY)))
@@ -390,12 +301,6 @@ def _run_setup_signaling(monkeypatch, existing_tables):
 
 
 def test_setup_signaling_creates_tables_if_not_exists(monkeypatch):
-    """On a fresh DB every CREATE carries IF NOT EXISTS and is seeded once.
-
-    Two workers racing ``setup_signaling`` on a database whose template lacks
-    the tables both pass the ``existing_tables`` pre-check; without the guard
-    the loser's CREATE raises DuplicateTable and its registry build fails.
-    """
     reg, cur = _run_setup_signaling(monkeypatch, existing_tables=())
 
     creates = [q for q in cur.queries if q.startswith("CREATE")]
@@ -408,11 +313,6 @@ def test_setup_signaling_creates_tables_if_not_exists(monkeypatch):
 
 
 def test_setup_signaling_does_not_reseed_existing_tables(monkeypatch):
-    """Existing tables are neither re-created nor re-seeded.
-
-    Re-seeding on every registry build would bump ``max(id)`` and signal a
-    fake registry/cache change to every other worker.
-    """
     reg, cur = _run_setup_signaling(
         monkeypatch, existing_tables=tuple(_SIGNALING_TABLES)
     )
@@ -422,7 +322,6 @@ def test_setup_signaling_does_not_reseed_existing_tables(monkeypatch):
 
 
 def test_setup_signaling_seeds_only_missing_tables(monkeypatch):
-    """A partially-provisioned DB only gets its missing tables created."""
     missing = _SIGNALING_TABLES[0]
     _reg, cur = _run_setup_signaling(
         monkeypatch, existing_tables=tuple(_SIGNALING_TABLES[1:])
@@ -467,13 +366,6 @@ def test_clear_cache_known_name_still_works():
 
 
 def test_new_failure_cleanup_survives_nested_delete(monkeypatch):
-    """The original exception propagates even if the LRU key is already gone.
-
-    Simulates the uninstall-reload path where a nested ``Registry.new`` failed
-    and removed ``registries[db_name]`` on its way out; the outer cleanup must
-    not raise ``KeyError`` (which would mask the real error, leaving it only in
-    ``__context__``).
-    """
     name = "_new_cleanup_db"
 
     def fake_init(self, db_name):

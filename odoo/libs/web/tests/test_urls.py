@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.web.urls.urljoin``."""
-
 import unittest
 
 from odoo.libs.web.urls import urljoin

@@ -15,8 +15,6 @@ __all__ = [
 
 
 class PdfWriter(_Writer):
-    """PdfWriter with fix for None _info attribute."""
-
     def add_metadata(self, infos: dict[str, Any]) -> None:
         if hasattr(self, "_info") and self._info is None:
             self._info = generic.DictionaryObject()

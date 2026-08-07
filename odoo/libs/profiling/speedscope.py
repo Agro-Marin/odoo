@@ -1,5 +1,3 @@
-"""Export collected profiling data to the speedscope.app file format."""
-
 __all__ = ["Speedscope"]
 
 import reprlib
@@ -16,12 +14,9 @@ type _Event = dict[str, Any]
 
 
 class Speedscope:
-    """Collect profiler entries and render them as a speedscope JSON document."""
-
     def __init__(
         self, name: str = "Speedscope", init_stack_trace: list[_Frame] | None = None
     ) -> None:
-        """Build a Speedscope document named ``name`` rooted at ``init_stack_trace``."""
         self.init_stack_trace: list[_Frame] = init_stack_trace or []
         self.init_stack_trace_level: int = len(self.init_stack_trace)
         self.caller_frame: _Frame | None = None
@@ -37,7 +32,6 @@ class Speedscope:
         self.profiles: list[dict[str, Any]] = []
 
     def add(self, key: str, profile: list[_Entry]) -> None:
-        """Register ``profile`` under ``key``, normalizing stacks and sql frames."""
         for entry in profile:
             self.caller_frame = self.init_caller_frame
             self.convert_stack(entry["stack"] or [])
@@ -48,7 +42,6 @@ class Speedscope:
         self.profiles_raw[key] = profile
 
     def convert_stack(self, stack: list[_Frame]) -> None:
-        """Rewrite each frame of ``stack`` in place to a ``(method, line, number)`` tuple."""
         for index, frame in enumerate(stack):
             method = frame[2]
             line = ""
@@ -72,18 +65,9 @@ class Speedscope:
         display_name: str | None = None,
         use_context: bool = True,
         constant_time: bool = False,
-        context_per_name: dict[str, Any] | None = None,
+        context_per_name: dict[str, Any] | None = None,  # noqa: ARG002  accepted for call-site compatibility, unused on this path
         **params: Any,
     ) -> Self:
-        """Add a profile output to the list of profiles.
-
-        :param names: list of keys to combine in this output. Keys correspond to the ones used in add
-        :param display_name: name of the tab for this output
-        :param complete: display the complete stack. If False, don't display the stack below the profiler.
-        :param use_context: use execution context (added by ExecutionContext context manager) to display the profile.
-        :param constant_time: hide temporality. Useful to compare query counts
-        :param context_per_name: a dictionary of additional context per name.
-        """
         entries = []
         display_name = display_name or ",".join(names)
         for name in names:
@@ -131,7 +115,6 @@ class Speedscope:
         return self
 
     def add_default(self, **params: Any) -> Self:
-        """Add the default set of outputs for the collected profiles per ``params``."""
         if len(self.profiles_raw) > 1:
             if params["combined_profile"]:
                 self.add_output(
@@ -161,7 +144,6 @@ class Speedscope:
         return self
 
     def make(self, **params: Any) -> dict[str, Any]:
-        """Build and return the complete speedscope document as a dict."""
         if not self.profiles:
             self.add_default(**params)
         return {
@@ -178,7 +160,6 @@ class Speedscope:
         }
 
     def get_frame_id(self, frame: _Frame) -> int:
-        """Return the id of ``frame``, registering it on first use."""
         if frame not in self.frames_indexes:
             self.frames_indexes[frame] = self.frame_count
             self.frame_count += 1
@@ -191,16 +172,6 @@ class Speedscope:
         aggregate_sql: bool = False,
         stack_offset: int = 0,
     ) -> list[int]:
-        """Assemble stack and context into a list of frame ids.
-
-        Add each corresponding context at the corresponding level.
-
-        :param stack: A list of hashable frame
-        :param context: an iterable of (level, value) ordered by level
-        :param aggregate_sql: blank each frame's file component so frames
-            differing only by query text collapse into one
-        :param stack_offset: offset level for stack
-        """
         stack_ids = []
         context_iterator = iter(context or ())
         context_level, context_value = next(context_iterator, (None, None))
@@ -228,9 +199,8 @@ class Speedscope:
         use_context: bool = True,
         constant_time: bool = False,
         aggregate_sql: bool = False,
-        **params: Any,
+        **params: Any,  # noqa: ARG002  accepted for call-site compatibility, unused on this path
     ) -> list[_Event]:
-        """Turn ``entries`` into a list of speedscope open/close events."""
         entry_end = previous_end = None
         if not entries:
             return []

@@ -92,10 +92,6 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _slugify_one(cls, value: str, max_length: int | None = None) -> str:
-        """Transform a string into a slug usable in a URL path.
-
-        Example: ^h☺e$#!l(%l}o 你好& becomes hello-你好
-        """
         uni = unicodedata.normalize("NFKD", value)
         slugified_segments = []
         for slug in _SLUG_SPLIT_RE.split(uni):
@@ -173,9 +169,6 @@ class IrHttp(models.AbstractModel):
             return None
 
         def check_sec_headers() -> bool:
-            """Check browser-set Sec-Fetch-* headers as CSRF protection.
-            https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Sec-Fetch-User
-            """
             return (
                 headers.get("Sec-Fetch-Dest") == "document"
                 and headers.get("Sec-Fetch-Mode") == "navigate"
@@ -261,15 +254,6 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _apply_max_upload_size(cls) -> None:
-        """Lower the request's body-size cap to the ``web.max_file_upload_size`` ICP.
-
-        Must run before anything reads the body. Called from :meth:`_pre_dispatch`
-        (the matched-route path) *and* from ``Request._serve_ir_http_fallback``
-        (the no-route-matched path): the fallback parses query/form data too, but
-        never reaches ``_pre_dispatch``, so it used to buffer up to the 128 MiB
-        framework default no matter how low the operator set the ICP — an
-        administrative limit that any unmatched URL sidestepped.
-        """
         ICP = request.env["ir.config_parameter"].with_user(SUPERUSER_ID)
         key = "web.max_file_upload_size"
         if (value := ICP.get_param(key, None)) is not None:

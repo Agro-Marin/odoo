@@ -1,11 +1,3 @@
-/**
- *  This CSS is for the html description of modules
- * TODO clean
- */
-/* --------------------------------- *
- *          STYLING CONTEXT          *
- * --------------------------------- */
-/* --- Styling for the V8/Lato/White/Purple design --- */
 .o_web_client .oe_form_sheet_width {
   max-width: 960px;
 }
@@ -71,10 +63,6 @@
   box-shadow: 0px 5px 9px -7px rgba(0, 0, 255, 0.5) inset, 0px -3px 9px -7px rgba(0, 0, 255, 0.5) inset;
 }
 
-/* --------------------------------- *
- *               LAYOUT              *
- * --------------------------------- */
-/* ------ BASE GRID CONSTRUCTS ----- */
 .oe_page {
   margin: 0px auto 64px auto;
   max-width: 100%;
@@ -237,7 +225,6 @@
   margin-top: 64px !important;
 }
 
-/* ------ GENERIC LAYOUT MODIFIERS ----- */
 .oe_rightfit {
   padding-right: 0px !important;
 }
@@ -320,10 +307,6 @@
   padding-bottom: 32px;
 }
 
-/* --------------------------------- *
- *        WEBPAGE COMPONENTS         *
- * --------------------------------- */
-/* ------ BUTTONS ----- */
 .oe_button {
   position: relative;
   bottom: 0;
@@ -420,9 +403,7 @@
   box-shadow: 0px 2px 0px #463555;
 }
 
-/* ------ FORMS ----- */
 .oe_styling_v8 {
-  /* FIXME: this is a quick hack for the release */
 }
 .oe_styling_v8 .oe_input {
   padding: 4px 7px;
@@ -478,7 +459,6 @@
   padding-right: 16px;
 }
 
-/* ------ SLOGANS ----- */
 .oe_styling_v8 .oe_slogan {
   color: #333333;
   font-family: "Lato", "Open Sans", "Helvetica", Sans;
@@ -521,7 +501,6 @@
   font-weight: 300;
 }
 
-/* ------ QUOTES ----- */
 .oe_quote {
   margin: 8px;
   padding: 16px;
@@ -568,7 +547,6 @@
   border: 1px solid #f0f0ff;
 }
 
-/* ------ PICTURES ----- */
 .oe_picture {
   display: block;
   max-width: 84%;
@@ -610,8 +588,6 @@
   text-shadow: 0px 2px 0px #494949, 0px 2px 5px rgba(0, 0, 0, 0.33), 0px 0px 60px rgba(0, 0, 0, 0.22);
 }
 
-/*  ----- Link Image with Footer ----- */
-/* FIXME: Terrible CSS, rewrite this */
 div.oe_demo {
   position: relative;
   border: 1px solid #dedede;
@@ -648,7 +624,6 @@ div.oe_demo div.oe_demo_footer {
   pointer-events: none;
 }
 
-/*  ----- SEPARATOR ----- */
 .oe_styling_v8 .oe_container.oe_separator {
   height: 64px;
   margin-bottom: 16px;
@@ -663,7 +638,6 @@ div.oe_demo div.oe_demo_footer {
   overflow-y: hidden;
 }
 
-/*  ----- TABS -----  */
 .oe_row_tabs {
   text-align: center;
   margin-top: 0px;
@@ -712,7 +686,6 @@ div.oe_demo div.oe_demo_footer {
   top: 0;
 }
 
-/* ------ CALL TO ACTION ----- */
 .oe_calltoaction {
   height: 32px;
   margin-top: -32px;

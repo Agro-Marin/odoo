@@ -30,29 +30,6 @@ if typing.TYPE_CHECKING:
 
 
 class One2many(_RelationalMulti):
-    """One2many field; the value of such a field is the recordset of all the
-    records in ``comodel_name`` such that the field ``inverse_name`` is equal to
-    the current record.
-
-    :param str comodel_name: name of the target model
-
-    :param str inverse_name: name of the inverse ``Many2one`` field in
-        ``comodel_name``
-
-    :param domain: an optional domain to set on candidate values on the
-        client side (domain or a python expression that will be evaluated
-        to provide domain)
-
-    :param dict context: an optional context to use on the client side when
-        handling that field
-
-    :param bool bypass_search_access: whether access rights are bypassed on the
-        comodel (default: ``False``)
-
-    The attributes ``comodel_name`` and ``inverse_name`` are mandatory except in
-    the case of related fields or field extensions.
-    """
-
     type = "one2many"
 
     inverse_name: str | None = None
@@ -184,17 +161,6 @@ class One2many(_RelationalMulti):
         browse_lines: typing.Callable[..., BaseModel],
         update_line: typing.Callable[..., None],
     ) -> None:
-        """Apply x2many commands to the cached value of a *non-stored* one2many.
-
-        Shared by :meth:`write_real` and :meth:`write_new`, which differ only in
-        how a command's line ids are resolved (real ids vs ``NewId``-wrapped) and
-        how a ``Command.UPDATE`` is applied (``write`` vs in-memory ``update``) —
-        both injected so the cache-update logic lives in one place.
-
-        :param records: all records being written (the ``unlink`` target set).
-        :param browse_lines: ``ids -> recordset`` resolving comodel lines.
-        :param update_line: ``(lines, vals) -> None`` applying ``Command.UPDATE``.
-        """
 
         def link(record, lines):
             ids = record[self.name]._ids
@@ -229,7 +195,6 @@ class One2many(_RelationalMulti):
         records_commands_list: Sequence[tuple[BaseModel, list[CommandValue]]],
         create: bool = False,
     ) -> None:
-        """Update real records."""
         if not records_commands_list:
             return
 

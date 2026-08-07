@@ -125,12 +125,6 @@ gets its own copy, and tests require ``--workers=0``.
 
 
 class UpgradeHook:
-    """Make the legacy `migrations` package resolve to `odoo.upgrade`.
-
-    Uses the PEP 451 loader protocol (create_module/exec_module). Triggered
-    only by multi-version upgrade scripts importing from the legacy name.
-    """
-
     def find_spec(
         self,
         fullname: str,
@@ -142,11 +136,9 @@ class UpgradeHook:
         return None
 
     def create_module(self, spec: importlib.machinery.ModuleSpec) -> None:
-        """Use default module creation semantics."""
         return
 
     def exec_module(self, module: types.ModuleType) -> None:
-        """Redirect import to the canonical odoo.upgrade module."""
         canonical_name = module.__name__.replace(
             "odoo.addons.base.maintenance.migrations", "odoo.upgrade"
         )
@@ -159,10 +151,6 @@ class UpgradeHook:
 
 
 def initialize_sys_path() -> None:
-    """
-    Setup the addons path ``odoo.addons.__path__`` with various defaults
-    and explicit directories.
-    """
     for path in (
         tools.config.addons_data_dir,
         *tools.config["addons_path"],
@@ -200,8 +188,6 @@ def initialize_sys_path() -> None:
 
 @typing.final
 class Manifest(Mapping[str, typing.Any]):
-    """The manifest data of a module."""
-
     _COMPUTED_KEYS = (
         "description",
         "icon",
@@ -226,12 +212,10 @@ class Manifest(Mapping[str, typing.Any]):
 
     @functools.cached_property
     def __manifest_cached(self) -> dict[str, typing.Any]:
-        """Parsed and validated manifest data from the file."""
         return _load_manifest(self.name, self.__manifest_content)
 
     @functools.cached_property
     def description(self) -> str:
-        """The description of the module defaulting to the README file."""
         if desc := self.__manifest_cached.get("description"):
             return desc
         for file_name in README:
@@ -273,13 +257,7 @@ class Manifest(Mapping[str, typing.Any]):
         return copy.deepcopy(self.__manifest_cached.get(key))
 
     def _force_parse(self) -> None:
-        """Parse the manifest now instead of on first access.
-
-        Parsing is normally deferred (``__manifest_cached`` is a
-        ``cached_property``). Force it during graph construction so manifest
-        validation errors surface up-front rather than mid-loop.
-        """
-        self.__manifest_cached
+        _ = self.__manifest_cached
 
     def __iter__(self) -> typing.Iterator[str]:
         manifest = self.__manifest_cached
@@ -289,13 +267,6 @@ class Manifest(Mapping[str, typing.Any]):
                 yield key
 
     def check_manifest_dependencies(self) -> None:
-        """Check that the dependencies of the manifest are available.
-
-        - Checking for external python dependencies
-        - Checking binaries are available in PATH
-
-        On missing dependencies, raise an error.
-        """
         depends = self.get("external_dependencies")
         if not depends:
             return
@@ -322,7 +293,6 @@ class Manifest(Mapping[str, typing.Any]):
 
     @staticmethod
     def _get_manifest_from_addons(module: str) -> Manifest | None:
-        """Get the module's manifest from a name. Searching only in addons paths."""
         if (cached := Manifest._manifest_cache.get(module)) is not None:
             return cached
         for adp in odoo.addons.__path__:
@@ -333,20 +303,10 @@ class Manifest(Mapping[str, typing.Any]):
 
     @staticmethod
     def clear_caches() -> None:
-        """Drop memoized manifests.
-
-        Call this when the addons path changes or modules are added/updated on
-        disk so that :meth:`for_addon` reflects the new state.
-        """
         Manifest._manifest_cache.clear()
 
     @staticmethod
     def for_addon(module_name: str, *, display_warning: bool = True) -> Manifest | None:
-        """Get the module's manifest from a name.
-
-        :param module_name: module's name
-        :param display_warning: log a warning if the module is not found
-        """
         if not MODULE_NAME_RE.match(module_name):
             return None
         if mod := Manifest._get_manifest_from_addons(module_name):
@@ -357,13 +317,6 @@ class Manifest(Mapping[str, typing.Any]):
 
     @staticmethod
     def _from_path(path: str, env: typing.Any = None) -> Manifest | None:
-        """Given a path, read the manifest file.
-
-        ``env`` is required to read a manifest located inside a temporary
-        directory created via ``file_open_temporary_directory()`` (e.g. when
-        importing a module from a zip file); ``file_open`` needs it to allow
-        that transient path.
-        """
         for manifest_name in MANIFEST_NAMES:
             try:
                 with tools.file_open(str(Path(path, manifest_name)), env=env) as f:
@@ -388,7 +341,6 @@ class Manifest(Mapping[str, typing.Any]):
 
     @staticmethod
     def all_addon_manifests() -> list[Manifest]:
-        """Read all manifests in the addons paths."""
         modules: dict[str, Manifest] = {}
         for adp in odoo.addons.__path__:
             if not Path(adp).is_dir():
@@ -404,11 +356,6 @@ class Manifest(Mapping[str, typing.Any]):
 
 
 def get_module_path(module: str, display_warning: bool = True) -> str | None:
-    """Return the path of the given module.
-
-    Search the addons paths and return the first path where the given
-    module is found.
-    """
     mod = Manifest.for_addon(module, display_warning=display_warning)
     return mod.path if mod else None
 
@@ -418,21 +365,6 @@ _CHECKSUM_IGNORE_SUFFIXES = (".pyc", ".pyo", ".swp", "~")
 
 
 def module_content_checksum(module: str) -> str | None:
-    """Return an algorithm-tagged hexdigest over the module directory's content.
-
-    Covers every regular file (relative path and bytes) except caches and
-    editor droppings, in sorted order, so the digest is stable across
-    checkouts and hosts.  Returns None when the module has no directory on
-    the current addons path.  Used by ``ir.module.module`` to detect modules
-    whose code and data did not change since their last successful upgrade
-    (see ``button_upgrade``); deliberately *not* cached — a running server
-    may see the directory change under it on deploy.
-
-    The ``<algo>:`` prefix makes the digest self-describing: a value stamped
-    by a different algorithm compares unequal, so the module is re-upgraded
-    rather than skipped on stale evidence.  Switching algorithms therefore
-    costs one upgrade pass per module, never a wrong skip.
-    """
     path = get_module_path(module, display_warning=False)
     if not path:
         return None
@@ -454,20 +386,6 @@ def module_content_checksum(module: str) -> str | None:
 
 
 def get_resource_from_path(path: str) -> tuple[str, str, str] | None:
-    """Tries to extract the module name and the resource's relative path
-    out of an absolute resource path.
-
-    If operation is successful, returns a tuple containing the module name, the relative path
-    to the resource using '/' as filesystem separator[1] and the same relative path using
-    OS-native separators.
-
-    [1] same convention as the resource path declaration in manifests
-
-    :param path: absolute resource path
-
-    :rtype: tuple
-    :return: tuple(module_name, relative_path, os_relative_path) if possible, else None
-    """
     p = Path(path)
     sorted_paths = sorted(odoo.addons.__path__, key=len, reverse=True)
     for adpath in sorted_paths:
@@ -489,7 +407,6 @@ def get_resource_from_path(path: str) -> tuple[str, str, str] | None:
 
 
 def get_module_icon(module: str) -> str:
-    """Get the path to the module's icon. Invalid module names are accepted."""
     manifest = Manifest.for_addon(module, display_warning=False)
     fpath = ""
     if manifest:
@@ -504,10 +421,6 @@ def get_module_icon(module: str) -> str:
 
 
 def _load_manifest(module: str, manifest_content: dict) -> dict:
-    """Load and validate the module manifest.
-
-    Return a new dictionary with cleaned and validated keys.
-    """
 
     manifest = {
         k: (v.copy() if isinstance(v, (list, dict)) else v)
@@ -595,16 +508,6 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
 
 
 def get_manifest(module: str, mod_path: str | None = None) -> Mapping[str, typing.Any]:
-    """
-    Get the module manifest.
-
-    :param str module: The name of the module (sale, purchase, ...).
-    :param str | None mod_path: The optional path to the module on
-        the file-system. If not set, it is determined by scanning the
-        addons-paths.
-    :returns: The module manifest as a dict or an empty dict
-        when the manifest was not found.
-    """
     if mod_path:
         mod = Manifest._from_path(mod_path)
         if mod and mod.name != module:
@@ -615,12 +518,6 @@ def get_manifest(module: str, mod_path: str | None = None) -> Mapping[str, typin
 
 
 def load_odoo_module(module_name: str) -> None:
-    """Load an Odoo module, if not already loaded.
-
-    Import the module and register its models, via either the MetaModel
-    metaclass or explicit model instantiation. Also used for server-wide
-    modules, which may register no models.
-    """
 
     qualname = f"odoo.addons.{module_name}"
     if qualname in sys.modules:
@@ -657,12 +554,10 @@ def load_odoo_module(module_name: str) -> None:
 
 
 def get_modules() -> list[str]:
-    """Get the list of module names that can be loaded."""
     return [m.name for m in Manifest.all_addon_manifests()]
 
 
 def adapt_version(version: str) -> str:
-    """Reformat the version of the module into a canonical format."""
     parts = version.split(".")
     if not (2 <= len(parts) <= 5):
         raise ValueError(
@@ -680,7 +575,6 @@ def adapt_version(version: str) -> str:
 
 
 def check_version(version: str, should_raise: bool = True) -> bool:
-    """Check that the version is in a valid format for the current release."""
     try:
         version = adapt_version(version)
     except ValueError:

@@ -1,10 +1,3 @@
-"""Contract tests for ``named_to_positional_printf``.
-
-Its only caller is ``odoo.libs.sql.SQL``, so a placeholder that is recognised
-wrongly does not fail loudly -- it silently rewrites a query. The cases below
-pin both halves: what must convert, and what must be left alone.
-"""
-
 import unittest
 
 from odoo.libs.utils import named_to_positional_printf
@@ -41,13 +34,6 @@ class TestNamedToPositionalPrintf(unittest.TestCase):
         )
 
     def test_prose_after_a_name_is_not_swallowed(self):
-        """``%(x) here`` must not parse as space-flag + length 'h' + conv 'e'.
-
-        Accepting the [hlL] length modifier made the pattern eat two characters
-        of ordinary text and emit a mangled string. Rejecting the whole thing is
-        fine -- it is a malformed placeholder either way -- but it must never be
-        silently rewritten.
-        """
         for text in ("literal %(notaconv) here", "%(user) said hello"):
             with self.assertRaises(ValueError) as ctx:
                 named_to_positional_printf(text, {})

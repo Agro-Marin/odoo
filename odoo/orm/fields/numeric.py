@@ -16,35 +16,15 @@ MAXINT = 2**31 - 1
 
 
 def _pg_float_text(value: float) -> str:
-    """Render *value* as PostgreSQL renders a stored float column with ``::text``.
-
-    Every numeric column the ORM creates is either ``float8`` or a *scale-less*
-    ``numeric`` fed with Python floats, so PostgreSQL prints both in shortest
-    round-trip form -- identical to ``repr()`` except that an integral value
-    loses its ``.0`` (``1.0`` -> ``1``, ``100.0`` -> ``100``), which is exactly
-    the divergence that made ``('rounding', 'ilike', '1.0')`` match 8 records
-    under ``filtered_domain()`` and none under ``search()``.
-
-    Verified against the server over the full float8 range used by the field
-    types (integral, fractional, negative zero, 1e20, 1e-7): zero mismatches.
-    """
     text = repr(float(value))
     return text.removesuffix(".0")
 
 
 def _is_exact_number(value) -> bool:
-    """Whether *value* is a number a comparison can use as-is.
-
-    ``bool`` is excluded on purpose: in a domain it means "unset"/"set", not
-    ``0``/``1``, and comparing a numeric column against a SQL boolean is a type
-    error -- so booleans keep going through the field's own conversion.
-    """
     return value.__class__ in (int, float) or isinstance(value, Decimal)
 
 
 class Integer(Field[int]):
-    """Encapsulates an :class:`int`."""
-
     type = "integer"
     _column_type = ("int4", "int4")
     falsy_value = 0
@@ -102,12 +82,6 @@ class Integer(Field[int]):
 
     @override
     def _pattern_text(self, cache_value: typing.Any) -> str:
-        """``int4::text`` is ``str(int)``; only NULL needs distinguishing.
-
-        The base rule would already be right, but :meth:`convert_to_record`
-        maps NULL to ``0``, so the override exists to make explicit that the
-        ``None`` handled here is a real SQL NULL and not an unset zero.
-        """
         if cache_value is None:
             return ""
         return str(cache_value)
@@ -131,46 +105,6 @@ class Integer(Field[int]):
 
 
 class Float(Field[float]):
-    """Encapsulates a :class:`float`.
-
-    The precision digits are given by the (optional) ``digits`` attribute.
-
-    :param digits: a pair (total, decimal) or a string referencing a
-        :class:`~odoo.addons.base.models.decimal_precision.DecimalPrecision` record name.
-    :type digits: tuple(int,int) or str
-
-    When a float is a quantity associated with a unit of measure, use the right
-    tool to compare or round values with the correct precision.
-
-    The Float class provides static methods for this purpose:
-
-    :meth:`~odoo.fields.Float.round` to round a float with the given precision.
-    :meth:`~odoo.fields.Float.compare` to compare two floats at the given precision.
-
-    .. admonition:: Example
-
-        To round a quantity with the precision of the unit of measure::
-
-            fields.Float.round(
-                self.product_uom_qty, precision_rounding=self.product_uom_id.rounding
-            )
-
-        To compare two quantities::
-
-            fields.Float.compare(
-                self.product_uom_qty,
-                self.qty_done,
-                precision_rounding=self.product_uom_id.rounding,
-            )
-
-        The compare helper uses __cmp__ semantics for historic reasons, so the
-        idiomatic way to use it is:
-
-            if result == 0, the first and second floats are equal
-            if result < 0, the first float is lower than the second
-            if result > 0, the first float is greater than the second
-    """
-
     type = "float"
     _digits: str | tuple[int, int] | None = None
     _min_display_digits: str | int | None = None
@@ -294,16 +228,6 @@ class Float(Field[float]):
 
 
 class Monetary(Field[float]):
-    """Encapsulates a :class:`float` expressed in a given
-    :class:`res_currency<odoo.addons.base.models.res_currency.ResCurrency>`.
-
-    The decimal precision and currency symbol are taken from the ``currency_field`` attribute.
-
-    :param str currency_field: name of the :class:`Many2one` field
-        holding the :class:`res_currency <odoo.addons.base.models.res_currency.ResCurrency>`
-        this monetary field is expressed in (default: `\'currency_id\'`)
-    """
-
     type = "monetary"
     write_sequence = 10
     _column_type = ("numeric", "numeric")
@@ -342,7 +266,6 @@ class Monetary(Field[float]):
         return super()._description_aggregator(env)
 
     def get_currency_field(self, model: ModelLike) -> str | None:
-        """Return the name of the currency field."""
         return self.currency_field or (
             "currency_id"
             if "currency_id" in model._fields
@@ -352,14 +275,6 @@ class Monetary(Field[float]):
         )
 
     def _currency_record(self, record: ModelLike):
-        """Return ``record[:1]``'s currency for this monetary field (or empty).
-
-        ``prefetch_fields=False`` is load-bearing: the ``value`` being converted
-        may already sit in cache, and prefetching siblings here could overwrite
-        it with the stale DB value before flush. ``sudo()`` because the currency
-        may be ACL-restricted. (``convert_to_cache`` keeps its own variant: it
-        scans *all* records for a single currency, not just ``[:1]``.)
-        """
         currency_field_name = self.get_currency_field(record)
         if not currency_field_name:
             return None

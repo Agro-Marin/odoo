@@ -1,12 +1,3 @@
-"""Self-contained benchmark models.
-
-Deliberately uses only the classic, version-stable ORM surface (``models.Model``,
-``fields.*``, ``@api.depends``) so the *exact same file* imports and runs on this
-fork and on a vanilla Odoo 19.0 checkout.  No data is shared with ``base`` demo
-records: every benchmark builds its own rows, so the database state is identical
-on both sides of the comparison.
-"""
-
 from odoo import api, fields, models
 
 

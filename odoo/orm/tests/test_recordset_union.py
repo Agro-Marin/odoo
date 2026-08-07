@@ -1,12 +1,3 @@
-"""Regression: ``union`` / ``|`` must dedup regardless of which operand is empty.
-
-Recordset ids may legally contain duplicates (from ``concat`` / ``+``). ``union``
-documents first-occurrence-order set semantics, and the general path dedups via
-``OrderedSet``. The single-empty-operand fast paths used to return their operand
-raw, so ``(rec + rec) | empty`` kept the duplicate while ``(rec + rec) | other``
-did not. Tier-2 suite: real ``import odoo``, no database.
-"""
-
 import sys
 
 import pytest

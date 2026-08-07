@@ -14,15 +14,6 @@ from .common import XMLAssetError
 
 
 class XmlTemplatePipeline:
-    """Render one bundle's OWL templates into the JS that registers them.
-
-    Split out of :class:`AssetsBundle` (mirroring :class:`CssPipeline`): parse
-    into primary/extension blocks (:meth:`xml`), render the ``registerTemplate``
-    calls (:meth:`generate_xml_bundle`), and wrap for delivery — legacy IIFE
-    (:meth:`legacy_template_iife`) or ESM ``<script type="module">``
-    (:meth:`generate_esm_template_bundle`).
-    """
-
     _TEMPLATE_MODULE = "@web/core/templates"
     _TEMPLATE_REGISTRARS = (
         "checkPrimaryTemplateParents, registerTemplate, registerTemplateExtension"
@@ -33,13 +24,6 @@ class XmlTemplatePipeline:
         self._rendered_bundle: str | None = None
 
     def xml(self) -> list[XMLBlock]:
-        """Split the bundle's templates into ordered "templates"/"extensions" blocks.
-
-        A parentless or ``t-inherit-mode="primary"`` template goes in a
-        "templates" block; a ``t-inherit-mode="extension"`` one in an
-        "extensions" block. Reads ``t-name``, ``t-inherit`` and
-        ``t-inherit-mode``.
-        """
         bundle = self._bundle
         blocks = []
         block = None
@@ -79,13 +63,6 @@ class XmlTemplatePipeline:
         return blocks
 
     def generate_xml_bundle(self) -> str:
-        """Render the JS that registers this bundle's XML templates at runtime.
-
-        Memoized: the bundle's template list is fixed at construction, yet both
-        delivery wrappers and ``ir_qweb`` reach this from several places in one
-        request, each re-serializing every template (~20 ms and ~1.3 MB of
-        string building for ``web.assets_web``).
-        """
         if self._rendered_bundle is None:
             self._rendered_bundle = self._render_xml_bundle()
         return self._rendered_bundle
@@ -145,14 +122,6 @@ class XmlTemplatePipeline:
         return "\n".join(content)
 
     def generate_esm_template_bundle(self, use_import=True) -> str:
-        """Generate an ESM template bundle for ``<script type="module">``.
-
-        *use_import* True (debug): native ``import`` from
-        ``@web/core/templates`` via the import map. False (production esbuild):
-        ``odoo.loader.modules.get()`` instead, since esbuild internalizes the
-        module and an ``import`` would create a second copy with its own
-        registry (the esbuild bundle must run first, registerNativeModules).
-        """
         bundle = self._bundle
         if not bundle.templates:
             return ""
@@ -172,16 +141,6 @@ class XmlTemplatePipeline:
         return f"{header}/* {bundle.name} */\n{templates}\n"
 
     def legacy_template_iife(self) -> str:
-        """Wrap the registered templates in the classic-bundle IIFE.
-
-        Non-ESM bundles ship templates inside the concatenated ``.min.js`` via
-        this wrapper; ESM bundles use :meth:`generate_esm_template_bundle`.
-
-        Written unindented rather than ``textwrap.dedent``-ed: the interpolated
-        ``registerTemplate(...)`` lines start at column 0, so they used to drag
-        the computed common prefix to ``""`` and turn the dedent into a no-op
-        that shipped the literal's own indentation instead.
-        """
         templates = self.generate_xml_bundle()
         return (
             "\n\n"

@@ -1,18 +1,3 @@
-"""Drift guard for the ``own_class_memo`` key registry (``ORM_CLASS_MEMOS``).
-
-Registry model classes survive re-setup (registration only reassigns
-``__bases__``), so every per-class memo written via
-``helpers.own_class_memo(cls, "<key>", ...)`` must be discarded by
-``registration._prepare_setup`` — which iterates ``helpers.ORM_CLASS_MEMOS``.
-The call sites live in ``models/`` and pass their key as a string literal, so
-nothing structural ties them to the registry: a seventh memo added elsewhere
-would silently serve stale tuples across re-setups.  This test closes that
-drift risk by scanning the ORM sources for every ``own_class_memo`` call and
-asserting the literal key set equals ``ORM_CLASS_MEMOS`` exactly.  Mirrors
-``test_field_access_preamble`` (source scan pinning a convention the code
-cannot enforce), but needs the real import for the constant, hence Tier 2.
-"""
-
 import pathlib
 import re
 
@@ -36,8 +21,7 @@ def _iter_sources():
 def test_every_memo_key_is_registered():
     keys: set[str] = set()
     for _path, text in _iter_sources():
-        for match in _CALL_WITH_LITERAL_KEY.finditer(text):
-            keys.add(match.group(1))
+        keys.update(match.group(1) for match in _CALL_WITH_LITERAL_KEY.finditer(text))
     assert keys == set(ORM_CLASS_MEMOS), (
         f"own_class_memo call-site keys {sorted(keys)} diverged from "
         f"helpers.ORM_CLASS_MEMOS {sorted(ORM_CLASS_MEMOS)}; register new memo "

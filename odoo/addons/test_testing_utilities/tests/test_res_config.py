@@ -5,7 +5,6 @@ from odoo.tests.common import TransactionCase
 
 class TestResConfig(TransactionCase):
     def test_00_add_parameter_with_default_value(self):
-        """Check if parameters with a default value are saved in the ir_config_parameter table"""
 
         self.env["res.config.test"].create({}).execute()
         self.assertEqual(
@@ -24,9 +23,6 @@ class TestResConfig(TransactionCase):
         set_param_mock.assert_not_called()
 
     def test_01_boolean_parameter_default_true_round_trip(self):
-        """RCFG-B1: a boolean config_parameter field with default=True must
-        display True on a fresh database (no parameter stored yet), and saving
-        False must persist "False" instead of deleting the parameter."""
         ICP = self.env["ir.config_parameter"].sudo()
         self.assertFalse(ICP.get_param("resConfigTest.parameter3"))
         settings = self.env["res.config.test"].create({})
@@ -44,8 +40,6 @@ class TestResConfig(TransactionCase):
         self.assertFalse(self.env["res.config.test"].create({}).param3)
 
     def test_02_mixed_group_field_types_save(self):
-        """RCFG-S1: saving settings where boolean and selection group_ fields
-        coexist must not raise (sorted() must not compare bool with str)."""
         settings = self.env["res.config.test"].create(
             {"group_test_checkbox": True, "group_test_selection": "0"}
         )

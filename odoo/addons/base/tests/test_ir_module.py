@@ -160,17 +160,6 @@ class IrModuleCase(TransactionCase):
 
 
 class TestModuleDependencyClosure(TransactionCase):
-    """IRMOD-T7: direct coverage of the recursive-CTE dependency-closure API
-    (_dependency_closure / upstream_dependencies / downstream_dependencies) on a
-    synthetic chain a <- b <- c <- d (``x <-- y`` = "y depends on x"), with c
-    uninstalled and a/b/d installed.
-
-    Callers rely on subtle semantics: state pruning blocks the paths *through*
-    excluded modules, ``known_deps`` doubles as blocked-set and result-union,
-    seeds are traversed regardless of their own state but excluded from the
-    result, and ``exclude_states=('',)`` matches no state (full closure).
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -227,13 +216,6 @@ class TestModuleDependencyClosure(TransactionCase):
 
 
 class IrModuleUnsavedRecordCase(TransactionCase):
-    """get_module_info must tolerate a falsy name.
-
-    An unsaved ir.module.module has `name = False`; `Manifest.for_addon(False)`
-    raised TypeError, so the `manifest_version` compute blew up. The guard lives
-    in get_module_info so all of its call sites are covered.
-    """
-
     def test_get_module_info_without_name(self):
         self.assertEqual(self.env["ir.module.module"].get_module_info(False), {})
         self.assertEqual(self.env["ir.module.module"].get_module_info(""), {})

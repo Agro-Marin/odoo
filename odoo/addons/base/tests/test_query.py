@@ -203,7 +203,6 @@ class TestQuery(TransactionCase):
         self.assertEqual([row[0] for row in self.cr.fetchall()], records.ids)
 
     def test_count_matching_ignores_limit_offset(self):
-        """count_matching() counts all matching rows, ignoring LIMIT/OFFSET."""
         model = self.env["res.partner.category"]
         model.create([{"name": f"CM Test {i}"} for i in range(5)])
         query = model._search([("name", "like", "CM Test")], limit=2, offset=1)
@@ -211,7 +210,6 @@ class TestQuery(TransactionCase):
         self.assertEqual(query.count_matching(), 5)
 
     def test_count_matching_with_limit(self):
-        """count_matching(limit=N) caps the total count."""
         model = self.env["res.partner.category"]
         model.create([{"name": f"CML Test {i}"} for i in range(5)])
         query = model._search([("name", "like", "CML Test")], limit=2)
@@ -219,7 +217,6 @@ class TestQuery(TransactionCase):
         self.assertEqual(query.count_matching(limit=10), 5)
 
     def test_count_matching_with_joins(self):
-        """count_matching() works with queries that have LEFT JOINs (from ORDER BY)."""
         query = self.env["res.partner"]._search(
             [("is_company", "=", True)], limit=5, order="parent_id"
         )

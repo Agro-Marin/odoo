@@ -31,19 +31,11 @@ class TestAccess(odoo.tests.HttpCase):
         )
 
     def test_check_access(self):
-        """Typically, a document consulted by a portal user P
-        will point to other records that P cannot read.
-        For example, if P wants to consult a ticket of his,
-        the ticket will have a reviewer or assigned user that is internal,
-        and which partner cannot be read by P.
-        This should not block P from accessing the ticket.
-        """
         document = self.document.with_user(self.portal_user)
         self.internal_user_partner.invalidate_model(["active"])
         document.check_access("read")
 
     def test_name_search_with_sudo(self):
-        """Check that _name_search returns correct values with sudo"""
         no_access_user = self.env["res.users"].create(
             {
                 "login": "no_access",

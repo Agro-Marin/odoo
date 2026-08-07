@@ -1,20 +1,3 @@
-"""``translate=True`` fields with extra context dependencies: the language is
-normalized FIRST in the cache key, and the en_US fallback key is derived from
-the real cache-key machinery.
-
-The model-translation cache layout is one flat ``{id: value}`` sub-dict per
-(lang + extra context) key.  Extra context deps are legitimate (e.g. a
-translated field related through a ``depends_context`` compute, mirrored from
-``test_orm.compute.member``), but two consumers must single out the lang
-component; both used to hard-code a ``(lang,)`` 1-tuple:
-
-* the en_US fallback for no-DB-row records probed a dead ``("en_US",)`` key
-  that a normal cache write (which keys by the FULL context) never populates,
-  so cross-language fallback silently returned nothing;
-* ``get_column_update`` read ``cache_key[0]`` as the language, which held an
-  arbitrary context component when 'lang' was not first.
-"""
-
 from odoo import api, fields, models
 from odoo.orm.model_test_env import model_test_env
 

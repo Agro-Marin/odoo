@@ -1,16 +1,9 @@
-"""Pure-Python tests for ComputeEngine — no Odoo, no database required.
-
-Uses plain strings as mock "field" keys and integers as record IDs.
-"""
-
 import unittest
 
 from odoo.orm.components.compute import ComputeEngine
 
 
 class TestComputeScheduling(unittest.TestCase):
-    """Test schedule / mark_done / pending queries."""
-
     def setUp(self) -> None:
         self.engine = ComputeEngine()
 
@@ -67,12 +60,6 @@ class TestComputeScheduling(unittest.TestCase):
         self.assertEqual(real, ["total"])
 
     def test_schedule_empty_creates_no_phantom(self) -> None:
-        """schedule() with empty ids must not vivify an entry.
-
-        Regression: ``self._pending[field].update(ids)`` auto-created an empty
-        set under *field*, making ``has_pending``/``has_pending_field`` report a
-        field with nothing to recompute (and costing an extra recompute pass).
-        """
         self.engine.schedule("total", [])
         self.assertFalse(self.engine.has_pending())
         self.assertFalse(self.engine.has_pending_field("total"))
@@ -81,7 +68,6 @@ class TestComputeScheduling(unittest.TestCase):
         self.assertEqual(self.engine.pending_real_fields(), [])
 
     def test_schedule_preserves_factory_ordering(self) -> None:
-        """The non-empty path must keep the configured set factory (ordering)."""
         from odoo.tools import OrderedSet
 
         engine = ComputeEngine(pending_factory=OrderedSet)
@@ -96,11 +82,6 @@ class TestComputeScheduling(unittest.TestCase):
         self.assertFalse(self.engine.has_pending_field("tax"))
 
     def test_has_pending_field_empty_set(self) -> None:
-        """has_pending_field is False after mark_done drains the last id.
-
-        The entry is deleted rather than kept as an empty set (the _pending
-        invariant), so no phantom pending field remains.
-        """
         self.engine.schedule("total", [1])
         self.engine.mark_done("total", [1])
         self.assertFalse(self.engine.has_pending_field("total"))
@@ -123,8 +104,6 @@ class TestComputeScheduling(unittest.TestCase):
 
 
 class TestComputeProtection(unittest.TestCase):
-    """Test field protection stack."""
-
     def setUp(self) -> None:
         self.engine = ComputeEngine()
 
@@ -170,8 +149,6 @@ class TestComputeProtection(unittest.TestCase):
 
 
 class TestComputeEngineRepr(unittest.TestCase):
-    """Test repr."""
-
     def test_repr_empty(self) -> None:
         engine = ComputeEngine()
         r = repr(engine)
@@ -188,8 +165,6 @@ class TestComputeEngineRepr(unittest.TestCase):
 
 
 class TestComputeCustomFactory(unittest.TestCase):
-    """Test with custom pending factory (OrderedSet-like)."""
-
     def test_custom_factory(self) -> None:
         class OrderedSet(set):
             pass

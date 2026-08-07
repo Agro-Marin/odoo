@@ -67,12 +67,6 @@ def _get_eval_context(
 
 
 def _fix_multiple_roots(node: etree._Element) -> None:
-    """Wrap the children of ``node`` in a single "data" root element.
-
-    XML documents must have a single root, but partial documents (like inherited
-    view architectures) may declare multiple roots. By convention we wrap them in a
-    container "data" element, ignored later when parsing.
-    """
     real_nodes = [x for x in node if not isinstance(x, SKIPPED_ELEMENT_TYPES)]
     if len(real_nodes) > 1:
         data_node = etree.Element("data")
@@ -181,13 +175,6 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
                 raise ValueError(f"Unknown type {t!r}")
 
     elif node.tag == "function":
-        # ``<function>`` resolves an arbitrary attribute name on the model, and
-        # data files are not always authored by the operator: an admin-uploaded
-        # module (base_import_module) reaches here.  Dunders and the frame /
-        # code internals in _UNSAFE_ATTRIBUTES are what turn attribute lookup
-        # into sandbox escape, so they are refused, as in safe_eval itself.
-        # Checked before anything is imported or resolved: the name alone
-        # decides it, so the refusal needs no model, no env and no registry.
         method_name = node.get("name") or ""
         if "__" in method_name or method_name in _UNSAFE_ATTRIBUTES:
             raise NameError(f"Access to forbidden name {method_name!r}")
@@ -578,7 +565,6 @@ form: module.record_id""" % (xml_id,)
         return self._tag_record(record)
 
     def _tag_asset(self, el: etree._Element) -> tuple[str, int] | None:
-        """Transform an <asset> element into a <record> and forward it."""
         asset_id = el.get("id")
         Field = builder.E.field
 
@@ -760,12 +746,6 @@ def convert_csv_import(
     mode: ConvertMode = "init",
     noupdate: bool = False,
 ) -> None:
-    """Import a CSV file.
-
-    quote: "
-    delimiter: ,
-    encoding: utf-8
-    """
     env = env(context=dict(env.context, lang=None))
     filename = Path(fname).stem
     model = filename.split("-")[0]
@@ -814,12 +794,6 @@ def convert_csv_import(
 
 @functools.cache
 def _get_import_relaxng() -> tuple[str, etree.RelaxNG]:
-    """Compile the import-data RelaxNG schema, cached once per process.
-
-    ``convert_xml_import`` runs once per XML data file (hundreds of times per
-    ``-i``/``-u``), so parsing and compiling the constant schema every call
-    would be wasted work.
-    """
     schema = str(Path(config.root_path, "import_xml.rng"))
     return schema, etree.RelaxNG(etree.parse(schema))
 
@@ -835,11 +809,6 @@ def convert_xml_import(
 ) -> None:
     doc = etree.parse(xmlfile)
     schema, relaxng = _get_import_relaxng()
-    # Resolved before the try, not after it: the success path below already
-    # accepted a plain path (the signature admits ``str``), while this handler
-    # reached for ``xmlfile.name`` unconditionally — so a schema-invalid file
-    # passed by name would raise AttributeError from inside the error handler
-    # and destroy the RelaxNG diagnostic it exists to print.
     xml_filename = xmlfile if isinstance(xmlfile, str) else xmlfile.name
     try:
         relaxng.assert_(doc)

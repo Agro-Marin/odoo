@@ -8,8 +8,6 @@ DEFINITION_MEMO_CACHE_KEY = "properties_base_definition_ids"
 
 
 class PropertiesBaseDefinition(models.Model):
-    """Stores the properties definition for a ``properties`` field without a parent record."""
-
     _name = "properties.base.definition"
     _description = "Properties Base Definition"
 
@@ -27,7 +25,6 @@ class PropertiesBaseDefinition(models.Model):
 
     @api.depends("properties_field_id")
     def _compute_display_name(self) -> None:
-        """Set the display name from the linked properties field's model description."""
         for definition in self:
             if not definition.properties_field_id.model:
                 definition.display_name = False
@@ -40,7 +37,6 @@ class PropertiesBaseDefinition(models.Model):
 
     @api.constrains("properties_field_id")
     def _check_properties_field_id(self) -> None:
-        """Ensure each definition is linked to a field of type ``properties``."""
         if invalid_fields := self.mapped("properties_field_id").filtered(
             lambda f: f.ttype != "properties"
         ):
@@ -52,7 +48,6 @@ class PropertiesBaseDefinition(models.Model):
             )
 
     def write(self, vals: dict[str, Any]) -> bool:
-        """Forbid reassigning the backing field; delegate the rest to ``super``."""
         if "properties_field_id" in vals:
             raise AccessError(_("You can not change the field of a base definition"))
         return super().write(vals)
@@ -60,10 +55,6 @@ class PropertiesBaseDefinition(models.Model):
     def _get_definition_for_property_field(
         self, model_name: str, field_name: str
     ) -> Self:
-        """Return the definition record for a model's properties field, creating it if missing.
-
-        :rtype: properties.base.definition
-        """
         return self.browse(
             self._get_definition_id_for_property_field(model_name, field_name)
         )
@@ -71,16 +62,6 @@ class PropertiesBaseDefinition(models.Model):
     def _get_definition_id_for_property_field(
         self, model_name: str, field_name: str
     ) -> int:
-        """Return the definition id for a model's properties field, creating it if missing.
-
-        A row created here is memoized only in the transaction-local
-        ``env.cr.cache`` (DEFINITION_MEMO_CACHE_KEY); the process-global "stable"
-        ormcache is populated exclusively from committed rows found by
-        :meth:`_search_definition_id_for_property_field`. A rollback therefore
-        cannot leave a dangling id in the registry cache.
-
-        :rtype: int
-        """
         memo = self.env.cr.cache.get(DEFINITION_MEMO_CACHE_KEY)
         if memo and (definition_id := memo.get((model_name, field_name))):
             return definition_id
@@ -105,21 +86,6 @@ class PropertiesBaseDefinition(models.Model):
     def _search_definition_id_for_property_field(
         self, model_name: str, field_name: str
     ) -> int:
-        """Return the definition id for a model's properties field via SELECT only.
-
-        Raises ``ValueError`` on a miss so the miss stays out of the "stable"
-        ormcache (which only stores returned values); the cache thus only ever
-        holds ids found by a committed SELECT.
-
-        Fork (5b32001d5dd): replaces the upstream ORM ``search()`` (an expensive
-        JOIN on ir_model_fields) with a cached ``_get_ids`` field lookup plus a
-        direct raw SELECT. The raw SELECT does not flush pending ORM writes, but
-        the only ORM writer is _get_definition_id_for_property_field's create(),
-        which flushes and memoizes its result transaction-locally.
-
-        :rtype: int
-        :raise ValueError: when no definition row exists for the field
-        """
         field_ids = self.env["ir.model.fields"]._get_ids(model_name)
         field_id = field_ids.get(field_name)
 
