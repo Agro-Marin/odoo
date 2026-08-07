@@ -1,7 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command, fields
-from odoo.tests import Form, tagged
+from odoo.exceptions import UserError
+from odoo.tests import Form, TransactionCase, tagged
 from odoo.libs.numbers import float_round, float_compare
 
 from odoo.addons.mrp_account.tests.common import TestBomPriceCommon
@@ -345,3 +346,89 @@ class TestSubcontractingBOMCost(TestBomPriceCommon):
         self.assertEqual(self.dining_table.standard_price, 1000)
         self.dining_table.button_bom_cost()
         self.assertEqual(self.dining_table.standard_price, 790)
+
+
+@tagged('post_install', '-at_install')
+class TestSubcontractingBomPriceUom(TransactionCase):
+    """`_compute_bom_price` writes `standard_price`, so an unconvertible vendor
+    unit must fail loud rather than scale the price by the ratio of two
+    unrelated factors.
+
+    A subcontractor may legitimately quote in a unit unrelated to the product's
+    (`product.supplierinfo.product_uom_id` is deliberately cross-category).
+    `_select_seller` is called with `uom_id=bom.product_uom_id`, so such a
+    seller is normally filtered out before any conversion -- but
+    `mrp.bom.product_uom_id` carries no category constraint, so a BoM stated in
+    the seller's unit lets it through to a conversion that cannot succeed.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.uom_unit = cls.env.ref('uom.product_uom_unit')
+        cls.uom_kgm = cls.env.ref('uom.product_uom_kgm')
+        cls.uom_gram = cls.env.ref('uom.product_uom_gram')
+
+    def _build(self, tag, product_uom, seller_uom, bom_uom, seller_price=50.0):
+        template = self.env['product.template'].create({
+            'name': 'Subcontracted %s' % tag,
+            'uom_id': product_uom.id,
+            'is_storable': True,
+        })
+        component = self.env['product.template'].create({
+            'name': 'Component %s' % tag,
+            'is_storable': True,
+        }).product_variant_id
+        component.standard_price = 7.0
+        subcontractor = self.env['res.partner'].create({'name': 'Sub %s' % tag})
+        self.env['product.supplierinfo'].create({
+            'partner_id': subcontractor.id,
+            'product_tmpl_id': template.id,
+            'product_uom_id': seller_uom.id,
+            'price': seller_price,
+            'min_qty': 0.0,
+        })
+        self.env['mrp.bom'].create({
+            'product_tmpl_id': template.id,
+            'type': 'subcontract',
+            'subcontractor_ids': [Command.set([subcontractor.id])],
+            'product_qty': 1.0,
+            'product_uom_id': bom_uom.id,
+            'bom_line_ids': [Command.create({
+                'product_id': component.id,
+                'product_qty': 1.0,
+            })],
+        })
+        return template.product_variant_id
+
+    def test_bom_price_same_category(self):
+        """Control: a seller in the product's own unit is applied."""
+        product = self._build('same', self.uom_unit, self.uom_unit, self.uom_unit)
+        product.button_bom_cost()
+        self.assertEqual(product.standard_price, 57.0)
+
+    def test_bom_price_convertible_units(self):
+        """Control: a seller quoting per gram on a kg product still converts."""
+        product = self._build('conv', self.uom_kgm, self.uom_gram, self.uom_kgm)
+        product.button_bom_cost()
+        self.assertEqual(product.standard_price, 50007.0)
+
+    def test_bom_price_ignores_incompatible_seller(self):
+        """A cross-category seller is filtered out by `_select_seller`."""
+        product = self._build('filt', self.uom_unit, self.uom_kgm, self.uom_unit)
+        product.button_bom_cost()
+        self.assertEqual(
+            product.standard_price, 7.0,
+            "the incompatible seller must not contribute to the BoM price",
+        )
+
+    def test_bom_price_raises_on_incompatible_bom_uom(self):
+        """A BoM stated in the seller's unit must fail loud, not misprice.
+
+        `mrp.bom.product_uom_id` has no category constraint, so this reaches the
+        conversion. Before the unit check it silently wrote a `standard_price`
+        scaled by the ratio of two unrelated factors.
+        """
+        product = self._build('raise', self.uom_unit, self.uom_kgm, self.uom_kgm)
+        with self.assertRaises(UserError):
+            product.button_bom_cost()
