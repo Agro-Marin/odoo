@@ -265,6 +265,13 @@ def _convert_column(
 
 def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
     for v, k in get_depending_views(cr, table, column):
+        # Hand-rolled, and deliberately NOT SQL.identifier(v): that helper
+        # *rejects* a name containing a double quote (builder.py:188) rather
+        # than escaping it, so switching would turn a pathologically-named view
+        # into a ValueError in the middle of a column conversion -- i.e. a
+        # crashed upgrade instead of a dropped view. `v` comes from
+        # pg_class.relname via get_depending_views(), so it is already a valid
+        # identifier; this is correct standard quoting for it.
         quoted = '"%s"' % v.replace('"', '""')
         cr.execute(
             SQL(
@@ -406,6 +413,19 @@ def add_foreign_key(
     columnname2: str,
     ondelete: str,
 ) -> None:
+    # `ondelete` is the only part of this statement that is not an identifier,
+    # and it reaches here from ir.model.fields.on_delete -- a UI-editable DB
+    # column (ir_model_fields.py:1140 -> Many2one.ondelete -> here). The
+    # Selection on that column is the only thing constraining it today, two
+    # layers away. _CONFDELTYPES is the allowlist this file already keeps and
+    # that get_foreign_keys()/_get_fk_def() already validate against; use it
+    # here too rather than interpolating whatever arrived.
+    if ondelete.upper() not in _CONFDELTYPES:
+        raise ValueError(
+            f"Invalid ON DELETE policy {ondelete!r} for "
+            f"{tablename1}.{columnname1}; expected one of "
+            f"{sorted(_CONFDELTYPES)}"
+        )
     cr.execute(
         SQL(
             "ALTER TABLE %s ADD FOREIGN KEY (%s) REFERENCES %s(%s) ON DELETE %s",

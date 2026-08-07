@@ -94,6 +94,64 @@ class TestDriftDetection(unittest.TestCase):
         self.assertFalse(report.removed)
 
 
+class TestForbiddenReachers(unittest.TestCase):
+    """The *who*, which the flat model set cannot express.
+
+    ``KNOWN_MODEL_SURFACE`` answers "which models does the framework reach". It
+    is one set for the whole scope, so it cannot answer "may *this* package
+    reach them" -- and a package reaching an already-known model adds nothing,
+    so the gate stays green. Demonstrated on the live tree: appending
+    ``env["ir.model"]`` to ``odoo/orm/components/model_graph.py`` (contractually
+    pure Python) passed this gate, ``layer_check``, ``env_surface_check`` and
+    ``pool_surface_check`` simultaneously.
+    """
+
+    def _report_from(self, path: str, model: str = "ir.model"):
+        report = emsc.Report(reaches=[emsc.Reach(model, path, 1)])
+        report.added = report.models - emsc.KNOWN_MODEL_SURFACE
+        report.removed = set()
+        report.forbidden = [
+            r
+            for r in report.reaches
+            if r.path.startswith(
+                tuple(f"{s}/" for s in emsc.SUBTREES_WITH_NO_MODEL_REACH)
+            )
+        ]
+        return report
+
+    def test_a_pure_subtree_reaching_a_known_model_fails(self):
+        report = self._report_from("odoo/orm/components/model_graph.py")
+        self.assertFalse(report.added, "the model is known -- that is the point")
+        self.assertTrue(report.forbidden)
+        self.assertFalse(report.ok)
+
+    def test_an_ordinary_subtree_reaching_a_known_model_is_fine(self):
+        report = self._report_from("odoo/orm/models/mixins/read.py")
+        self.assertFalse(report.forbidden)
+        self.assertTrue(report.ok)
+
+    def test_a_prefix_is_not_matched_by_a_sibling_with_the_same_start(self):
+        """``odoo/db`` must not also silence ``odoo/dbx``."""
+        report = self._report_from("odoo/dbx/thing.py")
+        self.assertFalse(report.forbidden)
+
+    def test_every_pinned_subtree_exists_and_is_currently_clean(self):
+        """A pin on a path that does not exist protects nothing."""
+        live = emsc.check()
+        reached_paths = {r.path for r in live.reaches}
+        for subtree in emsc.SUBTREES_WITH_NO_MODEL_REACH:
+            self.assertTrue(
+                (emsc.REPO_ROOT / subtree).is_dir(),
+                f"{subtree} is pinned at zero model reaches but does not exist",
+            )
+            offenders = sorted(p for p in reached_paths if p.startswith(f"{subtree}/"))
+            self.assertEqual(
+                offenders,
+                [],
+                f"{subtree} is pinned at zero but reaches models: {offenders}",
+            )
+
+
 class TestLiveTree(unittest.TestCase):
     def test_committed_baseline_matches_the_tree(self):
         report = emsc.check()

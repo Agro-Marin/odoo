@@ -414,6 +414,27 @@ class PreforkServer(CommonServer):
                 )
                 os.environ["ODOO_HTTP_SOCKET_FD"] = str(http_socket_fileno)
             os.environ["ODOO_READY_SIGHUP_PID"] = str(pid)
+            # Run the shutdown hooks HERE, in the parent, before the exec that
+            # replaces this process image.
+            #
+            # _ON_STOP_FUNCS closes process-owned resources: the dart-sass
+            # compiler (tools/sass_embedded.py) and the ESM lexer worker
+            # (tools/assets/esm_lexer.py) are subprocesses, and bus/websocket
+            # register teardown too. They cannot be cleaned up from the forked
+            # child below -- those subprocesses are children of THIS pid, not of
+            # the fork -- and _reexec() keeps the pid while discarding every
+            # Python handle to them. Without this, each reload orphaned the
+            # sass and lexer subprocesses for the lifetime of the server.
+            #
+            # PreforkServer.stop()'s reload branch returns before reaching
+            # super().stop(), which is why this has to be here and not there;
+            # ThreadedServer.stop() falls through to it and has always been fine.
+            try:
+                super().stop()
+            except Exception:
+                self.logger.warning(
+                    "Exception while running stop hooks before reload", exc_info=True
+                )
             _reexec()
 
         self.logger.info("Waiting for new server to start ...")
@@ -543,17 +564,36 @@ class PreforkServer(CommonServer):
         if lifecycle.server_phoenix:
             lifecycle.server_phoenix = False
 
-            if not self.fork_and_reload():
-                self.logger.error(
-                    "Reload aborted: new server failed to come up within timeout. "
-                    "Old workers kept alive; this (old) master is exiting."
-                )
-                return
-            self.stop_workers_gracefully()
-            self._sweep_stale_workers()
+            # `super().stop()` is the only thing that runs `_ON_STOP_FUNCS`, and
+            # BOTH returns below used to skip it -- so a SIGHUP reload under
+            # --workers>0 ran no shutdown hook at all, while ThreadedServer.stop
+            # always ran them. Every registered hook closes a process-local
+            # resource (close_sass_compiler / close_lexer_worker terminate
+            # spawned subprocesses; bus stops its dispatcher thread and closes
+            # its PG notify connection), so skipping them orphaned whatever this
+            # master had spawned, once per reload.
+            #
+            # In `finally`, i.e. AFTER the drain rather than before it as the
+            # plain-shutdown path below does, and deliberately: past a successful
+            # fork_and_reload() this code is running in the forked child, while
+            # the original pid has already re-exec'd into the new master. The
+            # handles reachable here are the OLD master's, which is exactly what
+            # wants closing; the new master exec'd fresh and owns none of them.
+            try:
+                if not self.fork_and_reload():
+                    self.logger.error(
+                        "Reload aborted: new server failed to come up within "
+                        "timeout. Old workers kept alive; this (old) master is "
+                        "exiting."
+                    )
+                    return
+                self.stop_workers_gracefully()
+                self._sweep_stale_workers()
 
-            self.logger.info("Old server stopped")
-            return
+                self.logger.info("Old server stopped")
+                return
+            finally:
+                super().stop()
 
         if self.socket:
             self.socket.close()

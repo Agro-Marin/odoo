@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Gate a package README's module index against the package.
 
-Two packages in the framework core document themselves with a per-module table
-— `odoo/db/README.md` ("Module map") and `odoo/_monkeypatches/README.md`
-("Patch Index").  They are the best documentation in the tree, and they were
+Several packages in the framework core document themselves with a per-module
+table — `odoo/db/`, `odoo/http/` and `odoo/upgrade_code/` under "Module map",
+`odoo/_monkeypatches/` under "Patch Index"; `PACKAGE_INDEXES` below is the
+authoritative list.  They are the best documentation in the tree, and they were
 the *least* protected: `subsystem_map_check.py` gates `ARCHITECTURE.md`'s
 top-level map, `doc_link_gate.py` proves a referenced file exists, and neither
 looks inside a package README.  A module added to `odoo/db/` appears in no
@@ -44,8 +45,14 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# ``tooling/architecture/`` -> repo root
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
+# Located by marker, not by counting parents — see _repo_root. The
+# ``parent.parent.parent`` this replaces resolved correctly only while the file
+# stayed three levels down, which is exactly the drift the shared anchor exists
+# to prevent.
+REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="package_index_check")
 CORE_ROOT = REPO_ROOT / "odoo"
 
 #: ``package -> (readme, heading that introduces its module index)``.
@@ -57,6 +64,11 @@ PACKAGE_INDEXES: dict[str, tuple[str, str]] = {
     "db": ("README.md", "## Module map"),
     "_monkeypatches": ("README.md", "## Patch Index"),
     "http": ("README.md", "## Module map"),
+    # The dated rewrite scripts. Their stems (`18.1-00-sql-constraint`) are not
+    # importable identifiers, which is why _ROW_RE had to stop assuming they
+    # were: before that, an inventory here would have matched zero rows and
+    # enforced nothing.
+    "upgrade_code": ("README.md", "## Module map"),
 }
 
 #: Core packages that ship a README with **no** module inventory, so there is
@@ -65,7 +77,7 @@ PACKAGE_INDEXES: dict[str, tuple[str, str]] = {
 #: so a new README carrying an inventory would be gated by nothing and no one
 #: would notice. ``test_every_core_readme_is_classified`` forces the choice.
 #:
-#: Empty today — the only two core READMEs both carry an inventory.
+#: Empty today — every core README carries an inventory.
 READMES_WITHOUT_AN_INDEX: frozenset[str] = frozenset()
 
 #: Listed-but-not-required: the package's own module.
@@ -74,7 +86,19 @@ OPTIONAL_MODULES = frozenset({"__init__"})
 #: A markdown table row whose first cell is a backticked file name, e.g.
 #: ``| `cursor.py` | … |``. Anchored to the row start so a backticked module
 #: mentioned mid-prose is not mistaken for an inventory entry.
-_ROW_RE = re.compile(r"^\|\s*`(?P<name>[A-Za-z_][A-Za-z0-9_]*)\.py`")
+#: The name charset must agree with :func:`actual_modules`, which reports
+#: ``p.stem`` for every ``*.py`` in the package — any filename, not just an
+#: importable identifier. It used to be ``[A-Za-z_][A-Za-z0-9_]*``, which cannot
+#: match a dated rewrite script such as ``18.1-00-sql-constraint.py``: the stem
+#: starts with a digit and contains dots and hyphens. The consequence was not a
+#: false failure but a silent one — a README for ``odoo/upgrade_code/`` would
+#: have looked like an inventory, matched zero rows, and enforced nothing, which
+#: is the failure mode this whole checker exists to prevent one level up.
+#:
+#: ``/`` stays excluded so a backticked *path* (``| `db/cursor.py` |``) is not
+#: read as a module name; the ``^\|\s*`` anchor already keeps a module mentioned
+#: mid-prose out.
+_ROW_RE = re.compile(r"^\|\s*`(?P<name>[^`/]+)\.py`")
 
 #: A markdown ATX heading, with its level.
 _HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})\s")
@@ -148,10 +172,18 @@ def actual_modules(package_dir: Path) -> set[str]:
 
 
 #: Counts a README states *about its own package*, as
-#: ``{regex with one int group: how to measure it}``. A README is free not to
-#: state them; stating one and being wrong is what this catches. The
-#: ``_monkeypatches`` Statistics block said "12 patches" against a directory
-#: holding 14, and nothing read it — the gate was scoped to the index section.
+#: ``{regex with one int group: how to measure it}``. The ``_monkeypatches``
+#: Statistics block said "12 patches" against a directory holding 14, and
+#: nothing read it — the gate was scoped to the index section.
+#:
+#: **A registered pattern that matches nothing is an error**, not a skip. This
+#: used to ``continue``, which meant the check was one reformat away from
+#: silently retiring itself: changing ``**Total**: 15 files`` to
+#: ``**Total:** 15 files`` left the count wrong at 99 and the gate green.
+#: Registering a pattern is a claim that the README states that count; if it
+#: stops stating it, delete the entry deliberately. Same policy as
+#: :func:`extract_section`, which raises rather than report a clean inventory of
+#: nothing — and for the same reason.
 SELF_COUNTS: dict[str, dict[str, str]] = {
     "_monkeypatches": {
         r"\*\*Total\*\*: (\d+) files": "files",
@@ -196,7 +228,13 @@ def check(core_root: Path | None = None, indexes: dict | None = None) -> Report:
         for pattern, kind in SELF_COUNTS.get(package, {}).items():
             match = re.search(pattern, whole)
             if match is None:
-                continue
+                raise ValueError(
+                    f"{package}: SELF_COUNTS pattern {pattern!r} matched nothing "
+                    f"in {readme_name}. Either the README stopped stating that "
+                    f"count (drop the entry from SELF_COUNTS) or its wording "
+                    f"changed (update the pattern). Skipping it silently would "
+                    f"retire the check without anyone deciding to."
+                )
             stated, measured = int(match.group(1)), _measure(kind, package_dir)
             if stated != measured:
                 pkg.wrong_counts.append((kind, stated, measured))

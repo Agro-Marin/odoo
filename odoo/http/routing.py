@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import annotationlib
 import functools
 import inspect
 import logging
@@ -85,7 +86,16 @@ def rule_routing_kwargs(endpoint: Callable) -> dict[str, Any]:
 def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
     accepts_var_keyword = False
     named: set[str] = set()
-    params = list(inspect.signature(endpoint).parameters.values())
+    # FORWARDREF, not the default VALUE: an endpoint may annotate a parameter
+    # with a name that only exists under ``if TYPE_CHECKING:`` -- the very style
+    # ARCHITECTURE.md prescribes for cross-layer references. Under PEP 649
+    # (Python 3.14) evaluating such an annotation raises NameError, and this
+    # function only needs parameter names and kinds.
+    params = list(
+        inspect.signature(
+            endpoint, annotation_format=annotationlib.Format.FORWARDREF
+        ).parameters.values()
+    )
     bound_self_name = params[0].name if params else "self"
     for param in params[1:]:
         if param.kind is inspect.Parameter.VAR_KEYWORD:

@@ -19,7 +19,7 @@ from .fields import Boolean, Char, Many2one
 from .models import AbstractModel, Model
 from .primitives import SUPERUSER_ID
 from .runtime._registry_fields import _RegistryFieldsMixin
-from .runtime.registry import _CACHES_BY_KEY
+from .runtime.registry import CACHES_BY_KEY
 from .runtime.transaction import Transaction
 
 if TYPE_CHECKING:
@@ -275,7 +275,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                 raise ValueError(
                     f"clear_cache: invalid cache name {cache_name!r} (no dots allowed)"
                 )
-            for container in _CACHES_BY_KEY.get(cache_name, (cache_name,)):
+            for container in CACHES_BY_KEY.get(cache_name, (cache_name,)):
                 self.ormcache_lrus[container].clear()
 
     def is_an_ordinary_table(self, model) -> bool:

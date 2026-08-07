@@ -180,8 +180,22 @@ class configmanager:
         self._file_options: dict[str, Any] = {}
         self._env_options: dict[str, Any] = {}
         self._cli_options: dict[str, Any] = {}
+        # Explicit programmatic writes (``config["x"] = y``). Separate from
+        # ``_runtime_options`` and ABOVE it, because the two had been sharing
+        # one map with incompatible lifetimes: ``_postprocess_options()`` starts
+        # by clearing that map to recompute its derived values, which silently
+        # discarded every caller's override on the next ``parse_config()``.
+        # There are live writers (modules/db.py sets and then RESTORES
+        # ``load_language`` around a language load, cli/upgrade_code.py sets
+        # ``addons_path``, cli/db.py sets ``list_db``), so the override could be
+        # dropped between the save and the restore.
+        #
+        # Invariant: what a caller set explicitly survives re-parsing; what
+        # post-processing derived does not.
+        self._override_options: dict[str, Any] = {}
         self._runtime_options: dict[str, Any] = {}
         self.options: collections.ChainMap[str, Any] = collections.ChainMap(
+            self._override_options,
             self._runtime_options,
             self._cli_options,
             self._env_options,
@@ -201,7 +215,38 @@ class configmanager:
 
         self.parser = self._build_cli()
         self._load_default_options()
-        self._parse_config()
+        # Importing a module must not be able to terminate the process.
+        #
+        # This constructor runs at `odoo/tools/__init__.py` import time (the
+        # module-level `config = configmanager()`), and `_parse_config()` reads
+        # $ODOO_* and the rcfile and then validates the result. Validation
+        # failures there are FATAL by construction: `optparse.error()` calls
+        # `sys.exit(2)`, and a malformed env value raises `ValueError`. So with,
+        # say, ODOO_SYSLOG and ODOO_LOGFILE both set, a bare `import odoo.tools`
+        # died -- and since odoo.orm/db/http all import it, so did everything
+        # else. Measured: the whole Tier-1 pytest suite could not even be
+        # COLLECTED, exiting with `__main__.py: error: the syslog and logfile
+        # options are exclusive`, which names neither odoo nor the environment.
+        #
+        # Nothing is lost by deferring it. `parse_config()` -- the entry point
+        # odoo-bin and every embedder actually calls -- re-runs `_parse_config()`
+        # over the same inputs, so a genuine misconfiguration still fails there,
+        # with the real argv in the message and before the server starts.
+        # Construction populates; parsing validates.
+        # stderr is redirected with it: optparse writes the usage block itself
+        # before calling sys.exit, so swallowing only the exit left a bare
+        # "error: the syslog and logfile options are exclusive" printed by every
+        # `import odoo.tools` -- on every pytest run -- with the process then
+        # carrying on regardless, which reads as a failure that is not one.
+        # `parse_config()` re-emits it for real when it matters.
+        import contextlib
+        import io
+
+        try:
+            with contextlib.redirect_stderr(io.StringIO()):
+                self._parse_config()
+        except SystemExit, ValueError:
+            pass
 
     @property
     def rcfile(self) -> str:
@@ -219,7 +264,7 @@ class configmanager:
             DeprecationWarning,
             stacklevel=2,
         )
-        self._runtime_options["config"] = rcfile
+        self._override_options["config"] = rcfile
 
     def _build_cli(self) -> optparse.OptionParser:
         OdooOption = type("OdooOption", (_OdooOption,), {"config": self})
@@ -1823,13 +1868,13 @@ class configmanager:
     def __setitem__(self, key: str, value: Any) -> None:
         if isinstance(value, str) and key in self.options_index:
             value = self.parse(key, value)
-        self.options[key] = value
+        self._override_options[key] = value
 
     def __getitem__(self, key: str) -> Any:
         return self.options[key]
 
     def pop(self, key: str, *args: Any) -> Any:
-        return self.options.pop(key, *args)
+        return self._override_options.pop(key, *args)
 
     @functools.cached_property
     def root_path(self):
@@ -1903,8 +1948,9 @@ class configmanager:
         return {
             **{
                 f"source#{no}": source.get(name, EMPTY)
-                for no, source in enumerate(self.options.maps[:-5])
+                for no, source in enumerate(self.options.maps[:-6])
             },
+            "override": self._override_options.get(name, EMPTY),
             "runtime": self._runtime_options.get(name, EMPTY),
             "command line": self._cli_options.get(name, EMPTY),
             "environment variable": self._env_options.get(name, EMPTY),

@@ -81,7 +81,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _orm_layer_scope import SCOPE
+from _orm_layer_scope import iter_scope_files as _iter_scope_files
 from _repo_root import find_odoo_root
 
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="pool_surface_check")
@@ -96,17 +99,23 @@ REGISTRY_SOURCES: tuple[Path, ...] = (
     CORE / "orm" / "runtime" / "_registry_stubs.py",
 )
 
-#: Scanned packages and the ORM layer each sits at — deliberately identical to
-#: ``env_surface_check.SCOPE`` so the two reports are comparable line for line.
-SCOPE: dict[str, str] = {
-    "orm/primitives.py": "Layer 0",
-    "orm/parsing.py": "Layer 0",
-    "orm/validation.py": "Layer 0",
-    "orm/fields": "Layer 1",
-    "orm/domain": "Layer 1",
-    "orm/models": "Layer 2",
-    "orm/components": "components",
-}
+#: The classes inside :data:`REGISTRY_SOURCES` that actually compose a
+#: ``Registry`` instance. Naming them is load-bearing, not tidiness: those files
+#: also define ``DummyRLock``, ``_RegistryCaches``, ``_RegistryStubs`` and
+#: ``_UnaccentTables``, and harvesting every ``ClassDef`` in them admitted eight
+#: names -- ``acquire``, ``release``, ``__enter__``, ``__exit__``, ``by_db``,
+#: ``clear_all``, ``clear_group``, ``lrus`` -- that no ``Registry`` has. Rule 2
+#: ("every referenced member must exist") then accepted ``pool.acquire``
+#: silently; a probe injecting it alongside a nonsense name saw only the
+#: nonsense one reported. ``env_surface_check`` never had this hole because it
+#: matches ``node.name == "Environment"``.
+REGISTRY_CLASSES: frozenset[str] = frozenset(
+    {"Registry", "_RegistryFieldsMixin", "_RegistrySchemaMixin"}
+)
+
+#: Re-exported for callers and for the self-test; the scope itself is shared
+#: with ``env_surface_check`` via ``_orm_layer_scope`` so the two cannot drift.
+__all__ = ["SCOPE", "check", "iter_scope_files", "registry_members"]
 
 
 @dataclass(frozen=True)
@@ -126,6 +135,41 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
         "it. Debt with a clear fix: give Registry a public "
         "`record_relation_reflection(...)` method, as post_init/add_foreign_key "
         "already do for the sibling lifecycle attributes.",
+    ),
+    # The three below were invisible until `orm/registration.py` entered the
+    # scope (see _orm_layer_scope). They are the exact hazard this gate was
+    # built for: `layer_check`'s
+    # `orm-helpers-and-registration-stay-below-runtime` contract reports
+    # registration.py clean at zero -- correctly, it imports `odoo.orm.runtime`
+    # nowhere -- while the module reads three private Registry attributes
+    # through `model_cls.pool` on every model setup.
+    Known(
+        "odoo/orm/registration.py",
+        "_init_modules",
+        "Model setup asks whether a module install is in flight before adding "
+        "manual (ir.model.fields) fields. Registry.__init__ creates the set and "
+        "the loader fills it, so this is the same lifecycle coupling as "
+        "_relation_reflections: registration runs INSIDE registry setup and "
+        "reads its host's in-progress state. Fix is a public predicate "
+        "(`Registry.is_initialising_modules()`), which also documents the "
+        "ordering contract that is currently implicit.",
+    ),
+    Known(
+        "odoo/orm/registration.py",
+        "_database_translated_fields",
+        "Reflection data the Registry loaded from ir_model_fields, consumed by "
+        "_patch_translate_field to keep a field's translate= in step with what "
+        "the database already stores. Read twice (membership, then the value). "
+        "Belongs behind a public accessor pair on Registry alongside "
+        "_database_company_dependent_fields -- promote both together.",
+    ),
+    Known(
+        "odoo/orm/registration.py",
+        "_database_company_dependent_fields",
+        "The company_dependent half of the same reflection lookup, used by "
+        "_patch_company_dependent_field. Same fix as "
+        "_database_translated_fields; they are one concept split across two "
+        "attributes and should get one public accessor.",
     ),
     Known(
         "odoo/orm/models/mixins/recompute.py",
@@ -221,6 +265,10 @@ def registry_members(sources: tuple[Path, ...] | None = None) -> set[str]:
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
+            if node.name not in REGISTRY_CLASSES:
+                # A neighbouring helper class in the same file is not part of
+                # the Registry surface -- see REGISTRY_CLASSES.
+                continue
             for stmt in node.body:
                 if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     members.add(stmt.name)
@@ -250,21 +298,7 @@ def registry_members(sources: tuple[Path, ...] | None = None) -> set[str]:
 
 
 def iter_scope_files() -> list[tuple[Path, str]]:
-    out: list[tuple[Path, str]] = []
-    for rel, layer in SCOPE.items():
-        target = CORE / rel
-        if target.is_dir():
-            paths = sorted(target.rglob("*.py"))
-        elif target.is_file():
-            paths = [target]
-        else:
-            continue
-        for p in paths:
-            parts = p.relative_to(CORE).parts
-            if "tests" in parts or "__pycache__" in parts or p.name.startswith("test_"):
-                continue
-            out.append((p, layer))
-    return out
+    return _iter_scope_files(CORE)
 
 
 def _is_known(path: str, attr: str) -> bool:

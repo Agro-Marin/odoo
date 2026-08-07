@@ -1,12 +1,12 @@
 from threading import Barrier, Thread
 
-from odoo.orm.runtime.registry import _CACHES_BY_KEY
+from odoo.orm.runtime.registry import CACHES_BY_KEY
 from odoo.tests.common import BaseCase, TransactionCase, get_cache_key_counter, tagged
 from odoo.tools.cache import get_cache_size
 
 
 def _cleared_by(*cache_names: str) -> str:
-    cleared = {sub for name in cache_names for sub in _CACHES_BY_KEY[name]}
+    cleared = {sub for name in cache_names for sub in CACHES_BY_KEY[name]}
     return repr(sorted(cleared))
 
 

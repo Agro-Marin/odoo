@@ -130,6 +130,9 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
             return data
 
         granularity = first_group.split(":")[1] if ":" in first_group else "month"
+        if granularity not in READ_GROUP_TIME_GRANULARITY:
+            return data
+
         days_offset = 0
         if granularity == "week":
             first_week_day = int(get_lang(self.env).week_start) - 1

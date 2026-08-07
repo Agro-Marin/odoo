@@ -181,6 +181,14 @@ class Stream:
             res = _send_file(self.path, **send_file_kwargs)
             if "X-Sendfile" in res.headers and x_accel_redirect is not None:
                 res.headers["X-Accel-Redirect"] = x_accel_redirect
+                # Werkzeug sets X-Sendfile to the ABSOLUTE filestore path. nginx
+                # serves from X-Accel-Redirect and passes unknown upstream
+                # headers through, so leaving this in place discloses the
+                # server's data_dir layout on every attachment download.
+                # .pop, not `del`: werkzeug's Headers implements __delitem__ at
+                # runtime but does not declare it, so `del` costs a mypy
+                # [attr-defined] against the ratchet for no benefit.
+                res.headers.pop("X-Sendfile", None)
 
                 res.headers["Content-Length"] = "0"
 

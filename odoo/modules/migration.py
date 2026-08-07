@@ -1,3 +1,4 @@
+import annotationlib
 import inspect
 import itertools
 import logging
@@ -243,7 +244,13 @@ def exec_script(
         )
 
     try:
-        sig = inspect.signature(mod.migrate)
+        # FORWARDREF: only parameter names and kinds are inspected below, and a
+        # migration script annotating `cr` with a TYPE_CHECKING-only name would
+        # otherwise raise NameError (not TypeError) under PEP 649 and abort the
+        # upgrade with a misleading error.
+        sig = inspect.signature(
+            mod.migrate, annotation_format=annotationlib.Format.FORWARDREF
+        )
     except TypeError as e:
         raise TypeError(
             f"module {addon}: `migrate` needs to be a function, got {mod.migrate!r}"

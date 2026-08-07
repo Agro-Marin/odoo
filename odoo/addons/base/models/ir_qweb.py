@@ -36,7 +36,7 @@ from odoo.http import request
 from odoo.libs.constants import SUPPORTED_DEBUGGER
 from odoo.libs.lru import LRU
 from odoo.modules import Manifest
-from odoo.modules.registry import _REGISTRY_CACHES
+from odoo.modules.registry import REGISTRY_CACHES
 from odoo.tools import OrderedSet, config, frozendict, json, safe_eval
 from odoo.tools.image import FILETYPE_BASE64_MAGICWORD, image_data_uri
 from odoo.tools.misc import file_open, file_path
@@ -2678,7 +2678,7 @@ class _MockRegistry:
     def __init__(self) -> None:
         self.ormcache_lrus = {
             cache_name: LRU(cache_size)
-            for cache_name, cache_size in _REGISTRY_CACHES.items()
+            for cache_name, cache_size in REGISTRY_CACHES.items()
         }
 
 

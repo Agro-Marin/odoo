@@ -29,13 +29,3 @@ _monkeypatches.patch_init()
 from .libs.gc import gc_set_timing
 
 gc_set_timing(enable=True)
-
-import odoo
-
-from .orm.primitives import SUPERUSER_ID, Command
-from .tools.translate import _, _lt
-
-odoo.SUPERUSER_ID = SUPERUSER_ID
-odoo._ = _
-odoo._lt = _lt
-odoo.Command = Command

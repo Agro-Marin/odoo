@@ -31,6 +31,28 @@ def make_package(root: Path, name: str, modules: list[str], readme: str) -> Path
 
 INDEX = {"pkg": ("README.md", "## Module map")}
 
+#: Trees inside the core that carry READMEs this gate does not own.
+_NOT_CORE = ("addons", "_vendor")
+
+
+def core_readme_packages(core_root: Path) -> set[str]:
+    """Packages under ``core_root`` that ship a README.
+
+    Filters on the path RELATIVE to ``core_root``. Filtering the absolute path
+    is what made ``test_every_core_readme_is_classified`` vacuous in a
+    ``<ws>/addons/odoo`` checkout: every path contains ``addons`` there, so the
+    exclusion swallowed the whole tree.
+    """
+    found = set()
+    for readme in core_root.rglob("README.md"):
+        rel = readme.relative_to(core_root).parts
+        if set(rel) & set(_NOT_CORE):
+            continue
+        if len(rel) < 2:  # a README at the core root belongs to no package
+            continue
+        found.add(rel[-2])
+    return found
+
 
 class ExtractSectionTest(unittest.TestCase):
     """Only the inventory section counts."""
@@ -204,11 +226,8 @@ class LiveRepositoryTest(unittest.TestCase):
         where a gate's coverage is a hand-maintained list, the list is the part
         that rots.
         """
-        on_disk = {
-            readme.parent.name
-            for readme in pic.CORE_ROOT.rglob("README.md")
-            if "addons" not in readme.parts and "_vendor" not in readme.parts
-        }
+        on_disk = core_readme_packages(pic.CORE_ROOT)
+        self.assertTrue(on_disk, "no core READMEs found at all — the walk broke")
         unclassified = on_disk - set(pic.PACKAGE_INDEXES) - pic.READMES_WITHOUT_AN_INDEX
         self.assertEqual(
             unclassified,
@@ -217,6 +236,32 @@ class LiveRepositoryTest(unittest.TestCase):
             f"add to PACKAGE_INDEXES with its inventory heading, or to "
             f"READMES_WITHOUT_AN_INDEX if it carries no module list",
         )
+
+    def test_the_completeness_guard_survives_a_nested_checkout(self):
+        """The filter used to read the ABSOLUTE path.
+
+        ``_repo_root`` supports two shapes, ``<ws>/odoo`` and the historical
+        ``<ws>/addons/odoo``, and ``test_repo_root`` pins both. Under the second
+        one every path contains an ``addons`` component, so ``"addons" not in
+        readme.parts`` excluded **every** README, ``on_disk`` came out empty,
+        and this guard passed while checking nothing — including for a
+        brand-new un-gated README carrying a module inventory.
+        """
+        with TemporaryDirectory() as tmp:
+            core = Path(tmp) / "addons" / "odoo" / "odoo"
+            for pkg in ("db", "http"):
+                (core / pkg).mkdir(parents=True)
+                (core / pkg / "README.md").write_text("## Module map\n", "utf-8")
+            # the addon tree that the filter is actually meant to skip
+            (core / "addons" / "base").mkdir(parents=True)
+            (core / "addons" / "base" / "README.md").write_text("x\n", "utf-8")
+            (core / "_vendor").mkdir()
+            (core / "_vendor" / "README.md").write_text("x\n", "utf-8")
+
+            found = core_readme_packages(core)
+            self.assertEqual(found, {"db", "http"})
+            self.assertNotIn("base", found, "the addons tree must still be skipped")
+            self.assertNotIn("_vendor", found)
 
     def test_the_two_classifications_do_not_overlap(self):
         overlap = set(pic.PACKAGE_INDEXES) & pic.READMES_WITHOUT_AN_INDEX
@@ -242,6 +287,57 @@ class LiveRepositoryTest(unittest.TestCase):
             sorted(unscoped - actual),
             ["lxml", "pytz", "urllib3", "xlrd", "xlwt", "zeep"],
         )
+
+    def test_row_regex_agrees_with_actual_modules(self):
+        """The two halves must accept the same idea of a module name.
+
+        `actual_modules()` reports ``p.stem`` for every ``*.py``, i.e. any
+        filename. `_ROW_RE` used to require an importable identifier
+        (``[A-Za-z_][A-Za-z0-9_]*``), which cannot match a dated rewrite script:
+        ``18.1-00-sql-constraint`` starts with a digit and contains dots and
+        hyphens.
+
+        The failure that would have caused is the silent kind. A README for
+        ``odoo/upgrade_code/`` would have parsed to an inventory of **nothing**,
+        matched every module as "missing", and — had the package not been
+        registered — enforced nothing at all while looking exactly like the
+        gated ones. That is the same shape this checker exists to prevent one
+        level up.
+        """
+        for stem in (
+            "18.1-00-sql-constraint",
+            "17.5-01-tree-to-list",
+            "18.5-00-deprecated-properties",
+        ):
+            with self.subTest(stem=stem):
+                row = f"| `{stem}.py` | tested | 0 | note |"
+                self.assertEqual(pic.listed_modules([row]), {stem})
+
+    def test_row_regex_still_rejects_a_path(self):
+        """Widening the charset must not let a backticked path in.
+
+        An inventory names modules; ``| `db/cursor.py` |`` is a citation. If it
+        parsed as the module ``db/cursor`` it would be reported as a phantom
+        against a README that is merely quoting a path.
+        """
+        self.assertEqual(pic.listed_modules(["| `db/cursor.py` | x |"]), set())
+        self.assertEqual(pic.listed_modules(["| `odoo/http/stream.py` | x |"]), set())
+
+    def test_upgrade_code_inventory_is_actually_enforced(self):
+        """The registration has to bite, not merely exist.
+
+        Pretend the package grew a script the README does not list.
+        """
+        pkg = pic.CORE_ROOT / "upgrade_code"
+        readme, heading = pic.PACKAGE_INDEXES["upgrade_code"]
+        section = pic.extract_section(
+            (pkg / readme).read_text(encoding="utf-8"), heading
+        )
+        listed = pic.listed_modules(section)
+        self.assertIn("18.1-00-sql-constraint", listed)
+        self.assertEqual(listed, pic.actual_modules(pkg))
+        pretend = pic.actual_modules(pkg) | {"19.0-00-something-new"}
+        self.assertEqual(sorted(pretend - listed), ["19.0-00-something-new"])
 
     def test_a_module_added_to_db_would_be_caught(self):
         """Mutation: pretend odoo/db/ grew a module the README does not list."""

@@ -815,7 +815,7 @@ class TestTranslationWrite(TransactionCase):
         core = self.env._core
 
         core.get_field_data(field).clear()
-        core.cache.set_value(field, category.id, "Reblochon")
+        core.set_value(field, category.id, "Reblochon")
 
         col_val = field.get_column_update(category)
         self.assertIsNotNone(
