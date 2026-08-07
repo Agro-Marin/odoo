@@ -68,13 +68,15 @@ test("crm team form activate multi-team option via alert", async () => {
 
     // Members list should have Maria which is already in Team2 => Alert should be shown
     await expect(
-        ".o_field_widget[name='member_ids'] .o_kanban_record:visible:not(.o-kanban-button-new)"
+        ".o_field_widget[name='member_ids'] .o_kanban_record:visible:not(.o-kanban-button-new)",
     ).toHaveText("Maria");
     await contains(".alert:visible", { count: 1 });
 
     // Clicking the button activates the option; the reload re-reads
     // is_membership_multi, which is what hides the alert
-    await webContains(".alert button[name='crm_team_activate_multi_membership']").click();
+    await webContains(
+        ".alert button[name='crm_team_activate_multi_membership']",
+    ).click();
     await contains(".alert:visible", { count: 0 });
     expect.verifySteps(["action_activate_multi_membership"]);
 });
@@ -91,7 +93,9 @@ test("crm team form keeps the alert when activation is refused", async () => {
     await openFormView("crm.team", teamIds[0], { arch: ARCH });
     await contains(".alert:visible", { count: 1 });
 
-    await webContains(".alert button[name='crm_team_activate_multi_membership']").click();
+    await webContains(
+        ".alert button[name='crm_team_activate_multi_membership']",
+    ).click();
     // the option is still off, so the alert must survive
     await contains(".alert:visible", { count: 1 });
     expect.verifySteps(["action_activate_multi_membership"]);
