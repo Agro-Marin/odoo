@@ -30,7 +30,7 @@
         <field name="model">product.attribute</field>
         <field name="arch" type="xml">
             <form string="Product Attribute">
-                <field name="number_related_products" invisible="1" />
+                <field name="count_product_tmpl" invisible="1" />
                 <sheet>
                     <widget
                         name="web_ribbon"
@@ -43,10 +43,10 @@
                             type="object"
                             class="oe_stat_button"
                             icon="fa-bars"
-                            invisible="not number_related_products">
+                            invisible="not count_product_tmpl">
                             <div class="o_stat_info">
                                 <span class="o_stat_value">
-                                    <field name="number_related_products" />
+                                    <field name="count_product_tmpl" />
                                 </span>
                                 <span class="o_stat_text">Products</span>
                             </div>
@@ -60,7 +60,7 @@
                             <field name="create_variant"
                                 widget="radio"
                                 options="{'horizontal': True}"
-                                readonly="number_related_products != 0 or display_type == 'multi'"
+                                readonly="count_product_tmpl != 0 or display_type == 'multi'"
                                 force_save="1" />
                         </group>
                     </group>
@@ -88,7 +88,7 @@
                                         string="Add to products"
                                         type="object"
                                         icon="fa-plus"
-                                        column_invisible="parent.number_related_products &lt; 1"
+                                        column_invisible="parent.count_product_tmpl &lt; 1"
                                         invisible="pav_attribute_line_ids"
                                     />
                                     <button
@@ -96,7 +96,7 @@
                                         string="Update extra prices"
                                         type="object"
                                         icon="fa-refresh"
-                                        column_invisible="parent.number_related_products &lt; 1"
+                                        column_invisible="parent.count_product_tmpl &lt; 1"
                                         invisible="not pav_attribute_line_ids or not default_extra_price_changed"
                                     />
                                 </list>

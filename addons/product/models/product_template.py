@@ -21,31 +21,6 @@ class ProductTemplate(models.Model):
     _check_company_auto = True
     _check_company_domain = models.check_company_domain_parent_of
 
-    @api.model
-    def default_get(self, fields):
-        res = super().default_get(fields)
-        # uom_id is required: force the default unit both when it is simply
-        # missing and when a caller explicitly passed `default_uom_id=False`
-        # (which would otherwise clear the field default and break the NOT NULL).
-        if ("uom_id" in fields and not res.get("uom_id")) or self.env.context.get(
-            "default_uom_id"
-        ) is False:
-            res["uom_id"] = self._get_default_uom_id()
-        return res
-
-    @tools.ormcache()
-    def _get_default_uom_id(self):
-        # Return the id, not the recordset: ormcache would otherwise hand every
-        # caller a record bound to the first caller's environment.
-        # Deletion forbidden (at least through unlink).
-        return self.env.ref("uom.product_uom_unit").id
-
-    def _read_group_categ_id(self, categories, domain):
-        category_ids = self.env.context.get("default_categ_id")
-        if not category_ids and self.env.context.get("group_expand"):
-            category_ids = categories.sudo()._search([], order=categories._order)
-        return categories.browse(category_ids)
-
     company_id = fields.Many2one(
         comodel_name="res.company",
         string="Company",
@@ -60,6 +35,12 @@ class ProductTemplate(models.Model):
         comodel_name="res.currency",
         string="Cost Currency",
         compute="_compute_cost_currency_id",
+    )
+    categ_id = fields.Many2one(
+        comodel_name="product.category",
+        string="Product Category",
+        tracking=True,
+        group_expand="_read_group_categ_id",
     )
 
     name = fields.Char(
@@ -78,6 +59,12 @@ class ProductTemplate(models.Model):
         default=1,
         help="Gives the sequence order when displaying a product list",
     )
+    color = fields.Integer(string="Color Index")
+    is_favorite = fields.Boolean(string="Favorite")
+    is_product_variant = fields.Boolean(
+        string="Is a product variant",
+        compute="_compute_is_product_variant",
+    )
     type = fields.Selection(
         selection=[
             ("consu", "Goods"),
@@ -90,16 +77,6 @@ class ProductTemplate(models.Model):
         help="Goods are tangible materials and merchandise you provide.\n"
         "A service is a non-material product you provide.",
     )
-    color = fields.Integer(string="Color Index")
-
-    description = fields.Html(string="Description", translate=True)
-    description_purchase = fields.Text(string="Purchase Description", translate=True)
-    description_sale = fields.Text(
-        string="Sales Description",
-        translate=True,
-        help="A description of the Product that you want to communicate to your customers. "
-        "This description will be copied to every Sales Order, Delivery Order and Customer Invoice/Credit Note",
-    )
     service_tracking = fields.Selection(
         selection=[
             ("no", "Nothing"),
@@ -111,20 +88,28 @@ class ProductTemplate(models.Model):
         store=True,
         readonly=False,
     )
-    categ_id = fields.Many2one(
-        comodel_name="product.category",
-        string="Product Category",
-        tracking=True,
-        group_expand="_read_group_categ_id",
+
+    description = fields.Html(string="Description", translate=True)
+    description_purchase = fields.Text(string="Purchase Description", translate=True)
+    description_sale = fields.Text(
+        string="Sales Description",
+        translate=True,
+        help="A description of the Product that you want to communicate to your customers. "
+        "This description will be copied to every Sales Order, Delivery Order and Customer Invoice/Credit Note",
     )
 
     uom_id = fields.Many2one(
         comodel_name="uom.uom",
         string="Unit",
         required=True,
-        default=_get_default_uom_id,
+        default=lambda self: self._default_uom_id(),
         tracking=True,
         help="Default unit of measure used for all stock operations.",
+    )
+    uom_name = fields.Char(
+        related="uom_id.name",
+        string="Unit Name",
+        readonly=True,
     )
     uom_ids = fields.Many2many(
         comodel_name="uom.uom",
@@ -134,10 +119,11 @@ class ProductTemplate(models.Model):
         "They must measure the same thing as the product's unit (a box of 6, a"
         " pallet, ...), so that a quantity or a price can be converted between them.",
     )
-    uom_name = fields.Char(
-        related="uom_id.name",
-        string="Unit Name",
-        readonly=True,
+
+    combo_ids = fields.Many2many(
+        comodel_name="product.combo",
+        string="Combo Choices",
+        check_company=True,
     )
 
     seller_ids = fields.One2many(
@@ -150,11 +136,6 @@ class ProductTemplate(models.Model):
     variant_seller_ids = fields.One2many(
         comodel_name="product.supplierinfo",
         inverse_name="product_tmpl_id",
-    )
-    combo_ids = fields.Many2many(
-        comodel_name="product.combo",
-        string="Combo Choices",
-        check_company=True,
     )
 
     # list_price: catalog price, user defined
@@ -200,22 +181,6 @@ class ProductTemplate(models.Model):
         compute="_compute_weight_uom_name",
     )
 
-    sale_ok = fields.Boolean(
-        string="Sales",
-        default=True,
-    )
-    purchase_ok = fields.Boolean(
-        string="Purchase",
-        default=True,
-        compute="_compute_purchase_ok",
-        store=True,
-        readonly=False,
-    )
-
-    is_product_variant = fields.Boolean(
-        string="Is a product variant",
-        compute="_compute_is_product_variant",
-    )
     attribute_line_ids = fields.One2many(
         comodel_name="product.template.attribute.line",
         inverse_name="product_tmpl_id",
@@ -249,7 +214,6 @@ class ProductTemplate(models.Model):
         string="Product",
         compute="_compute_product_variant_id",
     )
-
     product_variant_count = fields.Integer(
         string="# Product Variants",
         compute="_compute_product_variant_count",
@@ -297,28 +261,35 @@ class ProductTemplate(models.Model):
         compute="_compute_has_configurable_attributes",
         store=True,
     )
-
+    sale_ok = fields.Boolean(
+        string="Sales",
+        default=True,
+    )
+    purchase_ok = fields.Boolean(
+        string="Purchase",
+        default=True,
+        compute="_compute_purchase_ok",
+        store=True,
+        readonly=False,
+    )
     is_dynamically_created = fields.Boolean(
         string="Is Dynamically Created",
         compute="_compute_is_dynamically_created",
     )
 
     product_tooltip = fields.Char(compute="_compute_product_tooltip")
-
-    is_favorite = fields.Boolean(string="Favorite")
-    _is_favorite_index = models.Index("(is_favorite) WHERE is_favorite IS TRUE")
-
     product_tag_ids = fields.Many2many(
         comodel_name="product.tag",
         relation="product_tag_product_template_rel",
         string="Tags",
     )
-    # Properties
     product_properties = fields.Properties(
         string="Properties",
         definition="categ_id.product_properties_definition",
         copy=True,
     )
+
+    _is_favorite_index = models.Index("(is_favorite) WHERE is_favorite IS TRUE")
 
     @api.constrains("type", "combo_ids")
     def _check_combo_ids_not_empty(self):
@@ -512,12 +483,33 @@ class ProductTemplate(models.Model):
             new, "name", lambda record, term: record.env._("%s (copy)", term)
         )
 
+    @api.model
+    def default_get(self, fields):
+        res = super().default_get(fields)
+        # uom_id is required: force the default unit both when it is simply
+        # missing and when a caller explicitly passed `default_uom_id=False`
+        # (which would otherwise clear the field default and break the NOT NULL).
+        if ("uom_id" in fields and not res.get("uom_id")) or self.env.context.get(
+            "default_uom_id"
+        ) is False:
+            res["uom_id"] = self._default_uom_id()
+        return res
+
+    @tools.ormcache()
+    def _default_uom_id(self):
+        # Return the id, not the recordset: ormcache would otherwise hand every
+        # caller a record bound to the first caller's environment.
+        # Deletion forbidden (at least through unlink).
+        return self.env.ref("uom.product_uom_unit").id
+
+    def _read_group_categ_id(self, categories, domain):
+        category_ids = self.env.context.get("default_categ_id")
+        if not category_ids and self.env.context.get("group_expand"):
+            category_ids = categories.sudo()._search([], order=categories._order)
+        return categories.browse(category_ids)
+
     def _compute_is_product_variant(self):
         self.is_product_variant = False
-
-    @api.depends("type")
-    def _compute_service_tracking(self):
-        self.filtered(lambda product: product.type != "service").service_tracking = "no"
 
     def _compute_purchase_ok(self):
         # Intentionally empty. `purchase_ok` is a manually-set stored field
@@ -554,6 +546,10 @@ class ProductTemplate(models.Model):
             for variant in template.product_variant_ids:
                 count += variant_counts.get(variant.id, 0)
             template.product_document_count = count
+
+    @api.depends("type")
+    def _compute_service_tracking(self):
+        self.filtered(lambda product: product.type != "service").service_tracking = "no"
 
     @api.depends("image_1920", "image_1024")
     def _compute_can_image_1024_be_zoomed(self):
