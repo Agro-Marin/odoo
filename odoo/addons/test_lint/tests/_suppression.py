@@ -23,15 +23,27 @@ import re
 
 #: ``# noqa`` optionally followed by a code list. Anything after the codes is
 #: rationale -- required by ``test_noqa_rationale``, ignored here.
+#:
+#: A code is a ruff-style ``F401`` **or** a rule name such as ``sql-injection``.
+#: The pattern used to accept only ``[A-Z]+\d+``, so a rule spelled by name did
+#: not match the code group at all -- and a code group that does not match is a
+#: bare ``# noqa``, which silences *everything on the line*. Half of
+#: :data:`RULE_ALIASES` was therefore unreachable, and reaching for it did the
+#: opposite of what it says:
+#:
+#:     x = f(...)  # noqa: sql-injection  the table name is a literal
+#:
+#: read as "silence every rule here", including the N+1 nobody looked at. No
+#: line in the tree spells one that way today, which is the only reason it
+#: never bit; the escape hatch this offers for the SQL rule makes it likely
+#: that some will.
 _NOQA_RE = re.compile(
     r"""
     \#\s*noqa
-    (?:
-        :\s*
-        (?P<codes>[A-Z]+\d+ (?:\s*,\s*[A-Z]+\d+)*)
-    )?
+    (?P<sep>:)?\s*
+    (?P<codes>[A-Za-z][\w-]* (?:\s*,\s*[A-Za-z][\w-]*)*)?
     """,
-    re.VERBOSE | re.IGNORECASE,
+    re.VERBOSE,
 )
 
 _PYLINT_DISABLE_RE = re.compile(r"#\s*pylint:\s*disable=([^\n#]+)")
@@ -62,9 +74,16 @@ def is_suppressed(source: str, lineno: int, rule: str) -> bool:
     """Whether line *lineno* of *source* silences *rule*.
 
     A bare ``# noqa`` silences everything on the line; ``# noqa: <codes>``
-    silences only the named rules. ``# pylint: disable=<rules>`` is honoured the
-    same way, since that is how these rules were written before the plugins were
-    replaced. Trailing prose never changes the outcome.
+    silences only the named rules, by code (``E8501``) or by name
+    (``sql-injection``). ``# pylint: disable=<rules>`` is honoured the same way,
+    since that is how these rules were written before the plugins were replaced
+    -- and it is still how every suppression in the tree is actually spelled.
+    Trailing prose never changes the outcome.
+
+    A ``# noqa:`` whose code list does not parse silences **nothing**. Reading
+    it as a bare ``noqa`` -- which is what happened before -- turns a typo into
+    a blanket waiver, and does it most readily on the line of someone who was
+    trying to be specific.
     """
     if rule == NOQA_RATIONALE_RULE:
         return False
@@ -73,16 +92,18 @@ def is_suppressed(source: str, lineno: int, rule: str) -> bool:
     if lineno < 1 or lineno > len(lines):
         return False
     line = lines[lineno - 1]
-    aliases = RULE_ALIASES.get(rule, frozenset({rule}))
+    aliases = {alias.lower() for alias in RULE_ALIASES.get(rule, frozenset({rule}))}
 
     if match := _PYLINT_DISABLE_RE.search(line):
-        if {token.strip() for token in match.group(1).split(",")} & aliases:
+        if {token.strip().lower() for token in match.group(1).split(",")} & aliases:
             return True
 
     if match := _NOQA_RE.search(line):
-        codes = match.group("codes")
-        if codes is None:
+        if not match.group("sep"):
             return True
-        return bool({code.strip().upper() for code in codes.split(",")} & aliases)
+        codes = match.group("codes")
+        if not codes:
+            return False
+        return bool({code.strip().lower() for code in codes.split(",")} & aliases)
 
     return False

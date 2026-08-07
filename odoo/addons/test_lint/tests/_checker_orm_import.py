@@ -35,17 +35,16 @@ def _is_orm(name: str | None) -> bool:
     return bool(name) and (name == "odoo.orm" or name.startswith("odoo.orm."))
 
 
-def check(tree: ast.Module, filepath: str = "", nodes=None) -> Iterator[Violation]:
+def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
     """Yield a violation per ``import odoo.orm...`` / ``from odoo.orm... import``.
 
-    Files under a ``tests`` directory are skipped; see the module docstring.
+    Test code is exempt -- see the module docstring -- but the scan decides
+    which files those are (:func:`_py_scan.is_test_path`), so every rule here
+    exempts the same set.
 
-    *nodes* is an already-materialised ``ast.walk(tree)`` shared with the other
+    *nodes* is an already-materialised walk of the tree, shared with the other
     checkers.
     """
-    if "/tests/" in filepath or filepath.endswith("/tests"):
-        return
-
     for node in nodes if nodes is not None else ast.walk(tree):
         match node:
             case ast.Import(names=names):
