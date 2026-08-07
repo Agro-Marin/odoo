@@ -176,6 +176,38 @@ class MrpBom(models.Model):
                 return warning
         return None
 
+    @api.constrains("product_uom_id", "product_tmpl_id", "product_id")
+    def _check_product_uom_id_category(self):
+        """A BoM must be quantified in a unit that measures its own product.
+
+        `product_qty` is expressed in `product_uom_id` while the product it
+        produces is measured in `product_tmpl_id.uom_id`; every explosion,
+        report and cost roll-up converts between the two. Nothing else pins
+        them together: `create` aligns the unit only when it is *not* given
+        (see the override below), the field carries no domain, and a
+        cross-category value silently turned every such conversion into a
+        scale by the ratio of two unrelated factors -- e.g. a subcontracted
+        BoM stated in kg for a product sold in Units wrote a `standard_price`
+        off by 1000 (`mrp_subcontracting_account._compute_bom_price`).
+        """
+        for bom in self:
+            product_uom = bom.product_tmpl_id.uom_id
+            if (
+                bom.product_uom_id
+                and product_uom
+                and not bom.product_uom_id._has_common_reference(product_uom)
+            ):
+                raise ValidationError(
+                    _(
+                        "The bill of materials for %(product)s is quantified in"
+                        " %(unit)s, which does not measure the same thing as the"
+                        " product's own unit %(product_unit)s.",
+                        product=bom.product_tmpl_id.display_name,
+                        unit=bom.product_uom_id.display_name,
+                        product_unit=product_uom.display_name,
+                    )
+                )
+
     @api.constrains("active", "product_id", "product_tmpl_id", "bom_line_ids")
     def _check_bom_cycle(self):
         subcomponents_dict = {}
@@ -1121,6 +1153,33 @@ class MrpBomLine(models.Model):
         for line in self:
             line.child_line_ids = line.child_bom_id.bom_line_ids.ids or False
 
+    @api.constrains("product_uom_id", "product_id")
+    def _check_product_uom_id_category(self):
+        """A component line must be quantified in a unit measuring its component.
+
+        Same reasoning as `mrp.bom._check_product_uom_id_category`: `create`
+        and the onchange below align the unit only when it is not supplied, so
+        an explicit cross-category value reached `explode()` and the cost
+        roll-up unchecked.
+        """
+        for line in self:
+            component_uom = line.product_id.uom_id
+            if (
+                line.product_uom_id
+                and component_uom
+                and not line.product_uom_id._has_common_reference(component_uom)
+            ):
+                raise ValidationError(
+                    _(
+                        "The component %(product)s is used in %(unit)s, which does"
+                        " not measure the same thing as its own unit"
+                        " %(product_unit)s.",
+                        product=line.product_id.display_name,
+                        unit=line.product_uom_id.display_name,
+                        product_unit=component_uom.display_name,
+                    )
+                )
+
     @api.onchange("product_id")
     def onchange_product_id(self):
         if self.product_id:
@@ -1303,6 +1362,32 @@ class MrpBomByproduct(models.Model):
         help="The percentage of the final production cost for this by-product line (divided between the quantity produced)."
         "The total of all by-products' cost share must be less than or equal to 100.",
     )
+
+    @api.constrains("product_uom_id", "product_id")
+    def _check_product_uom_id_category(self):
+        """A by-product must be quantified in a unit measuring it.
+
+        The compute below is `readonly=False`, so a value written explicitly
+        survives and would otherwise feed `cost_share` allocation and the
+        by-product moves in a unit unrelated to the product.
+        """
+        for byproduct in self:
+            byproduct_uom = byproduct.product_id.uom_id
+            if (
+                byproduct.product_uom_id
+                and byproduct_uom
+                and not byproduct.product_uom_id._has_common_reference(byproduct_uom)
+            ):
+                raise ValidationError(
+                    _(
+                        "The by-product %(product)s is produced in %(unit)s, which"
+                        " does not measure the same thing as its own unit"
+                        " %(product_unit)s.",
+                        product=byproduct.product_id.display_name,
+                        unit=byproduct.product_uom_id.display_name,
+                        product_unit=byproduct_uom.display_name,
+                    )
+                )
 
     @api.depends("product_id")
     def _compute_product_uom_id(self):

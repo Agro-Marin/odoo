@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command, fields
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form, TransactionCase, tagged
 from odoo.libs.numbers import float_round, float_compare
 
@@ -422,13 +422,35 @@ class TestSubcontractingBomPriceUom(TransactionCase):
             "the incompatible seller must not contribute to the BoM price",
         )
 
-    def test_bom_price_raises_on_incompatible_bom_uom(self):
-        """A BoM stated in the seller's unit must fail loud, not misprice.
+    def test_bom_in_seller_uom_is_rejected_at_creation(self):
+        """A BoM stated in the seller's unit is refused up front.
 
-        `mrp.bom.product_uom_id` has no category constraint, so this reaches the
-        conversion. Before the unit check it silently wrote a `standard_price`
-        scaled by the ratio of two unrelated factors.
+        This was the only way an incompatible seller reached the conversion:
+        `_select_seller(uom_id=bom.product_uom_id)` filters it out otherwise.
+        `mrp.bom._check_product_uom_id_category` now closes it at the source.
         """
-        product = self._build('raise', self.uom_unit, self.uom_kgm, self.uom_kgm)
+        with self.assertRaises(ValidationError):
+            self._build('reject', self.uom_unit, self.uom_kgm, self.uom_kgm)
+
+    def test_bom_price_raises_on_legacy_incompatible_bom_uom(self):
+        """Defence in depth for rows predating the BoM unit constraint.
+
+        `@api.constrains` only runs on create/write, so a database that already
+        held an incompatible BoM keeps it until something touches it. The
+        conversion itself must therefore still refuse rather than write a
+        `standard_price` scaled by the ratio of two unrelated factors, which is
+        what it did before `uom._compute_price` became strict.
+        """
+        product = self._build('legacy', self.uom_unit, self.uom_kgm, self.uom_unit)
+        bom = self.env['mrp.bom'].search(
+            [('product_tmpl_id', '=', product.product_tmpl_id.id)], limit=1
+        )
+        # Bypass the ORM to plant the shape the constraint now forbids.
+        self.env.cr.execute(
+            "UPDATE mrp_bom SET product_uom_id = %s WHERE id = %s",
+            (self.uom_kgm.id, bom.id),
+        )
+        self.env['mrp.bom'].invalidate_model(['product_uom_id'])
+        self.assertEqual(bom.product_uom_id, self.uom_kgm)
         with self.assertRaises(UserError):
             product.button_bom_cost()
