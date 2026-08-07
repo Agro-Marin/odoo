@@ -63,8 +63,6 @@ class Source:
     """A file in the corpus."""
 
     path: str
-    #: False for the framework (``odoo/orm``, ``odoo/tools``, ...), which is
-    #: core code but belongs to no addon.
     in_module: bool
 
 
@@ -75,25 +73,8 @@ class Unit:
     path: str
     source: str
     tree: ast.Module
-    #: Every node of the tree, in depth-first pre-order, with ``_parent`` set on
-    #: each. Traversing the tree, not analysing it, is nearly all of what the
-    #: checkers cost -- the SQL one spends 8.1 s of its 8.3 s in ``ast`` walking
-    #: machinery and 0.17 s deciding anything -- so the traversal happens once.
-    #:
-    #: It used to happen three times per file on the SQL path alone: this walk,
-    #: then ``annotate_parents`` to hang parent links (4.8 s over the corpus),
-    #: then the checker's own recursive descent (3.3 s). Doing all three jobs in
-    #: this one pass costs 3.5 s and finds the same violations.
-    #:
-    #: Pre-order matters twice over. The SQL checker re-evaluates a call site
-    #: when it later meets the function it called, which is the order its own
-    #: descent produced; and the batch checker relies on an enclosing ``for``
-    #: being seen before the ones nested inside it, which pre-order gives just
-    #: as breadth-first did.
     nodes: list[ast.AST]
     in_module: bool
-    #: Test code, by :func:`is_test_path`. Answered once here rather than three
-    #: different ways in three checkers.
     is_test: bool = False
 
 
@@ -133,9 +114,6 @@ def walk_with_parents(tree: ast.AST) -> list[ast.AST]:
     return nodes
 
 
-#: Every rule name a checker here can emit. Stated rather than derived, because
-#: the gettext checker chooses among four of them per finding: a rule that stops
-#: firing must not silently vanish from the gate.
 RULES = frozenset(
     {
         "sql-injection",
@@ -151,10 +129,6 @@ RULES = frozenset(
     }
 )
 
-#: The rationale check is line-based, so a file that *writes about* ``# noqa``
-#: -- the checker, the suppression logic, and their tests -- reports its own
-#: examples. Excluding them is not a waiver: none of these lines suppresses
-#: anything.
 _NOQA_SELF = (
     "/test_lint/tests/_checker_noqa_rationale.py",
     "/test_lint/tests/_suppression.py",
@@ -165,16 +139,10 @@ _NOQA_SELF = (
 
 
 def _sql(unit: Unit) -> Iterator[object]:
-    # The parent links this checker resolves scopes through are already on the
-    # nodes, hung by `walk_with_parents` during the one traversal every checker
-    # shares. It used to walk the tree twice more for them.
     checker = _checker_sql.SqlInjectionChecker(unit.path, is_test=unit.is_test)
     yield from checker.check_nodes(unit.nodes)
 
 
-#: ``(rule, runner, scope)``. *rule* is the reported name -- or ``None`` when
-#: the checker sets its own, as the gettext one does. *scope* answers whether a
-#: given file is this rule's business.
 _CHECKERS: list[
     tuple[str | None, Callable[[Unit], Iterator], Callable[[Unit], bool]]
 ] = [
@@ -199,9 +167,6 @@ _CHECKERS: list[
         lambda u: _checker_noqa_rationale.find_violations(u.source),
         lambda u: not u.path.endswith(_NOQA_SELF),
     ),
-    # An addon rule: the framework may of course import its own internals, and
-    # `odoo/orm/*.py` importing `odoo.orm` is not a finding. Test code is exempt
-    # too -- testing an ORM internal necessarily imports it.
     (
         "orm-import",
         lambda u: _checker_orm_import.check(u.tree, u.nodes),
@@ -284,9 +249,6 @@ def findings() -> dict[str, list[Finding]]:
             try:
                 violations = list(runner(unit))
             except RecursionError:
-                # A pathologically nested expression; the file is not skipped
-                # silently, because "no findings" and "never analysed" must not
-                # look the same.
                 _logger.warning(
                     "%s: %s checker hit the recursion limit, file not analysed",
                     entry.path,
@@ -298,12 +260,6 @@ def findings() -> dict[str, list[Finding]]:
                 lineno = violation.lineno
                 if is_suppressed(text, lineno, name):
                     continue
-                # `raw` is the noqa checker's spelling; it carries the offending
-                # source line, which is the only useful thing to print for it.
-                # Failing both, the source line is still better than nothing:
-                # the SQL rule reported bare `path:lineno` and left the reader
-                # to go and look, which is the whole triage cost of a rule
-                # whose floor is 43.
                 message = (
                     getattr(violation, "message", "")
                     or getattr(violation, "raw", "")

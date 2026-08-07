@@ -47,14 +47,4 @@ class PrettyXmlLinter(LintCase):
         )
 
 
-#: Files still awaiting a formatting pass. Reformatting 3 827 files in one
-#: change would collide with every other branch in flight, so the debt is frozen
-#: and drained module by module instead.
-#:
-#: Re-measured 2026-08-07 after the formatter stopped rewriting the inside of
-#: XML comments, which is why the number moved by one: canonical form itself
-#: changed, so which files already match it did too. A count here is only ever
-#: a reading of the *current* definition of canonical -- it is not comparable
-#: across a change to the formatter, and pretending otherwise is how a floor
-#: becomes folklore.
 UNFORMATTED_FLOOR = 3827

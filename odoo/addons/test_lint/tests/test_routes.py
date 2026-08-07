@@ -15,6 +15,7 @@ class RoutesLinter(TransactionCase):
     def test_routes_definition(self):
         _check_and_complete_route_definition = http._check_and_complete_route_definition
         checked = 0
+        offenders = []
 
         def extended_check(controller_cls, submethod, merged_routing):
             nonlocal checked
@@ -27,11 +28,11 @@ class RoutesLinter(TransactionCase):
                     if merged_routing.get(key) == value
                 }
                 if useless_overrides:
-                    _logger.warning(
-                        "The endpoint %s is duplicating the existing routing configuration : %s",
-                        f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}",
-                        pformat(useless_overrides),
+                    endpoint = (
+                        f"{controller_cls.__module__}.{controller_cls.__name__}"
+                        f".{submethod.__name__}"
                     )
+                    offenders.append(f"{endpoint}: {pformat(useless_overrides)}")
 
             return _check_and_complete_route_definition(
                 controller_cls, submethod, merged_routing
@@ -51,7 +52,14 @@ class RoutesLinter(TransactionCase):
         ):
             for _ in http._generate_routing_rules(installed_modules, nodb_only=False):
                 pass
+        _logger.info("checked %s endpoint(s)", checked)
         self.assertGreater(checked, 0, "route-linter hook was never invoked")
+        self.assertFalse(
+            offenders,
+            f"{len(offenders)} endpoint(s) restate a routing attribute their "
+            f"parent already sets, which hides what the override really "
+            f"changes:\n  " + "\n  ".join(sorted(offenders)),
+        )
 
     def test_reexported_hook_is_the_routing_one(self):
         self.assertIs(

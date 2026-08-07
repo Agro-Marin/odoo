@@ -26,7 +26,6 @@ MANIFEST_KEYS = {
 }
 
 
-# `LintCase` already carries `@no_retry`.
 class ManifestLinter(LintCase):
     def test_manifests(self):
         """Scoped to this repository.
@@ -38,6 +37,7 @@ class ManifestLinter(LintCase):
         """
         checked = 0
         violations = []
+        self.advisories = []
         for manifest in Manifest.all_addon_manifests():
             if not is_core_path(str(manifest.path)):
                 continue
@@ -50,15 +50,19 @@ class ManifestLinter(LintCase):
                 try:
                     check(manifest)
                 except AssertionError as exc:
-                    # Collected rather than raised through `subTest`. 628 of
-                    # these came out as 628 separate failures, each with its own
-                    # traceback and a diff truncated to "[27 chars]" -- which is
-                    # unreadable at that volume and unusable as a work list.
                     violations.append(
                         f"{manifest.name}: {str(exc).splitlines()[0][:160]}"
                     )
         _logger.info("checked %s manifests", checked)
         self.assertTrue(checked, "the scan reached no manifests at all")
+
+        self.assert_ratchet(
+            self.advisories,
+            0,
+            "manifest value(s) of the wrong type, or an icon/countries entry "
+            "that does not hold up",
+            "Correct the value, or drop the key.",
+        )
         self.assert_ratchet(
             violations,
             MANIFEST_FLOOR,
@@ -100,10 +104,9 @@ class ManifestLinter(LintCase):
         ]
 
         if len(manifest_data.get("countries", [])) == 1 and "l10n" not in module:
-            _logger.warning(
-                "Module %r specific to one single country %r should contain `l10n` in their name.",
-                module,
-                manifest_data["countries"][0],
+            self.advisories.append(
+                f"{module}: specific to the single country "
+                f"{manifest_data['countries'][0]!r} but has no `l10n` in its name"
             )
 
         for key, value in manifest_data._Manifest__manifest_content.items():
@@ -120,17 +123,14 @@ class ManifestLinter(LintCase):
                 expected_type = type(_DEFAULT_MANIFEST[key])
                 if not isinstance(value, expected_type):
                     if key != "auto_install":
-                        _logger.warning(
-                            "Wrong type for manifest value %s in module %s, expected %s",
-                            key,
-                            module,
-                            expected_type,
+                        self.advisories.append(
+                            f"{module}: {key} is {type(value).__name__}, "
+                            f"expected {expected_type.__name__}"
                         )
                     elif not isinstance(value, list):
-                        _logger.warning(
-                            "Wrong type for manifest value %s in module %s, expected bool or list",
-                            key,
-                            module,
+                        self.advisories.append(
+                            f"{module}: auto_install is {type(value).__name__}, "
+                            f"expected bool or list"
                         )
                 elif key == "countries":
                     self._test_manifest_countries_value(module, value)
@@ -150,34 +150,23 @@ class ManifestLinter(LintCase):
             " and ease understanding of manifest content.",
         )
         if not value:
-            _logger.warning(
-                "Empty value specified as icon in manifest of module %r."
-                " Please specify a correct value or remove this key from the manifest.",
-                module,
-            )
+            self.advisories.append(f"{module}: icon is empty; drop the key")
         else:
             path_parts = value.split("/")
             try:
                 file_path(str(PurePosixPath(*path_parts[1:])))
             except FileNotFoundError:
-                _logger.warning(
-                    "Icon value specified in manifest of module %s wasn't found in given path."
-                    " Please specify a correct value or remove this key from the manifest.",
-                    module,
+                self.advisories.append(
+                    f"{module}: icon {value!r} matches no file; correct it or "
+                    f"drop the key"
                 )
 
     def _test_manifest_countries_value(self, module, values):
         for value in values:
             if value and len(value) != 2:
-                _logger.warning(
-                    "Country value %s specified for the icon in manifest of module %s doesn't look like a country code"
-                    "Please specify a correct value or remove this key from the manifest.",
-                    value,
-                    module,
+                self.advisories.append(
+                    f"{module}: {value!r} in `countries` is not a two-letter code"
                 )
 
 
-#: Manifests still awaiting the canonical ordering pass. Frozen rather than
-#: fixed in place: `_sort_manifests.py` rewrites 628 files at once, which cannot
-#: land while other branches are open. Measured 2026-08-07, this repository only.
 MANIFEST_FLOOR = 630

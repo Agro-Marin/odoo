@@ -140,7 +140,7 @@ class XmlRecordLinter(LintCase):
 
         for tag in _sort_xml_records._TOP_LEVEL_TAGS:
             if tag == "record":
-                continue  # already reported above, with its id
+                continue
             for elem in root.iter(tag):
                 actual = list(elem.attrib.keys())
                 expected = _sort_xml_records.expected_attrib_order(tag, actual)
@@ -153,8 +153,5 @@ class XmlRecordLinter(LintCase):
         return violations
 
 
-#: Frozen for the same reason as the formatting floor: the fix is a tree-wide
-#: rewrite, which cannot land as one change while other branches are open.
-#: Measured 2026-08-07 over this repository only.
 FIELD_ORDER_FLOOR = 792
 ATTRIB_ORDER_FLOOR = 2461

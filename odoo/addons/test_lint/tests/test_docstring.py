@@ -3,17 +3,7 @@ import inspect
 import io
 import logging
 
-# `docutils.core.publish_doctree` is called below. It used to resolve only
-# because `odoo/addons/base/models/ir_module.py` imports `docutils.core` at
-# server start: none of the imports this module makes for itself binds it, so
-# outside a running server -- a standalone or pytest run -- this file raised
-# NameError rather than linting anything.
 import docutils.core
-
-# Imported for their import-time side effects: each one registers nodes,
-# directives and roles into docutils' global tables, which `publish_doctree`
-# then resolves against. Nothing here references them by name, and ruff can only
-# see that now that `docutils.core` binds the package on its own.
 import docutils.nodes  # noqa: F401  registers node classes with docutils
 import docutils.parsers.rst.directives  # noqa: F401  registers rst directives
 import docutils.parsers.rst.directives.admonitions  # noqa: F401  registers admonitions
@@ -153,18 +143,9 @@ def extract_docstring_params(doctree):
     return list(params), types, rtype
 
 
-#: Docstrings that disagree with the signature they document. Frozen, because
-#: every one is a real edit to somebody else's model file and 31 red subtests on
-#: a clean checkout is how a suite stops being read. Measured 2026-08-07 on a
-#: base + auto-install database.
-#:
-#: 32, not the 31 that were failing: keying the dedup on the defining class
-#: rather than the method name reaches 27 more definitions, and one of them was
-#: already wrong. That is the coverage the old key was quietly costing.
 DOCSTRING_FLOOR = 32
 
 
-# `LintCase` already carries `@no_retry`.
 @tagged("-at_install", "post_install")
 class TestDocstring(LintCase):
     @classmethod

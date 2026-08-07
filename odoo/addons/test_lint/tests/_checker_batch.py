@@ -71,11 +71,6 @@ def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
     *nodes* is an already-materialised ``ast.walk(tree)`` shared with the other
     checkers.
     """
-    # Both `ast.walk` (breadth-first) and the shared scan's traversal
-    # (depth-first pre-order) visit a node before its descendants, so an
-    # enclosing `for` is always seen before the ones nested in it. Marking the
-    # nested ones as we descend therefore costs one set insertion, and needs no
-    # second traversal to find them.
     nested: set[int] = set()
     violations: list[Violation] = []
     for node in nodes if nodes is not None else ast.walk(tree):

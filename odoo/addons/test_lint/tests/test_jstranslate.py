@@ -68,16 +68,26 @@ class TestJsTranslations(lint_case.LintCase):
         self.assertEqual(self.check_text(bad_js), [(2, None), (4, None)])
 
     def test_js_translations(self):
-        roots = self._module_roots()
+        """No JS template string is translated, and ``_`` is not ``_t``.
 
+        Scoped to this repository, like every other file-based gate here: a
+        sibling checkout is separately versioned and a finding in one is not
+        this branch's to fix.
+
+        The offenders go in the failure, not only in the log. This used to
+        ``_logger.error`` each one and then assert a bare count, so the
+        assertion said "12 invalid template strings" and a reader had to go
+        find the log to learn where -- which, in CI, means the failure is
+        unactionable from the failure itself.
+        """
         results = scan_regex_patterns(
-            roots,
+            lint_case.core_module_roots(),
             [".js"],
             [_RUST_TSTRING_PAT, _RUST_UNDERSCORE_PAT],
             ["node_modules", "__pycache__"],
         )
 
-        failures = 0
+        offenders = []
         for path, line, pat_idx, matched_text in results:
             if path.endswith("/lodash.js"):
                 continue
@@ -87,26 +97,21 @@ class TestJsTranslations(lint_case.LintCase):
             if pat_idx == 0:
                 if not EXPRESSION_RE.search(matched_text):
                     continue
-                prefix = "Translation of a template string"
-                suffix = matched_text
+                prefix = "translated template string"
+                suffix = " ".join(matched_text.split())[:100]
             else:
-                prefix = "underscore.js used as translation function"
+                prefix = "underscore.js used as a translation function"
                 suffix = "_t is the JS translation function"
 
-            failures += 1
             try:
                 mod, relative_path, _ = get_resource_from_path(path)
             except TypeError:
                 mod, relative_path = "?", path
+            offenders.append(f"{mod}/{relative_path}:{line}: {prefix}: {suffix}")
 
-            _logger.error(
-                "%s found in `%s/%s` at line %s: %s",
-                prefix,
-                mod,
-                relative_path,
-                line,
-                suffix,
-            )
-
-        if failures > 0:
-            self.fail(f"{failures} invalid template strings found in js files.")
+        self.assert_ratchet(
+            offenders,
+            0,
+            "invalid translation call(s) in JS",
+            "Use _t with a plain string; a template string cannot be extracted.",
+        )

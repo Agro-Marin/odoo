@@ -28,13 +28,6 @@ mechanism as ``tooling/ratchet`` and ``SINGLE_BUNDLE_GAP_FLOOR``.
 from . import _py_scan
 from .lint_case import LintCase
 
-#: Findings currently present in the code this fork owns (addons + framework).
-#: Exact match: raising one of these is a regression, lowering one is progress
-#: that must be committed here in the same change.
-#:
-#: Measured 2026-08-07 on a base+test_lint install. The corpus is install
-#: independent -- it is read off the addons path, not out of the registry -- so
-#: these numbers do not move with what happens to be installed.
 FLOORS = {
     "sql-injection": 43,
     "gettext-variable": 1,
@@ -47,23 +40,6 @@ FLOORS = {
     "noqa-rationale": 79,
     "n-plus-one-query": 417,
 }
-
-#: ``sql-injection`` was 15 and is 43. Nothing regressed: the checker stopped
-#: exempting every ``_``-prefixed function, which in a codebase where that is
-#: the convention for *all* model methods had been hiding 1 366 of 2 703 query
-#: construction sites -- and it stopped recursing forever on a value built by
-#: accumulating onto itself (``where_clause = "…" % (where_clause, …)``), which
-#: had been dropping a whole file from the scan with a warning.
-#:
-#: ``n-plus-one-query`` went 418 -> 417 and the gettext rules did not move: the
-#: three private definitions of "is this a test file" became one, which for
-#: those rules is the scope the gettext checker already had.
-#:
-#: ``gettext-placeholders`` went 4 -> 5 because the placeholder regex now uses
-#: the conversion types Python's ``%`` operator actually has. It was missing
-#: ``i``, ``u`` and ``a``, so ``l10n_ar``'s ``_('No VAT configured for partner
-#: [%i] %s', …)`` -- two unnamed placeholders, the precise thing this rule is
-#: for -- had never been counted.
 
 
 _ADVICE = {
@@ -93,7 +69,6 @@ _ADVICE = {
 }
 
 
-# `LintCase` already carries `@no_retry`.
 class TestPythonLint(LintCase):
     """Odoo-specific AST rules, checked against the code this fork owns."""
 
@@ -102,15 +77,9 @@ class TestPythonLint(LintCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Warm the shared scan here rather than in whichever test happens to run
-        # first, so its cost is attributed to the class.
         _py_scan.findings()
 
     def _assert_ratchet(self, rule):
-        # One implementation of the ratchet, on `LintCase`. There were two, with
-        # different wording and different truncation, and a gate that reports its
-        # debt differently depending on which one it inherited is a gate people
-        # learn to read selectively.
         self.assert_ratchet(
             sorted(
                 _py_scan.findings().get(rule, []),
@@ -182,12 +151,6 @@ class TestPythonLint(LintCase):
             [],
             "these floors name a rule no checker produces",
         )
-        # The direction that was missing. The two checks above compare the
-        # floors against the rules that *fired* and against `RULES`; neither
-        # notices a rule declared in `RULES` with no floor, because a rule with
-        # no findings never reaches `findings()`. A new checker that happens to
-        # be clean on the day it lands would therefore go in ungated, and only
-        # start being enforced once it broke something.
         self.assertEqual(
             sorted(_py_scan.RULES - FLOORS.keys()),
             [],

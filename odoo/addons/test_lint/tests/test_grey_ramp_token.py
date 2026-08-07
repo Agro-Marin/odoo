@@ -8,23 +8,11 @@ from . import lint_case
 
 _logger = logging.getLogger(__name__)
 
-#: `var(--gray-100)` … `var(--gray-900)`, Bootstrap's ramp. One definition,
-#: compiled for the self-test below and handed to the Rust scanner as text: a
-#: self-test that validates a *copy* stops answering for the pattern the scan
-#: actually runs the moment either is edited. Stating it once is only possible
-#: because nothing here needs a flag — `test_jstranslate` keeps two spellings
-#: because the Rust engine takes `(?s)` inline and Python takes `re.DOTALL`.
 BS_RAMP_PAT = r"var\(\s*--gray-[1-9]00\s*[,)]"
 BS_RAMP_RE = re.compile(BS_RAMP_PAT)
 
-#: Uses that mean Bootstrap's ramp on purpose. Both predate the rule.
 ALLOWED = {
-    # A website builder dialog, rendered in the website's own Bootstrap
-    # context, where Bootstrap's grey is the consistent choice.
     "website/static/src/builder/plugins/font/add_font_dialog.xml",
-    # Its own bundle (`sign.assets_green_report`), which carries neither
-    # `bootstrap_overridden.scss` nor `tokens.scss`; what this resolves to
-    # there has not been traced, and changing it is not this rule's business.
     "sign/static/src/css/green_saving_reports.scss",
 }
 
@@ -61,14 +49,15 @@ class TestGreyRampToken(lint_case.LintCase):
         self.assertEqual(self.check_text(bad), [2, 4])
 
     def test_no_bootstrap_ramp_references(self):
+        """Scoped to this repository, and reporting where, not how many."""
         results = scan_regex_patterns(
-            self._module_roots(),
+            lint_case.core_module_roots(),
             [".scss", ".xml", ".css"],
             [BS_RAMP_PAT],
             ["node_modules", "__pycache__"],
         )
 
-        failures = 0
+        offenders = []
         for path, line, _idx, matched in results:
             if "/static/lib/" in path or "/static/tests/" in path:
                 continue
@@ -78,20 +67,12 @@ class TestGreyRampToken(lint_case.LintCase):
                 mod, relative_path = "?", path
             if f"{mod}/{relative_path}" in ALLOWED:
                 continue
+            offenders.append(f"{mod}/{relative_path}:{line}: {matched.strip()}")
 
-            failures += 1
-            _logger.error(
-                "Bootstrap's grey ramp referenced in `%s/%s` at line %s: %s. "
-                "It is wired to this palette in the backend bundles only, so "
-                "this renders differently on the frontend. Use `--o-gray-*`.",
-                mod,
-                relative_path,
-                line,
-                matched.strip(),
-            )
-
-        self.assertEqual(
-            failures,
+        self.assert_ratchet(
+            offenders,
             0,
-            "Use `--o-gray-*` for this palette's grey ramp; see the errors above.",
+            "reference(s) to Bootstrap's grey ramp",
+            "It is wired to this palette in the backend bundles only, so this "
+            "renders differently on the frontend. Use `--o-gray-*`.",
         )

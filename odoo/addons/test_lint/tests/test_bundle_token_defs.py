@@ -11,28 +11,16 @@ from . import lint_case
 
 _logger = logging.getLogger(__name__)
 
-#: The file that turns the Sass palette into `--o-*` custom properties.
 TOKENS = "web/static/src/scss/tokens.scss"
 
-#: A `var()` with no fallback -- the form that has nothing to fall back on.
-#: The name may be interpolated, because that is how every ramp token is read:
-#: `rgb(var(--o-record-color-#{$size}-chip-bg-rgb))`.
 VAR_RE = re.compile(r"var\(\s*(--o-[\w$#{}-]+)\s*\)")
 
-#: A Sass interpolation, on either side of the read/publish comparison. What it
-#: stands for is one loop index or map key -- `1`, `900`, `danger` -- so it is
-#: matched by `\w+` rather than anything hyphenated, which keeps
-#: `o-#{$-name}-text` from claiming every `--o-*-text` in the codebase.
 INTERPOLATION_RE = re.compile(r"#\{[^}]*\}")
 
-#: A double-quoted `o-*` string in `tokens.scss`: both the keys of the map
-#: `o-token-set()` builds and the names handed to `print-variable()`.
 TOKEN_LITERAL_RE = re.compile(r'"(o-[\w$#{}-]*)"')
 
-#: The head of a `@mixin`/`@function` definition, up to its opening brace.
 DEFINITION_RE = re.compile(r"@(?:mixin|function)\b[^{}]*\{")
 
-#: Bundles that read a palette token from somewhere other than `tokens.scss`.
 ALLOWED = set()
 
 
@@ -135,8 +123,6 @@ class TestBundleTokenDefs(lint_case.LintCase):
         return {
             name
             for name in VAR_RE.findall(text)
-            # `x` stands for whatever the reader interpolates; the pattern
-            # accepts one word there, so the two sides meet on the same shape.
             if any(p.fullmatch(INTERPOLATION_RE.sub("x", name)) for p in patterns)
         }
 
@@ -154,7 +140,6 @@ class TestBundleTokenDefs(lint_case.LintCase):
         self.assertTrue(self._name_pattern("o-gray-#{$-step}").fullmatch("--o-gray-x"))
         self.assertTrue(self._name_pattern("o-white").fullmatch("--o-white"))
         self.assertFalse(self._name_pattern("o-white").fullmatch("--o-white-ish"))
-        # `o-#{$-name}-text` must not claim every hyphenated `--o-*-text`.
         theme_text = self._name_pattern("o-#{$-name}-text")
         self.assertTrue(theme_text.fullmatch("--o-danger-text"))
         self.assertFalse(theme_text.fullmatch("--o-cw-popover-text"))
@@ -203,14 +188,9 @@ class TestBundleTokenDefs(lint_case.LintCase):
                 try:
                     files = env["ir.qweb"]._get_asset_bundle(bundle, css=True).files
                 except Exception as exc:
-                    # A bundle that will not assemble is TestAssetPathsExist's
-                    # business, not this one's.
                     skipped.append(f"{bundle} ({type(exc).__name__})")
                     continue
                 if not files:
-                    # Counting these as checked is how this test goes vacuous:
-                    # a bundle assembles to nothing when the registry is not
-                    # fully loaded, which is why this runs post_install.
                     empty.append(bundle)
                     continue
                 assembled += 1
@@ -232,12 +212,18 @@ class TestBundleTokenDefs(lint_case.LintCase):
                     offenders.append(f"{bundle}: {url} reads {', '.join(names)}")
 
         _logger.info("assembled %s bundles with files", assembled)
-        if empty:
-            _logger.info("assembled to nothing: %s", ", ".join(empty))
-        if skipped:
-            # Named rather than counted: a bundle that quietly stops assembling
-            # would otherwise read as one with nothing to report.
-            _logger.info("did not assemble, so unchecked: %s", ", ".join(skipped))
+        self.assertFalse(
+            skipped,
+            f"{len(skipped)} served bundle(s) did not assemble, so this check "
+            f"never looked at them. `TestBundlesAssemble` owns that failure; "
+            f"fix it there first:\n  " + "\n  ".join(skipped),
+        )
+        self.assertFalse(
+            empty,
+            f"{len(empty)} served bundle(s) assembled to no files at all, which "
+            f"is what a partially-loaded registry looks like -- this class runs "
+            f"post_install for that reason:\n  " + "\n  ".join(empty),
+        )
         self.assertFalse(
             offenders,
             f"{len(offenders)} file(s) read a palette token in a bundle that "

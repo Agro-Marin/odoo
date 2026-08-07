@@ -16,15 +16,6 @@ _BLANK_SEP_CONTAINERS: frozenset[str] = frozenset({"odoo", "openerp"})
 
 _OPAQUE_TAGS: frozenset[str] = frozenset({"template"})
 
-#: Directory names this formatter must not enter.
-#:
-#: ``static`` holds OWL component templates, not data files. They are full of
-#: mixed content (``<span><t t-out="n"/> are not shown in the preview</span>``)
-#: and none of the data-layer conventions here -- record field order, blank
-#: lines between top-level elements -- mean anything in one. The CLI has always
-#: skipped them; the lint test did not, and flagged 2 634 files the documented
-#: fixer then refused to touch. Stating the set once is what keeps the two
-#: honest: see :func:`is_formattable`.
 EXCLUDED_DIRS: frozenset[str] = frozenset({"_vendor", "static", "node_modules"})
 
 
@@ -245,8 +236,6 @@ def _inner_content(elem: etree._Element) -> str:
     Clark notation and the serialisation carries a prefix.
     """
     s = etree.tostring(elem, pretty_print=False, encoding="unicode", with_tail=False)
-    # `>` inside an attribute value is escaped by lxml, so the first one always
-    # ends the open tag.
     start = s.index(">") + 1
     close = f"</{_qname(elem.tag, elem.nsmap)}>"
     end = len(s) - len(close) if s.endswith(close) else s.rindex("</")
@@ -464,12 +453,6 @@ def _format_element(elem: etree._Element, depth: int) -> list[str]:
         return _open_tag_lines(tag, attrs, pad, " />")
 
     if not children:
-        # A single-line value is emitted exactly as written, trailing space
-        # included. `.strip()` is what canonicalises a value that was *wrapped*
-        # for readability across several lines; applied to a one-line value it
-        # silently edits shipped data -- `l10n_se`'s tax report ships
-        # "...enligt huvudregeln " with a trailing space, and a formatter run
-        # would have changed the string stored in `account.report.line.name`.
         raw = elem.text or ""
         value = text if "\n" in raw else raw
         return _open_tag_lines(tag, attrs, pad, f">{_esc_text(value)}</{tag}>")
@@ -541,7 +524,7 @@ def _comparable(source: bytes) -> list:
     out: list = []
 
     def walk(element, depth: int) -> None:
-        if callable(element.tag):  # comment or processing instruction
+        if callable(element.tag):
             out.append((depth, "#text-node", squeeze(element.text)))
         else:
             out.append(
@@ -608,8 +591,6 @@ def format_xml_file(
     out: list[str] = []
     if had_decl:
         out.append('<?xml version="1.0" encoding="utf-8"?>')
-    # A doctype is neither an attribute nor a node lxml puts in the tree, so
-    # rebuilding the document from the root alone dropped it silently.
     if tree.docinfo.doctype:
         out.append(tree.docinfo.doctype)
     out.extend(pre_root)
@@ -668,10 +649,6 @@ def main(argv: list[str] | None = None) -> None:
         ),
     )
     args = parser.parse_args(argv)
-    # `action="append"` appends to its default, so a default list here could
-    # never be narrowed by the caller -- only grown. The permanent exclusions
-    # live in EXCLUDED_DIRS, which `is_formattable` answers for, and this option
-    # adds to them.
     excluded: set[str] = set(args.exclude)
     changed = unchanged = skipped = 0
 

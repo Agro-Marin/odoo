@@ -9,8 +9,6 @@ from . import lint_case
 
 _logger = logging.getLogger(__name__)
 
-# `<t t-call-assets="bundle.name" .../>`, capturing the trailing attributes so
-# a stylesheet-only render (`t-js="False"`) can be told apart.
 CALL_ASSETS_RE = re.compile(
     r"""t-call-assets=["']([^"']+)["']([^>]*)""",
 )
@@ -116,6 +114,7 @@ class TestEsmBundles(lint_case.LintCase):
             len(rendered),
             len(declared),
         )
+        self.assertTrue(rendered, "no bundle is rendered — the scan found none")
         if offenders:
             details = "\n".join(
                 f"  {bundle}: {len(files)} module-syntax file(s), e.g. {files[0].name}"

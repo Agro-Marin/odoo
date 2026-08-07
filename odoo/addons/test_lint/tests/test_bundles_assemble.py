@@ -55,9 +55,6 @@ class TestBundlesAssemble(lint_case.LintCase):
         Resolving what is actually served covers the fragments anyway, since a
         served bundle walks everything it includes.
         """
-        # LintCase is a BaseCase: no `self.env`. Own cursor, as
-        # test_asset_paths_exist does, and post_install for the same reason —
-        # at_install the modules' data is still uncommitted.
         failures = []
         with Registry(get_db_name()).cursor() as cr:
             env = api.Environment(cr, SUPERUSER_ID, {})

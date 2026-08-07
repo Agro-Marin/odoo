@@ -4,7 +4,6 @@ import re
 from odoo.tests import common
 
 COPY_MIXIN = "orm/models/mixins/copy.py"
-# string literals carrying the duplication marker, e.g. ``"%s (copy)"``
 MARKER_RE = re.compile(r"""['"]([^'"]*\(copy\)[^'"]*)['"]""")
 
 
@@ -92,7 +91,7 @@ class TestCopyTranslations(common.TransactionCase):
                 continue
             override = self._source(model.copy_translations)
             if COPY_MIXIN in (inspect.getsourcefile(model.copy_translations) or ""):
-                continue  # reported by the test above
+                continue
             used = set(MARKER_RE.findall(override))
             if not used & markers:
                 offenders.append(
