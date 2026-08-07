@@ -3,7 +3,15 @@
 
 /** @module @web/core/errors/boot_failure_overlay */
 
-import { reportJsError } from "./error_beacon";
+// Addon specifier, not `./error_beacon`, and not because either spelling reads
+// better. esbuild resolves an extensionless relative import by supplying the
+// `.js`; debug/fallback rendering serves each module's raw source and leaves
+// relative references to the *browser*, which supplies nothing. The request
+// 404s, and because the debug page imports the whole bundle from a single
+// `<script type="module">`, that one 404 aborts the entire graph: a blank web
+// client under `?debug=assets`, with one console line and no server-side trace.
+// The three other importers of this module already use this form.
+import { reportJsError } from "@web/core/errors/error_beacon";
 
 /**
  * The last thing painted when mounting the web client has already failed.
