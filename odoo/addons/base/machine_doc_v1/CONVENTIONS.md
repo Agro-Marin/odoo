@@ -48,7 +48,8 @@ models without creating new database tables.
 ```python
 # Extends the existing base model (adds method to ALL models)
 class Base(models.AbstractModel):
-    _inherit = 'base'
+    _inherit = "base"
+
     def get_empty_list_help(self, help_message): ...
 ```
 
@@ -59,15 +60,16 @@ Used sparingly — creates a "has-a" relationship with automatic field delegatio
 ```python
 # res.users delegates to res.partner (shares partner fields)
 class ResUsers(models.Model):
-    _name = 'res.users'
-    _inherits = {'res.partner': 'partner_id'}
-    partner_id = fields.Many2one('res.partner', required=True)
+    _name = "res.users"
+    _inherits = {"res.partner": "partner_id"}
+    partner_id = fields.Many2one("res.partner", required=True)
     # All partner fields are accessible directly on res.users
+
 
 # ir.cron delegates to ir.actions.server
 class IrCron(models.Model):
-    _name = 'ir.cron'
-    _inherits = {'ir.actions.server': 'ir_actions_server_id'}
+    _name = "ir.cron"
+    _inherits = {"ir.actions.server": "ir_actions_server_id"}
 ```
 
 ### Parent Store (`_parent_store = True`)
@@ -92,13 +94,15 @@ Heavy use throughout base for expensive queries that rarely change:
 @tools.ormcache("model_name", "access_mode", cache="stable")
 def _get_access_groups(self, model_name, access_mode="read"): ...
 
+
 # Cached by XML ID — cleared on data changes
-@tools.ormcache('xmlid')
+@tools.ormcache("xmlid")
 def _xmlid_lookup(self, xmlid): ...
 
+
 # Cached by model name — cleared on rule changes
-@tools.ormcache('self.env.uid', 'self.env.su', 'model_name', 'mode')
-def _compute_domain(self, model_name, mode='read'): ...
+@tools.ormcache("self.env.uid", "self.env.su", "model_name", "mode")
+def _compute_domain(self, model_name, mode="read"): ...
 ```
 
 **Cache invalidation**: Most cached methods are invalidated via `clear_caches()` in
@@ -134,24 +138,22 @@ system operations, and bootstrap. Check with `self.env.su`.
 
 ```python
 class ResConfigSettings(models.TransientModel):
-    _inherit = 'res.config.settings'
+    _inherit = "res.config.settings"
 
     # Prefix: default_ → sets ir.default for the field
     default_invoice_policy = fields.Selection(
-        default_model='sale.order'  # target model for the default
+        default_model="sale.order"  # target model for the default
     )
 
     # Prefix: group_ → toggles group membership
-    group_multi_currency = fields.Boolean(
-        implied_group='base.group_multi_currency'
-    )
+    group_multi_currency = fields.Boolean(implied_group="base.group_multi_currency")
 
     # Prefix: module_ → installs/uninstalls module
     module_sale = fields.Boolean()
 
     # Attribute: config_parameter → reads/writes ir.config_parameter
     auth_signup_uninvited = fields.Selection(
-        config_parameter='auth_signup.invitation_scope'
+        config_parameter="auth_signup.invitation_scope"
     )
 ```
 
@@ -161,8 +163,8 @@ class ResConfigSettings(models.TransientModel):
 
 ```python
 # Lookup
-self.env.ref('base.main_company')  # → res.company record
-self.env['ir.model.data']._xmlid_to_res_id('base.user_admin')  # → integer ID
+self.env.ref("base.main_company")  # → res.company record
+self.env["ir.model.data"]._xmlid_to_res_id("base.user_admin")  # → integer ID
 
 # Common base XML IDs:
 # base.main_company     — Primary company
@@ -183,13 +185,13 @@ Models that need periodic cleanup implement `@api.autovacuum` methods:
 
 ```python
 class MyModel(models.Model):
-    _name = 'my.model'
+    _name = "my.model"
 
     @api.autovacuum
     def _gc_old_records(self):
         """Called by ir.autovacuum cron job."""
         limit_date = fields.Datetime.now() - timedelta(days=30)
-        self.search([('create_date', '<', limit_date)]).unlink()
+        self.search([("create_date", "<", limit_date)]).unlink()
 ```
 
 **Base models using autovacuum:**
@@ -214,7 +216,7 @@ Two implementations for auto-incrementing numbers:
 
 ```python
 # Sequence with date ranges (e.g., INV/2024/0001, INV/2025/0001)
-seq = self.env['ir.sequence'].next_by_code('account.invoice')
+seq = self.env["ir.sequence"].next_by_code("account.invoice")
 ```
 
 ## QWeb Template Compilation

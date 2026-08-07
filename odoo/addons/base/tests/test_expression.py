@@ -547,13 +547,11 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(res_102, companies)
 
     def test_in_operator(self):
-        """check that we can use the 'in' operator for plain fields"""
         menu = self.env["ir.ui.menu"]
         menus = self._search(menu, [("sequence", "in", [1, 2, 10, 20])])
         self.assertTrue(menus)
 
     def test_in_boolean(self):
-        """Check the 'in' operator for boolean fields."""
         Partner = self.env["res.partner"]
         self.assertIn("active", Partner._fields, "I need a model with field 'active'")
         count_true = Partner.search_count([("active", "=", True)])
@@ -1401,7 +1399,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
 
     @mute_logger("odoo.db")
     def test_invalid(self):
-        """verify that invalid expressions are refused, even for magic fields"""
         Country = self.env["res.country"]
 
         with self.assertRaisesRegex(ValueError, r"^Invalid field.*'abcdefg'"):
@@ -1462,7 +1459,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_lp1071710(self):
-        """Check that we can exclude translated fields (bug lp:1071710)"""
         self.env["res.lang"]._activate_lang("fr_FR")
         self.env["res.partner"].search(
             [("name", "=", "Pepper Street")]
@@ -2850,10 +2846,6 @@ class TestMany2one(TransactionCase):
             self.Partner.search([("company_id", "not like", "blablabla")])
 
     def test_name_search_undefined(self):
-        """Check that if the _rec_name is not defined, we do not restrict anything.
-
-        This way the model continues to work in the web interface inside many2one fields.
-        """
         PartnerClass = self.env.registry["res.partner"]
         with (
             patch.object(PartnerClass, "_rec_name", ""),

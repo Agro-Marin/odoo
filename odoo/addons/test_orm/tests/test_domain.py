@@ -16,7 +16,6 @@ class TestDomain(TransactionExpressionCase):
         return super()._search(model, domain, init_domain, test_complement)
 
     def test_00_test_bool_undefined(self):
-        """Undefined/empty values in the database equal False and differ from True."""
 
         self.env["ir.model.fields"].create(
             {
@@ -58,14 +57,6 @@ class TestDomain(TransactionExpressionCase):
             self.assertEqual(neq_1 + neq_2, all_bool, "not True + not False != all")
 
     def test_domain_hashable(self):
-        """Domains must be hashable, including the normalized shape.
-
-        Optimization canonicalizes ``in``/``=`` values to (unhashable)
-        ``OrderedSet``; ``DomainCondition.__hash__`` must not raise on that shape
-        and must satisfy ``a == b ⟹ hash(a) == hash(b)``.  Regression for the
-        previous ``hash(self.value)`` which raised ``TypeError`` on every
-        optimized ``in`` condition.
-        """
         Model = self.env["test_orm.empty_int"]
 
         d1 = Domain("number", "in", [1, 2, 3]).optimize(Model)
@@ -669,7 +660,6 @@ class TestDomainOptimize(TransactionCase):
         )
 
     def test_condition_optimize_deprecated_operators(self):
-        """`<>` and `==` are deprecated aliases that normalize to `!=` / `=`."""
         model = self.env["test_orm.mixed"]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -690,7 +680,6 @@ class TestDomainOptimize(TransactionCase):
             Domain("count", "==", 5).optimize(model)
 
     def test_condition_optimize_equality_collection(self):
-        """`=`/`!=` against a collection normalize to `in`/`not in`."""
         model = self.env["test_orm.mixed"]
         self.assertEqual(
             Domain("count", "=", [1, 2]).optimize(model),
@@ -702,9 +691,6 @@ class TestDomainOptimize(TransactionCase):
         )
 
     def test_condition_optimize_equality_empty_collection(self):
-        """The view idiom ``('field', '!=', [])`` means "field is set" and
-        ``('field', '=', [])`` means "field is unset" — both normalize to a
-        comparison against ``False`` (``not in {False}`` / ``in {False}``)."""
         model = self.env["test_orm.mixed"]
         self.assertEqual(
             Domain("count", "!=", []).optimize(model),
@@ -996,13 +982,6 @@ class TestDomainOptimize(TransactionCase):
         )
 
     def test_condition_optimize_datetime_millisecond(self):
-        """Sub-second precision in the comparand survives optimization.
-
-        The column keeps microseconds (``Datetime.to_datetime`` never truncates,
-        and every ``create_date``/``write_date`` comes from PostgreSQL's
-        microsecond ``now()``), so rounding the comparand to its second moved
-        the boundary past real rows.
-        """
         model = self.env["test_orm.mixed"].with_context(tz="UTC")
         self.assertEqual(
             Domain("moment", "=", "2024-01-05").optimize(model),
@@ -1058,7 +1037,6 @@ class TestDomainOptimize(TransactionCase):
         )
 
     def test_condition_hierarchy_boolean_values(self):
-        """Booleans in child_of/parent_of fail (True) or collapse (False) cleanly."""
         model = self.env["test_orm.category"]
         parent = model.create({"name": "parent"})
         model.create({"name": "child", "parent": parent.id})
@@ -1074,7 +1052,6 @@ class TestDomainOptimize(TransactionCase):
             )
 
     def test_filtered_domain_new_records_required_m2o(self):
-        """A FULL-optimized domain reused over new() records still sees the False branch."""
         model = self.env["test_orm.move_line"]
         move = self.env["test_orm.move"].create({})
         raw = [("move_id", "in", [False, move.id])]
@@ -1384,14 +1361,6 @@ class TestDomainOptimize(TransactionCase):
         )
 
     def test_domain_subdomain_all_operators(self):
-        """All subdomain operators (any, any!, not any, not any!) must parse
-        their value as a Domain when internal=True.
-
-        This is a contract test: both the single-condition fast path and the
-        stack-based parser must handle these identically. A previous bug had
-        the fast path missing any!/not any! subdomain parsing because the
-        operator set was hardcoded in two places.
-        """
         for op in ("any", "any!", "not any", "not any!"):
             with self.subTest(operator=op):
                 dom = Domain(
@@ -1425,31 +1394,13 @@ class TestDomainOptimize(TransactionCase):
 
 
 class TestDomainEdgeCases(TransactionCase):
-    """Regression tests for ``Domain`` constructor edge cases."""
-
     def test_domain_empty_list_is_true(self):
-        """``Domain([])`` returns the TRUE singleton (well-established)."""
         self.assertIs(Domain([]), Domain.TRUE)
 
     def test_domain_empty_tuple_is_true(self):
-        """``Domain(())`` returns TRUE — symmetric with the list form.
-
-        Regression: previously ``arg == []`` only matched lists, leaving
-        ``Domain(())`` to fall through to the parser and crash with
-        "malformed domain" on the empty-stack pop.
-        """
         self.assertIs(Domain(()), Domain.TRUE)
 
     def test_custom_domain_in_nary_is_representable(self):
-        """``repr()``/``list()`` of an n-ary domain containing a
-        ``Domain.custom(...)`` must not raise.
-
-        Regression: ``DomainCustom.__iter__`` used to ``raise
-        NotImplementedError``, so ``DomainNary.__iter__`` (which does
-        ``yield from child``) crashed whenever a custom-SQL domain was logged or
-        interpolated into an error message — and ``cond & Domain.custom(...)``
-        is built in purchase/mrp/sale_renting.
-        """
         custom = Domain.custom(to_sql=lambda model, alias, query: SQL("TRUE"))
         combined = Domain("id", ">", 0) & custom
         self.assertEqual(
@@ -1459,13 +1410,6 @@ class TestDomainEdgeCases(TransactionCase):
         self.assertIn("custom", repr(combined))
 
     def test_value_to_datetime_empty_collection(self):
-        """``_value_to_datetime`` must return ``(empty, True)`` on empty input,
-        not raise ``ValueError`` from unpacking ``zip(*())``.
-
-        Currently mitigated upstream by ``_optimize_in_set`` short-circuiting
-        empty ``in``/``not in`` to TRUE/FALSE, but the helper itself must be
-        safe so future direct callers do not regress.
-        """
         from odoo.orm.domain.optimizations import _value_to_datetime
 
         value, is_date = _value_to_datetime([], env=self.env, iso_only=False)
@@ -1476,15 +1420,6 @@ class TestDomainEdgeCases(TransactionCase):
         self.assertTrue(is_date)
 
     def test_deep_any_chain_rejected_at_parse(self):
-        """A deep ``any`` chain must raise ``ValueError`` at parse time, not a
-        ``RecursionError`` later in ``_optimize``/``_to_sql``.
-
-        Regression: the nesting guard only walked the built ``&``/``|``/``!``
-        AST, and the single-condition fast path skipped it entirely, so a
-        self-referential ``parent_id any (parent_id any (...))`` chain (which a
-        client can build over a single field) nested past
-        ``MAX_DOMAIN_NESTING`` and blew the stack when evaluated.
-        """
         from odoo.orm.domain.ast import MAX_DOMAIN_NESTING
 
         def nested_any(n, op="any"):
@@ -1507,21 +1442,7 @@ class TestDomainEdgeCases(TransactionCase):
 
 
 class TestInequalityAgainstNull(TransactionCase):
-    """``field <op> False`` on a field with no ``falsy_value`` is an empty domain.
-
-    Regression: ``('id', '>', False)`` used to reach SQL as a *bool* parameter
-    bound to an ``int4`` column, because ``Id.convert_to_column`` is an identity
-    passthrough and the inequality branch of ``Field._condition_to_sql`` only
-    normalized the value when the field defined a ``falsy_value``.  Postgres
-    raised ``UndefinedFunction: operator does not exist: integer > boolean``,
-    which aborts the whole transaction — and every model has ``id``.
-
-    Fields that *do* define a falsy sentinel (Char ``""``, Integer ``0``, Float
-    ``0.0``) compare against it and are deliberately unaffected.
-    """
-
     def test_id_inequality_against_false_is_empty(self):
-        """All four inequality operators collapse, for False and for None."""
         model = self.env["res.partner"]
         for operator in (">", ">=", "<", "<="):
             for value in (False, None):
@@ -1532,7 +1453,6 @@ class TestInequalityAgainstNull(TransactionCase):
                     )
 
     def test_id_inequality_against_false_searches(self):
-        """It must not raise at the SQL level, and must match nothing."""
         model = self.env["res.partner"]
         self.assertTrue(model.search_count([]), "need at least one partner")
         for operator in (">", ">=", "<", "<="):
@@ -1540,14 +1460,6 @@ class TestInequalityAgainstNull(TransactionCase):
                 self.assertEqual(model.search_count([("id", operator, False)]), 0)
 
     def test_search_and_filtered_domain_agree(self):
-        """The SQL path and the Python predicate path must not disagree.
-
-        Collapsing at optimization time (rather than in ``condition_to_sql`` and
-        ``filter_function`` separately) is what keeps negation consistent:
-        ``~Domain.FALSE`` is TRUE in both paths, whereas SQL's three-valued
-        ``NOT (id > NULL)`` excludes every row while Python's ``not False``
-        admits every row.
-        """
         model = self.env["res.partner"]
         records = model.search([], limit=20)
         self.assertTrue(records)
@@ -1563,40 +1475,21 @@ class TestInequalityAgainstNull(TransactionCase):
                 self.assertEqual(set(by_sql.ids), set(by_python.ids))
 
     def test_falsy_value_fields_are_unaffected(self):
-        """Fields with a falsy sentinel keep comparing against it."""
         model = self.env["res.partner"]
         self.assertNotEqual(Domain("name", ">", False).optimize(model), Domain.FALSE)
         self.assertNotEqual(Domain("color", ">=", False).optimize(model), Domain.FALSE)
 
 
 class TestIdComparandValidation(TransactionCase):
-    """``Id.convert_to_column`` validates the comparand instead of the database.
-
-    ``id`` was the only field class whose ``convert_to_column`` was an identity
-    passthrough, so an ill-typed domain comparand reached psycopg and raised a
-    *database* error -- which aborts the transaction, so even a caller that
-    catches it loses every subsequent query.  Every sibling field class already
-    raised a clean Python error instead; this brings ``id`` in line.
-    """
-
     BAD_VALUES = ("abc", b"x", [], {}, True)
 
     def test_bad_comparand_raises_cleanly(self):
-        """Any clean Python error will do; what matters is that it is not a
-        database one (see the class docstring).
-
-        A *collection* comparand is now rejected one step earlier, by the
-        ordering-operator optimization that also covers ``('parent_id', '>',
-        [1, 2])``, and raises ``TypeError`` like that sibling case rather than
-        the ``ValueError`` ``Id.convert_to_column`` would have raised.
-        """
         model = self.env["res.partner"]
         for value in self.BAD_VALUES:
             with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
                 model.search([("id", ">", value)])
 
     def test_transaction_survives_a_bad_comparand(self):
-        """The point of the fix: the error must not poison the cursor."""
         model = self.env["res.partner"]
         with self.assertRaises(ValueError):
             model.search([("id", ">", "abc")])
@@ -1617,11 +1510,6 @@ class TestIdComparandValidation(TransactionCase):
         )
 
     def test_non_int_id_model_is_untouched(self):
-        """An ``_auto = False`` model may key on any column type.
-
-        ``test_orm.view.str.id`` is a ``_table_query`` view whose ``id`` column
-        is *text*, so the int validation must not apply to it.
-        """
         model = self.env["test_orm.view.str.id"]
         self.assertFalse(model._auto)
         self.assertEqual(model.search([("name", "=", "test")]).id, "hello")
@@ -1629,7 +1517,6 @@ class TestIdComparandValidation(TransactionCase):
         self.assertEqual(model.search_count([("id", ">", "a")]), 1)
 
     def test_ordinary_id_inequalities_still_work(self):
-        """The collapse must be scoped to falsy comparands only."""
         model = self.env["res.partner"]
         records = model.search([], limit=5)
         self.assertTrue(records)
@@ -1641,21 +1528,6 @@ class TestIdComparandValidation(TransactionCase):
 
 
 class TestSearchFilteredDomainParity(TransactionCase):
-    """``search()`` and ``filtered_domain()`` must agree on the same domain.
-
-    The two consume the same ``Domain`` but travel entirely separate backends:
-    ``search()`` goes ``_optimize(FULL) -> Field.condition_to_sql -> Postgres``,
-    ``filtered_domain()`` goes ``_optimize(...) -> Field.filter_function ->
-    Python``.  The operator semantics are implemented twice, by hand, and are
-    kept in sync only by convention -- so a gap in one shows up as a silent
-    disagreement rather than a failure.  ``('id', '>', False)`` lived exactly in
-    that seam (see :class:`TestInequalityAgainstNull`).
-
-    This walks a fixed, seeded set of generated domains over both paths.  The
-    seed is pinned so the test is deterministic; widen ``ITERATIONS`` locally to
-    fuzz harder.
-    """
-
     ITERATIONS = 300
     SEED = 20260724
 
@@ -1778,29 +1650,6 @@ class TestSearchFilteredDomainParity(TransactionCase):
 
 
 class TestDomainConfluence(TransactionCase):
-    """Lock in the two invariants ``Domain._optimize`` relies on for correctness.
-
-    ``odoo/orm/domain/ast.py`` documents (in ``_optimize`` and
-    ``_optimize_nary_sort_key``) that the optimizer's fixed-point loop is sound
-    because the passes are *confluent* and *idempotent*:
-
-    * **idempotence** — optimizing an already-optimized domain is a no-op
-      (``optimize(optimize(d)) == optimize(d)``); without this the fixed-point
-      loop could oscillate; and
-    * **confluence** — domains that differ only in the *order* of their
-      conjuncts/disjuncts must optimize to the *same* canonical form. Value-merge
-      passes rely on ``_optimize_nary_sort_key`` co-locating mergeable pairs, and
-      duplicate-removal is order-independent (a first-occurrence set de-dup), so
-      a permutation of the leaves can never produce a different query. A sort-key
-      regression, or a return to adjacent-only de-dup, would silently produce
-      different (and potentially wrong) queries depending on how the caller
-      happened to order the leaves.
-
-    These properties were previously only asserted by a non-existent
-    ``tests/models/test_domain_confluence.py`` referenced in ``ast.py``; this
-    class is the real backing test.
-    """
-
     def _leaves(self):
         return [
             Domain("count", ">", 5),
@@ -1832,14 +1681,6 @@ class TestDomainConfluence(TransactionCase):
                 )
 
     def test_optimize_dedups_nonadjacent_duplicates(self):
-        """Duplicate conditions are removed regardless of position.
-
-        Regression for the adjacent-only de-dup: an operator without a
-        value-merge pass (``like``) duplicated across a same-sort-key sibling
-        survived in some permutations but not others, so the same logical domain
-        optimized to two different SQL strings (different query-cache keys). The
-        multiset ``{x, x, y}`` must collapse to ``{x, y}`` for *every* ordering.
-        """
         model = self.env["test_orm.mixed"]
         dx = Domain("foo", "like", "x%")
         dy = Domain("foo", "like", "y%")
@@ -1855,28 +1696,6 @@ class TestDomainConfluence(TransactionCase):
 
 
 class TestDomainAgainstRawRows(TransactionCase):
-    """Evaluate domains against the raw table, outside the ORM entirely.
-
-    Every other domain test compares two ORM paths -- ``search()`` against
-    ``filtered_domain()``. That is blind to the optimizer: both consume the SAME
-    optimized domain, so a bad rewrite in ``odoo/orm/domain/optimizations.py``
-    changes both sides identically and the comparison stays green. (Measured:
-    swapping ``child_of`` with ``parent_of`` produces zero differences between
-    the two paths.)
-
-    Here the expectation comes from a plain ``SELECT`` plus a Python evaluator,
-    so a rewrite that changes meaning has nowhere to hide. Injecting two
-    optimizer bugs -- ``'='`` building a ``not in`` set, and ``'=like'`` gaining
-    implicit wildcards -- makes this fail, which is what the differential could
-    not do.
-
-    The evaluator mirrors the IN/NOT-IN construction in
-    ``Field._condition_to_sql`` (not the optimizer above it), including the
-    ``falsy_value`` aliasing that makes ``= False`` match both NULL and ``""``.
-    If that construction is ever changed deliberately, this test must be updated
-    with it -- on purpose: it is the record of what the SQL is supposed to mean.
-    """
-
     COLUMNS = {
         "name": "",
         "ref": "",
@@ -1919,7 +1738,6 @@ class TestDomainAgainstRawRows(TransactionCase):
         self.rows = {r["id"]: r for r in self.env.cr.dictfetchall()}
 
     def _eval_in(self, column, operator, values, raw):
-        """Mirror Field._condition_to_sql's IN / NOT IN construction."""
         falsy = self.COLUMNS[column]
         params = [v for v in values if v is not False and v is not None]
         null_in = len(params) < len(values)
@@ -2012,12 +1830,6 @@ class TestDomainAgainstRawRows(TransactionCase):
         )
 
     def test_falsy_value_aliasing_is_not_lost(self):
-        """``= False`` must match BOTH NULL and the column's falsy value.
-
-        The rows deliberately contain city NULL and city '' -- SQL aliases them,
-        Python set algebra does not, and the optimizer's set merges rely on the
-        aliasing being applied before they run.
-        """
         cities = {row["city"] for row in self.rows.values()}
         self.assertIn(None, cities, "fixture must contain a NULL city")
         self.assertIn("", cities, "fixture must contain an empty-string city")
@@ -2031,27 +1843,6 @@ class TestDomainAgainstRawRows(TransactionCase):
 
 
 class TestDatetimeSubSecondBoundaries(TransactionCase):
-    """Datetime comparisons must agree with the ``timestamp`` column, exactly.
-
-    The datetime axis is the one place where the ORM rewrites a comparand
-    instead of passing it through: a bare *date* is widened to its whole day
-    (deliberate, and asserted below). Upstream widened *every* comparand to its
-    whole second as well, compensating with ``+1s`` on ``>``/``<=`` and not at
-    all on ``<``/``>=``/``=``.
-
-    That is only sound if no stored value ever carries a microsecond, which is
-    false: ``Datetime.to_datetime`` does not truncate, and ``create_date`` /
-    ``write_date`` are written by PostgreSQL's microsecond-precision ``now()``,
-    so *every row in every table* has one. ``('write_date', '>', T)`` therefore
-    dropped every row written during second ``T`` — an incremental-sync cursor
-    silently losing records — and ``'<='`` silently gained them.
-
-    Both evaluators consume the rewritten domain, so they agreed with each other
-    while disagreeing with the table: invisible to
-    :class:`TestSearchFilteredDomainParity`. The expectation here comes from a
-    plain ``SELECT``, which is the only oracle that can see it.
-    """
-
     STAMPS = (
         datetime(2024, 1, 1, 10, 0, 0),
         datetime(2024, 1, 1, 10, 0, 0, 1),
@@ -2071,7 +1862,6 @@ class TestDatetimeSubSecondBoundaries(TransactionCase):
         self.env.flush_all()
 
     def _raw(self, operator, value):
-        """Ground truth: the rows PostgreSQL itself selects."""
         return {
             row[0]
             for row in self.env.execute_query(
@@ -2085,7 +1875,6 @@ class TestDatetimeSubSecondBoundaries(TransactionCase):
         }
 
     def test_stored_values_keep_their_microseconds(self):
-        """The premise: the ORM really does persist sub-second precision."""
         stored = {
             row[0]
             for row in self.env.execute_query(
@@ -2112,12 +1901,6 @@ class TestDatetimeSubSecondBoundaries(TransactionCase):
                     )
 
     def test_audit_columns_carry_microseconds(self):
-        """Why this matters in practice, not just for a hand-built column.
-
-        ``create_date``/``write_date`` are written by PostgreSQL's ``now()``, so
-        the sub-second rows the rounding mishandles exist on every table in the
-        database without anyone opting in.
-        """
         stamps = self.env.execute_query(
             SQL(
                 "SELECT create_date, write_date FROM test_orm_mixed WHERE id = ANY(%s)",
@@ -2131,14 +1914,6 @@ class TestDatetimeSubSecondBoundaries(TransactionCase):
         )
 
     def test_cursor_partition_loses_no_record(self):
-        """The incremental-sync shape: ``> T`` and ``<= T`` partition the rows.
-
-        ``T`` is a real stored timestamp read back from a previous pass, so the
-        rows to pick up next are exactly those inside ``T``'s own second — the
-        ones second-rounding moved to the wrong side. The partition alone stays
-        intact under the bug (both sides shift together), so the sizes are
-        asserted too.
-        """
         cursor = datetime(2024, 1, 1, 10, 0, 0)
         self.assertIn(cursor, self.STAMPS)
         model = self.env["test_orm.mixed"]
@@ -2151,7 +1926,6 @@ class TestDatetimeSubSecondBoundaries(TransactionCase):
         self.assertEqual(len(after), 5, "every later row, including T's own second")
 
     def test_bare_date_still_covers_the_whole_day(self):
-        """The one intentional widening is preserved."""
         model = self.env["test_orm.mixed"]
         scope = [("id", "in", self.records.ids)]
         first_day = self.records.filtered(lambda r: r.moment.date() == date(2024, 1, 1))
@@ -2166,19 +1940,6 @@ class TestDatetimeSubSecondBoundaries(TransactionCase):
 
 
 class TestDatetimeWholeDayAcrossDST(TransactionCase):
-    """A bare date covers the user's local *calendar* day, however long it is.
-
-    The widening builds the window from local midnight; closing it with a fixed
-    ``+24h`` is only right when the local day is 24 hours. On the two DST
-    transition days it is 23 or 25, so the window was an hour too long (matching
-    into the next day) or an hour too short (dropping the day's last hour) — for
-    the single most ordinary datetime domain there is, ``('create_date', '=',
-    <date>)``, on every user in a DST timezone, twice a year.
-
-    Ground truth is the local calendar: a record belongs to day D exactly when
-    its instant, read back in the user's timezone, falls on D.
-    """
-
     TZ = "Europe/Brussels"
 
     def setUp(self):
@@ -2190,7 +1951,6 @@ class TestDatetimeWholeDayAcrossDST(TransactionCase):
         self.Model = self.env["test_orm.mixed"].with_context(tz=self.TZ)
 
     def _at(self, y, mo, d, h, mi=0):
-        """The UTC-naive instant of a wall-clock time in ``TZ``."""
         return (
             datetime(y, mo, d, h, mi, tzinfo=self.zone)
             .astimezone(self.utc)
@@ -2254,7 +2014,6 @@ class TestDatetimeWholeDayAcrossDST(TransactionCase):
         )
 
     def test_utc_user_is_unaffected(self):
-        """The ``tz is None or utc`` shortcut must agree with the general path."""
         model = self.env["test_orm.mixed"].with_context(tz="UTC")
         records = model.create(
             [

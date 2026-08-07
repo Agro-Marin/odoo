@@ -1,11 +1,3 @@
-"""Behaviour of the ormcache per-transaction-stats toggle (``_TX_STATS_ENABLED``).
-
-The raw hit/miss counters and ``cache_name`` are collected in both modes; the
-per-transaction dedup stats (``tx_hit``/``tx_miss`` and the per-cursor
-``_ormcache_lookups`` set) are only collected when the flag is on.  Pure-Python:
-a stub model supplies the ``pool``/``env`` the lookup closure reads — no database.
-"""
-
 import unittest
 from collections import defaultdict
 

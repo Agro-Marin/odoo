@@ -1,17 +1,3 @@
-"""Generate an OpenAPI 3.1 document from the HTTP routing map.
-
-Each route contributes a path item built from its frozen ``endpoint.routing``
-(path, methods, auth, type) and — for ``@route(typed=True)`` routes — a request
-schema derived from the handler's annotations (see :mod:`odoo.http._params`):
-query parameters for ``type='http'``, a JSON request body for ``jsonrpc`` /
-``json2``. Untyped routes are listed with their path parameters only, because
-their request parameters carry no enforced type to document honestly.
-
-The generator core takes plain :class:`RouteInfo` descriptors, so it is
-unit-testable without a registry or a database; :func:`openapi_from_map` adapts a
-built werkzeug :class:`~werkzeug.routing.Map` into those descriptors.
-"""
-
 from __future__ import annotations
 
 import re
@@ -45,7 +31,6 @@ _DEFAULT_METHODS_OTHER = frozenset({"GET", "POST"})
 
 
 def _effective_methods(route: RouteInfo) -> frozenset[str]:
-    """The verbs to document for ``route``, applying the no-allow-list default."""
     real = route.methods - _IMPLICIT_METHODS
     if real:
         return real
@@ -58,20 +43,6 @@ _ID_SANITIZE_RE = re.compile(r"[^a-zA-Z0-9]+")
 
 
 def _operation_id(method: str, template: str, used: set[str] | None = None) -> str:
-    """Build a document-unique operationId from the method and path template.
-
-    OpenAPI requires operationIds to be unique across the document. Deriving the
-    id from the handler ``__name__`` (the previous scheme) collides as soon as two
-    controllers reuse a method name (two ``index`` handlers → two ``index_get``).
-
-    ``(method, path)`` is *nearly* unique, but the slug sanitizer collapses every
-    non-alphanumeric run to ``_``, so distinct templates that differ only in their
-    separators still clash (``/shop/cart`` and ``/shop-cart`` both → ``shop_cart``).
-    When ``used`` is supplied, a clash is broken deterministically with a numeric
-    suffix (``…_2``, ``…_3``); the chosen id is recorded in ``used``. The order is
-    the caller's iteration order over the routing map, which is stable for a
-    deployment, so ids stay stable across regenerations.
-    """
     slug = _ID_SANITIZE_RE.sub("_", template).strip("_") or "root"
     base = f"{method.lower()}_{slug}"
     if used is None:
@@ -86,15 +57,6 @@ def _operation_id(method: str, template: str, used: set[str] | None = None) -> s
 
 
 class RouteInfo(NamedTuple):
-    """One route, normalised for OpenAPI generation.
-
-    :param rule: the werkzeug path template (e.g. ``/shop/<int:id>``).
-    :param methods: the HTTP verbs the route serves.
-    :param routing: the frozen ``endpoint.routing`` mapping (auth, type, typed…).
-    :param handler: the underlying handler (``endpoint.original_endpoint``) whose
-        annotations describe the request when ``routing['typed']`` is set.
-    """
-
     rule: str
     methods: frozenset[str]
     routing: typing.Mapping[str, Any]
@@ -102,7 +64,6 @@ class RouteInfo(NamedTuple):
 
 
 def _nullable(schema: dict[str, Any]) -> dict[str, Any]:
-    """Make a JSON Schema accept ``null`` (OpenAPI 3.1 type-union form)."""
     kind = schema.get("type")
     if isinstance(kind, str):
         return {**schema, "type": [kind, "null"]}
@@ -110,7 +71,6 @@ def _nullable(schema: dict[str, Any]) -> dict[str, Any]:
 
 
 def param_spec_to_schema(spec: ParamSpec) -> dict[str, Any]:
-    """Translate a :class:`ParamSpec` into a JSON Schema object."""
     if spec.target is list:
         item = _PRIMITIVE_SCHEMA.get(spec.item) if spec.item else None
         schema: dict[str, Any] = {"type": "array", "items": dict(item) if item else {}}
@@ -120,7 +80,6 @@ def param_spec_to_schema(spec: ParamSpec) -> dict[str, Any]:
 
 
 def _path_template(rule: str) -> tuple[str, list[dict[str, Any]]]:
-    """Convert a werkzeug rule to an OpenAPI path + its path-parameter objects."""
     params: list[dict[str, Any]] = []
 
     def repl(match: re.Match[str]) -> str:
@@ -154,13 +113,6 @@ def build_operation(
     security_schemes: dict[str, dict[str, str]],
     used_operation_ids: set[str] | None = None,
 ) -> dict[str, Any]:
-    """Build one OpenAPI operation object for ``route`` served via ``method``.
-
-    ``template`` is the OpenAPI path (from :func:`_path_template`); with
-    ``method`` it forms the document-unique ``operationId`` (disambiguated against
-    ``used_operation_ids`` when supplied). Registers any security scheme it uses
-    into ``security_schemes`` (mutated).
-    """
     operation: dict[str, Any] = {
         "operationId": _operation_id(method, template, used_operation_ids),
         "responses": {"200": {"description": "Successful response"}},
@@ -222,13 +174,6 @@ def build_openapi(
     servers: list[dict[str, Any]] | None = None,
     typed_only: bool = False,
 ) -> dict[str, Any]:
-    """Assemble an OpenAPI 3.1 document from ``routes``.
-
-    Routes sharing a path are merged into one path item keyed by HTTP method;
-    implicit ``HEAD``/``OPTIONS`` verbs are omitted. With ``typed_only=True``,
-    only ``@route(typed=True)`` routes are emitted — the curated, schema-bearing
-    API — so the document never leaks the full internal route surface.
-    """
     paths: dict[str, dict[str, Any]] = {}
     security_schemes: dict[str, dict[str, str]] = {}
     used_operation_ids: set[str] = set()
@@ -261,7 +206,6 @@ def build_openapi(
 
 
 def iter_map_routes(routing_map: Any) -> typing.Iterator[RouteInfo]:
-    """Adapt a werkzeug :class:`~werkzeug.routing.Map` into :class:`RouteInfo`\\ s."""
     for rule in routing_map.iter_rules():
         endpoint = rule.endpoint
         routing = getattr(endpoint, "routing", {})
@@ -275,5 +219,4 @@ def iter_map_routes(routing_map: Any) -> typing.Iterator[RouteInfo]:
 
 
 def openapi_from_map(routing_map: Any, **kwargs: Any) -> dict[str, Any]:
-    """Build an OpenAPI document from a built werkzeug routing ``Map``."""
     return build_openapi(iter_map_routes(routing_map), **kwargs)

@@ -1,5 +1,3 @@
-"""Access control mixin for BaseModel: field- and record-level access checks."""
-
 import functools
 import logging
 import typing
@@ -28,21 +26,11 @@ _logger = logging.getLogger("odoo.models")
 
 
 class AccessMixin(_ModelStubs):
-    """Mixin providing field- and record-level access control."""
-
     __slots__ = ()
 
     def _has_field_access(
         self, field: Field, operation: typing.Literal["read", "write"]
     ) -> bool:
-        """Return whether the user may access ``field`` for ``operation``.
-
-        Override to customize field access.
-
-        :param field: the field to check
-        :param operation: one of ``read``, ``write``
-        :return: whether the field is accessible
-        """
         if not field.groups or self.env.su:
             return True
         if field.groups == NO_ACCESS:
@@ -53,12 +41,6 @@ class AccessMixin(_ModelStubs):
     def _check_field_access(
         self, field: Field, operation: typing.Literal["read", "write"]
     ) -> None:
-        """Check the user access rights on the given field.
-
-        :param field: the field to check
-        :param operation: one of ``read``, ``write``
-        :raise AccessError: if the user is not allowed to access the provided field
-        """
         if self._has_field_access(field, operation):
             return
 
@@ -120,20 +102,6 @@ class AccessMixin(_ModelStubs):
         operation: typing.Literal["read", "write"],
         field_names: list[str] | None,
     ) -> list[str]:
-        """Check the user access rights on the given fields.
-
-        If `field_names` is not provided, we list accessible fields to the user.
-        Otherwise, an error is raised if we try to access a forbidden field.
-        Unknown (virtual) fields are ignored.
-
-        :param operation: one of ``read``, ``write`` (field access is group-based,
-          so ``create``/``unlink`` have no field-level granularity)
-        :param field_names: names of the fields
-        :return: provided fields if fields is truthy (or the fields
-          readable by the current user).
-        :raise AccessError: if the user is not allowed to access
-          the provided fields.
-        """
         if self.env.su:
             return field_names or list(self._fields)
 
@@ -152,59 +120,18 @@ class AccessMixin(_ModelStubs):
         return field_names
 
     def check_access(self, operation: str) -> None:
-        """Verify that the current user is allowed to perform ``operation`` on
-        all the records in ``self``. The method raises an :class:`AccessError`
-        if the operation is forbidden on the model in general, or on any record
-        in ``self``.
-
-        In particular, when ``self`` is empty, the method checks whether the
-        current user has some permission to perform ``operation`` on the model
-        in general::
-
-            # check that user has some minimal permission on the model
-            records.browse().check_access(operation)
-
-        """
         if not self.env.su and (result := self._check_access(operation)):
             raise result[1]()  # noqa: RSE102
 
     def has_access(self, operation: str) -> bool:
-        """Return whether the current user is allowed to perform ``operation``
-        on all the records in ``self``. The method is fully consistent with
-        method :meth:`check_access` but returns a boolean instead.
-        """
         return self.env.su or not self._check_access(operation)
 
     def _filtered_access(self, operation: str) -> Self:
-        """Return the subset of ``self`` for which the current user is allowed
-        to perform ``operation``. The method is fully equivalent to::
-
-            self.filtered(lambda record: record.has_access(operation))
-
-        """
         if self and not self.env.su and (result := self._check_access(operation)):
             return self - result[0]
         return self
 
     def _check_access(self, operation: str) -> tuple[Self, Callable] | None:
-        """Return ``None`` if the current user may perform ``operation`` on
-        ``self``. Otherwise return ``(records, function)`` where ``records`` are
-        the forbidden records and ``function`` builds the corresponding exception.
-
-        Two checks run in sequence:
-
-        1. **Model-level ACL** (``ir.model.access``): always runs, even on an
-           empty recordset, so ``self.browse().check_access(op)`` checks
-           permission before records exist (e.g. at the start of ``create()``).
-        2. **Record-level rules** (``ir.rule``): runs only against real ids, via
-           :meth:`filtered_domain`. ``NewId`` records always pass: they have no
-           row to filter, and their cache (often defaults) is not a meaningful
-           permission decision. NewId data access still checks the origin via
-           ``Field.__get__`` / ``_fetch_field``.
-
-        Base implementation of :meth:`check_access`, :meth:`has_access` and
-        :meth:`_filtered_access`; override to restrict access to ``self``.
-        """
         Access = self.env["ir.model.access"]
         if not Access.check(self._name, operation, raise_exception=False):
             return self, functools.partial(
@@ -234,14 +161,6 @@ class AccessMixin(_ModelStubs):
     def check_access_rights(
         self, operation: str, raise_exception: bool = True
     ) -> bool | None:
-        """Verify that the given operation is allowed for the current user according to ir.model.access.
-
-        :param str operation: one of ``create``, ``read``, ``write``, ``unlink``
-        :param bool raise_exception: whether an exception should be raised if operation is forbidden
-        :return: whether the operation is allowed
-        :rtype: bool | None
-        :raise AccessError: if the operation is forbidden and raise_exception is True
-        """
         if raise_exception:
             self.browse().check_access(operation)
             return True
@@ -251,19 +170,9 @@ class AccessMixin(_ModelStubs):
         "check_access_rule() is deprecated since 18.0; use check_access() instead."
     )
     def check_access_rule(self, operation: str) -> None:
-        """Verify that the given operation is allowed for the current user according to ir.rules.
-
-        :param str operation: one of ``create``, ``read``, ``write``, ``unlink``
-        :raise UserError: if current ``ir.rules`` do not permit this operation.
-        """
         self.check_access(operation)
 
     def _check_company_domain(self, companies) -> Domain:
-        """Domain to be used for company consistency between records regarding this model.
-
-        :param companies: the allowed companies for the related record
-        :type companies: BaseModel or list or tuple or int or unquote
-        """
         if not companies:
             return Domain("company_id", "=", False)
         if isinstance(companies, unquote):
@@ -273,17 +182,6 @@ class AccessMixin(_ModelStubs):
     def _check_company_candidates(
         self, regular_fields: list[str], property_fields: list[str]
     ) -> dict[tuple, list[tuple]]:
-        """Group the ``(record, field, corecords)`` triples to check.
-
-        The key is ``(field_name, allowed company ids)``: everything a
-        :meth:`_check_company_domain` result depends on. Grouping lets
-        :meth:`_check_company_violations` build and evaluate one domain per
-        group instead of one per record, which is what made the check scale
-        with the recordset (2200 domain optimizations for 100 partners).
-
-        The rank in each entry is the position the triple has in the
-        record-major order the error message is built from.
-        """
         groups: dict[tuple, list[tuple]] = defaultdict(list)
         property_company = self.env.company
         width = len(regular_fields) + len(property_fields)
@@ -320,13 +218,6 @@ class AccessMixin(_ModelStubs):
     def _check_company_violations(
         self, groups: dict[tuple, list[tuple]]
     ) -> Iterator[tuple[int, Self, str, Self]]:
-        """Yield ``(rank, record, field_name, corecords)`` for each violation.
-
-        One domain and one ``filtered_domain`` per group. Evaluating the union
-        of a group's corecords is equivalent to evaluating each separately --
-        the domain compiles to a per-record predicate -- and a ``Query``-valued
-        condition is even resolved in a single query instead of one per record.
-        """
         for (name, _companies_ids), entries in groups.items():
             companies = entries[0][3]
             comodel = entries[0][2].browse()
@@ -344,20 +235,6 @@ class AccessMixin(_ModelStubs):
                     yield rank, record, name, corecords
 
     def _check_company(self, fnames: Collection[str] | None = None) -> None:
-        """Check the companies of the values of the given field names.
-
-        :param fnames: names of relational fields to check
-        :type fnames: Collection[str] | None
-        :raises UserError: if the `company_id` of the value of any field is not
-            in `[False, self.company_id]` (or `self` if
-            :class:`~odoo.addons.base.models.res_company`).
-
-        For :class:`~odoo.addons.base.models.res_users` relational fields,
-        verifies record company is in `company_ids` fields.
-
-        User with main company A, having access to company A and B, could be
-        assigned or linked to records in company B.
-        """
         if fnames is None or "company_id" in fnames or "company_ids" in fnames:
             fnames = self._fields
 

@@ -171,10 +171,6 @@ for rec in records:
         )
 
     def test_ignore_auto_generated_computed_field(self):
-        """Count custom fields with no module, or studio fields not auto-generated.
-
-        An xml_id whose module doesn't exist counts as not belonging to a module.
-        """
         f1 = self.create_field("x_invoice_count")
         self.create_xml_id("studio_customization", "invoice_count", f1)
         cl = cloc.Cloc()
@@ -293,7 +289,6 @@ class TestClocParser(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestClocStdNoCusto(TransactionCase):
     def test_no_custo_install(self):
-        """No database customization is counted after installing a module."""
         cl = cloc.Cloc()
         cl.count_customization(self.env)
         self.assertEqual(

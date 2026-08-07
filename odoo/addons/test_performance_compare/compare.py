@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""Compare two ``test_performance_compare`` result files.
-
-Pure standard library — runs under any Python 3, no Odoo import — so it can diff
-a fork run against an upstream run regardless of which interpreter produced each.
-
-Usage::
-
-    python3 compare.py BASELINE.json CANDIDATE.json [--md] [--metric median|mean|p95]
-
-By convention BASELINE is upstream and CANDIDATE is the fork, so a *speedup > 1*
-means the fork is faster.  Timing is the headline; query counts are a guardrail —
-any benchmark whose query count differs between the two builds is flagged, because
-a Python-time win that quietly adds SQL round-trips is not a real win.
-"""
 
 import argparse
 import json
@@ -29,7 +15,7 @@ NOISY_CV = 0.15
 
 
 def _load(path):
-    with Path(path).open() as fh:
+    with Path(path).open(encoding="utf-8") as fh:
         data = json.load(fh)
     if "results" not in data or "meta" not in data:
         sys.exit(f"{path}: not a perf_compare report")
@@ -37,12 +23,6 @@ def _load(path):
 
 
 def _aggregate(paths, metric_key):
-    """Load one or more reports for a side and reduce to per-benchmark stats.
-
-    Returns ``(meta, {name: {"value", "cv", "query", "group", "runs"}})`` where
-    ``value`` is the median across runs of each run's chosen timing metric, and
-    ``cv`` is the cross-run coefficient of variation (0 for a single run).
-    """
     reports = [_load(p) for p in paths]
     per_name = {}
     for data in reports:

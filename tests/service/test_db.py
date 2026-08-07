@@ -43,7 +43,9 @@ from .conftest import fake_pg_connection
 @pytest.fixture(scope="module")
 def db_mod():
     """Import ``odoo.service.db`` once per session."""
-    import odoo.db.schema
+    # Loaded so `odoo.db.schema` is bound for the monkeypatch in
+    # test_create_empty_database_*; `odoo.service.db` does not import it.
+    import odoo.db.schema  # noqa: F401  see comment above
     import odoo.service.db as mod
 
     return mod
@@ -3427,7 +3429,7 @@ class TestUnpackBudgetAcceptsFileObjects:
         assert buf.tell() == 0
 
     def test_spooled_temporary_file_position_is_preserved(self, db_mod):
-        sp = tempfile.SpooledTemporaryFile(max_size=1024)
+        sp = tempfile.SpooledTemporaryFile(max_size=1024)  # noqa: SIM115  closed by GC; a `with` would hide the seek assertions below
         sp.write(b"abc" * 100)
         sp.seek(7)
         assert db_mod._source_size(sp) == 300
@@ -3435,7 +3437,7 @@ class TestUnpackBudgetAcceptsFileObjects:
 
     def test_unpack_budget_does_not_raise_on_a_file_object(self, db_mod):
         """The exact failure B1 reproduced: previously a TypeError here."""
-        sp = tempfile.SpooledTemporaryFile(max_size=1024)
+        sp = tempfile.SpooledTemporaryFile(max_size=1024)  # noqa: SIM115  as above
         sp.write(b"x" * 2048)
         sp.seek(0)
         budget = db_mod._unpack_budget(sp)

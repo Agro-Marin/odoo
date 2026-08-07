@@ -45,11 +45,6 @@ class ManifestLinter(BaseCase):
         )
 
     def _test_manifest_key_order(self, manifest_data: Manifest):
-        """Check that manifest keys appear in canonical order.
-
-        Run ``python core/odoo/addons/test_lint/tests/_sort_manifests.py``
-        from the project root to fix all manifests automatically.
-        """
         actual = list(manifest_data._Manifest__manifest_content.keys())
         expected = _sort_manifests.expected_key_order(actual)
         self.assertEqual(

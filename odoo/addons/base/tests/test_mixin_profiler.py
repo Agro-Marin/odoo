@@ -5,9 +5,6 @@ from odoo.tools import mixin_profiler as mp
 
 
 class TestMixinProfiler(TransactionCase):
-    """The method-level mixin profiler must collect stats for wrapped methods
-    and undo its monkey-patching cleanly."""
-
     def setUp(self):
         super().setUp()
         mp.clear_profile_data()
@@ -47,13 +44,6 @@ class TestMixinProfiler(TransactionCase):
         self.assertEqual(mp.get_profile_report(), "No profiling data collected.")
 
     def _unprofile_all(self, profiled, extra_by_model=None):
-        """Cleanup helper: unwrap every model touched by profile_module().
-
-        Leaving even one wrapped model behind leaks the wrapper (or, worse, a
-        pinned copy of the original method) on the shared registry class for
-        the rest of the process, breaking later tests that patch the model
-        definition classes.
-        """
         extra_by_model = extra_by_model or {}
         for model_name in profiled:
             methods = list(mp._DEFAULT_MODULE_METHODS) + list(
@@ -83,7 +73,6 @@ class TestMixinProfiler(TransactionCase):
         self.assertTrue(hasattr(self.registry["res.partner"].create, "_profiled"))
 
     def test_unprofile_restores_mro_resolution(self):
-        """Un-profiling must not pin an MRO-inherited method onto the registry class's own __dict__."""
         Partner = self.registry["res.partner"]
         self.assertNotIn("create", Partner.__dict__)
         mp.profile_methods("res.partner", ["create"], self.registry)

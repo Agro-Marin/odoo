@@ -8,7 +8,6 @@ from odoo.addons.base.models.ir_ui_menu import IrUiMenu
 
 class TestMenu(TransactionCase):
     def test_00_menu_deletion(self):
-        """Deleting a menu with children promotes those children to top-level."""
         Menu = self.env["ir.ui.menu"]
         root = Menu.create({"name": "Test root"})
         child1 = Menu.create({"name": "Test child 1", "parent_id": root.id})
@@ -27,9 +26,6 @@ class TestMenu(TransactionCase):
         self.assertEqual([child1.id, child2.id], orphans.ids)
 
     def test_display_name_recomputed_on_ancestor_rename(self):
-        """Renaming an ancestor recomputes display_name (which mirrors
-        complete_name's recursive triggers) for all descendants (regression
-        guard: depends("parent_id")-only triggers left it stale)."""
         Menu = self.env["ir.ui.menu"]
         root = Menu.create({"name": "Path root"})
         child = Menu.create({"name": "Child", "parent_id": root.id})
@@ -42,10 +38,6 @@ class TestMenu(TransactionCase):
 
 
 class TestMenuVisibility(TransactionCase):
-    """Cover the visibility cache and its gates: group gating, the action-model
-    read-ACL gate, dangling/deleted actions, and ancestor force-visibility.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -56,7 +48,6 @@ class TestMenuVisibility(TransactionCase):
         )
 
     def _act_window(self, res_model):
-        """Create an act_window action targeting ``res_model``."""
         return self.Action.create(
             {
                 "name": f"action {res_model}",
@@ -66,7 +57,6 @@ class TestMenuVisibility(TransactionCase):
         )
 
     def test_visible_menu_ids_action_acl_gate(self):
-        """A menu whose action targets a model the user cannot read is hidden."""
         readable = self._act_window("res.partner")
         restricted = self._act_window("ir.config_parameter")
         root = self.Menu.create({"name": "ACL root"})
@@ -96,20 +86,6 @@ class TestMenuVisibility(TransactionCase):
         self.assertIn(root.id, emp_visible)
 
     def test_visible_menu_ids_client_action_without_a_model(self):
-        """A gating field that exists but is empty means no model gates the action.
-
-        ``ir.actions.client.res_model`` is optional ("mostly used for
-        needactions") and is empty on every client action this workspace ships
-        — all of which are pointed at by a menu. Once ``ir.actions.client``
-        joined the gating map, the visibility walk read that empty field and
-        handed ``False`` to ``ir.model.access.check``, which is typed for a
-        model name: ``TypeError: Model name must be a string, got bool: False``
-        out of ``/web/webclient/load_menus``, i.e. no backend at all.
-
-        ``get_bindings`` asks the same question and has always guarded the
-        empty answer; the two consumers must agree, which is the whole reason
-        the mapping was unified.
-        """
         action = self.env["ir.actions.client"].create(
             {"name": "modelless client action", "tag": "test_tag"}
         )
@@ -128,7 +104,6 @@ class TestMenuVisibility(TransactionCase):
         self.assertIn(root.id, visible)
 
     def test_visible_menu_ids_client_action_with_a_model_is_still_gated(self):
-        """The gate itself must keep working for client actions that do name one."""
         action = self.env["ir.actions.client"].create(
             {
                 "name": "restricted client action",
@@ -146,10 +121,11 @@ class TestMenuVisibility(TransactionCase):
         )
 
         self.assertIn(menu.id, self.Menu._visible_menu_ids())
-        self.assertNotIn(menu.id, self.Menu.with_user(self.employee)._visible_menu_ids())
+        self.assertNotIn(
+            menu.id, self.Menu.with_user(self.employee)._visible_menu_ids()
+        )
 
     def test_visible_menu_ids_deleted_action_hidden(self):
-        """A menu pointing at a deleted action is hidden (no force-visibility)."""
         action = self._act_window("res.partner")
         root = self.Menu.create({"name": "Dangling root"})
         menu = self.Menu.create(
@@ -167,8 +143,6 @@ class TestMenuVisibility(TransactionCase):
         self.assertNotIn(root.id, visible)
 
     def test_visible_menu_ids_group_gate(self):
-        """A group-restricted menu is hidden from users lacking the group, and
-        a group-restricted ancestor is not force-shown to them."""
         group = self.env["res.groups"].create({"name": "Menu test group"})
         action = self._act_window("res.partner")
         parent = self.Menu.create(
@@ -192,8 +166,6 @@ class TestMenuVisibility(TransactionCase):
         self.assertIn(parent.id, emp_visible)
 
     def test_visible_menu_ids_cache_keyed_by_group_set(self):
-        """The visibility set is recomputed (not stale) after a group change
-        busts the cache, and identical group sets share an entry."""
         action = self._act_window("ir.config_parameter")
         root = self.Menu.create({"name": "Cache root"})
         menu = self.Menu.create(
@@ -214,8 +186,6 @@ class TestMenuVisibility(TransactionCase):
         self.assertIn(menu.id, self.Menu.with_user(self.employee)._visible_menu_ids())
 
     def test_visible_menu_ids_keyed_on_debug(self):
-        """The visibility set distinguishes debug from non-debug: a
-        base.group_no_one-gated action menu is hidden unless debug is on."""
         action = self._act_window("res.partner")
         debug_root = self.Menu.create(
             {
@@ -229,8 +199,6 @@ class TestMenuVisibility(TransactionCase):
         self.assertIn(debug_root.id, self.Menu._visible_menu_ids(True))
 
     def test_load_menus_root_keyed_on_debug(self):
-        """load_menus_root keys on the debug flag (regression guard for IUM-L3):
-        the cached root set reflects request.session.debug, not the first call."""
         self.assertIn(
             "self._get_session_debug()", IrUiMenu.load_menus_root.__cache__.args
         )
@@ -258,14 +226,11 @@ class TestMenuVisibility(TransactionCase):
 
 
 class TestMenuMisc(TransactionCase):
-    """Cover copy() name suffixing and web_icon_data computation."""
-
     def setUp(self):
         super().setUp()
         self.Menu = self.env["ir.ui.menu"]
 
     def test_copy_suffixes_name(self):
-        """copy() appends ' (1)' to a fresh name and increments an existing one."""
         menu = self.Menu.create({"name": "Original"})
         copy1 = menu.copy()
         self.assertEqual(copy1.name, "Original (1)")
@@ -274,10 +239,6 @@ class TestMenuMisc(TransactionCase):
         self.assertEqual(copy2.name, "Original (2)")
 
     def test_copy_ignores_mid_name_number(self):
-        """Only a trailing "(N)" is a copy counter: a parenthesized number in
-        the middle of the name is left untouched (regression guard for the
-        unanchored NUMBER_PARENS that turned "Budget (2025) Plan" into
-        "Budget (2026) Plan")."""
         menu = self.Menu.create({"name": "Budget (2025) Plan"})
         copy1 = menu.copy()
         self.assertEqual(copy1.name, "Budget (2025) Plan (1)")
@@ -286,8 +247,6 @@ class TestMenuMisc(TransactionCase):
         self.assertEqual(copy2.name, "Budget (2025) Plan (2)")
 
     def _count_cache_clears(self):
-        """Return (patcher, calls) counting registry cache invalidations
-        while the patcher is active."""
         registry_class = type(self.env.registry)
         calls = []
         original = registry_class.clear_cache
@@ -299,8 +258,6 @@ class TestMenuMisc(TransactionCase):
         return patch.object(registry_class, "clear_cache", counting), calls
 
     def test_multi_copy_names_and_single_invalidation(self):
-        """Copying menus suffixes each name at insert time: one batched create()
-        invalidation, not a per-copy rename write that wipes the registry cache."""
         menus = self.Menu.create([{"name": f"Multi {i}"} for i in range(3)])
         patcher, calls = self._count_cache_clears()
         with patcher:
@@ -316,8 +273,6 @@ class TestMenuMisc(TransactionCase):
         )
 
     def test_copy_suffixes_explicit_default_name(self):
-        """An explicit default name is suffixed too (parity with the historical
-        post-copy rename)."""
         menu = self.Menu.create({"name": "Original"})
         copy = menu.copy({"name": "Custom"})
         self.assertEqual(copy.name, "Custom (1)")
@@ -331,7 +286,6 @@ class TestMenuMisc(TransactionCase):
         self.assertEqual(calls, [])
 
     def test_web_icon_data_built_icon(self):
-        """A built icon (class,color[,bg]) yields no image data."""
         menu3 = self.Menu.create(
             {"name": "Built 3", "web_icon": "fa fa-cog,#000000,#ffffff"}
         )
@@ -341,14 +295,12 @@ class TestMenuMisc(TransactionCase):
         self.assertFalse(menu2.web_icon_data)
 
     def test_web_icon_data_image_icon(self):
-        """An image icon (module,path) reads the file and yields base64 data."""
         menu = self.Menu.create(
             {"name": "Image icon", "web_icon": "base,static/img/main_partner-image.png"}
         )
         self.assertTrue(menu.web_icon_data)
 
     def test_read_image_malformed_path(self):
-        """_read_image returns False for a value without exactly two parts."""
         self.assertFalse(self.Menu._read_image(""))
         self.assertFalse(self.Menu._read_image("only_one_part"))
         self.assertFalse(self.Menu._read_image("a,b,c"))

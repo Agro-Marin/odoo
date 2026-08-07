@@ -214,7 +214,6 @@ class IrProfile(models.Model):
             profile.speedscope_url = f"/web/speedscope/{profile.id}"
 
     def _enabled_until(self) -> str | None:
-        """Return until when profiling is enabled, or ``None`` if disabled."""
         limit = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -230,12 +229,6 @@ class IrProfile(models.Model):
         collectors: list[str] | None = None,
         params: dict | None = None,
     ) -> dict[str, Any]:
-        """Enable or disable profiling for the current user.
-
-        :param profile: ``True`` to enable profiling, ``False`` to disable it.
-        :param collectors: optional list of collectors to use
-        :param params: optional parameters set on the profiler object
-        """
         if not request:
             raise UserError(
                 self.env._("Profiling can only be toggled from an HTTP request.")

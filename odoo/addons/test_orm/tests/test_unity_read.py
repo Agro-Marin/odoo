@@ -1034,11 +1034,6 @@ class TestUnityRead(TransactionCase):
         )
 
     def test_reference_with_deleted_record_no_fields(self):
-        """
-        When no fields are asked on the reference and many2one_reference fields,
-        the raw value of those fields is returned from the database, and no test
-        for existence is made.
-        """
         self.lesson_day1.unlink()
         read = self.course.web_read(
             {
@@ -1103,7 +1098,6 @@ class TestUnityRead(TransactionCase):
         )
 
     def test_properties(self):
-        """Check that the display name of the relational properties are always loaded."""
         discussion = self.env["test_orm.discussion"].create(
             {
                 "name": "Test Discussion",
@@ -1145,13 +1139,6 @@ class TestUnityRead(TransactionCase):
         self.assertEqual(values[1]["value"], (partner.id, "Test Partner Properties"))
 
     def test_read_with_pending_stored_computed(self):
-        """read() must return up-to-date values for stored computed fields
-        that are still pending recomputation (in compute_engine).
-
-        This exercises the _read_format fast path: it bypasses Field.__get__
-        and reads directly from cache, so it must explicitly call
-        field.ensure_computed() to process pending recomputations first.
-        """
         Discussion = self.env["test_orm.discussion"]
         Message = self.env["test_orm.message"]
 
@@ -1184,14 +1171,6 @@ class TestUnityRead(TransactionCase):
         )
 
     def test_read_format_pending_vs_null(self):
-        """PENDING (not yet computed) and None (genuinely null) must produce
-        different behavior: PENDING triggers recomputation, None stays None.
-
-        After create(), stored computed fields have PENDING in cache until
-        recomputed. Nullable stored fields that aren't computed have None.
-        Both must produce correct read() results without 'Invalid cache'
-        warnings or PENDING leaking into SQL.
-        """
         Discussion = self.env["test_orm.discussion"]
         Message = self.env["test_orm.message"]
         user = self.env.user

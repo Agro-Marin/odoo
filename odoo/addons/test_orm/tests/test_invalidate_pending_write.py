@@ -1,25 +1,3 @@
-"""Field-scoped invalidation must not orphan a pending write.
-
-The cache holds an invariant: a field marked *dirty* for a record has a value in
-``_data`` for that record, because that value is what the next flush writes.
-``FieldCache.invalidate_all`` (the transaction-wide path behind
-``env.invalidate_all(flush=False)``) upholds it explicitly — it keeps every
-dirty entry.  The field-scoped path (``invalidate_model`` /
-``invalidate_recordset`` with ``flush=False``) did not: it dropped the value and
-left the flag, so at the next flush the record was either
-
-* re-fetched from the database and written straight back — the pending write
-  silently reverted, no error anywhere — or
-* missing from the cache — opaque ``RuntimeError: Could not find all values of
-  ... to flush them``.
-
-Both are unrecoverable at that point, so the guard refuses up front.
-
-NOTE these tests deliberately do NOT use ``assertRaises``: the ORM test suite's
-override opens a savepoint, which flushes, which drains the very dirty set under
-test.  ``_assert_refuses`` calls the operation directly instead.
-"""
-
 from odoo.tests.common import TransactionCase
 
 
@@ -30,7 +8,6 @@ class TestInvalidatePendingWrite(TransactionCase):
         cls.Partner = cls.env["res.partner"]
 
     def _dirty_record(self):
-        """Return a record with a pending (unflushed) write on ``ref``."""
         record = self.Partner.create({"name": "orig", "ref": "R0"})
         self.env.flush_all()
         record.write({"ref": "R1"})
@@ -41,7 +18,6 @@ class TestInvalidatePendingWrite(TransactionCase):
         return record
 
     def _assert_refuses(self, func, *args, **kwargs):
-        """Assert ``func`` raises ValueError, without flushing beforehand."""
         try:
             func(*args, **kwargs)
         except ValueError as exc:
@@ -64,7 +40,6 @@ class TestInvalidatePendingWrite(TransactionCase):
         self.assertEqual(record.ref, "R1")
 
     def test_invalidate_all_fields_refuses_pending_write(self):
-        """``fnames=None`` (every field of the model) is guarded too."""
         record = self._dirty_record()
         self._assert_refuses(record.invalidate_recordset, flush=False)
         self.env.flush_all()
@@ -72,7 +47,6 @@ class TestInvalidatePendingWrite(TransactionCase):
         self.assertEqual(record.ref, "R1")
 
     def test_invalidate_other_records_is_allowed(self):
-        """Only records that actually carry the pending write are refused."""
         clean = self.Partner.create({"name": "clean", "ref": "C0"})
         dirty = self._dirty_record()
         clean.invalidate_recordset(["ref"], flush=False)
@@ -88,15 +62,11 @@ class TestInvalidatePendingWrite(TransactionCase):
         self.assertEqual(record.ref, "R1")
 
     def test_flush_true_stays_the_normal_path(self):
-        """The default (``flush=True``) drains the dirty set first, so it never
-        trips the guard and the write survives.
-        """
         record = self._dirty_record()
         record.invalidate_recordset(["ref"])
         self.assertEqual(record.ref, "R1")
 
     def test_transaction_wide_invalidate_all_keeps_pending_writes(self):
-        """The invariant the field-scoped path now matches."""
         record = self._dirty_record()
         self.env.invalidate_all(flush=False)
         self.env.flush_all()
@@ -105,15 +75,6 @@ class TestInvalidatePendingWrite(TransactionCase):
 
 
 class TestFnameResolution(TransactionCase):
-    """An unknown field name names the field *and* the model, on every entry point.
-
-    ``invalidate_model`` / ``invalidate_recordset`` already raised a ``ValueError``
-    saying both; the flush and recompute siblings indexed ``self._fields`` raw and
-    surfaced a bare ``KeyError('bogus')`` — same caller mistake, same object, two
-    unrelated exception types and one of them naming neither the model nor the API
-    that rejected it.  ``helpers.resolve_fnames`` is now the single resolver.
-    """
-
     def setUp(self):
         super().setUp()
         self.record = self.env["res.partner"].create({"name": "x"})
@@ -158,23 +119,7 @@ class TestFnameResolution(TransactionCase):
 
 
 class TestInvalidateInversePendingWrite(TransactionCase):
-    """The inverse-field pass must not drop a pending write either.
-
-    ``_invalidate_cache`` also invalidates the *inverse* of every field it was
-    asked to invalidate, across all ids — a consistency side effect the caller
-    never requested, and one the ``flush=False`` guard does not cover (it scans
-    only the requested fields).  Invalidating a one2many therefore used to wipe
-    the counterpart many2one on every record, dirty ones included: the flag
-    survived, the value did not, and the next flush re-read the database value
-    and wrote it straight back.  The write vanished with no error.
-
-    ``account_full_reconcile`` and ``account_move_send`` both invalidate a
-    one2many with ``flush=False``, so this was reachable from stock addons.
-    """
-
     def _dirty_inverse(self):
-        """Return ``(bank, target_partner)`` with a pending write on the
-        many2one that is the inverse of ``res.partner.bank_ids``."""
         source = self.env["res.partner"].create({"name": "source"})
         target = self.env["res.partner"].create({"name": "target"})
         bank = self.env["res.partner.bank"].create(
@@ -208,7 +153,6 @@ class TestInvalidateInversePendingWrite(TransactionCase):
         self.assertEqual(bank.partner_id, target)
 
     def test_inverse_invalidation_still_drops_clean_values(self):
-        """Only the dirty ids are spared; the rest is invalidated as before."""
         source = self.env["res.partner"].create({"name": "source"})
         target = self.env["res.partner"].create({"name": "target"})
         Bank = self.env["res.partner.bank"]
@@ -218,7 +162,7 @@ class TestInvalidateInversePendingWrite(TransactionCase):
         self.env.invalidate_all()
 
         field = Bank._fields["partner_id"]
-        clean.partner_id  # noqa: B018 - populate the cache
+        clean.partner_id  # populate the cache
         bank.write({"partner_id": target.id})
         cache = field._get_cache(self.env)
         self.assertIn(bank.id, cache)

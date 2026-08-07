@@ -1,28 +1,8 @@
-"""Manifest key sorter — formatter and standalone fixer for ``__manifest__.py`` files.
-
-This module serves two roles:
-
-1. **Library** — ``MANIFEST_KEY_ORDER`` and ``_KEY_RANK`` are imported by
-   ``test_manifests.py`` to enforce canonical ordering as a lint check.
-
-2. **Standalone fixer** — run directly to rewrite manifests in-place::
-
-       python _sort_manifests.py [DIR ...]       # rewrite in-place
-       python _sort_manifests.py --dry-run [DIR ...]  # preview only
-
-   Or via the venv from the project root::
-
-       ./venv/odoo/bin/python core/odoo/addons/test_lint/tests/_sort_manifests.py addons_custom core
-
-No Odoo imports; operates on raw ``__manifest__.py`` files via ``ast``.
-"""
-
 import argparse
 import ast
 import json
 import sys
 from pathlib import Path
-
 
 MANIFEST_KEY_ORDER: list[str] = [
     "name",
@@ -58,18 +38,12 @@ _INDENT = "    "
 
 
 def expected_key_order(present_keys: list[str]) -> list[str]:
-    """Return the canonical ordering for the given list of manifest keys.
-
-    Known keys are sorted by their position in ``MANIFEST_KEY_ORDER``.
-    Unknown keys (not in the canonical list) are appended alphabetically.
-    """
     known = [k for k in MANIFEST_KEY_ORDER if k in present_keys]
     unknown = sorted(k for k in present_keys if k not in _KEY_RANK)
     return known + unknown
 
 
 def _fmt_str(s: str) -> str:
-    """Render a string value as Python source, preferring double quotes."""
     if "\n" in s:
         inner = s.replace("\\", "\\\\").replace('"""', r"\"\"\"")
         return f'"""{inner}"""'
@@ -77,7 +51,6 @@ def _fmt_str(s: str) -> str:
 
 
 def _fmt_value(value: object, depth: int) -> str:
-    """Recursively format a manifest value as Python source."""
     pad = _INDENT * depth
     inner = _INDENT * (depth + 1)
 
@@ -113,21 +86,12 @@ def _fmt_value(value: object, depth: int) -> str:
 
 
 def render_manifest(data: dict) -> str:
-    """Render a manifest dict as a complete ``__manifest__.py`` source string."""
     ordered_keys = expected_key_order(list(data.keys()))
     body = "\n".join(f'{_INDENT}"{k}": {_fmt_value(data[k], 1)},' for k in ordered_keys)
     return f"{{\n{body}\n}}\n"
 
 
 def sort_manifest(path: Path, *, dry_run: bool = False) -> bool | None:
-    """Rewrite *path* with manifest keys in canonical order.
-
-    Any comment/copyright header preceding the dict literal is preserved.
-
-    :return: ``True`` if the file was changed (or would change in dry-run mode),
-        ``False`` if it was already canonical, ``None`` if it was skipped due to
-        a parse error (warning on stderr)
-    """
     source = path.read_text(encoding="utf-8")
 
     try:
@@ -170,7 +134,6 @@ def sort_manifest(path: Path, *, dry_run: bool = False) -> bool | None:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Entry point for standalone use."""
     parser = argparse.ArgumentParser(
         description="Sort Odoo __manifest__.py keys into canonical order.",
         formatter_class=argparse.RawDescriptionHelpFormatter,

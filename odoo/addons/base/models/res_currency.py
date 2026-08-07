@@ -113,7 +113,6 @@ class ResCurrency(models.Model):
 
     @api.model
     def _toggle_group_multi_currency(self) -> None:
-        """Activate group_multi_currency when >1 active currency, deactivate otherwise."""
         active_currency_count = self.search_count([("active", "=", True)])
         if active_currency_count > 1:
             self._activate_group_multi_currency()
@@ -152,12 +151,6 @@ class ResCurrency(models.Model):
             )
 
     def _get_rates(self, company: Self, date: Any) -> dict[int, float]:
-        """Return ``{currency_id: rate}`` for ``self`` at ``date`` for ``company``.
-
-        Per currency, selects the latest rate with ``name <= date`` scoped to the
-        company root or global (``company_id`` NULL); falls back to the earliest
-        known rate, then to ``1.0`` when the currency has no rate at all.
-        """
         if not self.ids:
             return {}
         rates = self._get_rates_from_memo(company, date)
@@ -166,12 +159,6 @@ class ResCurrency(models.Model):
         return self._get_rates_sql(company, date)
 
     def _get_rates_sql(self, company: Self, date: Any) -> dict[int, float]:
-        """SQL cold path of :meth:`_get_rates` (memoization bypassed).
-
-        Same contract as :meth:`_get_rates`; kept as the reference
-        implementation whose semantics :meth:`_get_rates_from_memo` must
-        reproduce exactly (a test asserts their parity).
-        """
         if not self.ids:
             return {}
         currency_query = self._as_query(ordered=False)
@@ -221,32 +208,9 @@ class ResCurrency(models.Model):
         )
 
     def _rate_history_scope(self) -> tuple:
-        """Return what the memoized rate history is allowed to be shared across.
-
-        The history is loaded by a rule-filtered ``search_fetch``, so it is a
-        function of the reader's access context, not of the database alone:
-        ``res_currency_rate_rule`` restricts rows by ``company_ids``, ``sudo()``
-        bypasses rules outright, and a custom rule may key on ``user``. Keying
-        the memo on ``(currency, company root)`` alone let whichever context
-        touched a currency first in the transaction answer for every later one --
-        either handing a restricted reader rates the rule hides, or pinning a
-        ``sudo()`` reader to the restricted set. Both directions diverged from
-        :meth:`_get_rates_sql`, the contract this memo must reproduce.
-        """
         return (self.env.su, self.env.uid, tuple(sorted(self.env.companies.ids)))
 
     def _get_rates_from_memo(self, company: Self, date: Any) -> dict[int, float] | None:
-        """Memoized equivalent of :meth:`_get_rates_sql` (RCUR-M1).
-
-        The first call per (currency, company root, access scope) loads the
-        currency's full rate history (company-root and global ``company_id IS
-        NULL`` scopes) into the memo; later dates resolve in memory via
-        :meth:`_resolve_rate_from_history`. See :meth:`_rate_history_scope` for
-        why the reader's access context is part of the key.
-
-        :return: same mapping as :meth:`_get_rates`, or ``None`` when ``date``
-                 cannot be normalized (caller then uses the SQL cold path).
-        """
         try:
             date = fields.Date.to_date(date)
         except ValueError, TypeError:
@@ -287,16 +251,6 @@ class ResCurrency(models.Model):
 
     @staticmethod
     def _resolve_rate_from_history(history: tuple, date: Any) -> float:
-        """Replicate ``COALESCE((primary), (fallback), 1.0)`` of
-        :meth:`_get_rates_sql` on an in-memory rate history.
-
-        Primary: latest rate dated on or before ``date``; the company-root
-        scope takes precedence over the global one whenever it has any such
-        rate (the SQL orders by ``company_id ASC NULLS LAST, name DESC``).
-        Fallback (RCUR-L1): when no rate is dated on or before ``date`` — or
-        the selected row has a NULL value — use the *earliest* known rate,
-        with the same scope precedence; ``1.0`` when there is none at all.
-        """
         (specific_dates, specific_values), (global_dates, global_values) = history
         value = None
         if index := bisect_right(specific_dates, date):
@@ -319,12 +273,6 @@ class ResCurrency(models.Model):
     @api.depends("rate_ids.rate", "rate_ids.name", "rate_ids.company_id")
     @api.depends_context("to_currency", "date", "company", "company_id")
     def _compute_current_rate(self) -> None:
-        """Compute ``rate``/``inverse_rate``/``rate_string`` from context.
-
-        ``date``, ``company_id`` and ``to_currency`` are read from the context;
-        ``rate`` is units of this currency per 1 unit of ``to_currency`` and
-        ``inverse_rate`` its reciprocal (``0.0`` when ``rate`` is falsy).
-        """
         date = self.env.context.get("date") or fields.Date.context_today(self)
         company = (
             self.env["res.company"].browse(self.env.context.get("company_id"))
@@ -348,7 +296,6 @@ class ResCurrency(models.Model):
 
     @api.depends("rounding")
     def _compute_decimal_places(self) -> None:
-        """Derive ``decimal_places`` from the ``rounding`` factor."""
         for currency in self:
             if 0 < currency.rounding < 1:
                 currency.decimal_places = math.ceil(math.log10(1 / currency.rounding))
@@ -357,7 +304,6 @@ class ResCurrency(models.Model):
 
     @api.depends("rate_ids.name")
     def _compute_date(self) -> None:
-        """Set ``date`` to the most recent rate's date."""
         for currency in self:
             currency.date = currency.rate_ids[:1].name
 
@@ -397,36 +343,18 @@ class ResCurrency(models.Model):
             )
 
     def format(self, amount: float) -> str:
-        """Return ``amount`` formatted per ``self``'s rounding, symbol and position.
-
-        Also removes the minus sign when 0.0 is negative.
-        """
         self.ensure_one()
         return tools.format_amount(self.env, amount + 0.0, self)
 
     def round(self, amount: float) -> float:
-        """Return ``amount`` rounded per ``self``'s rounding rules."""
         self.ensure_one()
         return tools.float_round(amount, precision_rounding=self.rounding)
 
     def compare_amounts(self, amount1: float, amount2: float) -> int:
-        """Compare ``amount1`` and ``amount2`` after rounding each to the currency's
-        precision; return -1, 0 or 1 (lower / equal / greater).
-
-        Rounding happens before comparing, so this differs from a non-zero
-        difference: 0.006 vs 0.002 compare as different (round to 0.01 vs 0.0) at
-        2-digit precision even though their difference rounds to zero.
-        """
         self.ensure_one()
         return tools.float_compare(amount1, amount2, precision_rounding=self.rounding)
 
     def is_zero(self, amount: float) -> bool:
-        """Return True if ``amount`` rounds to zero at the currency's precision.
-
-        Warning: ``is_zero(a - b)`` is not always ``compare_amounts(a, b) == 0`` —
-        is_zero rounds after the subtraction, compare_amounts before (differing
-        for e.g. 0.006 and 0.002 at 2-digit precision).
-        """
         self.ensure_one()
         return tools.float_is_zero(amount, precision_rounding=self.rounding)
 
@@ -455,11 +383,6 @@ class ResCurrency(models.Model):
         company: Any = None,
         date: Any = None,
     ) -> float:
-        """Return the rate converting one unit of ``from_currency`` to ``to_currency``.
-
-        ``company`` defaults to the env company, ``date`` to today; returns ``1``
-        when both currencies are equal.
-        """
         if from_currency == to_currency:
             return 1
         company = company or self.env.company
@@ -478,12 +401,6 @@ class ResCurrency(models.Model):
         date: Any = None,
         round: bool = True,
     ) -> float:
-        """Return ``from_amount`` converted from ``self`` to ``to_currency``.
-
-        :param company: company whose rates are used to look up the conversion
-        :param date: date at which the conversion rate is taken
-        :param bool round: round the result to ``to_currency``'s precision
-        """
         if from_amount is None:
             msg = "_convert() requires a numeric amount, got None"
             raise ValueError(msg)
@@ -506,11 +423,6 @@ class ResCurrency(models.Model):
         return to_currency.round(to_amount) if round else to_amount
 
     def _select_companies_rates(self) -> str:
-        """Return the SQL selecting each rate's validity window per company.
-
-        Extension point; the returned date_start/date_end window is consumed by
-        the ``product_margin`` module.
-        """
         return """
             SELECT
                 r.currency_id,
@@ -529,12 +441,6 @@ class ResCurrency(models.Model):
 
     @api.model
     def _get_context_company_currency_name(self) -> str:
-        """Return the currency name of the context company: ``company_id`` from
-        the context when set, else the environment company.
-
-        Shared by the ``_get_view``/``_get_view_cache_key`` overrides of both
-        ``res.currency`` and ``res.currency.rate``.
-        """
         return (
             self.env["res.company"].browse(self.env.context.get("company_id"))
             or self.env.company
@@ -544,8 +450,6 @@ class ResCurrency(models.Model):
     def _get_view_cache_key(
         self, view_id: int | None = None, view_type: str = "form", **options
     ) -> tuple:
-        """View cache must depend on the company currency, since _get_view
-        relabels the rate fields with it."""
         key = super()._get_view_cache_key(view_id, view_type, **options)
         return key + (self._get_context_company_currency_name(),)
 
@@ -635,11 +539,6 @@ class ResCurrencyRate(models.Model):
     )
 
     def _sanitize_vals(self, vals: dict[str, Any]) -> dict[str, Any]:
-        """Drop redundant rate encodings from ``vals``.
-
-        Returns a filtered copy when something must be dropped; the
-        caller-owned dict is never mutated.
-        """
         drop = set()
         if "inverse_company_rate" in vals and (
             "company_rate" in vals or "rate" in vals
@@ -797,8 +696,6 @@ class ResCurrencyRate(models.Model):
     def _get_view_cache_key(
         self, view_id: int | None = None, view_type: str = "form", **options
     ) -> tuple:
-        """View cache must depend on the company currency, since _get_view
-        relabels the rate fields with it."""
         key = super()._get_view_cache_key(view_id, view_type, **options)
         return key + (self.env["res.currency"]._get_context_company_currency_name(),)
 

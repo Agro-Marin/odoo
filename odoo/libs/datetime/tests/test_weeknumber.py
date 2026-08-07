@@ -1,11 +1,3 @@
-"""Regression tests for ``odoo.libs.datetime.date_utils.weeknumber``.
-
-The ``first_week_day`` override accepts ``0`` (Monday).  The guard must
-distinguish "not provided" (``None``) from the falsy-but-valid ``0``; otherwise
-callers asking for a Monday-based week (e.g. resource weekly-hours) silently get
-the locale default instead.
-"""
-
 import unittest
 from datetime import date
 

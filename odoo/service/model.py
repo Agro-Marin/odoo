@@ -1,7 +1,8 @@
 import logging
 import threading
 import typing
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence, Set
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from contextlib import suppress
 from functools import partial
 from weakref import WeakKeyDictionary
@@ -20,7 +21,6 @@ from odoo.tools import lazy
 from odoo.tools.safe_eval import _UNSAFE_ATTRIBUTES
 
 from ._db_helpers import rpc_db_exposed
-
 from .transaction import (
     PG_CONCURRENCY_ERRORS_TO_RETRY,
     PG_CONCURRENCY_EXCEPTIONS_TO_RETRY,
@@ -34,12 +34,6 @@ _logger = logging.getLogger(__name__)
 
 
 class Params:
-    """Function-call parameters, stringifiable for display/logging.
-
-    Positional args keep their order; keyword args are sorted by name so log
-    lines from the same call site compare identically.
-    """
-
     def __init__(self, args: list, kwargs: dict) -> None:
         self.args = args
         self.kwargs = kwargs
@@ -54,16 +48,6 @@ _PUBLIC_METHOD_CACHE: WeakKeyDictionary[type, dict[str, Callable]] = WeakKeyDict
 
 
 def get_public_method(model: BaseModel, name: str) -> Callable:
-    """Get the public unbound method from a model.
-
-    When the method does not exist or is inaccessible, raise appropriate errors.
-    Accessible methods are public (not prefixed with ``_``) and are not
-    decorated with ``@api.private``.
-
-    Successful resolutions are memoized per model class (see
-    ``_PUBLIC_METHOD_CACHE``); this runs on every RPC call, so the cache avoids
-    re-walking the model's full MRO for each ``execute_kw``.
-    """
     assert isinstance(model, BaseModel)
     if not isinstance(name, str):
         raise AttributeError(
@@ -106,18 +90,6 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
 
 
 def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.Any:
-    """Invoke the given method ``name`` on the recordset ``model``.
-
-    Private methods cannot be called, only ones returned by `get_public_method`.
-
-    The ``create`` arity check runs BEFORE the call.  It used to sit next to the
-    ``result.id``/``result.ids`` narrowing that needs ``args[0]``, i.e. after the
-    method had already run — where it was unreachable, since ``create`` is
-    ``@api.model`` and so receives ``args`` untouched: an argument-less RPC
-    ``create`` raised ``TypeError: create() missing 1 required positional
-    argument: 'vals_list'`` from the ORM (verified) and never reached the guard.
-    Checked up front, the caller gets the intended ``AccessError``.
-    """
     method = get_public_method(model, name)
 
     if name == "create" and not args:
@@ -153,18 +125,6 @@ def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.
 
 
 def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
-    """RPC entry point for the ``object`` service.
-
-    ``dispatch_method`` is the RPC verb (``execute`` / ``execute_kw``);
-    ``model_method`` is the ORM method to invoke.  The caller supplies
-    ``(db, uid, passwd, model, model_method, *args)``; for ``execute_kw`` the
-    last two positional args are ``(args_list, kwargs_dict)``.
-
-    Verifies credentials (``res.users._check_uid_passwd``) inside the opened
-    cursor, then hands off to ``execute_cr``.  The registry's signaling sequence
-    advances on success and resets on failure — this propagates cache
-    invalidations across workers.
-    """
     if dispatch_method not in ("execute", "execute_kw"):
         raise AttributeError(f"Method not found: {dispatch_method}")
     if len(params) < 5:
@@ -222,13 +182,6 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
 def execute_cr(
     cr: BaseCursor, uid: int, obj: str, method: str, args: list | tuple, kw: dict
 ) -> typing.Any:
-    """Execute ``obj.method(*args, **kw)`` on a prepared cursor.
-
-    Resets the cursor (clearing caches from any prior attempt), rebuilds the
-    environment under ``uid``, and runs the call through ``retrying``.  Also
-    force-evaluates any ``lazy`` values in the result before the cursor closes,
-    since a lazy outliving the cursor fails to materialise for the marshaller.
-    """
     cr.reset()
     env = api.Environment(cr, uid, {})
     env.transaction.default_env = env
@@ -245,21 +198,6 @@ def execute_cr(
 
 
 def _force_lazy_values(result: typing.Any) -> typing.Any:
-    """Force any ``lazy`` values in ``result`` before the cursor closes.
-
-    A one-shot iterator (generator, ``map``/``filter``/``zip``, ``iter(...)``)
-    is materialized to a ``list`` first — traversing it to find lazies would
-    otherwise exhaust it, handing the marshaller an empty iterator.  Re-iterable
-    containers are returned unchanged.
-
-    This applies to the TOP-LEVEL result only.  A one-shot iterator NESTED inside
-    a container is still exhausted by ``_force_lazy_in``'s walk (``[gen]`` comes
-    back as ``[[]]``), and deliberately so: neither marshaller can serialise one
-    anyway — JSON raises "Object of type generator is not JSON serializable" and
-    xmlrpc "cannot marshal <class 'generator'> objects" — so such a result is
-    already an error either way, and rewriting nested containers to repair it
-    would cost a copy on every RPC result to change nothing observable.
-    """
     if not isinstance(result, lazy) and isinstance(result, Iterator):
         result = list(result)
     try:
@@ -277,30 +215,6 @@ _SCALAR_LEAF_TYPES = frozenset({int, float, bool, str, bytes, type(None)})
 
 
 def _force_lazy_in(val: typing.Any) -> None:
-    """Recursively evaluate every ``lazy`` reachable from ``val``, in place.
-
-    Walks the container shapes an RPC result can take — ``Mapping`` (values
-    only, see below), ``Sequence`` / ``Set``, and a generic ``Iterable``
-    fallback for ``dict_values`` views, generators, and ``iter()`` results.
-    ``Set`` is listed explicitly because a lazy inside a ``{...}`` is reached by
-    no other branch before the ``Iterable`` fallback.
-
-    Runs on EVERY RPC result, so the scalar-leaf fast path stays first (skips
-    the slower ABC ``isinstance`` chain for the common int/str/None atom) and is
-    ALSO inlined at each container-iteration site below: a homogeneous scalar
-    payload — the bulk of any real result, since ``search_read`` rows are dicts
-    of str/int/bool/None — then costs one ``frozenset`` membership test per cell
-    instead of a recursive call per cell (measured ~2x faster on a thousand-row
-    read).  A non-leaf cell (nested container, ``lazy``, recordset, ``Markup``)
-    still recurses, where the ``str``/``bytes``/``BaseModel`` guard catches the
-    str subclasses that would otherwise recurse character-by-character forever.
-
-    Dict KEYS are deliberately NOT walked: a ``lazy`` key cannot survive
-    marshalling (JSON and XML-RPC both require string keys, and forcing a lazy
-    leaves it a lazy object, not a str), so a dict carrying one fails to
-    serialise whether or not the key was forced — walking keys would only run a
-    doomed lazy's side effect for a result already bound to error.
-    """
     if val.__class__ in _SCALAR_LEAF_TYPES:
         return
     if isinstance(val, lazy):
@@ -312,7 +226,7 @@ def _force_lazy_in(val: typing.Any) -> None:
         for value in val.values():
             if value.__class__ not in _SCALAR_LEAF_TYPES:
                 _force_lazy_in(value)
-    elif isinstance(val, (Sequence, Set, Iterable)):
+    elif isinstance(val, (Sequence, AbstractSet, Iterable)):
         for item in val:
             if item.__class__ not in _SCALAR_LEAF_TYPES:
                 _force_lazy_in(item)

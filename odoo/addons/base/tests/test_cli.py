@@ -98,11 +98,6 @@ class TestCommand(BaseCase):
                 )
 
     def test_help_covers_all_cli_modules(self):
-        """Guard against the test_help expected set drifting behind cli/.
-
-        Every ``cli/*.py`` module that declares a ``class X(Command)`` must be
-        exposed by ``odoo-bin help``.
-        """
         from pathlib import Path
 
         cli_dir = Path(__file__).parents[3] / "cli"
@@ -126,7 +121,6 @@ class TestCommand(BaseCase):
         )
 
     def test_help_subcommand(self):
-        """Just execute the help for each internal sub-command"""
         load_internal_commands()
         for name in commands:
             with self.subTest(command=name):
@@ -173,7 +167,6 @@ class TestCommand(BaseCase):
         self.assertFalse(proc.stderr)
 
     def test_upgrade_code_standalone_runs(self):
-        """Standalone upgrade_code.py must run a real script, not just --help."""
         proc = sp.run(
             [
                 sys.executable,
@@ -213,9 +206,6 @@ class TestCommand(BaseCase):
         )
 
     def test_i18n_loadlang_requires_language(self):
-        """loadlang without -l must be rejected by argparse, not silently
-        no-op (Domain coerces None → False, so an empty recordset would
-        iterate zero times and the command would report success)."""
         proc = self.run_command(
             "i18n",
             "loadlang",
@@ -231,13 +221,6 @@ class TestCommand(BaseCase):
         )
 
     def test_scaffold_help_tolerant_of_missing_templates(self):
-        """scaffold --help must survive a missing templates/ directory.
-
-        Behavioral, not source-grep: two eager probes used to kill --help —
-        the iterdir() in __init__ (epilog) and the ``default=Template(...)``
-        constructed at add_argument time. The default is now a plain string
-        that argparse converts only after --help has been handled.
-        """
         import contextlib
         import io
 
@@ -263,9 +246,6 @@ class TestCommand(BaseCase):
         self.assertIn("usage:", buf.getvalue())
 
     def test_scaffold_invalid_template_is_usage_error(self):
-        """`scaffold -t bogus` must be a standard argparse usage error
-        (usage line, exit 2), not a bare sys.exit(1) message — Template is
-        an argparse `type` callable and must raise ArgumentTypeError."""
         with tempfile.TemporaryDirectory() as tmp:
             proc = self.run_command(
                 "scaffold", "-t", "bogus_template", "mymod", tmp, check=False
@@ -275,9 +255,6 @@ class TestCommand(BaseCase):
         self.assertIn("not a valid module template", proc.stderr)
 
     def test_db_load_validates_before_drop(self):
-        """`db load --force` must NOT drop the target before the dump is
-        fetched and recognised as a zip — a 404 or a stray .sql file used
-        to destroy the existing database and then abort."""
         from odoo.cli import db as dbmod
 
         calls = []
@@ -301,13 +278,6 @@ class TestCommand(BaseCase):
         self.assertEqual(calls, [], msg=f"target dropped before validation: {calls}")
 
     def test_db_load_force_drops_after_validation(self):
-        """The happy path must still work: valid zip -> drop -> restore.
-
-        ``_drop_if_exists`` calls ``_drop_database`` directly, not ``exp_drop``
-        (t23746/EO7.9.11, A3 HIGH) — the CLI is local trusted tooling and must
-        not be silently blocked by ``exp_drop``'s exposed-databases allowlist
-        gate, which exists to protect the RPC entry point instead. Mock the
-        function actually called, not the RPC-facing one."""
         import zipfile as zipfile_mod
 
         from odoo.cli import db as dbmod
@@ -333,9 +303,6 @@ class TestCommand(BaseCase):
         self.assertEqual(calls, ["drop", "restore"])
 
     def test_db_duplicate_checks_source_before_drop(self):
-        """`db duplicate missing_src tgt --force` must abort before the
-        target is dropped — the source check used to happen inside
-        _duplicate_database, after the drop."""
         from odoo.cli import db as dbmod
 
         calls = []
@@ -357,10 +324,6 @@ class TestCommand(BaseCase):
         self.assertIn("missing_src", str(ctx.exception.code))
 
     def test_db_drop_calls_drop_database_not_exp_drop(self):
-        """`db drop <name>` must call `_drop_database` (local trusted CLI),
-        not `exp_drop` (RPC-gated, refuses anything outside the exposed
-        allowlist) — the two must stay consistent with `load/duplicate/rename
-        --force`, which already route through `_drop_database`."""
         from odoo.cli import db as dbmod
 
         with mock.patch.object(dbmod, "_drop_database", return_value=True) as drop_mock:
@@ -368,8 +331,6 @@ class TestCommand(BaseCase):
         drop_mock.assert_called_once_with("mydb")
 
     def test_db_drop_reports_missing_database(self):
-        """The happy-path exit message must still fire when the database is
-        genuinely absent (`_drop_database` returns False)."""
         from odoo.cli import db as dbmod
 
         with mock.patch.object(dbmod, "_drop_database", return_value=False):
@@ -378,10 +339,6 @@ class TestCommand(BaseCase):
         self.assertIn("missing", str(ctx.exception.code))
 
     def test_db_connection_flag_map_covers_all_flags(self):
-        """The dest->flag map is derived from _CONNECTION_FLAGS; every
-        declared flag must round-trip into config_args. The previous
-        prefix-based filter (db_*/pg_* + a passthrough tuple) only matched
-        the current flags by coincidence."""
         from odoo.cli import db as dbmod
 
         dest_flags = dbmod.Db._connection_dest_flags()
@@ -392,8 +349,6 @@ class TestCommand(BaseCase):
             self.assertEqual(dest_flags[dest], long_flag)
 
     def test_obfuscate_select_fields(self):
-        """The --fields/--file/--exclude/--no-default-fields/--allfields
-        interplay, unit-tested without a database."""
         import argparse
 
         from odoo.cli.obfuscate import DEFAULT_FIELDS, _select_fields
@@ -405,7 +360,9 @@ class TestCommand(BaseCase):
             "allfields": False,
             "no_default_fields": False,
         }
-        ns = lambda **kw: argparse.Namespace(**{**base, **kw})
+
+        def ns(**kw):
+            return argparse.Namespace(**{**base, **kw})
 
         self.assertEqual(_select_fields(ns()), list(DEFAULT_FIELDS))
         self.assertEqual(
@@ -430,7 +387,6 @@ class TestCommand(BaseCase):
             _select_fields(ns(fields="no_dot_here"))
 
     def test_populate_model_factors(self):
-        """Factor/model mapping: propagation, surplus tolerance, int check."""
         from odoo.cli.populate import _parse_model_factors
 
         errors = []
@@ -447,9 +403,6 @@ class TestCommand(BaseCase):
         self.assertTrue(errors and "--factors" in errors[0])
 
     def test_deploy_requests_have_timeouts(self):
-        """requests has no default timeout — a stuck server would hang the
-        deploy forever. Both the login GET and the upload POST must pass an
-        explicit timeout."""
         from odoo.cli.deploy import Deploy
 
         deploy = Deploy()
@@ -467,9 +420,6 @@ class TestCommand(BaseCase):
         self.assertIsNotNone(deploy.session.post.call_args.kwargs.get("timeout"))
 
     def test_deploy_zip_compressed_and_pruned(self):
-        """The deploy zip must deflate its entries (ZIP_STORED uploads are
-        several-fold larger) and never include excluded trees, which are
-        pruned during the walk rather than filtered file-by-file."""
         import zipfile as zipfile_mod
 
         from odoo.cli.deploy import Deploy
@@ -493,10 +443,6 @@ class TestCommand(BaseCase):
         self.assertEqual(manifest.compress_type, zipfile_mod.ZIP_DEFLATED)
 
     def test_deploy_zip_keeps_file_named_like_excluded_dir(self):
-        """A regular module file whose basename equals an excluded *directory*
-        name (e.g. ``build``, ``dist``) must still ship. _should_skip tests
-        only the parent path components, never the file's own basename — the
-        earlier form dropped such files silently."""
         import zipfile as zipfile_mod
 
         from odoo.cli.deploy import Deploy
@@ -520,9 +466,6 @@ class TestCommand(BaseCase):
         )
 
     def test_start_explicit_path_wins_over_venv(self):
-        """`start -p .` must use the cwd even inside a virtualenv: the
-        $VIRTUAL_ENV fallback applies only when -p was omitted (the old
-        default='.' made the explicit form indistinguishable)."""
         from odoo.cli import start as start_mod
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -556,7 +499,6 @@ class TestCommand(BaseCase):
             self.assertNotIn(tmp, paths, msg="venv path overrode explicit -p .")
 
     def test_db_init_accepts_config_after_subcommand(self):
-        """`db init mydb -c cfg` must work, matching `module install` UX."""
         proc = self.run_command(
             "db",
             "init",
@@ -568,16 +510,6 @@ class TestCommand(BaseCase):
         self.assertNotIn("unrecognized arguments", proc.stderr)
 
     def test_db_connection_flags_before_subcommand_survive(self):
-        """`db -c cfg --db_host h drop mydb` must NOT drop the connection flags.
-
-        argparse copies the subparser namespace back onto the parent, so a
-        subparser flag with an ordinary None default used to clobber a value
-        supplied before the subcommand. With default=SUPPRESS on the
-        subparser copies, the before-form value must survive into config_args
-        (otherwise `db -c prod.conf drop x` would silently target the local
-        default server). Drives the real Db.run, stubbing only the side
-        effects.
-        """
         from odoo.cli import db as dbmod
 
         captured = {}
@@ -599,12 +531,6 @@ class TestCommand(BaseCase):
         self.assertIn("prodhost", config_args, msg=f"--db_host lost: {config_args}")
 
     def test_deploy_db_omitted_does_not_crash(self):
-        """`deploy <path>` with no --db must not crash on quote(None).
-
-        The encode step ran before any network call, so quote(None) raised
-        TypeError and the generic handler turned it into a cryptic message.
-        Now --db defaults to "" and the encode is None-tolerant.
-        """
         from odoo.cli.deploy import Deploy
 
         deploy = Deploy()
@@ -624,11 +550,6 @@ class TestCommand(BaseCase):
         self.assertTrue(deploy.session.get.called)
 
     def test_bootstrap_parser_rejects_abbreviation(self):
-        """The pre-dispatch parser must not abbreviate --addons-path.
-
-        With allow_abbrev (the argparse default) `--addons=/y` was silently
-        swallowed as the addons path; the real flag must still parse.
-        """
         parser = build_bootstrap_parser()
         ns, rest = parser.parse_known_args(["server", "--addons=/y"])
         self.assertIsNone(ns.addons_path)
@@ -637,12 +558,6 @@ class TestCommand(BaseCase):
         self.assertEqual(ns2.addons_path, "/y")
 
     def test_upgrade_code_rejects_out_of_tree_script(self):
-        """`--script ../evil` must be rejected when it resolves outside UPGRADE.
-
-        Path.relative_to is lexical and does not raise for `..`; the guard now
-        resolves both sides. Point UPGRADE at a temp dir and plant a sibling
-        file reachable via `../`.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             upgrade_dir = root / "upgrade_code"
@@ -657,11 +572,6 @@ class TestCommand(BaseCase):
             self.assertIn("outside", str(ctx.exception))
 
     def test_discovery_survives_broken_addon_cli(self):
-        """A SyntaxError in one addon's cli/*.py must not break discovery.
-
-        `odoo-bin help` loads every addon's cli file; one bad file previously
-        propagated and killed the whole listing.
-        """
         from odoo.cli import command as cmd
 
         import odoo.addons
@@ -685,7 +595,6 @@ class TestCommand(BaseCase):
             self.assertNotIn("brokencmd", commands)
 
     def test_deploy_local_host_detection(self):
-        """deploy.py must distinguish localhost forms from look-alike hosts."""
         from odoo.cli.deploy import _LOCAL_HOSTS
 
         self.assertIn("localhost", _LOCAL_HOSTS)
@@ -696,7 +605,6 @@ class TestCommand(BaseCase):
         self.assertNotIn("127.0.0.1.evil.com", _LOCAL_HOSTS)
 
     def test_deploy_excluded_paths(self):
-        """The deploy zip must skip VCS, IDE, and build noise."""
         from odoo.cli.deploy import (
             EXCLUDED_DIR_NAMES,
             EXCLUDED_FILE_NAMES,
@@ -719,9 +627,6 @@ class TestCommand(BaseCase):
         self.assertIn(".DS_Store", EXCLUDED_FILE_NAMES)
 
     def test_start_db_filter_escapes_regex(self):
-        """start.py must escape regex meta-characters in db_name when
-        building --db-filter, otherwise an unrelated db like 'myXprod-db'
-        would match a filter built from 'my.prod-db'."""
         src = (Path(__file__).parents[3] / "cli/start.py").read_text()
         self.assertIn(
             "re.escape(args.db_name)",
@@ -731,12 +636,6 @@ class TestCommand(BaseCase):
         )
 
     def test_db_filter_database_constrains_permissive_dbfilter(self):
-        """`--database` must further constrain a `--db-filter`, not be overridden.
-
-        With a permissive dbfilter (``.*``) and several databases on the host, a
-        `-d X` run must still resolve to exactly X — otherwise db_monodb is
-        ambiguous and every db-bound route 404s (this broke HttpCase tests).
-        """
         from odoo.http import db_filter
 
         dbs = ["alpha", "beta", "prod", "test_db"]
@@ -756,11 +655,6 @@ class TestCommand(BaseCase):
             self.assertEqual(db_filter(dbs, host="localhost"), ["prod"])
 
     def test_db_filter_strips_system_databases(self):
-        """db_filter is the validation funnel for every request-supplied
-        database name (session cookie, X-Odoo-Database header, ?db= via
-        ensure_db). System databases and the creation template must be
-        stripped in every filter mode — a permissive dbfilter (`.*`) or an
-        explicit db_name listing must not re-expose them."""
         from odoo.http import db_filter
 
         dbs = ["postgres", "template0", "template1", config["db_template"], "mydb"]
@@ -778,9 +672,6 @@ class TestCommand(BaseCase):
                 )
 
     def test_registry_refuses_system_databases(self):
-        """The registry is the root choke point: RPC `execute_kw(db, ...)`
-        bypasses db_filter entirely, so Registry construction itself must
-        refuse cluster infrastructure — before opening any connection."""
         from odoo.modules.registry import Registry
 
         for name in ("postgres", "template0", "template1", config["db_template"]):
@@ -788,22 +679,12 @@ class TestCommand(BaseCase):
                 Registry(name)
 
     def test_obfuscate_excludes_ir_tables_via_starts_with(self):
-        """Source-level guard: get_all_fields must filter ir_* tables via
-        starts_with, not LIKE — the latter treats '_' as a wildcard and
-        would also exclude tables like 'irrelevant' or 'iru_custom'."""
         src = (Path(__file__).parents[3] / "cli/obfuscate.py").read_text()
         non_comment = "\n".join(line.split("#", 1)[0] for line in src.splitlines())
         self.assertIn("starts_with(table_name, 'ir_')", non_comment)
         self.assertNotIn("LIKE 'ir_%'", non_comment)
 
     def test_dotted_command_name_no_traceback(self):
-        """A dotted typo like `odoo-bin db.init` must produce the standard
-        Unknown-command message, not a ModuleNotFoundError traceback.
-
-        find_command's suppress guard compares e.name to the expected module
-        name; for 'x.y' the import machinery reports the *parent* module
-        ('odoo.cli.x'), so the guard re-raised. Names are now validated
-        before any import attempt."""
         for name in ("db.init", "x.y", ".", ".."):
             with self.subTest(name=name):
                 proc = self.run_command(name, check=False)
@@ -811,14 +692,6 @@ class TestCommand(BaseCase):
                 self.assertNotIn("Traceback", proc.stderr)
 
     def test_start_merges_bootstrap_addons_path(self):
-        """`odoo-bin start --addons-path=X` must not lose X.
-
-        The dispatcher's bootstrap parser strips --addons-path from any argv
-        position, so start.py never sees it in cmdargs and used to append
-        the bare auto-detected project path — which the second config parse
-        then took as a *replacement* for X. start.py must merge the
-        bootstrap value (exposed as odoo.cli.BOOTSTRAP_ADDONS_PATH) with the
-        project path, user paths first."""
         import odoo.cli
         from odoo.cli import start as start_mod
 
@@ -850,10 +723,6 @@ class TestCommand(BaseCase):
             self.assertIn(str(proj.resolve()), paths)
 
     def test_start_filters_concatenated_path_flag(self):
-        """`start -pX` (argparse's concatenated short form) must be removed
-        from the args forwarded to the server: the server parser maps -p to
-        --http-port, so a leaked -pX is misparsed (a numeric X would even
-        silently change the listening port)."""
         from odoo.cli import start as start_mod
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -882,9 +751,6 @@ class TestCommand(BaseCase):
             self.assertFalse(leaked, msg=f"args: {captured['args']}")
 
     def test_deploy_zip_skips_symlinks(self):
-        """The deploy zip must not embed the content of symlinked files —
-        a link pointing outside the module would leak the target's bytes
-        into the upload."""
         import zipfile
 
         from odoo.cli.deploy import Deploy
@@ -909,9 +775,6 @@ class TestCommand(BaseCase):
             )
 
     def test_command_register_optout(self):
-        """`class Base(Command, register=False)` must be allowed as an
-        abstract helper base: not registered, exempt from the name/module
-        and run-override checks. Concrete subclasses are still validated."""
         from odoo.cli.command import Command, commands
 
         before = dict(commands)
@@ -923,11 +786,6 @@ class TestCommand(BaseCase):
         self.assertEqual(commands, before)
 
     def test_db_helpers_live_on_databasecommand_not_base(self):
-        """The -c/-d plumbing belongs to DatabaseCommand, not the universal
-        Command base. Every caller of add_config_arguments/require_single_database
-        is a DatabaseCommand; db-free commands (deploy/scaffold/help) must not
-        inherit database helpers they never use. Pins the separation so the
-        helpers are not re-hoisted onto the base."""
         from odoo.cli.command import Command, DatabaseCommand
 
         for meth in (
@@ -947,10 +805,6 @@ class TestCommand(BaseCase):
             )
 
     def test_obfuscate_update_has_where_guard(self):
-        """convert_table must guard its UPDATE with a WHERE clause: an
-        unguarded UPDATE physically rewrites every tuple even when the
-        idempotency CASE returns the value unchanged (full-table I/O and
-        bloat on re-runs)."""
         from odoo.cli.obfuscate import Obfuscate
 
         for unobfuscate, marker in (
@@ -971,12 +825,6 @@ class TestCommand(BaseCase):
                 self.assertIn(marker, update_sql)
 
     def test_obfuscate_prefetches_field_kinds(self):
-        """After _prefetch_field_kinds, check_field is a dict lookup with no
-        per-field information_schema round-trip, and returns exactly what the
-        per-field probe would (string/json for supported types, None for
-        unsupported or absent columns). Guards the explicit --fields path from
-        regressing to one catalog query per field, charged twice (the
-        validation pass in run() plus convert_table)."""
         from odoo.cli.obfuscate import Obfuscate
 
         ob = Obfuscate()
@@ -1039,15 +887,6 @@ class TestCommand(BaseCase):
             self.assertEqual(lines, [">>> Hello from Python!", ">>> "])
 
     def test_databasecommand_preserves_bootstrap_addons_path(self):
-        """`module install --addons-path=X` must not silently lose X.
-
-        command.main strips --addons-path and feeds it to config in a FIRST
-        parse; DatabaseCommand.bootstrap_config then runs a SECOND parse
-        forwarding only -c/-d. Modules are found only because config specially
-        preserves addons_path across that second parse; dropping that
-        preservation would make commands resolve zero modules with no error.
-        Pinned on an isolated configmanager so the global singleton is untouched.
-        """
         from odoo.tools.config import configmanager
 
         with tempfile.TemporaryDirectory() as ad, tempfile.TemporaryDirectory() as dd:
@@ -1080,16 +919,6 @@ class TestCommand(BaseCase):
             )
 
     def test_build_config_args_forwards_only_connection_flags(self):
-        """build_config_args carries only --no-http/-c/-d, never the global
-        --addons-path.
-
-        This is the CLI half of the contract pinned by
-        test_databasecommand_preserves_bootstrap_addons_path: because the
-        second parse omits --addons-path, config MUST preserve it. The
-        assertion also bounds the abstraction — commands needing arbitrary
-        server options (shell, cloc) cannot route through build_config_args
-        and so parse the config themselves.
-        """
         from odoo.cli.command import build_config_args
 
         self.assertEqual(
@@ -1103,10 +932,6 @@ class TestCommand(BaseCase):
         )
 
     def test_db_refuses_system_databases(self):
-        """Destructive `db` subcommands must refuse the PG system databases
-        and the configured creation template. PostgreSQL itself refuses to
-        drop template0/1 (with a raw traceback), but happily drops `postgres`
-        — the maintenance DB every client tool connects to by default."""
         from odoo.cli import db as dbmod
 
         cmd = dbmod.Db()
@@ -1147,9 +972,6 @@ class TestCommand(BaseCase):
         duplicate_mock.assert_not_called()
 
     def test_start_refuses_system_database_names(self):
-        """`start` derives the database name from a directory name; a project
-        checked out as e.g. `postgres/` must not create over (or serve from)
-        a PG system database."""
         from odoo.cli import start as startmod
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1164,7 +986,6 @@ class TestCommand(BaseCase):
         self.assertIn("system database", str(ctx.exception.code))
 
     def test_db_list_prints_databases(self):
-        """`db list` prints each visible database on its own line."""
         import contextlib
         import io
 
@@ -1180,11 +1001,6 @@ class TestCommand(BaseCase):
         self.assertEqual(out.getvalue(), "alpha\nbeta\n")
 
     def test_db_connection_flags_have_help(self):
-        """Every connection flag must carry help text (rendered in `db --help`
-        and each subcommand's help), and the help map must not drift from the
-        declared flags. Assert on the parser actions, not the formatted output
-        — argparse wraps help at terminal width, so string matching against
-        print_help() would be flaky in narrow terminals."""
         import argparse
 
         from odoo.cli import db as dbmod
@@ -1206,9 +1022,6 @@ class TestCommand(BaseCase):
             )
 
     def test_deploy_zip_skips_junk_file_names(self):
-        """`.DS_Store` has no Path.suffix (dotfile), so the old suffix-based
-        exclusion shipped it in every deploy zip; it must be excluded by
-        file name."""
         import zipfile as zipfile_mod
 
         from odoo.cli.deploy import Deploy
@@ -1230,8 +1043,6 @@ class TestCommand(BaseCase):
         self.assertIn("__manifest__.py", names)
 
     def test_populate_rejects_nonpositive_factors(self):
-        """A factor of 0 or less would silently populate nothing while the
-        command still reports success."""
         from odoo.cli.populate import _parse_model_factors
 
         for factors in ("0", "-1", "3,0"):
@@ -1243,8 +1054,6 @@ class TestCommand(BaseCase):
             )
 
     def test_help_falls_back_to_description(self):
-        """An (addon) command without a docstring must still show its
-        `description` in the `help` table instead of a blank cell."""
         import contextlib
         import io
 
@@ -1266,9 +1075,6 @@ class TestCommand(BaseCase):
         self.assertNotIn("second line", out.getvalue())
 
     def test_shell_repl_availability_probe(self):
-        """REPL availability is probed with find_spec, so an installed-but-
-        broken REPL surfaces a warning instead of silently vanishing from the
-        fallback chain."""
         import importlib.util
 
         from odoo.cli.shell import Shell
@@ -1282,9 +1088,6 @@ class TestCommand(BaseCase):
             self.assertFalse(Shell._repl_available("ipython"))
 
     def test_cloc_counts_path(self):
-        """`cloc -p <dir>` runs config-free and reports counted lines; the
-        database-mode connection flags must be visible in --help (they used
-        to work only via silent unknown-arg forwarding)."""
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "thing.py").write_text("x = 1\ny = 2\n")
             proc = self.run_command("cloc", "-v", "-p", tmp)
@@ -1295,9 +1098,6 @@ class TestCommand(BaseCase):
         self.assertIn("--data-dir", help_proc.stdout)
 
     def test_get_single_database_refuses_system_databases(self):
-        """The single-database funnel (shell, cloc, every DatabaseCommand)
-        must refuse PG system databases and the configured creation template:
-        opening a registry on one would bootstrap Odoo tables inside it."""
         from odoo.cli.command import get_single_database
 
         for name in ("postgres", "template0", "template1", config["db_template"]):
@@ -1314,9 +1114,6 @@ class TestCommand(BaseCase):
         self.assertFalse(errors)
 
     def test_server_refuses_system_database(self):
-        """`odoo-bin -d postgres` must refuse to serve: registry preload
-        bootstraps Odoo tables into any uninitialized database it is pointed
-        at, corrupting the maintenance DB."""
         proc = self.run_command(
             "server",
             "-d",
@@ -1329,8 +1126,6 @@ class TestCommand(BaseCase):
         self.assertIn("system or template database", proc.stderr)
 
     def test_db_dump_removes_partial_file_on_failure(self):
-        """A dump that fails mid-write must not leave a truncated file that
-        is indistinguishable from a valid dump by name."""
         from odoo.cli import db as dbmod
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1352,8 +1147,6 @@ class TestCommand(BaseCase):
             self.assertFalse(dump_path.exists(), msg="partial dump file left behind")
 
     def test_module_zip_path_requires_real_zip(self):
-        """A file merely *named* .zip must not be treated as an importable
-        data module — the 'not a readable .zip' warning has to be true."""
         import zipfile as zipfile_mod
 
         from odoo.cli.module import Module
@@ -1369,9 +1162,6 @@ class TestCommand(BaseCase):
             self.assertEqual(cmd._get_zip_path(str(real)), real.resolve())
 
     def test_subcommand_config_flags_work_in_both_positions(self):
-        """`module` and `i18n` must accept -c/-d/-D both before and after the
-        subcommand, like `db` — `i18n -c cfg export …` used to die with a
-        confusing "invalid choice: 'cfg'" argparse error."""
         from odoo.cli.i18n import I18n
         from odoo.cli.module import Module
 
@@ -1390,9 +1180,6 @@ class TestCommand(BaseCase):
             self.assertEqual((ns.config, ns.db_name), ("cfg", "mydb"), msg=str(args))
 
     def test_i18n_import_force_overwrite_flag(self):
-        """--force-overwrite reaches TranslationImporter.save's force knob —
-        without it, `i18n import -w` silently keeps existing translations on
-        every noupdate record (most shipped data) with no way to override."""
         from odoo.cli.i18n import I18n
 
         ns = I18n().parser.parse_args(
@@ -1404,8 +1191,6 @@ class TestCommand(BaseCase):
         self.assertFalse(ns.overwrite)
 
     def test_upgrade_code_clears_progress_line(self):
-        """The last progress render ends with `\\r`; clear_progress must erase
-        it so it isn't left under later stdout output."""
         import contextlib
         import io
 

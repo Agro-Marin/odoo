@@ -1,5 +1,3 @@
-"""Utilities for generating, parsing and checking XML/XSD files on top of the lxml.etree module."""
-
 import base64
 import contextlib
 import logging
@@ -29,17 +27,12 @@ _logger = logging.getLogger(__name__)
 
 
 class odoo_resolver(etree.Resolver):
-    """Odoo-specific file resolver for the XML parser: resolve filenames from
-    ir.attachment.
-    """
-
     def __init__(self, env: object, prefix: str) -> None:
         super().__init__()
         self.env = env
         self.prefix = prefix
 
     def resolve(self, url: str, id: object, context: object) -> object:
-        """Search url in ``ir.attachment`` and return the resolved content."""
         attachment_name = f"{self.prefix}.{url}" if self.prefix else url
         attachment = self.env["ir.attachment"].search(
             [("name", "=", attachment_name)], limit=1
@@ -78,19 +71,6 @@ def _check_with_xsd(
     env: object = None,
     prefix: str | None = None,
 ) -> None:
-    """Check an XML against an XSD schema.
-
-    Raise a UserError if the XML is not valid according to the XSD.
-
-    :param etree._Element | str | bytes tree_or_str: representation of the tree to be checked
-    :param io.IOBase | str stream: the byte stream used to build the XSD schema.
-        If env is given, it can also be the name of an attachment in the filestore
-    :param odoo.api.Environment env: If it is given, it enables resolving the
-        imports of the schema in the filestore with ir.attachments.
-    :param str prefix: if given, provides a prefix to try when
-        resolving the imports of the schema. e.g. prefix='l10n_cl_edi' will
-        enable 'SiiTypes_v10.xsd' to be resolved to 'l10n_cl_edi.SiiTypes_v10.xsd'.
-    """
     if not isinstance(tree_or_str, etree._Element):
         tree_or_str = etree.fromstring(
             tree_or_str,
@@ -118,19 +98,6 @@ def cleanup_xml_node(
     indent_level: int = 0,
     indent_space: str = "  ",
 ) -> etree._Element:
-    """Clean up the sub-tree of the provided XML node.
-
-    An ``etree._Element`` is modified in-place; a string/bytes is first parsed
-    into an ``etree._Element``.
-
-    :param etree._Element | str | bytes xml_node_or_string: XML node (or its string/bytes representation)
-    :param bool remove_blank_text: if True, removes whitespace-only text from nodes
-    :param bool remove_blank_nodes: if True, removes leaf nodes with no text (iterative, depth-first, done after remove_blank_text)
-    :param int indent_level: depth or level of node within root tree (use -1 to leave indentation as-is)
-    :param str indent_space: string to use for indentation (use '' to remove all indentation)
-    :return: clean node, same instance that was received (if applicable)
-    :rtype: etree._Element
-    """
     xml_node = xml_node_or_string
 
     if isinstance(xml_node, str):
@@ -174,29 +141,6 @@ def load_xsd_files_from_url(
     xsd_names_filter: list[str] | None = None,
     modify_xsd_content: object = None,
 ) -> object:
-    """Load XSD file or ZIP archive. Save XSD files as ir.attachment.
-
-    An XSD attachment is saved as {xsd_name_prefix}.{filename} where the filename is either the filename obtained
-    from the URL or from the ZIP archive, or the `file_name` param if it is specified and a single XSD is being downloaded.
-    A typical prefix is the calling module's name.
-
-    For ZIP archives, the contained XSD files are saved as attachments, filtered by the provided list of XSD names.
-    The ZIP archives themselves are not saved.
-
-    The `modify_xsd_content` function, if given, is applied to each XSD's content before saving —
-    typically to rewrite cross-references between XSD files (the schemaLocation attribute).
-
-    :param odoo.api.Environment env: environment of calling module
-    :param str url: URL of XSD file/ZIP archive
-    :param str file_name: used as attachment name if the URL leads to a single XSD, otherwise ignored
-    :param bool force_reload: Deprecated.
-    :param int request_max_timeout: maximum time (in seconds) before the request times out
-    :param str xsd_name_prefix: if provided, will be added as a prefix to every XSD file name
-    :param list[str] xsd_names_filter: if provided, will only save the XSD files with these names
-    :param func modify_xsd_content: function that takes the xsd content as argument and returns a modified version of it
-    :rtype: odoo.api.ir.attachment | bool
-    :return: every XSD attachment created/fetched or False if an error occurred (see warning logs)
-    """
     try:
         _logger.info("Fetching file/archive from given URL: %s", url)
         response = requests.get(url, timeout=request_max_timeout)
@@ -306,16 +250,6 @@ def validate_xml_from_attachment(
     reload_files_function: object = None,
     prefix: str | None = None,
 ) -> None:
-    """Validate the XML content against an XSD attachment.
-    If the XSD attachment is not found in database, skip validation without raising.
-
-    :param odoo.api.Environment env: environment of calling module
-    :param xml_content: the XML content to validate
-    :param xsd_name: the XSD file name in database
-    :param reload_files_function: Deprecated.
-    :param prefix: if given, prefixes `xsd_name` and is forwarded to `_check_with_xsd`
-        to resolve the schema's own imports (see `odoo_resolver`)
-    """
 
     prefixed_xsd_name = f"{prefix}.{xsd_name}" if prefix else xsd_name
     try:
@@ -335,11 +269,6 @@ def find_xml_value(
     xml_element: etree._Element,
     namespaces: dict | None = None,
 ) -> str | None:
-    """Return the text content of the first node matching the given XPath expression.
-
-    Handles XPaths that select attributes or ``text()`` (which yield strings)
-    as well as element results (whose text is read from ``.text``).
-    """
     result = xml_element.xpath(xpath, namespaces=namespaces)
     if not result:
         return None

@@ -1,15 +1,3 @@
-"""Drift guard for the hand-inlined field-ACL preamble.
-
-The read-access check ``not (not self.groups or env.su or
-record._has_field_access(self, "read"))`` is inlined into every hot ``__get__``
-path instead of calling one helper, for speed. Nothing else keeps the copies in
-sync, so a change to field-access semantics (e.g. a new "read" vs "export"
-distinction) must touch all of them or silently diverge. This test pins the
-canonical form and the exact set of sites, so adding, removing, or altering one
-fails here. Mirrors ``test_scalar_fastpath_lambda_matches_convert_to_record``
-for the conversion lambdas. Pure source scan -- no import, no database.
-"""
-
 import pathlib
 import re
 
@@ -27,14 +15,6 @@ _EXPECTED_SITES = {
 
 
 def _iter_sources():
-    """Yield ``(rel, flattened_source)``.
-
-    Whitespace runs are collapsed to one space so the guard sees a logical
-    statement rather than physical lines: at deep indentation the preamble
-    exceeds the line limit, and ``ruff format`` legitimately wraps it across
-    several lines. That is a formatting change, not a semantic divergence, and
-    must not read as drift here.
-    """
     for path in sorted(_FIELDS_DIR.rglob("*.py")):
         rel = path.relative_to(_FIELDS_DIR).as_posix()
         flat = re.sub(r"\s+", " ", path.read_text())

@@ -1,10 +1,3 @@
-"""Tests for the report-engine modernization batch.
-
-Covers the per-record PDF metadata (title/author/creator/lang), the
-``report_watermark`` context key, the ``dpi``/``jpeg_quality`` image knobs of
-the PDF-options channel, and the scoped WeasyPrint warning capture.
-"""
-
 import logging
 
 import odoo.tests
@@ -53,7 +46,6 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
         return pdf
 
     def test_pdf_metadata_from_record_and_company(self):
-        """/Title is the evaluated print_report_name; author/creator/lang set."""
         import fitz
 
         with fitz.open(stream=self._render(), filetype="pdf") as doc:
@@ -66,7 +58,6 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
         self.assertEqual(lang, ("string", "en-US"))
 
     def test_pdf_title_falls_back_to_report_label(self):
-        """Without print_report_name the action label remains the title."""
         import fitz
 
         self.report.print_report_name = False
@@ -75,7 +66,6 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
         self.assertEqual(title, "Partner Sheet")
 
     def test_broken_print_report_name_never_blocks_printing(self):
-        """A crashing expression falls back to the label instead of raising."""
         import fitz
 
         self.report.print_report_name = "object.missing_field_xyz"
@@ -84,7 +74,6 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
         self.assertEqual(title, "Partner Sheet")
 
     def test_watermark_context_stamps_every_copy(self):
-        """report_watermark stamps the text; absent key leaves the page clean."""
         import fitz
 
         with fitz.open(stream=self._render(), filetype="pdf") as doc:
@@ -97,7 +86,6 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
 @odoo.tests.tagged("post_install", "-at_install")
 class TestWatermarkCss(odoo.tests.TransactionCase):
     def test_watermark_css_escapes_hostile_text(self):
-        """Quotes/backslashes cannot break out of the CSS string."""
         css = _watermark_css('a"b\\c\nd')
         self.assertIn('content: "a\\"b\\\\c d";', css)
 
@@ -116,7 +104,6 @@ class TestPdfImageOptions(odoo.tests.TransactionCase):
         self.assertEqual(options, {"dpi": 96, "jpeg_quality": 80})
 
     def test_pdf_options_channel_forwards_image_knobs(self):
-        """dpi/jpeg_quality ride the namespaced data channel into the render."""
         report = self.env["ir.actions.report"].create(
             {
                 "name": "knob probe",
@@ -165,12 +152,6 @@ class TestWeasyWarningCapture(odoo.tests.TransactionCase):
         self.assertEqual(logger.level, level_before)
 
     def test_capture_does_not_propagate_to_ancestor_handlers(self):
-        """Captured warnings reach ``sink`` only, never the ancestor handlers.
-
-        Lowering the level to WARNING without stopping propagation would undo
-        the process-wide ERROR silencing and flood the log with hundreds of
-        per-declaration warnings per rendered report.
-        """
         logger = logging.getLogger("weasyprint")
         propagate_before = logger.propagate
         sink = []
@@ -182,7 +163,6 @@ class TestWeasyWarningCapture(odoo.tests.TransactionCase):
         self.assertIs(logger.propagate, propagate_before)
 
     def test_nested_capture_restores_state_once(self):
-        """Only the outermost capture restores level and propagation."""
         logger = logging.getLogger("weasyprint")
         level_before = logger.level
         propagate_before = logger.propagate

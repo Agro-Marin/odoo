@@ -19,12 +19,6 @@ class ResUsersLog(models.Model):
 
     @api.autovacuum
     def _gc_user_logs(self) -> None:
-        """Garbage-collect login logs, keeping only the latest entry per user.
-
-        Keeps the greatest ``(create_date, id)`` per ``create_uid``. Rows with a
-        NULL ``create_uid`` are never collected (``NULL = NULL`` never matches in
-        the EXISTS), so creatorless SQL inserts accumulate.
-        """
         self.env.cr.execute("""
             DELETE FROM res_users_log log1 WHERE EXISTS (
                 SELECT 1 FROM res_users_log log2

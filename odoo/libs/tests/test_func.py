@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.func.lazy`` proxying."""
-
 import copy
 import pickle
 import unittest

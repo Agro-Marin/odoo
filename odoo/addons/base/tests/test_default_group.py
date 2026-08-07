@@ -2,8 +2,6 @@ from odoo.tests.common import TransactionCase
 
 
 class TestDefaultGroup(TransactionCase):
-    """Tests for the default user group mechanism."""
-
     def setUp(self):
         super().setUp()
         self.user = self.env.ref("base.user_admin")
@@ -16,7 +14,6 @@ class TestDefaultGroup(TransactionCase):
         )
 
     def test_create_user_default_user_groups(self):
-        """Groups implied by the default user group are inherited by new users."""
         company = self.env["res.company"].create({"name": "My Last Company"})
         partner = self.env["res.partner"].create({"name": "My User"})
         user = self.env["res.users"].create(

@@ -1,23 +1,3 @@
-"""Typing-only declaration of the shared ``Field`` surface.
-
-``_FieldDescriptionMixin`` / ``_FieldConvertMixin`` / ``_FieldSqlMixin`` are
-composed onto :class:`Field` by multiple inheritance. Each method runs on a full
-``Field`` at runtime, but a type checker sees only the defining mixin, which does
-not declare the cross-cutting ``Field`` attributes (``self.name``, ``self.store``,
-…) the method reaches through.
-
-:class:`_FieldStubs` collects that surface so the mixins inherit a correct, typed
-view (the model-mixin analogue is ``_ModelStubs``). It is purely a typing aid —
-``if typing.TYPE_CHECKING:`` declarations and ``__slots__ = ()`` — so at runtime
-it is an empty class contributing only a deduplicated MRO entry; :class:`Field`
-provides the real defaults.
-
-Scope: only the **plain attributes** ``Field`` declares with a stable type. The
-properties (``column_type``/``is_column``/``base_field``) and the heavily
-overridden ``convert_to_*`` methods are left out — their per-field-type overrides
-make a single shared declaration unsafe.
-"""
-
 import typing
 
 if typing.TYPE_CHECKING:
@@ -30,8 +10,6 @@ if typing.TYPE_CHECKING:
 
 
 class _FieldStubs:
-    """Shared, typing-only view of the ``Field`` attribute surface."""
-
     __slots__ = ()
 
     if typing.TYPE_CHECKING:

@@ -2,9 +2,6 @@ import unittest
 from pathlib import Path
 
 from odoo.libs.filesystem import guess_mimetype
-
-# _odoo_guess_mimetype is the pure-Python fallback, deliberately not part of the
-# odoo.libs.filesystem façade: this suite exists to test it against python-magic.
 from odoo.libs.filesystem.mimetypes import _odoo_guess_mimetype
 from odoo.tests import BaseCase
 from odoo.tools.misc import file_open

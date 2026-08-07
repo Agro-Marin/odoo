@@ -8,8 +8,6 @@ from odoo.tools.misc import get_diff
 
 
 class ResetViewArchWizard(models.TransientModel):
-    """A wizard to compare and reset views architecture."""
-
     _name = "reset.view.arch.wizard"
     _description = "Reset View Architecture Wizard"
 
@@ -53,9 +51,6 @@ class ResetViewArchWizard(models.TransientModel):
 
     @api.depends("reset_mode", "view_id", "compare_view_id")
     def _compute_arch_diff(self) -> None:
-        """Compute the diff between the current view arch and, depending on
-        ``reset_mode``, its previous arch, its file arch, or another view's arch.
-        """
 
         def get_table_name(view_id):
             name = view_id.display_name

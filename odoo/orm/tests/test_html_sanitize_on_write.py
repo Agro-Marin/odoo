@@ -1,13 +1,3 @@
-"""Regression: a validated Html write always sanitizes.
-
-The old fast path skipped ``html_sanitize`` when the written value equalled the
-cached one, trusting it as "already sanitized on a previous write". But the cache
-is also filled from raw DB reads, so a value stored before a sanitize-rule change
-/ via SQL / by a migration was trusted forever, and on a multi-record write only
-the first record's cache was the witness for the whole batch. Tier-2 suite: real
-``import odoo``, no database.
-"""
-
 import sys
 
 import pytest

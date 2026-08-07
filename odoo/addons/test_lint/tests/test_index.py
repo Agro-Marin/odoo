@@ -36,7 +36,6 @@ BTREE_INDEX_IGNORE_FIELDS = {
 @common.no_retry
 class TestIndex(common.TransactionCase):
     def test_enforce_index_on_one2many_inverse(self):
-        """Ensure btree indexes are enforced on the stored inverse fields of One2many relations."""
 
         def ignore(o2m_field, m2o_field):
             if not comodel._auto or comodel._abstract:
@@ -60,9 +59,7 @@ class TestIndex(common.TransactionCase):
                 )
                 .mapped("module")
             )
-            if modules and all("test" in module for module in modules):
-                return True
-            return False
+            return bool(modules and all("test" in module for module in modules))
 
         fields_to_index = set()
         for model_name in self.env.registry:

@@ -10,7 +10,6 @@ _logger = logging.getLogger(__name__)
 
 class TestTZ(TransactionCase):
     def test_tz_legacy(self):
-        """Legacy timezone names map to canonical names."""
         d = datetime.datetime(2024, 6, 15)
 
         def assertTZEqual(tz1, tz2):
@@ -36,7 +35,6 @@ class TestTZ(TransactionCase):
                 assertTZEqual(source_tz, target_tz)
 
     def test_dont_adapt_available_tz(self):
-        """Available timezones are not replaced by alias mapping."""
         with patch.dict(
             TIMEZONE_ALIASES,
             {
@@ -75,14 +73,12 @@ class TestTZ(TransactionCase):
             )
 
     def test_cannot_set_deprecated_timezone(self):
-        """Setting deprecated timezone names on a user."""
         self.env.user.tz = "America/New_York"
         if "US/Eastern" not in all_timezones():
             resolved = tz.timezone("US/Eastern")
             self.assertEqual(resolved.key, "America/New_York")
 
     def test_partner_with_old_tz(self):
-        """Partner with an old timezone name stored in the database."""
         tz._timezone_cache.clear()
 
         partner = self.env["res.partner"].create({"name": "test", "tz": "UTC"})

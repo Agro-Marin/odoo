@@ -1,11 +1,3 @@
-"""DB-free unit tests for replay hygiene, header merging and dispatcher registry.
-
-These pin behaviours that are otherwise only observable through a full request:
-what a *replayed* handler starts from, how staged headers merge into a response,
-and which classes end up in the dispatcher registry. Run via
-``pytest odoo/http/tests``.
-"""
-
 import pytest
 import werkzeug.datastructures
 from werkzeug.test import EnvironBuilder
@@ -16,8 +8,6 @@ from odoo.http.wrappers import FutureResponse, HTTPRequest, Response
 
 
 class _FakeRequest:
-    """Minimal stand-in exposing only what the methods under test touch."""
-
     _inject_future_response = Request._inject_future_response
     _reset_for_replay = Request._reset_for_replay
 
@@ -38,13 +28,6 @@ def test_staged_headers_override_the_response():
 
 
 def test_repeated_staged_headers_are_not_collapsed():
-    """A header staged twice must reach the client twice.
-
-    The merge used to ``set()`` everything except ``Set-Cookie``, so a second
-    staged value silently replaced the first. ``Set-Cookie`` is the repeatable
-    header in practice, but the rule is now general: the first staged value
-    overrides the response, further ones are appended.
-    """
     req = _FakeRequest()
     req.future_response.headers.add("Link", "</a>; rel=preload")
     req.future_response.headers.add("Link", "</b>; rel=preload")
@@ -59,14 +42,6 @@ def test_repeated_staged_headers_are_not_collapsed():
 
 
 def test_staged_cookie_keeps_cookies_set_on_the_response():
-    """A staged cookie must not evict cookies the handler set on the response.
-
-    ``Set-Cookie`` repeats across *producers*: handlers set their own cookies
-    directly on the response (``auth_totp``'s trusted-device cookie, ``web``'s
-    ``content_density``, ``utm``'s attribution cookies) while ``_save_session``
-    stages ``session_id`` here. Overriding on the staged one dropped every
-    handler cookie, silently, on every session-modifying request.
-    """
     req = _FakeRequest()
     response = Response("body")
     response.set_cookie("trusted_device", "SECRET", secure=False)
@@ -80,13 +55,6 @@ def test_staged_cookie_keeps_cookies_set_on_the_response():
 
 
 def test_staged_cookie_overrides_the_handlers_namesake():
-    """Same cookie name on both sides: the staged one wins, and only it ships.
-
-    Appending kept the handler's cookies but shipped two ``session_id`` headers
-    when the handler had set one too, leaving it to header order which value the
-    browser stores. Merging by name resolves it deterministically, and unrelated
-    handler cookies still survive.
-    """
     req = _FakeRequest()
     response = Response("body")
     response.set_cookie("session_id", "HANDLER", secure=False)
@@ -113,12 +81,6 @@ def test_single_valued_staged_header_still_overrides_the_response():
 
 
 def test_restaging_a_cookie_replaces_it_rather_than_duplicating():
-    """``post_dispatch`` can run twice; the cookie must still be staged once.
-
-    A request that fails *after* a successful dispatch (failing COMMIT,
-    post-commit hook) has ``post_dispatch`` run again over the error response,
-    so ``_save_session`` re-stages ``session_id``.
-    """
     req = _FakeRequest()
     req.future_response.set_cookie("session_id", "OLD", secure=False)
     req.future_response.set_cookie("session_id", "NEW", secure=False)
@@ -146,12 +108,6 @@ def test_set_cookie_still_accumulates():
 
 
 def test_reset_for_replay_drops_staged_headers():
-    """Staged headers must not survive into a replayed attempt.
-
-    A handler that sets a cookie and then hits a serialization failure (or a
-    read-only write) has its body re-run; the replay re-stages everything, so
-    keeping the first attempt's staging emits each cookie once per attempt.
-    """
     req = _FakeRequest()
     req.future_response.set_cookie("probe", "1", secure=False)
     assert req.future_response.headers.getlist("Set-Cookie")
@@ -168,12 +124,6 @@ def test_reset_for_replay_without_env_is_a_noop_on_env():
 
 
 def test_abstract_intermediate_dispatcher_is_not_registered():
-    """A shared base with no ``routing_type`` must not blow up at import.
-
-    ``routing_type`` is only *annotated* on ``Dispatcher``, so reading it off an
-    intermediate abstract subclass raised ``AttributeError`` while the class was
-    being created — making that hierarchy impossible to declare at all.
-    """
     before = dict(_dispatchers)
 
     class _AbstractBase(Dispatcher):
@@ -206,12 +156,6 @@ def _httprequest(data, content_type):
 
 
 def test_adopt_body_state_carries_the_parsed_form():
-    """A rerouted wrapper must inherit an already-materialised body.
-
-    The WSGI input stream reads once. Re-parsing it in the new wrapper blocks
-    waiting for bytes that never arrive (the socket eventually times out) and
-    the request dies as a 400.
-    """
     original = _httprequest({"gate": "P3X-984"}, "application/x-www-form-urlencoded")
     assert original.form["gate"] == "P3X-984"
 
@@ -249,13 +193,6 @@ def test_headers_facade_accepts_werkzeug_headers():
 
 
 def test_staged_vary_unions_with_the_handlers_own():
-    """``Vary`` is a token list (RFC 9110 §12.5.5), so both sides must survive.
-
-    ``pre_dispatch`` stages ``Vary`` for every ``cors_credentials`` route and
-    every preflight. Overriding it drops a handler's own ``Vary:
-    Accept-Encoding`` and leaves the response cached under a key that ignores an
-    axis it genuinely varies on — a cache-correctness bug, not a cosmetic one.
-    """
     req = _FakeRequest()
     response = Response("body", headers=[("Vary", "Accept-Encoding")])
     req.future_response.headers.set("Vary", "Origin")

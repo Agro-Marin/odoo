@@ -1,10 +1,3 @@
-"""Regression tests for ``odoo.libs.sql.SQL.render``.
-
-``render()`` produces a ``%``-format *template*, not a finished query: literal
-``%`` stays escaped as ``%%`` so the result round-trips through ``SQL(...)``.
-The parameter-less and parameterised branches used to disagree about this.
-"""
-
 import unittest
 
 from odoo.libs.sql import SQL
@@ -24,8 +17,6 @@ class TestSqlRenderPercentEscaping(unittest.TestCase):
         self.assertEqual(sql.render(), "y LIKE '50%%'")
 
     def test_render_round_trips_through_sql(self):
-        """render() output must be re-wrappable in SQL() -- what both in-tree
-        callers (project burndown / CFD reports) actually do."""
         for sql in (
             SQL("x LIKE 'a%%'"),
             SQL("x LIKE 'a%%' AND y = %s", 1),

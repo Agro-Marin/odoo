@@ -43,16 +43,16 @@ class TestModuleManifest(BaseCase):
         self.module_name = Path(self.module_root).name
 
     def test_default_manifest(self):
-        with Path(str(Path(self.module_root, "__manifest__.py"))).open("w") as file:
-            file.write(
-                str(
-                    {
-                        "name": f"Temp {self.module_name}",
-                        "license": "MIT",
-                        "author": "Fapi",
-                    }
-                )
-            )
+        Path(str(Path(self.module_root, "__manifest__.py"))).write_text(
+            str(
+                {
+                    "name": f"Temp {self.module_name}",
+                    "license": "MIT",
+                    "author": "Fapi",
+                }
+            ),
+            encoding="utf-8",
+        )
 
         with self.assertNoLogs("odoo.modules.module", "WARNING"):
             manifest = dict(Manifest.for_addon(self.module_name))
@@ -118,8 +118,9 @@ class TestModuleManifest(BaseCase):
         self.assertIn("manifest not found", capture.output[0])
 
     def test_missing_license(self):
-        with Path(str(Path(self.module_root, "__manifest__.py"))).open("w") as file:
-            file.write(str({"name": f"Temp {self.module_name}"}))
+        Path(str(Path(self.module_root, "__manifest__.py"))).write_text(
+            str({"name": f"Temp {self.module_name}"}), encoding="utf-8"
+        )
         with self.assertLogs("odoo.modules.module", "WARNING") as capture:
             manifest = Manifest.for_addon(self.module_name)
             manifest._force_parse()
@@ -130,11 +131,6 @@ class TestModuleManifest(BaseCase):
 
 
 class TestManifestAutoInstall(BaseCase):
-    """Validate ``auto_install`` key handling in _load_manifest (guards against
-    silently-misparsed manifests: a string becoming a char set, a non-dependency
-    trigger).
-    """
-
     BASE = {"author": "x", "license": "MIT"}
 
     def test_auto_install_string_is_rejected(self):
@@ -173,10 +169,6 @@ class TestManifestAutoInstall(BaseCase):
 
 
 class TestManifestCache(BaseCase):
-    """The manifest lookup cache must not cache misses (so a module that
-    appears later is still found) and must be droppable via clear_caches().
-    """
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory(prefix="odoo_test_cache_")
         self.addCleanup(self._tmp.cleanup)
@@ -223,15 +215,11 @@ class TestManifestCache(BaseCase):
 
 
 class TestExternalDependency(BaseCase):
-    """check_python_external_dependency must import the requirement *name*, not
-    the raw spec string, and MissingDependencyError must carry the dependency.
-    """
-
     @mute_logger("odoo.modules.module")
     def test_specced_importable_module_name_is_accepted(self):
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        Path(tmp, "odoo_probe_legacy_dep.py").write_text("#\n")
+        Path(tmp, "odoo_probe_legacy_dep.py").write_text("#\n", encoding="utf-8")
         sys.path.insert(0, tmp)
         self.addCleanup(lambda: tmp in sys.path and sys.path.remove(tmp))
         importlib.invalidate_caches()
@@ -249,12 +237,6 @@ class TestExternalDependency(BaseCase):
 
 
 class TestManifestVersionResilience(BaseCase):
-    """A malformed version must quarantine the module (installable=False), not
-    crash manifest parsing: a raise would propagate through every all-manifests
-    consumer (db.initialize, update_list, graph build), so one stray
-    third-party addon on the path would prevent bootstrapping any database.
-    """
-
     BASE = {"author": "x", "license": "MIT", "name": "X"}
 
     def test_malformed_version_demotes_to_uninstallable(self):
@@ -275,10 +257,6 @@ class TestManifestVersionResilience(BaseCase):
 
 
 class TestCheckVersion(BaseCase):
-    """check_version(should_raise=False) must never raise, including for
-    structurally malformed versions that adapt_version rejects.
-    """
-
     def test_should_raise_false_never_raises(self):
         self.assertFalse(check_version("garbage", should_raise=False))
         self.assertFalse(check_version("1.2.3.4.5.6", should_raise=False))
@@ -294,10 +272,6 @@ class TestCheckVersion(BaseCase):
 
 
 class TestAdaptVersion(BaseCase):
-    """adapt_version canonicalisation (guards the removal of the dead
-    non-digit-strip branch: behaviour must be unchanged).
-    """
-
     def test_bare_versions_get_serie_prefix(self):
         self.assertEqual(adapt_version("1.0"), f"{major_version}.1.0")
         self.assertEqual(adapt_version("2.5"), f"{major_version}.2.5")
@@ -351,19 +325,6 @@ class TestModuleIcon(BaseCase):
 
 
 class TestAutoInstallQueries(TransactionCase):
-    """Selection logic of the two queries behind db.initialize()'s recursive
-    auto-install marking, on fixture rows rolled back with the transaction.
-
-    Guards the uninstallable-dependency rules: a candidate with an
-    uninstallable dependency must not be selected, and the closure must never
-    mark an uninstallable module 'to install' (doing so overwrote its state).
-
-    The queries scan the real ir_module_module table too (which legitimately
-    contains 'to install' rows while at_install tests run), so every
-    assertion is scoped to the fixture's '_audit_ai_' names — a prefix no real
-    module can have (leading underscore fails MODULE_NAME_RE).
-    """
-
     PREFIX = "_audit_ai_"
 
     def _add_module(self, name, state, auto_install=False):
@@ -435,11 +396,6 @@ class TestAutoInstallQueries(TransactionCase):
 
 
 class TestCreateCategoriesCache(TransactionCase):
-    """create_categories with a shared cache must resolve repeated category
-    paths without touching the database again (initialize() calls it once per
-    module for ~1500 modules with few distinct paths).
-    """
-
     def test_warm_cache_short_circuits_queries(self):
         cache = {}
         cat_id = create_categories(self.cr, ["Audit Cat", "Sub"], cache)
@@ -455,10 +411,6 @@ class TestCreateCategoriesCache(TransactionCase):
 
 
 class TestManifestMapping(BaseCase):
-    """The Mapping facade: computed keys must surface through both __iter__ and
-    __getitem__ (they share a single _COMPUTED_KEYS source of truth).
-    """
-
     def _manifest(self):
         return Manifest(
             path="/tmp/odoo_probe_map",

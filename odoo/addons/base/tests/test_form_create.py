@@ -3,8 +3,6 @@ from odoo.tests import Form, TransactionCase, tagged
 
 @tagged("-at_install", "post_install")
 class TestFormCreate(TransactionCase):
-    """Test that basic Odoo model records can be created from the interface."""
-
     def test_create_res_partner(self):
         if hasattr(self.env["res.partner"], "property_account_payable_id"):
             self.env.user.group_ids += self.env.ref("account.group_account_readonly")
@@ -66,9 +64,6 @@ class TestFormCreate(TransactionCase):
         lang_form.save()
 
     def test_modifier_merge_semantics(self):
-        """Duplicate field occurrences AND their modifiers; ancestor
-        invisible ORs with the field's own; literal True/False operands are
-        simplified away."""
         view = self.env["ir.ui.view"].create(
             {
                 "name": "partner modifier merge",
@@ -99,8 +94,6 @@ class TestFormCreate(TransactionCase):
         self.assertTrue(partner_form._get_modifier("email", "invisible"))
 
     def test_create_o2m_mode_form(self):
-        """A one2many with mode="form" used to crash Form with a bare
-        StopIteration when picking the edition subview."""
         view = self.env["ir.ui.view"].create(
             {
                 "name": "partner o2m mode form",
@@ -144,15 +137,6 @@ NESTED_O2M_ARCH = """
 
 @tagged("-at_install", "post_install")
 class TestFormNestedX2many(TransactionCase):
-    """A deep x2many nesting must not rewrite the outer level's field info.
-
-    ``_process_view`` annotates each field's info dict (``edition_view``,
-    ``invisible``, and the one2many -> many2many downgrade once the nesting
-    budget runs out).  Those dicts came straight out of ``_models_info``, which
-    every nesting level shares, so on a self-referential one2many the innermost
-    downgrade rewrote the *outermost* field.
-    """
-
     def _nested_form(self):
         view = self.env["ir.ui.view"].create(
             {

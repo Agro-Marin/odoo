@@ -1,9 +1,7 @@
 import base64
 import pathlib
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
-from os.path import basename
-from os.path import join as opj
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
@@ -54,12 +52,6 @@ class TestHttpStaticCommon(TestHttpBase):
         }
 
         if x_sendfile:
-            # the redirect path is the store key as written, taken relative to
-            # the filestore root — never re-derived from the digest. Assuming
-            # the sha1 layout (`<shard>/<digest>`) here made every x_sendfile
-            # subtest fail the moment ir.attachment started tagging keys with
-            # their algorithm (`b3/<shard>/<digest>`), for a header the server
-            # was building correctly.
             key = pathlib.Path(x_sendfile).relative_to(
                 config.filestore(self.env.cr.dbname)
             )
@@ -74,19 +66,6 @@ class TestHttpStaticCommon(TestHttpBase):
         )
 
     def _inline_checksumless_attachment(self, vals):
-        """Build a legacy row: content inline in ``db_datas``, and no checksum.
-
-        Such rows exist — written before the column was populated, or by a
-        migration that never derived it — and the point of the two tests below
-        is that ``Stream`` still serves them through its ``data`` leg, without
-        an ETag. They used to be built by passing ``db_datas`` to ``create``,
-        which landed that shape only as a side effect of skipping the content
-        pipeline entirely. ``ir.attachment`` treats ``db_datas`` as content now
-        (IRA-R2), so the row is built explicitly by SQL — which also keeps the
-        two properties under test independent of how a row can be written, and
-        pins the inline leg rather than the filestore one a plain ``create``
-        would produce.
-        """
         attachment = self.env["ir.attachment"].create(vals)
         attachment.flush_recordset()
         self.env.cr.execute(
@@ -169,8 +148,10 @@ class TestHttpStatic(TestHttpStaticCommon):
         ):
             self.assertDownloadGizeh(
                 attachment.url,
-                x_sendfile=opj(
-                    config.filestore(self.env.cr.dbname), attachment.store_fname
+                x_sendfile=str(
+                    pathlib.Path(
+                        config.filestore(self.env.cr.dbname), attachment.store_fname
+                    )
                 ),
             )
 
@@ -186,8 +167,10 @@ class TestHttpStatic(TestHttpStaticCommon):
         ):
             self.assertDownloadGizeh(
                 "/web/content/test_http.gizeh_png",
-                x_sendfile=opj(
-                    config.filestore(self.env.cr.dbname), attachment.store_fname
+                x_sendfile=str(
+                    pathlib.Path(
+                        config.filestore(self.env.cr.dbname), attachment.store_fname
+                    )
                 ),
             )
 
@@ -203,8 +186,10 @@ class TestHttpStatic(TestHttpStaticCommon):
         ):
             self.assertDownloadGizeh(
                 "/web/image/test_http.gizeh_png",
-                x_sendfile=opj(
-                    config.filestore(self.env.cr.dbname), attachment.store_fname
+                x_sendfile=str(
+                    pathlib.Path(
+                        config.filestore(self.env.cr.dbname), attachment.store_fname
+                    )
                 ),
             )
 
@@ -237,8 +222,8 @@ class TestHttpStatic(TestHttpStaticCommon):
             ],
             limit=1,
         )
-        attachment_path = opj(
-            config.filestore(self.env.cr.dbname), attachment.store_fname
+        attachment_path = str(
+            pathlib.Path(config.filestore(self.env.cr.dbname), attachment.store_fname)
         )
 
         for field, is_attachment in (
@@ -434,7 +419,9 @@ class TestHttpStatic(TestHttpStaticCommon):
         attachment = self.env["ir.attachment"].search(
             [("url", "like", "%/web.assets_web.min.js")], limit=1
         )
-        x_sendfile = opj(config.filestore(self.env.cr.dbname), attachment.store_fname)
+        x_sendfile = str(
+            pathlib.Path(config.filestore(self.env.cr.dbname), attachment.store_fname)
+        )
         x_accel_redirect = (
             f"/web/filestore/{self.env.cr.dbname}/{attachment.store_fname}"
         )
@@ -477,7 +464,9 @@ class TestHttpStatic(TestHttpStaticCommon):
         attachment = self.env["ir.attachment"].search(
             [("url", "like", "%/web.assets_web.min.js")], limit=1
         )
-        x_sendfile = opj(config.filestore(self.env.cr.dbname), attachment.store_fname)
+        x_sendfile = str(
+            pathlib.Path(config.filestore(self.env.cr.dbname), attachment.store_fname)
+        )
         x_accel_redirect = (
             f"/web/filestore/{self.env.cr.dbname}/{attachment.store_fname}"
         )
@@ -589,13 +578,6 @@ class TestHttpStaticLogo(TestHttpStaticCommon):
     def assertDownloadLogo(
         self, assert_headers, assert_content, user=None, company=None
     ):
-        """Assert that the logo endpoint returns the right image and headers.
-
-        :param dict assert_headers: expected headers
-        :param bytes assert_content: expected image data
-        :param user: optional user, if set the check will be done while being authenticated with that user
-        :param company: optional company, if set the company will be appended in the URL parameters
-        """
         url_suffix = f"?company={company.id}" if company else ""
         if user:
             self.authenticate(user.login, self.password)
@@ -664,7 +646,6 @@ class TestHttpStaticLogo(TestHttpStaticCommon):
         self.assertDownloadLogoDefault(user=self.user_of_company_of_superuser)
 
     def test_company_param_win_on_current_user(self):
-        """When company and user are specified, company wins (ex: in an email you see the company logo and not yours)"""
         self.company_of_superuser.logo = self.gizeh_data_b64
         self.assertDownloadLogoGizeh(
             company=self.company_of_superuser, user=self.user_company2
@@ -846,16 +827,6 @@ class TestHttpStaticUpload(TestHttpStaticCommon):
         self._test_upload_small_file()
 
     def test_upload_large_file_on_an_unmatched_path(self):
-        """The ICP upload cap must also bound the no-route-matched path.
-
-        ``web.max_file_upload_size`` was applied by ``ir.http._pre_dispatch``,
-        which only runs once a controller matched. The fallback path
-        (``Request._serve_ir_http_fallback``) parses query/form data too, but
-        never reaches ``_pre_dispatch`` — so however low an operator set the
-        limit, POSTing to any unmatched URL was still buffered up to the 128 MiB
-        framework default. The cap now has a single owner
-        (``ir.http._apply_max_upload_size``) that both paths call.
-        """
         with file_open("test_http/static/src/img/gizeh.png", "rb") as file:
             file_size = file.seek(0, 2)
             file.seek(0)

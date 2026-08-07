@@ -1,11 +1,3 @@
-"""Tests pinning the documented semantics of ``merge_sequences``.
-
-The docstring used to promise that contradictory inputs resolve "first-wins".
-They do not: which constraint survives is decided by the depth-first walk, and
-in practice the *second* argument's order is the one that holds.  These tests
-pin what the function actually does so the docstring cannot drift back.
-"""
-
 import unittest
 
 from odoo.libs.iteration.sorting import merge_sequences, topological_sort
@@ -31,8 +23,6 @@ class TestMergeSequencesDocumentedExample(unittest.TestCase):
 
 
 class TestMergeSequencesConflicts(unittest.TestCase):
-    """Conflicts resolve, deterministically, but NOT first-wins."""
-
     def test_not_first_wins(self):
         self.assertEqual(merge_sequences(["a", "b"], ["b", "a"]), ["b", "a"])
 
@@ -52,8 +42,6 @@ class TestMergeSequencesConflicts(unittest.TestCase):
 
 
 class TestTopologicalSortStrictness(unittest.TestCase):
-    """``topological_sort`` is the strict counterpart; a cycle is a data error."""
-
     def test_cycle_raises_by_default(self):
         with self.assertRaises(ValueError):
             topological_sort({"a": ["b"], "b": ["a"]})

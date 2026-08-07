@@ -1,17 +1,3 @@
-"""Enable standalone (database-free) testing of ``base``'s leaf modules.
-
-Registers ``sys.modules`` stubs for the ``odoo.addons.base.models`` package
-chain (see :mod:`odoo._testing_bootstrap`) so a leaf module — the view
-``NameManager`` (``ir_ui_view_name_manager``), the ``ir.asset`` bundle algebra
-(``ir_asset_paths``) — imports without booting the framework or a database.
-
-The leaf module pulls ``_`` and ``frozendict`` from ``odoo.tools``. To avoid
-executing the real ``odoo/tools/__init__.py`` (and to stay compatible with a
-bare ``odoo.tools`` stub another suite may have registered in the same pytest
-process), a shim provides those two names, adding them only when missing so a
-real, already-imported ``odoo.tools`` is left untouched.
-"""
-
 import sys
 import types
 from pathlib import Path
@@ -22,20 +8,6 @@ stub_odoo_packages(__file__)
 
 
 def _stub_pytest_package_chain() -> None:
-    """Short-circuit pytest's ``Package`` collectors for this suite.
-
-    pytest (>= 8) imports every ancestor directory with an ``__init__.py`` as a
-    ``Package`` node. Here those are ``odoo/addons/base`` and
-    ``odoo/addons/base/models``, which ``module_name_from_path`` names ``base``
-    and ``base.models`` (the walk stops at ``odoo/addons``, which has no
-    ``__init__.py``). Importing the real ``base/__init__.py`` under those names
-    would boot every base model and be rejected by the ORM metaclass.
-
-    ``import_path`` reuses ``sys.modules[module_name]`` when already registered,
-    so pre-registering inert stubs keeps those ``__init__.py`` files from
-    running. No real module is imported as top-level ``base``, so the stubs
-    cannot shadow anything.
-    """
     tests_dir = Path(__file__).resolve().parent
     for name, path in (
         ("base", tests_dir.parents[1]),
@@ -65,14 +37,13 @@ def _ensure_tools_stub() -> None:
     if not hasattr(tools, "frozendict"):
 
         class frozendict(dict):
-            """Minimal read-only-by-convention dict stand-in for tests."""
+            pass
 
         tools.frozendict = frozendict
 
     if not hasattr(tools, "_"):
 
         def _(source, *args, **kwargs):
-            """Translation shim: plain %-formatting, no language lookup."""
             if args:
                 return source % args
             if kwargs:

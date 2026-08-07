@@ -1,9 +1,3 @@
-"""Record update: ``write`` and its SQL-supporting helpers.
-
-Split out of the former CrudMixin; see _crud_common.py for shared
-constants. Copy/duplication lives in copy.py (CopyMixin).
-"""
-
 import typing
 from collections import defaultdict
 from itertools import batched
@@ -24,24 +18,9 @@ from ._model_stubs import _ModelStubs
 
 
 class WriteMixin(_ModelStubs):
-    """Record update: ``write`` and its SQL-supporting helpers."""
-
     __slots__ = ()
 
     def _increment_fields_skiplock(self, *fields: str) -> bool:
-        """Increment integer ``fields`` on ``self``, skipping locked rows.
-
-        A raw ``UPDATE ... FOR UPDATE SKIP LOCKED`` on ``self``'s table: it does
-        not go through the ORM write path and does not invalidate the cache,
-        since the counter update is not critical (view/visit counters and the
-        like). Relocated here from the former ``tools/sql.py`` as a recordset
-        method (ADR-0004 / C.2): it operates on records, so addons reach it as
-        ``records._increment_fields_skiplock(...)`` rather than importing an
-        ``odoo.orm`` internal, which the façade boundary forbids.
-
-        :param fields: integer fields to increment
-        :returns: whether the fields were incremented on any record.
-        """
         if not self:
             return False
 
@@ -76,55 +55,6 @@ class WriteMixin(_ModelStubs):
         return bool(cr.rowcount)
 
     def write(self, vals: ValuesType) -> typing.Literal[True]:
-        """Update all records in ``self`` with the provided values.
-
-        :param vals: fields to update and the value to set on them
-        :raise AccessError: if the user may not modify these records/fields
-        :raise ValidationError: on an invalid value for a selection field
-        :raise UserError: if the operation would create a loop in an object
-            hierarchy (e.g. setting an object as its own parent)
-
-        * For numeric fields (:class:`~odoo.fields.Integer`,
-          :class:`~odoo.fields.Float`) the value should be of the
-          corresponding type
-        * For :class:`~odoo.fields.Boolean`, the value should be a
-          :class:`python:bool`
-        * For :class:`~odoo.fields.Selection`, the value should match the
-          selection values (generally :class:`python:str`, sometimes
-          :class:`python:int`)
-        * For :class:`~odoo.fields.Many2one`, the value should be the
-          database identifier of the record to set
-        * The expected value of a :class:`~odoo.fields.One2many` or
-          :class:`~odoo.fields.Many2many` relational field is a list of
-          :class:`~odoo.fields.Command` that manipulate the relation they
-          implement. There are a total of 7 commands:
-          :meth:`~odoo.fields.Command.create`,
-          :meth:`~odoo.fields.Command.update`,
-          :meth:`~odoo.fields.Command.delete`,
-          :meth:`~odoo.fields.Command.unlink`,
-          :meth:`~odoo.fields.Command.link`,
-          :meth:`~odoo.fields.Command.clear`, and
-          :meth:`~odoo.fields.Command.set`.
-        * For :class:`~odoo.fields.Date` and `~odoo.fields.Datetime`,
-          the value should be either a date(time), or a string.
-
-          .. warning::
-
-            If a string is provided for Date(time) fields,
-            it must be UTC-only and formatted according to
-            :const:`odoo.tools.misc.DEFAULT_SERVER_DATE_FORMAT` and
-            :const:`odoo.tools.misc.DEFAULT_SERVER_DATETIME_FORMAT`
-
-        * Other non-relational fields use a string for value
-
-        .. note:: **Deferred SQL.** Unlike :meth:`create`/:meth:`unlink`,
-            ``write()`` only updates the cache and marks fields dirty; the
-            ``UPDATE`` is deferred to :meth:`flush_all` (or an implicit flush
-            from ``search``/``read``/commit), batching writes into one
-            ``UPDATE FROM VALUES``. So a raw SQL ``SELECT`` right after
-            ``write()`` may see OLD values — read via the ORM, or
-            ``flush_model()`` first.
-        """
         if not self:
             return True
 
@@ -274,13 +204,6 @@ class WriteMixin(_ModelStubs):
         return True
 
     def _write_multi(self, vals_list: list[ValuesType]) -> None:
-        """Persist ``vals_list`` (one dict per record in ``self``) via batched
-        UPDATEs.
-
-        Driven by the cache flush (``CacheMixin._flush``), which builds a fresh
-        dict per id; rows are grouped by their field-name set so each distinct
-        set of columns becomes a single batched UPDATE.
-        """
         if len(self) != len(vals_list):
             raise ValueError(
                 f"_write_multi: len(records)={len(self)} != "
@@ -337,20 +260,6 @@ class WriteMixin(_ModelStubs):
     def _sync_log_access_cache(
         self, log_vals: ValuesType, log_only_ids: dict[str, list]
     ) -> None:
-        """Cache the ``write_uid``/``write_date`` values ``_write_multi`` just wrote.
-
-        ``_write_multi`` supplies the audit columns for rows whose ``vals`` did
-        not carry them -- a flush driven purely by a *computed* field, where no
-        ``write()`` ran on the record.  Writing them to SQL without caching them
-        left ``record.write_date`` stale for the rest of the transaction:
-        ``env.cache.check()`` reports it, and any reader comparing ``write_date``
-        (concurrency checks, incremental exports) saw the pre-flush value.
-
-        Only the ids listed in *log_only_ids* took their value from *log_vals*;
-        for the others ``vals`` won and the cache already holds it -- and, having
-        come from the dirty set, updating it here would trip ``_update_cache``'s
-        dirty guard.
-        """
         for fname, ids in log_only_ids.items():
             if not ids:
                 continue
@@ -362,11 +271,6 @@ class WriteMixin(_ModelStubs):
             )
 
     def _execute_update(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:
-        """Execute UPDATE FROM VALUES for a group of records sharing the same fields.
-
-        :param fnames: Tuple of field names being updated (sorted).
-        :param rows: List of tuples (id, val1, val2, ...) — one per record.
-        """
         if (backend := self.env.backend) is not None:
             backend.update_rows(self, fnames, rows)
             return
@@ -425,9 +329,6 @@ class WriteMixin(_ModelStubs):
         )
 
     def _parent_store_update_prepare(self, vals_list: list[ValuesType]) -> Self:
-        """Return the records in ``self`` that must update their parent_path
-        field. This must be called before updating the parent field.
-        """
         if not self._parent_store:
             return self.browse()
         backend = self.env.backend
@@ -468,7 +369,6 @@ class WriteMixin(_ModelStubs):
         return self.browse(row[0] for row in rows)
 
     def _parent_store_update(self) -> None:
-        """Update the parent_path field of ``self``."""
         for parent, records in self.grouped(self._parent_name).items():
             prefix = parent.parent_path or ""
 

@@ -1,8 +1,3 @@
-"""DB-free unit tests for :mod:`odoo.http.request_class` helpers.
-
-Run via ``pytest odoo/http/tests``.
-"""
-
 from unittest.mock import patch
 
 import psycopg
@@ -31,7 +26,6 @@ def test_monodb_dblist_filters_cached_catalog(fresh_monodb_cache):
 
 
 def test_monodb_dblist_degrades_when_postgres_unreachable(fresh_monodb_cache):
-    """PostgreSQL down yields no databases (db-less serving), not a propagated error."""
     boom = psycopg.OperationalError("connection refused")
     with patch.object(request_class, "_list_all_dbs", side_effect=boom):
         assert request_class._monodb_dblist("h") == []
@@ -46,13 +40,6 @@ def test_monodb_dblist_degrades_when_postgres_unreachable(fresh_monodb_cache):
 
 
 def test_monodb_dblist_degrades_on_any_psycopg_error(fresh_monodb_cache):
-    """Any psycopg failure of the catalog read must yield "no databases".
-
-    The guard used to name ``OperationalError`` only, so a base ``psycopg.Error``
-    (or e.g. an InsufficientPrivilege on ``pg_database``) escaped and 500'd the
-    request — with an HTML body, on a path that runs for every cookie-less
-    request: static assets, ``/web/login``, the health probes.
-    """
     for exc in (
         psycopg.Error("boom"),
         psycopg.OperationalError("refused"),

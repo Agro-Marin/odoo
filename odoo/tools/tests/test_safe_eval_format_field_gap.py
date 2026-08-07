@@ -1,26 +1,3 @@
-"""The ``str.format`` reflection escape is closed at runtime, not just for literals.
-
-``safe_eval`` routes every ``str.format`` / ``format_map`` through a
-``string.Formatter`` that forbids attribute navigation inside a replacement
-field (``safe_eval._StrictFormatter``, wired by an AST transform that wraps the
-format receiver). That closes the whole pivot:
-
-* the literal dunder form ``"{0.__globals__[k]}".format(x)`` (previously caught
-  only by the constant-only ``assert_no_dunder_format_field`` heuristic);
-* a template arriving through the eval **context**, which was never a constant;
-* a template **assembled at runtime** from fragments none of which contains
-  ``__``;
-* the ``str.format`` **class pivot** (``str`` is a safe_eval builtin, so
-  ``str.format(template, x)`` reached the unguarded C method);
-* the **recordset pivot** ``"{0.env.cr.dbname}".format(record)``, which uses
-  only *public* attributes and therefore no dunder guard could ever have seen.
-
-These tests previously asserted the escapes *succeeded* (characterizing the
-gap). They now assert they are refused. ``SECRET`` stands in for the config
-objects / credentials / tokens a real module namespace holds — the earlier
-version of this file leaked it verbatim.
-"""
-
 import unittest
 
 from odoo.tools.safe_eval import safe_eval
@@ -30,7 +7,7 @@ SECRET = "db-password-xyz"
 
 
 def _victim():
-    """A plain function; its ``__globals__`` is what the escape traversed."""
+    pass
 
 
 class TestFormatReflectionEscapeClosed(unittest.TestCase):
@@ -61,7 +38,6 @@ class TestFormatReflectionEscapeClosed(unittest.TestCase):
             safe_eval('"{0.__globals__[SECRET]}".format_map(m)', {"m": [_victim]})
 
     def test_the_recordset_public_attribute_pivot_is_refused(self):
-        """The half no dunder guard could catch: navigation via public attrs."""
 
         class Rec:
             env = type("E", (), {"cr": type("C", (), {"dbname": "secretdb"})()})()
@@ -70,7 +46,6 @@ class TestFormatReflectionEscapeClosed(unittest.TestCase):
             safe_eval('"{0.env.cr.dbname}".format(r)', {"r": Rec()})
 
     def test_a_leaked_secret_never_comes_back(self):
-        """Belt-and-suspenders: even if it did not raise, it must not disclose."""
         _victim.__globals__["SECRET"] = SECRET
         try:
             for expr, ns in (

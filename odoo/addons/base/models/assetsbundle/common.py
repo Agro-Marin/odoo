@@ -19,38 +19,6 @@ _bundle_log = get_asset_logger("bundle")
 
 
 def _pipeline_sources() -> tuple[Path, ...]:
-    """Every source file whose content decides how assets compile.
-
-    Anchored on the ``odoo.tools`` package rather than counted in
-    ``__file__.parents``: the previous ``parents[3]`` landed on ``odoo/addons``
-    instead of ``odoo``, so both ``tools`` entries resolved to paths that exist
-    nowhere. Neither ``is_dir()`` nor ``is_file()`` matched, the loop skipped
-    them without a word, and the digest covered only this package — leaving
-    esbuild, the ESM graph and the Sass driver outside the very invalidation
-    this exists to provide.
-
-    Resolved on demand, not at import: ``__file__`` is ``None`` for a namespace
-    package or a frozen build (``odoo`` itself is a namespace package in this
-    fork), and reading it at import turned that deployment into a hard
-    ``TypeError`` on ``import base`` instead of the coarse fallback
-    :func:`_pipeline_fingerprint` documents. Returning ``()`` routes it there.
-
-    One entry is not Python: ``base/data/rtlcss.json`` is passed to ``rtlcss``
-    as ``-c`` and therefore decides the bytes of every RTL stylesheet, which
-    are served from a version-hashed attachment. Editing it left every cached
-    RTL bundle valid — the exact failure this function exists to prevent.
-
-    The membership test is "does this file change a *version-hashed* artifact",
-    not "is this file part of the pipeline". ``tools/assets/js`` was added on
-    the second reading and removed again: its ESM lexer worker feeds
-    ``discover_transitive_import_specifiers`` and the bridge shims, and every
-    artifact built from those is content-addressed
-    (``/web/assets/esm/<digest>/…``, ``/web/assets/esm/bridges/<md5>.js``), so
-    it is already self-invalidating. Native-vs-legacy classification —
-    the one thing that WOULD move ``.min.js`` — is decided by
-    ``_cached_module_classification`` from the ``@odoo-module`` header, which
-    never calls the lexer.
-    """
     tools_file = getattr(odoo.tools, "__file__", None)
     if not tools_file or not __file__:
         return ()
@@ -66,27 +34,6 @@ def _pipeline_sources() -> tuple[Path, ...]:
 
 @functools.cache
 def _pipeline_fingerprint() -> str:
-    """Digest of the code that turns asset sources into bundle bytes.
-
-    A bundle's version is otherwise a hash of its members' URLs and mtimes
-    only, so it carries no notion of *how* those sources were compiled. Change
-    the pipeline without touching a single ``.scss`` and every already-persisted
-    attachment stays valid: the old, wrongly-compiled bundle is served forever.
-    That is not hypothetical — a fix to ``StylesheetAsset.rx_url`` in this
-    package kept serving the broken CSS until the attachments were deleted by
-    hand.
-
-    Mixing this digest into :meth:`AssetsBundle.get_checksum` makes a pipeline
-    change invalidate every bundle exactly once, the same way a source edit
-    does. The cost is one lazy walk of a handful of files per process.
-
-    Native-ESM artifacts need no such seed: their URLs are content-addressed
-    (``/web/assets/esm/<digest>/…``), so different output already means a
-    different URL.
-
-    Falls back to the release version if the sources cannot be read (frozen or
-    zipped deployment): a coarse fingerprint still beats none.
-    """
     digest = hashlib.sha256()
     files: list[Path] = []
     for source in _pipeline_sources():
@@ -121,21 +68,10 @@ def _pipeline_fingerprint() -> str:
 
 
 def _sourcemap_source_root(asset_url: str) -> str:
-    """Return the relative ``sourceRoot`` climbing from the bundle URL to ``/``.
-
-    Source map ``sources`` are site-absolute; the browser resolves them against
-    ``sourceRoot``, so it needs one ``..`` per directory segment of the URL.
-    """
     return "/".join(".." for _ in range(len(asset_url.split("/")) - 2)) + "/"
 
 
 class BundleFileSpec(TypedDict):
-    """One bundle source file, collected by ``ir_qweb._get_asset_content``.
-
-    ``content`` is inline source (empty for file-backed assets, where
-    ``filename`` points at the file on disk).
-    """
-
     url: str
     filename: str | None
     content: str
@@ -143,23 +79,17 @@ class BundleFileSpec(TypedDict):
 
 
 class NativeModuleData(TypedDict):
-    """The import-map / preload payload returned by ``get_native_module_data``."""
-
     import_map: dict[str, str]
     preload_urls: list[str]
     bridge_import_map: dict[str, str]
 
 
 class TemplatesBlock(TypedDict):
-    """A run of primary / parentless templates, in source order."""
-
     type: Literal["templates"]
     templates: list[tuple[etree._Element, str | None, str | None]]
 
 
 class ExtensionsBlock(TypedDict):
-    """A run of ``t-inherit-mode="extension"`` templates, grouped by parent."""
-
     type: Literal["extensions"]
     extensions: dict[str, list[tuple[etree._Element, str | None]]]
 
@@ -168,31 +98,22 @@ XMLBlock = TemplatesBlock | ExtensionsBlock
 
 
 class CompileError(RuntimeError):
-    """A stylesheet preprocessor (Sass/rtlcss) failed or timed out."""
+    pass
 
 
 class AssetError(Exception):
-    """An asset's content could not be obtained, decoded or parsed."""
+    pass
 
 
 class AssetNotFoundError(AssetError):
-    """The asset's backing file or attachment does not exist."""
+    pass
 
 
 class XMLAssetError(AssetError):
-    """An XML template asset failed to parse or validate."""
+    pass
 
 
 def _run_cli_pipe(argv: Sequence[str], source: str, timeout_s: int) -> str:
-    """Run *argv* feeding *source* on stdin; return its stdout.
-
-    Shared subprocess plumbing for the stylesheet CLIs (Sass, rtlcss). Every
-    failure shape raises ``CompileError``.
-
-    :param argv: command line; ``argv[0]`` names the tool in errors
-    :param timeout_s: budget — a hung binary must not pin a worker
-    :raises CompileError: launch failure, timeout, or non-zero exit
-    """
     try:
         proc = Popen(
             argv,
@@ -255,28 +176,6 @@ def _rewrite_css_outside_strings(
     text: str,
     tokens: re.Pattern = _CSS_STRING_OR_COMMENT,
 ) -> str:
-    """Apply ``repl`` to ``target`` matches that lie in CSS *code* only.
-
-    A single left-to-right scan consumes string-literal and comment spans first,
-    so a ``url()`` / ``@import`` / ``appearance:`` written *inside* a
-    ``content: "…"`` value or a comment passes through untouched.
-
-    A real ``url("x")`` is still rewritten: its match *starts* at the ``url(``
-    token (code), and only the inner ``"x"`` is a protected span the rewrite
-    never enters.
-
-    ``tokens`` selects which spans count as opaque. It defaults to the plain-CSS
-    ``_CSS_STRING_OR_COMMENT``; pass ``_SCSS_STRING_OR_COMMENT`` when the text is
-    preprocessor *source*, so Sass ``//`` line comments are protected too, or
-    :data:`_SCSS_STATEMENT_SPANS` to additionally treat ``url(…)`` as opaque.
-
-    The scanner wraps ``tokens`` in one named group, so a match is dispatched on
-    *which arm matched* rather than on what the matched text looks like. The old
-    prefix sniff (``token[:2] in ("/*", "//")``) silently mis-routed any token
-    arm that did not start with a comment or quote — which is every ``url(…)``
-    span. ``target``'s own groups therefore start at 2; read them **by name**
-    (``match.group("q")``), never by number.
-    """
     scanner = re.compile(
         f"(?P<{_PROTECTED_SPAN}>(?s:{tokens.pattern}))|{target.pattern}",
         target.flags,

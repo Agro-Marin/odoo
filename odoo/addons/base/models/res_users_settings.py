@@ -24,17 +24,10 @@ class ResUsersSettings(models.Model):
 
     @api.model
     def _get_fields_blacklist(self) -> list[str]:
-        """Get list of fields that won't be formatted."""
         return ["display_name"]
 
     @api.model
     def _find_or_create_for_user(self, user: Any) -> Self:
-        """Return the settings record for *user*, creating one if absent.
-
-        On a read-only cursor (e.g. a readonly HTTP route) fall back to an
-        in-memory record so callers can format settings without writing on the
-        RO cursor.
-        """
         settings = user.sudo().res_users_settings_ids
         if not settings:
             if self.env.cr.readonly:
@@ -72,14 +65,6 @@ class ResUsersSettings(models.Model):
     _PROTECTED_SETTINGS_FIELDS = frozenset({"user_id", "id", *models.MAGIC_COLUMNS})
 
     def set_res_users_settings(self, new_settings: dict[str, Any]) -> dict[str, Any]:
-        """Apply ``new_settings`` to this settings record and return the changes.
-
-        Skips protected fields (``_PROTECTED_SETTINGS_FIELDS``), unknown fields
-        and inverse-less computes, and only writes values that actually changed.
-
-        :param dict new_settings: field name -> new value to apply.
-        :return: the formatted subset of changed fields (+ ``id``).
-        """
         self.ensure_one()
         changed_settings = {}
         for setting, new_value in new_settings.items():
@@ -94,14 +79,6 @@ class ResUsersSettings(models.Model):
         return self._res_users_settings_format([*changed_settings.keys(), "id"])
 
     def _is_setting_changed(self, fname: str, new_value: Any) -> bool:
-        """Return whether writing ``new_value`` to ``fname`` would change it.
-
-        Comparison is per field type: many2one compares ids (both normalized so
-        ``None``/``False``/empty compare equal); x2many compares the id-set that
-        applying the commands would yield against the current one (create/update
-        commands, whose outcome isn't statically known, always count as
-        changed); other fields compare by value.
-        """
         self.ensure_one()
         current_value = self[fname]
         match self._fields[fname].type:
@@ -118,13 +95,6 @@ class ResUsersSettings(models.Model):
     def _x2many_command_target_ids(
         self, current_ids: set[int], value: Any
     ) -> set[int] | None:
-        """Return the id-set an x2many holding ``current_ids`` would contain
-        after writing ``value`` (a list of x2many commands and/or bare ids).
-
-        Return ``None`` when the outcome cannot be determined statically
-        (create/update payloads, malformed commands, or a non-list value) --
-        callers then treat the value as changed and let ``write()`` validate it.
-        """
         if not isinstance(value, (list, tuple)):
             return None
         target_ids = set(current_ids)

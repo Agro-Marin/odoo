@@ -16,14 +16,6 @@ from odoo.addons.base.models.ir_asset_paths import _glob_static_file
 
 @tagged("post_install", "-at_install")
 class TestGetPathsEscapeWarning(TransactionCase):
-    """IRASSET-C4 / IRASSET-C5: the two non-wildcard resolution outcomes that
-    silently degraded to an attachment URL must each leave a distinct trace.
-    C4: a path naming an installed addon but resolving outside its ``static/``
-    (escape). C5: a literal path inside ``static/`` matching no file (typo).
-    Both keep the attachment-URL degradation (attachment rows may legitimately
-    shadow a since-removed static file).
-    """
-
     def test_escape_outside_static_warns(self):
         IrAsset = self.env["ir.asset"]
         installed = Resolution(installed=IrAsset._get_installed_addons_list())
@@ -58,15 +50,6 @@ class TestGetPathsEscapeWarning(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAttachmentBackedPath(TransactionCase):
-    """A literal path with no file behind it degrades to an attachment URL, and
-    the bundle later resolves that URL through
-    ``ir.attachment._get_serve_attachment`` -- an exact ``url =`` match. The
-    warning that decides whether the degradation is legitimate accepted *either*
-    spelling (``x`` or ``/x``), so a definition whose attachment is registered
-    the other way round passed silently here and failed at bundle build with a
-    bare ``Could not find ...``.
-    """
-
     URL = "/base/static/src/scss/__served_by_an_attachment__.scss"
 
     def _resolve(self, path_def):
@@ -86,7 +69,6 @@ class TestAttachmentBackedPath(TransactionCase):
         self.assertEqual(resolved[0].path, self.URL)
 
     def test_both_spellings_keep_working_when_each_backs_itself(self):
-        """Either spelling is legal; they are simply not interchangeable."""
         unslashed = self.URL.lstrip("/")
         self._attach(unslashed)
         with self.assertNoLogs("odoo.addons.base.models", level="WARNING"):
@@ -115,16 +97,6 @@ class TestAttachmentBackedPath(TransactionCase):
         self.assertIn("typo in the path", "\n".join(cm.output))
 
     def test_a_path_outside_every_addon_is_diagnosed_too(self):
-        """The shape website's customisations take.
-
-        ``WebsiteAssets._make_custom_asset_url`` mints
-        ``/_custom/<bundle>/<addon>/static/...``; its first segment is not a
-        module, so no manifest is found and the path went straight to the
-        attachment fallback with no diagnostic at all. An ``ir.asset`` row and
-        its ``ir.attachment`` are created as a pair and deleted separately, so
-        losing the attachment is the expected way for one to break -- and it
-        surfaced only as a CSS error banner on the frontend.
-        """
         custom = "/_custom/web.assets_frontend/web/static/src/scss/probe.scss"
         with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
             resolved = self._resolve(custom)
@@ -140,15 +112,6 @@ class TestAttachmentBackedPath(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestResolvedPathsAreShared(TransactionCase):
-    """The ``assets`` store keeps one resolution per ``(bundle, assets_params)``
-    -- 512 slots, because ``assets_params`` exists so that each website gets its
-    own. Every one of them minted its own copies of the same file names, so the
-    store held ``websites x bundles`` unshared copies of one addons directory:
-    ``web.assets_backend`` alone is 1592 entries / 528 KiB, and a second
-    resolution of it shared nothing with the first (measured 527 KiB of new
-    strings, 174 KiB once interned).
-    """
-
     BUNDLE = "web.assets_backend"
 
     def test_a_second_resolution_reuses_the_first_strings(self):
@@ -167,9 +130,6 @@ class TestResolvedPathsAreShared(TransactionCase):
         )
 
     def test_the_two_resolutions_are_still_distinct_objects(self):
-        """Sharing the strings must not turn into sharing the tuples: the
-        ormcache already relies on each entry being its own value.
-        """
         IrAsset = self.env["ir.asset"]
         first = IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
         second = IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
@@ -179,13 +139,6 @@ class TestResolvedPathsAreShared(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestProcessCommandMalformed(TransactionCase):
-    """IRASSET-A2: a malformed manifest asset command must raise ValueError whose
-    message names the offending command. The parser previously caught only
-    ``(ValueError, IndexError)`` via ``add_note``, so a non-subscriptable command
-    (int/None) escaped as TypeError and a dict as KeyError, both without the
-    command in ``str(exc)``. Pin that every malformed shape surfaces it.
-    """
-
     def test_int_command_raises_valueerror_naming_command(self):
         with self.assertRaises(ValueError) as cm:
             self.env["ir.asset"]._process_command(123)
@@ -202,13 +155,6 @@ class TestProcessCommandMalformed(TransactionCase):
         self.assertIn("only_two", str(cm.exception))
 
     def test_a_non_string_member_is_rejected_here_not_two_frames_down(self):
-        """Right shape, wrong kind of value.
-
-        These reached ``_resolve_path_def`` and died on ``path_def.split("/")``
-        with ``AttributeError``, which neither attribution wrapper catches (both
-        catch ``ValueError``) -- so the traceback named neither the addon nor
-        the bundle, which is the whole point of IRASSET-A2.
-        """
         IrAsset = self.env["ir.asset"]
         for command in (["append", 123], ["append", ["a", "b"]], ["after", 7, "/x.js"]):
             with self.subTest(command=command), self.assertRaises(ValueError) as cm:
@@ -231,11 +177,6 @@ class TestProcessCommandMalformed(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestTopologicalSort(TransactionCase):
-    """IRASSET-D1: pin ``_topological_sort`` (asset load order) with synthetic
-    manifests: every dependency precedes its dependents, missing ``depends``
-    falls back to ``base``, and the full input set is returned.
-    """
-
     def _sort(self, manifests, addons):
         IrAsset = self.env["ir.asset"]
         IrAsset.env.registry.clear_cache()
@@ -267,12 +208,6 @@ class TestTopologicalSort(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAssetPathsCacheCanonical(TransactionCase):
-    """IRASSET-P1: ``_get_asset_paths`` sorts the active-addons set before
-    building the addon-keyed @ormcache key, so the key is canonical despite set
-    hash randomization. Pin that the tuple is sorted, preventing cross-worker
-    cache fragmentation.
-    """
-
     def test_addons_are_sorted_into_manifest_index_key(self):
         IrAsset = self.env["ir.asset"]
         captured = []
@@ -299,7 +234,6 @@ class TestAssetPathsCacheCanonical(TransactionCase):
         self.assertEqual(captured[0], ("base", "mail", "web"))
 
     def test_topological_sort_key_is_the_sorted_tuple(self):
-        """The index defers to ``_topological_sort`` with the same canonical key."""
         IrAsset = self.env["ir.asset"]
         captured = []
 
@@ -315,11 +249,6 @@ class TestAssetPathsCacheCanonical(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestManifestAssetsIndex(TransactionCase):
-    """The manifest scan is an index built once per addon set, not a rescan per
-    bundle. Pin what the index must preserve: every declaration, grouped by
-    bundle, in topological addon order.
-    """
-
     def test_index_groups_commands_by_bundle_in_addon_order(self):
         IrAsset = self.env["ir.asset"]
         manifests = {
@@ -353,10 +282,6 @@ class TestManifestAssetsIndex(TransactionCase):
         self.assertEqual(index["b.bundle"], (("alpha", "/alpha/two.js"),))
 
     def test_a_malformed_command_does_not_break_the_include_prefetch(self):
-        """The prefetch reads the same commands the walk will parse, so a
-        malformed one must not crash it before ``_process_command`` can report
-        it against its addon.
-        """
         IrAsset = self.env["ir.asset"]
         for command in (123, None, {"path": "x"}, ["include"], ["include", "a", "b"]):
             with self.subTest(command=command):
@@ -385,9 +310,6 @@ class TestManifestAssetsIndex(TransactionCase):
             )
 
     def test_a_broken_manifest_directive_names_its_addon(self):
-        """A directive that cannot be applied aborts every page pulling the
-        bundle, so the error has to say which manifest to go fix.
-        """
         IrAsset = self.env["ir.asset"]
         broken = ["after", "/nowhere/absent.js", "/culprit/new.js"]
 
@@ -417,11 +339,6 @@ class TestManifestAssetsIndex(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCachedResultsAreImmutable(TransactionCase):
-    """The ``assets`` ormcache hands the very same object to every later caller,
-    so a consumer that mutated a returned collection would corrupt the cache for
-    the whole worker. Pin that nothing mutable escapes.
-    """
-
     def test_cached_accessors_return_immutable_collections(self):
         IrAsset = self.env["ir.asset"]
         self.assertIsInstance(IrAsset._get_asset_paths("web.assets_backend", {}), tuple)
@@ -429,14 +346,6 @@ class TestCachedResultsAreImmutable(TransactionCase):
         self.assertIsInstance(IrAsset._topological_sort(("base",)), tuple)
 
     def test_the_manifest_index_is_read_only(self):
-        """The one accessor this class used to miss.
-
-        ``_get_manifest_assets`` handed out a plain ``dict``: the tuples inside
-        it were immutable, the mapping holding them was not. Adding a bundle to
-        it -- the obvious way to write an override that injects one -- made that
-        bundle a permanent part of every later resolution in the worker, with no
-        write to invalidate it.
-        """
         IrAsset = self.env["ir.asset"]
         index = IrAsset._get_manifest_assets(("base", "web"))
         with self.assertRaises(TypeError):
@@ -448,7 +357,6 @@ class TestCachedResultsAreImmutable(TransactionCase):
         )
 
     def test_repeated_calls_return_the_identical_object(self):
-        """Identity is the point: it is why mutability would be a cache bug."""
         IrAsset = self.env["ir.asset"]
         self.assertIs(
             IrAsset._get_asset_paths("web.assets_backend", {}),
@@ -462,12 +370,6 @@ class TestCachedResultsAreImmutable(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAssetsCacheInvalidatedAtCommit(TransactionCase):
-    """Clearing the ``assets`` cache only at write time leaves it open to being
-    repopulated from the pre-change rows before COMMIT, and that stale entry
-    survives the commit because ``signal_changes`` only notifies *other*
-    workers. Pin the post-commit re-clear that closes the window.
-    """
-
     BUNDLE = "web.assets_backend"
 
     def _asset_cache_keys(self):
@@ -514,11 +416,6 @@ class TestAssetsCacheInvalidatedAtCommit(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDirectiveTargetValidation(TransactionCase):
-    """A directive that cannot be applied is a data error, and belongs at write
-    time. Left to render time it surfaces as a 500 on every page that pulls the
-    bundle, with nothing pointing back at the offending record.
-    """
-
     def test_positional_directive_requires_a_target(self):
         for directive in ("after", "before", "replace"):
             with self.subTest(directive=directive), self.assertRaises(ValidationError):
@@ -545,9 +442,6 @@ class TestDirectiveTargetValidation(TransactionCase):
             asset.write({"target": False})
 
     def test_directive_cannot_be_blanked(self):
-        """``directive`` is NOT NULL: a blank one used to reach _process_path and
-        raise ``Unexpected directive: False`` while rendering the bundle.
-        """
         asset = self.env["ir.asset"].create(
             {
                 "name": "plain",
@@ -572,18 +466,11 @@ class TestDirectiveTargetValidation(TransactionCase):
 
 
 def _fake_get_paths(_self, path_def, resolution):
-    """Resolve every path definition to itself, one file, no filesystem."""
     return [(path_def, "/full" + path_def, 1)]
 
 
 @tagged("post_install", "-at_install")
 class TestDirectiveAttribution(TransactionCase):
-    """A directive that cannot be applied aborts every page pulling the bundle.
-    Manifest commands have always named their addon; an ``ir.asset`` row raised
-    the same bare ``File(s) ... not found`` with nothing identifying the record,
-    which is the only thing an admin can act on for a DB-authored directive.
-    """
-
     BUNDLE = "attribution.probe"
 
     def _resolve(self):
@@ -610,7 +497,6 @@ class TestDirectiveAttribution(TransactionCase):
         self.assertIn(self.BUNDLE, message)
 
     def test_attribution_happens_once_across_includes(self):
-        """The innermost declaration is named; outer frames re-raise as is."""
         self.env["ir.asset"].create(
             {
                 "name": "outer include",
@@ -638,13 +524,6 @@ class TestDirectiveAttribution(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestBundleAssetsFetch(TransactionCase):
-    """Walking a bundle walks every bundle it includes, and each one used to
-    issue its own ``ir.asset`` search. Fetching the whole table once instead
-    trades those round-trips for a cost that grows with rows the bundle will
-    never use, so the prefetch is bounded by the manifest include closure and
-    anything an ``ir.asset`` include reveals is fetched on demand.
-    """
-
     def _spy(self):
         IrAsset = self.env["ir.asset"]
         calls = []
@@ -680,7 +559,6 @@ class TestBundleAssetsFetch(TransactionCase):
         )
 
     def test_the_prefetch_does_not_read_unrelated_bundles(self):
-        """The whole point of bounding it: rows of other bundles stay unread."""
         IrAsset = self.env["ir.asset"]
         IrAsset.create(
             {"name": "elsewhere", "bundle": "other.bundle", "path": "/some/x.js"}
@@ -695,7 +573,6 @@ class TestBundleAssetsFetch(TransactionCase):
         self.assertEqual(calls, [[("bundle", "in", ["lonely.bundle"])]])
 
     def test_a_record_include_is_fetched_on_demand(self):
-        """An include only a DB row knows about cannot be prefetched."""
         IrAsset = self.env["ir.asset"]
         IrAsset.create(
             {
@@ -717,11 +594,6 @@ class TestBundleAssetsFetch(TransactionCase):
         self.assertEqual(len(calls), 2, f"one prefetch + one on demand, got {calls}")
 
     def test_a_record_include_prefetches_its_own_manifest_closure(self):
-        """The bundle a record ``include`` reveals gets the same treatment the
-        root does. Fetching just that one bundle left the chain its manifest
-        includes to be discovered one query at a time — the round-trips the
-        batched fetch exists to remove, reintroduced one level down.
-        """
         IrAsset = self.env["ir.asset"]
         IrAsset.create(
             {
@@ -795,14 +667,6 @@ class TestBundleAssetsFetch(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestStaticContainment(TransactionCase):
-    """Containment is decided lexically against the addon root, so a symlink is
-    no longer collapsed before the check. Crossing one must still be allowed
-    when it lands back inside ``static/`` — that is what the previous
-    ``Path(...).resolve()`` did, and vendored libraries are symlinked that way —
-    while landing outside must be refused whether a literal path names the link
-    or a wildcard expands onto it.
-    """
-
     def setUp(self):
         super().setUp()
         self.tmp = tempfile.mkdtemp()
@@ -839,19 +703,11 @@ class TestStaticContainment(TransactionCase):
             self.assertEqual(self._glob("src/escape/*.js"), [])
 
     def test_a_link_and_its_target_collapse_to_one_entry(self):
-        """Both spellings resolve to the same file; the bundle must see it once."""
         self.assertEqual(self._glob("src/*/*.js"), ["src/real/in.js"])
 
 
 @tagged("post_install", "-at_install")
 class TestPerBundleFiltering(TransactionCase):
-    """Arbitration between records competing for the same slot is applied per
-    bundle, not per batch. The batched fetch spans a whole include closure, so
-    filtering it as one set would let a record of one bundle suppress a record
-    of another -- which is exactly what website's generic/specific ``key``
-    matching does.
-    """
-
     def test_the_hook_sees_one_bundle_at_a_time(self):
         IrAsset = self.env["ir.asset"]
         for bundle in ("split.a", "split.b"):
@@ -900,11 +756,6 @@ class TestPerBundleFiltering(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestInvalidationIsNarrow(TransactionCase):
-    """Dropping the ``assets`` cache costs every bundle its resolution, so only
-    a write that can change what a bundle resolves to may do it. Renaming a
-    record cannot.
-    """
-
     BUNDLE = "narrow.probe"
 
     def _cached_keys(self):
@@ -948,17 +799,11 @@ class TestInvalidationIsNarrow(TransactionCase):
                 )
 
     def test_target_counts_as_a_resolution_field(self):
-        """It is only read for positional directives, but it is read."""
         self.assertIn("target", self.env["ir.asset"]._resolution_fields())
 
 
 @tagged("post_install", "-at_install")
 class TestExternalUrlShortCircuit(TransactionCase):
-    """A URL that cannot be aggregated is decided by its own spelling. Looking
-    up an addon manifest first only mattered for paths that can be bundled, and
-    a miss there walks every addons path attempting to open a manifest file.
-    """
-
     def test_an_external_url_never_consults_a_manifest(self):
         IrAsset = self.env["ir.asset"]
         resolution = Resolution(installed=IrAsset._get_installed_addons_list())
@@ -990,19 +835,6 @@ class TestExternalUrlShortCircuit(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestEveryServableBundleResolves(TransactionCase):
-    """A bundle whose name parses as a filename is reachable by URL, so it must
-    resolve on its own — an ``after``/``before`` whose anchor only exists once
-    some *other* bundle has included this one raises, and the route turns that
-    into a 404 for a URL the templates hand out.
-
-    The exception is the ``<addon>._name`` convention: a leading underscore
-    marks a fragment meant to be ``include``\\ d, and ``web._dark_mode_variables``
-    is exactly that — it positions its dark variables relative to files
-    ``web.assets_web_dark`` appended before including it. Naming is the only
-    signal available, since standalone resolvability is a property of the whole
-    graph and cannot be checked when a record is written.
-    """
-
     @staticmethod
     def _is_include_only(bundle):
         return bundle.split(".", 1)[1].startswith("_")
@@ -1025,7 +857,6 @@ class TestEveryServableBundleResolves(TransactionCase):
         self.assertEqual(broken, {})
 
     def test_an_include_only_fragment_may_legitimately_need_its_parent(self):
-        """Pins the reason for the exemption, so it cannot quietly widen."""
         IrAsset = self.env["ir.asset"]
         addons = tuple(sorted(IrAsset._get_active_addons_list()))
         fragments = [
@@ -1041,12 +872,6 @@ class TestEveryServableBundleResolves(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestUnservableBundleNameWarns(TransactionCase):
-    """``_parse_bundle_name`` demands exactly one dot, so any other spelling
-    resolves fine and then 404s. Warn rather than raise: a bundle reached only
-    through ``include`` is never parsed as a filename, so it is unconventional
-    rather than invalid.
-    """
-
     def test_a_dotless_bundle_warns(self):
         with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
             self.env["ir.asset"].create(
@@ -1072,13 +897,6 @@ class TestUnservableBundleNameWarns(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAssetsCacheStores(TransactionCase):
-    """Resolved file lists and the URL lists derived from them live in sibling
-    LRUs of one clear group. They used to share a single 512-slot store, where
-    the URL lists -- keyed on six values instead of two, so ~4x as many entries
-    at ~1/742 the size -- evicted the resolutions they come from, each ~43 ms
-    to rebuild. A single-website install already filled 415 of the 512 slots.
-    """
-
     BUNDLES = ["cachestore.a", "cachestore.b", "cachestore.c"]
 
     def _lrus(self):
@@ -1092,10 +910,6 @@ class TestAssetsCacheStores(TransactionCase):
         self.assertGreater(lrus["assets.links"].count, lrus["assets"].count)
 
     def test_variants_multiply_only_the_sibling_store(self):
-        """Every (css/js, rtl, autoprefix) combination of one bundle is another
-        URL entry but the same resolution, so the variants used to crowd out
-        resolutions at 8:1 in a store they shared.
-        """
         IrQweb = self.env["ir.qweb"]
         self.env.registry.clear_cache("assets")
         for bundle in self.BUNDLES:

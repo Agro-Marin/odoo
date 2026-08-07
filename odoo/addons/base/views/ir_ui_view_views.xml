@@ -94,9 +94,6 @@
                                     <field name="name" />
                                     <field name="xml_id" />
                                     <field name="active" invisible="1" />
-                                    <!-- Manually add active here. Otherwise that field will be
-                                    readonly for the sub-list,
-                                                    preventing saving changes done from a widget in the sub-form -->
                                 </list>
                             </field>
                         </page>
@@ -116,7 +113,6 @@
             move fields, rename them or delete the ones that you do not need.</field>
     </record>
 
-    <!-- Reset view wizard -->
     <record id="reset_view_arch_wizard_view" model="ir.ui.view">
         <field name="name">Reset View Architecture</field>
         <field name="model">reset.view.arch.wizard</field>
@@ -124,10 +120,8 @@
             <form string="Reset View Architecture">
                 <group>
                     <group>
-                        <field name="has_diff" invisible="1" />  <!-- The field compute method update
-                        the value of 'view_id' -->
-                        <field name="view_id" invisible="1" />  <!-- Save the value updated from
-                        'has_diff' compute -->
+                        <field name="has_diff" invisible="1" />
+                        <field name="view_id" invisible="1" />
                         <field name="view_name" />
                         <field name="compare_view_id" invisible="reset_mode != 'other_view'"
                             options="{'no_create': True, 'no_open': True}" />
@@ -160,7 +154,6 @@
         <field name="binding_view_types">form,list,kanban</field>
     </record>
 
-    <!-- View customizations -->
     <record id="view_view_custom_form" model="ir.ui.view">
         <field name="model">ir.ui.view.custom</field>
         <field name="arch" type="xml">

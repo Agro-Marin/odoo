@@ -8,10 +8,7 @@ from odoo.tools import mute_logger
 
 @tagged("post_install", "-at_install")
 class TestIrDemo(TransactionCase):
-    """Pin the admin gate on the destructive ``ir.demo.install_demo`` action."""
-
     def test_install_demo_denies_non_admin(self):
-        """A non-admin user is rejected before the destructive path runs."""
         user = new_test_user(self.env, login="demo_gate_user")
         demo = self.env["ir.demo"].with_user(user)
         with (
@@ -23,7 +20,6 @@ class TestIrDemo(TransactionCase):
             force_demo.assert_not_called()
 
     def test_install_demo_admin_gated_path(self):
-        """An admin passes the gate and gets the reload action back."""
         with patch("odoo.modules.loading.force_demo") as force_demo:
             action = self.env["ir.demo"].install_demo()
             force_demo.assert_called_once()
@@ -34,10 +30,7 @@ class TestIrDemo(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrDemoFailure(TransactionCase):
-    """Pin failure-row creation and the wizard count aggregation."""
-
     def test_error_field_stores_multiline_traceback(self):
-        """The ``error`` field round-trips a multi-line traceback (Text type)."""
         module = self.env["ir.module.module"].search([], limit=1)
         multiline = "Traceback (most recent call last):\n  File ...\nValueError: boom"
         failure = self.env["ir.demo_failure"].create(
@@ -47,7 +40,6 @@ class TestIrDemoFailure(TransactionCase):
         self.assertEqual(failure._fields["error"].type, "text")
 
     def test_wizard_aggregates_orphan_failures(self):
-        """The wizard collects orphan failures and counts them (mirrors base.demo_failure_action)."""
         modules = self.env["ir.module.module"].search([], limit=3)
         self.assertTrue(modules, "Expected at least one installed module to reference")
         Failure = self.env["ir.demo_failure"]

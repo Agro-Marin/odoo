@@ -23,37 +23,6 @@ if typing.TYPE_CHECKING:
 
 
 class Many2one(_Relational):
-    """The value of such a field is a recordset of size 0 (no
-    record) or 1 (a single record).
-
-    :param str comodel_name: name of the target model
-        ``Mandatory`` except for related or extended fields.
-
-    :param domain: an optional domain to set on candidate values on the
-        client side (domain or a python expression that will be evaluated
-        to provide domain)
-
-    :param dict context: an optional context to use on the client side when
-        handling that field
-
-    :param str ondelete: what to do when the referred record is deleted;
-        possible values are: ``'set null'``, ``'restrict'``, ``'cascade'``
-
-    :param bool bypass_search_access: whether access rights are bypassed on the
-        comodel (default: ``False``)
-
-    :param bool delegate: set it to ``True`` to make fields of the target model
-        accessible from the current model (corresponds to ``_inherits``)
-
-    :param bool check_company: Mark the field to be verified in
-        :meth:`~odoo.models.Model._check_company`. Has a different behaviour
-        depending on whether the field is company_dependent or not.
-        Constrains non-company-dependent fields to target records whose
-        company_id(s) are compatible with the record's company_id(s).
-        Constrains company_dependent fields to target records whose
-        company_id(s) are compatible with the currently active company.
-    """
-
     type = "many2one"
     _column_type = ("int4", "int4")
 
@@ -251,32 +220,6 @@ class Many2one(_Relational):
         records: ModelLike,
         use_display_name: bool = True,
     ) -> list[typing.Any]:
-        """Convert a whole column of values, checking access ONCE.
-
-        Naming a target the reader may not see would leak it, so each value is
-        hidden unless it passes ``read``. Asked one value at a time -- as it was
-        -- that is usually free: ``filtered_domain`` evaluates the comodel's
-        record rules in Python, straight off the cache. But a rule written on a
-        **search-defined** field cannot be evaluated in Python at all;
-        ``Domain._as_predicate`` falls through to ``_search_defined_predicate``,
-        which runs a query. Reading such a many2one over N records therefore
-        cost N queries -- ``documents.document.folder_id``, whose rule is
-        ``user_permission != 'none'``: 105 queries for 100 records, against 5 in
-        superuser mode where no rule applies.
-
-        Resolving the column in one pass makes that one query, and changes
-        nothing for the comodels whose rules were already free.
-
-        This is the single implementation; :meth:`convert_to_read` delegates to
-        it for one value, the way ``Properties`` already does. A subclass that
-        needs different behaviour must override **this** method -- overriding
-        only ``convert_to_read`` would leave ``_read_format`` calling the stock
-        conversion.
-
-        :param values: one value per record in *records*, same order
-        :param records: the records the values were read from
-        :param use_display_name: when false, return bare ids and check nothing
-        """
         if not use_display_name:
             return [value.id for value in values]
 
@@ -286,9 +229,6 @@ class Many2one(_Relational):
             try:
                 allowed_ids = set(targets._filtered_access("read")._ids)
             except MissingError:
-                # A target vanished mid-read. Rules evaluated in Python raise on
-                # a deleted row rather than simply not matching it, so fall back
-                # to asking per value, which answers False for exactly those.
                 allowed_ids = None
 
         result: list[typing.Any] = []
@@ -327,12 +267,6 @@ class Many2one(_Relational):
         raise ValueError(f"Wrong value for {self}: {value!r}")
 
     def _reject_command_tuple(self, value: tuple) -> None:
-        """Raise if ``value`` is an x2many ``Command`` tuple.
-
-        A ``(command, id, values)`` triple assigned to a many2one would silently
-        degrade to ``value[0]`` (the command int) and corrupt the field. Guard
-        both the cache and write conversion paths identically.
-        """
         if len(value) == 3 and isinstance(value[0], int):
             if value[0] in Command._value2member_map_:
                 raise ValueError(
@@ -375,7 +309,6 @@ class Many2one(_Relational):
         self._update_inverses(records, cache_value)
 
     def _remove_inverses(self, records: BaseModel) -> None:
-        """Remove ``records`` from the cached o2m inverse fields of ``self``."""
         inverse_fields = records.pool.field_inverses[self]
         if not inverse_fields:
             return
@@ -401,7 +334,6 @@ class Many2one(_Relational):
                     invf._update_cache(corecord, ids1)
 
     def _update_inverses(self, records: BaseModel, value: int | NewId | None) -> None:
-        """Add ``records`` to the cached o2m inverse fields of ``self``."""
         if value is None:
             return
         corecord = self.convert_to_record(value, records)
@@ -509,9 +441,6 @@ class Many2one(_Relational):
         return sql
 
     def join(self, model: ModelLike, alias: str, query: Query) -> tuple[BaseModel, str]:
-        """Add a LEFT JOIN to ``query`` by following field ``self``,
-        and return the joined table's corresponding model and alias.
-        """
         comodel = model.env[self.comodel_name]
         coalias = query.make_alias(alias, self.name)
         query.add_join(
@@ -528,8 +457,6 @@ class Many2one(_Relational):
 
 
 class PrefetchMany2one(Reversible):
-    """Iterable over a many2one's values across a record's prefetch set."""
-
     __slots__ = ("field", "record")
 
     def __init__(self, record: ModelLike, field: Many2one) -> None:

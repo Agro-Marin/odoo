@@ -44,7 +44,6 @@ class ResPartnerCategory(models.Model):
 
     @api.depends("name", "parent_id.name")
     def _compute_display_name(self) -> None:
-        """Compute the slash-joined full ancestor path as display name."""
         stored = self.filtered(lambda c: isinstance(c.id, int) and c.parent_path)
         ancestor_ids_by_record = {
             category.id: [int(id_) for id_ in category.parent_path.split("/")[:-1]]

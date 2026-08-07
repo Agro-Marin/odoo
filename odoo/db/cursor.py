@@ -42,24 +42,6 @@ _TX_IDLE = _TxStatus.IDLE
 
 
 class BaseCursor:
-    """Base class for cursors that manage pre/post commit hooks.
-
-    Declares only what every cursor flavour genuinely provides.  This used to
-    inherit ``psycopg.Cursor`` under ``TYPE_CHECKING`` and ``object`` at
-    runtime, which told the type checker that every subclass — including
-    ``odoo.tests.cursor.TestCursor``, which forwards by ``__getattr__`` — had
-    psycopg's whole cursor API.  ``cr.stream(...)`` and ``cr.scroll(...)``
-    type-checked clean while resolving at runtime through two layers of
-    ``__getattr__``, which is precisely how the bulk-write savepoint bypass
-    (see :meth:`_before_statement`) stayed invisible to mypy.
-
-    ``close`` and ``fetchone`` are declared under ``TYPE_CHECKING`` only, never
-    defined: :class:`Cursor` implements them, while ``TestCursor`` reaches the
-    real cursor through ``__getattr__``, which Python consults only when normal
-    lookup fails.  Giving them runtime bodies here — even ones that raise —
-    shadows that forwarding and breaks every ``fetchone`` on a test cursor.
-    """
-
     BATCH_SIZE = 1000
     _MAX_FLUSH_PASSES = 10
 
@@ -80,23 +62,9 @@ class BaseCursor:
         self._savepoint_depth = 0
         self.cache = {}
         self.transaction = None
-        #: Number of SQL ``COMMIT``s this cursor has completed.  Bumped between
-        #: the COMMIT and the post-commit hooks, so a caller that catches an
-        #: exception out of :meth:`commit` can tell the two apart: the hooks run
-        #: with the transaction already durable, and treating a hook failure as
-        #: a failed commit rolls back state the database has already accepted.
-        #: See :func:`odoo.service.transaction.retrying`.
         self.commit_count = 0
 
     def flush(self) -> None:
-        """Flush the current transaction, and run precommit hooks.
-
-        Convergence contract: a precommit hook signals follow-up work by
-        dirtying the ORM (which the next pass re-queues), NOT by re-adding itself
-        to ``self.precommit``.  ``_MAX_FLUSH_PASSES`` bounds this cross-pass
-        ping-pong; a hook that unconditionally re-adds itself instead loops
-        forever inside ``Callbacks.run()``.
-        """
         for _ in range(self._MAX_FLUSH_PASSES):
             if self.transaction is not None:
                 self.transaction.flush()
@@ -113,48 +81,22 @@ class BaseCursor:
             )
 
     def clear(self) -> None:
-        """Clear the current transaction, and clear precommit hooks."""
         if self.transaction is not None:
             self.transaction.clear()
         self.precommit.clear()
 
     def reset(self) -> None:
-        """Reset the current transaction (this invalidates more than clear()).
-        This method should be called only right after commit() or rollback().
-        """
         if self.transaction is not None:
             self.transaction.reset()
 
     def discard_cached_plans(self) -> None:
-        """Drop cached statement plans held by the underlying connection."""
+        pass
 
     def _before_statement(self) -> None:
-        """Hook: a statement is about to reach the server through this cursor.
-
-        Called by every statement-issuing entry point (``execute``,
-        ``executemany``, ``execute_values``, ``copy_from``, ``copy``) and a
-        no-op in this layer.  Its job is to *mark* that set: it is the machine-
-        readable answer to "which methods put a statement on the wire", which is
-        what lets a wrapper cursor be checked for covering all of them.
-
-        ``odoo.tests.cursor.TestCursor`` is the wrapper that needs it — it takes
-        a rollback savepoint before the first statement of each test.  Only its
-        ``execute()`` override did so, and the bulk APIs it does not override
-        reach the real cursor through ``__getattr__``, so their writes landed
-        outside the savepoint and survived the rollback.  ``TestCursor`` now
-        forwards each marked name explicitly, and a test pins the two lists
-        against each other; a write API added here without a matching forwarder
-        fails that test instead of silently escaping the savepoint.
-        """
+        pass
 
     def _on_rollback_to_savepoint(self) -> None:
-        """Hook: a ``ROLLBACK TO SAVEPOINT`` just undid part of this transaction.
-
-        No-op here — only the real :class:`Cursor` carries transaction-scoped
-        catalog facts that a partial rollback can invalidate.  Declared on the
-        base (like :meth:`discard_cached_plans`) so :class:`Savepoint` can call
-        it without knowing which cursor flavour it holds.
-        """
+        pass
 
     def execute(
         self,
@@ -163,42 +105,23 @@ class BaseCursor:
         log_exceptions: bool = True,
         prepare: bool | None = None,
     ) -> None:
-        """Execute a query inside the current transaction.
-
-        ``prepare`` is forwarded to psycopg: ``None`` keeps the automatic
-        behaviour, ``False`` opts the statement out of the prepared-statement
-        cache (see :meth:`Cursor.execute`).  Detected DDL defaults to ``False``:
-        psycopg auto-prepares parameterless statements too, so a repeated
-        ``CREATE``/``ALTER`` was being parsed into a prepared statement that
-        :meth:`Cursor._invalidate_caches_after_ddl` then deallocated on the very
-        next query.
-        """
         raise NotImplementedError
 
     def commit(self) -> None:
-        """Commit the current transaction."""
         raise NotImplementedError
 
     def rollback(self) -> None:
-        """Rollback the current transaction."""
         raise NotImplementedError
 
     if TYPE_CHECKING:
 
         def close(self) -> None:
-            """Release the cursor and whatever connection it holds."""
+            pass
 
         def fetchone(self) -> tuple[Any, ...] | None:
-            """Return the next row of the current result set, or ``None``."""
+            pass
 
     def savepoint(self, flush: bool = True) -> Savepoint:
-        """Open a new savepoint, returned as a context manager.
-
-        With ``flush`` (the default), will automatically run (or clear) the
-        relevant hooks.  The flushing variant is resolved via
-        ``_flushing_savepoint_cls`` so the ORM layer can inject its
-        cache/env-restoring subclass without the db layer importing it.
-        """
         if flush:
             cls = self._flushing_savepoint_cls
             if self.transaction is not None and not cls._restores_orm_state:
@@ -211,15 +134,6 @@ class BaseCursor:
         return Savepoint(self)
 
     def __enter__(self) -> Self:
-        """Using the cursor as a contextmanager automatically commits and
-        closes it::
-
-            with cr:
-                cr.execute(...)
-
-            # cr is committed if no failure occurred
-            # cr is closed in any case
-        """
         return self
 
     def __exit__(
@@ -235,16 +149,10 @@ class BaseCursor:
             self.close()
 
     def fetchscalar(self) -> Any:
-        """Fetch a single scalar value from a single-column query.
-
-        Returns ``None`` if no rows are available.  Eliminates the
-        common ``cr.fetchone()[0]`` pattern which raises on empty results.
-        """
         row = self.fetchone()
         return row[0] if row else None
 
     def dictfetchone(self) -> dict[str, Any] | None:
-        """Return the first row as a dict (column_name -> value) or None if no rows are available."""
         raise NotImplementedError
 
     def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
@@ -255,14 +163,12 @@ class BaseCursor:
         return res
 
     def dictfetchall(self) -> list[dict[str, Any]]:
-        """Return all rows as dicts (column_name -> value)."""
         res: list[dict[str, Any]] = []
         while (row := self.dictfetchone()) is not None:
             res.append(row)
         return res
 
     def now(self) -> datetime:
-        """Return the transaction's timestamp ``NOW() AT TIME ZONE 'UTC'``."""
         if self._now is None:
             self.execute("SELECT (now() AT TIME ZONE 'UTC')")
             self._now = self.fetchone()[0]
@@ -270,40 +176,6 @@ class BaseCursor:
 
 
 class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
-    """Represents an open transaction to the PostgreSQL DB backend,
-    acting as a lightweight wrapper around psycopg's
-    ``Cursor`` objects (native server-side binding).
-
-     ``Cursor`` is the object behind the ``cr`` variable used all
-     over the Odoo code.
-
-     .. rubric:: Transaction Isolation
-
-     All Odoo cursors default to ``REPEATABLE READ``, which PostgreSQL
-     implements as
-     `snapshot isolation <http://en.wikipedia.org/wiki/Snapshot_isolation>`_.
-     This gives the consistency Odoo needs without ``SERIALIZABLE``'s overhead
-     (predicate locking, serialization-anomaly rollbacks); high-contention paths
-     (stock reservations, sequence generation) use explicit row-level locking
-     instead.
-
-     .. attribute:: cache
-
-         Cache dictionary with a "request" (-ish) lifecycle, only lives as
-         long as the cursor itself does and proactively cleared when the
-         cursor is closed.
-
-         Whether it survives a rollback depends on a layer above: an attached
-         :class:`~odoo.orm.runtime.transaction.Transaction` clears it from
-         ``Transaction.clear()``, which runs on both ``rollback()`` and
-         ``ROLLBACK TO SAVEPOINT``; a bare cursor with no transaction keeps its
-         entries across both. Do not rely on either -- store only repeatable
-         reads here, and never data that changes during the life of the cursor.
-         A writer that must cache mutable state (``res.currency``'s rate
-         history, say) owns invalidating its own key on every mutation.
-
-    """
-
     sql_from_log: dict[str, tuple[int, float]]
     sql_into_log: dict[str, tuple[int, float]]
     sql_log_count: int
@@ -372,15 +244,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         }
 
     def _col_names(self) -> tuple[str, ...]:
-        """Extract column names from the last query's description as a tuple."""
         return tuple(col.name for col in self._obj.description)
 
     def _rows_to_dict_list(self, rows: list[tuple[Any, ...]]) -> list[dict[str, Any]]:
-        """Zip *rows* against the last query's column names into dicts.
-
-        Shared by :meth:`dictfetchmany`/:meth:`dictfetchall`.  Callers must
-        short-circuit empty ``rows`` (an empty fetch may carry no description).
-        """
         return _rows_to_dicts(self._col_names(), rows)
 
     def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
@@ -415,7 +281,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         return self._obj.rowcount
 
     def nextset(self) -> bool | None:
-        """Move to the next result set (e.g. ``executemany(returning=True)``)."""
         return self._obj.nextset()
 
     def copy(
@@ -425,13 +290,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         *,
         writer: Any = None,
     ) -> Any:
-        """Raw passthrough to psycopg's ``cursor.copy()`` COPY context manager.
-
-        Low-level escape hatch: unlike :meth:`copy_from` it records no metrics
-        and does no error demotion (the row writes happen in the caller's
-        ``with`` block).  Prefer :meth:`copy_from` for bulk inserts; reach for
-        this only when you need the raw psycopg ``Copy`` object.
-        """
         self._before_statement()
         return self._obj.copy(statement, params, writer=writer)
 
@@ -526,10 +384,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         if _changes_schema(qs, ddl_kw):
             self._invalidate_caches_after_ddl()
         elif ddl_kw is None and _is_rollback_to_savepoint(qs):
-            # A raw ``ROLLBACK TO SAVEPOINT`` (issued as SQL rather than through
-            # cr.savepoint()) undoes DDL since the savepoint; re-arm the hook the
-            # Savepoint class would have fired, so transaction-scoped catalog
-            # facts do not outlive the schema they describe.
             self._on_rollback_to_savepoint()
 
         self._record_metrics(
@@ -541,7 +395,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             self._record_sql_log(query_type, table, delay)
 
     def discard_cached_plans(self) -> None:
-        """Drop the schema-dependent caches attached to this connection / db."""
         try:
             self._cnx._prepared.clear()
         except AttributeError:
@@ -556,25 +409,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._schema_cache.clear_catalog_facts()
 
     def _on_rollback_to_savepoint(self) -> None:
-        """Drop catalog facts a partial rollback may have invalidated.
-
-        ``ROLLBACK TO SAVEPOINT`` can undo DDL executed inside the savepoint,
-        including DDL whose *post*-change types this cursor already read and
-        memoized (the DDL cleared the cache, then the lookup repopulated it).
-        Those entries now describe a schema that was rolled back, so a later
-        binary ``copy_from`` would encode with types the table no longer has.
-        Unlike ``commit``/``rollback`` this does not end the transaction, so the
-        ``ROW EXCLUSIVE`` locks stay held — only the facts are dropped, and the
-        next lookup re-reads them under the lock already in hand.
-        """
         self._schema_cache.clear()
 
     def _invalidate_caches_after_ddl(self) -> None:
-        """Drop the caches a schema-changing DDL invalidates on this connection.
-
-        Other workers are cleared via registry signalling, but not the one that
-        ran the DDL — same clearing logic, see :meth:`discard_cached_plans`.
-        """
         self.discard_cached_plans()
 
     def executemany(
@@ -584,28 +421,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         returning: bool = False,
         log_exceptions: bool = True,
     ) -> None:
-        """Execute a query with multiple parameter sets using pipeline mode.
-
-        psycopg3's executemany automatically batches all statements in a
-        single network round-trip on PostgreSQL 14+, avoiding the overhead
-        of individual execute() calls.
-
-        :param query: SQL query with ``%s`` placeholders
-        :param params_seq: Sequence of parameter tuples/lists
-        :param returning: If True, collect RETURNING results per statement.
-            Use ``fetchall()`` + ``nextset()`` loop to read all result sets.
-        :param log_exceptions: If False, suppress logging of failures (the
-            caller logs its own message).  Symmetric with :meth:`execute` —
-            without it a caller could quiet single-statement failures but not
-            their batched equivalent.
-
-        .. note::
-            **Query accounting.**  This records **N** queries for N parameter
-            sets — one round-trip, but N statements for the server to plan and
-            execute.  :meth:`copy_from` records **1** for an N-row COPY, which
-            really is one statement.  See that method for why the counters
-            measure requested SQL work rather than packets.
-        """
         self._before_statement()
 
         if isinstance(query, SQL):
@@ -653,24 +468,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
     @contextmanager
     def pipeline(self) -> Generator[None]:
-        """Enter pipeline mode for batching queries in a single round-trip.
-
-        All execute() calls within the context are queued and sent together
-        when the context exits, reducing network overhead for batch operations.
-
-        Usage::
-
-            with cr.pipeline():
-                cr.execute("INSERT INTO t1 ...")
-                cr.execute("INSERT INTO t2 ...")
-                # Both sent in one round-trip
-
-        .. note::
-            Per-query timing is unreliable here: ``execute()`` returns when a
-            statement is *queued*, so each recorded ``delay`` reflects enqueue
-            time (~0 ms), and the batch's real cost lands at context exit
-            attributed to no single query.  Counts stay accurate; durations skew.
-        """
         with self._cnx.pipeline():
             yield
 
@@ -685,19 +482,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 self.cache.clear()
                 self.print_log()
             finally:
-                # Roll back BEFORE closing the underlying cursor, not after.
-                # :meth:`rollback` documents the invariant -- "prerollback runs
-                # BEFORE the SQL ROLLBACK so hooks can still read uncommitted
-                # transaction state" -- and this path used to invert it: the
-                # rollback sat in a finally that ran after ``self._obj.close()``
-                # and ``del self._obj``, so every hook reading the cursor got
-                # ``InterfaceError: Cursor already closed``, swallowed at DEBUG.
-                # close() is how a request-scoped cursor normally ends, so that
-                # was the path most hooks actually took.
-                #
-                # Still in a finally of its own: a failure in cache.clear() or
-                # print_log() must not skip the rollback, which is what the old
-                # placement guaranteed and this has to keep.
                 try:
                     self._do_rollback()
                 except Exception:
@@ -710,21 +494,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             self.__pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
 
     def _connection_is_clean(self) -> bool:
-        """True when the connection has no transaction open, so it may be pooled.
-
-        ``transaction_status`` is a libpq-local field (no round-trip).  Only
-        ``IDLE`` is accepted: ``INTRANS``/``INERROR`` mean the ROLLBACK did not
-        happen and ``UNKNOWN`` means the socket is gone, both of which make the
-        connection unsafe to hand to the next borrower.  Any failure reading it
-        (a closed connection) answers "not clean".
-        """
         try:
             return self._cnx.info.transaction_status == _TX_IDLE
         except Exception:
             return False
 
     def commit(self) -> None:
-        """Perform an SQL `COMMIT`"""
         if self._closed:
             raise psycopg.InterfaceError("Cursor already closed")
         if self._savepoint_depth:
@@ -734,8 +509,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             )
         self.flush()
         self._cnx.commit()
-        # Durable from here on: anything below may raise, but the transaction
-        # is committed and callers must not undo it.
         self.commit_count += 1
         self.clear()
         self._schema_cache.clear()
@@ -745,12 +518,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self.postcommit.run()
 
     def rollback(self) -> None:
-        """Perform an SQL `ROLLBACK`.
-
-        Hook order is intentional: prerollback runs BEFORE the SQL ROLLBACK
-        so hooks can still read uncommitted transaction state (e.g. for cache
-        invalidation decisions).  After ROLLBACK, that data is gone.
-        """
         if self._closed:
             raise psycopg.InterfaceError("Cursor already closed")
         if self._savepoint_depth:
@@ -761,10 +528,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._do_rollback()
 
     def _do_rollback(self) -> None:
-        """Roll back the connection and run the rollback hooks, without the
-        closed/savepoint guards.  Used by the public :meth:`rollback` after its
-        guards, and by :meth:`_close` where the connection is still owned but
-        ``_closed`` is already set."""
         self.clear()
         self.postcommit.clear()
         try:
@@ -776,24 +539,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self.postrollback.run()
 
     def __getattr__(self, name: str) -> Any:
-        """Refuse anything outside the Odoo cursor API.
-
-        This used to warn and then forward to the underlying psycopg cursor,
-        which meant an unknown attribute silently *worked* — and a wrapper
-        cursor could reach raw psycopg through two layers of ``__getattr__``
-        without any of the bookkeeping in between.  That is exactly how the
-        ``TestCursor`` bulk-write savepoint bypass survived: ``copy_from`` on a
-        test cursor forwarded to ``TestCursor._cursor``, then past this method,
-        and wrote outside the savepoint.  A ``DeprecationWarning`` is invisible
-        in a passing test run; an ``AttributeError`` is not.
-
-        Measured before switching: across 13,680 non-test modules in core,
-        base, enterprise, agromarin and design-themes there is no caller that
-        relies on the forwarding, and a full ``base`` run emits the warning
-        exactly zero times.  Code that genuinely needs psycopg's own surface
-        should say so — ``cr._obj.<name>`` — rather than have it appear by
-        accident.
-        """
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
         if self._closed:
@@ -811,12 +556,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
     @property
     def connection(self) -> psycopg.Connection:
-        """The underlying psycopg connection.
-
-        An explicit property (not ``__getattr__`` forwarding) because cron
-        workers hold a long-lived reference for ``LISTEN``/``NOTIFY``; forwarding
-        would emit a ``DeprecationWarning`` on every poll.
-        """
         return self._cnx
 
     @property

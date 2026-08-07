@@ -22,11 +22,6 @@ from odoo.libs.json import (
 
 
 def json_default(obj: object) -> object:
-    """JSON serialiser for Odoo-specific types.
-
-    Handles datetime, date, lazy values, ReadonlyDict, bytes, Domain, and
-    any other object by falling back to ``str()``.
-    """
     from odoo import fields
 
     if isinstance(obj, datetime):
@@ -45,9 +40,6 @@ def json_default(obj: object) -> object:
 
 
 def orjson_default(obj: object) -> object:
-    """Like ``json_default`` but for orjson's non-recursive ``default``
-    parameter — ``lazy`` values must be unwrapped to a primitive inline.
-    """
     from odoo import fields
 
     if isinstance(obj, lazy):

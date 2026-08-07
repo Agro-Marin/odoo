@@ -1,5 +1,3 @@
-"""The Odoo ORM Environment — request-scoped context."""
-
 import functools
 import logging
 import time
@@ -49,18 +47,6 @@ _orm_cache = logging.getLogger("odoo.orm.cache")
 
 
 class Environment(Mapping[str, "BaseModel"]):
-    """The environment stores various contextual data used by the ORM:
-
-    - :attr:`cr`: the current database cursor (for database queries);
-    - :attr:`uid`: the current user id (for access rights checks);
-    - :attr:`context`: the current context dictionary (arbitrary metadata);
-    - :attr:`su`: whether in superuser mode.
-
-    It provides access to the registry by implementing a mapping from model
-    names to models. It also holds a cache for records, and a data
-    structure to manage recomputations.
-    """
-
     cr: BaseCursor
     uid: int
     context: frozendict
@@ -68,22 +54,6 @@ class Environment(Mapping[str, "BaseModel"]):
     transaction: Transaction
 
     def __new__(cls, cr: BaseCursor, uid: int, context: dict, su: bool = False):
-        """Return the existing environment for these parameters, or a new one.
-
-        Reuse is resolved in two steps: ``transaction._last_env`` (the same
-        environment is asked for repeatedly on a hot path), then
-        ``transaction.envs.lookup``, which indexes the live environments by
-        ``(uid, su, context)`` instead of scanning them -- see
-        :class:`~odoo.orm.runtime.transaction._EnvironmentSet`.
-
-        A lookup miss builds a new environment; it never falls back to a scan.
-        That rests on ``frozendict`` hashing by value (``freehash`` recurses
-        into mappings and iterables), so two equal contexts land on the same
-        bucket and ``__eq__`` separates collisions.  The framework already
-        depends on that wherever a context reaches an ``ormcache`` key or
-        :meth:`cache_key`; a context value that defeated it would break those
-        first, and here it would only cost a duplicate environment.
-        """
         if not isinstance(cr, BaseCursor):
             raise TypeError(
                 f"Environment(cr=...) expected BaseCursor, got {type(cr).__name__}"
@@ -138,11 +108,9 @@ class Environment(Mapping[str, "BaseModel"]):
         return super().__setattr__(name, value)
 
     def __contains__(self, model_name) -> bool:
-        """Test whether the given model exists."""
         return model_name in self.registry
 
     def __getitem__(self, model_name: str) -> BaseModel:
-        """Return an empty recordset from the given model."""
         rs = object.__new__(self.registry[model_name])
         rs.env = self
         rs._ids = ()
@@ -150,11 +118,9 @@ class Environment(Mapping[str, "BaseModel"]):
         return rs
 
     def __iter__(self):
-        """Return an iterator on model names."""
         return iter(self.registry)
 
     def __len__(self):
-        """Return the size of the model registry."""
         return len(self.registry)
 
     def __eq__(self, other):
@@ -173,16 +139,6 @@ class Environment(Mapping[str, "BaseModel"]):
         context: dict | None = None,
         su: bool | None = None,
     ) -> Environment:
-        """Return an environment based on ``self`` with modified parameters.
-
-        :param cr: optional database cursor to change the current cursor
-        :type cr: :class:`~odoo.db.Cursor`
-        :param user: optional user/user id to change the current user
-        :type user: int or :class:`res.users record<~odoo.addons.base.models.res_users.ResUsers>`
-        :param dict context: optional context dictionary to change the current context
-        :param bool su: optional boolean to change the superuser mode
-        :returns: environment with specified args (new or existing one)
-        """
         cr = self.cr if cr is None else cr
         uid = self.uid if user is None else int(user)
         if context is None:
@@ -203,13 +159,6 @@ class Environment(Mapping[str, "BaseModel"]):
     ) -> BaseModel | None: ...
 
     def ref(self, xml_id: str, raise_if_not_found: bool = True) -> BaseModel | None:
-        """Return the record corresponding to the given ``xml_id``.
-
-        :param str xml_id: record xml_id, under the format ``<module.id>``
-        :param bool raise_if_not_found: whether the method should raise if record is not found
-        :returns: Found record or None
-        :raise ValueError: if record wasn't found and ``raise_if_not_found`` is True
-        """
         res_model, res_id = self["ir.model.data"]._xmlid_to_res_model_res_id(
             xml_id, raise_if_not_found=raise_if_not_found
         )
@@ -228,116 +177,40 @@ class Environment(Mapping[str, "BaseModel"]):
         return None
 
     def is_superuser(self) -> bool:
-        """Return whether the environment is in superuser mode."""
         return self.su
 
     def is_admin(self) -> bool:
-        """Return whether the current user has group "Access Rights", or is in
-        superuser mode."""
         return self.su or self.user._is_admin()
 
     def is_system(self) -> bool:
-        """Return whether the current user has group "Settings", or is in
-        superuser mode."""
         return self.su or self.user._is_system()
 
     @functools.cached_property
     def registry(self) -> Registry:
-        """Return the registry associated with the transaction."""
         return self.transaction.registry
 
     @functools.cached_property
     def cache(self):
-        """The recordset-level cache API of the transaction (``env.cache``).
-
-        A thin, context-aware wrapper over the field-level cache helpers, working
-        in terms of *records* and *fields* (``contains`` / ``get_values`` /
-        ``update_raw`` / ``set`` / …) and resolving the per-context cache shape,
-        so callers holding a recordset never manipulate ``{id: value}`` dicts
-        directly. Used by addon and framework code, plus ``check()``
-        (cache-vs-database validation in tests).
-
-        A *different abstraction level* from ``env._core`` — the framework's
-        id-level handle (ADR-0010) — not a deprecated alias: recordset-holding
-        code uses ``env.cache``, ``(field, id)`` framework code uses
-        ``env._core``. Rewriting these call sites onto ``env._core`` would
-        mishandle context-dependent fields (whose raw cache is
-        ``{cache_key: {id: value}}``) and couple callers to private field helpers.
-        """
         return self.transaction.cache
 
     @functools.cached_property
     def _core(self) -> OrmCore:
-        """The id-level cache/compute facade — the single internal handle.
-
-        ``env._core`` is the sanctioned way for framework ORM code to reach the
-        transaction's :class:`FieldCache` and :class:`ComputeEngine`. A curated
-        surface (ADR-0010): field-value reads, dirty/patch tracking, recompute
-        scheduling and field protection live here. Cache *mutation* and
-        *lifecycle* (clear / invalidate) do not — those belong to
-        :class:`Transaction`, which owns the private ``_cache_store`` /
-        ``_compute_engine``; recordset-level access belongs to ``env.cache``.
-        """
         return self.transaction.core
 
     @property
     def backend(self) -> StorageBackend | None:
-        """The active persistence backend, or ``None`` for the PostgreSQL path.
-
-        Framework CRUD code dispatches row I/O through ``env.backend`` when it is
-        not ``None`` (the DB-free in-memory tier), and emits SQL inline
-        otherwise.  ``None`` is the production fast path — see
-        :mod:`odoo.orm.runtime.backend`.
-        """
         return self.transaction.backend
 
     @functools.cached_property
     def user(self) -> BaseModel:
-        """Return the current user (as an instance).
-
-        :returns: current user - sudoed
-        :rtype: :class:`res.users record<~odoo.addons.base.models.res_users.ResUsers>`
-        """
         return self(su=True)["res.users"].browse(self.uid)
 
     @functools.cached_property
     def _ir_defaults(self) -> BaseModel:
-        """``ir.default`` resolved as the superuser in this env's company.
-
-        The scope every company-dependent fallback must agree on: resolving with
-        the current user instead would let a user-scoped default alias a value to
-        NULL that other readers resolve to the global default (see
-        :meth:`~odoo.fields.Field._company_dependent_fallback_raw`).
-
-        Both components are fixed for a given environment, so this is memoized
-        rather than rebuilt per record: the two environment transitions it used
-        to perform on every ``(row, company-dependent column)`` pair cost 15.7 of
-        the 19.8 microseconds spent resolving a fallback, 6.6% of a
-        ``create()`` batch on ``res.partner``.
-        """
         return self["ir.default"].with_user(SUPERUSER_ID).with_company(self.company)
 
     @functools.cached_property
     def company(self) -> BaseModel:
-        """Return the current company (as an instance).
-
-        If not specified in the context (`allowed_company_ids`),
-        fallback on current user main company.
-
-        :raise AccessError: invalid or unauthorized `allowed_company_ids` context key content.
-        :return: current company (default=`self.user.company_id`), with the current environment
-        :rtype: :class:`res.company record<~odoo.addons.base.models.res_company.ResCompany>`
-
-        .. warning::
-
-            No sanity checks applied in sudo mode!
-            When in sudo mode, a user can access any company,
-            even if not in his allowed companies.
-
-            This allows to trigger inter-company modifications,
-            even if the current user doesn't have access to
-            the targeted company.
-        """
         company_ids = self.context.get("allowed_company_ids", [])
         if company_ids:
             if not self.su:
@@ -351,25 +224,6 @@ class Environment(Mapping[str, "BaseModel"]):
 
     @functools.cached_property
     def companies(self) -> BaseModel:
-        """Return a recordset of the enabled companies by the user.
-
-        If not specified in the context(`allowed_company_ids`),
-        fallback on current user companies.
-
-        :raise AccessError: invalid or unauthorized `allowed_company_ids` context key content.
-        :return: current companies (default=`self.user.company_ids`), with the current environment
-        :rtype: :class:`res.company recordset<~odoo.addons.base.models.res_company.ResCompany>`
-
-        .. warning::
-
-            No sanity checks applied in sudo mode !
-            When in sudo mode, a user can access any company,
-            even if not in his allowed companies.
-
-            This allows to trigger inter-company modifications,
-            even if the current user doesn't have access to
-            the targeted company.
-        """
         company_ids = self.context.get("allowed_company_ids", [])
         if company_ids:
             if not self.su and set(company_ids) - set(self.user._get_company_ids()):
@@ -381,7 +235,6 @@ class Environment(Mapping[str, "BaseModel"]):
 
     @functools.cached_property
     def tz(self) -> tzinfo:
-        """Return the current timezone info, defaults to UTC."""
         tz_name = self.context.get("tz") or self.user.tz
         if tz_name:
             try:
@@ -392,7 +245,6 @@ class Environment(Mapping[str, "BaseModel"]):
 
     @functools.cached_property
     def lang(self) -> str | None:
-        """Return the current language code."""
         lang = self.context.get("lang")
         if lang and lang != "en_US" and not self["res.lang"]._get_data(code=lang):
             raise UserError(f"Invalid language code: {lang}")
@@ -400,7 +252,6 @@ class Environment(Mapping[str, "BaseModel"]):
 
     @functools.cached_property
     def _lang(self) -> str:
-        """Return the technical language code of the current context for **model_terms** translated field"""
         context = self.context
         lang = self.lang or "en_US"
         if context.get("edit_translations") or context.get("check_translations"):
@@ -408,18 +259,6 @@ class Environment(Mapping[str, "BaseModel"]):
         return lang
 
     def _(self, source: str | LazyGettext, *args, **kwargs) -> str:
-        """Translate the term using current environment's language.
-
-        Usage::
-
-            self.env._("hello world")  # dynamically get module name
-            self.env._("hello %s", "test")
-            self.env._(LAZY_TRANSLATION)
-
-        :param source: String to translate or lazy translation
-        :param ...: args or kwargs for templating
-        :return: The translated string
-        """
         lang = self.lang or "en_US"
         if isinstance(source, str):
             if args and kwargs:
@@ -445,35 +284,15 @@ class Environment(Mapping[str, "BaseModel"]):
         return source
 
     def clear(self) -> None:
-        """Clear all record caches, and discard all fields to recompute.
-        This may be useful when recovering from a failed ORM operation.
-        """
         reset_cached_properties(self)
         self.transaction.clear()
 
     def invalidate_all(self, flush: bool = True) -> None:
-        """Invalidate the cache of all records.
-
-        :param flush: whether pending updates should be flushed before invalidation.
-            It is ``True`` by default, which ensures cache consistency.
-            Do not use this parameter unless you know what you are doing.
-        """
         if flush:
             self.flush_all()
         self.transaction.invalidate_field_data()
 
     def flush_all(self) -> None:
-        """Flush all pending computations and updates to the database.
-
-        Delegates the convergence loop to :class:`UnitOfWork`, which
-        encapsulates the fixpoint algorithm: recompute → flush → repeat.
-
-        Each flush may trigger new computations (via ``modified()`` in
-        write), which may dirty more fields, requiring another iteration.
-        The :class:`UnitOfWork` component detects stalls and reports them
-        via :class:`LoopResult`; this method handles error policy
-        (``tolerant_recompute`` context key) and debug logging.
-        """
         _debug = _orm_cache.isEnabledFor(logging.DEBUG)
         if _debug:
             _t0 = time.perf_counter()
@@ -515,13 +334,9 @@ class Environment(Mapping[str, "BaseModel"]):
             )
 
     def is_protected(self, field: Field, record: BaseModel) -> bool:
-        """Return whether `record` is protected against invalidation or
-        recomputation for `field`.
-        """
         return self._core.is_protected(field, record.id)
 
     def protected(self, field: Field) -> BaseModel:
-        """Return the recordset for which ``field`` should not be invalidated or recomputed."""
         return self[field.model_name].browse(self._core.protected_ids(field))
 
     @typing.overload
@@ -536,12 +351,6 @@ class Environment(Mapping[str, "BaseModel"]):
 
     @contextmanager
     def protecting(self, what, records=None) -> Iterator[None]:
-        """Prevent the invalidation or recomputation of fields on records.
-        The parameters are either:
-
-        - ``what`` a collection of fields and ``records`` a recordset, or
-        - ``what`` a collection of pairs ``(fields, records)``.
-        """
         if not what:
             yield
             return
@@ -564,24 +373,19 @@ class Environment(Mapping[str, "BaseModel"]):
             core.pop_protection()
 
     def fields_to_compute(self) -> Collection[Field]:
-        """Return a view on the field to compute."""
         return self._core.pending_fields()
 
     def records_to_compute(self, field: Field) -> BaseModel:
-        """Return the records to compute for ``field``."""
         return self[field.model_name].browse(self._core.pending_ids(field))
 
     def is_to_compute(self, field: Field, record: BaseModel) -> bool:
-        """Return whether ``field`` must be computed on ``record``."""
         return self._core.is_pending(field, record.id)
 
     def not_to_compute(self, field: Field, records: BaseModel) -> BaseModel:
-        """Return the subset of ``records`` for which ``field`` must not be computed."""
         pending = self._core.pending_ids(field)
         return records.browse(id_ for id_ in records._ids if id_ not in pending)
 
     def add_to_compute(self, field: Field, records: BaseModel) -> None:
-        """Mark ``field`` to be computed on ``records``."""
         if not records:
             return
         assert field.store and field.compute, (
@@ -590,13 +394,11 @@ class Environment(Mapping[str, "BaseModel"]):
         self._core.schedule(field, records._ids)
 
     def remove_to_compute(self, field: Field, records: BaseModel) -> None:
-        """Mark ``field`` as computed on ``records``."""
         if not records:
             return
         self._core.mark_done(field, records._ids)
 
     def cache_key(self, field: Field) -> typing.Any:
-        """Return the cache key of the given ``field``."""
 
         def get(key, get_context=self.context.get):
             if key == "company":
@@ -632,18 +434,10 @@ class Environment(Mapping[str, "BaseModel"]):
     def _field_cache_memo(
         self,
     ) -> dict[Field, MutableMapping[IdType, typing.Any]]:
-        """Memo for `Field._get_cache(env)`.  Do not use it."""
         return {}
 
     @functools.cached_property
     def _context_defaults(self) -> Mapping[str, typing.Any]:
-        """``{field_name: value}`` from the ``default_<name>`` context keys.
-
-        A function of ``self.context`` alone, which is frozen for the lifetime
-        of an environment — so it is derived once here rather than by rescanning
-        the context inside every :meth:`~odoo.models.Model.default_get`, which
-        ``create()`` calls once per record.
-        """
         return ReadonlyDict(
             {
                 key[8:]: value
@@ -657,7 +451,6 @@ class Environment(Mapping[str, "BaseModel"]):
         return self.registry.field_depends_context
 
     def flush_query(self, query: SQL) -> None:
-        """Flush all the fields in the metadata of ``query``."""
         fields_to_flush = tuple(query.to_flush)
         if not fields_to_flush:
             return
@@ -678,10 +471,6 @@ class Environment(Mapping[str, "BaseModel"]):
             self[model_name].flush_model(field_names)
 
     def execute_query(self, query: SQL) -> list[tuple]:
-        """Execute the given query, fetch its result and return it as a list of
-        tuples (or an empty list if no result to fetch).  The method
-        automatically flushes all the fields in the metadata of the query.
-        """
         if not isinstance(query, SQL):
             raise TypeError(f"execute_query expected SQL, got {type(query).__name__}")
         self.flush_query(query)
@@ -694,9 +483,6 @@ class Environment(Mapping[str, "BaseModel"]):
             return []
 
     def execute_query_dict(self, query: SQL) -> list[dict]:
-        """Execute the given query, fetch its results as a list of dicts.
-        The method automatically flushes fields in the metadata of the query.
-        """
         rows = self.execute_query(query)
         if not rows:
             return []

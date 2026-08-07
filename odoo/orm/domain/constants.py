@@ -1,5 +1,3 @@
-"""Domain operator constants and mappings."""
-
 from typing import Final
 
 STANDARD_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(

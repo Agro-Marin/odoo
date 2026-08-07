@@ -1,20 +1,3 @@
-"""Process-lifecycle entry points: ``start``, ``restart``, ``_reexec``,
-``preload_registries``, ``load_server_wide_modules``.
-
-Module-level functions (no class wrapper) because external callers —
-``cli/shell.py``, ``http/application.py``, ``_watcher.py`` — invoke them as
-plain functions.
-
-Also defines the ``server`` and ``server_phoenix`` module globals.  Other parts
-of ``service/`` mutate them as ``lifecycle.server_phoenix = True`` so every
-reader sees the same binding.
-
-* ``server`` — current server instance, set by ``start``.
-* ``server_phoenix`` — "re-exec after stop?" flag, set ``True`` on SIGHUP and
-  read by ``start()`` after ``server.run()`` returns.  The watcher's read is
-  racy, but a stale read only costs one extra (idempotent) SIGHUP, so no Lock.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -38,7 +21,6 @@ from odoo.tools import config, profiler
 from odoo.tools.misc import stripped_sys_argv
 
 from ._env import env_float, env_int
-
 from ._watcher import (
     FSWatcherInotify,
     FSWatcherWatchdog,
@@ -53,7 +35,6 @@ server_phoenix = False
 
 
 def load_server_wide_modules() -> None:
-    """Import all server-wide modules listed in the configuration."""
     with gc.disabling_gc():
         for m in config["server_wide_modules"]:
             try:
@@ -68,9 +49,10 @@ def load_server_wide_modules() -> None:
 
 
 def _reexec(updated_modules: list[str] | None = None) -> None:
-    """Reexecute odoo-server process with (nearly) the same arguments."""
     if osutil.is_running_as_nt_service(nt_service_name):
-        rc = subprocess.call(
+        # S602: `&&` needs a shell. nt_service_name comes from the server's own
+        # config, not from a request, and this path only runs as an NT service.
+        rc = subprocess.call(  # noqa: S602  see comment above
             f"net stop {nt_service_name} && net start {nt_service_name}",
             shell=True,
         )
@@ -87,17 +69,10 @@ def _reexec(updated_modules: list[str] | None = None) -> None:
         args += ["-u", ",".join(updated_modules)]
     if not args or args[0] not in (sys.executable, exe):
         args.insert(0, sys.executable)
-    os.execve(sys.executable, args, os.environ)
+    os.execve(sys.executable, args, os.environ)  # noqa: S606  re-exec of ourselves IS the restart
 
 
 def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
-    """Run the ``post_install`` test suite for a freshly (re)loaded registry.
-
-    Pregenerates QWeb asset bundles first when the suite has an HTTPCase, so the
-    first in-test HTTP request doesn't pay the bundle-build cost and time out.
-    Runs into ``registry._assertion_report`` (mutated in place; the caller reads
-    ``wasSuccessful()``) and logs test/query counts.
-    """
     from odoo.db.utils import seed_planner_stats
     from odoo.tests import loader
 
@@ -148,25 +123,11 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
 
 
 def _narrowing_test_spec() -> str:
-    """Return the ``--test-tags`` spec when the user narrowed the run, else ``""``.
-
-    A selection that matches nothing has to fail the run: the spec grammar is
-    unforgiving (``odoo/tests/tag_selector.py``), and near-misses are the norm
-    rather than the exception -- ``:WebSuite.test_core.@web/core/domain`` instead
-    of ``:WebSuite.test_core[@web/core/domain]``, a renamed class, a method typo.
-    All three collected zero tests and exited ``0``, so the caller reads a clean
-    run as proof its change is green when nothing was executed at all.
-
-    Only an *explicit* narrowing counts. ``config`` fills ``test_tags`` with
-    ``+standard`` when only ``--test-enable`` is given, and installing a module
-    that ships no tests legitimately runs zero under it.
-    """
     tags = (config["test_tags"] or "").strip()
     return "" if tags in {"", "+standard"} else tags
 
 
 def preload_registries(dbnames: list[str] | None) -> int:
-    """Preload registries for ``dbnames``, optionally running post-install tests."""
     dbnames = dbnames or []
     rc = 0
 
@@ -230,23 +191,6 @@ def preload_registries(dbnames: list[str] | None) -> int:
 
 
 def _limit_malloc_arenas() -> None:
-    """Cap glibc's malloc arenas at 2 on 64-bit Linux (threaded server only).
-
-    glibc's malloc() creates one arena per CPU core [1][2] to reduce contention
-    between threads — useless under Python's GIL, and each 64-bit arena reserves
-    64M of virtual memory [3], so a threaded worker hits its memory soft limit
-    under concurrent requests.  Cap at 2 unless MALLOC_ARENA_MAX is set
-    (MALLOC_ARENA_MAX=0 restores glibc's default).
-
-    Skipped on a free-threaded (no-GIL) build, which this fork targets: there
-    the HTTP-handler threads ``malloc()`` in genuine parallel and 2 arenas would
-    serialize them on 2 mutexes (real contention); the memory rationale also
-    weakens, since the RSS soft limit is inflated far less by arenas than VMS.
-
-    [1] https://sourceware.org/glibc/wiki/MallocInternals#Arenas_and_Heaps
-    [2] https://www.gnu.org/software/libc/manual/html_node/The-GNU-Allocator.html
-    [3] https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;h=00ce48c;hb=0a8262a#l862
-    """
     gil_disabled = hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled()
     if gil_disabled or not (
         platform.system() == "Linux"
@@ -267,19 +211,6 @@ def _limit_malloc_arenas() -> None:
 
 
 def _connection_budget_demand() -> tuple[int, int]:
-    """Return ``(processes, connections)`` this deployment may demand at once.
-
-    ``db_maxconn`` is a PER-PROCESS, PER-SERVER budget, so prefork multiplies it
-    by every child that opens pools: the HTTP workers, the cron and job workers,
-    and the evented subprocess (which uses ``db_maxconn_gevent`` when set).  The
-    master is excluded — it calls ``db.close_all()`` before its supervision loop.
-
-    The figure returned is the demand on the **primary**, which is the server
-    this check can reach.  A configured read replica carries its own budget
-    against its own ``max_connections`` (see :func:`odoo.db._budget_for`) and is
-    not counted here: probing it would mean a connect to a possibly-absent host
-    on the boot path, which is not a trade a diagnostic should make.
-    """
     maxconn = config["db_maxconn"]
     if not config["workers"]:
         return 1, maxconn
@@ -293,24 +224,6 @@ def _connection_budget_demand() -> tuple[int, int]:
 
 
 def _warn_on_connection_budget() -> None:
-    """Warn when this deployment can demand more PG connections than exist.
-
-    ``db_maxconn``'s own help text already states the arithmetic — size
-    ``max_connections`` against it "multiplied by the worker count" — but
-    nothing checked it, so the failure surfaced as ``FATAL: sorry, too many
-    clients already`` from whichever worker happened to lose the race, at the
-    moment of peak load rather than at boot.
-
-    Advisory only: the numbers are ceilings, not reservations, and a deployment
-    that never saturates every worker at once is fine.  It therefore warns and
-    continues, and stays silent when PostgreSQL cannot be asked.
-
-    Every read it makes — config included, not just the two ``SHOW`` queries —
-    is inside the guard.  This runs on the boot path, so a check that exists
-    only to print advice must not be able to become the reason a server fails to
-    start; the config read was outside the guard once, and an incomplete
-    ``config`` mapping turned a diagnostic into a ``KeyError`` at startup.
-    """
     import odoo
 
     if odoo.evented:
@@ -346,8 +259,7 @@ def _warn_on_connection_budget() -> None:
 
 
 def start(preload: list[str] | None = None, stop: bool = False) -> int:
-    """Start the odoo http server and cron processor."""
-    global server
+    global server  # noqa: PLW0603  the running server IS a process singleton
 
     load_server_wide_modules()
     import odoo.http
@@ -410,11 +322,6 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
 
 
 def restart() -> None:
-    """Restart the server.
-
-    No-op if the module-level ``server`` is not yet assigned (e.g. the watcher
-    fires before ``start()`` runs), which would otherwise crash on ``.pid``.
-    """
     if server is None:
         _logger.warning(
             "restart() called before server.start() assigned the server; ignoring"

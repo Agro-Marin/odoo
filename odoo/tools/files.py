@@ -1,7 +1,3 @@
-"""
-File path and open operations for Odoo addons.
-"""
-
 import functools
 import os
 import sys
@@ -18,19 +14,12 @@ from .config import config
 
 @functools.lru_cache(maxsize=512)
 def _addons_dir_paths(addons_dir: str) -> tuple[Path, Path]:
-    """Return ``(normalised, resolved)`` forms of an addons-path directory.
-
-    Addons roots (and the temporary directories registered by
-    `file_open_temporary_directory`) are stable for the lifetime of the
-    process, so their resolution can be cached safely.
-    """
     parent_path = Path(os.path.normcase(os.path.normpath(addons_dir)))
     return parent_path, parent_path.resolve()
 
 
 @functools.lru_cache(maxsize=1)
 def _root_path(root: str) -> str:
-    """Return the resolved ``config.root_path`` (stable for a process)."""
     return str(Path(root).resolve())
 
 
@@ -47,27 +36,6 @@ def file_path(
     *,
     check_exists: bool = True,
 ) -> str:
-    """Verify that a file exists under a known `addons_path` directory and return its full path.
-
-    Examples::
-
-        >>> file_path("hr")  # doctest: +SKIP
-        >>> file_path("hr/static/description/icon.png")  # doctest: +SKIP
-        >>> file_path("hr/static/description/icon.png", filter_ext=(".png", ".jpg"))  # doctest: +SKIP
-
-    Successful resolutions are memoized (see :func:`_file_path_resolved`); a
-    transaction holding temporary directories bypasses the cache entirely.
-
-    :param str file_path: absolute file path, or relative path within any `addons_path` directory
-    :param filter_ext: optional tuple of supported extensions (lowercase, with leading
-        dot); must be a tuple — it is passed straight to ``str.endswith()``
-    :param env: optional environment, required for a file path within a temporary directory
-        created using `file_open_temporary_directory()`
-    :param check_exists: check that the file exists (default: True)
-    :return: the absolute path to the file
-    :raise FileNotFoundError: if the file is not found under the known `addons_path` directories
-    :raise ValueError: if the file doesn't have one of the supported extensions (`filter_ext`)
-    """
     if env is not None and env.transaction.file_open_tmp_paths:
         return _file_path_uncached(file_path, filter_ext, env, check_exists)
     return _file_path_resolved(file_path, filter_ext, check_exists)
@@ -77,30 +45,6 @@ def file_path(
 def _file_path_resolved(
     file_path: str, filter_ext: tuple[str, ...], check_exists: bool
 ) -> str:
-    """Memoized :func:`file_path` for the no-temporary-directory case.
-
-    Path resolution dominated stylesheet preprocessing: building
-    ``web.assets_web``'s CSS spent 31% of its wall clock here across 3613
-    calls, because the Sass importer re-resolves its load paths per ``@use``
-    — one addon directory was validated 167 times in a single build. The
-    answer only depends on ``addons_path`` and the filesystem layout, both
-    fixed for the process, so the repeats are pure waste.
-
-    Two properties make this safe rather than a stale-cache hazard:
-
-    * ``lru_cache`` does not memoize exceptions, so a *miss* is never sticky.
-      A file added after a failed lookup (a new addon in a dev session) is
-      found on the next call, and only successful resolutions are retained.
-    * A cached success that is later deleted still returns a path; the caller's
-      ``open()`` then raises as it would have anyway. Path resolution is not a
-      liveness check.
-
-    Environments carrying ``file_open_tmp_paths`` never reach here. Those
-    directories are deliberately scoped to one transaction
-    (:func:`file_open_temporary_directory`), so caching a resolution made
-    through one would let a later transaction read it — the exact isolation
-    that function exists to provide.
-    """
     return _file_path_uncached(file_path, filter_ext, None, check_exists)
 
 
@@ -110,7 +54,6 @@ def _file_path_uncached(
     env: Environment | None,
     check_exists: bool,
 ) -> str:
-    """Resolve a path against ``addons_path``; see :func:`file_path`."""
     fp = Path(file_path)
     is_abs = fp.is_absolute()
     normalized = (
@@ -158,25 +101,6 @@ def file_open(
     filter_ext: tuple[str, ...] = (),
     env: Environment | None = None,
 ) -> IO[Any]:
-    """Open a file from within the addons_path directories, as an absolute or relative path.
-
-    Examples::
-
-        >>> file_open('hr/static/description/icon.png')  # doctest: +SKIP
-        >>> file_open('hr/static/description/icon.png', filter_ext=('.png', '.jpg'))  # doctest: +SKIP
-        >>> with file_open('/opt/odoo/addons/hr/static/description/icon.png', 'rb') as f:  # doctest: +SKIP
-        ...     contents = f.read()
-
-    :param name: absolute or relative path to a file located inside an addon
-    :param mode: file open mode, as for `open()`
-    :param filter_ext: optional tuple of supported extensions (lowercase, with leading
-        dot); must be a tuple — it is passed straight to ``str.endswith()``
-    :param env: optional environment, required to open a file within a temporary directory
-        created using `file_open_temporary_directory()`
-    :return: file object, as returned by `open()`
-    :raise FileNotFoundError: if the file is not found under the known `addons_path` directories
-    :raise ValueError: if the file doesn't have one of the supported extensions (`filter_ext`)
-    """
     path = file_path(name, filter_ext=filter_ext, env=env, check_exists=False)
     encoding = None
     if "b" not in mode:
@@ -188,24 +112,6 @@ def file_open(
 
 @contextmanager
 def file_open_temporary_directory(env: Environment) -> Generator[str]:
-    """Create and return a temporary directory added to the directories `file_open` is allowed to read from.
-
-    `file_open` will be allowed to open files within the temporary directory
-    only for environments of the same transaction than `env`.
-    Meaning, other transactions/requests from other users or even other databases
-    won't be allowed to open files from this directory.
-
-    Examples::
-
-        >>> with odoo.tools.file_open_temporary_directory(self.env) as module_dir:  # doctest: +SKIP
-        ...    with zipfile.ZipFile('foo.zip', 'r') as z:
-        ...        z.extract('foo/__manifest__.py', module_dir)
-        ...    with odoo.tools.file_open('foo/__manifest__.py', env=self.env) as f:
-        ...        manifest = f.read()
-
-    :param env: environment for which the temporary directory is created.
-    :return: the absolute path to the created temporary directory
-    """
     with tempfile.TemporaryDirectory() as module_dir:
         try:
             env.transaction.file_open_tmp_paths.append(module_dir)

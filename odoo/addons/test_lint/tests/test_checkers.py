@@ -1,9 +1,3 @@
-"""Unit tests for the custom AST-based lint checkers.
-
-Tests SQL injection detection, gettext usage, unlink override checking,
-and N+1 query detection using stdlib ``ast`` (no pylint/astroid dependency).
-"""
-
 import ast
 from textwrap import dedent
 
@@ -14,10 +8,7 @@ from . import _checker_batch, _checker_gettext, _checker_sql, _checker_unlink
 
 @no_retry
 class TestSqlLint(BaseCase):
-    """Test the SQL injection checker."""
-
     def _check(self, snippet, filepath="dummy.py"):
-        """Parse snippet and return violations."""
         source = dedent(snippet).strip()
         tree = ast.parse(source)
         _checker_sql.annotate_parents(tree)
@@ -66,7 +57,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations, "underscore-attributes are allowable")
 
     def test_const_concat(self):
-        """Concatenation of constants is safe."""
         violations = self._check("""
         def test():
             arg = "test"
@@ -76,7 +66,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_percent_with_param(self):
-        """% formatting with parameter is injection."""
         violations = self._check("""
         def test_function9(self, arg):
             my_injection_variable = "aaa" % arg
@@ -172,7 +161,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_format_global_var(self):
-        """Global variables are not considered constant."""
         violations = self._check("""
         def test_function8(self):
             global arg
@@ -190,7 +178,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_real_false_positive_private_function(self):
-        """Private function with self._table and const ternary — not injection."""
         violations = self._check("""
         def _search_phone_mobile_search(self, operator, value):
             condition = 'IS NULL' if operator == '=' else 'IS NOT NULL'
@@ -231,7 +218,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_private_function_fstring_with_param(self):
-        """Private function with f-string and parameter is safe."""
         violations = self._check("""
         def _init_column(self, column_name):
             query = f'UPDATE "{self._table}" SET "{column_name}" = %s WHERE "{column_name}" IS NULL'
@@ -248,7 +234,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_complex_private_function(self):
-        """Complex real-world case: private function with dict format."""
         violations = self._check("""
         def _graph_data(self, start_date, end_date):
             query = '''SELECT %(x_query)s as x_value, %(y_query)s as y_value
@@ -282,7 +267,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_cross_function_const_return(self):
-        """Function that returns a constant — safe to use in execute."""
         violations = self._check("""
         def first_fun():
             return 'a'
@@ -293,7 +277,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_cross_function_param_with_const_call(self):
-        """Function returning parameter, called with constant arg — safe."""
         violations = self._check("""
         def second_fun(value):
             return value
@@ -312,7 +295,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_cross_function_tuple_position(self):
-        """Tuple return with position tracking — position 0 is constant."""
         violations = self._check("""
         def return_tuple(var):
             return 'a', var
@@ -340,7 +322,6 @@ class TestSqlLint(BaseCase):
         self.assertTrue(violations)
 
     def test_percent_d_format(self):
-        """%d format is always safe (integer only)."""
         violations = self._check("""
         def formatNumber(var):
             cr.execute('LIMIT %d' % var)
@@ -348,7 +329,6 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_sql_call_with_variable(self):
-        """SQL() with a variable argument should flag."""
         violations = self._check("""
         def wrapper1(var):
             query = SQL(var)
@@ -357,7 +337,6 @@ class TestSqlLint(BaseCase):
         self.assertTrue(violations)
 
     def test_tools_sql_call_with_variable(self):
-        """tools.SQL() with a variable argument should flag."""
         violations = self._check("""
         def wrapper2(var):
             query = tools.SQL(var)
@@ -366,7 +345,6 @@ class TestSqlLint(BaseCase):
         self.assertTrue(violations)
 
     def test_skips_test_files(self):
-        """Checker should skip files whose name starts with test_."""
         violations = self._check(
             """
         def do_the_thing(cr, name):
@@ -379,16 +357,12 @@ class TestSqlLint(BaseCase):
 
 @no_retry
 class TestGetTextLint(BaseCase):
-    """Test the gettext checker."""
-
     def _check(self, snippet, filepath="not_test.py"):
-        """Parse snippet and return violations."""
         source = dedent(snippet).strip()
         tree = ast.parse(source)
         return list(_checker_gettext.check(tree, filepath))
 
     def test_gettext_env(self):
-        """Check that _ and self.env._ are checked the same way."""
         violations = self._check("""
         def method(self, vars):
             _("something %s %s", *vars)
@@ -467,7 +441,6 @@ class TestGetTextLint(BaseCase):
         self.assertEqual(len(missing), 6)
 
     def test_skips_test_files(self):
-        """Checker should skip test files."""
         violations = self._check(
             """
         UserError('This is not translated')
@@ -479,10 +452,7 @@ class TestGetTextLint(BaseCase):
 
 @no_retry
 class TestUnlinkLint(BaseCase):
-    """Test the unlink override checker."""
-
     def _check(self, snippet):
-        """Parse snippet and return violations."""
         source = dedent(snippet).strip()
         tree = ast.parse(source)
         return list(_checker_unlink.check(tree))
@@ -515,7 +485,6 @@ class TestUnlinkLint(BaseCase):
         self.assertFalse(violations, "non-model classes should not be flagged")
 
     def test_model_variants(self):
-        """All model base classes should be detected."""
         for base in (
             "models.Model",
             "models.TransientModel",
@@ -533,16 +502,12 @@ class TestUnlinkLint(BaseCase):
 
 @no_retry
 class TestBatchLint(BaseCase):
-    """Test the N+1 query pattern checker."""
-
     def _check(self, snippet, filepath="not_test.py"):
-        """Parse snippet and return violations."""
         source = dedent(snippet).strip()
         tree = ast.parse(source)
         return list(_checker_batch.check(tree, filepath))
 
     def test_search_in_for_loop(self):
-        """search() inside a for loop is an N+1 pattern."""
         violations = self._check("""
         def process(self, records):
             for record in records:
@@ -552,7 +517,6 @@ class TestBatchLint(BaseCase):
         self.assertIn("search()", violations[0].message)
 
     def test_search_count_in_for_loop(self):
-        """search_count() inside a for loop is an N+1 pattern."""
         violations = self._check("""
         def process(self, records):
             for record in records:
@@ -562,7 +526,6 @@ class TestBatchLint(BaseCase):
         self.assertIn("search_count()", violations[0].message)
 
     def test_search_fetch_in_for_loop(self):
-        """search_fetch() inside a for loop is an N+1 pattern."""
         violations = self._check("""
         def process(self, records):
             for record in records:
@@ -571,7 +534,6 @@ class TestBatchLint(BaseCase):
         self.assertTrue(violations, "search_fetch inside for loop should be flagged")
 
     def test_read_group_in_for_loop(self):
-        """_read_group() inside a for loop is an N+1 pattern."""
         violations = self._check("""
         def process(self, records):
             for record in records:
@@ -584,7 +546,6 @@ class TestBatchLint(BaseCase):
         self.assertTrue(violations, "_read_group inside for loop should be flagged")
 
     def test_search_outside_loop_ok(self):
-        """search() outside a for loop is fine."""
         violations = self._check("""
         def process(self, records):
             partners = self.env['res.partner'].search([('active', '=', True)])
@@ -594,7 +555,6 @@ class TestBatchLint(BaseCase):
         self.assertFalse(violations, "search outside loop should not be flagged")
 
     def test_nested_for_loop(self):
-        """search() in a nested for loop should be flagged."""
         violations = self._check("""
         def process(self, orders):
             for order in orders:
@@ -604,11 +564,6 @@ class TestBatchLint(BaseCase):
         self.assertTrue(violations, "search in nested loop should be flagged")
 
     def test_nested_function_def_skipped(self):
-        """search() inside a function defined within a loop is not flagged.
-
-        The inner function creates a new scope — the query executes when
-        called, not per-iteration of the outer loop.
-        """
         violations = self._check("""
         def process(self, records):
             for record in records:
@@ -620,7 +575,6 @@ class TestBatchLint(BaseCase):
         )
 
     def test_lambda_in_loop_flagged(self):
-        """Lambda with search inside loop is flagged (ast.Call is walked)."""
         violations = self._check("""
         def process(self, records):
             callbacks = []
@@ -630,7 +584,6 @@ class TestBatchLint(BaseCase):
         self.assertTrue(violations, "search inside lambda in loop should be flagged")
 
     def test_skips_test_files(self):
-        """Checker should skip test files."""
         violations = self._check(
             """
         def process(self, records):
@@ -642,11 +595,6 @@ class TestBatchLint(BaseCase):
         self.assertFalse(violations, "test files should be skipped")
 
     def test_while_loop_not_flagged(self):
-        """Only 'for' loops are checked, not 'while' loops.
-
-        While loops are typically iteration-until-done patterns, not
-        record-by-record processing.
-        """
         violations = self._check("""
         def process(self):
             while True:
@@ -657,7 +605,6 @@ class TestBatchLint(BaseCase):
         self.assertFalse(violations, "while loops should not be flagged")
 
     def test_for_else_clause(self):
-        """search() in the else clause of a for loop is flagged."""
         violations = self._check("""
         def process(self, records):
             for record in records:
@@ -668,7 +615,6 @@ class TestBatchLint(BaseCase):
         self.assertTrue(violations, "search in for/else should be flagged")
 
     def test_if_inside_loop(self):
-        """search() inside an if inside a loop is still flagged."""
         violations = self._check("""
         def process(self, records):
             for record in records:
@@ -678,7 +624,6 @@ class TestBatchLint(BaseCase):
         self.assertTrue(violations, "search inside if inside loop should be flagged")
 
     def test_non_query_method_ok(self):
-        """Non-query methods inside loops are fine."""
         violations = self._check("""
         def process(self, records):
             for record in records:
@@ -689,7 +634,6 @@ class TestBatchLint(BaseCase):
         self.assertFalse(violations, "non-query methods should not be flagged")
 
     def test_regex_search_not_flagged(self):
-        """re.search() and compiled regex .search() are not ORM queries."""
         violations = self._check("""
         import re
         PATTERN = re.compile(r'\\w+')
@@ -705,7 +649,6 @@ class TestBatchLint(BaseCase):
         self.assertFalse(violations, "regex search should not be flagged")
 
     def test_orm_search_on_self_flagged(self):
-        """self.search() and self.env[...].search() ARE ORM queries."""
         violations = self._check("""
         def process(self, records):
             for record in records:
@@ -718,7 +661,6 @@ class TestBatchLint(BaseCase):
         )
 
     def test_model_class_search_flagged(self):
-        """CamelCase names like Partner.search() are ORM queries."""
         violations = self._check("""
         def process(self, records):
             for record in records:

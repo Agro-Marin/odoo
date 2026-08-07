@@ -8,14 +8,12 @@ if TYPE_CHECKING:
 
 
 def _sql_from_table(alias: str, table: SQL) -> SQL:
-    """Return a FROM clause element from ``alias`` and ``table``."""
     if (alias_identifier := SQL.identifier(alias)) == table:
         return table
     return SQL("%s AS %s", table, alias_identifier)
 
 
 def _sql_from_join(kind: SQL, alias: str, table: SQL, condition: SQL) -> SQL:
-    """Return a FROM clause element for a JOIN."""
     return SQL("%s %s ON (%s)", kind, _sql_from_table(alias, table), condition)
 
 
@@ -26,35 +24,10 @@ _SQL_JOINS = {
 
 
 def _generate_table_alias(src_table_alias: str, link: str) -> str:
-    """Generate a standard table alias name. An alias is generated as following:
-
-    - the base is the source table name (that can already be an alias)
-    - then, the joined table is added in the alias using a 'link field name'
-      that is used to render unique aliases for a given path
-    - the name is shortcut if it goes beyond PostgreSQL's identifier limits
-
-    .. code-block:: pycon
-
-        >>> _generate_table_alias("res_users", link="parent_id")
-        'res_users__parent_id'
-
-    :param str src_table_alias: alias of the source table
-    :param str link: field name
-    :return str: alias
-    """
     return make_identifier(f"{src_table_alias}__{link}")
 
 
 class Query:
-    """A query object managing tables with aliases, join clauses (with aliases,
-    condition and parameters), where clauses (with parameters), order, limit
-    and offset.
-
-    :param env: model environment (for lazy evaluation)
-    :param alias: name or alias of the table
-    :param table: a table expression (``SQL`` object), optional
-    """
-
     __slots__ = (
         "_any_value_orderby",
         "_collect_order_groupby",
@@ -94,22 +67,13 @@ class Query:
         self._ids: tuple[int, ...] | None = None
 
     def _invalidate_ids(self) -> None:
-        """Drop the memoized result after a change to the query's shape.
-
-        ``self._ids and None`` (rather than a plain ``None``) deliberately keeps
-        the *empty* memo: a query already known to return nothing still returns
-        nothing once further restrictions are added, and ``is_empty()`` relies on
-        that.
-        """
         self._ids = self._ids and None
 
     @staticmethod
     def make_alias(alias: str, link: str) -> str:
-        """Return an alias based on ``alias`` and ``link``."""
         return _generate_table_alias(alias, link)
 
     def add_table(self, alias: str, table: SQL | None = None) -> None:
-        """Add a table with a given alias to the from clause."""
         if alias in self._tables or alias in self._joins:
             raise ValueError(f"Alias {alias!r} already in {self}")
         self._tables[alias] = table if table is not None else SQL.identifier(alias)
@@ -118,7 +82,6 @@ class Query:
     def add_join(
         self, kind: str, alias: str, table: str | SQL | None, condition: SQL
     ) -> None:
-        """Add a join clause with the given alias, table and condition."""
         sql_kind = _SQL_JOINS.get(kind.upper())
         if sql_kind is None:
             raise ValueError(f"Invalid JOIN type {kind!r}")
@@ -136,7 +99,6 @@ class Query:
             self._invalidate_ids()
 
     def add_where(self, where_clause: str | SQL, where_params: tuple = ()) -> None:
-        """Add a condition to the where clause."""
         self._where_clauses.append(SQL(where_clause, *where_params))
         self._invalidate_ids()
 
@@ -148,17 +110,6 @@ class Query:
         rhs_column: str,
         link: str,
     ) -> str:
-        """Perform a join between a table already present in the current Query object and
-        another table.  It is a shortcut for :meth:`~.make_alias`
-        and :meth:`~.add_join`.
-
-        :param str lhs_alias: alias of a table already defined in the current Query object.
-        :param str lhs_column: column of `lhs_alias` to be used for the join's ON condition.
-        :param str rhs_table: name of the table to join to `lhs_alias`.
-        :param str rhs_column: column of `rhs_alias` to be used for the join's ON condition.
-        :param str link: used to generate the alias for the joined table, this string should
-            represent the relationship (the link) between both tables.
-        """
         assert lhs_alias in self._tables or lhs_alias in self._joins, (
             "Alias %r not in %s"
             % (
@@ -183,11 +134,6 @@ class Query:
         rhs_column: str,
         link: str,
     ) -> str:
-        """Add a LEFT JOIN to the current table (if necessary), and return the
-        alias corresponding to ``rhs_table``.
-
-        See :meth:`join` for a description of the arguments.
-        """
         assert lhs_alias in self._tables or lhs_alias in self._joins, (
             "Alias %r not in %s"
             % (
@@ -251,12 +197,10 @@ class Query:
 
     @property
     def table(self) -> str:
-        """Return the query's main table, i.e., the first one in the FROM clause."""
         return next(iter(self._tables))
 
     @property
     def from_clause(self) -> SQL:
-        """Return the FROM clause of ``self``, without the FROM keyword."""
         tables = SQL(", ").join(
             itertools.starmap(_sql_from_table, self._tables.items())
         )
@@ -273,15 +217,12 @@ class Query:
 
     @property
     def where_clause(self) -> SQL:
-        """Return the WHERE condition of ``self``, without the WHERE keyword."""
         return SQL(" AND ").join(self._where_clauses)
 
     def is_empty(self) -> bool:
-        """Return whether the query is known to return nothing."""
         return self._ids == ()
 
     def select(self, *args: str | SQL) -> SQL:
-        """Return the SELECT query as an ``SQL`` object."""
         sql_args = map(SQL, args) if args else [SQL.identifier(self.table, "id")]
         return SQL(
             "%s%s%s%s%s%s%s%s",
@@ -296,9 +237,6 @@ class Query:
         )
 
     def subselect(self, *args: str | SQL) -> SQL:
-        """Like :meth:`.select`, but for sub-queries: omit the ORDER BY clause
-        when possible and wrap the query in parentheses.
-        """
         if self.groupby or self.having:
             raise ValueError(
                 "Query.subselect() does not support groupby/having; "
@@ -322,18 +260,11 @@ class Query:
         )
 
     def get_result_ids(self) -> tuple[int, ...]:
-        """Return the result of ``self.select()`` as a tuple of ids, memoized to
-        avoid running the same query twice.
-        """
         if self._ids is None:
             self._ids = tuple(id_ for (id_,) in self._env.execute_query(self.select()))
         return self._ids
 
     def set_result_ids(self, ids: Iterable[int], ordered: bool = True) -> None:
-        """Set up the query to return the lines given by ``ids``. The parameter
-        ``ordered`` tells whether the query must be ordered to match exactly the
-        sequence ``ids``.
-        """
         if self._joins or self._where_clauses or self.limit or self.offset:
             raise ValueError(
                 "Method set_result_ids() can only be called on a virgin Query"
@@ -373,13 +304,6 @@ class Query:
         return len(self.get_result_ids())
 
     def count_matching(self, limit: int | None = None) -> int:
-        """Return the count of rows matching the FROM/WHERE clauses, ignoring
-        ORDER BY, LIMIT, OFFSET.
-
-        Unlike ``len(query)``, which respects the query's own LIMIT/OFFSET, this
-        counts all matching rows (useful for pagination totals). ``limit``
-        optionally caps the count.
-        """
         if self.groupby or self.having or limit:
             parts = [SQL("SELECT FROM %s", self.from_clause)]
             if self._where_clauses:

@@ -35,9 +35,6 @@ class TestOrmLesson(models.Model):
     date = fields.Date()
 
     def _compute_display_name(self):
-        """
-        Used to check that a context can still have an impact when reading the names of a many2one
-        """
         for record in self:
             if "special" in self.env.context:
                 record.display_name = "special " + record.name
@@ -56,9 +53,6 @@ class TestOrmPerson(models.Model):
     active = fields.Boolean(default=True)
 
     def _compute_display_name(self):
-        """
-        Used to check that a context can still have an impact when reading the names of a many2one
-        """
         particular = "particular " if "particular" in self.env.context else ""
         special = " special" if "special" in self.env.context else ""
         for record in self:

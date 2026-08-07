@@ -1,25 +1,9 @@
-"""Pure-Python regression tests for ``Savepoint`` depth accounting — no database.
-
-``Savepoint`` is purely SQL (``SAVEPOINT`` / ``ROLLBACK TO`` / ``RELEASE``) plus
-the cursor-level ``_savepoint_depth`` counter that ``BaseCursor.commit``/
-``rollback`` read as their "inside a savepoint" guard.  The subtle invariant is
-that ``__init__``'s ``+1`` is balanced by ``_close``'s ``-1`` **exactly once**,
-even when the ROLLBACK TO / RELEASE SQL fails — otherwise a leaked or negative
-count wedges every later commit/rollback on the cursor.
-
-These run against a stub cursor (records SQL, can be told to raise on a given
-statement), so a regression in the counting fails here, fast, instead of only
-under a concurrent-DDL race in production.
-"""
-
 import unittest
 
 from odoo.db.savepoint import Savepoint, _FlushingSavepoint
 
 
 class _StubCursor:
-    """Minimal stand-in for BaseCursor: records SQL and holds the depth counter."""
-
     def __init__(self, raise_on=None):
         self._savepoint_depth = 0
         self.sql = []
@@ -93,22 +77,6 @@ class TestSavepointDepth(unittest.TestCase):
 
 
 class TestDepthCounterFailsSafe(unittest.TestCase):
-    """``_savepoint_depth`` must exist even on a half-built cursor.
-
-    ``Savepoint`` guards its ``+1``/``-1`` with ``hasattr`` — needed because
-    ``TestCursor._check_savepoint`` reuses this class with a RAW psycopg cursor,
-    which has no depth counter.  That guard fails *open*: if a ``BaseCursor``
-    subclass ever skipped ``super().__init__()``, the attribute would be absent,
-    the counter would never move, and ``commit()`` inside a savepoint would be
-    silently permitted — corrupting the savepoint's rollback state rather than
-    raising.
-
-    Every subclass in the tree does call ``super().__init__()`` today, so this
-    is defence in depth, not a live defect.  The class-level default on
-    ``BaseCursor`` (mirroring ``_closed``, which got one for the same reason)
-    is what keeps the guard armed regardless; these tests pin both halves.
-    """
-
     def test_base_cursor_carries_a_class_level_default(self):
         from odoo.db.cursor import BaseCursor
 
@@ -138,7 +106,6 @@ class TestDepthCounterFailsSafe(unittest.TestCase):
         self.assertEqual(cr._savepoint_depth, 0)
 
     def test_raw_cursor_without_the_counter_is_still_supported(self):
-        """The ``hasattr`` guard must stay: TestCursor passes a raw psycopg cursor."""
 
         class _RawLike:
             def __init__(self):
@@ -154,15 +121,6 @@ class TestDepthCounterFailsSafe(unittest.TestCase):
 
 
 class TestRestoresOrmStateIsDeclaredOnTheBase(unittest.TestCase):
-    """The savepoint seam's guard must report a seam failure, not an AttributeError.
-
-    ``BaseCursor.savepoint`` refuses a transaction-bearing cursor a savepoint
-    class that does not restore ORM state.  That check reads
-    ``_restores_orm_state``, which only ``_FlushingSavepoint`` declared, so
-    pointing the seam at a plain ``Savepoint`` raised ``AttributeError`` from
-    inside the guard instead of the intended ``RuntimeError``.
-    """
-
     def test_plain_savepoint_declares_it(self):
         self.assertFalse(Savepoint._restores_orm_state)
 

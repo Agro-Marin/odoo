@@ -1,11 +1,3 @@
-"""Regression tests for :func:`odoo.libs.gc.disabling_gc`.
-
-Pure-Python, no database.  The load-bearing guarantee is that the context
-manager always re-enables the garbage collector on exit, including when the
-guarded block raises — otherwise a single exception under (for example)
-registry loading would leave GC permanently disabled process-wide.
-"""
-
 import gc
 import unittest
 

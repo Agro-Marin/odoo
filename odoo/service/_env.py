@@ -1,13 +1,3 @@
-"""Guarded parsing of the ``ODOO_*`` environment-variable service knobs.
-
-One ``read → convert → on garbage warn and fall back`` path for every service
-knob (pg_dump/pg_restore timeouts, HTTP socket timeout, reload timeout, ...) so
-none can skip the guard.  Imports only ``os`` and ``logging`` — no import cycle.
-
-Pass a ``logger`` to surface the warning under that name, or omit it to parse
-silently.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -22,12 +12,6 @@ def env_float(
     minimum: float | None = None,
     logger: logging.Logger | None = None,
 ) -> float:
-    """Parse env var ``name`` as a float, falling back to ``default``.
-
-    * unset             → ``default`` (silent)
-    * not a number      → ``default``; warn via ``logger`` if one is given
-    * below ``minimum`` → ``minimum``; warn via ``logger`` if one is given
-    """
     return _parse(name, default, float, "a number", minimum, logger)
 
 
@@ -38,20 +22,10 @@ def env_int(
     minimum: int | None = None,
     logger: logging.Logger | None = None,
 ) -> int:
-    """Integer sibling of :func:`env_float`.
-
-    ``int("2.0")`` raises ``ValueError`` (no implicit truncation), so a
-    non-integer string falls back to ``default`` rather than being truncated.
-    """
     return _parse(name, default, int, "an integer", minimum, logger)
 
 
 def env_str(name: str, default: str = "") -> str:
-    """Read env var ``name`` as a stripped string, falling back to ``default``.
-
-    Whitespace-only is treated as unset: a unit file with ``Environment=X=``
-    would otherwise arm a feature with an empty secret.
-    """
     return (os.environ.get(name) or "").strip() or default
 
 

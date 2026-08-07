@@ -1,15 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        PARTNER TREE VIEW + MUTI_EDIT: VISIBLE FIELDS WITH ONCHANGE ON BASE/PARTNER
-        VIEW WON'T BE EDITABLE ON "MULTI_EDIT" MODE:
-        - parent_id
-        - country_id
-        - state_id
-        - company_type
-        - company_id
-    -->
 
     <record id="view_res_partner_filter" model="ir.ui.view">
         <field name="name">res.partner.select</field>
@@ -187,7 +178,6 @@
         </field>
     </record>
 
-    <!-- Open partner address -->
     <record id="view_partner_address_form" model="ir.ui.view">
         <field name="name">res.partner.form.address</field>
         <field name="model">res.partner</field>
@@ -269,7 +259,7 @@
                         <div class="d-flex gap-3">
                             <field name="image_1920" widget="contact_image"
                                 options="{'preview_image': 'avatar_128', 'size': [130,130], 'img_class': 'rounded border'}" />
-                            <field name="avatar_128" invisible="1" /> <!-- Needed in contact_image widget -->
+                            <field name="avatar_128" invisible="1" />
                             <div class="d-flex flex-column flex-grow-1">
                                 <field name="company_type" widget="radio"
                                     options="{'horizontal': true}" />
@@ -360,7 +350,7 @@
                                 invisible="is_company" />
                             <field name="vat"
                                 placeholder="e.g. BE0477472701" />
-                            <field name="company_registry_placeholder" invisible="1" /> <!-- Needed for the placeholder widget -->
+                            <field name="company_registry_placeholder" invisible="1" />
                             <field name="company_registry"
                                 invisible="parent_id or not is_company"
                                 options="{'placeholder_field': 'company_registry_placeholder'}" />
@@ -521,7 +511,6 @@
                                             </group>
                                         </group>
                                         <group name="contact_internal">
-                                            <!-- Need to save value from parented record, cf onchange -->
                                             <field name="company_id"
                                                 invisible="1" />
                                             <label for="comment" />
@@ -529,7 +518,6 @@
                                                 options="{'height': 100}"
                                                 placeholder="Internal notes..." nolabel="1" />
                                         </group>
-                                        <!-- Need to add lang to save default value from parented record -->
                                         <field name="lang" invisible="1" />
                                     </sheet>
                                 </form>
@@ -551,7 +539,6 @@
                                         readonly="parent_id"
                                         force_save="1"
                                         placeholder="Visible to all" />
-                                    <!-- need to be able to compute based on the company even without multi company groups -->
                                     <field name="company_id"
                                         invisible="1" />
                                 </group>

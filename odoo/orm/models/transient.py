@@ -1,5 +1,3 @@
-"""TransientModel: temporary records auto-cleaned after a configurable period."""
-
 import datetime
 
 from odoo.libs.constants import GC_UNLINK_LIMIT
@@ -12,14 +10,6 @@ _TRANSIENT_VACUUM_MIN_AGE_SECONDS = 300
 
 
 class TransientModel(Model):
-    """Model super-class for transient records, meant to be temporarily
-    persistent, and regularly vacuum-cleaned.
-
-    A TransientModel has a simplified access rights management, all users can
-    create new records, and may only access the records they created. The
-    superuser has unrestricted access to all TransientModel records.
-    """
-
     _auto: bool = True
     _register: bool = False
     _abstract = False
@@ -36,12 +26,6 @@ class TransientModel(Model):
 
     @api.autovacuum
     def _transient_vacuum(self) -> tuple[str, bool]:
-        """Clean the transient records.
-
-        Unlinks old records whenever the :attr:`_transient_max_count` or
-        :attr:`_transient_max_hours` conditions (if any) are reached. Rows used
-        within the last 5 minutes are never deleted.
-        """
         has_remaining = False
         if self._transient_max_hours:
             has_remaining |= self._transient_clean_rows_older_than(

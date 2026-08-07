@@ -37,8 +37,6 @@ _MTIME_REFRESH_INTERVAL = 24 * 60 * 60
 
 
 class FilesystemSessionStore(sessions.FilesystemSessionStore):
-    """Place where to load and save session objects."""
-
     def get_session_filename(self, sid: str) -> str:
         if not self.is_valid_key(sid):
             raise ValueError(f"Invalid session id {sid!r}")
@@ -67,33 +65,10 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         return session
 
     def _delete_sid(self, sid: str) -> None:
-        """Delete one session file by sid.
-
-        Used to drop the pre-rotation file *after* the new one is written (see
-        :meth:`rotate`); unlike :meth:`delete` it takes a sid rather than the
-        live session, whose ``sid`` has already advanced to the new value.
-        """
         with contextlib.suppress(OSError, ValueError):
             Path(self.get_session_filename(sid)).unlink()
 
     def keep_alive(self, session: Session) -> None:
-        """Refresh the session file's mtime without rewriting its contents.
-
-        ``vacuum`` reaps by mtime, so "extend this session's lifetime" -- what
-        :meth:`Session.touch` asks for, and what several core controllers call it
-        for (``/odoo``, ``/web/session/get_session_info``) -- needs nothing more
-        than an ``utime``. Routing it through :meth:`save` instead cost a full
-        atomic rewrite (``mkstemp`` + ``fchmod`` + write + **fsync** + rename) of
-        byte-identical content on *every* such request: ~1.2 ms of blocking IO on
-        local NVMe, far worse on the network filestores the store is written for.
-
-        This is the write-path counterpart of the lazy refresh :meth:`get`
-        already does on read past :data:`_MTIME_REFRESH_INTERVAL`.
-
-        Falls back to a real save when the file is not there yet: a brand-new
-        session's first ``touch()`` (``Request.csrf_token``) is exactly what
-        persists it, and there is no mtime to bump.
-        """
         try:
             os.utime(self.get_session_filename(session.sid))
         except OSError:
@@ -156,11 +131,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             del session["deletion_time"]
             del session["next_sid"]
         else:
-            # Hard rotation: switch to the new sid but KEEP the old file until
-            # the new one is safely written (below). Deleting it first meant a
-            # crash or a failed save destroyed the session outright, and a
-            # concurrent request still carrying the old cookie fell through to
-            # ``renew_missing`` and clobbered the fresh cookie (B3).
             old_sid_to_delete = session.sid
             session.sid = next_sid
 
@@ -168,10 +138,9 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             session.session_token = new_token
         session.should_rotate = False
         session["create_time"] = time.time()
-        self.save(session)  # writes the NEW file; raises on failure (B4)
+        self.save(session)
 
         if old_sid_to_delete is not None:
-            # Only now that the new file exists is it safe to drop the old one.
             self._delete_sid(old_sid_to_delete)
 
     def vacuum(self, max_lifetime: int = SESSION_LIFETIME) -> None:
@@ -197,14 +166,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         return _base64_urlsafe_re.match(key) is not None
 
     def get_missing_session_identifiers(self, identifiers: Iterable[str]) -> set[str]:
-        """Return the identifiers with no session file on the filesystem.
-
-        :param identifiers: session identifiers whose file existence must be checked
-                            each is the first 42 chars of a session sid
-        :type identifiers: iterable
-        :return: the identifiers which are not present on the filesystem
-        :rtype: set
-        """
         identifiers = set(identifiers)
         base = Path(self.path)
         directories = {str(base / identifier[:2]) for identifier in identifiers}
@@ -223,14 +184,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         identifiers: list[str],
         exclude_sid: str | None = None,
     ) -> None:
-        """Delete session files matching the given identifiers.
-
-        :param exclude_sid: optional full session id whose file MUST be
-            kept even if it shares the static prefix of one of the
-            ``identifiers``. Used by :meth:`delete_old_sessions` to
-            avoid deleting the current session file alongside its
-            rotated-away predecessors.
-        """
         files_to_unlink: list[Path] = []
         base_path = Path(self.path)
         for identifier in identifiers:
@@ -251,11 +204,6 @@ _SESSION_JSON_PRIMITIVES = (str, int, float, bool, type(None))
 
 
 def _coerce_session_value(value: Any) -> Any:
-    """Recursively validate and coerce ``value`` for session storage.
-
-    Returns the (possibly coerced) JSON-representable value, else raises
-    ``TypeError`` (see ``Session.__setitem__`` for the rationale).
-    """
     if isinstance(value, _SESSION_JSON_PRIMITIVES):
         return value
     if isinstance(value, dict):
@@ -277,18 +225,6 @@ def _coerce_session_value(value: Any) -> Any:
 
 
 class Session(collections.abc.MutableMapping):
-    """Structure containing data persisted across requests.
-
-    Change-tracking is twofold. Explicit writes (``__setitem__``, ``__delitem__``,
-    ``clear``, :meth:`touch`) set :attr:`is_dirty` eagerly. On top of that,
-    :meth:`is_modified` detects *in-place* mutation of a nested value
-    (``session.context['lang'] = 'es_MX'``) — which bypasses ``__setitem__`` — by
-    diffing the data against a per-request baseline captured by :meth:`mark_clean`.
-    The request lifecycle calls :meth:`mark_clean` after load and gates
-    persistence on :meth:`is_modified`, so callers no longer need a defensive
-    :meth:`touch` after mutating a nested value.
-    """
-
     __slots__ = (
         "_Session__baseline",
         "_Session__data",
@@ -314,23 +250,6 @@ class Session(collections.abc.MutableMapping):
         return self.__data[item]
 
     def __setitem__(self, item: str, value: Any) -> None:
-        """Store ``value`` under ``item`` and mark the session dirty.
-
-        Sessions persist as JSON, so values must round-trip without loss:
-        str/int/float/bool/None and (recursively) list/dict are stored as-is,
-        ``tuple`` is coerced to ``list``, anything else raises ``TypeError``.
-
-        Stricter than the lenient ``orjson_default`` used by HTTP responses:
-        those fall back to ``str(obj)`` mid-render, but a session lives across
-        requests, so silently storing a ``datetime`` as a string bites callers
-        later. Reject loudly so the caller picks the representation (e.g.
-        ``session["foo"] = some_dt.isoformat()``). In-place mutation of a nested
-        value bypasses this validation; :meth:`is_modified` still flags the
-        change via the per-request baseline.
-
-        :raises TypeError: if ``value`` (or a nested element) is not
-            JSON-serializable.
-        """
         value = _coerce_session_value(value)
         if item not in self.__data or self.__data[item] != value:
             self.is_dirty = True
@@ -399,19 +318,6 @@ class Session(collections.abc.MutableMapping):
         self["session_token"] = session_token
 
     def authenticate(self, env: Any, credential: dict[str, Any]) -> dict[str, Any]:
-        """
-        Authenticate the current user with the given db, login and
-        credential. If successful, store the authentication parameters in
-        the current session, unless multi-factor-auth (MFA) is
-        activated. In that case, that last part will be done by
-        :meth:`finalize`.
-
-        .. versionchanged:: saas-15.3
-           The current request is no longer updated using the user and
-           context of the session when the authentication is done using
-           a database different than request.db. It is up to the caller
-           to open a new cursor/registry/env on the given database.
-        """
         wsgienv = {
             "interactive": True,
             "base_location": request.httprequest.url_root.rstrip("/"),
@@ -437,10 +343,6 @@ class Session(collections.abc.MutableMapping):
         return auth_info
 
     def finalize(self, env: Any) -> None:
-        """
-        Finalize a partial session; called on MFA validation to convert a
-        partial / pre-session into a logged-in one.
-        """
         login = self.pop("pre_login")
         uid = self.pop("pre_uid")
 
@@ -473,61 +375,18 @@ class Session(collections.abc.MutableMapping):
         self.is_dirty = True
 
     def mark_clean(self) -> None:
-        """Reset the dirty flag and re-baseline for nested-mutation detection.
-
-        Called once per request after the framework's own session setup (see
-        ``Request._get_session_and_dbname``), so that subsequent *application*
-        changes — including in-place mutation of a nested value such as
-        ``session.context['lang'] = 'es'`` that bypasses :meth:`__setitem__` —
-        are picked up by :meth:`is_modified` even if the caller forgets
-        :meth:`touch`. The snapshot is an orjson dump of the (JSON-native by
-        :meth:`__setitem__`'s contract) session data — ~6x cheaper than the
-        ``copy.deepcopy`` it replaces, measured on a representative session.
-        """
         self.is_dirty = False
         self.__baseline = _dumps_bytes(self.__data)
 
     def has_content_changed(self) -> bool:
-        """Whether the stored *data* differs from the last :meth:`mark_clean`.
-
-        The question :meth:`is_modified` cannot answer on its own: it also
-        reports ``True`` for a bare :meth:`touch`, which asks to extend the
-        session's lifetime rather than to rewrite it (see
-        :meth:`FilesystemSessionStore.keep_alive`). Only a content change needs
-        the file rewritten.
-
-        Detects in-place mutation of nested values that bypass
-        :meth:`__setitem__`. Before the first :meth:`mark_clean` (no baseline
-        yet) it falls back to :attr:`is_dirty`. The byte comparison can yield a
-        false *positive* for a semantically equal dict serialized differently
-        (key re-insertion changing order, ``1`` rewritten as ``1.0``); the cost
-        is one spurious session save, never a missed one.
-        """
         if self.__baseline is None:
             return self.is_dirty
         return _dumps_bytes(self.__data) != self.__baseline
 
     def is_modified(self) -> bool:
-        """Whether the session changed since the last :meth:`mark_clean`.
-
-        ``True`` for explicit writes (via :attr:`is_dirty`) *and* for in-place
-        mutation of nested values that bypass :meth:`__setitem__`. Before the
-        first :meth:`mark_clean` (no baseline yet) it falls back to
-        :attr:`is_dirty`. The byte comparison can yield a false *positive* for
-        a semantically equal dict serialized differently (key re-insertion
-        changing order, ``1`` rewritten as ``1.0``); the cost is one spurious
-        session save, never a missed one.
-        """
         return self.is_dirty or self.has_content_changed()
 
     def update_trace(self, request: Any) -> dict[str, Any] | None:
-        """Record the request's device (platform, browser, IP) in the session trace.
-
-        A known device is refreshed at most hourly; a new one is appended,
-        evicting the least recently active entry past ``_TRACE_MAX_ENTRIES``.
-
-        :return: dict if a device log has to be inserted, ``None`` otherwise
-        """
         if self.get("_trace_disable"):
             return None
 
@@ -565,17 +424,6 @@ class Session(collections.abc.MutableMapping):
         return new_trace
 
     def _delete_old_sessions(self) -> None:
-        """Reap the pre-rotation files this session left behind.
-
-        Dispatched to the store this session was LOADED from, not the global
-        ``root.session_store``. Reaching for the singleton meant a session from
-        store A garbage-collected against store B — the same defect already
-        fixed in :meth:`FilesystemSessionStore.vacuum` (which used to read
-        ``root.session_store.path`` instead of ``self.path``), and the last
-        global reach-in on the session path now that ``Request`` and ``GeoIP``
-        take their collaborators by injection. It also drops a
-        ``session -> application`` import cycle that needed a lazy import.
-        """
         if self.store is None:
             return
         self.store.delete_old_sessions(self)

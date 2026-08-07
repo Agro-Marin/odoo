@@ -1,14 +1,3 @@
-"""Embedded Sass Protocol client for Dart Sass.
-
-Provides a high-performance SCSS/Sass compiler using the Sass Embedded
-Protocol (protobuf over stdin/stdout). Dart Sass is a required dependency
-of this fork (declared in ``package.json``, provisioned by ``npm install``):
-a missing or non-startable binary raises :class:`SassNotFoundError` /
-:class:`SassProtocolError` rather than silently degrading.
-
-See https://github.com/sass/embedded-protocol for the protocol specification.
-"""
-
 import atexit
 import collections
 import contextlib
@@ -41,11 +30,6 @@ _COMPILE_TIMEOUT_S = 120.0
 
 
 def _kill_wedged_sass(proc: Popen) -> None:
-    """Kill a ``sass --embedded`` process that exceeded the compile deadline.
-
-    Runs on a watchdog thread; it only kills the specific captured process and
-    never touches the client's shared state, so it cannot race ``_process``.
-    """
     _logger.warning(
         "sass --embedded compile exceeded %ss; killing the wedged process",
         _COMPILE_TIMEOUT_S,
@@ -55,24 +39,18 @@ def _kill_wedged_sass(proc: Popen) -> None:
 
 
 class SassCompileError(Exception):
-    """Raised when Sass compilation fails."""
+    pass
 
 
 class SassProtocolError(Exception):
-    """Raised on embedded protocol violations."""
+    pass
 
 
 class SassNotFoundError(SassProtocolError):
-    """Raised when the required Dart Sass binary cannot be located.
-
-    Distinct from a protocol/compile error so callers can fail loudly on a
-    misconfigured deployment instead of mistaking a missing compiler for a
-    stylesheet error (Dart Sass is a hard dependency; see the module docstring).
-    """
+    pass
 
 
 def _encode_varint(value: int) -> bytes:
-    """Encode an unsigned integer as a protobuf varint."""
     parts = []
     while value > 0x7F:
         parts.append((value & 0x7F) | 0x80)
@@ -82,7 +60,6 @@ def _encode_varint(value: int) -> bytes:
 
 
 def _read_varint(stream: object) -> int | None:
-    """Read an unsigned varint from a binary stream. Returns None on EOF."""
     result = 0
     shift = 0
     while True:
@@ -100,38 +77,14 @@ def _read_varint(stream: object) -> int | None:
 
 
 class SassImporter:
-    """Base class for custom Sass importers."""
-
     def canonicalize(self, url: str, from_import: bool) -> str | None:
-        """Return a canonical URL for the given import, or None."""
         raise NotImplementedError
 
     def load(self, canonical_url: str) -> tuple[str, str] | None:
-        """Return (contents, syntax) for a canonical URL, or None."""
         raise NotImplementedError
 
 
 def _supports_embedded(sass_path: str) -> bool:
-    """Whether ``sass_path`` actually speaks the Embedded Sass Protocol.
-
-    The presence of a ``sass`` binary is not enough. Two common cases accept
-    the ``--embedded`` flag but cannot serve the protocol, and each would make
-    the embedded compiler deadlock/``EPIPE`` writing protobuf to a dead stdin
-    and silently degrade EVERY SCSS compile to the slow per-bundle CLI:
-
-    - the **pure-JS** ``sass`` (the npm ``sass`` package, routinely on a dev's
-      global ``PATH``) prints "sass --embedded is unavailable in pure JS mode"
-      and exits non-zero;
-    - a **wrong-platform** bundled binary (e.g. the ``sass-embedded-linux-musl``
-      build on a glibc host) fails to exec its inner dart binary (rc 127).
-
-    Probe by launching ``sass --embedded`` with an empty (EOF) stdin: a real
-    native Dart Sass boots the protocol host and exits 0 cleanly on EOF with no
-    diagnostic; the two bad cases exit non-zero (and the pure-JS one carries a
-    recognisable marker). Cheap — the host shuts down immediately on EOF — and
-    run at most a handful of times per process (``find_sass`` is called once per
-    compiler start).
-    """
     try:
         proc = subprocess.run(
             [sass_path, "--embedded"],
@@ -150,20 +103,6 @@ def _supports_embedded(sass_path: str) -> bool:
 
 
 def find_sass() -> str | None:
-    """Locate an ``--embedded``-capable Dart Sass binary.
-
-    Searches system ``PATH`` first (system Dart Sass is preferred as it may be
-    newer), then the npm-provisioned ``sass-embedded-*`` packages under the
-    Odoo root's ``node_modules`` — like
-    :func:`odoo.tools.assets.esbuild._find_esbuild`, since a documented ``npm
-    install`` provisions the compiler and ``PATH`` alone would miss it. Each
-    candidate is verified with :func:`_supports_embedded`, so a pure-JS or
-    wrong-platform ``sass`` is never returned. If none speaks the protocol,
-    fall back to the pure-JS ``sass`` CLI in ``node_modules/.bin`` (driven per
-    bundle via ``--stdin``), then to any system ``sass``.
-
-    :return: path to a ``sass`` binary, or ``None`` if none is found.
-    """
     node_modules = Path(odoo.__path__[0]).parent / "node_modules"
     candidates: list[str] = []
     system_sass = shutil.which("sass")
@@ -179,26 +118,6 @@ def find_sass() -> str | None:
 
 
 class SassEmbeddedCompiler:
-    """Client for the Sass Embedded Protocol.
-
-    Manages a long-running ``sass --embedded`` subprocess and communicates
-    via protobuf-encoded messages over stdin/stdout.
-
-    Usage::
-
-        compiler = SassEmbeddedCompiler()
-        css = compiler.compile_string(
-            ".a { .b { color: red; } }",
-            style="compressed",
-        )
-        compiler.close()
-
-    Or as a context manager::
-
-        with SassEmbeddedCompiler() as compiler:
-            css = compiler.compile_string(source)
-    """
-
     def __init__(self, sass_path: str | None = None) -> None:
         self._sass_path = sass_path
         self._process: Popen | None = None
@@ -207,7 +126,6 @@ class SassEmbeddedCompiler:
         self._started = False
 
     def _start(self) -> None:
-        """Spawn the ``sass --embedded`` subprocess."""
         if self._started and self._process is not None and self._process.poll() is None:
             return
         self._started = False
@@ -245,7 +163,6 @@ class SassEmbeddedCompiler:
         self._started = True
 
     def _send_packet(self, compilation_id: int, message_bytes: bytes) -> None:
-        """Send a varint-framed packet to the compiler."""
         cid_bytes = _encode_varint(compilation_id)
         payload = cid_bytes + message_bytes
         length_bytes = _encode_varint(len(payload))
@@ -253,10 +170,6 @@ class SassEmbeddedCompiler:
         self._process.stdin.flush()
 
     def _recv_packet(self) -> tuple[int, bytes]:
-        """Read a varint-framed packet from the compiler.
-
-        Returns (compilation_id, protobuf_bytes).
-        """
         length = _read_varint(self._process.stdout)
         if length is None:
             msg = "Unexpected EOF from sass --embedded"
@@ -282,7 +195,6 @@ class SassEmbeddedCompiler:
         return compilation_id, payload[idx:]
 
     def close(self) -> None:
-        """Shut down the compiler subprocess."""
         if self._process is not None:
             proc = self._process
             self._process = None
@@ -314,20 +226,6 @@ class SassEmbeddedCompiler:
         quiet_deps: bool = True,
         url: str = "",
     ) -> str:
-        """Compile a Sass/SCSS string to CSS.
-
-        :param source: the stylesheet source code.
-        :param syntax: one of ``scss``, ``indented``, ``css``.
-        :param style: one of ``expanded``, ``compressed``.
-        :param source_map: whether to generate a source map.
-        :param importers: custom importers for resolving ``@import``/``@use``.
-        :param load_paths: filesystem paths to search for imports.
-        :param quiet_deps: suppress deprecation warnings from dependencies.
-        :param url: the URL of the source file (for error messages).
-        :return: the compiled CSS string.
-        :raises SassCompileError: if compilation fails.
-        :raises SassProtocolError: if a protocol error occurs.
-        """
         with self._lock:
             self._start()
             self._compilation_id += 1
@@ -370,14 +268,8 @@ class SassEmbeddedCompiler:
         quiet_deps: bool,
         url: str,
     ) -> str:
-        """Execute a single compilation request/response cycle."""
         syntax_enum = {"scss": SCSS, "indented": INDENTED, "css": CSS}.get(syntax, SCSS)
         style_enum = COMPRESSED if style == "compressed" else EXPANDED
-        # Per-warning detail stays on DEBUG (a bundle emits over a thousand), but
-        # the tally is logged once so deprecations that will break on the next
-        # Dart Sass major are not invisible. ``quiet_deps`` cannot filter them:
-        # the pipeline concatenates every file into one root stylesheet, so Sass
-        # sees no dependencies.
         deprecations: collections.Counter[str] = collections.Counter()
 
         request = InboundMessage()
@@ -508,18 +400,6 @@ class SassEmbeddedCompiler:
 
 
 def _resolve_sass_path(base: str) -> list[str]:
-    """Generate candidate paths for Sass partial resolution.
-
-    Given a base path like ``/path/to/foo``, returns candidates in order:
-    - /path/to/foo.scss
-    - /path/to/foo.sass
-    - /path/to/_foo.scss
-    - /path/to/_foo.sass
-    - /path/to/foo/index.scss
-    - /path/to/foo/index.sass
-    - /path/to/foo/_index.scss
-    - /path/to/foo/_index.sass
-    """
     base_path = Path(base)
     dirname = base_path.parent
     basename = base_path.name
@@ -539,18 +419,10 @@ def _resolve_sass_path(base: str) -> list[str]:
 
 
 class OdooSassImporter(SassImporter):
-    """Sass importer that resolves imports using Odoo's addon paths.
-
-    Mirrors the behavior of the existing ``scss_importer`` closure in
-    ``ScssStylesheetAsset.compile()`` but adapted for the Embedded Sass
-    Protocol's canonicalize/load two-step interface.
-    """
-
     def __init__(self, bootstrap_path: str) -> None:
         self.bootstrap_path = bootstrap_path
 
     def canonicalize(self, url: str, from_import: bool) -> str | None:
-        """Resolve an import URL to a canonical file:// URL."""
         from odoo.tools.files import file_path
 
         *parent_parts, filename = url.replace("\\", "/").split("/")
@@ -577,7 +449,6 @@ class OdooSassImporter(SassImporter):
         return None
 
     def load(self, canonical_url: str) -> tuple[str, str] | None:
-        """Load a stylesheet from a canonical file:// URL."""
         file = Path(canonical_url.removeprefix("file://"))
         if not file.is_file():
             return None
@@ -592,8 +463,7 @@ _on_stop_registered = False
 
 
 def get_sass_compiler() -> SassEmbeddedCompiler:
-    """Return the singleton SassEmbeddedCompiler, creating it lazily."""
-    global _sass_compiler, _on_stop_registered
+    global _sass_compiler, _on_stop_registered  # noqa: PLW0603  the dart-sass subprocess is a process singleton
     if _sass_compiler is None:
         with _sass_lock:
             if _sass_compiler is None:
@@ -614,8 +484,7 @@ def get_sass_compiler() -> SassEmbeddedCompiler:
 
 
 def close_sass_compiler() -> None:
-    """Shut down the singleton SassEmbeddedCompiler if running."""
-    global _sass_compiler
+    global _sass_compiler  # noqa: PLW0603  the dart-sass subprocess is a process singleton
     with _sass_lock:
         if _sass_compiler is not None:
             _sass_compiler.close()

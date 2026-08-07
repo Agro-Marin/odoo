@@ -1,25 +1,3 @@
-"""Garbage collector tools.
-
-## Reference
-https://github.com/python/cpython/blob/main/InternalDocs/garbage_collector.md
-
-## TLDR cpython
-
-Objects have reference counts, but we need garbage collection for cyclic
-references.  All allocated objects are split into collections (aka generations).
-There is also one permanent generation that is never collected (see
-``gc.freeze``).
-
-The GC is triggered by the number of created objects. For the first collection,
-at every allocation and deallocation, a counter is respectively increased and
-decreased. Once it reaches a threshold, that collection is automatically
-collected.
-Before 3.14, other thresholds indicate that every X collections, the next
-collection is collected. Since then, there is only one additional collection
-which is collected incrementally; `1 / threshold1` percent of the heap is
-collected.
-"""
-
 __all__ = ["disabling_gc", "gc_info", "gc_set_timing"]
 
 import contextlib
@@ -37,15 +15,14 @@ _gc_init_stats: list[dict[str, int]] = gc.get_stats()
 _gc_timings: list[int] = [0, 0, 0]
 
 
-def _to_ms(ns: int | float) -> float:
+def _to_ms(ns: float) -> float:
     return round(ns / 1_000_000, 2)
 
 
 def _timing_gc_callback(event: str, info: dict[str, Any]) -> None:
-    """Record gc collection timings; called before and after each gc run, see gc_set_timing."""
     if _gc_time is None:
         return
-    global _gc_start
+    global _gc_start  # noqa: PLW0603  gc callbacks run on the collecting thread and own this state
     gen = info["generation"]
     if event == "start":
         _gc_start = _gc_time()
@@ -60,25 +37,18 @@ def _timing_gc_callback(event: str, info: dict[str, Any]) -> None:
 
 
 def gc_set_timing(*, enable: bool) -> None:
-    """Enable or disable timing callback.
-
-    This collects information about how much time is spent by the GC.
-    It logs GC times (at debug level) for collections bigger than 0.
-    The overhead is under a microsecond.
-    """
     if _timing_gc_callback in gc.callbacks:
         if enable:
             return
         gc.callbacks.remove(_timing_gc_callback)
     elif enable:
-        global _gc_init_stats, _gc_timings
+        global _gc_init_stats, _gc_timings  # noqa: PLW0603  gc callback state, as above
         _gc_init_stats = gc.get_stats()
         _gc_timings = [0, 0, 0]
         gc.callbacks.append(_timing_gc_callback)
 
 
 def gc_info() -> dict[str, Any]:
-    """Return a dict with stats about the garbage collector."""
     stats = gc.get_stats()
     times = []
     cumulative_time = sum(_gc_timings) or 1
@@ -101,7 +71,6 @@ def gc_info() -> dict[str, Any]:
 
 @contextlib.contextmanager
 def disabling_gc() -> Generator[bool]:
-    """Disable gc in the context manager."""
     if not gc.isenabled():
         yield False
         return

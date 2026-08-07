@@ -1,10 +1,3 @@
-"""Regression coverage for ``ir.cron`` (base module audit Tranche 4).
-
-Covers CRON-T01: ``ir.cron._trigger(coalesce=...)`` quantizes each requested
-``call_at`` up to the next coalesce-minute boundary, collapsing several
-sub-minute triggers into one wake-up.
-"""
-
 import math
 import secrets
 from datetime import datetime, timedelta
@@ -16,8 +9,6 @@ from odoo.tools import mute_logger
 
 @tagged("post_install", "-at_install")
 class TestCronTriggerCoalesce(TransactionCase):
-    """Exercise ``ir.cron._trigger(coalesce=...)`` quantization (CRON-T01)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -26,7 +17,6 @@ class TestCronTriggerCoalesce(TransactionCase):
 
     @classmethod
     def _cron_vals(cls, env, user):
-        """Build minimal vals for an active ``ir.cron`` record."""
         unique = secrets.token_urlsafe(8)
         return {
             "name": f"Audit coalesce cron {unique}",
@@ -42,18 +32,11 @@ class TestCronTriggerCoalesce(TransactionCase):
 
     @staticmethod
     def _expected_boundary(dt, coalesce):
-        """Replicate the source arithmetic at ir_cron.py:913-920.
-
-        Mirrors ``datetime.fromtimestamp(ceil(dt.timestamp() / factor) *
-        factor)`` so the expectation tracks the process timezone semantics,
-        matching the stored value.
-        """
         factor = coalesce * 60
         return datetime.fromtimestamp(math.ceil(dt.timestamp() / factor) * factor)
 
     @mute_logger("odoo.addons.base.models.ir_cron")
     def test_coalesce_rounds_up_to_next_minute_boundary(self):
-        """A sub-minute ``at`` is rounded UP to the next coalesce boundary."""
         at = datetime(2026, 5, 28, 12, 3, 17)
         triggers = self.cron._trigger(at=at, coalesce=5)
 
@@ -65,7 +48,6 @@ class TestCronTriggerCoalesce(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_cron")
     def test_coalesce_groups_triggers_within_same_window(self):
-        """Several sub-minute instants in one window share one boundary."""
         base = datetime(2026, 5, 28, 9, 0, 0)
         instants = [
             base + timedelta(seconds=1),
@@ -81,7 +63,6 @@ class TestCronTriggerCoalesce(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_cron")
     def test_coalesce_boundary_exact_value_kept(self):
-        """An instant already on a boundary is not pushed to the next one."""
         coalesce = 5
         factor = coalesce * 60
         on_boundary = datetime.fromtimestamp((1_700_000_000 // factor) * factor)
@@ -92,7 +73,6 @@ class TestCronTriggerCoalesce(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_cron")
     def test_no_coalesce_keeps_exact_at(self):
-        """``coalesce=0`` (default) leaves ``call_at`` untouched."""
         at = datetime(2026, 5, 28, 12, 3, 17)
         triggers = self.cron._trigger(at=at)
 
@@ -102,11 +82,6 @@ class TestCronTriggerCoalesce(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCronTriggerIndexes(TransactionCase):
-    """Pin the ir_cron_trigger index layout: a composite (cron_id, call_at)
-    serves both the ready-jobs EXISTS probe and plain cron_id lookups, so the
-    old single-column cron_id index must be gone; call_at keeps its own index
-    for the autovacuum GC scan."""
-
     def test_trigger_index_layout(self):
         self.env.cr.execute(
             "SELECT indexname, indexdef FROM pg_indexes"

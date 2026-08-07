@@ -43,14 +43,6 @@ _logger_conn = _logger.getChild("connection")
 
 
 class _SuppressKnownPoolWarnings(logging.Filter):
-    """Suppress (not demote) known psycopg_pool records that are not real errors:
-
-    1. "discarding closed connection" — logged when we intentionally close a
-       connection before return (``keep_in_pool=False``); expected.
-    2. "database does not exist" — reconnect attempts after a DB is dropped;
-       noise, the caller gets a ``PoolTimeout`` and the pool is cleaned up.
-    """
-
     def filter(self, record: logging.LogRecord) -> bool:
         msg = record.getMessage()
         if "discarding closed connection" in msg:
@@ -79,21 +71,10 @@ _LEAK_REPORT_INTERVAL = 60.0
 
 
 def _remaining(deadline: float | None) -> float:
-    """Seconds left before *deadline*; ``inf`` when it is ``None`` (unbounded)."""
     return float("inf") if deadline is None else deadline - monotonic()
 
 
 def _libpq_connect_timeout(deadline: float | None, cap: int) -> int:
-    """Clamp *cap* to the seconds left before *deadline*, for libpq.
-
-    Returns ``0`` when nothing usable is left, which callers MUST read as "skip
-    this connect entirely" — never as a value to hand libpq.  libpq treats
-    ``connect_timeout=0`` (and negative) as *wait indefinitely* and silently
-    raises ``1`` to ``2``, so naively passing a shrinking budget would turn the
-    tail of a deadline into an unbounded connect: the exact overrun this guards.
-
-    ``deadline`` of ``None`` means unbounded and yields *cap* unchanged.
-    """
     if deadline is None:
         return cap
     remaining = int(deadline - monotonic())
@@ -103,15 +84,6 @@ def _libpq_connect_timeout(deadline: float | None, cap: int) -> int:
 
 
 def _base_conn_options(conninfo: str, kwargs: dict) -> str:
-    """Resolve the libpq ``options`` GUC string Odoo should extend.
-
-    Precedence (most specific wins): an explicit ``options`` kwarg, then GUCs
-    embedded in the URI/conninfo string (psycopg gives per-key precedence to
-    kwargs, so setting ours without folding the URI's in would silently drop
-    the operator's, e.g. ``?options=-csearch_path%3D...``), then the operator's
-    ``PGOPTIONS`` environment variable — which libpq would honour on its own
-    were we not about to pass an explicit kwarg that overrides it wholesale.
-    """
     options = kwargs.get("options", "")
     if not options and conninfo:
         options = _expand_conninfo(conninfo).get("options", "")
@@ -124,19 +96,6 @@ _GUC_NAME_RE = re.compile(r"-c\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=")
 
 
 def _session_gucs(base_options: str) -> str:
-    """Render Odoo's session GUCs, yielding to any the operator already set.
-
-    Odoo appends ``-c`` switches to *base_options*, and libpq lets the last
-    occurrence win — so appending unconditionally silently overrode an operator
-    who had asked for something else.  ``PGOPTIONS='-c work_mem=64MB -c jit=on'``
-    arrived at the backend as ``work_mem=16MB``/``jit=off``, with nothing in any
-    log to say why.
-
-    ``db_session_gucs`` carries the defaults (``jit=off`` — Odoo's queries are
-    short and the planner's JIT decisions cost more than they save; ``work_mem``
-    sized for OLTP sorts), so a deployment can retune them without patching, and
-    an explicitly-set GUC always beats Odoo's default for that key.
-    """
     already_set = set(_GUC_NAME_RE.findall(base_options))
     configured = tools.config["db_session_gucs"] or ""
     gucs = [
@@ -150,19 +109,6 @@ def _session_gucs(base_options: str) -> str:
 
 
 def _borrow_caller() -> str | None:
-    """Where this borrow came from: the first frame outside ``odoo/db``.
-
-    Always captured, not gated behind ``db_leak_detection``, because it turns
-    out to be cheap: the loop stops at the first application frame, so the walk
-    is 2-3 frames whatever the stack below it looks like.  Measured 300 ns flat
-    at 0, 10 and 40 extra frames of depth — less than the 413 ns the tracker's
-    own dict insert/delete pair costs.  Gating it would have saved nothing and
-    left the saturation error unable to name a culprit on the deployments that
-    had not opted in, which is exactly when it is needed.
-
-    Frames inside ``odoo/db`` are skipped: the useful answer is the application
-    code that opened a cursor, not ``Connection.cursor`` or ``Cursor.__init__``.
-    """
     frame: FrameType | None = sys._getframe(1)
     while frame is not None:
         name = frame.f_code.co_filename
@@ -173,33 +119,10 @@ def _borrow_caller() -> str | None:
 
 
 class PoolError(Exception):
-    """Connection pool error."""
+    pass
 
 
 class ConnectionPool:
-    """Manages per-database psycopg_pool.ConnectionPool instances.
-
-    Each unique DSN (database) gets its own psycopg_pool with:
-    - Health checks on borrow (detects dead connections)
-    - max_lifetime rotation (recycles connections every hour)
-    - Background workers for connection creation
-    - Pool statistics via get_stats()
-
-    Connection budget is enforced by ``_budget``, a :class:`ConnectionBudget`.
-    ``odoo/db/__init__.py`` builds ONE and hands it to both the R/W and the
-    read-only pool, so ``db_maxconn`` caps the whole process (see that class).
-    A directly-constructed pool gets its own budget sized at ``maxconn``.
-
-    .. warning::
-        The budget bounds CHECKED-OUT connections only.  Each per-DSN pool may
-        also retain up to ``maxconn`` *idle* connections for ``max_idle``
-        (10 min), so one process's worst-case server footprint is
-        ``maxconn * n_databases``.  Multi-tenant hosts must size PostgreSQL
-        ``max_connections`` accordingly (each per-DSN pool also runs ~4 worker
-        threads; pools are reaped by the idle reaper and by
-        ``close_database``/``close_all``).
-    """
-
     def __init__(
         self,
         maxconn: int = 64,
@@ -258,67 +181,17 @@ class ConnectionPool:
         _logger_conn.debug(("%r " + msg), self, *args)
 
     def _is_proven_reachable(self, key: frozenset) -> bool:
-        """True when this process has already connected with *key* successfully.
-
-        The pre-flight probe exists to convert a permanent connect failure
-        (missing database, wrong password) from a ~30s ``PoolTimeout`` into a
-        millisecond ``InvalidCatalogName``.  It costs a full extra connect, and
-        it ran on every pool *rebuild* — not just the first sight of a DSN.  With
-        the default tuning (``db_pool_reap_idle`` 300s below ``db_conn_max_idle``
-        600s) a database touched every few minutes is reaped and rebuilt
-        repeatedly, so a host serving many quiet databases paid that connect over
-        and over to re-answer a question it had already answered.
-
-        A DSN that connected once is not going to be a *typo*, so the fast-fail
-        the probe buys is worthless for it.  The proof is dropped whenever the
-        premise could have changed: the database was closed out
-        (:meth:`close_database` — Odoo's own drop/rename path, and
-        :meth:`close_all`), the credentials rotated (stale-key eviction), or a
-        connect actually failed (:meth:`_getconn_with_retry`).  A database
-        dropped *behind Odoo's back* therefore falls back to the pool's own
-        bounded retry for one borrow, and the failure there un-proves the key
-        for the next.
-
-        The proof set is the one piece of per-DSN state the idle reaper does not
-        collect — deliberately, since reaping a quiet pool says nothing about
-        reachability — so it grows monotonically with the number of distinct
-        DSNs this process has ever reached (~330 bytes each; ~3 MB at 10k
-        databases).
-        """
         return key in self._reachable_keys
 
     def _mark_reachable(self, key: frozenset) -> None:
-        """Record that *key* connected successfully (see :meth:`_is_proven_reachable`)."""
         self._reachable_keys.add(key)
 
     def _forget_reachable(self, key: frozenset) -> None:
-        """Drop *key*'s reachability proof, so the next cold start re-probes."""
         self._reachable_keys.discard(key)
 
     def _probe_connectable(
         self, conninfo: str, kwargs: dict, deadline: float | None = None
     ) -> None:
-        """Fail fast on a permanently-unreachable target before building a pool.
-
-        psycopg_pool retries failed connections in a background worker until the
-        borrower's ~30s budget expires — even for permanent failures (missing
-        database, wrong password).  One synchronous probe surfaces those in
-        milliseconds; anything possibly transient is swallowed for the pool's
-        normal retry.
-
-        *deadline* is the borrower's shared budget (see :meth:`borrow`).  Both
-        connects below draw from it, so a black-holed host cannot push a borrow
-        past ``db_borrow_timeout``; with no budget left the probe is skipped
-        entirely and the pool's own bounded ``getconn`` reports the failure.
-
-        .. note::
-            Runs on every COLD pool creation for a DSN this process has not yet
-            reached — see :meth:`_is_proven_reachable` for why a *re*-creation
-            (after the idle reaper, or after a ``PoolClosed`` rebuild) skips it.
-
-        :raises psycopg.Error: re-raised verbatim for a non-retryable failure,
-            so callers see the precise cause (e.g. ``InvalidCatalogName``).
-        """
         probe_timeout = _libpq_connect_timeout(deadline, _PROBE_CONNECT_TIMEOUT)
         if not probe_timeout:
             return
@@ -353,18 +226,6 @@ class ConnectionPool:
     def _database_absent(
         self, conninfo: str, kwargs: dict, deadline: float | None = None
     ) -> bool:
-        """Locale-independently decide whether the target database is absent.
-
-        The connect-phase "database does not exist" FATAL is only classifiable
-        by its localised text, so on a non-English server we instead connect to
-        the always-present ``postgres`` maintenance DB and ask the catalog:
-        ``SELECT 1 FROM pg_database WHERE datname = %s``.
-
-        :return: ``True`` only when the catalog *confirms* absence.  ``False``
-            covers both "exists" and "couldn't tell" (no access, network gone,
-            target *is* ``postgres``), so this never manufactures a false
-            ``InvalidCatalogName``.
-        """
         maint = (
             _expand_conninfo({"dsn": conninfo, **kwargs}) if conninfo else dict(kwargs)
         )
@@ -395,11 +256,6 @@ class ConnectionPool:
     def _get_or_create_pool(
         self, key: frozenset, connection_info: dict, deadline: float | None = None
     ) -> _PsycopgPool:
-        """Get an existing pool for this DSN or create a new one.
-
-        *deadline* bounds the cold path's pre-flight probe against the borrower's
-        budget (see :meth:`borrow`); the warm path never touches the network.
-        """
         pool = self._pools.get(key)
         if pool is not None and not pool.closed:
             note_activity(pool)
@@ -483,15 +339,6 @@ class ConnectionPool:
         return pool
 
     def _maybe_reap_idle_pools(self) -> None:
-        """Throttled idle-pool sweep run from the hot :meth:`give_back` path.
-
-        The cold-path reap only fires on NEW pool creation, so a worker on a
-        fixed set of databases would never reap idle siblings for quiet or
-        dropped databases.  This sweeps them on the common return path, behind
-        the reaper's throttle (a lock-free compare first, so the common return
-        pays nothing).  The just-returned pool is never reaped: :meth:`give_back`
-        re-stamps it through ``reaper.note_activity`` before this runs.
-        """
         if not self._reaper.probably_due():
             return
         with self._lock:
@@ -505,7 +352,6 @@ class ConnectionPool:
             )
 
     def _close_reaped_pools(self, pools: list[_PsycopgPool]) -> None:
-        """Close idle pools reaped on the return path (runs on a daemon thread)."""
         for rp in pools:
             self._safe_close(rp)
         self.stats.pools_reaped += len(pools)
@@ -519,33 +365,6 @@ class ConnectionPool:
     def borrow(
         self, connection_info: dict, key: frozenset | None = None
     ) -> psycopg.Connection:
-        """Borrow a connection from the appropriate per-database pool.
-
-        Acquires a slot from the pool-scoped semaphore first, ensuring the
-        total number of checked-out connections across all databases in
-        THIS pool instance never exceeds ``maxconn``.  The borrow-timeout
-        budget (``db_borrow_timeout``) is shared by EVERY step that can block —
-        the cold path's pre-flight probe, the semaphore wait and the per-database
-        ``getconn()`` — via a single ``deadline`` taken before the first of them.
-        (It used to be taken *after* pool creation, so a black-holed host cost
-        two 5s probe connects on top of the budget: measured 13s against a
-        documented 3s.)
-
-        Semaphore accounting lives ENTIRELY in this method: the permit is taken
-        here, released here on any failure, and otherwise travels with the
-        connection (tagged via ``_odoo_pool``) to be released by
-        :meth:`give_back`.  The two helpers it calls
-        (:meth:`_getconn_with_retry`, :meth:`_validate_borrowed_conn`) never
-        touch the semaphore, so the permit can neither leak nor double-release.
-        (Maintenance databases short-circuit into :meth:`_borrow_direct`, which
-        keeps the same permit discipline for its never-pooled connections.)
-
-        :param dict connection_info: dict of psql connection keywords
-        :param key: optional pre-normalized routing key.  ``Connection``
-            memoizes it once and passes it on every borrow, skipping the
-            ``_normalize_dsn_key`` work on this hot path.  ``None`` recomputes it.
-        :rtype: psycopg.Connection
-        """
         started = monotonic()
         deadline = started + self._borrow_timeout
         if key is None:
@@ -582,13 +401,6 @@ class ConnectionPool:
         return conn
 
     def _warn_about_leaks(self) -> None:
-        """Report connections held past ``db_leak_detection``.
-
-        Reported from :meth:`borrow` rather than a timer: a leak only matters
-        when someone else needs a connection, and that is exactly when this
-        runs.  Throttled by the tracker's own clock — never the reaper's, whose
-        slot belongs to reaping quiet pools.
-        """
         threshold = tools.config["db_leak_detection"]
         if not threshold:
             return
@@ -607,31 +419,6 @@ class ConnectionPool:
     def _borrow_direct(
         self, connection_info: dict, deadline: float | None = None
     ) -> psycopg.Connection:
-        """Open a dedicated, never-pooled connection to a maintenance database.
-
-        ``postgres``/template databases must be connection-free the moment no
-        cursor is open on them, or ``CREATE DATABASE`` / ``DROP DATABASE``
-        against them fails with "being accessed by other users".  A psycopg_pool
-        cannot guarantee that: it replaces every discarded connection to keep
-        its connection count, so the old discard-on-close approach left an idle
-        replacement parked on the database (verified: it blocks
-        ``CREATE DATABASE ... TEMPLATE`` until the idle-pool reaper fires).
-
-        The connection still draws a ``_budget`` permit (the budget is
-        per-instance, not per-DSN) and is tagged ``_DIRECT_CONNECTION`` so
-        :meth:`give_back` closes it instead of returning it anywhere.
-        ``keep_in_pool`` is irrelevant on this path — the connection is always
-        closed on return.
-
-        Deliberately skipped versus the pooled path: the OLTP session GUCs
-        ``jit``/``work_mem`` (pointless for short-lived catalog work) and the
-        pre-flight probe (a direct connect already fails fast with the precise
-        error).  ``idle_session_timeout`` IS applied — it is the server-side
-        net that reclaims an escaped connection, and an idle session parked on
-        a template blocks ``CREATE DATABASE ... TEMPLATE``.  Outstanding
-        direct connections are counted in ``_direct_out`` (repr/exhaustion
-        messages); the per-DSN ``get_stats()`` never sees them.
-        """
         kwargs = dict(connection_info)
         conninfo = kwargs.pop("dsn", "")
         kwargs["autocommit"] = False
@@ -681,12 +468,6 @@ class ConnectionPool:
 
     @staticmethod
     def _check_min_server_version(conn: psycopg.Connection) -> None:
-        """Raise :class:`PoolError` when the server is below ``MIN_PG_VERSION``.
-
-        ``server_version`` is client-side (no round-trip).  Shared by the
-        pooled (:meth:`_validate_borrowed_conn`) and direct
-        (:meth:`_borrow_direct`) borrow paths.
-        """
         sv = conn.info.server_version
         if sv < MIN_PG_VERSION * 10000:
             raise PoolError(
@@ -702,21 +483,6 @@ class ConnectionPool:
         connection_info: dict,
         deadline: float,
     ) -> tuple[psycopg.Connection, _PsycopgPool]:
-        """``getconn`` from *pool*, rebuilding ONCE if it was closed under us.
-
-        Returns ``(conn, pool)``; the returned pool differs from the argument
-        only when a ``PoolClosed`` (reaper / concurrent ``close_database`` race)
-        forced a rebuild — the caller must thread it on so the connection's
-        ``_odoo_pool`` marker points at the pool it actually came from.  The
-        caller holds the ``_budget`` permit across the retry and the shared
-        *deadline* bounds the total wait; this method never touches the
-        semaphore, so every exit leaves the permit for the caller to release.
-
-        :raises PoolError: capacity/teardown failures (and any unexpected
-            non-psycopg error), so callers see one error type.
-        :raises psycopg.Error: a connect-phase failure is surfaced verbatim
-            (e.g. ``InvalidCatalogName``) so the caller gets the precise cause.
-        """
         for attempt in range(2):
             remaining = max(0.1, deadline - monotonic())
             try:
@@ -751,13 +517,6 @@ class ConnectionPool:
     def _validate_borrowed_conn(
         self, conn: psycopg.Connection, pool: _PsycopgPool
     ) -> None:
-        """Post-``getconn`` validation of a freshly borrowed *conn*.
-
-        On ANY failure, return *conn* to its per-DSN pool (so the pool slot is
-        not leaked) and re-raise; the caller's outer handler releases the
-        ``_budget`` permit.  Like :meth:`_getconn_with_retry`, this never
-        touches the semaphore.
-        """
         try:
             self._check_min_server_version(conn)
             if _logger_conn.isEnabledFor(logging.DEBUG):
@@ -771,15 +530,6 @@ class ConnectionPool:
     def give_back(
         self, connection: psycopg.Connection, keep_in_pool: bool = True
     ) -> None:
-        """Return a connection to its pool.
-
-        Releases a slot from the pool-scoped semaphore after returning the
-        connection, keeping the per-instance budget accurate.
-
-        :param connection: The connection to return
-        :param keep_in_pool: If False, close the connection before returning
-            it so the pool discards it (e.g. for template/system databases).
-        """
         if _logger_conn.isEnabledFor(logging.DEBUG):
             if not connection.closed:
                 self._debug("Give back connection to %r", connection.info.dsn)
@@ -819,12 +569,6 @@ class ConnectionPool:
 
     @staticmethod
     def _safe_close(pool: _PsycopgPool) -> None:
-        """``pool.close()``, swallowing a per-pool failure.
-
-        One pool's ``close()`` (which joins worker threads and can raise, e.g.
-        ``PythonFinalizationError`` at interpreter shutdown) must not abort
-        cleanup of its siblings nor escape ``close_all``/``drain_all``.
-        """
         try:
             pool.close()
         except Exception:
@@ -832,34 +576,16 @@ class ConnectionPool:
 
     @staticmethod
     def _safe_drain(pool: _PsycopgPool) -> None:
-        """``pool.drain()``, swallowing a per-pool failure (see :meth:`_safe_close`)."""
         try:
             pool.drain()
         except Exception:
             _logger.debug("Failed to drain pool", exc_info=True)
 
     def has_database(self, db_name: str) -> bool:
-        """Whether any per-DSN pool for *db_name* currently exists.
-
-        A read-only predicate: unlike :meth:`Connection.cursor`, whose borrow
-        creates the per-DSN pool on demand, asking does not create one.  Lets a caller that must connect to a database purely
-        to inspect it (``service.db.list_db_incompatible``) tell "this database
-        was already being served" from "I opened this pool myself", and so close
-        only the pools it created — instead of evicting a live one as a side
-        effect of looking at it.
-
-        Same database-component matching as :meth:`close_database`, so the two
-        agree on what "a pool for this database" means.
-        """
         with self._lock:
             return any(dict(k).get("database") == db_name for k in self._pools)
 
     def close_database(self, db_name: str) -> None:
-        """Close every per-DSN pool connected to *db_name*.
-
-        Matches on the database component alone (any host/user/URI form) — the
-        semantics ``close_db()`` needs when a database is dropped or renamed.
-        """
         with self._lock:
             keys = [k for k in self._pools if dict(k).get("database") == db_name]
             pools = [self._pools.pop(k) for k in keys]
@@ -873,9 +599,6 @@ class ConnectionPool:
             _logger.info("%r: Closed %d pool(s) for %s", self, len(pools), db_name)
 
     def close_all(self) -> None:
-        """Close every per-DSN pool in this instance (full teardown: shutdown,
-        ``atexit``).  Single-database close is :meth:`close_database`.
-        """
         with self._lock:
             pools = list(self._pools.values())
             self._pools.clear()
@@ -888,11 +611,6 @@ class ConnectionPool:
             _logger.info("%r: Closed %d pool(s)", self, count)
 
     def drain_database(self, db_name: str) -> None:
-        """Drain every per-DSN pool connected to *db_name*.
-
-        Name-based matching, like :meth:`close_database` — see there for
-        why exact-DSN matching is insufficient.
-        """
         with self._lock:
             pools = [
                 pool
@@ -906,12 +624,6 @@ class ConnectionPool:
             _logger.debug("%r: Drained %d pool(s) for %s", self, len(pools), db_name)
 
     def drain(self) -> None:
-        """Drain every pool — replace idle connections with fresh ones.
-
-        After module upgrades, idle connections may hold stale prepared-statement
-        caches referencing old schema; ``drain()`` recycles them.  Single-database
-        drain is :meth:`drain_database`.
-        """
         with self._lock:
             pools = list(self._pools.values())
         for pool in pools:
@@ -921,11 +633,6 @@ class ConnectionPool:
             _logger.debug("%r: Drained %d pool(s)", self, len(pools))
 
     def get_stats(self) -> dict[str, dict]:
-        """Return psycopg_pool stats keyed by database name.
-
-        Kept for callers that only want the per-DSN view; :meth:`health` adds
-        the pool-level counters and gauges those numbers cannot express.
-        """
         with self._lock:
             snapshot = list(self._pools.items())
         stats = {}
@@ -935,29 +642,6 @@ class ConnectionPool:
         return stats
 
     def health(self) -> dict:
-        """Everything an operator needs to explain this pool's behaviour.
-
-        ``get_stats()`` reports what each per-DSN psycopg_pool holds right now,
-        which cannot answer the questions that actually come up: was a slow
-        request waiting on a *connection*, is the shared budget approaching
-        saturation, is the pre-flight probe still paying for itself, is the idle
-        reaper churning pools for databases that are merely quiet.  Those are
-        counters, and they live in :class:`~odoo.db.stats.PoolStats`.
-
-        Shape: ``mode``/``databases`` identify the pool, ``pool`` carries the
-        counters and gauges, ``per_database`` is :meth:`get_stats`.  Totals are
-        monotonic, so a scraper differences them for rates.
-
-        ``backends`` is the number of server connections this pool is actually
-        holding, checked out *and* idle, summed across its per-DSN pools.  It is
-        reported because it is the number PostgreSQL's ``max_connections`` is
-        spent on, and it is NOT bounded by ``db_maxconn`` — the budget bounds
-        concurrent checkouts, while each per-DSN pool independently retains up
-        to that many idle connections for ``db_conn_max_idle``.  A process
-        serving several databases therefore holds up to ``maxconn ×
-        n_databases``, which nothing here caps and which no other counter
-        exposed.
-        """
         per_database = self.get_stats()
         with self._lock:
             n_pools = len(self._pools)
@@ -978,8 +662,6 @@ class ConnectionPool:
 
 
 class Connection:
-    """A lightweight instance of a connection to postgres"""
-
     __slots__ = ("__dbname", "__dsn", "__key", "__pool")
 
     def __init__(self, pool: ConnectionPool, dbname: str, dsn: dict):
@@ -990,13 +672,6 @@ class Connection:
 
     @property
     def dsn(self) -> dict:
-        """Connection parameters with the password removed (safe to log).
-
-        A URI/conninfo connection stores its secret *inside* the ``dsn`` string,
-        not under a ``password`` key, so a bare ``pop("password")`` would leak it
-        when the dict is logged.  :func:`_expand_conninfo` expands the conninfo
-        into discrete components first, after which the password drops out cleanly.
-        """
         dsn = _expand_conninfo(self.__dsn)
         dsn.pop("password", None)
         return dsn
@@ -1006,10 +681,6 @@ class Connection:
         return self.__dbname
 
     def cursor(self) -> Cursor:
-        """Create a new cursor for this connection.
-
-        Note: Import is done here to avoid circular imports.
-        """
         from .cursor import Cursor
 
         if _logger.isEnabledFor(logging.DEBUG):

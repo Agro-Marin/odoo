@@ -108,9 +108,6 @@ First differing element 0:
         )
 
     def test_assertRaises_rollbacks(self):
-        """Checks that a "correctly" executing assertRaises (where the expected
-        exception has been raised and caught) will properly rollback.
-        """
         self.env.cr.execute("SET LOCAL test_testing_utilities.a_flag = ''")
         with self.assertRaises(CustomError):
             self.env.cr.execute("SET LOCAL test_testing_utilities.a_flag = 'yes'")
@@ -120,11 +117,6 @@ First differing element 0:
         self.assertEqual(self.env.cr.fetchone(), ("",))
 
     def test_assertRaises_error_at_setup(self):
-        """Checks that an exception raised during the *setup* of assertRaises
-        bubbles up correctly.
-
-        Raises an exception when `savepoint()` calls `flush()` during setup.
-        """
         with (
             mock.patch.object(BaseCursor, "flush", side_effect=CustomError),
             TestCase.assertRaises(self, CustomError),
@@ -133,10 +125,6 @@ First differing element 0:
                 raise NotImplementedError
 
     def test_assertRaises_error_at_exit(self):
-        """Checks that a "correctly" executing assertRaises (where the expected
-        exception has been raised and caught) will properly rollback when the
-        error is raised by flush() while exiting the savepoint.
-        """
         self.env.cr.execute("SET LOCAL test_testing_utilities.a_flag = ''")
         with mock.patch.object(BaseCursor, "flush", side_effect=[None, CustomError]):
             with self.assertRaises(CustomError):
@@ -147,15 +135,10 @@ First differing element 0:
 
     @mute_logger("odoo.db")
     def test_assertRaises_clear_recovery(self):
-        """Checks that the savepoint is correctly rolled back if an error occurs
-        during the assertRaises setup
 
-        Raises an exception during the first `clear()` calls which immediately
-        follows the initialisation of the savepoint iff we're expecting an
-        AccessError.
-        """
-
-        def clear(call_count=itertools.count()):
+        # The evaluated-once default is the mechanism here: `clear` has to fail
+        # on its first call only, so the counter must persist across calls.
+        def clear(call_count=itertools.count()):  # noqa: B008  see comment above
             if next(call_count) == 0:
                 self.env.cr.execute("select nonsense")
 

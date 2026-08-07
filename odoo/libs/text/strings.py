@@ -1,8 +1,3 @@
-"""String manipulation utilities.
-
-Pure Python text helpers with no Odoo dependencies.
-"""
-
 __all__ = ["get_flag", "human_size", "mod10r", "remove_accents", "str2bool"]
 
 import unicodedata
@@ -11,19 +6,6 @@ from typing import Literal
 
 
 def remove_accents(input_str: str) -> str:
-    """Strip combining marks from latin letters (é -> e).
-
-    Lossy: stripping accents changes meaning in languages that distinguish them.
-
-    The result is **not** guaranteed to be ASCII -- do not rely on it as an
-    ASCII-folding step. Letters with no combining decomposition survive intact
-    (``ø``, ``đ``, ``ł``, ``ß``), and NFKD also folds compatibility characters,
-    so a vulgar fraction expands to digits joined by U+2044 FRACTION SLASH and
-    the ``fi`` ligature expands to two letters.
-
-    :param input_str: String with potential accented characters
-    :returns: String with combining marks removed
-    """
     if not input_str:
         return input_str
     nkfd_form = unicodedata.normalize("NFKD", input_str)
@@ -31,16 +13,6 @@ def remove_accents(input_str: str) -> str:
 
 
 def human_size(sz: float | str) -> str | Literal[False]:
-    """Return the size in a human readable format.
-
-    A ``str`` argument is measured with ``len()``: binary fields hand over
-    their (base64) payload directly and want the length of that payload.
-
-    :param sz: Size in bytes, or a string whose length is the size
-    :returns: Human readable size string like "1.23 Mb", or ``False`` if ``sz``
-        is falsy -- ``odoo.orm.fields.binary`` relies on that False to mean
-        "no value", so it is not simply "0.00 bytes"
-    """
     if not sz:
         return False
     units = ("bytes", "Kb", "Mb", "Gb", "Tb", "Pb", "Eb")
@@ -54,26 +26,6 @@ def human_size(sz: float | str) -> str | Literal[False]:
 
 
 def str2bool(s: str, default: bool | None = None) -> bool:
-    """Convert a string to a boolean value.
-
-    Accepts common boolean string representations:
-    - True: 'y', 'yes', '1', 'true', 't', 'on'
-    - False: 'n', 'no', '0', 'false', 'f', 'off'
-
-    :param s: String to convert
-    :param default: Default value if string is not recognized
-    :returns: Boolean value
-    :raises ValueError: If string is not recognized and no default provided
-
-    Example::
-
-        >>> str2bool('yes')
-        True
-        >>> str2bool('0')
-        False
-        >>> str2bool('maybe', default=False)
-        False
-    """
     if type(s) is bool:
         return s
 
@@ -100,18 +52,6 @@ def str2bool(s: str, default: bool | None = None) -> bool:
 
 
 def mod10r(number: str) -> str:
-    """Compute the recursive mod10 check digit for a number.
-
-    Used for Swiss payment slips (BVR/ESR) and similar applications.
-
-    :param number: Account or invoice number
-    :returns: The same number completed with the recursive mod10 key
-
-    Example::
-
-        >>> mod10r('123456')
-        '1234565'
-    """
     codec = [0, 9, 4, 6, 8, 2, 7, 1, 3, 5]
     report = 0
     result = ""
@@ -126,21 +66,6 @@ _REGIONAL_INDICATOR_A = 0x1F1E6
 
 
 def get_flag(country_code: str) -> str:
-    """Get the emoji representing the flag linked to the country code.
-
-    This emoji is composed of the two regional indicator emoji of the country code.
-
-    :param country_code: Two-letter ISO country code (e.g., 'US', 'MX', 'FR')
-    :returns: The flag emoji for the given country
-    :raises ValueError: if ``country_code`` is not exactly two ASCII letters
-
-    Example::
-
-        >>> get_flag('US')
-        '🇺🇸'
-        >>> get_flag('MX')
-        '🇲🇽'
-    """
     code = country_code.upper()
     if len(code) != 2 or not ("A" <= code[0] <= "Z" and "A" <= code[1] <= "Z"):
         msg = f"country_code must be two ASCII letters, got {country_code!r}"

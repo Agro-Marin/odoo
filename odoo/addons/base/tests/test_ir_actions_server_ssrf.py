@@ -5,13 +5,6 @@ from odoo.addons.base.models.ir_actions_server import _webhook_url_blocked_reaso
 
 @tagged("post_install", "-at_install")
 class TestWebhookSsrfGuard(BaseCase):
-    """Neither half of the guard subsumes the other.
-
-    ``100.64.0.1`` is global-but-not-private, and every multicast address is
-    private-but-not-global (``is_private`` covers neither ``224.0.0.0/4`` nor
-    ``ff00::/8``), so dropping either predicate lets one of these through.
-    """
-
     def test_non_global_literals_are_blocked(self):
         for host in (
             "127.0.0.1",

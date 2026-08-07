@@ -27,12 +27,6 @@ class TestConvertVersion(BaseCase):
 
 
 class TestMigrationApplies(BaseCase):
-    """Version comparator extracted from MigrationManager.
-
-    Cases use the running ``major_version`` where possible, and literal
-    cross-major versions for the majorless invariant, so they hold on any release.
-    """
-
     def test_full_version_runs_once_then_stops(self):
         target = f"{major_version}.2.1"
         self.assertTrue(_migration_applies(target, f"{major_version}.2.0", target))
@@ -62,8 +56,6 @@ class TestMigrationApplies(BaseCase):
 
 
 class TestVersionRegex(BaseCase):
-    """VERSION_RE accepts full [server-prefix.]module-version strings only."""
-
     def test_plain_module_versions(self):
         self.assertTrue(VERSION_RE.match("1.0"))
         self.assertTrue(VERSION_RE.match("19.0.1.0"))
@@ -86,8 +78,6 @@ class TestVersionRegex(BaseCase):
 
 
 class TestUpgradeScriptDiscovery(BaseCase):
-    """Module-level helpers extracted from MigrationManager._get_files."""
-
     def _tmpdir(self):
         d = tempfile.mkdtemp(prefix="odoo_test_upgrade_")
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)

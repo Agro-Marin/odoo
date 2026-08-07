@@ -1,9 +1,3 @@
-"""Expression and specification parsing for the ORM.
-
-Parsing for field expressions, read_group specifications, and import/export
-field paths. Widely shared (6+ consumers for parse_field_expr alone).
-"""
-
 import functools
 import re
 
@@ -47,13 +41,6 @@ _PARSE_CACHE_MAXSIZE = 2048
 
 @functools.lru_cache(maxsize=_PARSE_CACHE_MAXSIZE)
 def parse_field_expr(field_expr: str) -> tuple[str, str | None]:
-    """Parse ``"field"`` or ``"field.property"`` into ``(field, property)``.
-
-    ``property`` is ``None`` when absent.
-
-    :raises ValueError: empty or malformed expression (leading/trailing dot,
-        or an empty segment between dots).
-    """
     raw = field_expr
     if (property_index := field_expr.find(".")) >= 0:
         property_name = field_expr[property_index + 1 :]
@@ -73,13 +60,6 @@ def parse_field_expr(field_expr: str) -> tuple[str, str | None]:
 
 @functools.lru_cache(maxsize=_PARSE_CACHE_MAXSIZE)
 def parse_read_group_spec(spec: str) -> tuple[str, str | None, str | None]:
-    """Parse a read_group spec into ``(field, property, aggregate/granularity)``.
-
-    E.g. ``"amount:sum"`` → ``('amount', None, 'sum')``;
-    ``"properties.color:count"`` → ``('properties', 'color', 'count')``.
-
-    :raises ValueError: if the spec format is invalid.
-    """
     res_match = regex_read_group_spec.match(spec)
     if not res_match:
         raise ValueError(
@@ -94,12 +74,6 @@ def parse_read_group_spec(spec: str) -> tuple[str, str | None, str | None]:
 
 @functools.lru_cache(maxsize=_PARSE_CACHE_MAXSIZE)
 def fix_import_export_id_paths(fieldname: str) -> tuple[str, ...]:
-    """Normalize import/export id syntax and split the field path on '/'.
-
-    Converts ``.id`` (database id) to ``/.id`` and ``:id`` (external id) to
-    ``/id``, then splits into a tuple. E.g. ``"partner_id.id"`` →
-    ``('partner_id', '.id')``; ``"partner_id:id"`` → ``('partner_id', 'id')``.
-    """
     fixed_db_id = _FIX_DB_ID_RE.sub(r"\1/.id", fieldname)
     fixed_external_id = _FIX_EXTERNAL_ID_RE.sub(r"\1/id", fixed_db_id)
     return tuple(fixed_external_id.split("/"))

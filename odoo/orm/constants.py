@@ -1,10 +1,3 @@
-"""ORM SQL/read_group constants: time/number granularity, aggregates, display
-formats, and shared ORDER BY fragments.
-
-Kept separate from primitives.py because they depend on dateutil and have a
-narrower audience.
-"""
-
 from typing import TYPE_CHECKING, Final
 
 import dateutil.relativedelta

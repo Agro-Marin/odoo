@@ -1,8 +1,3 @@
-"""Traversal and transformation mixin for BaseModel.
-
-Provides mapped, filtered, grouped, sorted, and update.
-"""
-
 import functools
 import typing
 from collections import defaultdict
@@ -38,8 +33,6 @@ T = typing.TypeVar("T")
 
 @functools.total_ordering
 class ReversibleComparator:
-    """A comparator that supports reverse ordering and None handling."""
-
     __slots__ = ("__item", "__none_first", "__reverse")
 
     def __init__(self, item, reverse: bool, none_first: bool):
@@ -73,8 +66,6 @@ class ReversibleComparator:
 
 
 class TraversalMixin(_ModelStubs):
-    """Mixin providing traversal and transformation operations for recordsets."""
-
     __slots__ = ()
 
     @typing.overload
@@ -85,31 +76,6 @@ class TraversalMixin(_ModelStubs):
 
     @api.private
     def mapped(self, func: str | Callable) -> list | Self:
-        """Apply ``func`` on all records in ``self``, and return the result as a
-        list or a recordset (if ``func`` return recordsets). In the latter
-        case, the order of the returned recordset is arbitrary.
-
-        :param func: a function or a dot-separated sequence of field names
-        :return: self if func is falsy, result of func applied to all ``self`` records.
-
-        .. code-block:: python3
-
-            # returns a list of summing two fields for each record in the set
-            records.mapped(lambda r: r.field1 + r.field2)
-
-        The provided function can be a string to get field values:
-
-        .. code-block:: python3
-
-            # returns a list of names
-            records.mapped("name")
-
-            # returns a recordset of partners
-            records.mapped("partner_id")
-
-            # returns the union of all partner banks, with duplicates removed
-            records.mapped("partner_id.bank_ids")
-        """
         if not func:
             return self
 
@@ -126,11 +92,6 @@ class TraversalMixin(_ModelStubs):
                 return getter(records)
             if not records:
                 return []
-            # Check access on the WHOLE recordset, not records[:1]: a
-            # record-sensitive override (res.users._has_field_access grants a
-            # field on the current user's own record) would otherwise pass on
-            # the first record and let the batch cache-read below serve other
-            # records' restricted values unchecked. Matches ReadMixin._read_format.
             field.ensure_access(records)
             field.ensure_computed(records)
             field_cache = field._get_cache(records.env)
@@ -170,19 +131,6 @@ class TraversalMixin(_ModelStubs):
 
     @api.private
     def filtered(self, func: str | Callable[[Self], bool] | Domain) -> Self:
-        """Return the records in ``self`` satisfying ``func``.
-
-        :param func: a function, Domain or a dot-separated sequence of field names
-        :return: recordset of records satisfying func, may be empty.
-
-        .. code-block:: python3
-
-            # only keep records whose company is the current user's
-            records.filtered(lambda r: r.company_id == user.company_id)
-
-            # only keep records whose partner is a company
-            records.filtered("partner_id.is_company")
-        """
         if not func:
             return self
         if not self:
@@ -202,7 +150,6 @@ class TraversalMixin(_ModelStubs):
             if not can_scan_truthy(field):
                 _field_get = field.__get__
                 return self.browse(rec._ids[0] for rec in self if _field_get(rec))
-            # Full recordset, not self[0:1] — see MappedMixin note above.
             field.ensure_access(self)
             field.ensure_computed(self)
             field_cache = field._get_cache(self.env)
@@ -234,27 +181,12 @@ class TraversalMixin(_ModelStubs):
 
     @api.private
     def grouped(self, key: str | Callable) -> dict:
-        """Eagerly groups the records of ``self`` by the ``key``, returning a
-        dict from the ``key``'s result to recordsets. All the resulting
-        recordsets are guaranteed to be part of the same prefetch-set.
-
-        Provides a convenience method to partition existing recordsets without
-        the overhead of a :meth:`~._read_group`, but performs no aggregation.
-
-        .. note:: unlike :func:`itertools.groupby`, does not care about input
-                  ordering, however the tradeoff is that it can not be lazy
-
-        :param key: either a callable from a :class:`Model` to a (hashable)
-                    value, or a field name. In the latter case, it is equivalent
-                    to ``itemgetter(key)`` (aka the named field's value)
-        """
         if not self:
             return {}
 
         if isinstance(key, str):
             field = self._fields[key]
             if not field.relational:
-                # Full recordset, not self[:1] — see MappedMixin note above.
                 field.ensure_access(self)
                 field.ensure_computed(self)
                 field_cache = field._get_cache(self.env)
@@ -316,10 +248,6 @@ class TraversalMixin(_ModelStubs):
 
     @api.private
     def filtered_domain(self, domain: DomainType) -> Self:
-        """Return the records in ``self`` satisfying the domain and keeping the same order.
-
-        :param domain: :ref:`A search domain <reference/orm/domains>`.
-        """
         if not self or not domain:
             return self
         predicate = Domain(domain)._as_predicate(self)
@@ -335,41 +263,6 @@ class TraversalMixin(_ModelStubs):
         key: str | Callable[[Self], typing.Any] | None = None,
         reverse: bool = False,
     ) -> Self:
-        """Return the recordset ``self`` ordered by ``key``.
-
-        :param key:
-            It can be either of:
-
-            * a function of one argument that returns a comparison key for each record
-            * a string representing a comma-separated list of field names with optional
-              NULLS (FIRST|LAST), and (ASC|DESC) directions
-            * ``None``, in which case records are ordered according the default model's order
-        :param reverse: if ``True``, return the result in reverse order
-
-        .. code-block:: python3
-
-            # sort records by name
-            records.sorted(key=lambda r: r.name)
-            # sort records by name in descending order, then by id
-            records.sorted("name DESC, id")
-            # sort records using default order
-            records.sorted()
-
-        .. note:: **Text order matches ``search(order=...)`` only under
-            ``LC_COLLATE=C``.** This sorts by Python comparison (Unicode code
-            point); ``ORDER BY`` sorts by the database's collation.  Odoo creates
-            every database with ``LC_COLLATE 'C'``
-            (``service/db.py::_create_empty_database``), where byte order and
-            code-point order coincide and the two agree -- that equivalence is
-            what makes this method safe to use interchangeably with a search.
-
-            It does not hold on a database created outside Odoo, or from a
-            configured ``db_template`` that is not itself ``C`` (PostgreSQL
-            refuses to override a template's collation, so such a template
-            propagates its own).  There ``es_ES.UTF-8`` orders ``apple, Apple,
-            ápple`` and Python orders ``Apple, ápple, apple``; sort in SQL when
-            the order is user-visible.
-        """
         if len(self) < 2:
             return self
         if isinstance(key, str):
@@ -390,47 +283,16 @@ class TraversalMixin(_ModelStubs):
         return self._spawn(self.env, ids, self._prefetch_ids)
 
     def _sorted_ensure_computed(self, order: str) -> None:
-        """Pre-trigger access check + recomputation for all sort fields.
-
-        Called before Python's ``sorted()`` so that each per-record key
-        extraction can bypass ``__get__`` and read the cache directly.
-        """
         _fields = self._fields
         for part in order.split(","):
             match = regex_order.match(part)
             if match:
                 field = _fields.get(match["field"])
                 if field is not None:
-                    # Full recordset, not self[:1] — see MappedMixin note above.
                     field.ensure_access(self)
                     field.ensure_computed(self)
 
     def _sorted_by_ids(self, order: str, reverse: bool) -> tuple | None:
-        """Try to sort ``self._ids`` directly from cache values.
-
-        Handles single- and multi-field sorts, avoiding the N singleton records
-        the general ``sorted(self, key=...)`` path requires.
-
-        A multi-key sort is performed as **successive stable single-key sorts,
-        least significant key first** -- the classic radix argument: a stable
-        sort preserves the order established by the previous pass, so after the
-        last (most significant) pass the sequence is in full lexicographic
-        order.  That turns every column into another call of the same Rust
-        primitive the single-key path already uses, instead of building N Python
-        tuple keys, and it makes each column's direction independent, so the
-        mixed-direction case no longer has to bail out to the record-based
-        ``sorted(self, key=...)`` fallback (``"name desc, id asc"`` measured 31x
-        faster, ``"sequence, id"`` -- the default ``_order`` of a great many
-        models -- 4.7x).
-
-        Correctness rests on the primitive being stable *and* applying
-        ``reverse`` to the comparator rather than reversing the result, which is
-        also CPython's ``list.sort`` semantics; both are pinned by
-        ``test_sorted_multi_key.py``.
-
-        :return: the sorted tuple of IDs, or ``None`` if the fast path does not
-            apply (relational, property, boolean, or cache miss)
-        """
         _PENDING = PENDING
         _fields = self._fields
         env = self.env
@@ -548,20 +410,10 @@ class TraversalMixin(_ModelStubs):
 
     @api.private
     def update(self, values: dict[str, typing.Any]) -> None:
-        """Update the records in ``self`` with ``values``."""
         for name, value in values.items():
             self[name] = value
 
     def _has_cycle(self, field_name: str | None = None) -> bool:
-        """Return whether the records in ``self`` form a loop along ``field_name``
-        (default: the parent field).
-
-        No EXCLUSIVE LOCK is taken (for performance), so concurrent transactions
-        may still create loops.
-
-        :param field_name: optional field name (default: ``self._parent_name``)
-        :return: ``True`` if a loop was found
-        """
         if not field_name:
             field_name = self._parent_name
 

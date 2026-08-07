@@ -1,9 +1,3 @@
-"""BaseModel — the core ORM class, plus the Model subclass.
-
-Operational logic lives in the mixins; this file holds model identity,
-field/method discovery, and coordination.
-"""
-
 import collections
 import functools
 import logging
@@ -74,54 +68,19 @@ class BaseModel(
     _ModelMetadataMixin,
     metaclass=MetaModel,
 ):
-    """Base class for Odoo models.
-
-    Odoo models are created by inheriting one of the following:
-
-    *   :class:`Model` for regular database-persisted models
-
-    *   :class:`TransientModel` for temporary data, stored in the database but
-        automatically vacuumed every so often
-
-    *   :class:`AbstractModel` for abstract super classes meant to be shared by
-        multiple inheriting models
-
-    The system automatically instantiates every model once per database. Those
-    instances represent the available models on each database, and depend on
-    which modules are installed on that database. The actual class of each
-    instance is built from the Python classes that create and inherit from the
-    corresponding model.
-
-    Every model instance is a "recordset", i.e., an ordered collection of
-    records of the model. Recordsets are returned by methods like
-    :meth:`~.browse`, :meth:`~.search`, or field accesses. Records have no
-    explicit representation: a record is represented as a recordset of one
-    record.
-
-    To create a class that should not be instantiated,
-    the :attr:`~odoo.models.BaseModel._register` attribute may be set to False.
-    """
-
     __slots__ = ["_ids", "_prefetch_ids", "env"]
 
-    # MetaModel reads this out of the raw class-body ``attrs`` dict, not off the
-    # class, so unlike the rest of the metadata (now in _ModelMetadataMixin) it
-    # cannot be inherited: attrs.get("_register", True) would be True and
-    # BaseModel would try to register itself as an addon model.
     _register: bool = False
 
     def _valid_field_parameter(self, field: Field, name: str) -> bool:
-        """Return whether the given parameter name is valid for the field."""
         return name == "related_sudo"
 
     @api.model
     def _post_model_setup__(self) -> None:
-        """Method called after the model has been setup."""
         pass
 
     @property
     def _ondelete_methods(self) -> list:
-        """Return a list of methods implementing checks before unlinking."""
 
         def is_ondelete(func):
             return callable(func) and hasattr(func, "_ondelete")
@@ -135,7 +94,6 @@ class BaseModel(
 
     @property
     def _onchange_methods(self) -> dict[str, list]:
-        """Return a dictionary mapping field names to onchange methods."""
 
         def is_onchange(func):
             return callable(func) and hasattr(func, "_onchange")
@@ -184,13 +142,6 @@ class BaseModel(
         )
     )
     def _compute_display_name(self) -> None:
-        """Compute the value of the `display_name` field.
-
-        The `display_name` field is a textual representation of the record.
-        This method can be overridden to change the representation.  If needed,
-        it can be made field-dependent using :attr:`~odoo.api.depends` and
-        context-dependent using :attr:`~odoo.api.depends_context`.
-        """
         if self._rec_name:
             convert = self._fields[self._rec_name].convert_to_display_name
             for record in self:
@@ -201,17 +152,6 @@ class BaseModel(
 
     @api.model
     def name_create(self, name: str) -> tuple[int, str]:
-        """Create a new record by calling :meth:`~.create` with only one value
-        provided: the display name of the new record.
-
-        The new record will be initialized with any default values
-        applicable to this model, or provided through the context. The usual
-        behavior of :meth:`~.create` applies.
-
-        :param name: display name of the record to create
-        :return: the (id, display_name) pair value of the created record
-        :raise UserError: if the model has no ``_rec_name`` defined.
-        """
         if not self._rec_name:
             raise UserError(
                 f"Cannot execute name_create: no _rec_name defined on {self._name}"
@@ -220,13 +160,6 @@ class BaseModel(
         return record.id, record.display_name
 
     def get_base_url(self) -> str:
-        """Return the root URL for this record.
-
-        By default the ``web.base.url`` system parameter; may be overridden
-        per model.
-
-        :return: the base url for this record
-        """
         if len(self) > 1:
             raise ValueError(f"Expected singleton or no record: {self}")
         return self.env["ir.config_parameter"].sudo().get_param("web.base.url")
@@ -254,16 +187,6 @@ AbstractModel = BaseModel
 
 
 class Model(AbstractModel):
-    """Main super-class for regular database-persisted Odoo models.
-
-    Odoo models are created by inheriting from this class::
-
-        class ResUsers(Model): ...
-
-    The system will later instantiate the class once per database (on
-    which the class' module is installed).
-    """
-
     _auto: bool = True
     _register: bool = False
     _abstract: typing.Literal[False] = False

@@ -44,7 +44,6 @@ class TestBarcode(TransactionCase):
         )
 
     def test_barcode_fallback_to_code128(self):
-        """EAN8 with invalid encoding falls back to Code128 without error."""
         Report = self.env["ir.actions.report"]
         result = Report.barcode("EAN8", "ABCDEFGH")
         self.assertTrue(result, "barcode fallback to Code128 should produce output")
@@ -54,25 +53,11 @@ class TestBarcode(TransactionCase):
         )
 
     def test_barcode_fallback_preserves_humanreadable(self):
-        """Barcode fallback must not lose humanReadable setting.
-
-        Regression test: the old recursive fallback re-processed kwargs
-        through the defaults dict, losing the humanreadable→humanReadable
-        rename done in the first pass.
-        """
         Report = self.env["ir.actions.report"]
         result = Report.barcode("EAN8", "ABCDEFGH", humanreadable=1)
         self.assertTrue(result, "barcode with humanreadable should produce output")
 
     def test_barcode_tolerates_string_bool_options(self):
-        """quiet/humanreadable options arrive as strings from URLs/templates.
-
-        Regression test: the old ``bool(int(x))`` validators raised
-        ``ValueError`` on any non-numeric string (e.g. ``quiet="true"``),
-        surfacing as an HTTP 400 or a silently-dropped barcode. They must now
-        coerce common truthy/falsy spellings and fall back to the default
-        otherwise, never raising.
-        """
         Report = self.env["ir.actions.report"]
         for value in ("true", "yes", "on", "1", "false", "0", "", "garbage"):
             result = Report.barcode(

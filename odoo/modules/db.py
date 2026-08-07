@@ -49,22 +49,10 @@ _AUTO_INSTALL_CLOSURE_QUERY = """
 
 
 def is_initialized(cr: Cursor) -> bool:
-    """Check if a database has been initialized for the ORM.
-
-    The database can be initialized with the 'initialize' function below.
-
-    """
     return _db_schema.table_exists(cr, "ir_module_module")
 
 
 def initialize(cr: Cursor) -> None:
-    """Initialize a database for the ORM.
-
-    This executes base/data/base_data.sql, creates the ir_module_categories
-    (taken from each module descriptor file), and creates the ir_module_module
-    and ir_model_data entries.
-
-    """
     try:
         f = odoo.tools.misc.file_path("base/data/base_data.sql")
     except FileNotFoundError as e:
@@ -170,19 +158,6 @@ def create_categories(
     categories: list[str],
     category_cache: dict[str, int] | None = None,
 ) -> int | None:
-    """Create the ir_module_category entries for some categories.
-
-    categories is a list of strings forming a single category with its
-    parent categories, like ['Grand Parent', 'Parent', 'Child'].
-
-    ``category_cache`` (xml_id -> category id), when given, avoids re-querying
-    categories already resolved by earlier calls sharing the same dict.  Used
-    by initialize(), which resolves the same few category paths once per
-    module (~1500 modules at bootstrap).
-
-    Return the database id of the (last) category.
-
-    """
     p_id = None
     built = []
     for cat_name in categories:
@@ -232,13 +207,6 @@ class FunctionStatus(IntEnum):
 
 
 def has_unaccent(cr: BaseCursor) -> FunctionStatus:
-    """Test whether the database has function 'unaccent' and return its status.
-
-    The unaccent is supposed to be provided by the PostgreSQL unaccent contrib
-    module but any similar function will be picked by Odoo.
-
-    :rtype: FunctionStatus
-    """
     cr.execute("""
         SELECT p.provolatile
         FROM pg_proc p
@@ -253,12 +221,6 @@ def has_unaccent(cr: BaseCursor) -> FunctionStatus:
 
 
 def has_trigram(cr: BaseCursor) -> bool:
-    """Test if the database has a word_similarity function.
-
-    The word_similarity is supposed to be provided by the PostgreSQL built-in
-    pg_trgm module but any similar function will be picked by Odoo.
-
-    """
     cr.execute("""
         SELECT 1 FROM pg_proc
         WHERE proname = 'word_similarity'
@@ -276,25 +238,6 @@ def initialize_db(
     country_code: str | None = None,
     phone: str | None = None,
 ) -> None:
-    """Initialize a new database with modules, admin user, and company settings.
-
-    Performs:
-    - Creating the module registry and loading modules
-    - Installing language translations
-    - Configuring the company based on country
-    - Setting up the admin user credentials
-
-    This complements the low-level `initialize()` function which handles
-    schema creation.
-
-    :param db_name: Name of the database to initialize
-    :param demo: Whether to install demo data
-    :param lang: Language code (e.g., 'en_US', 'fr_FR')
-    :param user_password: Password for the admin user
-    :param login: Login name for the admin user (default: 'admin')
-    :param country_code: ISO country code for company configuration
-    :param phone: Phone number for the company
-    """
     normalized_country = country_code.upper() if country_code else None
 
     saved_load_language = odoo.tools.config.get("load_language")

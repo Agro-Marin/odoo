@@ -1,8 +1,3 @@
-"""DB-free unit tests for the geoip null-sentinel, now colocated in geoip.py.
-
-Run via ``pytest odoo/http/tests``.
-"""
-
 from odoo.http.geoip import _GEOIP_NULL, _GeoIPNull
 
 
@@ -14,8 +9,8 @@ def test_null_sentinel_is_chainable_and_falsy():
 
 
 def test_null_sentinel_equals_none_only():
-    assert (_GEOIP_NULL == None) is True
-    assert (_GEOIP_NULL != None) is False
+    assert (_GEOIP_NULL == None) is True  # noqa: E711  the sentinel's __eq__(None) IS the subject
+    assert (_GEOIP_NULL != None) is False  # noqa: E711  same: `is not None` would test nothing
     assert _GEOIP_NULL.__eq__(object()) is False
     assert _GEOIP_NULL.__eq__(_GEOIP_NULL) is True
 
@@ -35,9 +30,6 @@ def test_null_sentinel_hashes_like_none():
 
 
 def test_model_attr_sets_match_real_geoip2():
-    """The hardcoded model-attribute sets used in geoip2-absent mode must not
-    drift from the real geoip2 model surface (skipped when geoip2 is absent —
-    then there is nothing to compare against)."""
     import pytest
 
     from odoo.http import geoip as geoip_mod
@@ -57,9 +49,6 @@ def test_model_attr_sets_match_real_geoip2():
 
 
 def test_getattr_typo_raises_even_without_geoip2():
-    """Regression: with geoip2 absent, ``hasattr`` probes against the null
-    sentinel answered True for ANY name, so a typo'd attribute chained
-    silently here while raising AttributeError on a geoip2-equipped host."""
     import types
 
     import pytest

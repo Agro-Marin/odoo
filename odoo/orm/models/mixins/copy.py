@@ -1,5 +1,3 @@
-"""Record duplication mixin for BaseModel: copy, copy_data, copy_translations."""
-
 import logging
 import typing
 from collections import defaultdict
@@ -16,16 +14,9 @@ _logger = logging.getLogger("odoo.models")
 
 
 class CopyMixin(_ModelStubs):
-    """Mixin providing record duplication operations."""
-
     __slots__ = ()
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
-        """Copy each record's field values.
-
-        :param default: field values to override in the copied records
-        :return: list of dicts of field values
-        """
         vals_list = []
         default = dict(default or {})
         if "__copy_data_seen" not in self.env.context:
@@ -75,11 +66,6 @@ class CopyMixin(_ModelStubs):
         return vals_list
 
     def copy_translations(self, new: Self, excluded: Collection[str] = ()) -> None:
-        """Recursively copy the translations from ``self`` to a new record.
-
-        :param new: the new record (copy of the original one)
-        :param excluded: a container of user-provided field names
-        """
         old = self
         if "__copy_translations_seen" not in old.env.context:
             old = old.with_context(__copy_translations_seen=defaultdict(set))
@@ -158,12 +144,6 @@ class CopyMixin(_ModelStubs):
                     new.update_field_translations(name, translations)
 
     def copy(self, default: ValuesType | None = None) -> Self:
-        """Duplicate record ``self`` updating it with default values.
-
-        :param default: field values to override in the copied records,
-               e.g. ``{'field_name': overridden_value, ...}``
-        :returns: new records
-        """
         vals_list = self.with_context(active_test=False).copy_data(default)
         pairs = [
             (rec, vals)

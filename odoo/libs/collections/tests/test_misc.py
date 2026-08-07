@@ -1,5 +1,3 @@
-"""Regression tests for the collection adapters in ``odoo.libs.collections.misc``."""
-
 import unittest
 
 from odoo.libs.collections.misc import Collector, StackMap
@@ -24,8 +22,6 @@ class TestCollector(unittest.TestCase):
 
 
 class TestStackMapLen(unittest.TestCase):
-    """``__len__`` counts DISTINCT keys across the whole stack."""
-
     def test_shadowed_key_counted_once(self):
         sm = StackMap({"a": 1})
         sm.pushmap({"a": 2, "b": 3})

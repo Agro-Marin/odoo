@@ -1,21 +1,3 @@
-"""Free-threading (PEP 703) stress test for the frozen ModelGraph.
-
-``ModelGraph`` is process-shared (one per registry) and read concurrently by
-request-handling threads. Its derived caches used to be filled lazily on first
-read, so the first reader *mutated* shared dicts. On free-threaded CPython this
-is not a corruption hazard (the dict operations are thread-safe) but it causes
-redundant concurrent rebuilds; ``ModelGraph.freeze()`` precomputes the caches so
-reads are pure lookups with no rebuild or write.
-
-This test hammers a frozen graph from many threads and asserts (a) no thread
-raises, (b) the cache key-sets never grow (the freeze made reads write-free),
-and (c) every thread sees identical results. Under the GIL this verifies the
-harness and the read-consistency / no-mutation invariant; under a free-threaded
-interpreter (``python3.14t``, ``PYTHON_GIL=0`` — see the freethreading CI lane)
-it exercises that the frozen read path performs no shared-state mutation under
-real parallelism.
-"""
-
 import threading
 import unittest
 

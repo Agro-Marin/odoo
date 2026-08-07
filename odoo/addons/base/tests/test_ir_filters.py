@@ -13,7 +13,6 @@ _logger = logging.getLogger(__name__)
 
 
 def noid(seq):
-    """Drop keys irrelevant to test comparisons."""
     for d in seq:
         d.pop("id", None)
         d.pop("action_id", None)
@@ -389,10 +388,6 @@ class TestEmbeddedFilters(FiltersCase):
 
 @tagged("post_install", "-at_install")
 class TestCreateFilterValidation(FiltersCase):
-    """IRF-L1: create_filter must reject a favorite whose domain/context is not
-    a list/dict, so one malformed RPC favorite cannot break the shared dropdown.
-    """
-
     def test_create_filter_rejects_non_list_domain(self):
         with self.assertRaises(ValidationError):
             self.env["ir.filters"].create_filter(
@@ -441,11 +436,6 @@ class TestCreateFilterValidation(FiltersCase):
 
 @tagged("post_install", "-at_install")
 class TestConstrainsValidation(FiltersCase):
-    """IRF-L2 / IRF-C1: validation must run on every write path (raw ORM
-    ``create``/``write``, not only ``create_filter``), and ``sort`` must be a
-    list of strings.
-    """
-
     def test_raw_create_rejects_non_list_domain(self):
         with self.assertRaises(ValidationError):
             self.env["ir.filters"].create(
@@ -508,12 +498,6 @@ class TestConstrainsValidation(FiltersCase):
 
 @tagged("post_install", "-at_install")
 class TestDynamicDomainValidation(FiltersCase):
-    """IRF-L3: the web client saves favorite domains *unevaluated* so they stay
-    dynamic (``uid``, ``context_today()``, ...). Validation is structural — it
-    must accept these expressions while still rejecting malformed shapes and
-    non-whitelisted names, so one bad blob cannot poison the shared dropdown.
-    """
-
     DYNAMIC_UID_DOMAIN = '[("create_uid", "=", uid)]'
     DYNAMIC_DATE_DOMAIN = (
         '[("activity_date", ">=", '
@@ -590,12 +574,6 @@ class TestDynamicDomainValidation(FiltersCase):
 
 @tagged("post_install", "-at_install")
 class TestCrossUserWrite(FiltersCase):
-    """IRF-T1: pin the cross-user write contract. Absent a record rule,
-    ``ir.filters`` grants full CRUD to ``group_user``, so any internal user can
-    edit a global (shared) filter; documented so a future record-rule change is
-    deliberate.
-    """
-
     def test_internal_user_can_write_global_filter(self):
         global_filter = self.env["ir.filters"].create(
             {"name": "global", "model_id": "ir.filters", "user_ids": []}
@@ -605,15 +583,6 @@ class TestCrossUserWrite(FiltersCase):
 
 
 class TestSortColumnCheck(TransactionCase):
-    """The ``sort`` column check must reject, not fail.
-
-    PostgreSQL evaluates it on the INSERT itself, before ``@api.constrains``
-    gets a chance. Phrased as ``jsonb_typeof(sort::jsonb)`` it raised a bare
-    ``invalid input syntax for type json`` on any non-JSON text -- a DataError
-    no layer maps to a user-facing message, so a malformed sort surfaced as a
-    500 rather than "Invalid sort definition".
-    """
-
     def _create(self, sort):
         return self.env["ir.filters"].create(
             {

@@ -1,13 +1,3 @@
-"""Typed exceptions replace English-substring matching at the libs->tools seam.
-
-``odoo.tools.image`` and ``odoo.tools.template_inheritance`` used to pick their
-translated ``UserError`` / ``ValidationError`` by testing whether a hardcoded
-English phrase was ``in str(exception)``.  Rewording the message in ``odoo.libs``
-silently broke that routing.  The libs now raise dedicated subclasses of
-``ValueError`` (so every existing ``except ValueError`` keeps working) and the
-wrappers branch on the type.
-"""
-
 import unittest
 
 from odoo.libs.image import (

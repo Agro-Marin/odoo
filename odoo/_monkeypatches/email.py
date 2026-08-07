@@ -1,21 +1,3 @@
-"""Install Odoo's outgoing-mail folding policy as the process-wide
-``email.policy.SMTP``.
-
-Python's default SMTP policy folds every long header at 78 columns. Two classes
-of header must not be folded that aggressively:
-
-- **Identification headers** (``Message-Id``, ``References``, ...) carry opaque
-  tokens. A number of MTAs and mail clients fail to re-join a folded identifier,
-  which breaks threading and bounce correlation, so they are never folded.
-- **User-defined headers** (``To``, ``Subject``, ...) may legitimately be long;
-  they are folded only at the RFC 5322 hard limit of 998 characters.
-
-This lives here rather than in ``ir_mail_server`` so the substitution happens
-once, at startup, before any addon can capture the stdlib object -- a module
-that ran ``from email.policy import SMTP`` before the addon was imported would
-otherwise keep the unpatched policy.
-"""
-
 import email.policy
 
 RFC5322_IDENTIFICATION_HEADERS = {
@@ -44,8 +26,6 @@ def patch_module() -> None:
     if isinstance(email.policy.SMTP, IdentificationFieldsNoFoldPolicy):
         return
 
-    # Clone from the stdlib policy while it is still unpatched, otherwise the
-    # delegate policies would be instances of this class and _fold would recurse.
     stdlib_smtp = email.policy.SMTP
     IdentificationFieldsNoFoldPolicy._no_fold_policy = stdlib_smtp.clone(
         max_line_length=None

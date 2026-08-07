@@ -1,15 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.ddl`.
-
-DDL detection and client-side parameter inlining are pure string functions —
-and the security-sensitive core of the cursor layer (a splice bug here is a
-SQL-injection or wrong-statement bug).  They are tested at the lowest tier
-that can express them (coding_guidelines §6): plain pytest, no database, no
-framework import.  ``psycopg.sql.quote`` runs with a null adapter context.
-
-Moved from ``odoo/addons/base/tests/test_db_cursor.py`` so a regression fails
-in milliseconds instead of requiring a live database with ``base`` installed.
-"""
-
 import unittest
 
 from odoo.db.ddl import (
@@ -23,22 +11,10 @@ from odoo.db.ddl import (
 
 
 def _classify_ddl(qs):
-    """Test predicate: ``True`` when *qs* begins with a DDL keyword.
-
-    Production keys off :func:`_ddl_keyword`'s keyword identity directly; these
-    tests pin the underlying gate's yes/no behaviour.
-    """
     return _ddl_keyword(qs) is not None
 
 
 class TestClassifyDdl(unittest.TestCase):
-    """Direct unit tests for the pure ``_classify_ddl`` gate extracted from
-    ``Cursor.execute``.  The gate is a fast 2-char prefix filter over a 64-char
-    window in front of the authoritative ``_RE_DDL`` regex; its only job is to
-    never *disagree* with the regex while skipping it on the hot path.  These
-    run without a connection (the function is pure).
-    """
-
     def test_keywords_detected(self):
         for kw in ("CREATE", "ALTER", "DROP", "COMMENT", "GRANT", "REVOKE", "DO"):
             self.assertTrue(_classify_ddl(f"{kw} something"), kw)
@@ -54,13 +30,6 @@ class TestClassifyDdl(unittest.TestCase):
         self.assertFalse(_classify_ddl("   SELECT 1"))
 
     def test_window_boundary_matches_regex(self):
-        """The 63/64-char window fallback must never disagree with the regex.
-
-        Sweep every indentation length across the window boundary (and past it)
-        for each keyword + a DML control; the fast gate and a bare ``_RE_DDL``
-        match must agree on every one — otherwise deeply-indented DDL slips past
-        the gate (params not inlined, prepared cache not invalidated).
-        """
         from odoo.db.ddl import _RE_DDL
 
         keywords = ("CREATE", "ALTER", "DROP", "COMMENT", "GRANT", "DO", "SELECT")
@@ -77,12 +46,6 @@ class TestClassifyDdl(unittest.TestCase):
 
 
 class TestDdlKeyword(unittest.TestCase):
-    """``_ddl_keyword`` reports the leading DDL keyword (UPPERCASE) so
-    ``Cursor.execute`` can tell schema-changing DDL (invalidate caches) from
-    DDL that only needs client-side param inlining.  ``_classify_ddl`` is now a
-    thin bool wrapper over it.  Pure — runs without a connection.
-    """
-
     def test_keyword_extraction(self):
         cases = {
             "CREATE TABLE t (x int)": "CREATE",
@@ -111,14 +74,11 @@ class TestDdlKeyword(unittest.TestCase):
 
 
 class TestRollbackToSavepointDetection(unittest.TestCase):
-    """``_is_rollback_to_savepoint`` re-arms the catalog-cache hook for raw SQL
-    savepoint rollbacks that bypass ``cr.savepoint()``."""
-
     def test_rollback_to_savepoint_is_detected(self):
         for qs in (
             "ROLLBACK TO SAVEPOINT foo",
             'ROLLBACK TO SAVEPOINT "foo"',
-            "ROLLBACK TO foo",  # SAVEPOINT keyword is optional in PostgreSQL
+            "ROLLBACK TO foo",
             "rollback to savepoint foo",
             "  \n ROLLBACK   TO   SAVEPOINT bar",
             "/* c */ ROLLBACK TO SAVEPOINT baz",
@@ -127,31 +87,23 @@ class TestRollbackToSavepointDetection(unittest.TestCase):
 
     def test_non_partial_rollbacks_are_not_detected(self):
         for qs in (
-            "ROLLBACK",  # ends the whole transaction — handled elsewhere
+            "ROLLBACK",
             "ROLLBACK;",
             "ROLLBACK WORK",
-            "RELEASE SAVEPOINT foo",  # merges, undoes nothing
+            "RELEASE SAVEPOINT foo",
             "SAVEPOINT foo",
             "SELECT 1",
             "UPDATE t SET x = 1",
-            "-- ROLLBACK TO SAVEPOINT foo\nSELECT 1",  # commented out
+            "-- ROLLBACK TO SAVEPOINT foo\nSELECT 1",
         ):
             self.assertFalse(_is_rollback_to_savepoint(qs), qs)
 
     def test_prefix_gate_short_circuits_non_ro_queries(self):
-        # A deeply indented statement still gets classified (no false negative).
         self.assertTrue(_is_rollback_to_savepoint(" " * 40 + "ROLLBACK TO SAVEPOINT x"))
         self.assertFalse(_is_rollback_to_savepoint(" " * 40 + "SELECT 1"))
 
 
 class TestDDLKeywordPrefixGate(unittest.TestCase):
-    """The 2-char prefix gate (``_DDL_PREFIXES``) and the detection regex
-    (``_RE_DDL``) are both *computed* from ``_DDL_KEYWORDS`` at import.  This
-    pins that derivation so they can never disagree on whether a statement is
-    DDL — the guarantee the source comment in ddl.py relies on.  (A drift would
-    silently skip client-side param inlining and prep-cache invalidation.)
-    """
-
     def test_prefixes_are_derived_from_keywords(self):
         from odoo.db.ddl import _COMMENT_PREFIXES, _DDL_KEYWORDS, _DDL_PREFIXES
 
@@ -211,13 +163,6 @@ class TestDDLKeywordPrefixGate(unittest.TestCase):
 
 
 class TestInlineDdlParams(unittest.TestCase):
-    """_inline_ddl_params splices params into DDL as client-side quoted
-    literals (DDL rejects server-side $N parameters).  Extracted from
-    Cursor.execute() so the %%-escape-aware splice — the trickiest bit of
-    the cursor — is unit-testable without a DDL round-trip.  ``quote`` runs
-    with a null adapter context, so these need no database connection.
-    """
-
     def test_positional_inlines_and_quotes(self):
         self.assertEqual(_inline_ddl_params("DEFAULT %s", (7,), None), "DEFAULT 7")
         self.assertEqual(
@@ -269,11 +214,6 @@ class TestInlineDdlParams(unittest.TestCase):
 
 
 class TestFindValueMarkers(unittest.TestCase):
-    """_find_value_markers locates real ``%s`` placeholders and skips ``%%``
-    escapes — the escape-aware scan that execute_values and _inline_ddl_params
-    both rely on.  A naive str.count/replace would mis-handle ``%%s``.
-    """
-
     def test_basic_and_escapes(self):
         self.assertEqual(_find_value_markers("%s and %s"), [0, 7])
         self.assertEqual(_find_value_markers("LIKE 'a%%s'"), [])
@@ -283,14 +223,6 @@ class TestFindValueMarkers(unittest.TestCase):
 
 
 class TestChangesSchema(unittest.TestCase):
-    """Cache invalidation must look past the LEADING statement.
-
-    ``Cursor.execute`` keys the prepared-statement / catalog-cache drop on this,
-    not on ``_ddl_keyword`` alone: a multi-statement string can hide its ALTER
-    behind a harmless first statement, and the next ``SELECT *`` on a cached
-    plan then raises FeatureNotSupported (0A000, not retryable -> HTTP 500).
-    """
-
     def _check(self, qs):
         return _changes_schema(qs, _ddl_keyword(qs))
 
@@ -318,8 +250,6 @@ class TestChangesSchema(unittest.TestCase):
                 self.assertFalse(self._check(qs))
 
     def test_ddl_hidden_behind_a_leading_non_ddl_statement(self):
-        """The reproduced defect: BEGIN hides the ALTER from a leading-keyword
-        test, so the caches were never dropped."""
         for qs in (
             "BEGIN; ALTER TABLE t ADD COLUMN c int; COMMIT",
             "SET LOCAL lock_timeout = '5s'; DROP TABLE t",
@@ -343,9 +273,6 @@ class TestChangesSchema(unittest.TestCase):
         self.assertTrue(_changes_schema(qs, "CREATE"))
 
     def test_over_reports_rather_than_misses(self):
-        """A semicolon inside a literal can produce a false positive; that costs
-        one needless cache drop.  The reverse (missing a real DDL boundary) is
-        what corrupts, and cannot happen: every boundary IS a semicolon."""
         self.assertTrue(self._check("SELECT 'a; DROP TABLE t'"))
 
     def test_no_semicolon_never_pays_for_a_split(self):

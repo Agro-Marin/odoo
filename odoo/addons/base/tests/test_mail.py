@@ -32,8 +32,6 @@ from . import mail_examples
 
 @tagged("mail_sanitize")
 class TestSanitizer(BaseCase):
-    """Test the html sanitizer that filters html to remove unwanted attributes"""
-
     def test_abrupt_close(self):
         payload = """<!--> <script> alert(1) </script> -->"""
         html_result = html_sanitize(payload)
@@ -412,7 +410,6 @@ class TestSanitizer(BaseCase):
                 self.assertIn(text, new_html)
 
     def test_quote_signature_container_propagation(self):
-        """Test that applying normalization twice doesn't quote more than wanted."""
         bare_signature_body = (
             "<div>"
             "<div><p>Hello</p><p>Here is your document</p></div>"
@@ -496,8 +493,6 @@ class TestSanitizer(BaseCase):
 
 @tagged("mail_sanitize")
 class TestHtmlTools(BaseCase):
-    """Test some of our generic utility functions about html"""
-
     def test_plaintext2html(self):
         cases = [
             (
@@ -631,8 +626,6 @@ class TestHtmlTools(BaseCase):
             self.assertFalse(is_html_empty(content))
 
     def test_nl2br_enclose(self):
-        """Test formatting of nl2br when using Markup: consider new <br> tags
-        as trusted without validating the whole input content."""
         source_all = [
             "coucou",
             "<p>coucou</p>",
@@ -715,8 +708,6 @@ class TestHtmlTools(BaseCase):
 
 @tagged("mail_tools")
 class TestEmailTools(BaseCase):
-    """Test some of our generic utility functions for emails"""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -754,8 +745,6 @@ class TestEmailTools(BaseCase):
             self.assertEqual(email_domain_normalize(source), expected, msg)
 
     def test_email_normalize(self):
-        """Test 'email_normalize'. Built on 'email_split', so these cases focus
-        on normalization itself rather than splitting."""
         format_name = "My Super Prénom"
         format_name_ascii = "=?utf-8?b?TXkgU3VwZXIgUHLDqW5vbQ==?="
         sources = [
@@ -817,7 +806,6 @@ class TestEmailTools(BaseCase):
                 )
 
     def test_email_re(self):
-        """Test 'email_re', finding emails in a given text"""
         expected = [
             ["alfred.astaire@test.example.com"],
             ["alfred.astaire@test.example.com"],
@@ -865,7 +853,6 @@ class TestEmailTools(BaseCase):
             )
 
     def test_email_split(self):
-        """Test 'email_split'"""
         cases = [
             ("John <12345@gmail.com>", ["12345@gmail.com"]),
             ("d@x; 1@2", ["d@x", "1@2"]),
@@ -937,8 +924,6 @@ class TestEmailTools(BaseCase):
                 self.assertEqual(email_split(source), expected)
 
     def test_email_split_and_format(self):
-        """Test 'email_split_and_format' (multi encapsulation, multi emails);
-        also checks 'email_split_and_format_normalize'."""
         sources = [
             "deboulonneur@example.com",
             '"Super Déboulonneur" <deboulonneur@example.com>',
@@ -1001,8 +986,6 @@ class TestEmailTools(BaseCase):
                 )
 
     def test_email_split_tuples(self):
-        """Test 'email_split_tuples' that returns (name, email) pairs
-        found in text input"""
         expected = [
             [("", "alfred.astaire@test.example.com")],
             [("", "alfred.astaire@test.example.com")],
@@ -1050,7 +1033,6 @@ class TestEmailTools(BaseCase):
             )
 
     def test_email_formataddr(self):
-        """Test custom 'formataddr', notably with IDNA support"""
         email_base = "joe@example.com"
         email_idna = "joe@examplé.com"
         cases = [
@@ -1137,7 +1119,6 @@ class TestEmailTools(BaseCase):
                 self.assertEqual(extract_rfc2822_addresses(source), expected)
 
     def test_single_email_re(self):
-        """Test 'single_email_re', matching text input containing only one email"""
         expected = [
             ["alfred.astaire@test.example.com"],
             [],
@@ -1231,8 +1212,6 @@ class TestEmailTools(BaseCase):
 
 
 class TestMailTools(BaseCase):
-    """Test mail utility methods."""
-
     def test_html2plaintext(self):
         self.assertEqual(html2plaintext(False), "")
         self.assertEqual(html2plaintext("\t"), "")

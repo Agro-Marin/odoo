@@ -73,17 +73,6 @@ def extract_javascript(
     options: _JSOptions,
     lineno_offset: int = 0,
 ) -> Generator[_ExtractionResult]:
-    """
-    Extract all translatable terms from a Javascript source file.
-
-    This function is modified from the official Babel extractor to support arbitrarily nested function calls.
-
-    :param fileobj: The Javascript source file
-    :param keywords: The translation keywords mapping
-    :param comment_tags: The keywords to extract translator comments
-    :param options: Extractor options for parsing the Javascript file
-    :yield: Tuples in the following form: `(lineno, funcname, message, comments)`
-    """
     encoding = options.get("encoding", "utf-8")
     dotted = any("." in kw for kw in keywords)
 

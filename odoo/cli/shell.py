@@ -109,7 +109,7 @@ class Shell(Command):
     def console(self, local_vars: dict[str, Any]) -> None:
         if not os.isatty(sys.stdin.fileno()):
             local_vars["__name__"] = "__main__"
-            exec(sys.stdin.read(), local_vars)
+            exec(sys.stdin.read(), local_vars)  # noqa: S102  piped-in script IS what `odoo shell` runs
             return None
 
         if "env" not in local_vars:
@@ -179,8 +179,11 @@ class Shell(Command):
     ) -> None:
         console = Console(local_vars)
         if pythonstartup:
-            with Path(pythonstartup).open(encoding="utf-8") as f:
-                console.runsource(f.read(), filename=pythonstartup, symbol="exec")
+            console.runsource(
+                Path(pythonstartup).read_text(encoding="utf-8"),
+                filename=pythonstartup,
+                symbol="exec",
+            )
         console.interact(banner="")
 
     def shell(self, dbname: str | None) -> None:

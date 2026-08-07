@@ -1,15 +1,3 @@
-"""``_add_inherited_fields`` collision warnings must skip non-inherited names.
-
-Tier-2 suite (real ``import odoo``, no database — run as ``pytest
-odoo/orm/tests``).  Regression guard: the both-parents collision warning in
-:func:`odoo.orm.registration._add_inherited_fields` used to fire *before*
-filtering out names already present in ``model_cls._fields``, so every model
-with two (or more) ``_inherits`` parents logged exactly six spurious warnings
-for the magic fields (id, display_name, create_uid/date, write_uid/date) that
-every parent carries.  Only names that are actually inherited may collide;
-genuine collisions must still warn.
-"""
-
 import logging
 
 from odoo import fields, models

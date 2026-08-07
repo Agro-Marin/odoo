@@ -8,7 +8,6 @@ from odoo.tools.convert import ParseError
 
 @standalone("test_isolated_install")
 def test_isolated_install(env):
-    """Check that a module failing to install leaves preceding modules installed."""
     MODULE_NAMES = [
         "test_install_base",
         "test_install_auto",

@@ -1,10 +1,3 @@
-"""Data-import operations for BaseModel (LoadMixin): the ``load()`` pipeline.
-
-``load()`` ingests an external data matrix (e.g. CSV import): it extracts and
-converts records, then creates/updates them in batches with per-record error
-recovery. Disjoint from the export pipeline (see :mod:`.export`).
-"""
-
 import functools
 import itertools
 import logging
@@ -33,24 +26,10 @@ if typing.TYPE_CHECKING:
 
 
 class LoadMixin(_ModelStubs):
-    """Data-import (``load()``) operations, inherited by BaseModel."""
-
     __slots__ = ()
 
     @api.model
     def load(self, fields: list[str], data: list[list[str]]) -> dict:
-        """Attempt to load the data matrix, and return a list of ids (or
-        ``False`` if there was an error and no id could be generated) and a
-        list of messages.
-
-        The ids are those of the records created and saved (in database), in
-        the same order they were extracted from the file. They can be passed
-        directly to :meth:`~read`.
-
-        :param fields: fields to import, at the same index as their data column
-        :param data: row-major matrix of data to import
-        :returns: ``{ids: list[int] | False, messages: list[dict], nextrow: int}``
-        """
         from ...fields.relational import One2many
 
         mode = self.env.context.get("mode", "init")
@@ -136,12 +115,6 @@ class LoadMixin(_ModelStubs):
                         cr.flush()
                     ids.append(rec.id)
                 except psycopg.Warning as e:
-                    # DB-API keeps Warning outside the Error hierarchy, so it
-                    # reached the catch-all below and was reported as "Unknown
-                    # error during import" -- which resets `ids` to False and
-                    # discards every row that did import cleanly. The record's
-                    # own savepoint has already rolled back, so it is simply
-                    # absent from `ids`; nothing about that is an error.
                     messages.append(
                         dict(rec_data["info"], type="warning", message=str(e))
                     )
@@ -240,26 +213,6 @@ class LoadMixin(_ModelStubs):
 
     @api.model
     def _import_skip_fields(self) -> frozenset[str]:
-        """Return the top-level field names whose ``None`` converted value means
-        "skip this record", per the ``import_skip_records`` policy.
-
-        ``ir.fields.converter`` yields ``None`` for a cell it was told to skip;
-        a record holding one is dropped. Two things make the raw policy list
-        unusable as-is here:
-
-        * its entries are nested paths, which never match a key of the converted
-          record. ``ir.fields.converter`` folds a nested skip onto its top-level
-          field, so only the first segment is compared. A one2many sub-field
-          separates with ``/`` (``child_ids/state``) and a Properties sub-value
-          with ``.`` (``properties.my_prop``, the name ``_extract_records``
-          splits on); folding on ``/`` alone left every Properties path
-          unmatchable, so "Skip record" on such a column silently created the
-          record with that property set to null.
-        * a path naming a field absent from *this* import's columns matched
-          ``record.get(path) -> None`` on every record, silently dropping the
-          entire import and reporting nothing. Only a key that is present and
-          ``None`` counts, hence ``get(field, False)``.
-        """
         context = self.env.context
         if not context.get("import_file"):
             return frozenset()
@@ -275,18 +228,6 @@ class LoadMixin(_ModelStubs):
         log: Callable = lambda a: None,
         limit: float = float("inf"),
     ) -> Generator[tuple[dict, dict]]:
-        """Generate record dicts from the data sequence.
-
-        Yields dicts mapping field names to raw (unconverted, unvalidated)
-        values. For relational fields with sub-fields, the value is a list of
-        sub-records.
-
-        Special sub-field keys:
-
-        * None: the display_name (for name_create/name_search)
-        * "id": the External ID
-        * ".id": the Database ID
-        """
         fields = self._fields
 
         get_o2m_values = itemgetter_tuple(
@@ -414,12 +355,6 @@ class LoadMixin(_ModelStubs):
         *,
         log: Callable = lambda a: None,
     ) -> Generator[tuple[int | bool, str | bool, dict, dict]]:
-        """Convert source records (recursive dicts of strings) into forms
-        writable to the database (via ``self.create`` or
-        ``(ir.model.data)._update``).
-
-        :returns: generator of ``(id, xid, converted_record, info)`` tuples
-        """
         field_names = {name: field.string for name, field in self._fields.items()}
         if self.env.lang:
             field_names.update(self.env["ir.model.fields"].get_field_string(self._name))
@@ -493,13 +428,6 @@ class LoadMixin(_ModelStubs):
         return records
 
     def _load_records(self, data_list: list[dict], update: bool = False) -> Self:
-        """Create or update records of this model, and assign XMLIDs.
-
-        :param data_list: list of dicts with keys ``xml_id`` (XMLID to
-            assign), ``noupdate`` (flag on XMLID), ``values`` (field values)
-        :param update: should be ``True`` when upgrading a module
-        :return: the records corresponding to ``data_list``
-        """
         original_self = self.browse()
 
         imd = self.env["ir.model.data"].sudo()
@@ -575,7 +503,6 @@ class LoadMixin(_ModelStubs):
         return original_self.concat(*(data["record"] for data in data_list))
 
     def _load_records_warn_foreign_module(self, to_create: list[dict]) -> None:
-        """Warn when creating a record whose XMLID belongs to another module."""
         module = self.env.context.get("install_module")
         if not module:
             return
@@ -591,11 +518,6 @@ class LoadMixin(_ModelStubs):
                 )
 
     def _load_records_check_import_prefix(self, to_create: list[dict]) -> None:
-        """During a user import, reject XMLIDs prefixed with an existing module.
-
-        Such a prefix would make the record be deleted on that module's next
-        upgrade, so it is almost always a mistake.
-        """
         if not self.env.context.get("import_file"):
             return
         existing_modules = self.env["ir.module.module"].sudo().search([]).mapped("name")

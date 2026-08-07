@@ -82,11 +82,6 @@ class ResUsersApikeys(models.Model):
         return self._remove()
 
     def _remove(self) -> dict[str, str]:
-        """Remove the API key(s) without an identity check.
-
-        Use :meth:`remove` for the identity-checked path; this variant skips it
-        (mainly to remove trusted devices).
-        """
         if not self:
             return {"type": "ir.actions.act_window_close"}
         if self.env.is_system() or self.mapped("user_id") == self.env.user:
@@ -112,14 +107,6 @@ class ResUsersApikeys(models.Model):
         return res
 
     def _check_credentials(self, *, scope: str, key: str) -> int | None:
-        """Return the user id whose API key matches ``key`` for ``scope``, else None.
-
-        :param str scope: the requested scope; a NULL-scope stored key matches any
-            scope, a scoped key matches only its own scope.
-        :param str key: the cleartext API key to verify.
-        :return: the owning user id, or None when no active, unexpired key matches.
-        :rtype: int | None
-        """
         if not scope or not key:
             msg = "scope and key required"
             raise ValueError(msg)
@@ -148,16 +135,6 @@ class ResUsersApikeys(models.Model):
         return None
 
     def _get_key_expiration(self, *, scope: str, key: str) -> datetime.datetime | None:
-        """Return the ``expiration_date`` of the API key matching (scope, key).
-
-        Mirrors :meth:`_check_credentials`' lookup but WITHOUT the expiration
-        filter, so it reports the expiration itself. Used by res.users to
-        re-validate expiry on cached credential checks: the outer ormcache would
-        otherwise serve an expired-but-recently-used key until the daily GC.
-
-        :return: the matched key's expiration (naive UTC datetime), or None when
-            the key has no expiration or no active key matches.
-        """
         if not scope or not key:
             return None
         index = key[:INDEX_SIZE]
@@ -179,11 +156,6 @@ class ResUsersApikeys(models.Model):
         return None
 
     def _get_max_duration(self) -> float:
-        """Return the maximum API-key duration (in days) for ``self.env.user``.
-
-        The highest ``api_key_duration`` across the user's groups; a user whose
-        groups grant none is coerced to 1.0 day rather than denied key creation.
-        """
         return (
             max(
                 (group.api_key_duration for group in self.env.user.all_group_ids),
@@ -193,12 +165,6 @@ class ResUsersApikeys(models.Model):
         )
 
     def _check_expiration_date(self, date: datetime.datetime | None) -> None:
-        """Validate ``date`` against the caller's allowed API-key duration.
-
-        :param date: the requested expiration date, or None for a persistent key.
-        :raises ValidationError: when a non-system user omits the date or exceeds
-            the maximum duration allowed by their group privileges.
-        """
         if self.env.is_system():
             return
         if not date:
@@ -210,16 +176,6 @@ class ResUsersApikeys(models.Model):
             )
 
     def _check_generate_access(self) -> None:
-        """Raise unless the current user is allowed to hold API keys.
-
-        Single source of truth for the key-holding policy, shared by the
-        ``make_key`` UI path and the ``_generate`` primitive (AK-P1). Base
-        policy is internal users only; opt-in modules may widen it (portal
-        extends it to portal users behind the ``portal.allow_api_keys``
-        parameter).
-
-        :raises AccessError: when the current user may not hold API keys.
-        """
         if not self.env.user._is_internal():
             raise AccessError(_("Only internal users can create API keys"))
 
@@ -229,17 +185,6 @@ class ResUsersApikeys(models.Model):
         name: str,
         expiration_date: datetime.datetime | None,
     ) -> str:
-        """Generate an API key for ``self.env.user`` and return its cleartext value.
-
-        :param str scope: the scope of the key. If None, the key gives access to any rpc.
-        :param str name: the name of the key, mainly intended to be displayed in the UI.
-        :param expiration_date: the expiration date of the key, or None for a
-            persistent (infinite-duration) key.
-        :return: the cleartext key.
-        :rtype: str
-        :raises AccessError: when ``self.env.user`` may not hold API keys
-            (see :meth:`_check_generate_access`).
-        """
         self._check_generate_access()
         self._check_expiration_date(expiration_date)
         k = binascii.hexlify(os.urandom(API_KEY_SIZE)).decode()

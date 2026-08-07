@@ -19,12 +19,6 @@ REFERENCE_VERIFIED_CACHE_KEY = "reference.verified_pairs"
 
 
 class Reference(Selection):
-    """Pseudo-relational field (no FK in database).
-
-    The field value is stored as a :class:`string <str>` following the pattern
-    ``"res_model,res_id"`` in database.
-    """
-
     type = "reference"
 
     _column_type = ("varchar", pg_varchar())
@@ -87,8 +81,6 @@ class Reference(Selection):
         raise ValueError(f"Wrong value for {self}: {value!r}")
 
     def _verified_pairs(self, env) -> set[tuple[str, int]]:
-        """Return this field's transaction-scoped set of verified
-        ``(res_model, res_id)`` pairs (see :data:`REFERENCE_VERIFIED_CACHE_KEY`)."""
         per_field = env.cr.cache.setdefault(REFERENCE_VERIFIED_CACHE_KEY, {})
         return per_field.setdefault((self.model_name, self.name), set())
 
@@ -99,28 +91,6 @@ class Reference(Selection):
         res_id: int,
         memo: set[tuple[str, int]],
     ) -> bool:
-        """Return whether the ``res_model,res_id`` target exists, with batching.
-
-        The naive per-value ``browse(res_id).exists()`` issues one SELECT per
-        converted value, which is O(n) on batch create (``_populate_create_cache``
-        converts one ``(record, value)`` pair at a time and offers no batch
-        hook).  Two layers keep this O(1) per batch instead:
-
-        1. ``memo``, the field's transaction-scoped set of verified pairs
-           (:meth:`_verified_pairs`, consulted by ``convert_to_cache`` before
-           even the selection lookup), so repeated values — within a batch or
-           across calls in the same transaction — are checked once;
-        2. on a memo miss during batch-create cache population (singleton
-           ``record`` whose prefetch set spans the just-INSERTed batch), the
-           sibling rows' column values are fetched in one SELECT and validated
-           together, one ``exists()`` query per referenced model, seeding the
-           memo for the rest of the batch.
-
-        Net cost for a create batch of N distinct references: one column fetch
-        plus one existence query per distinct target model (plus a single
-        selection lookup), instead of N of each.  Single-record paths keep
-        their single query.
-        """
         env = record.env
         if (res_model, res_id) in memo:
             return True
@@ -191,17 +161,6 @@ class Reference(Selection):
 
 
 class Many2oneReference(Integer):
-    """Pseudo-relational field (no FK in database).
-
-    The field value is stored as an :class:`integer <int>` id in database.
-
-    Contrary to :class:`Reference` fields, the model has to be specified
-    in a :class:`Char` field, whose name has to be specified in the
-    `model_field` attribute for the current :class:`Many2oneReference` field.
-
-    :param str model_field: name of the :class:`Char` where the model name is stored.
-    """
-
     type = "many2one_reference"
 
     model_field = None
@@ -221,16 +180,6 @@ class Many2oneReference(Integer):
 
     @override
     def _update_inverses(self, records: BaseModel, value: typing.Any) -> None:
-        """Add `records` to the cached values of the inverse fields of `self`.
-
-        Only the inverse fields whose model actually appears in ``records`` are
-        visited. A reference field is the inverse of one field per model that
-        points at it -- 136 of them for ``mail.message.res_id`` -- while a given
-        batch names one or two models, so indexing the (default)dict per inverse
-        field built an empty entry and a throwaway recordset for every other
-        one: 13600 browses per ``create()`` of 100 partners, 28ms of the 48ms
-        spent here.
-        """
         if not value:
             return
         model_ids = self._record_ids_per_res_model(records)

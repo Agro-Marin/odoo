@@ -111,8 +111,6 @@ class TestPartner(TransactionCaseWithUserDemo):
         )
 
     def test_barcode_unicity(self):
-        """barcode is unique per company: duplicates in the same company slot
-        raise, while the same value in another company's slot is allowed."""
         Partner = self.env["res.partner"]
         Partner.create({"name": "Barcode A", "barcode": "BARCODE-DUP"})
         with self.assertRaises(ValidationError):
@@ -131,8 +129,6 @@ class TestPartner(TransactionCaseWithUserDemo):
         )
 
     def test_display_name_show_address_follows_address_write(self):
-        """display_name rendered with show_address must be recomputed when an
-        address field it renders (street/city/zip) changes."""
         partner = self.env["res.partner"].create(
             {
                 "name": "Movers Inc",
@@ -151,7 +147,6 @@ class TestPartner(TransactionCaseWithUserDemo):
         self.assertIn("99999", shown.display_name)
 
     def test_default_get_company_only_when_requested(self):
-        """default_get must not inject company_id when it is not requested."""
         parent = self.env["res.partner"].create(
             {"name": "Default Parent", "company_id": self.env.company.id}
         )
@@ -164,7 +159,6 @@ class TestPartner(TransactionCaseWithUserDemo):
         self.assertNotIn("company_id", values)
 
     def test_email_formatted(self):
-        """Test name/email combinations, notably the email_formatted field."""
         new_partners = self.env["res.partner"].create(
             [
                 {
@@ -317,11 +311,6 @@ class TestPartner(TransactionCaseWithUserDemo):
                 )
 
     def test_find_or_create_escapes_ilike_wildcards(self):
-        """``_`` and ``%`` in an email local part are literal, not wildcards.
-
-        Regression: an unescaped ``=ilike`` lookup for ``a_b@example.com`` matched
-        (and returned) an existing ``axb@example.com``.
-        """
         Partner = self.env["res.partner"]
         existing = Partner.create({"name": "AxB", "email": "axb@example.com"})
         found = Partner.find_or_create("a_b@example.com")
@@ -330,14 +319,11 @@ class TestPartner(TransactionCaseWithUserDemo):
         self.assertEqual(Partner.find_or_create("axb@example.com"), existing)
 
     def test_is_public(self):
-        """Check that base.partner_user is a public partner."""
         self.assertFalse(self.env.ref("base.public_user").active)
         self.assertFalse(self.env.ref("base.public_partner").active)
         self.assertTrue(self.env.ref("base.public_partner").is_public)
 
     def test_lang_computation_code(self):
-        """Check computation of lang: coming from installed languages, forced
-        default value and propagation from parent."""
         default_lang_info = self.env["res.lang"].get_installed()[0]
         default_lang_code = default_lang_info[0]
         self.assertNotEqual(default_lang_code, "de_DE")
@@ -426,9 +412,6 @@ class TestPartner(TransactionCaseWithUserDemo):
         )
 
     def test_name_search_with_user(self):
-        """Check name_search with a bypass_search_access domain (user_ids), ensuring the
-        generated SQL handles joined tables.
-        """
         test_partner = self.env["res.partner"].create({"name": "Vlad the Impaler"})
         test_user = self.env["res.users"].create(
             {
@@ -461,7 +444,6 @@ class TestPartner(TransactionCaseWithUserDemo):
         self.assertEqual({i[0] for i in ns_res}, set(test_user.partner_id.ids))
 
     def test_partner_merge_wizard_dst_partner_id(self):
-        """Check that dst_partner_id in merge wizard displays id along with partner name"""
         test_partner = self.env["res.partner"].create({"name": "Radu the Handsome"})
         expected_partner_name = "%s (%s)" % (test_partner.name, test_partner.id)
 
@@ -512,7 +494,6 @@ class TestPartner(TransactionCaseWithUserDemo):
         )
 
     def test_main_user_id(self):
-        """Test main_user_id compute, including OdooBot special case and priority among several users."""
         self.assertEqual(
             self.env.ref("base.partner_root").main_user_id,
             self.env.ref("base.user_root"),
@@ -842,7 +823,6 @@ class TestPartnerAddressCompany(TransactionCase):
 
     @users("employee")
     def test_address_first_contact_sync(self):
-        """Test that a first contact's address is copied up to a void parent company."""
         (
             void_parent_ct,
             void_parent_comp,
@@ -936,10 +916,6 @@ class TestPartnerAddressCompany(TransactionCase):
                         )
 
     def test_address_get(self):
-        """Test address_get resolution: go down through descendants (stopping at a child
-        company), then up (stopping at the first company or root ancestor); fall back to
-        the partner itself if nothing matches.
-        """
         res_partner = self.env["res.partner"]
         elmtree = res_partner.browse(res_partner.name_create("Elmtree")[0])
         branch1 = res_partner.create(
@@ -1070,9 +1046,6 @@ class TestPartnerAddressCompany(TransactionCase):
 
     @users("employee")
     def test_address_parent_company_creation(self):
-        """A new parent company is populated from its children where possible, without
-        erasing child values with void parent values.
-        """
         sync_commercial_fields = self.env["res.partner"]._synced_commercial_fields()
 
         individual = self.env["res.partner"].create(
@@ -1128,9 +1101,6 @@ class TestPartnerAddressCompany(TransactionCase):
         self.assertEqual(individual.vat, "BEINDIVIDUAL")
 
     def test_commercial_partner_nullcompany(self):
-        """The commercial partner is the first/nearest ancestor-or-self which
-        is a company or doesn't have a parent
-        """
         P = self.env["res.partner"]
         p0 = P.create({"name": "0", "email": "0"})
         self.assertEqual(
@@ -1194,7 +1164,6 @@ class TestPartnerAddressCompany(TransactionCase):
             )
 
     def test_commercial_field_sync(self):
-        """Check if commercial fields are synced properly: testing with VAT field"""
         company_1, company_2 = self.env["res.partner"].create(
             [
                 {
@@ -1400,9 +1369,6 @@ class TestPartnerAddressCompany(TransactionCase):
             )
 
     def test_commercial_field_sync_reset(self):
-        """Test void-value propagation: forcing void from parent is allowed, upstream
-        reset from children is not.
-        """
         sync_commercial_fields = self.env["res.partner"]._synced_commercial_fields()
 
         individual = self.env["res.partner"].create(
@@ -1552,7 +1518,6 @@ class TestPartnerAddressCompany(TransactionCase):
             self.assertEqual(child_address.with_company(company_2).barcode, "Company 2")
 
     def test_company_dependent_commercial_sync_falsy_fields(self):
-        """Check that company-dependent fields still sync when unset on current company."""
         ResPartner = self.env["res.partner"]
 
         alt_company = self.env.company.create({"name": "Alt Company"})
@@ -1574,7 +1539,6 @@ class TestPartnerAddressCompany(TransactionCase):
             self.assertEqual(child.with_company(alt_company).barcode, "BARCODE")
 
     def test_company_change_propagation(self):
-        """Check propagation of company_id across children"""
         User = self.env["res.users"]
         Partner = self.env["res.partner"]
         Company = self.env["res.company"]
@@ -1614,7 +1578,6 @@ class TestPartnerAddressCompany(TransactionCase):
             test_partner_company.write({"company_id": company_2.id})
 
     def test_display_address_missing_key(self):
-        """Check _display_address fills missing format keys with empty strings (defaultdict)."""
         country = self.env["res.country"].create(
             {
                 "name": "TestCountry",
@@ -1639,8 +1602,6 @@ class TestPartnerAddressCompany(TransactionCase):
         self.assertEqual(before, partner._display_address().strip())
 
     def test_display_address_malformed_format(self):
-        """A malformed address_format falls back to a sensible field order and
-        logs a warning naming the country instead of raising."""
         country = self.env["res.country"].create(
             {
                 "name": "FallbackLand",
@@ -1671,7 +1632,6 @@ class TestPartnerAddressCompany(TransactionCase):
             partner._display_address()
 
     def test_display_name(self):
-        """Check display_name on partner, including context variations."""
         test_partner_jetha = self.env["res.partner"].create(
             {
                 "name": "Jethala",
@@ -1704,9 +1664,6 @@ class TestPartnerAddressCompany(TransactionCase):
         )
 
     def test_display_name_hide_company_context(self):
-        """display_name is cached per context: reads with and without
-        ``partner_display_name_hide_company`` must not leak into each other
-        within the same transaction."""
         company = self.env["res.partner"].create(
             {"name": "Sesame Inc", "is_company": True}
         )
@@ -1726,7 +1683,6 @@ class TestPartnerAddressCompany(TransactionCase):
         )
 
     def test_accessibility_of_company_partner_from_branch(self):
-        """Check accessibility of company partner from branch."""
         company = self.env["res.company"].create({"name": "company"})
         branch = self.env["res.company"].create(
             {"name": "branch", "parent_id": company.id}
@@ -1748,8 +1704,6 @@ class TestPartnerAddressCompany(TransactionCase):
         self.assertEqual(record.id, partner.id)
 
     def test_children_sync_skips_walk_without_commercial_fields(self):
-        """A non-commercial write to a commercial entity must not trigger the
-        recursive descendant walk (RP-P1 no-op guard)."""
         company = self.env["res.partner"].create(
             {"name": "company", "is_company": True, "vat": "BE013456789"}
         )
@@ -1782,8 +1736,6 @@ class TestPartnerAddressCompany(TransactionCase):
 @tagged("res_partner", "post_install", "-at_install")
 class TestPartnerForm(TransactionCase):
     def test_lang_computation_form_view(self):
-        """Check computation of lang: coming from installed languages, forced
-        default value and propagation from parent."""
         default_lang_code = self.env["ir.default"]._get("res.partner", "lang") or False
         self.assertNotEqual(default_lang_code, "de_DE")
         self.assertNotEqual(default_lang_code, "fr_FR")
@@ -1912,7 +1864,6 @@ class TestPartnerRecursion(TransactionCase):
             self.p3.write({"parent_id": self.p3.id})
 
     def test_104_res_partner_recursion_indirect_cycle(self):
-        """Indirect hacky write to create cycle in children"""
         p3b = self.p1.create(
             {"name": "Elmtree Grand-Child 1.2", "parent_id": self.p2.id}
         )
@@ -1931,12 +1882,10 @@ class TestPartnerRecursion(TransactionCase):
             (self.p3 + self.p1).parent_id = self.p2
 
     def test_110_res_partner_recursion_multi_update(self):
-        """multi-write on several partners in same hierarchy must not trigger a false cycle detection"""
         ps = self.p1 + self.p2 + self.p3
         self.assertTrue(ps.write({"phone": "123456"}))
 
     def test_111_res_partner_recursion_infinite_loop(self):
-        """The recursion check must not loop forever"""
         self.p2.parent_id = False
         self.p3.parent_id = False
         self.p1.parent_id = self.p2
@@ -1953,7 +1902,6 @@ class TestPartnerCategory(TransactionCase):
         self.assertEqual(result, [(category.id, category.display_name)])
 
     def test_recursion_rejected(self):
-        """A parent_id forming a cycle must raise (RPC cycle guard)."""
         Category = self.env["res.partner.category"]
         a = Category.create({"name": "A"})
         b = Category.create({"name": "B", "parent_id": a.id})
@@ -1964,8 +1912,6 @@ class TestPartnerCategory(TransactionCase):
             a.write({"parent_id": a.id})
 
     def test_display_name_full_ancestor_path(self):
-        """display_name is the slash-joined full ancestor chain, not just the
-        direct parent, and tolerates an empty name."""
         Category = self.env["res.partner.category"]
         a = Category.create({"name": "A"})
         b = Category.create({"name": "B", "parent_id": a.id})
@@ -1977,16 +1923,12 @@ class TestPartnerCategory(TransactionCase):
         self.assertEqual(c.display_name, " / B / C")
 
     def test_display_name_new_record_fallback(self):
-        """NewId (onchange/Form) records have no parent_path yet: display_name
-        falls back to the parent_id walk and still renders the full path."""
         Category = self.env["res.partner.category"]
         parent = Category.create({"name": "Stored Parent"})
         draft = Category.new({"name": "Draft Child", "parent_id": parent.id})
         self.assertEqual(draft.display_name, "Stored Parent / Draft Child")
 
     def test_display_name_invalidated_on_parent_rename(self):
-        """Renaming a direct parent invalidates the child display_name
-        (RPC-C1 dependency)."""
         Category = self.env["res.partner.category"]
         a = Category.create({"name": "A"})
         b = Category.create({"name": "B", "parent_id": a.id})
@@ -1995,8 +1937,6 @@ class TestPartnerCategory(TransactionCase):
         self.assertEqual(b.display_name, "A2 / B")
 
     def test_search_display_name_child_of(self):
-        """A positive like search matches descendants (child_of rewrite); the
-        negative form returns no error (NotImplemented fallback)."""
         Category = self.env["res.partner.category"]
         parent = Category.create({"name": "Furniture"})
         child = Category.create({"name": "Chairs", "parent_id": parent.id})

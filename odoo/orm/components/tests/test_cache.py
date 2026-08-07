@@ -1,17 +1,9 @@
-"""Pure-Python tests for FieldCache — no Odoo, no database required.
-
-Uses plain strings as mock "field" keys to prove the cache is fully
-decoupled from the ORM runtime.
-"""
-
 import unittest
 
 from odoo.orm.components.cache import FieldCache
 
 
 class TestFieldCacheData(unittest.TestCase):
-    """Test basic data access: get, set, has, batch operations."""
-
     def setUp(self) -> None:
         self.cache = FieldCache()
 
@@ -28,12 +20,6 @@ class TestFieldCacheData(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_get_missing_does_not_vivify(self) -> None:
-        """A get_value miss must not leave an empty {} entry in _data.
-
-        Regression: indexing the defaultdict (``self._data[field]``) auto-created
-        an empty sub-dict for any never-cached field on every miss, leaking
-        entries that later inflate iter_field_items / invalidate_all scans.
-        """
         self.cache.get_value("ghost", 1, default=None)
         self.assertNotIn("ghost", dict(self.cache.iter_field_items()))
         with self.assertRaises(KeyError):
@@ -68,8 +54,6 @@ class TestFieldCacheData(unittest.TestCase):
 
 
 class TestFieldCacheDirty(unittest.TestCase):
-    """Test dirty tracking."""
-
     def setUp(self) -> None:
         self.cache = FieldCache()
 
@@ -88,13 +72,6 @@ class TestFieldCacheDirty(unittest.TestCase):
         self.assertEqual(len(self.cache.get_dirty("name")), 1)
 
     def test_mark_dirty_empty_creates_no_phantom(self) -> None:
-        """mark_dirty() with empty ids must not vivify a phantom dirty field.
-
-        Regression: ``self._dirty[field].update(ids)`` auto-created an empty set
-        under *field*, so ``is_any_dirty``/``iter_dirty_fields`` (and hence
-        ``UnitOfWork.dirty_models``) reported a field with nothing to flush.
-        The real-world trigger is the all-NewId generator at textual.py.
-        """
         self.cache.mark_dirty("name", [])
         self.assertFalse(self.cache.is_any_dirty())
         self.assertNotIn("name", list(self.cache.iter_dirty_fields()))
@@ -103,7 +80,6 @@ class TestFieldCacheDirty(unittest.TestCase):
         self.assertEqual(self.cache.dirty_entry_count(), 0)
 
     def test_mark_dirty_empty_keeps_existing(self) -> None:
-        """An empty mark on an already-dirty field leaves it untouched."""
         self.cache.mark_dirty("name", [1, 2])
         self.cache.mark_dirty("name", [])
         self.assertEqual(self.cache.get_dirty("name"), {1, 2})
@@ -147,7 +123,7 @@ class TestFieldCacheDirty(unittest.TestCase):
 
     def test_custom_dirty_factory(self) -> None:
         class OrderedSet(set):
-            """Minimal ordered set stand-in for testing."""
+            pass
 
         cache = FieldCache(dirty_factory=OrderedSet)
         cache.mark_dirty("name", [1, 2])
@@ -157,8 +133,6 @@ class TestFieldCacheDirty(unittest.TestCase):
 
 
 class TestFieldCachePatches(unittest.TestCase):
-    """Test deferred x2many patches."""
-
     def setUp(self) -> None:
         self.cache = FieldCache()
 
@@ -176,8 +150,6 @@ class TestFieldCachePatches(unittest.TestCase):
 
 
 class TestFieldCacheInvalidation(unittest.TestCase):
-    """Test invalidation (per-field, per-id, all)."""
-
     def setUp(self) -> None:
         self.cache = FieldCache()
         self.cache.set_value("name", 1, "Alice")
@@ -269,20 +241,6 @@ class TestFieldCacheInvalidation(unittest.TestCase):
 
 
 class TestFieldCacheShapeAndIterables(unittest.TestCase):
-    """Iterator-safety and mixed flat/nested shape decoding.
-
-    Two seams that used to fail silently:
-
-    * ``invalidate(context_dependent=True)`` walks *ids* once per sub-cache, so
-      a one-shot iterator was drained by the flat-key pass and every
-      per-context pass then saw nothing — the cache kept stale values with no
-      error anywhere.
-    * A field that was written to while it was not yet context-dependent (the
-      module-setup window) keeps a flat ``{id: value}`` entry alongside the
-      tuple-keyed sub-caches.  ``all_cached_ids`` skips those; consumers that
-      decoded the raw dict themselves iterated the *scalar value* instead.
-    """
-
     def _mixed_cache(self) -> FieldCache:
         cache = FieldCache()
         data = cache.get_field_data("G")
@@ -344,8 +302,6 @@ class TestFieldCacheShapeAndIterables(unittest.TestCase):
 
 
 class TestFieldCacheIntrospection(unittest.TestCase):
-    """Test iteration and repr."""
-
     def setUp(self) -> None:
         self.cache = FieldCache()
 
@@ -366,8 +322,6 @@ class TestFieldCacheIntrospection(unittest.TestCase):
 
 
 class _MockField:
-    """Minimal mock with model_name for pop_dirty_for_model tests."""
-
     def __init__(self, name: str, model_name: str) -> None:
         self.name = name
         self.model_name = model_name
@@ -387,8 +341,6 @@ class _MockField:
 
 
 class TestPopDirtyForModel(unittest.TestCase):
-    """Test pop_dirty_for_model() — filters by model_name attribute."""
-
     def setUp(self) -> None:
         self.cache = FieldCache()
         self.f_partner_name = _MockField("name", "res.partner")
@@ -420,12 +372,6 @@ class TestPopDirtyForModel(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_empty_mark_yields_nothing_to_pop(self) -> None:
-        """An empty mark_dirty never registers the field (the _dirty invariant).
-
-        Previously ``mark_dirty`` could vivify an empty set, which
-        ``pop_dirty_for_model`` then had to filter out with an ``if ids`` guard.
-        The field is now never registered in the first place.
-        """
         self.cache.mark_dirty(self.f_partner_name, [])
         self.assertNotIn(self.f_partner_name, self.cache._dirty)
         result = self.cache.pop_dirty_for_model("res.partner")

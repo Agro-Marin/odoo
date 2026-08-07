@@ -1,12 +1,3 @@
-"""DB-free tests for the lazy-builder routing rule (:class:`FasterRule`).
-
-``FasterRule`` defers werkzeug's URL-builder compilation until the first
-``url_for`` (:class:`LazyCompiledBuilder`), because most rules are only ever
-matched (inbound dispatch), never built. These pin that (a) matching works
-without ever compiling the builder, and (b) building still works when finally
-needed. Run via ``pytest odoo/http/tests``.
-"""
-
 import sys
 import threading
 
@@ -23,8 +14,6 @@ def _map(*rules):
 
 
 def _uncompiled(rule):
-    """True when neither of werkzeug's two builders (append_unknown True/False)
-    has materialised its real callable — i.e. the rule was never url_for-built."""
     builders = [getattr(rule, attr, None) for attr in ("_build", "_build_unknown")]
     return all(
         isinstance(b, LazyCompiledBuilder) and b._callable is None for b in builders
@@ -58,7 +47,6 @@ def test_faster_rule_is_a_drop_in_werkzeug_rule():
 
 
 def test_concurrent_first_build_is_thread_safe():
-    """Concurrent first builds of a shared rule all succeed and agree."""
     n_threads = 8
     old_interval = sys.getswitchinterval()
     sys.setswitchinterval(1e-6)

@@ -1,5 +1,3 @@
-"""Sampling profiler for Odoo — flamegraphs, SQL tracing, memory tracking."""
-
 import json
 import logging
 import re
@@ -7,9 +5,10 @@ import sys
 import threading
 import time
 import tracemalloc
+import types
 from contextlib import ExitStack, nullcontext
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 from psycopg import OperationalError
 
@@ -30,18 +29,15 @@ real_cpu_time = time.thread_time.__call__
 
 
 def _format_frame(frame: FrameType) -> tuple[str, int, str, str]:
-    """Format a stack frame as (filename, lineno, name, line)."""
     code = frame.f_code
     return (code.co_filename, frame.f_lineno, code.co_name, "")
 
 
 def _format_stack(stack: list[tuple[str, int, str, str]]) -> list[list[Any]]:
-    """Format a list of frame tuples as lists (for JSON serialisation)."""
     return [list(frame) for frame in stack]
 
 
 def get_current_frame(thread: threading.Thread | None = None) -> FrameType:
-    """Return the current frame, skipping frames inside this profiler module."""
     if thread:
         frame = sys._current_frames()[thread.ident]
     else:
@@ -55,7 +51,6 @@ def _get_stack_trace(
     frame: FrameType | None,
     limit_frame: FrameType | None = None,
 ) -> list[tuple[str, int, str, str]]:
-    """Return the stack trace from ``frame`` up to (but excluding) ``limit_frame``."""
     stack = []
     while frame is not None and frame != limit_frame:
         stack.append(_format_frame(frame))
@@ -66,7 +61,6 @@ def _get_stack_trace(
 
 
 def stack_size() -> int:
-    """Return the current call-stack depth."""
     frame = get_current_frame()
     size = 0
     while frame:
@@ -76,29 +70,16 @@ def stack_size() -> int:
 
 
 def make_session(name: str = "") -> str:
-    """Return a session string with the current timestamp and optional name."""
     return f"{real_datetime_now():%Y-%m-%d %H:%M:%S} {name}"
 
 
 def force_hook() -> None:
-    """Force periodic collectors to take a stack trace now.
-
-    Useful before long calls that do not release the GIL, so their time is
-    attributed to the right stack trace instead of some arbitrary former frame.
-    """
     thread = threading.current_thread()
     for func in getattr(thread, "profile_hooks", ()):
         func()
 
 
 class Collector:
-    """Base class for profiling-data collectors.
-
-    A collector gathers entries for a profiler — usually stack traces with
-    timing and the ExecutionContext of the current thread. Subclassed; provides
-    the default entry-creation behavior.
-    """
-
     name = None
     _store = None
     _registry = {}
@@ -111,7 +92,6 @@ class Collector:
 
     @classmethod
     def make(cls, name: str, *args: Any, **kwargs: Any) -> Collector:
-        """Instantiate a collector corresponding to the given name."""
         return cls._registry[name](*args, **kwargs)
 
     def __init__(self) -> None:
@@ -121,17 +101,16 @@ class Collector:
         self.profiler: Profiler | None = None
 
     def start(self) -> None:
-        """Start the collector."""
+        pass
 
     def stop(self) -> None:
-        """Stop the collector."""
+        pass
 
     def add(
         self,
         entry: dict[str, Any] | None = None,
         frame: FrameType | None = None,
     ) -> None:
-        """Add an entry (dict) to this collector."""
         self._entries.append(
             {
                 "stack": self._get_stack_trace(frame),
@@ -146,7 +125,6 @@ class Collector:
         entry: dict[str, Any] | None = None,
         frame: FrameType | None = None,
     ) -> None:
-        """Add an entry, or end the profiler if the entry-count limit is reached."""
         if (
             self.profiler.entry_count_limit
             and self.profiler.counter >= self.profiler.entry_count_limit
@@ -160,19 +138,16 @@ class Collector:
     def _get_stack_trace(
         self, frame: FrameType | None = None
     ) -> list[tuple[str, int, str, str]] | None:
-        """Return the stack trace to be included in a given entry."""
         frame = frame or get_current_frame(self.profiler.init_thread)
         return _get_stack_trace(frame, self.profiler.init_frame)
 
     def post_process(self) -> None:
-        """Post-process collected entries by resolving file line text."""
         for entry in self._entries:
             stack = entry.get("stack", [])
             self.profiler._add_file_lines(stack)
 
     @property
     def entries(self) -> list[dict[str, Any]]:
-        """Return the entries of the collector after postprocessing."""
         if not self._processed:
             self.post_process()
             self.processed_entries = self._entries
@@ -181,25 +156,20 @@ class Collector:
         return self.processed_entries
 
     def summary(self) -> str:
-        """Return a brief text summary of this collector's data."""
         entries = self.processed_entries if self._processed else self._entries
         return f"{'=' * 10} {self.name} {'=' * 10} \n Entries: {len(entries)}"
 
 
 class SQLCollector(Collector):
-    """Saves all executed queries in the current thread with the call stack."""
-
     name = "sql"
 
     def start(self) -> None:
-        """Register the SQL query hook on the profiler thread."""
         init_thread = self.profiler.init_thread
         if not hasattr(init_thread, "query_hooks"):
             init_thread.query_hooks = []
         init_thread.query_hooks.append(self.hook)
 
     def stop(self) -> None:
-        """Unregister the SQL query hook."""
         self.profiler.init_thread.query_hooks.remove(self.hook)
 
     def hook(
@@ -210,7 +180,6 @@ class SQLCollector(Collector):
         query_start: float,
         query_time: float,
     ) -> None:
-        """Called for each executed SQL query."""
         self.progress(
             {
                 "query": str(query),
@@ -230,11 +199,6 @@ class SQLCollector(Collector):
 
 
 class _BasePeriodicCollector(Collector):
-    """Record execution frames asynchronously at most every ``interval`` seconds.
-
-    :param interval: time to wait in seconds between two samples.
-    """
-
     _min_interval: float = 0.001
     _max_interval: float = 5
     _default_interval: float = 0.001
@@ -248,7 +212,6 @@ class _BasePeriodicCollector(Collector):
         self._stop_event = threading.Event()
 
     def start(self) -> None:
-        """Start the periodic sampling thread."""
         interval = self.profiler.params.get(f"{self.name}_interval")
         if interval:
             self.frame_interval = min(
@@ -261,7 +224,6 @@ class _BasePeriodicCollector(Collector):
         self.__thread.start()
 
     def run(self) -> None:
-        """Sampling loop run in the background thread."""
         self.active = True
         self._last_time = real_time()
         while self.active:
@@ -281,7 +243,6 @@ class PeriodicCollector(_BasePeriodicCollector):
     name = "traces_async"
 
     def add(self, entry=None, frame=None):
-        """Add an entry (dict) to this collector."""
         if self.last_frame:
             duration = real_time() - self._last_time
             if duration > self.frame_interval * 10:
@@ -330,7 +291,6 @@ class MemoryCollector(_BasePeriodicCollector):
             raise
 
     def add(self, entry=None, frame=None):
-        """Add an entry (dict) to this collector."""
         self._entries.append(
             {
                 "start": real_time(),
@@ -366,11 +326,6 @@ class MemoryCollector(_BasePeriodicCollector):
 
 
 class SyncCollector(Collector):
-    """Record complete execution synchronously.
-
-    Note: ``--limit-memory-hard`` may need to be increased when launching Odoo.
-    """
-
     name = "traces_sync"
 
     def start(self):
@@ -410,13 +365,11 @@ class SyncCollector(Collector):
                 stack.append(frame)
             elif event == "return":
                 stack.pop()
-            entry["stack"] = stack[:]
+            entry["stack"] = stack.copy()
         super().post_process()
 
 
 class QwebTracker:
-    """Tracks QWeb directive rendering for the QwebCollector."""
-
     def __init__(self, view_id: int, arch: Any, cr: Any) -> None:
         current_thread = threading.current_thread()
         self.execution_context_enabled: bool | None = getattr(
@@ -501,8 +454,6 @@ class QwebTracker:
 
 
 class QwebCollector(Collector):
-    """Record qweb execution with directive trace."""
-
     name = "qweb"
 
     def __init__(self):
@@ -599,17 +550,11 @@ class QwebCollector(Collector):
 
 
 class ExecutionContext:
-    """Add contextual information on the thread at the current call-stack level.
-
-    This context is stored by the collector alongside the stack and is used by
-    Speedscope to add an extra stack level with this information.
-    """
-
     def __init__(self, **context: Any) -> None:
         self.context: dict[str, Any] = context
         self.previous_context: tuple | None = None
 
-    def __enter__(self) -> ExecutionContext:
+    def __enter__(self) -> Self:
         current_thread = threading.current_thread()
         self.previous_context = getattr(current_thread, "exec_context", ())
         current_thread.exec_context = self.previous_context + (
@@ -617,13 +562,11 @@ class ExecutionContext:
         )
         return self
 
-    def __exit__(self, *_args: Any) -> None:
+    def __exit__(self, *_args: object) -> None:
         threading.current_thread().exec_context = self.previous_context
 
 
 class Profiler:
-    """Context manager that records execution; saves SQL and async stack traces by default."""
-
     def __init__(
         self,
         collectors: list[str | Collector] | None = None,
@@ -634,20 +577,6 @@ class Profiler:
         params: dict[str, Any] | None = None,
         log: bool = False,
     ) -> None:
-        """
-        :param db: database name for saving results; determined automatically by
-            default. Pass ``None`` to skip saving.
-        :param collectors: collector names or Collector objects, e.g.
-            ``['sql', PeriodicCollector(interval=0.2)]``. ``None`` for the defaults.
-        :param profile_session: session label to regroup multiple profiles; see
-            make_session() for the default format.
-        :param description: description of this profiler, e.g. route name, test
-            method, or loading module.
-        :param disable_gc: disable gc during profiling (avoids gc pauses, notably
-            during SQL execution).
-        :param params: parameters usable by collectors (e.g. frame interval).
-        :param log: log the profile summary at INFO level when profiling ends.
-        """
         self.start_time: float = 0
         self.duration: float = 0
         self.start_cpu_time: float = 0
@@ -689,7 +618,7 @@ class Profiler:
             collector.profiler = self
             self.collectors.append(collector)
 
-    def __enter__(self) -> Profiler:
+    def __enter__(self) -> Self:
         self.init_thread = threading.current_thread()
         try:
             self.init_frame = get_current_frame(self.init_thread)
@@ -731,7 +660,7 @@ class Profiler:
             raise
         return self
 
-    def __exit__(self, *args: Any) -> None:
+    def __exit__(self, *args: object) -> None:
         self.end()
 
     def end(self) -> None:
@@ -830,11 +759,9 @@ class Profiler:
                 stack[index] = (filename, lineno, name, line)
 
     def entry_count(self) -> int:
-        """Return the total number of entries collected in this profiler."""
         return sum(len(collector.entries) for collector in self.collectors)
 
     def format_path(self, path: str) -> str:
-        """Format a path for this profiler, mainly to uniquify it between executions."""
         return path.format(
             time=real_datetime_now().strftime("%Y%m%d-%H%M%S"),
             len=self.entry_count(),
@@ -842,17 +769,6 @@ class Profiler:
         )
 
     def json(self) -> str:
-        """Return a JSON representation of this profiler.
-
-        Useful to write profiling entries to a file, such as::
-
-            with Profiler(db=None) as profiler:
-                do_stuff()
-
-            filename = profiler.format_path("/home/foo/{desc}_{len}.json")
-            with open(filename, "w") as f:
-                f.write(profiler.json())
-        """
         return json.dumps(
             {
                 "name": self.description,
@@ -876,15 +792,6 @@ class Profiler:
 
 
 class Nested:
-    """Nest another context manager inside a profiler.
-
-    The profiler must be entered directly by the ``with``, not wrapped in an
-    ExitStack: otherwise ``init_frame`` retrieval can be wrong and profiling
-    fails with "Limit frame was not found". Frames inside this file are ignored
-    by the stack walk, so the nested frames are skipped too — which is also why
-    this does not use ``contextlib.contextmanager``.
-    """
-
     def __init__(self, profiler: Profiler, context_manager: Any = None) -> None:
         self._profiler__: Profiler = profiler
         self.context_manager: Any = context_manager or nullcontext()
@@ -897,7 +804,7 @@ class Nested:
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
-        traceback: Any,
+        traceback: types.TracebackType | None,
     ) -> bool | None:
         try:
             return self.context_manager.__exit__(exc_type, exc_value, traceback)

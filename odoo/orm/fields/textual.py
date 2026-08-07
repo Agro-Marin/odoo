@@ -38,8 +38,6 @@ if typing.TYPE_CHECKING:
 
 
 class BaseString(Field[str | typing.Literal[False]]):
-    """Abstract class for string fields."""
-
     translate: bool | Callable[[Callable[[str], str], str], str] = False
     size = None
     is_text = True
@@ -88,53 +86,23 @@ class BaseString(Field[str | typing.Literal[False]]):
         return super().__get__(record, owner)
 
     def _needs_translate_fallback(self, record_id: typing.Any) -> bool:
-        """Whether reads of ``record_id`` must use the en_US fallback: only
-        ``translate=True`` fields on records with no DB row to fetch from
-        (non-stored, or origin-less new records)."""
         return self.translate is True and not (
             self.compute
             or (self.store and (record_id or getattr(record_id, "origin", None)))
         )
 
     def _lang_cache_key(self, env: Environment, lang: str) -> tuple:
-        """Return the sub-cache key of ``self`` in ``env`` for language ``lang``.
-
-        The env's own cache key with the language component — always first,
-        normalized by :meth:`get_depends` — replaced by ``lang``.  A field
-        with extra context dependencies thus gets a key within the SAME extra
-        context that normal reads (:meth:`Field._get_cache_impl` via
-        ``env.cache_key``) use, instead of a bare ``(lang,)`` 1-tuple that no
-        real cache access ever consults.  For plain ``('lang',)`` fields the
-        key is the usual 1-tuple, unchanged.
-        """
         cache_key = env.cache_key(self)
         if len(cache_key) == 1:
             return _EN_US_KEY if lang == "en_US" else (lang,)
         return (lang, *cache_key[1:])
 
     def _lang_fallback_cache_key(self, env: Environment) -> tuple:
-        """Return the en_US fallback sub-cache key of ``self`` in ``env``.
-
-        See :meth:`_lang_cache_key`: the fallback key keeps the env's extra
-        context components so a field with extra context dependencies falls
-        back within the SAME extra context.
-        """
         return self._lang_cache_key(env, "en_US")
 
     def _scalar_translate_fallback(
         self, env: Environment, record_id: typing.Any
     ) -> typing.Any:
-        """Cache read with en_US fallback for a no-DB-row translated record.
-
-        A freshly derived env (with_context/sudo) may not have warmed the
-        per-env memo read by the scalar fast path, so check the current
-        language's sub-cache first (a value already stored for it must not be
-        shadowed by the fallback), then the en_US sub-cache.  Returns the raw
-        cache value, or ``SENTINEL`` on a full miss.
-
-        Shared by :meth:`BaseString.__get__` and :meth:`Html.__get__` — the
-        two descriptors that serve translated values without a DB fetch.
-        """
         cur_val = self._get_cache(env).get(record_id, SENTINEL)
         if cur_val is not SENTINEL:
             return cur_val
@@ -196,7 +164,6 @@ class BaseString(Field[str | typing.Literal[False]]):
             )
 
     def get_trans_terms(self, value: str | None) -> list[str]:
-        """Return the sequence of terms to translate found in `value`."""
         if not callable(self.translate):
             return [value] if value else []
         terms = []
@@ -204,7 +171,6 @@ class BaseString(Field[str | typing.Literal[False]]):
         return terms
 
     def get_text_content(self, term: str) -> str:
-        """Return the textual content for the given term."""
         func = getattr(self.translate, "get_text_content", lambda term: term)
         return func(term)
 
@@ -319,14 +285,6 @@ class BaseString(Field[str | typing.Literal[False]]):
         from_lang_value: str,
         to_lang_values: dict[str, str],
     ) -> dict[str, dict[str, str]]:
-        """Build a dictionary from terms in from_lang_value to terms in to_lang_values
-
-        :param str from_lang_value: from xml/html
-        :param dict to_lang_values: {lang: lang_value}
-
-        :return: {from_lang_term: {lang: lang_term}}
-        :rtype: dict
-        """
 
         from_lang_terms = self.get_trans_terms(from_lang_value)
         dictionary = defaultdict(lambda: defaultdict(dict))
@@ -349,7 +307,6 @@ class BaseString(Field[str | typing.Literal[False]]):
         return dictionary
 
     def _get_stored_translations(self, record: BaseModel) -> dict[str, str] | None:
-        """Return stored translations, e.g. ``{'en_US': '...', 'fr_FR': '...'}``."""
         record.flush_recordset([self.name])
         cr = record.env.cr
         cr.execute(
@@ -538,9 +495,6 @@ class BaseString(Field[str | typing.Literal[False]]):
             self._mark_dirty_model_term_translation(records, cache_value, lang)
 
     def _flush_pending_none(self, records: BaseModel, dirty_ids: typing.Any) -> None:
-        """Flush records whose pending value is None before the new value
-        overwrites the cache, so the None reaches the DB as SQL NULL.
-        """
         dirty_records = records.filtered(lambda rec: rec.id in dirty_ids)
         if not dirty_records:
             return
@@ -565,7 +519,6 @@ class BaseString(Field[str | typing.Literal[False]]):
     def _mark_dirty_unstored(
         self, records: BaseModel, cache_value: typing.Any, lang: str
     ) -> None:
-        """Non-stored (or all-new-record) path: update the cache only, no SQL."""
         if self.compute and self.inverse and any(records._ids):
             if self.translate is True:
                 self._invalidate_cache(records.env, records._ids)
@@ -584,8 +537,6 @@ class BaseString(Field[str | typing.Literal[False]]):
         lang: str,
         dirty_ids: typing.Any,
     ) -> None:
-        """Whole-value (translate=True) model translation: write the current
-        language's value and refresh fallback caches."""
         clean_records = records.filtered(lambda rec: rec.id not in dirty_ids)
         clean_records.invalidate_recordset([self.name])
         self._update_cache(records, cache_value, dirty=True)
@@ -597,13 +548,6 @@ class BaseString(Field[str | typing.Literal[False]]):
     def _mark_dirty_model_term_translation(
         self, records: BaseModel, cache_value: typing.Any, lang: str
     ) -> None:
-        """Reconcile each record's stored per-term translations with the terms of
-        the new value and cache the merged result (callable ``translate``).
-
-        Terms that survive keep their existing translations; terms that changed
-        are fuzzy-matched to their closest surviving term (see
-        :meth:`_reconcile_obsolete_terms`) so their translations carry over.
-        """
         new_translations_list = []
         new_terms = set(self.get_trans_terms(cache_value))
         delay_translations = records.env.context.get("delay_translations")
@@ -667,10 +611,6 @@ class BaseString(Field[str | typing.Literal[False]]):
         lang: str,
         env: Environment,
     ) -> None:
-        """Re-key the translations of terms that disappeared from the new value to
-        their closest surviving term, so edited/moved terms keep their
-        translations. Mutates *translation_dictionary* in place.
-        """
         text2terms = defaultdict(list)
         for term in new_terms:
             if term_text := self.get_text_content(term):
@@ -798,27 +738,6 @@ class BaseString(Field[str | typing.Literal[False]]):
 
 
 class Char(BaseString):
-    """Basic string field, can be length-limited, usually displayed as a
-    single-line string in clients.
-
-    :param int size: the maximum size of values stored for that field
-
-    :param bool trim: states whether the value is trimmed or not (by default,
-        ``True``). The trim operation is applied by both the server code and the
-        web client, ensuring consistent behavior between imported and UI-entered data.
-
-        - The web client trims user input during in write/create flows in UI.
-        - The server trims values during import (in `base_import`) to avoid discrepancies between
-          trimmed form inputs and stored DB values.
-
-    :param translate: enable the translation of the field's values; use
-        ``translate=True`` to translate field values as a whole; ``translate``
-        may also be a callable such that ``translate(callback, value)``
-        translates ``value`` by using ``callback(term)`` to retrieve the
-        translation of terms.
-    :type translate: bool or callable
-    """
-
     type = "char"
     trim: bool = True
 
@@ -868,39 +787,11 @@ class Char(BaseString):
 
 
 class Text(BaseString):
-    """Similar to :class:`Char` but for longer content: has no size limit and
-    is usually displayed as a multiline text box.
-
-    :param translate: enable the translation of the field's values; use
-        ``translate=True`` to translate field values as a whole; ``translate``
-        may also be a callable such that ``translate(callback, value)``
-        translates ``value`` by using ``callback(term)`` to retrieve the
-        translation of terms.
-    :type translate: bool or callable
-    """
-
     type = "text"
     _column_type = ("text", "text")
 
 
 class Html(BaseString):
-    """Encapsulates HTML content.
-
-    :param bool sanitize: whether value must be sanitized (default: ``True``)
-    :param bool sanitize_overridable: whether the sanitation can be bypassed by
-        the users part of the `base.group_sanitize_override` group (default: ``False``)
-    :param bool sanitize_tags: whether to sanitize tags
-        (only a white list of attributes is accepted, default: ``True``)
-    :param bool sanitize_attributes: whether to sanitize attributes
-        (only a white list of attributes is accepted, default: ``True``)
-    :param bool sanitize_style: whether to sanitize style attributes (default: ``False``)
-    :param bool sanitize_conditional_comments: whether to kill conditional comments. (default: ``True``)
-    :param bool sanitize_output_method: whether to sanitize using html or xhtml (default: ``html``)
-    :param bool strip_style: whether to strip style attributes
-        (removed and therefore not sanitized, default: ``False``)
-    :param bool strip_classes: whether to strip classes attributes (default: ``False``)
-    """
-
     type = "html"
     _column_type = ("text", "text")
 
@@ -1012,13 +903,6 @@ class Html(BaseString):
             if record.env.user.has_group("base.group_sanitize_override"):
                 return value
 
-            # Per record, not per value: the check compares each record's
-            # *existing* content against what sanitizing it would produce, so
-            # it has to look at every record being written.  `convert_to_cache`
-            # is handed the whole recordset (see Field._mark_dirty_prologue),
-            # and reading `record[self.name]` off it raised "Expected
-            # singleton" on every multi-record write by a user without the
-            # override group — a hard 500 on an ordinary batch update.
             for rec in record:
                 self._check_overridable_content(rec, sanitize_vals)
 
@@ -1027,17 +911,6 @@ class Html(BaseString):
     def _check_overridable_content(
         self, record: ModelLike, sanitize_vals: dict
     ) -> None:
-        """Refuse the write if *record*'s current content would not survive sanitizing.
-
-        ``sanitize_overridable`` lets a privileged user store markup that this
-        field would otherwise strip.  A user *without* that privilege must not
-        be able to save over such content, because saving would silently
-        sanitize away what the privileged user put there.  Detect it by
-        sanitizing the stored value: if that changes it, the stored value is
-        privileged content and this write is refused.
-
-        Takes a single record; :meth:`_convert` loops.
-        """
         original_value = record[self.name]
         if original_value:
             original_value_sanitized = html_sanitize(original_value, **sanitize_vals)
@@ -1108,9 +981,6 @@ class Html(BaseString):
 
 
 class LangProxyDict(collections.abc.MutableMapping):
-    """A view on a dict[id, dict[lang, value]] that maps id to value given a
-    fixed language."""
-
     __slots__ = ("_cache", "_field", "_lang")
 
     def __init__(self, field: BaseString, cache: dict, lang: str) -> None:

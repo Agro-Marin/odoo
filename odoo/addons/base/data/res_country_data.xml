@@ -1804,7 +1804,6 @@
         <field name="currency_id" ref="USD" />
         <field name="phone_code" eval="1" />
         <field name="vat_label" />
-        <!-- Empty to reset on existing DBs-->
     </record>
 
     <record id="uy" model="res.country">

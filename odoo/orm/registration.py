@@ -26,19 +26,14 @@ _logger = logging.getLogger("odoo.registry")
 
 
 def is_model_definition(cls: type) -> bool:
-    """Return whether ``cls`` is a model definition class."""
     return isinstance(cls, models.MetaModel) and getattr(cls, "pool", None) is None
 
 
 def is_model_class(cls: type) -> bool:
-    """Return whether ``cls`` is a model registry class."""
     return getattr(cls, "pool", None) is not None
 
 
 def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[BaseModel]:
-    """Add a model definition to the registry, creating or extending its model
-    class, and return that model class.
-    """
     if not is_model_definition(model_def):
         raise TypeError(f"{model_def!r} is not a model definition class")
 
@@ -126,7 +121,6 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
 
 
 def _check_model_extension(model_cls: type[BaseModel], model_def: type[BaseModel]):
-    """Check whether ``model_cls`` can be extended with ``model_def``."""
     if model_cls._abstract and not model_def._abstract:
         raise TypeError(
             f"{model_def} transforms the abstract model {model_cls._name!r} into a non-abstract model. "
@@ -149,7 +143,6 @@ def _check_model_parent_extension(
     model_def: type[BaseModel],
     parent_cls: type[BaseModel],
 ):
-    """Check whether ``model_cls`` can inherit from ``parent_cls``."""
     if model_cls._abstract and not parent_cls._abstract:
         raise TypeError(
             f"In {model_def}, abstract model {model_cls._name!r} cannot inherit from non-abstract model {parent_cls._name!r}."
@@ -157,7 +150,6 @@ def _check_model_parent_extension(
 
 
 def _init_model_class_attributes(model_cls: type[BaseModel]):
-    """Initialize model class attributes."""
     if not is_model_class(model_cls):
         raise TypeError(f"{model_cls!r} is not a registry model class")
 
@@ -216,7 +208,6 @@ def setup_model_classes(env: Environment):
 
 
 def _prepare_setup(model_cls: type[BaseModel]):
-    """Prepare the setup of the model."""
     if model_cls._setup_done__:
         if model_cls.__bases__ != model_cls._base_classes__:
             raise TypeError(
@@ -236,17 +227,6 @@ def _prepare_setup(model_cls: type[BaseModel]):
 
 
 def _setup(model_cls: type[BaseModel], env: Environment):
-    """Determine all the fields of the model.
-
-    Orchestrates 7 setup phases for a model class:
-    1. Collect and install field definitions (including database patches)
-    2. Add manual (custom) fields
-    3. Resolve inheritance and add inherited fields
-    4. Initialize field metadata
-    5. Validate _rec_name
-    6. Validate _active_name
-    7. Build table objects (constraints, indexes)
-    """
     if model_cls._setup_done__:
         return
 
@@ -260,9 +240,6 @@ def _setup(model_cls: type[BaseModel], env: Environment):
 
 
 def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
-    """The 7 setup phases of :func:`_setup`, split out so the caller can wrap
-    them in a cycle-detection guard.
-    """
     model_cls._model_classes__ = tuple(
         c for c in model_cls.mro() if getattr(c, "pool", None) is None
     )
@@ -288,11 +265,6 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
 
 
 def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
-    """Collect field definitions from the MRO and install them on the model.
-
-    Patches translate / company_dependent state from the database to prevent
-    data loss during module upgrades.
-    """
     for name in model_cls._fields:
         discardattr(model_cls, name)
     model_cls._fields__.clear()
@@ -319,11 +291,6 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
 
 
 def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list):
-    """Preserve translate=True when the DB column is already translated.
-
-    Prevents data loss when an upgrade drops translate from a field definition
-    but the column still holds translated data.
-    """
     key = f"{model_cls._name}.{name}"
     if key not in model_cls.pool._database_translated_fields:
         return
@@ -348,11 +315,6 @@ def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list)
 def _patch_company_dependent_field(
     model_cls: type[BaseModel], env: Environment, name: str, fields_: list
 ):
-    """Preserve company_dependent=True when the DB column is already jsonb.
-
-    Prevents data loss when an upgrade drops company_dependent from a field
-    definition but the column is already jsonb.
-    """
     key = f"{model_cls._name}.{name}"
     if key not in model_cls.pool._database_company_dependent_fields:
         return
@@ -377,7 +339,6 @@ def _patch_company_dependent_field(
 
 
 def _validate_rec_name(model_cls: type[BaseModel]):
-    """Determine and validate the _rec_name attribute."""
     if model_cls._rec_name:
         if model_cls._rec_name not in model_cls._fields:
             raise TypeError(
@@ -391,7 +352,6 @@ def _validate_rec_name(model_cls: type[BaseModel]):
 
 
 def _validate_active_name(model_cls: type[BaseModel]):
-    """Determine and validate the _active_name attribute."""
     if model_cls._active_name:
         if (
             model_cls._active_name not in model_cls._fields
@@ -409,7 +369,6 @@ def _validate_active_name(model_cls: type[BaseModel]):
 
 
 def _build_table_objects(model_cls: type[BaseModel]):
-    """Build the table objects (constraints, indexes) for the model."""
     if model_cls._table_object_definitions:
         raise TypeError(
             f"Model {model_cls._name!r}: registry class must not own "
@@ -445,7 +404,6 @@ def _check_inherits(model_cls: type[BaseModel]):
 
 
 def _add_inherited_fields(model_cls: type[BaseModel]):
-    """Determine inherited fields."""
     if model_cls._abstract or not model_cls._inherits:
         return
 
@@ -484,7 +442,6 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
 
 
 def _setup_fields(model_cls: type[BaseModel], env: Environment):
-    """Setup the fields, except for recomputation triggers."""
     bad_fields = []
     many2one_company_dependents = model_cls.pool.many2one_company_dependents
     model = model_cls(env, (), ())
@@ -510,7 +467,6 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
 
 
 def _add_manual_models(env: Environment):
-    """Add extra models to the registry."""
     removed_fields = OrderedSet()
     for name, model_cls in list(env.registry.items()):
         if model_cls._custom:
@@ -552,7 +508,6 @@ def _add_manual_models(env: Environment):
 
 
 def _add_manual_fields(model_cls: type[BaseModel], env: Environment):
-    """Add extra fields on model."""
     IrModelFields = env["ir.model.fields"]
 
     fields_data = IrModelFields._get_manual_field_data(model_cls._name)
@@ -572,7 +527,6 @@ def _add_manual_fields(model_cls: type[BaseModel], env: Environment):
 
 
 def add_field(model_cls: type[BaseModel], name: str, field: Field):
-    """Add ``field`` under ``name`` on ``model_cls``."""
     is_class_field = any(
         isinstance(getattr(model, name, None), fields.Field)
         for model in [model_cls]
@@ -601,7 +555,6 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
 
 
 def pop_field(model_cls: type[BaseModel], name: str) -> Field | None:
-    """Remove the field named ``name`` from ``model_cls``."""
     field = model_cls._fields__.pop(name, None)
     discardattr(model_cls, name)
     if model_cls._rec_name == name:

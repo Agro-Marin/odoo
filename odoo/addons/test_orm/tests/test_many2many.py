@@ -23,12 +23,6 @@ class Many2manyCase(TransactionCase):
         self.redbeard = self.env["test_orm.pirate"].create({"name": "Red Beard"})
 
     def test_set_removes_archived_links(self):
-        """SET on a stored m2m must remove archived (inactive-comodel) links too.
-
-        Regression: write_real built old_relation from ``record[field]``, which
-        under the default ``active_test`` hides archived links, so they escaped
-        the SET/CLEAR delta and survived in the relation table.
-        """
         Category = self.env["res.partner.category"]
         a, b, c = Category.create([{"name": "A"}, {"name": "B"}, {"name": "C"}])
         partner = self.env["res.partner"].create(
@@ -45,13 +39,6 @@ class Many2manyCase(TransactionCase):
         )
 
     def test_write_new_scopes_commands_per_record(self):
-        """write_new must apply each pair's commands only to that pair's records.
-
-        Regression: LINK/CREATE iterated ``new_relation.values()`` (every record
-        in the batch) instead of ``recs._ids``, so in a multi-pair write_new call
-        record A's link leaked onto record B.  write_real and One2many.write_new
-        (and write_new's own CLEAR/SET) all scope per pair.
-        """
         Ship = self.env["test_orm.ship"]
         p1 = self.env["test_orm.prisoner"].create({"name": "P1"})
         p2 = self.env["test_orm.prisoner"].create({"name": "P2"})

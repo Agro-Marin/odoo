@@ -1,9 +1,3 @@
-"""Query-count regression tests for base module N+1 optimizations.
-
-Each test pins the expected SQL query count for an optimized path; an N+1
-regression fails the test with a higher count.
-"""
-
 import traceback
 
 from odoo.tests.common import TransactionCase, tagged, warmup
@@ -11,8 +5,6 @@ from odoo.tests.common import TransactionCase, tagged, warmup
 
 @tagged("post_install", "-at_install", "base_perf")
 class TestBasePerfRegression(TransactionCase):
-    """Pin query counts for optimized base module methods."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -69,7 +61,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_check_path_batch(self):
-        """Path constraint uses 1 grouped _read_group, not N search_counts."""
         actions = self.window_actions
         self.env.invalidate_all()
         with self.assertQueryCount(2):
@@ -77,7 +68,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_check_barcode_batch(self):
-        """Barcode constraint uses 1 search_fetch, not N search_counts."""
         partners = self.partners
         self.env.invalidate_all()
         with self.assertQueryCount(2):
@@ -85,7 +75,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_compute_show_code_history(self):
-        """Code history compute uses 1 search_fetch, not N search_counts."""
         actions = self.server_actions
         self.env.invalidate_all()
         with self.assertQueryCount(9):
@@ -93,7 +82,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_get_bindings_cold_cache(self):
-        """First bindings load does batch reads per action type, not per action."""
         Actions = self.env["ir.actions.actions"]
         self.registry.clear_all_caches()
         self.env.invalidate_all()
@@ -102,7 +90,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_compute_partner_share(self):
-        """Partner share compute uses 1 _read_group, not N per-partner checks."""
         partners = self.partners
         self.env.invalidate_all()
         with self.assertQueryCount(4):
@@ -110,7 +97,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_compute_is_public(self):
-        """Public compute queries group membership directly, not per partner."""
         partners = self.partners
         self.env.invalidate_all()
         with self.assertQueryCount(6):
@@ -118,7 +104,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_compute_main_user_id(self):
-        """Main user compute uses 1 batch search_fetch, not per-partner user_ids."""
         partners = self.partners
         self.env.invalidate_all()
         with self.assertQueryCount(5):
@@ -126,7 +111,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_compute_same_vat(self):
-        """Same VAT compute pre-filters with _read_group, skips unique VATs."""
         partners = self.vat_partners
         self.env.invalidate_all()
         with self.assertQueryCount(10):
@@ -134,7 +118,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_selection_target_model_cached(self):
-        """Second call to _selection_target_model hits ormcache → 0 queries."""
         ServerAction = self.env["ir.actions.server"]
         ServerAction._selection_target_model()
         self.env.invalidate_all()
@@ -143,7 +126,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_ir_model_view_ids(self):
-        """View IDs compute uses 1 batch search, not N per-model searches."""
         ir_models = self.env["ir.model"].search([], limit=20)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
@@ -151,7 +133,6 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_ir_model_inherited_models(self):
-        """Inherited models compute uses 1 batch search, not N per-model."""
         ir_models = self.env["ir.model"].search([], limit=20)
         self.env.invalidate_all()
         with self.assertQueryCount(5):
@@ -159,35 +140,12 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_ir_model_compute_count(self):
-        """Record count uses 1 UNION ALL query, not N COUNT(*) per table.
-
-        Read through the field rather than calling ``_compute_count`` directly:
-        a compute assigns with ``record.<field> = value``, and outside the
-        ``env.protecting`` scope the field machinery sets up that assignment is
-        a real :meth:`~odoo.models.Model.write` — which stamps ``write_date``,
-        so ``assertQueryCount``'s trailing flush issues an ``UPDATE ir_model``
-        the production path never performs.  Measuring the direct call measured
-        that UPDATE too (4 rather than 3).
-        """
         ir_models = self.env["ir.model"].search([], limit=20)
         self.env.invalidate_all()
         with self.assertQueryCount(3):
             ir_models.mapped("count")
 
     def test_create_partners_does_not_fetch_per_record(self):
-        """Creating N partners must not cost a SELECT per partner for the
-        commercial/parent fields the sync helpers read.
-
-        ``_fields_sync`` used to call ``self.fetch([...])`` on the single-record
-        ``self`` it receives. ``fetch()`` queries ``self`` alone (``_as_query``)
-        and ignores ``_prefetch_ids``, so that was one SELECT per partner --
-        the opposite of its intent. Plain attribute access in the helpers does
-        honour the prefetch set, so the batch load happens once, for free.
-
-        Counts only the commercial_partner_id SELECT rather than the total, so
-        unrelated ORM query-count drift (e.g. the attachment lookups the image
-        mixin triggers) cannot make this test flap.
-        """
         Partner = self.env["res.partner"]
         cursor_cls = type(self.env.cr)
         original_execute = cursor_cls.execute
@@ -215,15 +173,6 @@ class TestBasePerfRegression(TransactionCase):
         )
 
     def test_create_records_with_images_batches_attachment_lookups(self):
-        """Creating N records of an image.mixin model must not cost one
-        ir_attachment SELECT per record per resized image field.
-
-        ``Field._compute_related`` assigned the related value one record at a
-        time. Attachment-backed ``Binary.mark_dirty`` runs an ir_attachment
-        search per assignment, so propagating the 4 stored resized image fields
-        cost 4*N SELECTs (each returning nothing) on a plain create. Records
-        receiving the same falsy value are now assigned in one go.
-        """
         Partner = self.env["res.partner"]
         cursor_cls = type(self.env.cr)
         original_execute = cursor_cls.execute

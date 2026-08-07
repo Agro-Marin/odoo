@@ -12,8 +12,6 @@ _logger = logging.getLogger(__name__)
 
 
 class NameManager:
-    """An object that manages all the named elements in a view."""
-
     def __init__(
         self,
         model: Any,
@@ -62,7 +60,6 @@ class NameManager:
         node_info: dict[str, Any],
         info: dict[str, Any] = frozendict(),
     ) -> None:
-        """Record a field declared by a ``<field>`` element of the view."""
         self.available_fields[name].setdefault("info", {}).update(info)
         self.field_groups[name] = node_info["model_groups"]
         self.available_fields[name].setdefault("groups", []).append(
@@ -71,12 +68,10 @@ class NameManager:
         self.available_names.add(info.get("id") or name)
 
     def has_action(self, name: str) -> None:
-        """Record an action name declared in the view."""
         self.available_actions.add(name)
 
     @staticmethod
     def _describe_use(use: tuple[str, str]) -> str:
-        """Render a ``must_have_fields`` ``use`` pair for an error message."""
         attr, expr = use
         return f"{attr}={expr!r}"
 
@@ -87,14 +82,6 @@ class NameManager:
         node_info: dict[str, Any],
         use: tuple[str, str],
     ) -> None:
-        """Record fields referenced by an expression on ``node`` for validation.
-
-        ``use`` is an ``(attr, expr)`` pair: the attribute (or pseudo-attribute,
-        e.g. ``"fieldname"``, ``"filename"``) and the expression naming the
-        fields. :meth:`IrUiView._add_missing_fields` unpacks it for the
-        ``data-used-by`` attribute of auto-appended fields; :meth:`check` renders
-        it via :meth:`_describe_use` in error messages.
-        """
         access_groups = node_info["model_groups"] & node_info["view_groups"]
         for name in sorted(names):
             if name == "id":
@@ -105,19 +92,15 @@ class NameManager:
                 self.parent.must_have_fields(node, {name[7:]}, node_info, use)
 
     def must_have_name(self, name: str, use: str) -> None:
-        """Record a name that must be present in the view (e.g. a label ``for=`` target)."""
         self.used_names[name] = use
 
     def must_exist_action(self, action_id: str, node: etree._Element) -> None:
-        """Record an action id/xmlid whose existence must be checked at ``check`` time."""
         self.must_exist_actions[action_id] = node
 
     def must_exist_group(self, name: str, node: etree._Element) -> None:
-        """Record a ``groups=`` name whose existence must be checked at ``check`` time."""
         self.must_exist_groups[name] = node
 
     def _get_field_groups(self, name: str) -> Any:
-        """Return the group expression for users with read access to the field."""
         if name in self.field_groups:
             return self.field_groups[name]
 
@@ -139,12 +122,6 @@ class NameManager:
         return access_groups
 
     def check(self, view: Any) -> None:
-        """Run the consolidated validation pass over the names collected for ``view``.
-
-        Raises a view error (or logs a warning) for undefined names/ids,
-        nonexistent fields or actions, unknown groups, ``select="multi"`` misuse,
-        and access-rights group inconsistencies.
-        """
         for name, use in self.used_names.items():
             if (
                 name not in self.available_actions
@@ -334,12 +311,10 @@ class NameManager:
         return message, "does_not_exist" if does_not_exist else "inconsistency"
 
     def update_available_fields(self) -> None:
-        """Merge ``field_info`` into each accumulated available field."""
         for name, info in self.available_fields.items():
             info.update(self.field_info.get(name, {}))
 
     def get_missing_fields(self) -> dict[str, tuple[Any, list[tuple]]]:
-        """Return {field_name: (missing_groups | False, [(mandatory_groups, use, node)])}."""
 
         missing_fields = {}
         for name, groups_uses in self.used_fields.items():

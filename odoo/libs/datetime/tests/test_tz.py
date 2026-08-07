@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.datetime.tz``."""
-
 import unittest
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -19,8 +17,6 @@ class TestTimezone(unittest.TestCase):
 
 
 class TestCountryTimezones(unittest.TestCase):
-    """The CLDR-derived lookup table is shared; callers must not be able to edit it."""
-
     def test_lookup(self):
         self.assertIn("America/New_York", country_timezones()["US"])
         self.assertEqual(country_timezones()["JP"], ("Asia/Tokyo",))

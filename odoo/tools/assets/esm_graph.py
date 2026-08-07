@@ -1,14 +1,3 @@
-"""Pure ESM module-graph helpers for the assets pipeline (H2 split).
-
-Everything here is env-free and subprocess-free: ``@odoo-module`` header
-parsing, URL→specifier mapping, the module-syntax probe, the process-level
-classification cache, ES-module export extraction (with recursive
-``export * from`` expansion), bridge-shim source generation, and the
-per-build export resolver. Extracted verbatim from
-``odoo.addons.base.models.assetsbundle`` (2026-06-10), which re-imports
-the public surface so existing consumers and tests keep their imports.
-"""
-
 import functools
 import logging
 import re
@@ -51,18 +40,15 @@ _ODOO_MODULE_RE = re.compile(
 
 
 def _parse_odoo_module_header(content: str) -> re.Match[str] | None:
-    """Parse the ``@odoo-module`` directive from the file header."""
     return _ODOO_MODULE_RE.search(content[:500])
 
 
 def is_native_module(content: str) -> bool:
-    """Detect if the file is a native ES module (``@odoo-module native``)."""
     result = _parse_odoo_module_header(content)
     return bool(result and result["native"])
 
 
 def is_odoo_module(url: str, content: str) -> bool:
-    """Detect if the file is an odoo module routed through the ESM pipeline."""
     result = _parse_odoo_module_header(content)
     if result and (result["ignore"] or result["native"]):
         return False
@@ -75,10 +61,6 @@ def is_odoo_module(url: str, content: str) -> bool:
 
 
 def url_to_module_path(url: str) -> str:
-    """Convert a file URL to an Odoo module specifier.
-
-    Example: ``web/static/src/one/two/three.js`` → ``@web/one/two/three``
-    """
     match = _URL_RE.match(url)
     if match:
         url = match["url"]
@@ -108,26 +90,13 @@ _JS_OPAQUE_RE = re.compile(r"/\*.*?\*/|`[^`]*`", re.DOTALL)
 
 
 def has_module_syntax(content: str) -> bool:
-    """Whether ``content`` contains top-level ES-module syntax.
-
-    Strips block comments and template literals first so a commented-out
-    ``export`` cannot trip the legacy-bundle stub.
-    """
     return bool(_MODULE_SYNTAX_RE.search(_JS_OPAQUE_RE.sub("", content)))
 
 
 @functools.lru_cache(maxsize=16384)
 def _cached_module_classification(
-    url: str, filename: str, last_modified: float | int
+    url: str, filename: str, last_modified: float
 ) -> bool:
-    """Whether the JS file at ``filename`` belongs to the ESM pipeline.
-
-    Process-level memo keyed by ``(url, filename, last_modified)`` so the
-    repeated ``AssetsBundle`` constructions of one cold render (links cache,
-    native-data cache, esbuild build, dynamic children) read each source once
-    per (file, mtime) instead of once per construction.  An edited file gets
-    a new mtime and therefore a fresh classification.
-    """
     try:
         with file_open(filename, "rb", filter_ext=EXTENSIONS) as fp:
             content = fp.read(512).decode("utf-8", errors="ignore")
@@ -176,22 +145,15 @@ _TRANSITIVE_IMPORT_RE = re.compile(
 
 
 def _scan_import_specifiers(src: str) -> set[str]:
-    """Return every statically imported specifier of a JS source file.
-
-    Primary path: the ``es-module-lexer`` worker (``imports`` records, all
-    specifier shapes including relative, plus its ``starFrom`` list).  The
-    ``_TRANSITIVE_IMPORT_RE`` pass ALWAYS runs and is unioned in: it is the
-    fallback when the worker is unavailable, and it supplies the
-    ``export {x} from`` / ``export * as ns from`` clauses the worker's
-    ``imports`` records omit.  Duplicates collapse in the set.
-    """
     specs: set[str] = set()
     lexed = lex_module(src)
     if lexed is not None:
         specs.update(imp["n"] for imp in lexed["imports"])
         specs.update(lexed.get("starFrom") or ())
-    for match in _TRANSITIVE_IMPORT_RE.finditer(src):
-        specs.add(match.group("spec") or match.group("side"))
+    specs.update(
+        match.group("spec") or match.group("side")
+        for match in _TRANSITIVE_IMPORT_RE.finditer(src)
+    )
     return specs
 
 
@@ -202,38 +164,6 @@ def discover_transitive_import_specifiers(
     lib_candidates: Mapping[str, tuple[str, ...]],
     bundle_name: str = "",
 ) -> set[str]:
-    """Walk the import graph from *seed_specifiers* and return every reachable
-    ``@addon`` specifier absent from *known_specifiers*.
-
-    Debug-mode/fallback rendering resolves cross-bundle specifiers to DIRECT
-    static URLs: the browser fetches each file's RAW source, so every bare
-    specifier that source imports must resolve through the import map too —
-    transitively.  The one-level ``_discover_bridge_specifiers`` scan only
-    covers the bundle's own modules; this walk covers the out-of-bundle
-    closure.  (Canonical failure: ``web.report_assets_common`` ships only
-    ``@web/libs/bootstrap``, which then imported
-    ``@web/core/utils/dom/scrolling``, which imports
-    ``@web/core/browser/browser`` — unmapped, so every ``/report/html`` page on
-    the fallback path died pre-boot with "Failed to resolve module specifier".
-    That import has since been dropped; the walk is what keeps the next one
-    from repeating it.)
-
-    Relative imports of walked files are followed for scanning (their bare
-    imports matter) but never returned — the browser resolves a relative
-    reference against the importing module's URL, no map entry needed.
-    Specifiers in *known_specifiers* (already mapped), *ext_libs*, or
-    ``@odoo/owl`` are assumed both resolvable and already scanned.  A
-    specifier whose source cannot be read is still returned (the caller
-    decides resolvability); the failed read is logged by the resolver.
-
-    :param seed_specifiers: cross-bundle specifiers already resolved to
-        direct URLs, whose sources seed the walk
-    :param known_specifiers: specifiers the current import map already
-        resolves (never re-added, never re-scanned)
-    :param ext_libs: bare-specifier → URL externals (``ODOO_EXTERNAL_LIBS``)
-    :param lib_candidates: esbuild vendored-lib aliases, for source reads
-    :param bundle_name: for log attribution only
-    """
     resolver = _BridgeExportResolver(ext_libs, lib_candidates, bundle_name)
     known = set(known_specifiers) | set(ext_libs) | {"@odoo/owl"}
     discovered: set[str] = set()
@@ -272,20 +202,6 @@ def _resolve_export_specifier(
     importing_specifier: str | None,
     target_path: str,
 ) -> str | None:
-    """Resolve a re-export's ``from "X"`` specifier to a module key.
-
-    Bare specifiers (``@web/core/l10n/utils/format_list``) pass through
-    with any trailing ``.js`` stripped — the source map is keyed by the
-    result.
-
-    Relative specifiers (``./foo``, ``../bar/baz``) need joining against
-    the importing file's specifier.  The result is a normalized bare
-    specifier that the source map can look up.
-
-    Returns ``None`` if the specifier can't be resolved (e.g. relative
-    import without an importing context).  The caller silently drops
-    unresolvable wildcards rather than crash the bundle build.
-    """
     if not target_path.startswith("."):
         return target_path.removesuffix(".js")
     if not importing_specifier:
@@ -310,62 +226,10 @@ def _extract_esm_exports(
     _visited: set[str] | None = None,
     _exports_cache: dict[str, set[str]] | None = None,
 ) -> tuple[set[str], bool]:
-    """Return ``(named_exports, has_default)`` parsed from a JS source file.
-
-    Primary path: the spec-compliant ``es-module-lexer`` worker
-    (``odoo.tools.assets.esm_lexer.lex_module``) — a real lexer, immune
-    to the comment/string false-positive class by construction.  When the
-    worker is unavailable (no node, package missing, worker died) or the
-    source doesn't lex, the historical regex extractor below takes over.
-    Both paths share the same recursive ``export * from`` expansion,
-    visited-set and memoization semantics.  Corpus cross-check
-    2026-07-03: lexer and regex agree on every ``static/src`` file across
-    all five addon roots.
-
-    The regex path is robust against the common ES module export shapes
-    used in the fork: declarations, re-export lists (with ``as``
-    renames), destructured declarations, ``export {x} from "..."``,
-    ``export * from "..."``, and ``export * as ns from "..."``.  Not a
-    full parser — block comments and template literals are stripped first
-    (``_JS_OPAQUE_RE``, same as ``has_module_syntax``) so an ``export``
-    quoted in a docstring cannot inject a spurious name — the shim would
-    emit ``export const Foo = _m?.Foo;`` (silently ``undefined``) or a
-    false ``has_default``.
-
-    :param src: Raw JS source as a string.
-    :param source_map: Optional dict mapping module specifier → raw source.
-        When provided, ``export * from "X"`` is recursively expanded by
-        looking up ``X`` and unioning its named exports into the result.
-        Without it, wildcard re-exports contribute nothing — the bridge
-        ends up missing those names and consumers see "does not provide
-        an export named …" errors at module-load time.
-    :param importing_specifier: The bare specifier of the importing file
-        (e.g. ``@web/core/l10n/utils``).  Required when the source has
-        relative re-exports (``export * from "./foo"``); ignored otherwise.
-    :param _visited: Internal — tracks specifiers already expanded so a
-        circular ``export * from`` chain doesn't recurse forever.
-    :param _exports_cache: Internal, opt-in — ``{specifier: names}`` memo
-        shared across sibling calls so a re-export hub reached from several
-        modules is expanded once.  Checked before ``_visited`` because a
-        cached entry is the target's COMPLETE surface.  Only safe for the
-        acyclic ``export *`` graphs the fork has; omit it (the default) for
-        the general case.
-    """
     visited = _visited if _visited is not None else set()
     names: set[str] = set()
 
     def expand_star(raw_target: str) -> None:
-        """Union the transitive surface of ``export * from raw_target``.
-
-        Shared by the lexer and regex paths.  Memoized expansion (opt-in
-        via ``_exports_cache``): a barrel reached through several modules'
-        chains is parsed once.  The cache is checked BEFORE ``visited``
-        because a cached entry is the target's COMPLETE transitive
-        surface — correct to reuse even where ``visited`` would otherwise
-        skip it.  Safe for the acyclic ``export *`` graphs the fork has;
-        callers that might introduce a circular ``export *`` simply pass
-        no cache.
-        """
         target_spec = _resolve_export_specifier(importing_specifier, raw_target)
         if _exports_cache is not None and target_spec in _exports_cache:
             names.update(_exports_cache[target_spec])
@@ -418,16 +282,6 @@ def _extract_esm_exports(
 
 
 class _BridgeExportResolver:
-    """Resolve ``@addon`` specifiers to source and extract their export surface.
-
-    Per-build helper for ``BridgeShimManager._build_native_to_legacy_bridge``: reads
-    the source file of each discovered specifier (with a disk-read cache) and
-    extracts its export surface, recursively following ``export * from``.  The
-    object doubles as the ``source_map`` passed to ``_extract_esm_exports`` —
-    its ``get`` disk-reads on a miss — collapsing the old two-level cache
-    (``_src_cache`` plus a ``_LazySourceMap`` dict) into one.
-    """
-
     __slots__ = (
         "_bundle_name",
         "_cache",
@@ -451,12 +305,6 @@ class _BridgeExportResolver:
         self._star_cache: dict[str, set[str]] = {}
 
     def resolve_url(self, spec: str) -> str | None:
-        """Map an ``@addon/path`` specifier to a static URL.
-
-        Mirrors the bridge resolver in ``ir_qweb._specifier_to_static_url``.
-        Returns ``None`` for specifiers that cannot be mapped (e.g. bare
-        ``luxon``) — external libs are handled through ``ext_libs``.
-        """
         if spec in self._ext_libs:
             return self._ext_libs[spec]
         lib_parts = self._lib_candidates.get(spec)
@@ -481,7 +329,6 @@ class _BridgeExportResolver:
         return url
 
     def read_source(self, spec: str) -> str | None:
-        """Read an addon-resolved specifier's source (cached, including misses)."""
         if spec in self._cache:
             return self._cache[spec]
         url = self.resolve_url(spec)
@@ -501,8 +348,7 @@ class _BridgeExportResolver:
                     fpath = file_path(rel[:-3] + "/index.js")
                 else:
                     raise
-            with Path(fpath).open(encoding="utf-8") as f:
-                src = f.read()
+            src = Path(fpath).read_text(encoding="utf-8")
             self._cache[spec] = src
             return src
         except (FileNotFoundError, ValueError, OSError) as exc:
@@ -518,23 +364,10 @@ class _BridgeExportResolver:
             return None
 
     def get(self, key: str, default: str | None = None) -> str | None:
-        """``source_map`` protocol: cached/disk-read source, or ``default``.
-
-        Lets the resolver be passed as the ``source_map`` to
-        ``_extract_esm_exports`` for the recursive ``export * from`` walk.
-        """
         src = self.read_source(key)
         return src if src is not None else default
 
     def source_exports(self, spec: str) -> tuple[set[str], bool]:
-        """Return ``(named_exports, has_default)`` by reading the source.
-
-        Recursively follows ``export * from "..."`` re-exports so a barrel
-        file like ``@web/core/l10n/utils`` exposes every name from its
-        sub-modules through the bridge. Memoized per spec for the build's
-        duration (the source file is immutable while bundling); the returned
-        tuple is shared and must be treated read-only by callers.
-        """
         cached = self._exports_cache.get(spec)
         if cached is not None:
             return cached
@@ -552,9 +385,6 @@ class _BridgeExportResolver:
         return result
 
 
-# `\Z`, not `$`: Python's `$` also matches before a trailing newline, and this
-# must accept exactly what `VALID_EXPORT_NAME` in `@web/core/module_bridge`
-# accepts -- the two generators emit interchangeable bridges.
 _VALID_EXPORT_NAME = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*\Z")
 
 
@@ -564,43 +394,6 @@ def _bridge_shim_source(
     src_names: set[str],
     has_default: bool,
 ) -> tuple[str, bool]:
-    """Build the bridge shim JS for one specifier.
-
-    The default-export block is emitted UNCONDITIONALLY — not only when the
-    source has a default or a consumer requested one.  The runtime
-    counterpart (``@web/core/module_bridge.buildBridgeModuleSource``) cannot
-    know consumer kinds, so it always emits the block; the two generators
-    must produce the same shape for a server bridge attachment and a
-    client-built ``data:`` bridge to be interchangeable.  For a module with
-    no default export ``_m?.default`` is ``undefined`` and ``_d`` falls back
-    to the namespace itself — esbuild's ESM-default interop.  (The old
-    conditional emission could even produce a DUPLICATE ``export default``
-    — a SyntaxError — for an unreadable source consumed via ``import *``:
-    ``__star__`` triggered the first branch and the star fallback appended
-    a second one.)
-
-    Returns ``(shim_js, is_star_fallback)`` — ``is_star_fallback`` is True
-    when the export surface is empty (source couldn't be read) and no
-    default was requested; the shim then carries only the default/namespace
-    fallback.  The flag feeds the ``star_fallback`` telemetry counter in
-    ``esm_bridges``.
-
-    CONTRACT (mirrored in ``@web/core/module_bridge``): each bridged name is
-    bound to a generated local and re-exported under an alias, and that binding
-    is a VALUE SNAPSHOT taken when the bridge evaluates — ES-module live
-    bindings cannot be reproduced by a generated module.  Bridged modules
-    therefore must not rely on mutable ``export let`` bindings reassigned after
-    load; lazily-loaded values must be exposed through a stable ``const``
-    facade instead (see ``makeLazyFacade`` in ``@web/core/module_bridge`` and
-    its use in ``@web/core/lib/chartjs``/``fullcalendar`` and
-    ``@web/core/utils/pdfjs``).
-
-    The alias form is what makes an awkward name survivable: an export name
-    only has to be an IdentifierName, so ``export {x as class}`` is legal and
-    reaches us through the source's export surface, whereas ``export const
-    class = ...`` is a SyntaxError that takes down the whole bridge — every
-    other name it carries included.
-    """
     lines = [
         f"const _m = odoo.loader.modules.get({json.dumps(specifier)});",
         "const _d = _m?.default ?? _m;",

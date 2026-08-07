@@ -3,7 +3,6 @@ from odoo.tests import common
 
 class TestActionBindings(common.TransactionCase):
     def test_bindings(self):
-        """check the action bindings on models"""
         Actions = self.env["ir.actions.actions"]
 
         partner_model = self.env["ir.model"]._get("res.partner")

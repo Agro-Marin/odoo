@@ -1,12 +1,3 @@
-"""
-Bulgarian number-to-words support for num2words.
-
-Bulgarian is not available in upstream num2words, so we provide it here.
-Derived from num2cyrillic (LGPL-3.0-only).
-
-This patch can be removed when Bulgarian is added to upstream num2words.
-"""
-
 import logging
 from decimal import Decimal
 
@@ -14,13 +5,6 @@ _logger = logging.getLogger(__name__)
 
 
 class Num2Word_BG:
-    """Bulgarian number to words converter.
-
-    Derived from num2cyrillic licensed under LGPL-3.0-only
-    Copyright 2018 ClaimCompass, Inc (authored by Velizar Shulev)
-    Copyright 1997 The PHP Group (PEAR::Numbers_Words, authored by Kouber Saparev)
-    """
-
     _misc_strings: dict[str, str] = {
         "deset": "десет",
         "edinadeset": "единадесет",
@@ -77,16 +61,10 @@ class Num2Word_BG:
     }
 
     def str_to_number(self, value: str) -> int | float:
-        """Parse a string to a number (part of the num2words converter API).
-
-        ``num2words(number, lang="bg")`` calls this for string inputs before
-        dispatching to ``to_cardinal``/``to_ordinal``; without it a str argument
-        raised AttributeError.
-        """
         number = Decimal(value)
         return int(number) if number == number.to_integral_value() else float(number)
 
-    def to_cardinal(self, value: int | float | None) -> str:
+    def to_cardinal(self, value: float | None) -> str:
         if value is None:
             return ""
         if isinstance(value, float):
@@ -110,7 +88,7 @@ class Num2Word_BG:
         msg = "Year not implemented for Bulgarian"
         raise NotImplementedError(msg)
 
-    def to_currency(self, value: int | float, **kwargs: object) -> str:
+    def to_currency(self, value: float, **kwargs: object) -> str:
         msg = "Currency not implemented for Bulgarian"
         raise NotImplementedError(msg)
 
@@ -185,7 +163,7 @@ class Num2Word_BG:
 
         return self._sep.join(self._discard_empties(ret))
 
-    def _to_words(self, num: int | float = 0) -> str:
+    def _to_words(self, num: float = 0) -> str:
         and_state = [False]
         num_groups = self._split_number(abs(num) if num < 0 else num)
         sizeof_num_groups = len(num_groups)

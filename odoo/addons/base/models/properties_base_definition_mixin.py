@@ -8,8 +8,6 @@ from odoo.tools import SQL
 
 
 class PropertiesBaseDefinitionMixin(models.AbstractModel):
-    """Mixin that adds properties without parent on a model."""
-
     _name = "properties.base.definition.mixin"
     _description = "Properties Base Definition Mixin"
 
@@ -25,7 +23,6 @@ class PropertiesBaseDefinitionMixin(models.AbstractModel):
     )
 
     def _compute_properties_base_definition_id(self) -> None:
-        """Resolve the shared definition record for this model's ``properties`` field."""
         self.properties_base_definition_id = (
             self.env["properties.base.definition"]
             .sudo()
@@ -35,13 +32,6 @@ class PropertiesBaseDefinitionMixin(models.AbstractModel):
     def _search_properties_base_definition_id(
         self, operator: str, value: Any
     ) -> Domain:
-        """Resolve a search on the (non-stored) definition field to a constant domain.
-
-        :param str operator: only ``in`` is supported (inherited limitation)
-        :param value: ids the definition is matched against
-        :return: ``Domain.TRUE`` or ``Domain.FALSE``
-        :rtype: Domain
-        """
         if operator != "in":
             raise NotImplementedError(
                 f"Unsupported operator {operator!r} for properties_base_definition_id"
@@ -59,7 +49,6 @@ class PropertiesBaseDefinitionMixin(models.AbstractModel):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Pre-fill the definition link on every record so default property values apply."""
         parent = (
             self.env["properties.base.definition"]
             .sudo()
@@ -70,11 +59,6 @@ class PropertiesBaseDefinitionMixin(models.AbstractModel):
         return super().create(vals_list)
 
     def _field_to_sql(self, alias: str, fname: str, query: Any = None) -> SQL:
-        """Render the non-stored definition field as a constant for export/read.
-
-        ``query`` is typed ``Any`` to match the untyped ``BaseModel._field_to_sql``
-        signature it overrides.
-        """
         if fname == "properties_base_definition_id":
             parent = (
                 self.env["properties.base.definition"]

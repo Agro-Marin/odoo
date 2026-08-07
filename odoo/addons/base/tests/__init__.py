@@ -126,9 +126,6 @@ from . import test_base_perf_regression
 from . import test_base_benchmark
 from . import test_backend_integration
 
-# test_uninstall is deliberately not imported: it installs and uninstalls the
-# `test_uninstall` module, which re-enters module loading and loops. Run it
-# explicitly against a throwaway database instead.
 from . import test_res_config_install
 from . import test_default_group
 from . import test_server

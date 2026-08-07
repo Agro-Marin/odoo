@@ -1,9 +1,3 @@
-"""Pure-Python tests for ModelGraph and TriggerTree — no Odoo, no database.
-
-Uses a lightweight MockField class as hashable mock field keys with the
-attributes that the graph's internal helpers check.
-"""
-
 import unittest
 
 from odoo.orm.components.model_graph import (
@@ -15,8 +9,6 @@ from odoo.orm.components.model_graph import (
 
 
 class MockField:
-    """Hashable mock field object for testing ModelGraph."""
-
     __slots__ = (
         "comodel_name",
         "compute",
@@ -58,13 +50,10 @@ class MockField:
 
 
 def _field(name, model="m", type_="char", relational=False, **kw):
-    """Create a mock field with the attributes ModelGraph needs."""
     return MockField(name, model, type_, relational, **kw)
 
 
 class TestTriggerTree(unittest.TestCase):
-    """Test TriggerTree data structure operations."""
-
     def test_empty_tree_is_falsy(self) -> None:
         tree = TriggerTree()
         self.assertFalse(tree)
@@ -119,10 +108,6 @@ class TestTriggerTree(unittest.TestCase):
         self.assertEqual(list(result.root), ["A", "B"])
 
     def test_root_is_immutable_tuple(self) -> None:
-        """``root`` is a tuple: the single-tree merge fast path returns the
-        shared cached node by identity, so a mutable root would let one consumer
-        corrupt the registry-wide trigger cache.
-        """
         tree = TriggerTree(["A", "B"])
         self.assertIsInstance(tree.root, tuple)
         self.assertIs(TriggerTree.merge([tree]), tree)
@@ -147,13 +132,11 @@ class TestTriggerTree(unittest.TestCase):
         self.assertEqual(list(result[edge].root), ["H1", "H2"])
 
     def test_merge_select_filter(self) -> None:
-        """The select function filters root fields."""
         t1 = TriggerTree(["keep", "drop"])
         result = TriggerTree.merge([t1], select=lambda f: f == "keep")
         self.assertEqual(list(result.root), ["keep"])
 
     def test_merge_discards_empty_subtrees(self) -> None:
-        """Subtrees that become empty after filtering are excluded."""
         edge = "edge_x"
         t1 = TriggerTree()
         t1[edge] = TriggerTree(["only_field"])
@@ -164,8 +147,6 @@ class TestTriggerTree(unittest.TestCase):
 
 
 class TestModelGraphConstruction(unittest.TestCase):
-    """Test building a ModelGraph from scratch."""
-
     def test_add_trigger(self) -> None:
         g = ModelGraph()
         f = _field("price")
@@ -236,7 +217,6 @@ class TestModelGraphConstruction(unittest.TestCase):
         self.assertFalse(g.has_triggers(_field("whatever")))
 
     def test_reset_triggers(self) -> None:
-        """reset_triggers() clears all trigger data and caches."""
         g = ModelGraph()
         f = _field("price")
         t = _field("total")
@@ -251,7 +231,6 @@ class TestModelGraphConstruction(unittest.TestCase):
         self.assertFalse(g._modifying_relations)
 
     def test_reset_triggers_allows_rebuild(self) -> None:
-        """After reset_triggers(), new triggers can be added incrementally."""
         g = ModelGraph()
         f1 = _field("price")
         t1 = _field("total")
@@ -268,12 +247,6 @@ class TestModelGraphConstruction(unittest.TestCase):
         self.assertIn(t2, deps)
 
     def test_set_triggers_publishes_atomically(self) -> None:
-        """set_triggers() swaps in a prebuilt map and drops derived caches.
-
-        This is the atomic-publish path (Registry._field_triggers builds the map
-        locally then hands it over), so the shared graph never holds a partial
-        map: the new object becomes visible in a single assignment.
-        """
         from collections import defaultdict
 
         g = ModelGraph()
@@ -295,7 +268,6 @@ class TestModelGraphConstruction(unittest.TestCase):
         self.assertIn(t_new, list(g.get_dependent_fields(f_new)))
 
     def test_incremental_build_workflow(self) -> None:
-        """Simulate the Registry pattern: reset → add_trigger × N → query."""
         g = ModelGraph()
         g.reset_triggers()
 
@@ -326,7 +298,6 @@ class TestModelGraphConstruction(unittest.TestCase):
         self.assertIn(total, tree2.root)
 
     def test_reset_triggers_preserves_field_metadata(self) -> None:
-        """reset_triggers() only clears triggers, not depends/inverses/computed."""
         g = ModelGraph()
         f = _field("price")
         g._depends[f] = ("dep",)
@@ -340,10 +311,7 @@ class TestModelGraphConstruction(unittest.TestCase):
 
 
 class TestModelGraphQueries(unittest.TestCase):
-    """Test querying the dependency graph."""
-
     def setUp(self) -> None:
-        """Build a graph: price → total (direct), partner_id.price → partner_total (via path)."""
         self.g = ModelGraph()
 
         self.price = _field("price", model="order.line")
@@ -414,8 +382,6 @@ class TestModelGraphQueries(unittest.TestCase):
 
 
 class TestIsModifyingRelations(unittest.TestCase):
-    """Test is_modifying_relations() logic."""
-
     def test_relational_field_with_triggers(self) -> None:
         g = ModelGraph()
         m2o = _field("partner_id", type_="many2one", relational=True)
@@ -463,10 +429,7 @@ class TestIsModifyingRelations(unittest.TestCase):
 
 
 class TestTransitiveTriggers(unittest.TestCase):
-    """Test that trigger trees compute the transitive closure correctly."""
-
     def test_chain_a_to_b_to_c(self) -> None:
-        """A → B → C should produce a tree where A triggers both B and C."""
         g = ModelGraph()
         a = _field("a")
         b = _field("b", is_stored_computed=True)
@@ -480,7 +443,6 @@ class TestTransitiveTriggers(unittest.TestCase):
         self.assertIn(c, all_deps)
 
     def test_cycle_detection(self) -> None:
-        """Cycles in triggers should not cause infinite loops."""
         g = ModelGraph()
         a = _field("a")
         b = _field("b")
@@ -491,7 +453,6 @@ class TestTransitiveTriggers(unittest.TestCase):
         self.assertTrue(tree)
 
     def test_diamond_dependency(self) -> None:
-        """A → B, A → C, B → D, C → D should yield D once."""
         g = ModelGraph()
         a = _field("a")
         b = _field("b")
@@ -507,15 +468,6 @@ class TestTransitiveTriggers(unittest.TestCase):
         self.assertIn(d, deps)
 
     def test_deep_same_model_chain(self) -> None:
-        """A long chain of same-model (empty-path) triggers resolves to a flat
-        root holding every transitive target, in order, without duplicates.
-
-        Regression: the closure walk and the per-node merge were both
-        O(depth**2) (tuple ``seen`` copy + ``set(node.root)`` rebuilt on every
-        merge), so a chain of same-model computed fields all accumulating at the
-        root degraded sharply with depth. Build is now O(depth); this also
-        exercises that path for correctness at depth.
-        """
         g = ModelGraph()
         fields = [_field(f"f{i}") for i in range(200)]
         for i in range(len(fields) - 1):
@@ -527,14 +479,6 @@ class TestTransitiveTriggers(unittest.TestCase):
 
 
 def _naive_trigger_tree(graph: ModelGraph, field) -> TriggerTree:
-    """Reference implementation: the pre-memoization exponential traversal.
-
-    Byte-for-byte port of the previous ``get_field_trigger_tree`` closure walk
-    (per-path emission dedup via ``root_set``, per-path cycle guard via
-    ``seen``, NO recursion memoization).  The memoized production code must
-    produce an identical tree — same nodes, same node insertion order, same
-    per-node root order.
-    """
     triggers = graph._triggers
     if field not in triggers:
         return TriggerTree()
@@ -571,17 +515,10 @@ def _naive_trigger_tree(graph: ModelGraph, field) -> TriggerTree:
 
 
 def _as_plain(tree: TriggerTree):
-    """Order-sensitive plain structure: (root tuple, [(label, sub), ...])."""
     return (tree.root, [(label, _as_plain(sub)) for label, sub in tree.items()])
 
 
 def _build_diamond(depth: int, labelled: bool = False) -> tuple[ModelGraph, MockField]:
-    """Chain of diamonds: F0 -> {A1, B1} -> F1 -> {A2, B2} -> F2 -> ...
-
-    With ``labelled=True`` every level traverses a distinct (non-relational)
-    edge field, so full paths differ per level; otherwise all paths are empty
-    and every target accumulates on the root node.
-    """
     g = ModelGraph()
     f_fields = [_field(f"F{i}") for i in range(depth + 1)]
     for i in range(depth):
@@ -595,9 +532,6 @@ def _build_diamond(depth: int, labelled: bool = False) -> tuple[ModelGraph, Mock
 
 
 class TestTriggerTreeMemoization(unittest.TestCase):
-    """The memoized closure walk must match the naive traversal exactly and
-    must not be exponential on diamond-shaped dependency DAGs."""
-
     def assert_matches_naive(self, graph: ModelGraph, field) -> None:
         expected = _as_plain(_naive_trigger_tree(graph, field))
         actual = _as_plain(graph.get_field_trigger_tree(field))
@@ -612,9 +546,6 @@ class TestTriggerTreeMemoization(unittest.TestCase):
         self.assert_matches_naive(graph, root)
 
     def test_shared_target_under_different_prefixes(self) -> None:
-        """The same field re-expanded under a *different* prefix must emit its
-        subtree at both locations (only identical (field, prefix) pairs are
-        skipped)."""
         g = ModelGraph()
         f = _field("f")
         a, b, t, u = _field("a"), _field("b"), _field("t"), _field("u")
@@ -648,7 +579,6 @@ class TestTriggerTreeMemoization(unittest.TestCase):
         self.assert_matches_naive(g, a)
 
     def test_diamond_reaching_into_cycle_equivalence(self) -> None:
-        """Memo reuse must not leak expansions the cycle guard would prune."""
         g = ModelGraph()
         f, a, b, t = _field("f"), _field("a"), _field("b"), _field("t")
         p, q = _field("p"), _field("q")
@@ -662,8 +592,6 @@ class TestTriggerTreeMemoization(unittest.TestCase):
         self.assert_matches_naive(g, t)
 
     def test_m2o_o2m_cancellation_with_memo_reuse(self) -> None:
-        """Path cancellation routing a memoized subtree back onto an
-        ancestor's node must survive the (field, prefix) skip."""
         parent_id = _field(
             "parent_id",
             model="child",
@@ -693,10 +621,6 @@ class TestTriggerTreeMemoization(unittest.TestCase):
         self.assert_matches_naive(g, f)
 
     def test_deep_diamond_is_not_exponential(self) -> None:
-        """Perf regression gate: the naive walk is O(2**depth) on diamond
-        chains (~3.3 s at depth 22 on this hardware); the memoized walk is
-        linear and must finish in a small fraction of a second.
-        """
         import time
 
         for labelled in (False, True):
@@ -714,8 +638,6 @@ class TestTriggerTreeMemoization(unittest.TestCase):
                 )
 
     def test_deep_diamond_matches_naive_at_tractable_depth(self) -> None:
-        """Depth 12 (4096 naive paths) is still brute-forceable: full
-        output-equality check between the memoized and naive walks."""
         for labelled in (False, True):
             with self.subTest(labelled=labelled):
                 graph, root = _build_diamond(12, labelled=labelled)
@@ -723,8 +645,6 @@ class TestTriggerTreeMemoization(unittest.TestCase):
 
 
 class TestConcatPaths(unittest.TestCase):
-    """Test _concat_paths m2o→o2m cancellation."""
-
     def test_simple_concat(self) -> None:
         a = _field("a")
         b = _field("b")
@@ -738,7 +658,6 @@ class TestConcatPaths(unittest.TestCase):
         self.assertEqual(_concat_paths((), (a,)), (a,))
 
     def test_m2o_o2m_cancellation(self) -> None:
-        """A many2one followed by its inverse one2many should cancel."""
         m2o = _field(
             "partner_id",
             model="order",
@@ -758,7 +677,6 @@ class TestConcatPaths(unittest.TestCase):
         self.assertEqual(result, ())
 
     def test_m2o_o2m_no_cancel_if_different_inverse(self) -> None:
-        """Don't cancel if the o2m's inverse_name doesn't match the m2o's name."""
         m2o = _field(
             "partner_id",
             model="order",
@@ -778,7 +696,6 @@ class TestConcatPaths(unittest.TestCase):
         self.assertEqual(result, (m2o, o2m))
 
     def test_m2o_o2m_no_cancel_if_different_models(self) -> None:
-        """Don't cancel if the models don't match."""
         m2o = _field(
             "partner_id",
             model="order",
@@ -799,8 +716,6 @@ class TestConcatPaths(unittest.TestCase):
 
 
 class TestDiscardFields(unittest.TestCase):
-    """Test removing fields from the graph."""
-
     def test_discard_from_triggers(self) -> None:
         g = ModelGraph()
         f = _field("price")
@@ -862,8 +777,6 @@ class TestDiscardFields(unittest.TestCase):
 
 
 class TestCollector(unittest.TestCase):
-    """Test the lightweight _Collector dict subclass."""
-
     def test_missing_key_returns_empty_tuple(self) -> None:
         c = _Collector()
         self.assertEqual(c["nonexistent"], ())
@@ -934,8 +847,6 @@ class TestCollector(unittest.TestCase):
 
 
 class TestDataOwnership(unittest.TestCase):
-    """Test that ModelGraph owns all field metadata collections."""
-
     def test_inverses_are_collector(self) -> None:
         g = ModelGraph()
         self.assertIsInstance(g._inverses, _Collector)
@@ -956,9 +867,6 @@ class TestDataOwnership(unittest.TestCase):
         self.assertIs(g.field_computed, g._computed)
 
     def test_external_assignment_updates_property(self) -> None:
-        """Simulates what Registry.field_inverses cached_property does:
-        build a new Collector and assign it to model_graph._inverses.
-        """
         g = ModelGraph()
         new_inverses = _Collector()
         f = _field("partner_id")
@@ -969,7 +877,6 @@ class TestDataOwnership(unittest.TestCase):
         self.assertEqual(g.field_inverses[f], (inv,))
 
     def test_missing_key_returns_empty_tuple_via_property(self) -> None:
-        """Ensure property delegation preserves _Collector's __getitem__ behavior."""
         g = ModelGraph()
         f = _field("nonexistent")
         self.assertEqual(g.field_inverses[f], ())
@@ -978,14 +885,10 @@ class TestDataOwnership(unittest.TestCase):
 
 
 class TestRecomputeOrder(unittest.TestCase):
-    """Test _compute_recompute_order() topological sorting via Kahn's algorithm."""
-
     def _stored_computed(self, name: str, model: str = "m") -> MockField:
-        """Create a mock field that looks like a stored computed field."""
         return _field(name, model=model, store=True, compute="_compute_" + name)
 
     def test_linear_chain_ordering(self) -> None:
-        """A → B → C: priority(A) < priority(B) < priority(C)."""
         g = ModelGraph()
         a = self._stored_computed("a")
         b = self._stored_computed("b")
@@ -998,7 +901,6 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertLess(order[b], order[c])
 
     def test_diamond_dependencies(self) -> None:
-        """A → B, A → C, B → D, C → D: A first, D last, B/C same level."""
         g = ModelGraph()
         a = self._stored_computed("a")
         b = self._stored_computed("b")
@@ -1016,7 +918,6 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertEqual(order[b], order[c])
 
     def test_cycle_gets_max_priority(self) -> None:
-        """A → B → A (cycle): both get the highest priority."""
         g = ModelGraph()
         a = self._stored_computed("a")
         b = self._stored_computed("b")
@@ -1029,13 +930,11 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertEqual(order[a], order[b])
 
     def test_empty_graph(self) -> None:
-        """No triggers → empty order dict."""
         g = ModelGraph()
         order = g.recompute_order
         self.assertEqual(order, {})
 
     def test_non_stored_fields_excluded(self) -> None:
-        """Non-stored computed fields are not in the recompute order."""
         g = ModelGraph()
         source = self._stored_computed("source")
         non_stored = _field("non_stored", compute="_compute_ns", store=False)
@@ -1045,7 +944,6 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertNotIn(non_stored, order)
 
     def test_non_computed_fields_excluded(self) -> None:
-        """Fields without compute are not in the recompute order."""
         g = ModelGraph()
         regular = _field("regular", store=True)
         target = self._stored_computed("target")
@@ -1056,7 +954,6 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertIn(target, order)
 
     def test_caching(self) -> None:
-        """recompute_order is computed once and cached."""
         g = ModelGraph()
         a = self._stored_computed("a")
         b = self._stored_computed("b")
@@ -1067,7 +964,6 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertIs(order1, order2)
 
     def test_cache_cleared_on_clear_caches(self) -> None:
-        """clear_caches() invalidates the recompute order cache."""
         g = ModelGraph()
         a = self._stored_computed("a")
         b = self._stored_computed("b")
@@ -1080,7 +976,6 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertEqual(order1, order2)
 
     def test_mixed_cycle_and_chain(self) -> None:
-        """A → B → C → B (cycle in B,C), A should be before B and C."""
         g = ModelGraph()
         a = self._stored_computed("a")
         b = self._stored_computed("b")
@@ -1095,14 +990,6 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertEqual(order[b], order[c])
 
     def test_plain_column_feeding_computed_chain(self) -> None:
-        """Plain column → total → grand_total (the canonical real shape).
-
-        Regression lock for the simplification of ``_compute_recompute_order``
-        (the dead ``dep_field in all_targets or ...`` disjunct was removed).
-        Only stored-computed fields may appear in the order; a plain stored
-        column that is a *dependency* of computed fields must never be ordered,
-        and the computed chain must still sort dependency-before-dependent.
-        """
         g = ModelGraph()
         column = _field("amount", store=True)
         total = self._stored_computed("total")
@@ -1117,9 +1004,6 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertLess(order[total], order[grand_total])
 
     def test_only_stored_computed_fields_in_order(self) -> None:
-        """The order's keys are exactly the stored-computed fields, regardless
-        of how many non-stored / non-computed fields trigger or are triggered.
-        """
         g = ModelGraph()
         col = _field("col", store=True)
         non_stored = _field("ns", store=False, compute="_c")
@@ -1132,17 +1016,7 @@ class TestRecomputeOrder(unittest.TestCase):
 
 
 class TestModelGraphFreeze(unittest.TestCase):
-    """Test ModelGraph.freeze() — eager cache population for read-only querying.
-
-    freeze() must (a) precompute every cache entry runtime queries can produce,
-    so that (b) subsequent queries perform no cache mutation (the property that
-    makes the process-shared graph safe to read concurrently / free-threaded),
-    and (c) not change any query result versus lazy computation.
-    """
-
     def _build_graph(self) -> ModelGraph:
-        """A representative graph: scalar + relational deps, a stored-computed
-        target (for recompute_order), a path-based trigger, and an inverse."""
         g = ModelGraph()
         price = _field("price")
         qty = _field("qty")
@@ -1172,7 +1046,6 @@ class TestModelGraphFreeze(unittest.TestCase):
         self.assertIsNotNone(g._recompute_order)
 
     def test_queries_after_freeze_do_not_mutate(self) -> None:
-        """The core race-freedom guarantee: post-freeze reads write nothing."""
         g = self._build_graph()
         g.freeze()
 
@@ -1195,8 +1068,6 @@ class TestModelGraphFreeze(unittest.TestCase):
         self.assertIs(g._recompute_order, order_obj, "recompute_order recomputed")
 
     def test_non_trigger_field_is_uncached(self) -> None:
-        """A field with no triggers returns False without polluting the cache —
-        the property that bounds the cache to a finite, freezable key set."""
         g = self._build_graph()
         g.freeze()
         x = _field("no_deps")
@@ -1217,7 +1088,6 @@ class TestModelGraphFreeze(unittest.TestCase):
         self.assertEqual(g.recompute_order, order)
 
     def test_freeze_preserves_query_results(self) -> None:
-        """Freezing must not change any answer versus lazy computation."""
         eager = self._build_graph()
         eager.freeze()
         lazy = self._build_graph()

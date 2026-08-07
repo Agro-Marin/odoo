@@ -1,18 +1,3 @@
-"""``_check_company`` evaluates one domain per (field, companies) group.
-
-The check used to build a domain and run ``filtered_domain`` for every
-``(record, check_company field)`` pair, so a ``create()`` of 100 partners ran
-~2200 domain optimizations and spent 17% of its time here.  The domain depends
-only on the field's comodel and the record's allowed companies, so records
-sharing those share one evaluation.
-
-What must not change is the *report*: which triples are flagged, and their
-record-major order, since the error message shows only the first five.
-The model below keeps ``_check_company_auto`` off so the tests drive the check
-directly: building the ``UserError`` message needs ``ir.model.fields``, which the
-DB-free harness does not provide, and the message is not what changed here.
-"""
-
 from odoo import fields, models
 from odoo.orm.model_test_env import model_test_env
 

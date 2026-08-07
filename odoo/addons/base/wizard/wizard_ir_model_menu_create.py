@@ -4,8 +4,6 @@ from odoo import fields, models
 
 
 class WizardIrModelMenuCreate(models.TransientModel):
-    """Wizard to create a menu and its action for a model."""
-
     _name = "wizard.ir.model.menu.create"
     _description = "Create Menu Wizard"
 
@@ -15,10 +13,6 @@ class WizardIrModelMenuCreate(models.TransientModel):
     name = fields.Char(string="Menu Name", required=True)
 
     def menu_create(self) -> dict[str, Any]:
-        """Create an act_window action and a menu entry for the context model.
-
-        :return: a window-close action.
-        """
         for menu in self:
             model_id = self.env.context.get("model_id")
             if not model_id:

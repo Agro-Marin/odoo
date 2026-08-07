@@ -1,45 +1,3 @@
-"""Semantic-equivalence guard for the hand-inlined ``Field.__get__`` fast paths.
-
-The fork hand-inlines the hottest ORM path.  ``odoo/orm/fields/base.py`` holds
-the canonical ``Field.__get__`` plus ``_make_scalar_get(cache_to_record)`` which
-GENERATES a fast-path ``__get__`` for scalar types (Integer/Float/Monetary use
-``lambda v: v or 0`` / ``0.0``; Boolean/Date/Datetime/Selection use
-``lambda v: False if v is None else v``).  Hand-rolled overrides also live in
-``relational/_base.py`` (``_Relational``), ``relational/many2one.py``
-(``Many2one``), ``relational/one2many.py`` (``One2many``), ``textual.py``
-(``BaseString`` and ``Html``) and ``misc.py`` (``Id``).
-
-``test_field_access_preamble.py`` already pins the ACL-preamble SOURCE TEXT.
-This module is the SEMANTIC companion: it asserts each specialized/generated
-``__get__`` produces the same OBSERVABLE result as the canonical
-``Field.__get__`` protocol for the same ``(field, record, cache-state)``, and
-that every invariant the canonical protocol guarantees is honored by each fast
-path.
-
-Oracles / invariants encoded (see each test's docstring):
-
-* **Differential** ``type(field).__get__`` vs canonical ``Field.__get__`` on the
-  SAME record and cache state — sound for the scalar-lambda types, Char/Text,
-  Html (non-fallback) and Many2one (recordset equality).  Where a fast path
-  deliberately DIVERGES from base (translate=True en_US fallback) or base is not
-  applicable (Id), the differential is replaced by a targeted invariant and the
-  divergence is documented.
-* **ACL preamble fires identically**: groups=None fast path and ``env.su``
-  bypass never consult access; a restricted field with ``su=False`` and access
-  denied raises ``AccessError`` on every field type (the semantic version of the
-  text-pin).  Id is exempt by design.
-* **Null/empty recordset** returns the type's falsy default (== base).
-* **Cache hit** (real value / falsy value / None) reads back
-  ``convert_to_record(cache_value)``.
-* **PENDING** is never returned to the caller; a protected pending record yields
-  the falsy default, an unprotected one falls through to fetch.
-* **Multi-record** access raises via ``ensure_one`` for the singleton-valued
-  types (relational types return a recordset instead, by contract).
-
-Tier-2 suite: real ``import odoo``, no database (runs like ``test_model_test_env``
-in its own pytest invocation).
-"""
-
 import sys
 from datetime import date, datetime
 
@@ -56,13 +14,10 @@ _CANONICAL_GET = fields.Field.__get__
 
 
 def _term_translate(_callback, value):
-    """Minimal per-term translate callable (shape of ``xml_translate``)."""
     return value
 
 
 class GCurrency(models.Model):
-    """Minimal ``res.currency`` double so Monetary/Many2one run DB-free."""
-
     _name = "res.currency"
     _module = _MOD
     _description = "Currency (test double)"
@@ -77,8 +32,6 @@ class GCurrency(models.Model):
 
 
 class GChild(models.Model):
-    """One2many child with a Many2one inverse."""
-
     _name = "g.child"
     _module = _MOD
     _description = "O2m child"
@@ -88,8 +41,6 @@ class GChild(models.Model):
 
 
 class GHost(models.Model):
-    """Host carrying one field of every fast-path flavour."""
-
     _name = "g.host"
     _module = _MOD
     _description = "Fast-path field host"
@@ -138,7 +89,6 @@ _ACL_FIELDS = (*_SINGLETON_FIELDS, *_RELATIONAL_FIELDS)
 
 
 def _seed(env):
-    """Two currencies + a host with a child; return (host, cur_a, cur_b)."""
     cur = env["res.currency"]
     cur_a = cur.create({"name": "AAA", "rounding": 0.01})
     cur_b = cur.create({"name": "BBB", "rounding": 0.01})
@@ -155,16 +105,10 @@ def _seed(env):
 
 
 def _put_cache(field, rec, value):
-    """Write a raw cache value (bypassing dirty guards) for exact control."""
     field._get_cache(rec.env)[rec.id] = value
 
 
 def test_scalar_and_textual_fastpath_matches_canonical_on_cache_hit():
-    """(oracle 6) For a singleton cache hit, every scalar-lambda and Char/Text
-    fast path returns exactly what canonical ``Field.__get__`` returns for the
-    same cache value — true differential equivalence, since both resolve the same
-    ``convert_to_record(cache_value)``.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         for fname, samples in _SCALAR_DIFFERENTIAL.items():
@@ -183,10 +127,6 @@ def test_scalar_and_textual_fastpath_matches_canonical_on_cache_hit():
 
 
 def test_many2one_fastpath_matches_canonical_on_cache_hit():
-    """Many2one builds its singleton recordset inline; it must equal the
-    recordset canonical ``Field.__get__`` produces via ``convert_to_record`` —
-    for a real target, a NULL (None) cache value, and a missing (0) target.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, _cur_a, cur_b = _seed(env)
         field = host._fields["f_m2o"]
@@ -201,9 +141,6 @@ def test_many2one_fastpath_matches_canonical_on_cache_hit():
 
 
 def test_html_fastpath_matches_canonical_on_normal_hit():
-    """Html delegates to ``Field.__get__`` for non-fallback records, so a plain
-    stored Html read must equal canonical (Markup-wrapped) exactly.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         field = host._fields["f_html"]
@@ -216,10 +153,6 @@ def test_html_fastpath_matches_canonical_on_normal_hit():
 
 
 def test_empty_recordset_returns_type_falsy_default_matching_base():
-    """(oracle 2) An empty recordset returns the type's falsy default, identical
-    to canonical ``Field.__get__``.  Scalars/textual return the scalar falsy
-    value; relational types return an empty recordset of the comodel.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         _seed(env)
         empty = env["g.host"].browse(())
@@ -239,9 +172,6 @@ def test_empty_recordset_returns_type_falsy_default_matching_base():
 
 
 def test_multirecord_singleton_types_raise_via_ensure_one():
-    """(oracle 5) For scalar/textual/html fields, multi-record access raises the
-    same exception as canonical ``Field.__get__`` (ensure_one path).
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         env["g.host"].create({"f_int": 1})
         env["g.host"].create({"f_int": 2})
@@ -256,9 +186,6 @@ def test_multirecord_singleton_types_raise_via_ensure_one():
 
 
 def test_multirecord_relational_types_return_recordset_not_raise():
-    """Contract exception to oracle 5: relational fast paths map multi-record
-    reads to a recordset (never ensure_one), matching canonical/_Relational.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, cur_a, cur_b = _seed(env)
         host2 = env["g.host"].create({"f_m2o": cur_a.id})
@@ -273,11 +200,6 @@ def test_multirecord_relational_types_return_recordset_not_raise():
 
 
 class _AclSpy:
-    """Install controllable ``_has_field_access`` / ``_check_field_access`` on a
-    model class and record their calls, so the preamble branch can be observed
-    without a real user/group stack.
-    """
-
     def __init__(self, model_cls):
         self.model_cls = model_cls
         self.has_calls = 0
@@ -311,9 +233,6 @@ class _AclSpy:
 
 
 def test_acl_preamble_bypassed_when_field_ungrouped():
-    """(oracle 1a) groups=None: the preamble short-circuits before consulting
-    access — ``_has_field_access`` is never called — on every fast path.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         spy = _AclSpy(type(host))
@@ -329,9 +248,6 @@ def test_acl_preamble_bypassed_when_field_ungrouped():
 
 
 def test_acl_preamble_bypassed_for_superuser_even_when_grouped():
-    """(oracle 1b) A grouped field under ``env.su`` bypasses access on every
-    fast path (``_has_field_access`` never called).
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         assert env.su is True
@@ -352,9 +268,6 @@ def test_acl_preamble_bypassed_for_superuser_even_when_grouped():
 
 
 def test_acl_preamble_allows_when_has_field_access_true():
-    """(oracle 1c) Grouped field, ``su=False``, access granted: the read
-    proceeds and ``_check_field_access`` is never invoked, on every fast path.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         host = host.with_env(env(user=2, su=False))
@@ -377,10 +290,6 @@ def test_acl_preamble_allows_when_has_field_access_true():
 
 
 def test_acl_preamble_raises_access_error_when_denied_on_every_fast_path():
-    """(oracle 1d) Grouped field, ``su=False``, access denied: EVERY fast path
-    dispatches to ``_check_field_access`` and raises ``AccessError`` — the
-    semantic form of the source text-pin, differential across field types.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         host = host.with_env(env(user=2, su=False))
@@ -402,9 +311,6 @@ def test_acl_preamble_raises_access_error_when_denied_on_every_fast_path():
 
 
 def test_acl_denied_multirecord_relational_also_raises():
-    """The relational batch path (``_Relational.__get__``) runs its OWN inlined
-    preamble on multi-record reads; assert it too raises when denied.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, cur_a, _cur_b = _seed(env)
         host2 = env["g.host"].create({"f_m2o": cur_a.id})
@@ -426,7 +332,6 @@ def test_acl_denied_multirecord_relational_also_raises():
 
 
 def test_id_field_has_no_acl_preamble_by_design():
-    """A grouped+denied ``id`` field does not raise: ``Id.__get__`` has no ACL preamble."""
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         rec_id = host.id
@@ -445,11 +350,6 @@ def test_id_field_has_no_acl_preamble_by_design():
 
 
 def test_id_field_invariants():
-    """``Id.__get__`` is not differential-comparable to base (``id`` is not a
-    cached column).  Guard its own contract: null->False, singleton->id, and a
-    DISTINCT multi-record error (``ValueError('Expected singleton')``), not
-    ensure_one.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         host2 = env["g.host"].create({})
@@ -462,12 +362,6 @@ def test_id_field_invariants():
 
 
 def test_pending_in_cache_is_never_returned_protected_yields_falsy():
-    """(oracle 4) PENDING in cache, record PROTECTED (being computed): base pops
-    PENDING and returns the type's falsy default (0) instead of a wasted NULL
-    fetch.  The scalar fast path routes through this branch (scalar_cache_get
-    maps PENDING->SENTINEL, delegating to base), and base itself agrees.  Uses a
-    plain stored scalar so no stored-computed flush is triggered.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host = env["g.host"].create({"f_int": 5})
         field = host._fields["f_int"]
@@ -483,10 +377,6 @@ def test_pending_in_cache_is_never_returned_protected_yields_falsy():
 
 
 def test_pending_in_cache_unprotected_falls_through_to_fetch():
-    """(oracle 4) PENDING in cache, NOT protected: base evicts PENDING and the
-    stored value is fetched from the backend (never PENDING).  Fast path
-    delegates to base and agrees.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host = env["g.host"].create({"f_int": 7})
         field = host._fields["f_int"]
@@ -499,11 +389,6 @@ def test_pending_in_cache_unprotected_falls_through_to_fetch():
 
 
 def test_stored_computed_pending_guard_recomputes_and_never_leaks_pending():
-    """The ``is_stored_computed and has_pending_field`` guard: a stored computed
-    field with a scheduled pending recompute AND a stale PENDING in cache
-    recomputes BEFORE the cache read, so the fresh value (not PENDING) is
-    returned — on both the scalar fast path and canonical base.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host = env["g.host"].create({"f_int": 3})
         field = host._fields["f_scomp"]
@@ -518,10 +403,6 @@ def test_stored_computed_pending_guard_recomputes_and_never_leaks_pending():
 
 
 def test_pending_evicted_for_scalar_via_scalar_cache_get():
-    """``scalar_cache_get`` maps PENDING -> SENTINEL, so the scalar fast path
-    delegates to base rather than feeding PENDING into ``cache_to_record``.
-    Verify a non-computed scalar with a stray PENDING never returns it.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host = env["g.host"].create({"f_int": 9})
         field = host._fields["f_int"]
@@ -532,10 +413,6 @@ def test_pending_evicted_for_scalar_via_scalar_cache_get():
 
 
 def test_relational_pending_protected_yields_empty_recordset():
-    """The ``_Relational`` batch path inlines its own PENDING evict + protected
-    fallback (relational/_base.py).  With a stored-computed... falls back to a
-    single-record m2o exercise: PENDING protected -> falsy (empty) recordset.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, _cur_a, _cur_b = _seed(env)
         field = host._fields["f_m2o"]
@@ -546,13 +423,6 @@ def test_relational_pending_protected_yields_empty_recordset():
 
 
 def test_translate_true_en_us_fallback_diverges_from_base_and_is_correct():
-    """translate=True, origin-less NEW record, read in a non-en language: the
-    BaseString fast path returns the en_US fallback value, whereas canonical
-    ``Field.__get__`` (which lacks the fallback) would return False and poison
-    the language sub-cache.  This is an INTENTIONAL divergence FROM base — the
-    fast path is the correct oracle here.  Asserts the fast path returns the
-    en_US value and documents that base does not.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         field = env["g.host"]._fields["f_tchar"]
         assert field.translate is True
@@ -565,11 +435,6 @@ def test_translate_true_en_us_fallback_diverges_from_base_and_is_correct():
 
 
 def test_callable_translate_delegates_to_base():
-    """translate=<callable>: the BaseString fast path detects ``callable(
-    self.translate)`` and delegates to canonical ``Field.__get__`` (which
-    handles the {lang: value} dict + KeyError->fetch).  Assert the fast path and
-    canonical agree for a warmed record.
-    """
     with model_test_env(GHost, GChild, GCurrency) as env:
         rec = env["g.host"].create({"f_ctchar": "cval"})
         field = rec._fields["f_ctchar"]
@@ -580,10 +445,6 @@ def test_callable_translate_delegates_to_base():
 
 
 def test_html_translate_true_fallback_preserves_markup():
-    """Html(translate=True) keeps BaseString's en_US fallback for a no-DB-row
-    record but wraps the value in Markup (unlike BaseString).  Assert the
-    fallback fires AND the result is Markup, not a raw string.
-    """
     from markupsafe import Markup
 
     with model_test_env(GHost, GChild, GCurrency) as env:

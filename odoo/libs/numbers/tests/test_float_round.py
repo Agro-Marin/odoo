@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.numbers.float_utils.float_round``."""
-
 import random
 import unittest
 from decimal import (
@@ -103,13 +101,6 @@ class TestFloatRound(unittest.TestCase):
                 )
 
     def test_extended_float_range(self):
-        """Sweep magnitudes/signs/precisions for representation-error drift.
-
-        Inspired by Cloves Almeida's test on bug #882036.  This lived in a
-        ``if __name__ == "__main__"`` block inside ``float_utils`` that nothing
-        ever executed -- it reported failures by counting them in the imaginary
-        part of a ``complex``, and could not fail a test run.
-        """
         fractions = [0.0, 0.015, 0.01499, 0.675, 0.67499, 0.4555, 0.4555, 0.45555]
         expecteds = [".00", ".02", ".01", ".68", ".67", ".46", ".456", ".4556"]
         precisions = [2, 2, 2, 2, 2, 2, 3, 4]

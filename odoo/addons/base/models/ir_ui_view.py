@@ -80,27 +80,14 @@ _TEMPLATE_CACHE_FIELDS = frozenset(
     }
 )
 
-# Fields whose write must re-run _check_xml: they decide which views take part
-# in a combination and in which order, so changing one can break an arch that
-# was valid a moment ago.
 _REVALIDATE_ALWAYS = frozenset({"active", "arch_db", "inherit_id"})
 _REVALIDATE_ON_CHANGE = frozenset({"mode", "model", "priority", "type"})
 
-# Everything _check_xml raises when a tree cannot be combined or validated.
 _COMBINATION_ERRORS = (ValidationError, ValueError, etree.ParseError, TypeError)
 
-# The arch vocabulary for elements the view layer must leave alone. The
-# canonical definition is `@web/views/self_handled`, which the compiler reads;
-# these mirror the half of it that _migrate_self_handled_arch writes.
 _SELF_HANDLED_ATTR = "data-self-handled"
-# Only these two Bootstrap constructs are ours. `data-bs-toggle` also drives
-# collapse, tab, offcanvas and tooltip, which Bootstrap still owns and still
-# ships to the frontend, so renaming it there would silently unhook them.
 _SELF_HANDLED_CONSTRUCTS = frozenset({"dropdown", "modal"})
 
-# Prefetchable columns the inheritance CTE deliberately leaves behind: no step
-# of combining a tree reads them, and arch_prev alone is a second full copy of
-# arch_db.
 _CTE_EXCLUDED_FIELDS = frozenset(
     {
         "arch_prev",
@@ -137,7 +124,6 @@ ref_re = re.compile(
 
 
 def _hasclass(context: Any, *cls: str) -> bool:
-    """Return whether the context node has all the given classes."""
     node_classes = set(context.context_node.attrib.get("class", "").split())
     return node_classes.issuperset(cls)
 
@@ -146,24 +132,12 @@ _IR_UI_VIEW_XMLID_SUFFIX = "_ir_ui_view"
 
 
 def get_view_arch_from_file(filepath: str, xmlid: str) -> str | None:
-    """Return the arch of the view identified by ``xmlid`` inside ``filepath``.
-
-    The file is parsed only once, even when the lookup follows ``view_id``
-    references to other records in the same file.
-    """
     return _extract_view_arch(etree.parse(filepath), xmlid, filepath)
 
 
 def _iter_declarations(
     document: etree._ElementTree, candidate_ids: list[str]
 ) -> typing.Iterator[_Element]:
-    """Yield the ``<record>``/``<template>`` declarations matching ``candidate_ids``.
-
-    Candidates are tried in order, so a fully-qualified ``module.name`` wins over
-    the bare ``name`` even when the bare one comes first in the document. ORing
-    them into a single XPath would instead resolve by document order, letting a
-    file's own short-id record shadow a request for another module's record.
-    """
     for candidate in candidate_ids:
         for node in document.xpath("//*[@id=$id]", id=candidate):
             if node.tag in ("record", "template"):
@@ -375,18 +349,9 @@ class IrUiView(models.Model):
             view.arch = arch_fs or view.arch_db
 
     def _get_arch_from_file(self) -> str | None:
-        """Return this view's arch as declared in its source file, or None.
-
-        None means the file arch could not be produced at all: no ``arch_fs``,
-        no external id to look up, an unreadable or malformed file, or a file
-        that no longer declares this view. Callers that must not silently fall
-        back to the stored arch — :meth:`reset_arch` in ``hard`` mode — depend on
-        None being distinguishable from a successful read.
-        """
         self.ensure_one()
         if not self.arch_fs:
             return None
-        # xml_id costs an ir.model.data lookup, so keep it behind arch_fs.
         xml_id = self.xml_id or self.key
         if not xml_id:
             return None
@@ -413,10 +378,6 @@ class IrUiView(models.Model):
         )
 
     def _resolve_arch_fs_refs(self, arch: str, xml_id: str) -> str:
-        """Replace the ``%(xmlid)d`` / ``%(xmlid)s`` references of a file arch by
-        the referenced records' ids, resolving unqualified xmlids in ``xml_id``'s
-        module.
-        """
 
         def replacer(m: re.Match[str]) -> str:
             ref = m.group("xmlid")
@@ -427,7 +388,6 @@ class IrUiView(models.Model):
         return _ARCH_FS_REF_RE.sub(replacer, arch)
 
     def _translate_arch_from_file(self, arch: str) -> str:
-        """Apply the stored ``arch_db`` translations to a file arch."""
         lang = self.env.lang or "en_US"
         field_arch_db = self._fields["arch_db"]
         translations = field_arch_db.get_translation_dictionary(
@@ -465,14 +425,6 @@ class IrUiView(models.Model):
             view_wo_lang.arch = view.arch_base
 
     def reset_arch(self, mode: str = "soft") -> Self:
-        """Reset the view arch to its previous arch (soft) or its XML file arch
-        (hard), and return the views actually reset.
-
-        A view is left completely untouched when the target arch is unavailable
-        (no ``arch_prev``, or no resolvable file arch). ``arch_prev`` is the only
-        way back from a soft reset, so a hard reset that cannot produce a file
-        arch must not clear it.
-        """
         reset = self.browse()
         for view in self:
             if mode == "soft":
@@ -495,18 +447,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _migrate_self_handled_arch(self) -> Self:
-        """Rewrite Bootstrap's data-api spelling in stored arch to this fork's
-        own, and return the views actually changed.
-
-        The view layer accepts both spellings today (``SELF_HANDLED_ATTRS`` in
-        ``@web/views/self_handled``) only because databases carry arch written
-        before the fork had one of its own. This is the migration that lets that
-        list drop its Bootstrap entry: once it has run everywhere, arch no
-        longer speaks Bootstrap and the compiler can stop accepting it.
-
-        Idempotent, and safe to run repeatedly: it only ever consumes
-        ``data-bs-*``, so a second pass finds nothing to do.
-        """
         views = self.with_context(lang=None).search(
             [("type", "!=", "qweb"), ("arch_db", "like", "data-bs-")]
         )
@@ -518,9 +458,6 @@ class IrUiView(models.Model):
             try:
                 tree = etree.fromstring(arch)
             except etree.XMLSyntaxError:
-                # A view too malformed to parse is also too malformed to
-                # migrate. _check_xml owns that complaint; skipping keeps a
-                # bulk migration from dying on one bad row.
                 _logger.warning(
                     "Skipping self-handled arch migration for view %s: "
                     "arch does not parse",
@@ -529,9 +466,6 @@ class IrUiView(models.Model):
                 continue
             if not self._rewrite_self_handled_nodes(tree):
                 continue
-            # no_save_prev: a mechanical respelling is not an edit anyone wants
-            # to undo, and arch_prev is a single slot -- spending it here would
-            # discard the user's actual previous arch.
             view.with_context(no_save_prev=True).write(
                 {"arch_db": etree.tostring(tree, encoding="unicode")}
             )
@@ -539,16 +473,6 @@ class IrUiView(models.Model):
         return migrated
 
     def _rewrite_self_handled_nodes(self, tree: _Element) -> bool:
-        """Respell one parsed arch in place; return whether anything changed.
-
-        Split from :meth:`_migrate_self_handled_arch` so the rewrite rules can
-        be exercised on a tree, with no view, database or search behind them.
-
-        ``data-bs-target`` follows only a *modal* control, because it also
-        addresses collapse and tab panes that Bootstrap still drives.
-        ``data-bs-dismiss`` moves only when it dismisses a modal -- alerts have
-        their own Bootstrap-driven service (``dismiss_alert_service``).
-        """
         changed = False
         for node in tree.xpath("//*[@data-bs-toggle]"):
             construct = node.get("data-bs-toggle")
@@ -562,19 +486,11 @@ class IrUiView(models.Model):
             changed = True
         for node in tree.xpath('//*[@data-bs-dismiss="modal"]'):
             del node.attrib["data-bs-dismiss"]
-            # Presence is the whole signal -- the attribute names the construct
-            # -- so "1", the flag value the compiler itself writes.
             node.set("data-modal-dismiss", "1")
             changed = True
         return changed
 
     def _get_ir_model_data_rows(self) -> dict[int, list[dict[str, Any]]]:
-        """Return the ir.model.data rows pointing at the views in ``self``,
-        grouped by ``res_id`` and kept in ir.model.data._order.
-
-        Used by :meth:`_compute_model_data_id` to assign ``model_data_id`` and
-        ``xml_id`` from the same rows, so they agree on which external id wins.
-        """
         rows_by_view: dict[int, list[dict[str, Any]]] = collections.defaultdict(list)
         domain = [("model", "=", "ir.ui.view"), ("res_id", "in", self.ids)]
         for data in (
@@ -674,7 +590,6 @@ class IrUiView(models.Model):
             view.invalid_locators = invalid_locators or False
 
     def _valid_inheritance(self, arch: _Element) -> None:
-        """Check whether view inheritance is based on translated attribute."""
         for node in _xpath_position(arch):
             if node.tag == "xpath":
                 match = TRANSLATED_ATTRS_RE.search(node.get("expr", ""))
@@ -769,17 +684,6 @@ class IrUiView(models.Model):
     def _reraise_view_validation_error(
         self, error: ValueError, view: Self
     ) -> typing.NoReturn:
-        """Re-raise a ``_validate_view`` failure as a ``ValidationError``,
-        preserving the original error's location context and traceback.
-
-        Three error shapes are handled, in order: an error carrying a ``context``
-        dict with a ``line`` (quote the arch lines around it); an error wrapping
-        another exception (surface that cause); otherwise report it as-is.
-
-        The arch is recombined here rather than reusing the one just validated:
-        ``_validate_view`` detaches the sub-views and searchpanel it recurses
-        into, so what it leaves behind no longer contains the reported node.
-        """
         if hasattr(error, "context"):
             lines = etree.tostring(
                 view._get_combined_arch(), encoding="unicode"
@@ -815,12 +719,6 @@ class IrUiView(models.Model):
         ) from None
 
     def _check_sibling_primary_views(self, view: Self) -> None:
-        """Verify that the primary views extending ``view`` (or a view on its
-        ancestor chain) can still be combined, raising otherwise.
-
-        Called from :meth:`_check_xml`; ``self`` is the ``_check_xml`` receiver
-        and ``view`` the view being checked.
-        """
         root = view
         while root.inherit_id and root.mode != "primary":
             root = root.inherit_id
@@ -896,10 +794,6 @@ class IrUiView(models.Model):
     def _group_inconsistency_warning(
         self, name_manager: NameManager, missing_fields: dict[str, Any]
     ) -> Markup:
-        """Assemble the "access rights inconsistency" HTML shown in
-        ``warning_info`` from the fields postprocessing had to append because
-        they were missing.
-        """
         warning = Markup("")
         for name, (missing_groups, reasons) in missing_fields.items():
             error_message = name_manager._error_message_group_inconsistency(
@@ -963,9 +857,6 @@ class IrUiView(models.Model):
                                 )
                             )
                     except etree.ParseError, ValueError, TypeError:
-                        # lxml < 5.0 raises ValueError, lxml 5.0+ / libxml2 2.12+
-                        # raises TypeError. Don't raise here: the _check_xml()
-                        # below reports the malformed arch with its location.
                         pass
             if not values.get("key") and values.get("type") == "qweb":
                 values["key"] = f"gen_key.{str(uuid.uuid4())[:6]}"
@@ -1015,19 +906,12 @@ class IrUiView(models.Model):
 
             self.env.registry.clear_cache("templates")
         if "arch_db" in vals and not self.env.context.get("no_save_prev"):
-            # arch_prev is not translated, so it must hold the language-neutral
-            # source: reset_arch() writes it back with lang=None, and capturing
-            # the editing user's language here would overwrite the source terms
-            # with their translation.
             for view in self.with_context(lang=None):
                 super(IrUiView, view).write({"arch_prev": view.arch_db})
 
         revalidate = not _REVALIDATE_ALWAYS.isdisjoint(vals)
         recombines = not revalidate and self._changes_view_combination(vals)
         if recombines:
-            # Only hold the write responsible for breakage it introduces: a tree
-            # can already fail to combine for unrelated reasons, and refusing
-            # every further write would trap the view.
             recombines = self._combines_cleanly()
 
         res = super().write(self._compute_defaults(vals))
@@ -1040,7 +924,6 @@ class IrUiView(models.Model):
         return res
 
     def _combines_cleanly(self) -> bool:
-        """Return whether every view in ``self`` currently passes ``_check_xml``."""
         try:
             self._check_xml()
         except _COMBINATION_ERRORS:
@@ -1048,13 +931,6 @@ class IrUiView(models.Model):
         return True
 
     def _check_recombination(self) -> None:
-        """Re-check a tree after a field that only reorders or reparents it changed.
-
-        Raises for an interactive write, where the author can still undo it.
-        During record loading it only logs: a module update rewriting priorities
-        across thousands of views must not abort the upgrade, and the
-        end-of-update _validate_module_views() pass reports what stays broken.
-        """
         if not self.env.context.get("ir_ui_view_loading_records"):
             self._check_xml()
             return
@@ -1068,12 +944,6 @@ class IrUiView(models.Model):
             )
 
     def _changes_view_combination(self, vals: dict[str, Any]) -> bool:
-        """Return whether ``vals`` actually changes a field that determines how
-        this view combines with the rest of its inheritance tree.
-
-        Gated on a real value change because module loading rewrites these
-        fields with identical values on every view.
-        """
         for fname in _REVALIDATE_ON_CHANGE.intersection(vals):
             if any(view[fname] != vals[fname] for view in self):
                 return True
@@ -1111,11 +981,6 @@ class IrUiView(models.Model):
 
     @api.model
     def default_view(self, model: str, view_type: str) -> int | bool:
-        """Fetch the default view for ``(model, view_type)``: the primary view
-        with the lowest priority.
-
-        :return: id of the default view, or False if none found
-        """
         return self.search(self._get_default_view_domain(model, view_type), limit=1).id
 
     @api.model
@@ -1130,7 +995,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_inheriting_views_domain(self) -> Domain:
-        """Return a domain to filter the sub-views to inherit from."""
         tree_cut_off_view = self.env.context.get("ir_ui_view_tree_cut_off_view")
         domain = Domain("active", "=", True)
         if tree_cut_off_view:
@@ -1139,23 +1003,12 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_filter_xmlid_query(self) -> str:
-        """Overridable hook for other modules."""
         return """SELECT res_id FROM ir_model_data
                   WHERE res_id IN %(res_ids)s AND model = 'ir.ui.view' AND module IN %(modules)s
                """
 
     @api.model
     def _get_inheriting_views_fields(self) -> list[str]:
-        """Return the columns the inheritance CTE loads for each view in a tree.
-
-        Restricted to what combining a tree needs, plus what is cheap to carry.
-        ``arch_prev`` in particular is a full second copy of ``arch_db`` that no
-        step of the combination reads, so hauling it through the recursive query
-        doubles the transferred bytes for nothing.
-
-        Override to add columns an inheritance-aware extension needs (e.g.
-        ``website_id``); the field must live on ``ir_ui_view`` itself.
-        """
         return [
             f.name
             for f in self._fields.values()
@@ -1165,7 +1018,6 @@ class IrUiView(models.Model):
         ]
 
     def _get_inheriting_views(self) -> Self:
-        """Return the views that inherit from ``self``, ordered by priority then id."""
         if not self.ids:
             return self.browse()
         domain = self._get_inheriting_views_domain()
@@ -1230,19 +1082,6 @@ class IrUiView(models.Model):
         check_view_ids: Collection[int] = (),
         include_loaded_xmlids: bool = False,
     ) -> Self:
-        """Filter ``self`` down to views whose module code is already loaded.
-
-        During a module upgrade a view may exist in the database while the fields
-        it relies on are not fully loaded; custom DB-only views load only after
-        module init finishes. Single source of truth shared by
-        :meth:`_get_combined_archs` and :meth:`_check_sibling_primary_views`.
-
-        :param check_view_ids: view ids to consider loaded regardless of their
-            external id (typically the views currently being combined)
-        :param include_loaded_xmlids: also consider loaded the views whose
-            external id was already processed in this upgrade
-            (``pool.loaded_xmlids``)
-        """
         ids_to_check = [vid for vid in self.ids if vid not in check_view_ids]
         if not ids_to_check:
             return self
@@ -1268,9 +1107,6 @@ class IrUiView(models.Model):
         return self.browse(vid for vid in self.ids if vid in valid_view_ids)
 
     def _check_view_access(self) -> bool:
-        """Verify that a view is accessible by the current user based on the
-        groups attribute. Views with no groups are considered private.
-        """
         self.ensure_one()
         if self.inherit_id and self.mode != "primary":
             return self.inherit_id._check_view_access()
@@ -1287,20 +1123,10 @@ class IrUiView(models.Model):
         raise AccessError(error)
 
     def _view_display_name(self) -> str:
-        """Return a human-readable view label ("name (xml_id)" when the view
-        has an external id, otherwise just its name) for use in error messages.
-
-        Kept lazy on purpose: ``xml_id`` triggers an ``ir.model.data`` lookup,
-        so it is only resolved on the (rare) error paths that call this.
-        """
         self.ensure_one()
         return f"{self.name} ({self.xml_id})" if self.xml_id else self.name
 
     def _view_error_context(self, node: _Element | None) -> dict[str, Any]:
-        """Build the contextual view information attached to view errors and
-        warnings (single source of truth for _raise_view_error and
-        _log_view_warning).
-        """
         return {
             "view": self,
             "name": getattr(self, "name", None),
@@ -1319,28 +1145,11 @@ class IrUiView(models.Model):
         from_exception: BaseException | None = None,
         from_traceback: Any = None,
     ) -> typing.NoReturn:
-        """Handle a view error by raising an exception.
-
-        :param str message: message to raise or log, augmented with contextual
-                            view information
-        :param node: the lxml element where the error is located (if any)
-        :param BaseException | None from_exception:
-            when raising an exception, chain it to the provided one (default:
-            disable chaining)
-        :param Any from_traceback:
-            when raising an exception, start with this traceback (default: start
-            at exception creation)
-        """
         err = ValueError(message).with_traceback(from_traceback)
         err.context = self._view_error_context(node)
         raise err from from_exception
 
     def _log_view_warning(self, message: str, node: _Element | None) -> None:
-        """Log a view issue as a warning, augmented with contextual view info.
-
-        :param str message: message to log
-        :param node: the lxml element where the issue is located, if any
-        """
         _logger.warning(
             "%s\nView error context:\n%s",
             message,
@@ -1348,13 +1157,6 @@ class IrUiView(models.Model):
         )
 
     def locate_node(self, arch: _Element, spec: _Element) -> _Element | None:
-        """Return the node in ``arch`` matching ``spec`` (a modifying node from
-        an inheriting view), or None if there is no match.
-
-        :param arch: the source (parent) architecture to search
-        :param spec: a modifying node in an inheriting view
-        :return: the matching node in the source, or None
-        """
         return locate_node(arch, spec)
 
     def inherit_branding(self, specs_tree: _Element) -> _Element:
@@ -1377,14 +1179,6 @@ class IrUiView(models.Model):
         view: Self | None = None,
         arch: _Element | None = None,
     ) -> None:
-        """Add a validation flag on elements in ``combined_arch`` or ``arch``.
-        This is part of the partial validation of views.
-
-        :param _Element combined_arch: the architecture to be modified by ``arch``
-        :param view: an optional view inheriting ``self``
-        :param _Element | None arch: an optional modifying architecture from inheriting
-            view ``view``
-        """
         validate_view_ids = self.env.context.get("validate_view_ids")
         if not validate_view_ids:
             return
@@ -1411,15 +1205,6 @@ class IrUiView(models.Model):
     def apply_inheritance_specs(
         self, source: _Element, specs_tree: _Element, pre_locate: Any = None
     ) -> _Element:
-        """Apply an inheriting view's spec nodes to a source architecture.
-
-        :param _Element source: a parent architecture to modify
-        :param _Element specs_tree: a modifying architecture in an inheriting view
-        :param Any pre_locate: optional function run before locating a node;
-                               receives an arch as argument
-        :return: the modified source with the specs applied
-        :rtype: _Element
-        """
         try:
             source = apply_inheritance_specs(
                 source,
@@ -1432,13 +1217,6 @@ class IrUiView(models.Model):
         return source
 
     def _combine(self, hierarchy: dict[Self, list[Self]]) -> _Element:
-        """
-        Return self's arch combined with its inherited views archs.
-
-        :param hierarchy: mapping from parent views to their child views
-        :return: combined architecture
-        :rtype: _Element
-        """
         self.ensure_one()
         if self.mode != "primary":
             raise ValueError(
@@ -1479,7 +1257,6 @@ class IrUiView(models.Model):
         return combined_arch
 
     def get_combined_arch(self) -> str:
-        """Return the arch of ``self`` (as a string) combined with its inherited views."""
         return etree.tostring(self._get_combined_arch(), encoding="unicode")
 
     def _get_combined_arch(self) -> _Element:
@@ -1487,7 +1264,6 @@ class IrUiView(models.Model):
         return self._get_combined_archs()[0]
 
     def _get_combined_archs(self) -> list[_Element]:
-        """Return each record's arch (as an etree) combined with its inherited views."""
         parented = []
         roots = self.env["ir.ui.view"]
         for root in self:
@@ -1537,12 +1313,6 @@ class IrUiView(models.Model):
         ]
 
     def _get_view_refs(self, node: _Element) -> dict[str, str]:
-        """Extract the ``[view_type]_view_ref`` keys/values from the node's
-        context attribute, giving the views to use for a field node.
-
-        :param node: the field node as an etree
-        :return: mapping of ``[view_type]_view_ref`` key to the view's xmlid
-        """
         context = node.get("context")
         if not context:
             return {}
@@ -1569,11 +1339,6 @@ class IrUiView(models.Model):
         _view: Self | None = None,
         _error: Exception | None = None,
     ) -> frozendict:
-        """Return cached info for the view ``id_or_xmlid`` (prefetched keys plus ``error``).
-
-        ``_view`` and ``_error`` are warm-push helpers for
-        :meth:`_fetch_template_views`, both excluded from the ormcache key.
-        """
         view = None
         error = False
         if _error is not None:
@@ -1625,10 +1390,6 @@ class IrUiView(models.Model):
     def _fetch_template_views(
         self, ids_or_xmlids: Sequence[int | str]
     ) -> dict[int | str, Self | Exception]:
-        """Return a mapping of each reference in ``ids_or_xmlids`` (a view ID or
-        XML ID) to its view, or to an exception if it was not found. May be
-        overridden for other kinds of template values.
-        """
         IrUiView = (
             self.env["ir.ui.view"]
             .sudo()
@@ -1652,8 +1413,6 @@ class IrUiView(models.Model):
                 key = view.key
             except MissingError:
                 continue
-            # A view is always reachable by its own id; only the key is subject
-            # to priority arbitration, since several views may share one.
             view_by_id[view.id] = view
             if key and key not in view_by_id:
                 view_by_id[key] = view
@@ -1705,18 +1464,11 @@ class IrUiView(models.Model):
 
     @tools.ormcache(cache="templates")
     def _clear_preload_views_cache_if_needed(self) -> None:
-        """Invalidate the local cache when the orm cache is cleared"""
         self.env.cr.cache.pop("_compile_batch_", None)
 
     def _preload_views(
         self, refs: Sequence[int | str]
     ) -> dict[int | str, dict[str, Any]]:
-        """
-        Preload view information for the given references.
-
-        :param refs: list of id or xmlid
-        :return: dictionary of preloaded information {id or xmlid: {xmlid, ref, view, error}}
-        """
         self._clear_preload_views_cache_if_needed()
 
         cache_key = self.env["ir.qweb"]._template_cache_signature()
@@ -1755,16 +1507,6 @@ class IrUiView(models.Model):
     def postprocess_and_fields(
         self, node: _Element, model: str | None = None, **options: Any
     ) -> tuple[str, dict[str, set[str]]]:
-        """Return an architecture and a description of all the fields.
-
-        The field description combines the result of fields_get() and
-        _postprocess_view().
-
-        :param node: the architecture as an etree
-        :param model: the view's reference model name
-        :return: a tuple (arch, fields) where arch is ``node`` serialized to a
-            string and fields is the description of all the fields
-        """
         self and self.ensure_one()
 
         name_manager = self._postprocess_view(node, model or self.model, **options)
@@ -1784,12 +1526,6 @@ class IrUiView(models.Model):
 
     @staticmethod
     def _strip_arch_indentation(node: _Element) -> None:
-        """Drop tab indentation from the arch before it is serialized.
-
-        Only whitespace-only text counts as indentation. Running the equivalent
-        ``replace('\\t', '')`` over the serialized document instead would also
-        eat tabs that are part of the view's actual text.
-        """
         for elem in node.iter():
             if elem.text and not elem.text.strip():
                 elem.text = elem.text.replace("\t", "")
@@ -1797,12 +1533,6 @@ class IrUiView(models.Model):
                 elem.tail = elem.tail.replace("\t", "")
 
     def _postprocess_access_rights(self, tree: _Element) -> _Element:
-        """Apply group restrictions and compute per-node access rights.
-
-        Elements with a 'groups' attribute are removed for non-members. Access
-        rights are set per node based on view type; specific views may add
-        their own (e.g. columns for many2one-based grouping views).
-        """
         group_definitions = self.env["res.groups"]._get_group_definitions()
 
         user_group_ids = self.env.user._get_group_ids()
@@ -1816,9 +1546,6 @@ class IrUiView(models.Model):
             parent = node.getparent()
             if not has_access(node.attrib.pop("__groups_key__")):
                 if parent is None:
-                    # The root carries the restriction, so there is no arch left
-                    # to serve. _validate_view rejects this at write time; a view
-                    # predating that check still has to fail intelligibly.
                     raise AccessError(
                         _(
                             "View '%(name)s' is restricted to groups the user does not belong to.",
@@ -1870,13 +1597,6 @@ class IrUiView(models.Model):
 
     @staticmethod
     def _unwrap_node(node: _Element, parent: _Element) -> None:
-        """Replace ``node`` by its children, keeping every character of text.
-
-        Used to drop a ``<t groups="...">`` wrapper once the group check passed,
-        so the surrounding structure (e.g. the children of a ``<group>``) stays
-        flat. The node's own text and tail belong to the parent once the wrapper
-        is gone; losing them silently deletes content from the view.
-        """
         children = list(node)
         preceding = node.getprevious()
 
@@ -1901,14 +1621,6 @@ class IrUiView(models.Model):
         parent.remove(node)
 
     def _postprocess_debug_to_cache(self, tree: _Element) -> None:
-        """Transform ``groups`` containing ``base.group_no_one`` into the
-        ``__debug__`` attribute for debug-mode handling.
-
-        ``base.group_no_one`` is a debug-visibility display feature, not a
-        security group. Both the positive (show in debug) and negated
-        (``!base.group_no_one`` → hide in debug) forms are handled and stripped
-        from ``groups`` so :meth:`_postprocess_access_rights` doesn't interfere.
-        """
         for node in _xpath_groups(tree):
             groups = node.attrib.get("groups", "").split(",")
             if "base.group_no_one" in groups:
@@ -1923,7 +1635,6 @@ class IrUiView(models.Model):
                 )
 
     def _postprocess_debug(self, tree: _Element) -> _Element:
-        """Apply debug mode by making nodes invisible."""
         is_debug = self.env.user.has_group("base.group_no_one")
         for node in _xpath_debug(tree):
             debug = node.attrib.pop("__debug__") == "True"
@@ -1940,14 +1651,6 @@ class IrUiView(models.Model):
         *,
         translate: bool,
     ) -> tuple[NameManager, Any, Any, Any]:
-        """Shared setup for :meth:`_postprocess_view` and :meth:`_validate_view`:
-        check the model exists, resolve the model/view access-group context, and
-        create the view's :class:`NameManager`.
-
-        :param translate: keep the current language on the model (postprocessing)
-            or drop it (validation does not require translations)
-        :return: ``(name_manager, group_definitions, model_groups, view_groups)``
-        """
         if model_name not in self.env:
             self._raise_view_error(
                 _("Model not found: %(model)s", model=model_name), node
@@ -1975,12 +1678,6 @@ class IrUiView(models.Model):
         return name_manager, group_definitions, model_groups, view_groups
 
     def _narrow_model_groups(self, node_info: dict[str, Any], field: Any) -> None:
-        """Intersect ``node_info['model_groups']`` with the access groups
-        declared on ``field`` (its ``groups`` attribute); no-op if it has none.
-
-        Shared by the ``field``/``label`` handlers of both postprocessing and
-        validation so the access-group narrowing lives in a single place.
-        """
         if field.groups:
             group_definitions = self.env["res.groups"]._get_group_definitions()
             node_info["model_groups"] &= group_definitions.parse(
@@ -1992,16 +1689,6 @@ class IrUiView(models.Model):
         root: _Element,
         make_node_info: Callable[[_Element, dict[str, Any] | None], dict[str, Any]],
     ) -> typing.Iterator[tuple[_Element, dict[str, Any]]]:
-        """Pre-order depth-first walk over ``root``, shared by
-        :meth:`_postprocess_view` and :meth:`_validate_view`.
-
-        For each element it calls ``make_node_info(node, parent_info)`` (where
-        ``parent_info`` is the parent's node_info, ``None`` at the root), yields
-        ``(node, node_info)`` for the caller's phase-specific work, then descends
-        into ``node_info.get("children", node)``. A node whose handler detached
-        it from the tree has its subtree skipped. Keeping the traversal here
-        stops the two phases from drifting apart.
-        """
         stack: list[tuple[_Element, dict[str, Any] | None]] = [(root, None)]
         while stack:
             node, parent_info = stack.pop()
@@ -2023,13 +1710,6 @@ class IrUiView(models.Model):
         node_info: dict[str, Any] | None = None,
         **options: Any,
     ) -> NameManager:
-        """Process the given architecture in-place, adding and removing nodes.
-
-        :param node: the combined architecture as an etree
-        :param model_name: the view's reference model name
-        :param editable: whether the view is considered editable
-        :return: the processed architecture's NameManager
-        """
         root = node
 
         name_manager, group_definitions, model_groups, view_groups = (
@@ -2109,7 +1789,6 @@ class IrUiView(models.Model):
     def _add_missing_fields(
         self, node: _Element, name_manager: NameManager
     ) -> dict[str, Any]:
-        """Add the fields required for evaluating expressions in the view given by ``node``."""
         root = node
         missing_fields = name_manager.get_missing_fields()
         for name, (missing_groups, reasons) in missing_fields.items():
@@ -2156,9 +1835,6 @@ class IrUiView(models.Model):
         return missing_fields
 
     def _postprocess_on_change(self, arch: _Element, model: models.BaseModel) -> None:
-        """Add attribute on_change="1" on fields that are dependencies of
-        computed fields on the same view.
-        """
         field_nodes = collections.defaultdict(list)
 
         def collect(node: _Element, model: models.BaseModel) -> None:
@@ -2183,10 +1859,6 @@ class IrUiView(models.Model):
     def _get_x2many_missing_view_archs(
         self, field: Any, field_node: _Element, node_info: dict[str, Any]
     ) -> list[_Element]:
-        """
-        Return the multi-record view archs (kanban or list) needed to display
-        the records of an x2many field whose node does not already embed one.
-        """
         current_view_types = [el.tag for el in _xpath_descendant_field(field_node)]
         missing_view_types = []
         if not any(
@@ -2230,13 +1902,6 @@ class IrUiView(models.Model):
                 node.attrib.pop("groups")
 
     def _calendar_field_names(self, node: _Element) -> typing.Iterator[str | None]:
-        """Yield the names of the fields referenced by a ``<calendar>`` node:
-        its date/color/all_day attributes (:data:`CALENDAR_DATE_ATTRS`), its
-        ``aggregate`` attribute, and its ``<filter>`` children.
-
-        Shared by :meth:`_postprocess_tag_calendar` and
-        :meth:`_validate_tag_calendar` so the two phases can't drift.
-        """
         for attr in CALENDAR_DATE_ATTRS:
             if value := node.get(attr):
                 yield value.split(".", 1)[0]
@@ -2252,10 +1917,6 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        """Register every field referenced by a ``<calendar>`` node on the
-        ``name_manager``. Shared by :meth:`_postprocess_tag_calendar` and
-        :meth:`_validate_tag_calendar`.
-        """
         for name in self._calendar_field_names(node):
             name_manager.has_field(node, name, node_info)
 
@@ -2407,15 +2068,9 @@ class IrUiView(models.Model):
     @api.model
     @tools.ormcache()
     def _get_view_type_tags(self) -> frozenset[str]:
-        """Return the set of tags that are view-type roots (form, list, ...).
-
-        Cached per-registry rather than kept as a module constant because the
-        ``type`` selection is extended by installed modules (e.g. gantt, map).
-        """
         return frozenset(value for value, _label in self._fields["type"].selection)
 
     def _editable_node(self, node: _Element, name_manager: NameManager) -> bool:
-        """Return whether the given node must be considered editable."""
         func = getattr(self, f"_editable_tag_{node.tag}", None)
         if func is not None:
             return func(node, name_manager)
@@ -2456,19 +2111,10 @@ class IrUiView(models.Model):
         editable: bool = True,
         node_info: dict[str, Any] | None = None,
     ) -> NameManager:
-        """Validate the given architecture node and return its NameManager.
-
-        :param node: the combined architecture as an etree
-        :param model_name: the reference model name for the architecture
-        :param editable: whether the view is considered editable
-        :return: the architecture's NameManager
-        """
         self.ensure_one()
 
         view_type = view_type or self.type
         if not view_type:
-            # create() leaves the type unset when it cannot parse the arch to
-            # infer it; say so instead of reporting a "<False> view".
             self._raise_view_error(
                 _(
                     "The view type could not be determined from its architecture. "
@@ -2688,7 +2334,7 @@ class IrUiView(models.Model):
                     use=("fieldname", field.name),
                 )
 
-            for child in node:
+            for child in list(node):
                 if child.tag not in _NESTED_VIEW_TAGS:
                     continue
                 node.remove(child)
@@ -2773,7 +2419,6 @@ class IrUiView(models.Model):
             if name:
                 func = getattr(name_manager.model, name, None)
                 if not callable(func):
-                    # A field name resolves to its value here, not to a method.
                     msg = _(
                         "%(action_name)s is not a valid action on %(model_name)s",
                         action_name=name,
@@ -2962,7 +2607,6 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        """Generic validation of node attributes."""
 
         for attr in VIEW_MODIFIERS:
             py_expression = node.attrib.get(attr)
@@ -3069,7 +2713,6 @@ class IrUiView(models.Model):
                     )
 
     def _validate_classes(self, node: _Element, expr: str) -> None:
-        """Validate the classes present on node."""
         for msg in check_class_accessibility(node, expr):
             self._log_view_warning(msg, node)
 
@@ -3082,12 +2725,6 @@ class IrUiView(models.Model):
     def _validate_qweb_directive(
         self, node: _Element, directive: str, view_type: str
     ) -> None:
-        """Validate that a ``t-*`` directive is allowed in the arch for the
-        given ``view_type``.
-
-        Owl directives shouldn't appear directly in archs, but some views (e.g.
-        kanban) compile archs to owl templates and accept a wider set.
-        """
         allowed = (
             _QWEB_DIRECTIVES_ALLOWED_TEMPLATE
             if self._is_qweb_based_view(view_type)
@@ -3146,9 +2783,6 @@ class IrUiView(models.Model):
     def _check_field_paths(
         self, node: _Element, field_paths: set[str], model_name: str, use: str
     ) -> None:
-        """Check whether the given field paths (dot-separated field names)
-        correspond to actual sequences of fields on the given model.
-        """
         for field_path in field_paths:
             names = field_path.split(".")
             Model = self.pool[model_name]
@@ -3263,10 +2897,6 @@ class IrUiView(models.Model):
                         )
 
     def is_node_branded(self, node: _Element) -> bool:
-        """Return whether a node is branded or qweb-active: it bears a
-        ``data-oe-model``, ``groups`` or ``t-*`` attribute, or is an
-        apply-inheritance-specs node-removal processing instruction.
-        """
         return any(
             (attr in ("data-oe-model", "groups") or (attr.startswith("t-")))
             for attr in node.attrib
@@ -3290,9 +2920,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _validate_custom_views(self, model: str) -> bool:
-        """Validate architecture of custom views (= without xml id) for a given model.
-        This method is called at the end of registry update.
-        """
         rec = self.browse(
             id_
             for (id_,) in self.env.execute_query(
@@ -3314,9 +2941,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _validate_module_views(self, module: str) -> None:
-        """Validate the architecture of all the views of a given module that
-        are impacted by view updates, but have not been checked yet.
-        """
         if not self.pool._init:
             msg = "_validate_module_views() must only be called during module initialization"
             raise RuntimeError(msg)
@@ -3350,13 +2974,9 @@ class IrUiView(models.Model):
         views._check_xml()
 
     def _create_all_specific_views(self, processed_modules: list[str]) -> None:
-        """To be overridden and have specific view behaviour on create."""
         pass
 
     def _get_specific_views(self) -> Self:
-        """Given a view, return a record set containing all the specific views
-        for that view's key.
-        """
         self.ensure_one()
         if self.type != "qweb":
             return self.env["ir.ui.view"]
@@ -3367,11 +2987,6 @@ class IrUiView(models.Model):
         )
 
     def _load_records_write(self, values: dict[str, Any]) -> None:
-        """During module update, when updating a generic view, we should also
-        update its specific views (COW'd).
-        We only update unmodified fields, mimicking the
-        noupdate behavior on views having an ir.model.data.
-        """
         self = self.with_context(ir_ui_view_loading_records=True)
         if self.type == "qweb":
             for cow_view in self._get_specific_views():

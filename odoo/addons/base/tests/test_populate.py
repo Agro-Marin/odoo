@@ -3,9 +3,6 @@ from odoo.tools.populate import populate_models
 
 
 class TestPopulate(TransactionCase):
-    """The ``populate`` tool duplicates existing records; a model with
-    ``_inherits`` (e.g. ``res.users`` -> ``res.partner``) must not raise."""
-
     def _count(self, model):
         return self.env[model].search_count([])
 

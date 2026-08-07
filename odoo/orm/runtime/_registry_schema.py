@@ -1,8 +1,3 @@
-"""Database schema and constraints: indexes, foreign keys, null checks.
-
-Extracted from the Registry god-class; mixed into Registry (registry.py).
-"""
-
 import logging
 import typing
 import warnings
@@ -27,12 +22,9 @@ _schema = logging.getLogger("odoo.schema")
 
 
 class _RegistrySchemaMixin(_RegistryStubs):
-    """Database schema and constraints: indexes, foreign keys, null checks."""
-
     def post_constraint(
         self, cr: BaseCursor, func: Callable[[BaseCursor], None], key
     ) -> None:
-        """Call the given function, and delay it if it fails during an upgrade."""
         try:
             if key not in self._constraint_queue:
                 with cr.savepoint(flush=False):
@@ -47,7 +39,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 self._constraint_queue[key] = func
 
     def finalize_constraints(self, cr: Cursor) -> None:
-        """Call the delayed functions from above."""
         for func in self._constraint_queue.values():
             try:
                 with cr.savepoint(flush=False):
@@ -57,7 +48,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
         self._constraint_queue.clear()
 
     def check_null_constraints(self, cr: Cursor) -> None:
-        """Check that all not-null constraints are set."""
         cr.execute("""
             SELECT c.relname, a.attname
             FROM pg_attribute a
@@ -84,7 +74,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
                             _schema.warning("Missing not-null constraint on %s", field)
 
     def check_indexes(self, cr: Cursor, model_names: Iterable[str]) -> None:
-        """Create or drop column indexes for the given models."""
 
         expected = [
             (make_index_name(Model._table, field.name), Model._table, field)
@@ -209,7 +198,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
         module: str,
         force: bool = True,
     ) -> None:
-        """Specify an expected foreign key."""
         key = (table1, column1)
         val = (table2, column2, ondelete, model, module)
         if force:
@@ -218,7 +206,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
             self._foreign_keys.setdefault(key, val)
 
     def check_foreign_keys(self, cr: Cursor) -> None:
-        """Create or update the expected foreign keys."""
         if not self._foreign_keys:
             return
 
@@ -254,9 +241,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 )
 
     def check_tables_exist(self, cr: Cursor) -> None:
-        """
-        Verify that all tables are present and try to initialize those that are missing.
-        """
         from .environment import Environment
 
         env = Environment(cr, SUPERUSER_ID, {})
@@ -283,23 +267,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 _logger.error("Model %s has no table.", table2model[table])
 
     def is_an_ordinary_table(self, model: BaseModel) -> bool:
-        """Return whether the given model has an ordinary table.
-
-        The answer is memoized per table. It has to record *which* tables it
-        asked about, not just which of them came back ordinary: the memo used to
-        be the bare result set of one bulk query over ``self.models``, so a table
-        absent from it was indistinguishable from a table the query never
-        covered. First call from a partially-loaded registry (129 of 342 models
-        in a ``--test-tags`` run) therefore froze "not an ordinary table" in for
-        every model set up afterwards, and export of the ``ID`` column raised
-        ``You can not export the column ID ...`` for all of them. Only
-        ``init_models`` resets the memo, so nothing recovered until the process
-        restarted.
-
-        A table that is not in the memo re-runs the bulk query rather than
-        answering from its absence, so a registry that grew is picked up. Each
-        distinct table costs at most one query per growth step.
-        """
         table = model._table
         if (known := self._ordinary_tables.get(table)) is not None:
             return known

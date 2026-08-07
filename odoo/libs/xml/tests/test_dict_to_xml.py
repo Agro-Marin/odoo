@@ -1,10 +1,3 @@
-"""Rendering contract for ``odoo.libs.xml.dict_to_xml``.
-
-Was an ``account`` ``TransactionCase``, but nothing here touches a cursor --
-these are pure dict-in / lxml-out assertions, so they belong in the DB-free
-tier next to the function.
-"""
-
 import unittest
 
 from lxml import etree

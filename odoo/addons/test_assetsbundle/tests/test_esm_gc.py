@@ -1,18 +1,9 @@
-"""Tests for ``IrAttachment._gc_esm_assets`` (deferred ESM artifact GC).
-
-Bundle rebuilds defer stale-version deletion to this autovacuum; bridges
-have no other GC path at all. The matrix below pins the sweep criteria:
-newest-per-name always survives, the grace window is honored and
-configurable, bridges are age-swept, classic bundles are untouched.
-"""
-
 from odoo.api import SUPERUSER_ID
 from odoo.tests.common import TransactionCase
 
 
 class TestEsmAssetGc(TransactionCase):
     def _mk(self, name: str, url: str, days_old: int = 0):
-        """Create a public asset attachment, optionally backdated."""
         att = (
             self.env["ir.attachment"]
             .with_user(SUPERUSER_ID)
@@ -41,7 +32,6 @@ class TestEsmAssetGc(TransactionCase):
         return att
 
     def test_gc_matrix(self):
-        """Superseded old rows go; live, recent, and classic rows stay."""
         old_v1 = self._mk("x.gcb.esm.js", "/web/assets/esm/aaaa/x.gcb.esm.js", 30)
         old_map = self._mk(
             "x.gcb.esm.js.map", "/web/assets/esm/aaaa/x.gcb.esm.js.map", 30
@@ -73,7 +63,6 @@ class TestEsmAssetGc(TransactionCase):
         self.assertTrue(classic.exists(), "classic bundles are out of scope")
 
     def test_gc_grace_window_configurable(self):
-        """``web.esm.gc_grace_days`` widens the window."""
         self.env["ir.config_parameter"].sudo().set_param("web.esm.gc_grace_days", "60")
         bridge = self._mk(
             "22334455667788aa.js", "/web/assets/esm/bridges/22334455667788aa.js", 30
@@ -84,13 +73,6 @@ class TestEsmAssetGc(TransactionCase):
         )
 
     def test_gc_phantom_non_superuser_row(self):
-        """A serving-group user's same-named row must not pose as 'newest'.
-
-        The live (newest-per-name) computation is filtered to superuser-created
-        rows. Without that, a higher-id row created by a website designer (who
-        passes ``_check_serving_attachments``) would become the phantom 'newest'
-        and mark the genuine stable bundle stale — deleting a live asset.
-        """
         stable = self._mk("p.gcb.esm.js", "/web/assets/esm/aaaa/p.gcb.esm.js", 400)
         admin = self.env.ref("base.user_admin")
         self.assertNotEqual(admin.id, SUPERUSER_ID, "phantom must not be superuser")
@@ -120,12 +102,6 @@ class TestEsmAssetGc(TransactionCase):
         )
 
     def test_gc_grace_floor(self):
-        """A non-positive ``web.esm.gc_grace_days`` is floored, not honored.
-
-        grace <= 0 would put the cutoff at/after now and sweep every bridge
-        (no newest-per-name protection) on each run, including ones written
-        moments ago. The floor keeps at least a day of grace.
-        """
         self.env["ir.config_parameter"].sudo().set_param("web.esm.gc_grace_days", "0")
         fresh = self._mk(
             "0011223344556677.js", "/web/assets/esm/bridges/0011223344556677.js"

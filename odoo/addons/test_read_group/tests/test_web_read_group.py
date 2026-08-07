@@ -4,9 +4,6 @@ from odoo.tests import common
 
 
 class TestWebReadGroup(common.TransactionCase):
-    """Test the 'length' logic of web_read_group, groups logic
-    are tested in test_formatted_read_group"""
-
     maxDiff = None
 
     def setUp(self):
@@ -459,7 +456,6 @@ class TestWebReadGroup(common.TransactionCase):
             )
 
     def test_auto_unfolded(self):
-        """Test unfolded groups when no __fold exists"""
         Model = self.env["test_read_group.aggregate"]
         partner_1, partner_2 = self.env["res.partner"].create(
             [
@@ -782,7 +778,6 @@ class TestWebReadGroup(common.TransactionCase):
             )
 
     def test_auto_fold_info(self):
-        """Test when __fold exists in subgroup"""
         order_1, order_2, order_3, order_4 = self.env["test_read_group.order"].create(
             [
                 {"name": "O1", "fold": False},

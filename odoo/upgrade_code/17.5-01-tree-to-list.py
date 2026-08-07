@@ -6,7 +6,6 @@ if typing.TYPE_CHECKING:
 
 
 def upgrade(file_manager: FileManager) -> None:
-    """Rename the "tree" view type to "list" across XML, JS and Python."""
     files = [
         file for file in file_manager if file.path.suffix in (".xml", ".js", ".py")
     ]

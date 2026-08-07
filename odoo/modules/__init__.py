@@ -1,5 +1,3 @@
-"""Modules (also called addons) management."""
-
 import odoo.init
 
 from . import db

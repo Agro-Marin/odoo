@@ -1,9 +1,3 @@
-"""XML utilities.
-
-Pure Python XML helpers with no Odoo dependencies.
-Uses standard library and lxml for XML processing.
-"""
-
 from .parsers import default_parser
 
 from .dict_to_xml import dict_to_xml

@@ -1,32 +1,9 @@
-"""XML record field and element-attribute sorter for Odoo data files.
-
-Two canonical orderings are enforced:
-
-1. **Field order** — ``<field>`` children within ``<record>`` elements are
-   sorted to the canonical order defined in :data:`FIELD_ORDER`.
-
-2. **Attribute order** — attributes on data-layer elements (``<record>``,
-   ``<field>`` inside records, ``<menuitem>``, ``<template>``, ``<delete>``,
-   ``<function>``) are sorted to the canonical order in :data:`ATTRIB_ORDER`.
-   Elements inside ``<arch>`` / QWeb template bodies are **not** touched.
-
-Standalone usage::
-
-    python _sort_xml_records.py [DIR ...]            # rewrite in-place
-    python _sort_xml_records.py --dry-run [DIR ...]  # preview only
-
-From the project root::
-
-    ./venv/odoo/bin/python core/odoo/addons/test_lint/tests/_sort_xml_records.py addons_custom core
-"""
-
 import argparse
 import sys
 from io import BytesIO
 from pathlib import Path
 
 from lxml import etree
-
 
 FIELD_ORDER: dict[str, list[str]] = {
     "ir.ui.view": [
@@ -150,12 +127,6 @@ _TOP_LEVEL_TAGS = frozenset(ATTRIB_ORDER) - {"record", "field"}
 
 
 def expected_field_order(present_fields: list[str], model: str) -> list[str]:
-    """Return canonical ``<field>`` child ordering for *present_fields* given *model*.
-
-    Known fields appear in the position defined by ``FIELD_ORDER[model]``.
-    Unknown fields are appended alphabetically. If *model* is not in
-    ``FIELD_ORDER``, the original order is returned unchanged.
-    """
     canonical = FIELD_ORDER.get(model)
     if canonical is None:
         return present_fields
@@ -165,12 +136,6 @@ def expected_field_order(present_fields: list[str], model: str) -> list[str]:
 
 
 def expected_attrib_order(tag: str, present_attribs: list[str]) -> list[str]:
-    """Return canonical attribute ordering for *tag* given *present_attribs*.
-
-    Known attributes appear in the position defined by ``ATTRIB_ORDER[tag]``.
-    Unknown attributes are appended alphabetically. If *tag* is not in
-    ``ATTRIB_ORDER``, the original order is returned unchanged.
-    """
     canonical = ATTRIB_ORDER.get(tag)
     if canonical is None:
         return present_attribs
@@ -180,15 +145,10 @@ def expected_attrib_order(tag: str, present_attribs: list[str]) -> list[str]:
 
 
 def expected_record_attrib_order(present_attribs: list[str]) -> list[str]:
-    """Convenience alias: canonical ``<record>`` attribute ordering."""
     return expected_attrib_order("record", present_attribs)
 
 
 def _normalize_attribs(element: etree._Element) -> bool:
-    """Normalize *element*'s attribute order per :data:`ATTRIB_ORDER`.
-
-    Returns ``True`` if the order changed.
-    """
     tag = element.tag
     if callable(tag):
         return False
@@ -204,18 +164,6 @@ def _normalize_attribs(element: etree._Element) -> bool:
 
 
 def _sort_record_fields(record: etree._Element, model: str) -> bool:
-    """Reorder ``<field>`` children of *record* to canonical order.
-
-    Records containing comment/PI nodes between their fields are skipped to
-    avoid disrupting intentional grouping comments.
-
-    The ``.tail`` whitespace (indentation between closing tags) is preserved
-    by mapping original positional tails to the new positions — since all
-    non-last tails share the same indent string, each slot keeps the spacing
-    of its position in the result, not the spacing that came with the element.
-
-    Returns ``True`` if the record was modified.
-    """
     children = list(record)
 
     if any(callable(c.tag) for c in children):
@@ -256,21 +204,6 @@ def sort_xml_file(
     models: set[str] | None = None,
     dry_run: bool = False,
 ) -> bool | None:
-    """Sort ``<record>`` fields and normalize element attributes in *path*.
-
-    Processing scope:
-
-    - ``<record>`` attribute order (id → model → rest).
-    - ``<field>`` child order within each ``<record>`` (per :data:`FIELD_ORDER`).
-    - ``<field>`` attribute order for data-layer fields (direct children of records).
-    - Attribute order for ``<menuitem>``, ``<template>``, ``<delete>``, ``<function>``.
-
-    Elements inside ``<arch>`` / QWeb template bodies are never modified.
-
-    :return: ``True`` if the file was changed (or would change in dry-run mode),
-        ``False`` if it was already canonical, ``None`` if it was skipped due to
-        a parse error (warning on stderr)
-    """
     source = path.read_bytes()
     try:
         tree = etree.parse(BytesIO(source), _PARSER)
@@ -324,7 +257,6 @@ def sort_xml_file(
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Entry point for standalone use."""
     parser = argparse.ArgumentParser(
         description=(
             "Sort Odoo XML <record> <field> children and normalize element "

@@ -1,9 +1,3 @@
-"""Record creation: ``create``/``default_get`` and their helpers.
-
-Split out of the former CrudMixin; see _crud_common.py for shared
-constants. Copy/duplication lives in copy.py (CopyMixin).
-"""
-
 import typing
 from collections import defaultdict
 from itertools import batched
@@ -36,19 +30,10 @@ if typing.TYPE_CHECKING:
 
 
 class CreateMixin(_ModelStubs):
-    """Record creation: ``create``/``default_get`` and their helpers."""
-
     __slots__ = ()
 
     @api.model
     def default_get(self, fields: list[str]) -> ValuesType:
-        """Return default values for the named ``fields``, determined by the
-        context, user defaults, user fallbacks and the model itself.
-
-        :param fields: names of fields whose default is requested
-        :return: dict mapping field names to their default value, when they have
-            one. Fields not in ``fields`` are not considered.
-        """
         env = self.env
         _fields = self._fields
         defaults = {}
@@ -65,18 +50,6 @@ class CreateMixin(_ModelStubs):
             if not field:
                 continue
 
-            # A field with no ``default=``, no delegation and no ``ir.default``
-            # row falls through every branch below without producing anything,
-            # and that is the overwhelming majority: ``create()`` asks for every
-            # field absent from ``vals``, which on ``res.partner`` is 73 names
-            # of which 6 can yield a value.  One combined test rejects them
-            # instead of the four the branches below would each re-evaluate.
-            #
-            # Read live, not from a per-class memo: ``default`` is a plain
-            # public attribute and tests reassign it on a field object without
-            # any registry re-setup to invalidate a cache with
-            # (``test_properties_field_default`` does exactly that, and caught
-            # the memoized version of this).
             if not (field.default or field.inherited or name in ir_defaults):
                 continue
 
@@ -153,9 +126,6 @@ class CreateMixin(_ModelStubs):
             defaults = self.default_get(missing_defaults)
             _fields = self._fields
             for name, value in defaults.items():
-                # ``_fields[name]`` is resolved unconditionally, as before: a
-                # name ``default_get`` invented is a programming error and must
-                # still raise, whether or not its value happens to be falsy.
                 field_type = _fields[name].type
                 if not value:
                     continue
@@ -186,29 +156,6 @@ class CreateMixin(_ModelStubs):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Create new records for the model.
-
-        The new records are initialized using the values from the list of dicts
-        ``vals_list``, and if necessary those from :meth:`~.default_get`.
-
-        :param vals_list:
-            values for the model's fields, as a list of dictionaries::
-
-                [{'field_name': field_value, ...}, ...]
-
-            For backward compatibility, ``vals_list`` may be a dictionary.
-            It is treated as a singleton list ``[vals]``, and a single record
-            is returned.
-
-            see :meth:`~.write` for details
-
-        :return: the created records
-        :raise AccessError: if the user may not create records of this model
-        :raise ValidationError: on an invalid value for a selection field
-        :raise ValueError: if a field name in the create values does not exist
-        :raise UserError: if the operation would create a loop in an object
-          hierarchy (e.g. setting an object as its own parent)
-        """
         if not isinstance(vals_list, (list, tuple)):
             raise TypeError(
                 f"create() expects a list of dicts, got {type(vals_list).__name__}"
@@ -363,9 +310,6 @@ class CreateMixin(_ModelStubs):
         return records
 
     def _prepare_create_values(self, vals_list: list[ValuesType]) -> list[ValuesType]:
-        """Clean up and complete create values: add defaults and precomputed
-        fields, strip forbidden (magic) fields. Return the new vals list.
-        """
         bad_names = bad_field_names(self)
 
         cls = type(self)
@@ -379,7 +323,7 @@ class CreateMixin(_ModelStubs):
             ),
         )
         if precompute_readonly:
-            bad_names = bad_names | precompute_readonly
+            bad_names |= precompute_readonly
 
         missing_defaults_cache: dict[frozenset[str], list[str]] = {}
 
@@ -402,7 +346,6 @@ class CreateMixin(_ModelStubs):
         return result_vals_list
 
     def _add_precomputed_values(self, vals_list: list[ValuesType]) -> None:
-        """Add missing ``precompute=True`` fields to ``vals_list``."""
         precomputable = {
             fname: field for fname, field in self._fields.items() if field.precompute
         }
@@ -430,26 +373,6 @@ class CreateMixin(_ModelStubs):
             self._discard_precompute_scratch(records)
 
     def _discard_precompute_scratch(self, records: Self) -> None:
-        """Drop the cache the throwaway ``new()`` records of the precompute pass left.
-
-        :meth:`_add_precomputed_values` materialises one in-memory record per
-        row purely to evaluate the ``precompute=True`` computes; every value it
-        wanted is copied into ``vals`` before it returns, so the cache those
-        records populate is dead weight afterwards -- but nothing dropped it, so
-        it accumulated for the whole transaction: 16 entries per row on
-        ``res.partner``, 170 000 after 10 000 rows, and ``load()`` never
-        invalidates between batches, so a 100 000-row import carried ~1.6M dead
-        entries plus their :class:`NewId` keys.  ``flush_all()`` does not release
-        them (they are not dirty); only a transaction-wide ``invalidate_all()``
-        did, which an import never calls.
-
-        Only this model's own fields are swept.  Values written as ``(0, 0,
-        {...})`` mint further ``NewId`` corecords on *other* models, reachable
-        only by walking every relational field of every scratch record -- the
-        same cost as the pass itself.  Those are left behind, which is no worse
-        than before; the sweep is sound either way, because the inverse writes
-        those corecords receive land on new records only, never on real ones.
-        """
         ids = records._ids
         if not ids:
             return
@@ -460,13 +383,6 @@ class CreateMixin(_ModelStubs):
     def _build_insert_rows(
         self, stored_list: list, columns: list[str], col_fields: list[Field]
     ) -> list[tuple]:
-        """Build one column-converted value tuple per record, for INSERT / COPY.
-
-        Applies the rule shared by both :meth:`_create` branches:
-        ``convert_to_column_insert`` for a present column, ``None`` for a missing
-        one (a NULL-defaulting non-required column, since Python defaults already
-        filled required ones). ``columns`` and ``col_fields`` are parallel.
-        """
         return [
             tuple(
                 field.convert_to_column_insert(stored[fname], self, stored)
@@ -479,7 +395,6 @@ class CreateMixin(_ModelStubs):
 
     @api.model
     def _create(self, data_list: list[ValuesType]) -> Self:
-        """Create records from the stored field values in ``data_list``."""
         if not data_list:
             raise ValueError("_create() called with empty data_list")
         cr = self.env.cr
@@ -612,16 +527,6 @@ class CreateMixin(_ModelStubs):
     def _populate_create_cache(
         self, ids: list[int], data_list: list[dict]
     ) -> tuple[Self, dict]:
-        """Populate the ORM cache for newly created records.
-
-        Fills cache slots for all stored fields and collects M2O inverse updates.
-
-        :param ids: list of newly created record IDs
-        :param data_list: list of data dicts with 'stored' and 'inherited' keys
-        :return: (records, inverses_update) — the browse recordset and a dict
-            of {(field, cache_value): [record_ids]} for M2O inverse updates.
-            Also mutates data_list entries to add 'record' key.
-        """
         records = self.browse(ids)
         inverses_update = defaultdict(list)
         common_set_vals = _BAD_NAMES_LOG
@@ -660,14 +565,6 @@ class CreateMixin(_ModelStubs):
             set_vals_list.append(common_set_vals.union(vals))
             record_ids.append(record._ids[0])
 
-        # Seed the "no value" slot field by field rather than record by record.
-        # Every stored field the model has must end up seeded on every record
-        # that did not supply one, so a later read is a cache hit rather than a
-        # query -- that is inherently records x fields.  But a field absent from
-        # *every* row (52 of ``res.partner``'s 70 stored scalars in a bulk
-        # create, where all rows carry the same keys) needs no per-record test
-        # at all, and drops to a single C-level ``dict.update``.  Only a field
-        # some row does supply keeps the per-record scan.
         supplied = set().union(*set_vals_list) if set_vals_list else set()
         for _field, cache in _stored_x2m_caches:
             cache.update(dict.fromkeys(record_ids, ()))
@@ -694,11 +591,6 @@ class CreateMixin(_ModelStubs):
 
     @api.model
     def _create_update_xmlids(self, records: Self, vals_list: list[ValuesType]) -> None:
-        """Update ir.model.data xmlids when creating records during import.
-
-        Called at the end of create() to support setting xids directly by
-        providing an "id" key during an import.
-        """
         import_module = self.env.context.get("_import_current_module")
         if not import_module:
             return
@@ -718,7 +610,6 @@ class CreateMixin(_ModelStubs):
         )
 
     def _parent_store_create(self) -> None:
-        """Set the parent_path field on ``self`` after its creation."""
         if not self._parent_store:
             return
         backend = self.env.backend

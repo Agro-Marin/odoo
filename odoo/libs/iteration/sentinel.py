@@ -1,16 +1,9 @@
-"""Sentinel values for distinguishing special states from None.
-
-Pure Python utility with no Odoo dependencies.
-"""
-
 __all__ = ["PENDING", "SENTINEL", "Sentinel"]
 
 import enum
 
 
 class Sentinel(enum.Enum):
-    """Class for typing parameters with a sentinel as a default."""
-
     SENTINEL = -1
     PENDING = -2
 

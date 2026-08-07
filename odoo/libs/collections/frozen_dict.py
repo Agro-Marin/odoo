@@ -1,5 +1,3 @@
-"""Immutable dictionary type and a hashing helper for arbitrary objects."""
-
 __all__ = ["freehash", "frozendict"]
 
 from collections.abc import Iterable, Mapping
@@ -7,11 +5,6 @@ from typing import Any
 
 
 def freehash(arg: Any) -> int:
-    """Compute a hash for any object, including unhashable ones.
-
-    For unhashable objects (dicts, lists, etc.), attempts to convert
-    them to a hashable form (frozendict, frozenset).
-    """
     try:
         return hash(arg)
     except Exception:
@@ -24,82 +17,44 @@ def freehash(arg: Any) -> int:
 
 
 class frozendict[K, T](dict[K, T]):
-    """An implementation of an immutable dictionary."""
-
     __slots__ = ("_hash",)
 
     def __delitem__(self, key: K) -> None:
-        """Reject item deletion, as the dictionary is immutable."""
         msg = "'__delitem__' not supported on frozendict"
         raise NotImplementedError(msg)
 
     def __setitem__(self, key: K, val: T) -> None:
-        """Reject item assignment, as the dictionary is immutable."""
         msg = "'__setitem__' not supported on frozendict"
         raise NotImplementedError(msg)
 
     def clear(self) -> None:
-        """Reject clearing, as the dictionary is immutable."""
         msg = "'clear' not supported on frozendict"
         raise NotImplementedError(msg)
 
     def pop(self, key: K, default: T | None = None) -> T:
-        """Reject popping a key, as the dictionary is immutable."""
         msg = "'pop' not supported on frozendict"
         raise NotImplementedError(msg)
 
     def popitem(self) -> tuple[K, T]:
-        """Reject popping an item, as the dictionary is immutable."""
         msg = "'popitem' not supported on frozendict"
         raise NotImplementedError(msg)
 
     def setdefault(self, key: K, default: T | None = None) -> T:
-        """Reject setting a default, as the dictionary is immutable."""
         msg = "'setdefault' not supported on frozendict"
         raise NotImplementedError(msg)
 
     def update(self, *args: Any, **kwargs: Any) -> None:
-        """Reject updating, as the dictionary is immutable."""
         msg = "'update' not supported on frozendict"
         raise NotImplementedError(msg)
 
     def __ior__(self, other: Any) -> None:
-        """Reject in-place merge (``|=``), as the dictionary is immutable.
-
-        Without this override ``dict.__ior__`` would mutate the frozendict in
-        place and leave the cached ``_hash`` stale.
-        """
         msg = "'|=' not supported on frozendict"
         raise NotImplementedError(msg)
 
     def __reduce__(self) -> tuple[Any, tuple[type, dict[K, T]]]:
-        """Rebuild the frozendict from its class and a plain dict of its items.
-
-        Without this, a frozendict could not be copied or pickled at all.
-        ``dict`` subclasses are reconstructed by ``copyreg`` through the
-        "dictitems" slot of the pickle protocol, which replays the contents with
-        ``obj[key] = value`` -- straight into the ``__setitem__`` override above,
-        so ``copy.copy``, ``copy.deepcopy`` and ``pickle.dumps`` every one of
-        them raised ``NotImplementedError: '__setitem__' not supported on
-        frozendict``.  No in-tree caller trips this today (nothing deep-copies
-        or pickles a structure holding one -- sessions serialize through orjson,
-        not pickle), so this is a latent hole rather than a live bug: an
-        immutable *value* type that cannot be copied is simply broken, and any
-        future caller would meet it as a puzzling crash far from here.
-
-        Reconstruction goes through :func:`_rebuild_frozendict` rather than
-        ``type(self)(items)`` so it does not depend on the subclass constructor
-        accepting a mapping -- a subclass with its own ``__init__`` signature
-        would otherwise fail to unpickle.  ``deepcopy`` still recurses into the
-        items argument, so the (possibly mutable) *values* are deep-copied and
-        shared references stay shared through the memo.  The cached ``_hash`` is
-        deliberately not carried over -- it is recomputed on demand from the
-        reconstructed contents.
-        """
         return (_rebuild_frozendict, (type(self), dict(self)))
 
     def __hash__(self) -> int:
-        """Return a cached hash computed from the key/value pairs."""
         try:
             return self._hash
         except AttributeError:
@@ -109,14 +64,6 @@ class frozendict[K, T](dict[K, T]):
 
 
 def _rebuild_frozendict[K, T](cls: type, items: dict[K, T]) -> Any:
-    """Reconstruct a ``frozendict`` (or subclass) from its items.
-
-    Used by :meth:`frozendict.__reduce__`.  Builds the instance with
-    ``dict.__new__`` and fills it through ``dict.update``, both of which bypass
-    the immutability overrides -- so reconstruction works for any subclass
-    whatever its ``__init__`` signature, and the result is still immutable to
-    every public entry point.
-    """
     obj = dict.__new__(cls)
     dict.update(obj, items)
     return obj

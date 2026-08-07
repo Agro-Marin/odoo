@@ -1,30 +1,9 @@
-"""Unit tests for ``odoo.libs.intervals``.
-
-This module had no Tier-1 coverage: its only tests were the six integration
-cases in ``odoo/addons/base/tests/test_intervals.py``, which need a database.
-
-The tests below pin two things that are easy to get wrong here:
-
-* the merge/keep_distinct semantics and their determinism, and
-* the fact that the payload takes part in the ordering.  That last one is a
-  latent sharp edge rather than a live bug, and it is documented here rather
-  than fixed -- see :class:`TestPayloadParticipatesInOrdering`.
-"""
-
 import unittest
 
 from odoo.libs.intervals import Intervals, intervals_overlap, invert_intervals
 
 
 class Recordset:
-    """The parts of ``BaseModel`` that ``Intervals`` actually touches.
-
-    ``__lt__``/``__gt__`` mirror ``odoo.orm.models.mixins.iteration``: a proper
-    *subset* test between recordsets of the same model, ``NotImplemented``
-    across models (which Python turns into a ``TypeError``).  ``union`` mirrors
-    ``BaseModel.union``, which refuses to combine different models.
-    """
-
     def __init__(self, model, ids):
         self.model = model
         self.ids = frozenset(ids)
@@ -130,21 +109,6 @@ class TestIntervalsSemantics(unittest.TestCase):
 
 
 class TestPayloadParticipatesInOrdering(unittest.TestCase):
-    """The payload is part of the sort key, and that is a sharp edge.
-
-    ``sorted()`` runs on the bare ``(value, flag, records)`` tuples, so a tie on
-    ``(value, flag)`` falls through to comparing the records.  For recordsets
-    that comparison is a *subset* test -- a partial order that contributes no
-    ordering -- and it raises outright across models.
-
-    This is documented, not fixed.  Instrumenting a real ``/resource,/hr`` run
-    (1456 constructions, 29390 boundaries) showed no construction ever mixing
-    two models and only 2 tied boundaries, while every way of keeping the
-    payload out of the sort key costs 2-18% on the tie-free shape that dominates
-    real input.  These tests exist so the trade-off is visible if that ever
-    changes.
-    """
-
     def test_cross_model_payload_is_rejected(self):
         with self.assertRaises(TypeError):
             Intervals(
@@ -165,12 +129,6 @@ class TestPayloadParticipatesInOrdering(unittest.TestCase):
         self.assertEqual(next(iter(result))[2].ids, frozenset({1, 2}))
 
     def test_merge_never_compares_payloads(self):
-        """``_merge`` sorts flags that always differ, so it is safe by accident.
-
-        ``bounds1`` carries "start"/"stop" and ``bounds2`` carries "switch", and
-        each stream is already normalised to disjoint intervals -- so no two
-        entries can tie on ``(value, flag)`` and reach the records.
-        """
 
         class Exploding(Recordset):
             def __lt__(self, other):

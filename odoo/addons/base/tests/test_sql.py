@@ -135,12 +135,6 @@ class TestSQL(BaseCase):
             sql = SQL.identifier("foo", 'ba"r')
 
     def test_sql_identifier_injection_barrier_under_O(self):
-        """The identifier check must reject a quote-breakout even under ``-O``.
-
-        ``python -O`` strips ``assert``\\ s, so the validation must be a real
-        ``raise``.  Run a subprocess with ``-O`` to prove a crafted identifier
-        cannot escape the double-quote wrapping into raw SQL.
-        """
         import os
         import subprocess
         import sys
@@ -283,18 +277,10 @@ class TestSqlTools(TransactionCase):
 
 
 class TestEnvExecuteQuery(TransactionCase):
-    """``Environment.execute_query`` swallows a "no result to fetch" cursor
-    state (``ProgrammingError`` with ``sqlstate is None``) but must NOT swallow
-    a real database error. The discrimination was unpinned; these observe both
-    halves against a real cursor.
-    """
-
     def test_select_returns_rows(self):
         self.assertEqual(self.env.execute_query(SQL("SELECT 1")), [(1,)])
 
     def test_a_non_returning_statement_yields_an_empty_list(self):
-        # A statement with no result set makes fetchall() raise a
-        # ProgrammingError whose sqlstate is None; execute_query returns [].
         with self.env.cr.savepoint():
             self.env.cr.execute("CREATE TEMP TABLE _eq_probe (id int) ON COMMIT DROP")
             self.assertEqual(
@@ -303,8 +289,6 @@ class TestEnvExecuteQuery(TransactionCase):
             )
 
     def test_a_real_sql_error_is_not_swallowed(self):
-        # An undefined column is a genuine error (sqlstate 42703); it must
-        # propagate rather than being turned into an empty result.
         with (
             self.assertRaises(Exception),
             mute_logger("odoo.db"),
@@ -318,4 +302,4 @@ class TestEnvExecuteQuery(TransactionCase):
 
     def test_execute_query_rejects_a_non_sql_argument(self):
         with self.assertRaises(TypeError):
-            self.env.execute_query("SELECT 1")  # a str, not a SQL object
+            self.env.execute_query("SELECT 1")

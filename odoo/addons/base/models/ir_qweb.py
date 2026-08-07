@@ -1,213 +1,3 @@
-"""QWeb rendering engine (``ir.qweb``).
-
-QWeb is Odoo's primary templating engine: an XML engine used mostly to generate
-XML and HTML. Directives are XML attributes prefixed with ``t-`` (e.g. ``t-if``);
-the placeholder ``<t>`` element runs its directives without emitting any output.
-See https://www.odoo.com/documentation/master/developer/reference/frontend/qweb.html
-
-Rendering
-=========
-
-``_compile`` turns an input etree into a python generator function that yields
-output one chunk at a time; ``_render`` consumes it. Compilation runs once per
-(template, options, language) set and is ormcached, so compile time matters far
-less than render time. Output is ``MarkupSafe`` (escaped, injection-safe).
-
-At compile time each ``t-*`` directive is compiled into python code and removed
-from the node; no dynamic attribute may remain once a node is fully compiled.
-
-How the code works
-==================
-
-Summary of the method calls in the IrQweb class:
-
-.. code-block:: rst
-
-    Odoo
-     ┗━► _render (returns MarkupSafe)
-        ┗━► _compile (returns function)                                        ◄━━━━━━━━━━┓
-           ┗━► _compile_node (returns code string array)                       ◄━━━━━━━━┓ ┃
-              ┃  (skip the current node if found t-qweb-skip)                           ┃ ┃
-              ┃  (add technical directives: t-tag-open, t-tag-close, t-inner-content)   ┃ ┃
-              ┃                                                                         ┃ ┃
-              ┣━► _directives_eval_order (defined directive order)                      ┃ ┃
-              ┣━► _compile_directives (loop)    Consume all remaining directives ◄━━━┓  ┃ ┃
-              ┃  ┃                              (e.g.: to change the indentation)    ┃  ┃ ┃
-              ┃  ┣━► _compile_directive                                              ┃  ┃ ┃
-              ┃  ┃    ┗━► t-groups        ━━► _compile_directive_groups             ━┫  ┃ ┃
-              ┃  ┃    ┗━► t-foreach       ━━► _compile_directive_foreach            ━┫  ┃ ┃
-              ┃  ┃    ┗━► t-if            ━━► _compile_directive_if                 ━┛  ┃ ┃
-              ┃  ┃    ┗━► t-inner-content ━━► _compile_directive_inner_content ◄━━━━━┓ ━┛ ┃
-              ┃  ┃    ┗━► t-options       ━━► _compile_directive_options             ┃    ┃
-              ┃  ┃    ┗━► t-set           ━━► _compile_directive_set           ◄━━┓  ┃    ┃
-              ┃  ┃    ┗━► t-call          ━━► _compile_directive_call            ━┛ ━┫ ━━━┛
-              ┃  ┃    ┗━► t-att           ━━► _compile_directive_att                 ┃
-              ┃  ┃    ┗━► t-tag-open      ━━► _compile_directive_open          ◄━━┓  ┃
-              ┃  ┃    ┗━► t-tag-close     ━━► _compile_directive_close         ◄━━┫  ┃
-              ┃  ┃    ┗━► t-out           ━━► _compile_directive_out             ━┛ ━┫ ◄━━┓
-              ┃  ┃    ┗━► t-field         ━━► _compile_directive_field               ┃   ━┫
-              ┃  ┃    ┗━► t-esc           ━━► _compile_directive_esc                 ┃   ━┛
-              ┃  ┃    ┗━► t-*             ━━► ...                                    ┃
-              ┃  ┃                                                                   ┃
-              ┗━━┻━► _compile_static_node                                           ━┛
-
-
-Each XML node goes through ``_compile_node``. A node with no ``t-*`` attribute is
-"static" (``_is_static_node``) and is compiled by ``_compile_static_node``;
-otherwise ``_compile_directives`` compiles the directives in the order of
-``_directives_eval_order``, dispatching each through ``_compile_directive`` to
-``_compile_directive_<name>`` (e.g. ``t-if`` => ``_compile_directive_if``), then
-compiles any directive attributes still on the element.
-
-``_post_processing_att`` builds the rendering attributes — once at compile time
-for static nodes, once per render otherwise. Each expression is compiled by
-``_compile_expr`` into a namespaced python expression.
-
-Directives
-----------
-
-``t-debug`` (values: ``''``, ``pdb``, ``ipdb``, ``pudb``, ``wdb``)
-    Trigger a debugger breakpoint (dev mode only), giving access to the rendered
-    variables. An empty value calls the ``breakpoint`` builtin; naming an explicit
-    debugger is deprecated since 17.0 (configure ``PYTHONBREAKPOINT`` /
-    ``sys.setbreakpointhook`` instead).
-
-``t-if`` / ``t-elif`` / ``t-else`` (values: python expression; ``t-else`` none)
-    Wrap the compiled content in a python ``if``/``elif``/``else``. ``t-elif`` and
-    ``t-else`` are compiled together with the preceding ``t-if`` (not separately in
-    ``_directives_eval_order``) and their nodes are marked not to render twice.
-
-``t-groups`` (``groups`` is an alias)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-**Values**: allowed group name, ``!``-prefixed to prohibit
-
-Wrap the content in a ``has_groups`` check (``res.users``).
-
-``t-foreach``
-~~~~~~~~~~~~~
-**Values**: an expression returning the collection to iterate on
-
-Convert to a ``for`` loop; ``t-as`` names the key. Also populates ``*_value``,
-``*_index``, ``*_size``, ``*_first``, ``*_last`` (and ``*_odd``/``*_even``/
-``*_parity``) in ``values``.
-
-``t-as``
-~~~~~~~~
-**Values**: key name
-
-Only validates that ``t-as`` and ``t-foreach`` are on the same node.
-
-``t-options`` and ``t-options-*``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-**Values**: python expression
-
-Configure a ``t-call``/``t-field``/``t-out`` on the same node by building
-``values['__qweb_options__']``: ``t-options-widget="'float'"`` is merged as
-``{'widget': 'float'}`` on top of the optional ``t-options`` dict.
-
-``t-att``, ``t-att-*``, ``t-attf-*`` and ``t-attf-*.translate``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-**Values**: python expression (or format string expression for ``t-attf-``)
-
-Build ``values['__qweb_attrs__']``. ``t-att`` is a dict expression, ``t-att-*`` a
-python expression, ``t-attf-*`` a format string (translated when suffixed
-``.translate``). New namespaces and static (non-``t-``) attributes are added too.
-
-``t-call``
-~~~~~~~~~~
-**Values**: format string expression for template name
-
-Render the called template in place of the ``t-call`` node, with a copy of
-``values``; the node's content is compiled into a separate function and exposed
-to the callee as the magic slot ``0`` (``t-out="0"``, updatable via ``t-set``).
-``t-options`` configures the call.
-
-``t-lang``
-~~~~~~~~~~
-**Values**: python expression
-
-Alias of ``t-options-lang``, only valid with ``t-call``; renders the called
-template in another language.
-
-``t-call-assets``
-~~~~~~~~~~~~~~~~~
-**Values**: format string for template name
-
-Aggregate/minify the bundle's JS/CSS via ``_get_asset_nodes``.
-
-``t-out``
-~~~~~~~~~
-**Values**: python expression
-
-Output the value, or the node content as default when falsy (e.g.
-``<t t-out="given_value">Default content</t>``). With a widget
-(``t-options-widget``) the value is formatted by ``_get_widget`` (an
-``ir.qweb.field.*`` model).
-
-``t-field``
-~~~~~~~~~~~
-**Values**: field path (for example ``t-field="record.name"``)
-
-Like ``t-out`` but formatted by ``_get_field`` (an ``ir.qweb.field.*`` model)
-according to the field type; overridable via ``t-options-widget``.
-
-``t-esc``
-~~~~~~~~~
-Deprecated, please use ``t-out``
-
-``t-raw``
-~~~~~~~~~
-Deprecated, please use ``t-out``
-
-``t-set``
-~~~~~~~~~
-**Values**: key name
-
-Assign ``values[key]`` from ``t-value`` (expression), ``t-valuef`` (format
-string) or, absent those, the node's ``MarkupSafe`` content.
-
-``t-value``, ``t-valuef`` and ``t-valuef.translate``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-**Values**: python expression (or format string expression)
-
-Only validates that this directive and ``t-set`` are on the same node. The
-format string can be translated with ``.translate``.
-
-
-Technical directives
---------------------
-
-Directive added automatically by IrQweb in order to go through the compilation
-methods.
-
-``t-tag-open``
-~~~~~~~~~~~~~~
-Used to generate the opening HTML/XML tags.
-
-``t-tag-close``
-~~~~~~~~~~~~~~~
-Used to generate the closing HTML/XML tags.
-
-``t-inner-content``
-~~~~~~~~~~~~~~~~~~~
-Add the node's content (text, tail and children). Copies the options when the
-element declares namespaces.
-
-``t-consumed-options``
-~~~~~~~~~~~~~~~~~~~~~~
-Raise an exception if the ``t-options`` is not consumed.
-
-``t-qweb-skip``
-~~~~~~~~~~~~~~~~~~~~~~
-Ignore rendering and directives for the current **input** node.
-
-``t-else-valid``
-~~~~~~~~~~~~~~~~~~~~~~
-Mark a node with ``t-else`` or ``t-elif`` having a valid **input** dom
-structure.
-
-"""
-
 import ast
 import base64
 import io
@@ -340,7 +130,7 @@ _SAFE_QWEB_OPCODES = (
 )
 
 
-unsafe_eval = eval
+unsafe_eval = eval  # noqa: S307  compiled QWeb template code; the name says what it is
 
 
 VOID_ELEMENTS = frozenset(
@@ -426,7 +216,6 @@ def _id_or_xmlid(ref: str | int) -> str | int:
 
 
 def indent_code(code: str, level: int) -> str:
-    """Indent the code to respect the python syntax."""
     return textwrap.indent(textwrap.dedent(code).strip(), " " * 4 * level)
 
 
@@ -467,13 +256,6 @@ class QwebStackFrame(NamedTuple):
 
 
 class QwebContent:
-    """QwebContent wraps a snippet to be used as a string value or a fragment.
-    If the value is used with a string operation (from a qweb directive
-    like `t-att-help="value % 1"`), the QwebContent loads the snippet.
-    If the value is inserted in the document (`t-out="value"`), the snippet
-    params bubble up to `_render_iterall`.
-    """
-
     __irQweb: IrQweb
     html: str | None
     params__: QwebCallParameters
@@ -519,15 +301,6 @@ class QwebContent:
         return key in Markup(self)
 
     def __getattr__(self, name: str) -> Any:
-        """Delegate string operations to the rendered snippet.
-
-        Dunder names are refused: an ``AttributeError`` raised *inside* this
-        class (e.g. from the ``irQweb`` property) makes Python fall back here,
-        and delegating would re-enter ``__str__`` and recurse until the stack
-        blows -- destroying the real error. Protocol probes such as
-        ``copy.deepcopy``'s ``__deepcopy__`` lookup would likewise force a full
-        render just to be told the attribute is absent.
-        """
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
         return getattr(Markup(self), name)
@@ -566,13 +339,6 @@ qwebJSON = QwebJSON()
 
 
 class IrQweb(models.AbstractModel):
-    """Base QWeb rendering engine.
-
-    Subclass ``ir.qweb.field`` as :samp:`ir.qweb.field.{widget}` to customize
-    ``t-field`` rendering. For extensions that could clash with other subsystems,
-    inherit ``ir.qweb`` into a local model rather than altering this one.
-    """
-
     _name = "ir.qweb"
     _description = "Qweb"
 
@@ -583,23 +349,6 @@ class IrQweb(models.AbstractModel):
         values: dict[str, Any] | None = None,
         **options: Any,
     ) -> Markup:
-        """Render the template specified by the given name.
-
-        :param template: etree, xml_id, template name (see _get_template)
-            * Call the method ``load`` is not an etree.
-        :param dict values: template values to be used for rendering
-        :param options: used to compile the template
-            Options will be add into the IrQweb.env.context for the rendering.
-
-            * ``lang`` (str) used language to render the template
-            * ``inherit_branding`` (bool) add the tag node branding
-            * ``inherit_branding_auto`` (bool) add the branding on fields
-            * ``minimal_qcontext``(bool) To use the minimum context and options
-              from ``_prepare_environment``
-
-        :return: the rendered template, markup-safe
-        :rtype: markupsafe.Markup
-        """
         current_thread = threading.current_thread()
         execution_context_enabled = getattr(current_thread, "profiler_params", {}).get(
             "execution_context_qweb"
@@ -641,7 +390,6 @@ class IrQweb(models.AbstractModel):
         values: dict[str, Any],
         directive: str = "render",
     ) -> Iterator[str]:
-        """Drive the render stack, yielding output strings."""
         root_values = values["__qweb_root_values"]
         loaded_functions = self.env.context["__qweb_loaded_functions"]
         compiled_cache = self.env.context["__qweb_compiled_cache"]
@@ -748,9 +496,6 @@ class IrQweb(models.AbstractModel):
         frame: QwebStackFrame,
         view_ref: int | str | etree._Element,
     ) -> None:
-        """Convert a render-time exception into a ``QWebError`` (or annotate an
-        existing one) and re-raise. Never returns normally.
-        """
         qweb_error_info = self._get_error_info(error, stack, stack[-1])
         if qweb_error_info.template is None and qweb_error_info.ref is None:
             qweb_error_info.ref = view_ref
@@ -769,13 +514,6 @@ class IrQweb(models.AbstractModel):
         raise error
 
     def _error_raised_in_qweb(self, error: Exception) -> bool:
-        """Whether ``error``'s traceback shows it originated inside IrQweb (this
-        module, or a compiled template method on this model) rather than in
-        unrelated addon code.
-
-        Walks the traceback from the innermost frame outward: an IrQweb frame
-        means yes, an addons-path frame reached first means no.
-        """
         trace = error.__traceback__
         tb_frames = [trace.tb_frame]
         while trace.tb_next is not None:
@@ -800,15 +538,6 @@ class IrQweb(models.AbstractModel):
         stack: list[QwebStackFrame],
         frame: QwebStackFrame,
     ) -> QWebErrorInfo:
-        """Build the ``QWebErrorInfo`` (template ref, source node, and dev-mode
-        code snippet) for an exception raised while rendering.
-
-        The work is split into: choosing the frame to blame
-        (``_resolve_error_frame``), finding the failing generated-code line
-        (``_error_line_number``), mapping that line back to a source node via
-        the ``# element:`` markers (``_scan_error_source``), and — in dev mode —
-        framing the offending code (``_error_surrounding``).
-        """
         no_id_ref = "etree._Element"
 
         ref, ref_name, code, path, html = self._resolve_error_frame(
@@ -848,13 +577,6 @@ class IrQweb(models.AbstractModel):
         frame: QwebStackFrame,
         no_id_ref: str,
     ) -> tuple[Any, str | None, str | None, str | None, str | None]:
-        """Choose the template frame to blame for ``error`` and return
-        ``(ref, ref_name, code, path, html)``.
-
-        Normally the failing (current) frame is used; but a nested failure
-        (e.g. inside a ``t-call``) whose own code isn't loaded falls back to the
-        calling frame so the erroneous node can still be shown.
-        """
         loaded_codes = self.env.context["__qweb_loaded_codes"]
         path = html = None
         if (
@@ -886,13 +608,6 @@ class IrQweb(models.AbstractModel):
         return ref, ref_name, code, path, html
 
     def _error_line_number(self, ref: Any, no_id_ref: str) -> int:
-        """Line number of the failing statement inside the *stored* generated
-        code, parsed from the active traceback (0 when it cannot be located).
-
-        The traceback reports line numbers in the executed, wrapped code; the
-        stored code (indexed by the callers) omits the wrapper preamble, so the
-        parsed number is realigned by ``GENERATED_CODE_PREAMBLE_LINES``.
-        """
         source_file_ref = None if ref == no_id_ref else ref
         trace = traceback.format_exc()
         for error_line in reversed(trace.split("\n")):
@@ -913,10 +628,6 @@ class IrQweb(models.AbstractModel):
         path: str | None,
         html: str | None,
     ) -> tuple[str | None, str | None]:
-        """Walk the generated code upward from the error line, reading the
-        ``# element:`` markers to recover the failing source node (returned as
-        the resolved ``(path, html)``) and its enclosing nodes (appended to
-        ``source`` in place)."""
         found = False
         for code_line in reversed(code_lines[:line_nb]):
             if code_line.startswith("def "):
@@ -940,12 +651,6 @@ class IrQweb(models.AbstractModel):
     def _error_surrounding(
         self, code_lines: list[str], line_nb: int, html: str | None
     ) -> str:
-        """Build the dev-mode snippet framing the error line with its surrounding
-        context.
-
-        ``line_nb`` is already realigned to the stored code by
-        ``_error_line_number``, so ``code_lines[line_nb - 1]`` is the culprit for
-        every directive (no per-directive nudging needed)."""
         previous_lines = "\n".join(code_lines[max(line_nb - 25, 0) : line_nb - 1])
         line = code_lines[line_nb - 1]
         next_lines = "\n".join(code_lines[line_nb : line_nb + 5])
@@ -960,13 +665,6 @@ class IrQweb(models.AbstractModel):
         )
 
     def _get_template_cache_keys(self) -> list[str]:
-        """Return the list of context keys to use for caching ``_compile``.
-
-        Every context key the *compiler* reads must be listed here. Anything
-        read by ``_compile_*`` but missing from this list makes two different
-        compilations collide in the ``templates`` ormcache, and the first render
-        of the process then decides the output for every later one.
-        """
         return [
             "lang",
             "inherit_branding",
@@ -978,17 +676,6 @@ class IrQweb(models.AbstractModel):
         ]
 
     def _template_cache_signature(self) -> tuple:
-        """Context-derived half of ``_compile``'s cache key (the template ref is
-        the other half). Falsy context values collapse to ``False`` so contexts
-        that differ only in the spelling of "empty" share one compiled function.
-
-        Single source of truth: the ``@ormcache`` on ``_generate_code_cached``
-        and the render-local ``compiled_cache`` in ``_render_iterall`` MUST both
-        key on this exact signature, or the memo and the ormcache disagree.
-        Deliberately NOT the ``options`` dict from ``_generate_code`` (which keeps
-        e.g. ``lang=''`` distinct from ``False``); that dict is for logs, not
-        cache identity.
-        """
         context = self.env.context
         return tuple(
             self._cache_signature_value(context.get(k))
@@ -997,12 +684,6 @@ class IrQweb(models.AbstractModel):
 
     @staticmethod
     def _cache_signature_value(value: Any) -> Any:
-        """Collapse a context value to a hashable, order-independent key part.
-
-        ``nsmap`` is a mapping, so it cannot go into the signature tuple as-is;
-        prefixes may be ``None`` (the default namespace), which rules out a
-        plain ``sorted``.
-        """
         if not value:
             return False
         if isinstance(value, Mapping):
@@ -1076,14 +757,6 @@ class IrQweb(models.AbstractModel):
     def _generate_code_file_cached(
         self, path: str
     ) -> tuple[dict[str, Any], str, frozendict]:
-        """Load, parse and compile a ``module/templates/*.xml`` file template.
-
-        Cached like ``_generate_code_cached`` (and likewise disabled in
-        ``xml`` dev mode): file templates are rendered in loops (e.g. one
-        render per record in a report batch), and without this cache every
-        render re-read the file, re-parsed it and re-ran the whole
-        codegen + ``unsafe_eval`` pipeline.
-        """
         module = Path(path).parts[0]
         manifest = Manifest.for_addon(module, display_warning=False)
         if manifest is None:
@@ -1151,30 +824,9 @@ class IrQweb(models.AbstractModel):
     def _generate_code(
         self, template: int | str | etree._Element
     ) -> tuple[str | None, dict[str, Any], str]:
-        """Compile the given template into a rendering function (generator)::
-
-            render_template(qweb, values)
-
-        Called by :meth:`_generate_code_uncached` as part of the ``_compile``
-        pipeline.
-
-        An ``options`` dictionary is created and attached to the function.
-        It contains rendering options that are part of the cache key in
-        addition to template references.
-
-        where ``qweb`` is a QWeb instance and ``values`` are the values to
-        render.
-
-        :returns: tuple containing code, options and main method name
-        """
         if template is not None and not isinstance(
             template, (int, str, etree._Element)
         ):
-            # ``None``/``False``/``''`` stay on the normal path: _get_template
-            # turns them into "template is required", which the handler below
-            # routes through ``raise_if_not_found``. Anything else used to be
-            # coerced with ``str()``, which silently turned a wrong argument
-            # into a lookup for a template literally named e.g. 'None'.
             raise TypeError(
                 "A qweb template is an id, an xml id/key or an etree element, "
                 f"got {type(template).__name__}: {template!r}"
@@ -1291,13 +943,6 @@ class IrQweb(models.AbstractModel):
     def _get_template(
         self, template: int | str | etree._Element
     ) -> tuple[etree._Element, str, str | int]:
-        """Retrieve the given template, and return it as a tuple ``(etree,
-        xml, ref)``, where ``element`` is an etree, ``document`` is the
-        string document that contains ``element``, and ``ref`` is the unique
-        reference of the template (id, t-name or template).
-
-        :param template: template identifier or etree
-        """
         if template in (False, None, ""):
             raise ValueError("template is required")
 
@@ -1331,20 +976,6 @@ class IrQweb(models.AbstractModel):
     def _preload_trees(
         self, refs: Sequence[int | str]
     ) -> dict[int | str, dict[str, Any]]:
-        """Preload all tree and subtree (from t-call and other '_get_preload_attribute_xmlids' values).
-
-        Returns::
-
-            {
-                id or xmlId / key: {
-                    "xmlid": str | None,
-                    "ref": int | None,
-                    "tree": etree | None,
-                    "template": str | None,
-                    "error": None | MissingError,
-                }
-            }
-        """
         compile_batch = self.env["ir.ui.view"]._preload_views(refs)
 
         refs = list(map(_id_or_xmlid, refs))
@@ -1448,12 +1079,6 @@ class IrQweb(models.AbstractModel):
         return image_data_uri(base64_source)
 
     def _prepare_environment(self, values: dict[str, Any]) -> Self:
-        """Prepare the values and context sent to the compiled and evaluated
-        function.
-
-        :param values: template values to be used for rendering
-        :return: self (with new context)
-        """
         debug = (request and request.session.debug) or ""
         values.update(
             true=True,
@@ -1483,7 +1108,6 @@ class IrQweb(models.AbstractModel):
         return self.with_context(**context)
 
     def _prepare_globals(self) -> dict[str, Any]:
-        """Prepare the global namespace used to eval the qweb generated code."""
         return {
             "__name__": __name__,
             "Sized": Sized,
@@ -1500,24 +1124,14 @@ class IrQweb(models.AbstractModel):
     def _append_text(
         self, text: str | bytes | None, compile_context: dict[str, Any]
     ) -> None:
-        """Queue ``text`` (coerced to str) for the next ``_flush_text``, so
-        multiple parts are emitted in a single yield."""
         compile_context["_text_concat"].append(self._compile_to_str(text))
 
     def _strip_pending_trailing_ws(self, compile_context: dict[str, Any]) -> None:
-        """If the last not-yet-flushed text chunk is pure whitespace, drop its
-        trailing spaces/tabs.
-
-        Used when a comment or processing instruction is removed from the DOM:
-        the indentation that preceded it would otherwise linger as invisible
-        trailing whitespace on an now-blank line.
-        """
         text_concat = compile_context["_text_concat"]
         if text_concat and text_concat[-1].isspace():
             text_concat[-1] = text_concat[-1].rstrip(" \t")
 
     def _rstrip_text(self, compile_context: dict[str, Any]) -> str:
-        """Right-strip the pending text and return the stripped-off whitespace."""
         text_concat = compile_context["_text_concat"]
         if not text_concat:
             return ""
@@ -1531,12 +1145,6 @@ class IrQweb(models.AbstractModel):
     def _flush_text(
         self, compile_context: dict[str, Any], level: int, rstrip: bool = False
     ) -> list[str]:
-        """Concatenate all the textual chunks added by ``_append_text`` into a
-        single ``yield`` line. Return an empty list if there is no text to flush.
-
-        :param bool rstrip: if set, right-strip the concatenated text.
-        :rtype: list[str]
-        """
         text_concat = compile_context["_text_concat"]
         if not text_concat:
             return []
@@ -1549,9 +1157,6 @@ class IrQweb(models.AbstractModel):
     def _is_static_node(
         self, el: etree._Element, compile_context: dict[str, Any]
     ) -> bool:
-        """Whether ``el`` is purely static: no ``t-*`` attribute needing dynamic
-        rendering.
-        """
         return (
             el.tag != "t"
             and "groups" not in el.attrib
@@ -1564,39 +1169,20 @@ class IrQweb(models.AbstractModel):
     def _new_namespaces(
         self, el: etree._Element, compile_context: dict[str, Any]
     ) -> set[tuple[str | None, str]]:
-        """Return the ``(prefix, uri)`` namespaces declared on ``el`` that are
-        not already inherited from ``compile_context['nsmap']``.
-
-        lxml inlines the full nsmap onto every element, so a plain
-        ``el.nsmap`` cannot tell apart newly-introduced namespaces from
-        inherited ones; the set difference recovers only the new ones.
-        """
         return set(el.nsmap.items()) - set(compile_context["nsmap"].items())
 
     def _ns_prefix_map(
         self, el: etree._Element, compile_context: dict[str, Any]
     ) -> dict[str, str | None]:
-        """Return a ``uri -> prefix`` map used to restore the namespace
-        prefixes that lxml inlined into qualified attribute names."""
         return {
             uri: prefix
             for prefix, uri in chain(compile_context["nsmap"].items(), el.nsmap.items())
         }
 
     def _element_marker(self, path: str | None, xml: str | None) -> str:
-        """Return the marker comment emitted before an element's compiled code.
-
-        Parsed back by ``_get_error_info`` (via ``ELEMENT_MARKER_REGEXP``) to
-        recover the source node for an error line — the format is shared, so
-        both live next to that regexp.
-        """
         return f"# element: {path!r} , {xml!r}"
 
     def _compile_format(self, expr: str) -> str:
-        """Parse the format string and compile it to a single python
-        ``%``-format expression, which is faster than concatenating the
-        strings and values.
-        """
         values = [
             f"self._compile_to_str({self._compile_expr(m.group(1) or m.group(2))})"
             for m in FORMAT_REGEX.finditer(expr)
@@ -1607,12 +1193,6 @@ class IrQweb(models.AbstractModel):
         return code + f" % ({', '.join(values)},)"
 
     def _compile_dict_merge(self, target: str, expr: str, level: int) -> str:
-        """Emit code that merges the value of ``expr`` into the ``target`` dict.
-
-        The value may be a dict, a single ``(key, value)`` pair, or an iterable
-        of such pairs. Shared codegen for ``t-att`` (merging into ``attrs``) and
-        ``t-args`` (merging into ``t_call_values``).
-        """
         return indent_code(
             f"""
             atts_value = {self._compile_expr(expr)}
@@ -1633,17 +1213,6 @@ class IrQweb(models.AbstractModel):
         argument_names: list[str] | None = None,
         raise_on_missing: bool = False,
     ) -> str:
-        """Transform the list of tokens into a python instruction in textual
-        form by namespacing the dynamic values.
-
-        Example: `5 + a + b.c` to be `5 + values.get('a') + values['b'].c`
-        Unknown values are considered to be None, but using `values['b']`
-        gives a clear error message in cases where there is an attribute for
-        example (have a `KeyError: 'b'`, instead of `AttributeError: 'NoneType'
-        object has no attribute 'c'`).
-
-        :rtype: str
-        """
         bracket_depth = 0
 
         argument_name = "_arg_%s__"
@@ -1799,16 +1368,6 @@ class IrQweb(models.AbstractModel):
 
     @staticmethod
     def _flatten_token(t: tokenize.TokenInfo, string: str) -> str:
-        """Return ``string`` with any physical line break removed.
-
-        Compiled expressions are interpolated into indentation-sensitive code
-        templates by ``indent_code``, which dedents by the *common* leading
-        whitespace; a single continuation line at column 0 makes that dedent a
-        no-op and the surrounding block loses its indentation. The expression is
-        always parenthesised, so a line break between tokens is insignificant
-        and becomes a space. Inside a literal it is significant, so the literal
-        is re-emitted in its escaped single-line form instead.
-        """
         if "\n" not in string:
             return string
         if t.type in (token.NEWLINE, tokenize.NL):
@@ -1823,17 +1382,6 @@ class IrQweb(models.AbstractModel):
     _compile_expr_cache = LRU(8192)
 
     def _compile_expr(self, expr: str, raise_on_missing: bool = False) -> str:
-        """Transform a string into a python instruction in textual form by
-        namespacing the dynamic values.
-        Tokenizes the string and calls ``_compile_expr_tokens``.
-
-        :param str expr: python expression
-        :param bool raise_on_missing:
-            Compile has `values['product'].price` instead of
-            `values.get('product').price` to raise an error when get the
-            'product' value and not an 'NoneType' object has no attribute
-            'price' error.
-        """
         cache_key = (expr, raise_on_missing)
         result = self._compile_expr_cache.get(cache_key)
         if result is not None:
@@ -1864,7 +1412,6 @@ class IrQweb(models.AbstractModel):
         return result
 
     def _compile_bool(self, attr: str | bool | None, default: bool = False) -> bool:
-        """Convert the statements as a boolean."""
         if attr:
             if attr is True:
                 return True
@@ -1876,7 +1423,6 @@ class IrQweb(models.AbstractModel):
         return bool(default)
 
     def _compile_to_str(self, expr: Any) -> str:
-        """Generate a string from an arbitrary source."""
         if expr is None or expr is False:
             return ""
 
@@ -1888,25 +1434,6 @@ class IrQweb(models.AbstractModel):
             return str(expr)
 
     def _directives_eval_order(self) -> list[str]:
-        """List all supported directives in the order in which they should be
-        evaluated on a given element. For instance, a node bearing both
-        ``foreach`` and ``if`` should see ``foreach`` executed before ``if``
-        aka
-
-        .. code-block:: xml
-
-            <el t-foreach="foo" t-as="bar" t-if="bar">
-
-        should be equivalent to
-
-        .. code-block:: xml
-
-            <t t-foreach="foo" t-as="bar">
-                <t t-if="bar">
-                    <el>
-
-        then this method should return ``['foreach', 'if']``.
-        """
         return [
             "elif",
             "else",
@@ -1933,17 +1460,6 @@ class IrQweb(models.AbstractModel):
     def _compile_node(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile the given element into python code.
-
-        The t-* attributes (directives) are converted to python instructions. If
-        there are no t-* attributes, the element is considered static.
-
-        Directives are compiled in the order given by ``_directives_eval_order``
-        (which creates the ``compile_context['iter_directives']`` iterator). Only
-        directives with a ``_compile_directive_*`` method are supported.
-
-        :return: list of string
-        """
         if "t-qweb-skip" in el.attrib:
             return []
 
@@ -1982,14 +1498,6 @@ class IrQweb(models.AbstractModel):
     def _normalize_deprecated_attributes(
         self, el: etree._Element, compile_context: dict[str, Any]
     ) -> None:
-        """Rewrite deprecated attribute spellings to their current form.
-
-        Must run before ``_directives_eval_order`` is walked: renaming
-        ``t-call-options`` from inside ``_compile_directive_call`` happened
-        *after* the ``options`` directive had already been skipped, so the
-        options dict was never built and ``t_call_options`` silently stayed
-        empty.
-        """
         if "t-call-options" in el.attrib:
             _logger.warning(
                 "Found deprecated attribute @t-call-options=%r in template %r. "
@@ -2002,7 +1510,6 @@ class IrQweb(models.AbstractModel):
     def _compile_static_node(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile a purely static element into a list of string."""
         if not el.nsmap:
             unqualified_el_tag = el_tag = el.tag
             attrib = self._post_processing_att(
@@ -2071,12 +1578,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directives(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile the given element, following the directives given in the
-        iterator ``compile_context['iter_directives']`` created by
-        ``_compile_node``.
-
-        :return: list of code lines
-        """
         if self._is_static_node(el, compile_context):
             el.attrib.pop("t-tag-open", None)
             el.attrib.pop("t-inner-content", None)
@@ -2150,7 +1651,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_debug(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile ``t-debug`` into a call to the chosen debugger (dev mode only)."""
         debugger = el.attrib.pop("t-debug")
         code = []
         if compile_context.get("dev_mode"):
@@ -2162,9 +1662,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_options(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile ``t-options`` and the ``t-options-*`` attributes, creating
-        the ``values['__qweb_options__']`` dictionary in the compiled code.
-        """
         code = []
         dict_options = []
         for key in list(el.attrib):
@@ -2211,19 +1708,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_att(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile the attributes of the given element.
-
-        The compiled function creates and fills the ``values['__qweb_attrs__']``
-        dictionary (output later by the ``t-tag-open`` directive) with, in order:
-
-        - the new namespaces introduced by the current element;
-        - the static attributes (not prefixed by ``t-``);
-        - the dynamic attributes:
-
-          - ``t-att``: python dictionary expression;
-          - ``t-att-*``: python expression;
-          - ``t-attf-*``: format string expression.
-        """
         code = [indent_code("attrs = values['__qweb_attrs__'] = {}", level)]
 
         if el.nsmap:
@@ -2271,12 +1755,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_tag_open(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile the opening tag of the given element into python code.
-
-        The compiled function outputs the open tag, then post-processes and
-        outputs the attributes from the ``attrs`` dictionary (built by the
-        ``t-att`` directive), consuming and resetting it.
-        """
 
         el_tag = el.attrib.pop("t-tag-open", None)
         if not el_tag:
@@ -2311,7 +1789,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_tag_close(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Queue the element's closing tag via ``_append_text`` (returns no code)."""
         el_tag = el.attrib.pop("t-tag-close", None)
         if el_tag:
             self._append_text(f"</{el_tag}>", compile_context)
@@ -2320,17 +1797,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_set(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile `t-set` expressions into a python code as a list of
-        strings.
-
-        There are different kinds of `t-set`:
-        * `t-value` containing python code;
-        * `t-valuef` containing strings to format;
-        * `t-valuef.translate` containing translated strings to format;
-        * whose value is the content of the tag (being Markup safe).
-
-        The code will contain the assignment of the dynamically generated value.
-        """
 
         code = self._flush_text(compile_context, level, rstrip=el.tag.lower() == "t")
 
@@ -2432,26 +1898,18 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_value(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Only checks that ``t-value`` is on the same node as ``t-set``."""
         msg = "t-value must be on the same node of t-set"
         raise SyntaxError(msg)
 
     def _compile_directive_valuef(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Only checks that ``t-valuef`` is on the same node as ``t-set``."""
         msg = "t-valuef must be on the same node of t-set"
         raise SyntaxError(msg)
 
     def _compile_directive_inner_content(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile the content of the element (the technical ``t-inner-content``
-        directive created by QWeb) into python code as a list of strings.
-
-        The code contains the text content of the node and the compiled code
-        from the recursive ``_compile_node`` calls on its children.
-        """
         el.attrib.pop("t-inner-content", None)
 
         if el.nsmap:
@@ -2487,9 +1945,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_if(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile ``t-if`` (with any following ``t-else``/``t-elif``) into an
-        ``if``/``elif``/``else`` wrapping the element's compiled content.
-        """
         expr = el.attrib.pop("t-if", el.attrib.pop("t-elif", None))
 
         if not expr or not expr.strip():
@@ -2544,9 +1999,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_elif(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Validate that this node follows a ``t-if``/``t-elif`` (the
-        ``t-else-valid`` flag) and delegate to the ``t-if`` compilation.
-        """
         if not el.attrib.pop("t-else-valid", None):
             msg = "t-elif directive must be preceded by t-if or t-elif directive"
             raise SyntaxError(msg)
@@ -2556,9 +2008,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_else(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Validate that this node follows a ``t-if``/``t-elif`` (the
-        ``t-else-valid`` flag); produces no code of its own.
-        """
         if not el.attrib.pop("t-else-valid", None):
             msg = "t-else directive must be preceded by t-if or t-elif directive"
             raise SyntaxError(msg)
@@ -2568,9 +2017,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_groups(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile ``t-groups`` into a ``has_groups`` check wrapping the element's
-        compiled content.
-        """
         groups = el.attrib.pop("t-groups", el.attrib.pop("groups", None))
 
         strip = self._rstrip_text(compile_context)
@@ -2590,20 +2036,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_foreach(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile ``t-foreach`` expressions into a python code as a list of
-        strings.
-
-        * ``t-as`` is used to define the key name.
-        * ``t-foreach`` compiled value can be an iterable, a dictionary or a
-          number.
-
-        The code will contain a ``for`` loop that wraps the rest of the compiled
-        code of this element.
-
-        Some keys in the values dictionary are created automatically::
-
-            *_size, *_index, *_value, *_first, *_last, *_odd, *_even, *_parity
-        """
         expr_foreach = el.attrib.pop("t-foreach")
         expr_as = el.attrib.pop("t-as")
 
@@ -2694,7 +2126,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_as(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Only checks that ``t-as`` is on the same node as ``t-foreach``."""
         if "t-foreach" not in el.attrib:
             msg = "t-as must be on the same node of t-foreach"
             raise SyntaxError(msg)
@@ -2703,22 +2134,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_out(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile `t-out` expressions into a python code as a list of
-        strings.
-
-        The code will contain evaluation and rendering of the compiled value. If
-        the compiled value is None or False, the tag is not added to the render
-        (Except if the widget forces rendering or there is default content).
-        (eg: `<t t-out="my_value">Default content if falsy</t>`)
-
-        The output can have some rendering option with `t-options-widget` or
-        `t-options={'widget': ...}. At rendering time, The compiled code will
-        call ``_get_widget`` method or ``_get_field`` method for `t-field`.
-
-        A `t-field` will necessarily be linked to the value of a record field
-        (eg: `<span t-field="record.field_name"/>`), a t-out` can be applied
-        to any value (eg: `<span t-out="10" t-options-widget="'float'"/>`).
-        """
         ttype, expr = self._compile_out_target(el)
 
         code = self._flush_text(compile_context, level)
@@ -2764,9 +2179,6 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _compile_out_target(self, el: etree._Element) -> tuple[str, str]:
-        """Pop and return the ``(ttype, expr)`` of a ``t-out`` node, resolving
-        the ``t-field``/``t-esc``/``t-raw`` aliases (the latter two deprecated).
-        """
         for ttype in ("t-out", "t-field", "t-esc"):
             expr = el.attrib.pop(ttype, None)
             if expr is not None:
@@ -2781,17 +2193,6 @@ class IrQweb(models.AbstractModel):
         has_options: bool,
         level: int,
     ) -> tuple[list[str], bool]:
-        """Emit the code that assigns ``content`` (and merges any widget/field
-        attributes into ``__qweb_attrs__``) for a ``t-out``/``t-field`` node.
-
-        :param has_options: the node carried ``t-options``/``t-options-*``
-            (the ``t-consumed-options`` marker), so the value goes through
-            ``_get_widget``.
-
-        :return: ``(code_lines, force_display_dependent)`` where the flag is set
-            when a widget/field may force the tag to be displayed even for a
-            falsy value.
-        """
         if ttype == "t-field":
             record, field_name = expr.rsplit(".", 1)
             return [
@@ -2854,10 +2255,6 @@ class IrQweb(models.AbstractModel):
         xml: str | None,
         level: int,
     ) -> list[str]:
-        """Emit the output tail of a ``t-out``: the tag is written when the
-        value is truthy, else the default content (if any) or — for a
-        force-display widget/field — the bare tag.
-        """
         code = [indent_code("if content is not None and content is not False:", level)]
         code.extend(tag_open)
         code.append(
@@ -2921,18 +2318,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_field(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile ``t-field`` expressions into a python code as a list of
-        strings.
-
-        The compiled code will call ``_get_field`` method at rendering time
-        using the type of value supplied by the field. This behavior can be
-        changed with ``t-options-widget`` or ``t-options={'widget': ...}``.
-
-        The code will contain evaluation and rendering of the compiled value
-        from the record field. If the compiled value is None or False,
-        the tag is not added to the render
-        (Except if the widget forces rendering or there is default content.).
-        """
         tagName = el.tag
         if tagName in FORBIDDEN_FIELD_TAGS:
             raise ValueError(
@@ -2952,19 +2337,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_call(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Compile `t-call` expressions into a python code as a list of
-        strings.
-
-        `t-call` allows formatting strings dynamically at rendering time.
-        Can use `t-options` used to call and render the sub-template at
-        rendering time.
-        The sub-template is called with a copy of the rendering values
-        dictionary. The dictionary contains the key 0 coming from the
-        compilation of the contents of this element
-
-        The code will contain the call of the template and a function from the
-        compilation of the content of this element.
-        """
         expr = el.attrib.pop("t-call")
 
         el_tag = etree.QName(el.tag).localname if el.nsmap else el.tag
@@ -3109,15 +2481,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_lang(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Rewrite ``t-lang`` to its ``t-options-lang`` alias; produces no code.
-
-        ``lang`` precedes ``options`` in ``_directives_eval_order``, so the
-        rewritten attribute is picked up by the very next step of the directive
-        walk. Re-entering ``_compile_node`` here instead (as this used to)
-        replaced ``compile_context['iter_directives']`` mid-walk while the
-        caller still held the old iterator, which then re-ran the already
-        consumed ``att`` directive and emitted dead code after the t-call.
-        """
         if "t-call" not in el.attrib:
             msg = "t-lang is an alias of t-options-lang but only available on the same node of t-call"
             raise SyntaxError(msg)
@@ -3127,7 +2490,6 @@ class IrQweb(models.AbstractModel):
     def _compile_directive_call_assets(
         self, el: etree._Element, compile_context: dict[str, Any], level: int
     ) -> list[str]:
-        """Aggregate and minify the JS/CSS assets for the ``t-call-assets`` tag."""
         if len(el) > 0:
             msg = "t-call-assets cannot contain children nodes"
             raise SyntaxError(msg)
@@ -3205,12 +2567,6 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _debug_trace(self, debugger: str, values: dict[str, Any]) -> None:
-        """Method called at running time to load debugger.
-
-        The ``breakpoint()`` below is the feature, not debug residue: it is what
-        the ``t-debug`` template directive exists to reach, honouring whatever
-        ``PYTHONBREAKPOINT`` names.
-        """
         if not debugger:
             breakpoint()  # noqa: T100
         elif debugger in SUPPORTED_DEBUGGER:
@@ -3228,22 +2584,6 @@ class IrQweb(models.AbstractModel):
     def _post_processing_att(
         self, tagName: str, atts: dict[str, Any], *, is_static: bool = False
     ) -> dict[str, Any]:
-        """Method called at compile time for static nodes and at running time
-        for dynamic attributes.
-
-        May be overridden to filter or modify the attributes (during compilation
-        for static nodes, or after compilation for dynamic elements).
-
-        :param is_static: ``True`` when called at compile time on the
-            attributes of a purely static node (template-author content).
-            Dynamic attributes (``is_static=False``) additionally get the
-            malicious-scheme scrub below. An explicit keyword rather than an
-            in-band ``__is_static_node`` key smuggled through ``atts``: the
-            sentinel leaked into the rendered HTML whenever an override
-            returned before calling ``super()``.
-
-        :rtype: dict
-        """
         if not is_static:
             for attr in ("href", "src", "action", "formaction", "xlink:href", "data"):
                 if (value := atts.get(attr)) and MALICIOUS_SCHEMES(
@@ -3261,13 +2601,6 @@ class IrQweb(models.AbstractModel):
         field_options: dict[str, Any],
         values: dict[str, Any],
     ) -> tuple[dict[str, Any], str | Markup | bool | None, bool]:
-        """Method called at rendering time to return the field value.
-
-        :returns: tuple:
-            * dict: attributes
-            * string or None: content
-            * boolean: force_display display the tag if the content and default_content are None
-        """
         field = record._fields[field_name]
 
         field_options["tagName"] = tagName
@@ -3303,13 +2636,6 @@ class IrQweb(models.AbstractModel):
         field_options: dict[str, Any],
         values: dict[str, Any],
     ) -> tuple[dict[str, Any], str | Markup | bool | None, bool | None]:
-        """Method called at rendering time to return the widget value.
-
-        :returns: tuple:
-            * dict: attributes
-            * string or None: content
-            * boolean: force_display display the tag if the content and default_content are None
-        """
         widget = field_options.get("widget")
         if not widget:
             msg = (
@@ -3347,21 +2673,6 @@ class _MockCursor:
 
 
 class _MockRegistry:
-    """A throwaway registry holding the ormcaches for a single DB-less render.
-
-    ``ir.qweb``'s compile path is ormcached on ``self.pool.ormcache_lrus``;
-    a fresh registry per ``render()`` keeps those caches from leaking across
-    unrelated standalone renders (the caller's ``load`` may return a different
-    tree for the same ref on a later call).
-
-    ``ormcache_lrus`` is the whole protocol :mod:`odoo.tools.cache` requires of
-    a ``model.pool``, so implementing it is all this stand-in has to do.  It
-    also used to build a ``_Registry__caches_groups`` mapping that no reader
-    ever existed for -- neither here nor on the real :class:`Registry` -- which
-    only stayed invisible because the name-mangled spelling made it unsearchable
-    in practice; it and its helper are gone.
-    """
-
     db_name = None
 
     def __init__(self) -> None:
@@ -3372,13 +2683,6 @@ class _MockRegistry:
 
 
 class _MockEnv(dict):
-    """Minimal stand-in for ``api.Environment`` used by DB-less rendering.
-
-    Carries the per-render ``registry`` and re-threads it on every clone so that
-    ``with_context`` / ``with_env`` (which rebuild the environment) keep sharing
-    one set of ormcaches for the duration of a single ``render()``.
-    """
-
     def __init__(
         self,
         registry: _MockRegistry | None = None,
@@ -3396,10 +2700,6 @@ class _MockEnv(dict):
         context: dict[str, Any] | None = None,
         su: Any = None,
     ) -> _MockEnv:
-        """Return a cloned environment (optionally with a new context), keeping
-        the same per-render registry. Lets ``ir_qweb.with_context`` work on the
-        sandboxed qweb.
-        """
         return _MockEnv(
             registry=self.registry,
             context=self.context if context is None else context,
@@ -3419,14 +2719,6 @@ class _MockIrQWeb(IrQweb):
     def _preload_trees(
         self, refs: Sequence[int | str]
     ) -> dict[int | str, dict[str, Any]]:
-        """Load trees through the caller-supplied ``load`` function.
-
-        ``ref`` must be the loader's own identifier, not ``None``: it becomes
-        ``compile_context['ref']``, which every ``t-call``/``t-set`` body embeds
-        as the ``view_ref`` of its deferred ``QwebCallParameters``. A ``None``
-        there was stringified to the literal ``'None'`` further down and handed
-        back to ``load``, so body content was unrenderable in this mode.
-        """
         values = {}
         for ref in refs:
             tree, vid = self.env.context["load"](ref)
@@ -3459,18 +2751,6 @@ class _MockIrQWeb(IrQweb):
 def render(
     template_name: str | int, values: dict[str, Any], load: Any, **options: Any
 ) -> Markup:
-    """Rendering of a qweb template without database and outside the registry.
-    (Widget, field, or asset rendering is not implemented.)
-
-    :param (string|int) template_name: template identifier
-    :param dict values: template values to be used for rendering
-    :param def load: function like `load(template_name)` which returns an etree
-        from the given template name (from initial rendering or template
-        `t-call`).
-    :param options: used to compile the template
-    :return: the rendered template, markup-safe
-    :rtype: markupsafe.Markup
-    """
     renderer = _MockIrQWeb(_MockEnv(), (), ())
     return renderer._render(
         template_name, values, load=load, minimal_qcontext=True, **options

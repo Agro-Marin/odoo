@@ -130,7 +130,6 @@ class TestAddonPaths(TransactionCase):
         )
 
     def test_replace_empty_source(self):
-        """REPLACE with empty source should remove target without replacement."""
         asset_paths = AssetPaths()
         asset_paths.append(
             [
@@ -150,7 +149,6 @@ class TestAddonPaths(TransactionCase):
         self.assertNotIn("/web/b.js", asset_paths.memo)
 
     def test_glob_static_file_race_condition(self):
-        """Files deleted between glob() and stat() should be skipped."""
         with tempfile.TemporaryDirectory() as tmp:
             static_dir = str(pathlib.Path(tmp).resolve())
             deleted_file = f"{static_dir}/_test_asset_race_condition.js"
@@ -162,11 +160,10 @@ class TestAddonPaths(TransactionCase):
         self.assertEqual(result, [], "Deleted files should be silently skipped")
 
     def test_glob_static_file_filters_extensions(self):
-        """Only ASSET_EXTENSIONS files should be returned."""
         with tempfile.TemporaryDirectory() as tmp:
             static_dir = str(pathlib.Path(tmp).resolve())
             for name in ("file.js", "file.py", "file.css"):
-                pathlib.Path(static_dir, name).write_text("")
+                pathlib.Path(static_dir, name).write_text("", encoding="utf-8")
             result = _glob_static_file(f"{static_dir}/*", static_dir)
         paths = [r[0] for r in result]
         self.assertIn(f"{static_dir}/file.js", paths)
@@ -178,10 +175,6 @@ class TestAddonPaths(TransactionCase):
         "odoo.addons.base.models.ir_asset_paths",
     )
     def test_glob_static_file_memo_is_not_shared_across_roots(self):
-        """The containment cache is shared by every glob of one resolution, so
-        its answers must be keyed by the root they were computed against — a
-        directory contained in addon A's static/ says nothing about addon B's.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             root_a = pathlib.Path(tmp, "a", "static")
             root_b = pathlib.Path(tmp, "b", "static")
@@ -198,11 +191,6 @@ class TestAddonPaths(TransactionCase):
         self.assertEqual([pathlib.Path(f).name for f, _mtime in found_b], ["in_b.js"])
 
     def test_glob_static_file_drops_matches_linking_out_of_static(self):
-        """A wildcard expanding onto a symlink out of static/ must not bundle it.
-
-        The caller only vets the pattern's literal prefix, so containment has to
-        be re-checked on what the glob actually matched.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp).resolve()
             static_dir = root / "static"
@@ -221,10 +209,7 @@ class TestAddonPaths(TransactionCase):
 
 
 class TestParseBundleName(TransactionCase):
-    """Tests for IrAsset._parse_bundle_name error handling."""
-
     def test_no_extension(self):
-        """Dot-less filename should raise ValueError with clear message."""
         IrAsset = self.env["ir.asset"]
         with self.assertRaises(ValueError) as cm:
             IrAsset._parse_bundle_name("nodotfilename", debug_assets=True)
@@ -232,7 +217,6 @@ class TestParseBundleName(TransactionCase):
         self.assertIn("nodotfilename", str(cm.exception))
 
     def test_valid_debug_js(self):
-        """Valid JS bundle in debug mode should parse correctly."""
         IrAsset = self.env["ir.asset"]
         name, rtl, asset_type, autoprefix = IrAsset._parse_bundle_name(
             "web.assets_frontend.js", debug_assets=True
@@ -243,7 +227,6 @@ class TestParseBundleName(TransactionCase):
         self.assertFalse(autoprefix)
 
     def test_valid_min_css_rtl_autoprefixed(self):
-        """Full CSS bundle with rtl+autoprefix in non-debug should parse."""
         IrAsset = self.env["ir.asset"]
         name, rtl, asset_type, autoprefix = IrAsset._parse_bundle_name(
             "web.assets_frontend.rtl.autoprefixed.min.css", debug_assets=False
@@ -254,7 +237,6 @@ class TestParseBundleName(TransactionCase):
         self.assertTrue(autoprefix)
 
     def test_unsupported_extension(self):
-        """Non-js/css extension should raise ValueError."""
         IrAsset = self.env["ir.asset"]
         with self.assertRaises(ValueError) as cm:
             IrAsset._parse_bundle_name("web.assets.xml", debug_assets=True)
@@ -336,7 +318,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def _any_ira_for_bundle(self, extension, rtl=False):
-        """Returns all ir.attachments associated to a bundle, regardless of the version."""
         bundle = (
             self.jsbundle_name if extension in ["js", "min.js"] else self.cssbundle_name
         )
@@ -347,9 +328,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         return self.env["ir.attachment"].search(domain)
 
     def test_01_generation(self):
-        """Checks that a bundle creates an ir.attachment record when its `js` method is called
-        for the first time and this ir.attachment is different depending on `is_minified` param.
-        """
         self.bundle = self._get_asset(self.jsbundle_name, debug_assets=False)
 
         self.assertEqual(
@@ -402,9 +380,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_02_access(self):
-        """Checks that the bundle's cache is working, i.e. that the bundle creates only one
-        ir.attachment record when rendered multiple times.
-        """
         bundle0 = self._get_asset(self.jsbundle_name, debug_assets=False)
         bundle0.js()
 
@@ -443,7 +418,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_03_date_invalidation(self):
-        """Checks that a bundle is invalidated when one of its assets' modification date is changed."""
         bundle0 = self._get_asset(self.jsbundle_name, debug_assets=True)
         bundle0.js()
         last_modified0 = bundle0.get_checksum("js")
@@ -474,9 +448,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
             )
 
     def test_04_content_invalidation(self):
-        """Checks that a bundle is invalidated when its content is modified by adding a file to
-        source.
-        """
         bundle0 = self._get_asset(self.jsbundle_name)
         bundle0.js()
         files0 = bundle0.files
@@ -519,9 +490,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_05_normal_mode(self):
-        """Checks that a bundle rendered in normal mode outputs minified assets
-        and create a minified ir.attachment.
-        """
         debug_bundle = self._get_asset(self.jsbundle_name)
         content = debug_bundle.get_links()
         debug_bundle.js()
@@ -540,10 +508,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_06_defer_assets_loading(self):
-        """The main purpose of this test is to check the defer attribute does
-        not end up being added *again* on an asset which is lazy-loaded as
-        this is not W3C-valid.
-        """
         nodes = self.env["ir.qweb"]._get_asset_nodes(self.jsbundle_name)
         self.assertEqual(len(nodes), 1, "there should be one node generated")
         self.assertEqual(nodes[0][0], "script", "the node should be a script")
@@ -579,9 +543,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_07_debug_assets(self):
-        """Checks that a bundle rendered in debug assets mode outputs non-minified assets
-        and creates a non-minified ir.attachment.
-        """
         debug_bundle = self._get_asset(self.jsbundle_name, debug_assets=True)
         content = debug_bundle.get_links()
         debug_bundle.js()
@@ -610,15 +571,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(len(self.bundle.get_attachments("min.css")), 1)
 
     def test_compile_css_dedups_repeated_library_import(self):
-        """A library @import repeated across concatenated files is deduped,
-        not reported as a forbidden local import.
-
-        Regression: the sanitizer folded the dedup test into the security
-        predicate, so the second occurrence of a legitimate ``@import "lib"``
-        fell into the "forbidden for security reasons" branch. That polluted
-        ``css_errors`` and tripped the degraded-CSS banner in ``css()`` for an
-        entirely benign duplicate.
-        """
         bundle = self._get_asset(self.cssbundle_name)
         source = (
             '@import "bootstrap/scss/functions";\n'
@@ -638,12 +590,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_compile_css_blocks_whitespace_padded_local_import(self):
-        r"""A local @import padded with extra whitespace is still rejected.
-
-        Regression: ``rx_preprocess_imports`` used ``\s?`` (0-1 whitespace),
-        so ``@import  "./x"`` with two spaces slipped past the sanitizer
-        unmatched and reached the compiler unsanitized. ``\s*`` closes the gap.
-        """
         bundle = self._get_asset(self.cssbundle_name)
         source = '@import  "./secret.css";'
         with mute_logger("odoo.addons.base.models.assetsbundle"):
@@ -655,22 +601,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertNotIn("secret", out, "the local @import must be stripped")
 
     def test_stylesheet_url_rewrite_is_os_independent(self):
-        r"""``StylesheetAsset`` rewrites ``@import``/``url(...)`` with posix
-        semantics regardless of the host OS path flavour.
-
-        Regression: ``web_dir`` used ``str(Path(self.url).parent)``. ``Path``
-        is ``WindowsPath`` on Windows, so ``.parent`` yields backslashes; those
-        were spliced into a regex replacement TEMPLATE (``rf"@import \1{web_dir}/"``)
-        where ``\web`` reparses as the invalid escape ``\w`` and raises
-        ``re.PatternError`` — a hard crash that escapes the ``except AssetError``
-        handler. ``self.url`` is always a forward-slash web path, so the rewrite
-        must use ``posixpath`` and a function replacement.
-
-        Forcing the module ``Path`` to ``PureWindowsPath`` reproduces the
-        Windows path flavour on a Linux CI: with the posix fix it is inert; a
-        revert to ``Path``-based URL math makes this test crash or emit
-        backslashes again.
-        """
         from odoo.addons.base.models import assetsbundle
         from odoo.addons.base.models.assetsbundle import StylesheetAsset, WebAsset
 
@@ -706,13 +636,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_rtlcss_binary_resolution_shared_between_probe_and_run(self):
-        """The rtlcss probe and invocation resolve the SAME executable.
-
-        Regression: ``_check_rtlcss`` probed plain ``rtlcss`` while ``run_rtlcss``
-        resolved ``rtlcss.cmd`` on Windows. The probe therefore failed on Windows
-        and disabled RTL even when the npm ``.cmd`` shim was installed and usable.
-        Both now route through ``_rtlcss_bin``.
-        """
         from odoo.addons.base.models import assetsbundle
 
         self.addCleanup(assetsbundle.css_pipeline._rtlcss_bin.cache_clear)
@@ -743,15 +666,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
             self.assertEqual(assetsbundle.css_pipeline._rtlcss_bin(), "/usr/bin/rtlcss")
 
     def test_rtlcss_binary_falls_back_to_node_modules(self):
-        """A binary only in ``node_modules/.bin`` is found, as for sass/esbuild.
-
-        Regression: ``_rtlcss_bin`` returned the bare name on POSIX, so an
-        npm-provisioned checkout — which is how this fork documents installing
-        the pipeline's Node tooling — never resolved its own
-        ``node_modules/.bin/rtlcss``. RTL bundles silently shipped LTR CSS and
-        the ``skipUnless(_check_rtlcss())`` RTL suites reported success without
-        running.
-        """
         from odoo.addons.base.models import assetsbundle
 
         self.addCleanup(assetsbundle.css_pipeline._rtlcss_bin.cache_clear)
@@ -776,13 +690,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertTrue(which.call_args.kwargs["path"].endswith("node_modules/.bin"))
 
     def test_rtlcss_is_resolvable_in_this_checkout(self):
-        """rtlcss resolves to a real executable here, so RTL is not degraded.
-
-        Guards the reason the fallback exists: ``package.json`` declares
-        ``rtlcss``, so a checkout that ran ``npm install`` must be able to run
-        it. Without this, the only signal that RTL support vanished is one
-        WARNING line plus a suite of silently-skipped tests.
-        """
         from odoo.addons.base.models import assetsbundle
 
         binary = assetsbundle.css_pipeline._rtlcss_bin()
@@ -793,26 +700,12 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_js_header_line_count(self):
-        """The verbose JS header emits exactly ``_HEADER_LINE_COUNT`` lines
-        before the body.
-
-        ``js_with_sourcemap`` feeds that constant to the sourcemap generator
-        as each source's ``start_offset``; if ``with_header`` gains or loses a
-        header line without updating the constant, generated line numbers
-        silently drift. This guards the coupling.
-        """
         bundle = self._get_asset(self.jsbundle_name)
         asset = JavascriptAsset(bundle, url="/web/static/src/_probe.js", inline="x")
         rendered = asset.with_header("SINGLE_LINE_BODY", minimal=False)
         self.assertEqual(rendered.count("\n"), JavascriptAsset._HEADER_LINE_COUNT)
 
     def test_bridge_resolver_memoizes_source_exports(self):
-        """``_BridgeExportResolver.source_exports`` parses each spec once.
-
-        A re-export hub is reached through many ``export * from`` chains in a
-        single build; its parsed surface must be memoized, not recomputed on
-        every visit. ``assertIs`` is true only when the result is cached.
-        """
         from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
         resolver = _BridgeExportResolver({}, {}, "test_bundle")
@@ -824,14 +717,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertIs(first, second, "parsed exports must be memoized")
 
     def test_xml_template_elements_shapes(self):
-        """XMLAsset.template_elements yields each template for every root shape.
-
-        ``AssetsBundle.xml()`` consumes these directly (one parse per file)
-        instead of re-parsing the serialized content; a regression would
-        silently change which templates get registered. Covers the three root
-        shapes the old wrap+reparse handled: ``<templates>``/``<odoo>``
-        wrappers and a bare single-element template.
-        """
         from odoo.addons.base.models.assetsbundle import XMLAsset
 
         bundle = self._get_asset(self.jsbundle_name)
@@ -847,9 +732,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
             self.assertIs(asset.template_elements, asset.template_elements)
 
     def test_09_css_access(self):
-        """Checks that the bundle's cache is working, i.e. that a bundle creates only enough
-        ir.attachment records when rendered multiple times.
-        """
         bundle0 = self._get_asset(self.cssbundle_name)
         bundle0.css()
 
@@ -872,9 +754,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(date0, date1)
 
     def test_11_css_content_invalidation(self):
-        """Checks that a bundle is invalidated when its content is modified by adding a file to
-        source.
-        """
         bundle0 = self._get_asset(self.cssbundle_name)
         bundle0.css()
         files0 = bundle0.files
@@ -901,7 +780,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
 
     def test_12_css_debug(self):
-        """Check that a bundle in debug mode outputs non-minified assets."""
         debug_bundle = self._get_asset(self.cssbundle_name, debug_assets=True)
         links = debug_bundle.get_links()
         self.assertEqual(links[0], "/web/assets/debug/test_assetsbundle.bundle2.css")
@@ -914,9 +792,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_14_duplicated_css_assets(self):
-        """Checks that if the bundle's ir.attachment record is duplicated, the bundle is only sourced once. This could
-        happen if multiple transactions try to render the bundle simultaneously.
-        """
         bundle0 = self._get_asset(self.cssbundle_name)
         bundle0.css()
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
@@ -930,9 +805,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertIn("test_assetsbundle.bundle2.min.css", content[0])
 
     def test_15_rtl_css_generation(self):
-        """Checks that a bundle creates an ir.attachment record when its `css` method is called
-        for the first time for language with different direction and separate bundle is created for rtl direction.
-        """
         self.bundle = self._get_asset(self.cssbundle_name, rtl=True)
 
         self.assertEqual(len(self._any_ira_for_bundle("min.css", rtl=True)), 0)
@@ -945,12 +817,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(len(self._any_ira_for_bundle("min.css", rtl=True)), 1)
         self.assertEqual(len(self.bundle.get_attachments("min.css")), 1)
 
-    # Guarded on the pipeline's own resolver, not a bare PATH probe: with the
-    # two disagreeing, this skipped on an npm-provisioned checkout that could
-    # run rtlcss perfectly well.
     @unittest.skipUnless(_check_rtlcss(), "rtlcss binary not available")
     def test_15_rtl_invalid_css_generation(self):
-        """Checks that erroneous css cannot be compiled by rtlcss and that errors are registered"""
         self.bundle = self._get_asset("test_assetsbundle.broken_css", rtl=True)
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle.css()
@@ -958,10 +826,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertIn("rtlcss: error processing payload", self.bundle.css_errors[0])
 
     def test_16_ltr_and_rtl_css_access(self):
-        """Checks that the bundle's cache is working, i.e. that the bundle creates only one
-        ir.attachment record when rendered multiple times for rtl direction also check we have two css bundles,
-        one for ltr and one for rtl.
-        """
         ltr_bundle0 = self._get_asset(self.cssbundle_name, debug_assets=False)
         ltr_bundle0.css()
 
@@ -1014,7 +878,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(len(css_bundles), 2)
 
     def test_17_css_bundle_date_invalidation(self):
-        """Checks that both css bundles are invalidated when one of its assets' modification date is changed"""
         ltr_bundle0 = self._get_asset(self.cssbundle_name, debug_assets=True)
         ltr_bundle0.css()
         ltr_last_modified0 = ltr_bundle0.get_checksum("css")
@@ -1061,9 +924,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
             self.assertEqual(len(css_bundles), 2)
 
     def test_18_css_bundle_content_invalidation(self):
-        """Checks that a bundle is invalidated when its content is modified by adding a file to
-        source.
-        """
         ltr_bundle0 = self._get_asset(self.cssbundle_name)
         ltr_bundle0.css()
         ltr_files0 = ltr_bundle0.files
@@ -1125,7 +985,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(len(css_bundles), 2)
 
     def test_19_css_in_debug_assets(self):
-        """Checks that a bundle rendered in debug mode(assets) with right to left language direction stores css files in assets bundle."""
         debug_bundle = self._get_asset(self.cssbundle_name, rtl=True, debug_assets=True)
         content = debug_bundle.get_links()
 
@@ -1211,9 +1070,6 @@ class TestXMLAssetsBundle(FileTouchable):
         )
 
     def test_01_broken_xml(self):
-        """Checks that a bundle don't try hard to parse broken xml, and returns a comprehensive
-        error message.
-        """
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle = self._get_asset("test_assetsbundle.broken_xml")
 
@@ -1224,7 +1080,6 @@ class TestXMLAssetsBundle(FileTouchable):
                 self.bundle.xml()
 
     def test_02_multiple_broken_xml(self):
-        """Checks that a bundle with multiple broken xml returns a comprehensive error message."""
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle = self._get_asset("test_assetsbundle.multiple_broken_xml")
 
@@ -1235,7 +1090,6 @@ class TestXMLAssetsBundle(FileTouchable):
                 self.bundle.xml()
 
     def test_04_template_wo_name(self):
-        """Checks that a bundle with template without name returns a comprehensive error message."""
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle = self._get_asset("test_assetsbundle.wo_name")
 
@@ -1246,7 +1100,6 @@ class TestXMLAssetsBundle(FileTouchable):
                 self.bundle.xml()
 
     def test_05_file_not_found(self):
-        """Checks that a bundle with a file in error (file not found, encoding error, or other) returns a comprehensive error message."""
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle = self._get_asset("test_assetsbundle.file_not_found")
 
@@ -1260,7 +1113,6 @@ class TestXMLAssetsBundle(FileTouchable):
 @tagged("-at_install", "post_install")
 class TestAssetsBundleInBrowser(HttpCase):
     def test_01_js_interpretation(self):
-        """Checks that the javascript of a bundle is correctly interpreted."""
         self.browser_js(
             "/test_assetsbundle/js",
             "a + b + c === 6 ? console.log('test successful') : console.log('error')",
@@ -1269,7 +1121,6 @@ class TestAssetsBundleInBrowser(HttpCase):
 
     @skip("Feature Regression")
     def test_02_js_interpretation_inline(self):
-        """Checks that the javascript of a bundle is correctly interpreted when mixed with inline."""
         view_arch = """
         <data>
             <xpath expr="." position="inside">
@@ -1296,9 +1147,6 @@ class TestAssetsBundleInBrowser(HttpCase):
         )
 
     def test_03_js_interpretation_recommended_new_method(self):
-        """Checks the feature of test_02 is still produceable, but in another way
-        '/web/content/<int:id>/<string: filename.js>',
-        """
         code = b"const d = 4;"
         attach = self.env["ir.attachment"].create(
             {
@@ -1385,9 +1233,6 @@ class TestAssetsBundleWithIRAMock(FileTouchable):
             )
 
     def test_01_debug_mode_assets(self):
-        """Checks that the ir.attachments records created for compiled assets in debug mode
-        are correctly invalidated.
-        """
         self._bundle(self._get_asset(), True, False, "(First access)")
 
         self._bundle(self._get_asset(), False, False, "(Second access, no change)")
@@ -2131,16 +1976,6 @@ class TestAssetsManifest(AddonManifestPatched):
         self.assertRegex(content, r"\.flex-1-30px\{flex:1 30px\}")
 
     def test_20bis_css_loud_comment_not_mistaken_for_split_marker(self):
-        """A bare ``/*! <hex> */`` loud comment must not alias the per-file
-        split marker.
-
-        Dart Sass preserves loud comments verbatim, so a source comment whose
-        body is a single hex token (e.g. a build-hash stamp) reaches
-        ``rx_css_split`` looking exactly like a fragment boundary.  Before the
-        marker was namespaced (``odoo-split:``) this raised RuntimeError and
-        took the entire bundle's CSS compile down; now the comment is left as
-        inert content.
-        """
         self.env["ir.asset"].create(
             {
                 "name": "1",
@@ -2156,7 +1991,6 @@ class TestAssetsManifest(AddonManifestPatched):
         self.assertIn("/*! a1b2c3d */", content)
 
     def test_21_js_before_css(self):
-        """Non existing target node: ignore the manifest line"""
         self.installed_modules.add("test_other")
         self.manifests["test_other"] = {
             "name": "test_other",
@@ -2226,7 +2060,6 @@ class TestAssetsManifest(AddonManifestPatched):
         )
 
     def test_23_js_after_css(self):
-        """Non existing target node: ignore the manifest line"""
         self.installed_modules.add("test_other")
         self.manifests["test_other"] = {
             "name": "test_other",
@@ -2596,7 +2429,6 @@ class TestAssetsManifest(AddonManifestPatched):
         )
 
     def test_33(self):
-        """Assets from known-but-uninstalled addons are silently skipped."""
         self.manifests["notinstalled_module"] = {
             "name": "notinstalled_module",
             "depends": ["test_assetsbundle"],
@@ -2740,16 +2572,6 @@ class TestAssetsManifest(AddonManifestPatched):
 
 @tagged("-at_install", "post_install")
 class AssetsNodeOrmCacheUsage(TransactionCase):
-    """How many ormcache entries one ``_get_asset_nodes`` call mints.
-
-    Both stores of the ``assets`` clear group are counted: the resolved file
-    lists (``assets``) and the URL lists derived from them (``assets.links``)
-    live apart so the many cheap URL entries stop evicting the ~43 ms
-    resolutions, but they are still one cache from this test's point of view --
-    reading only the first store silently stopped counting the very entries
-    these cases exist to count.
-    """
-
     def cache_keys(self):
         lrus = self.env.registry.ormcache_lrus
         keys = [key for store in ("assets", "assets.links") for key in lrus[store]]

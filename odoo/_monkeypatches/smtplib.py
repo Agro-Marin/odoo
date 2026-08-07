@@ -1,11 +1,3 @@
-"""Route smtplib's session debug output to the Odoo logger.
-
-``smtplib`` prints its trace straight to stderr when ``set_debuglevel`` is on,
-which bypasses the log configuration and can leak credentials into a stream
-nobody filters. Sending it through ``logging`` at DEBUG level keeps it under the
-same handlers, levels and formatting as the rest of the server.
-"""
-
 import logging
 import smtplib
 from typing import Any

@@ -6,7 +6,6 @@ if typing.TYPE_CHECKING:
 
 
 def upgrade(file_manager: FileManager) -> None:
-    """Use double quotes for redacted text and single quotes for plain strings."""
 
     files = [
         file

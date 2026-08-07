@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Categories created to group generic privileges & groups -->
         <record id="module_category_master_data" model="ir.module.category">
             <field name="name">Master Data</field>
             <field name="sequence">1</field>
@@ -15,17 +14,6 @@
             <field name="name">Contact</field>
             <field name="category_id" ref="module_category_master_data" />
         </record>
-        <!--
-
-
-
-            Users Groups
-            Note that the field 'category_id' is set later in
-            base/data/ir_module_category_data.xml
-
-
-
-        -->
         <record id="group_erp_manager" model="res.groups">
             <field name="name">Access Rights</field>
             <field name="implied_ids" eval="[Command.link(ref('group_user'))]" />
@@ -74,32 +62,12 @@
                 eval="[Command.link(ref('base.group_system'))]" />
             <field name="privilege_id" ref="res_groups_privilege_contact" />
         </record>
-        <!--
-
-
-
-            A group dedicated to the portal users, making groups
-            restrictions more convenient.
-
-
-
-        -->
         <record id="group_portal" model="res.groups">
             <field name="name">Role / Portal</field>
             <field
                 name="comment">Portal members have specific access rights (such as record rules and restricted menus).
                 They usually do not belong to the usual Odoo groups.</field>
         </record>
-        <!--
-
-
-
-            A group dedicated to the public user only, making groups
-            restrictions more convenient.
-
-
-
-        -->
         <record id="group_public" model="res.groups">
             <field name="name">Role / Public</field>
             <field
@@ -109,14 +77,12 @@
         <record id="public_user" model="res.users">
             <field name="group_ids" eval="[Command.link(ref('base.group_public'))]" />
         </record>
-        <!-- Default template user for new users signing in -->
         <record id="template_portal_user_id" model="res.users">
             <field name="name">Portal User Template</field>
             <field name="login">portaltemplate</field>
             <field name="active" eval="False" />
             <field name="group_ids" eval="[Command.set([ref('base.group_portal')])]" />
             <field name="signature" />
-            <!-- Needed for avoiding the _compute_signature triggering on each update -->
         </record>
         <record id="default_template_user_config" model="ir.config_parameter">
             <field name="key">base.template_portal_user_id</field>

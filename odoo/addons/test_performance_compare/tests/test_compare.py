@@ -1,19 +1,3 @@
-"""Portable cross-version ORM benchmark.
-
-Runs a fixed battery of ORM operations through public APIs only, captures both
-timing and query counts for each, and writes a single labelled JSON report.
-
-Run on each build (fork and a vanilla 19.0 checkout) and diff with ``compare.py``::
-
-    BENCH_LABEL=marin BENCH_OUT=/tmp/marin.json \\
-        odoo-bin -c <conf> -d <db> -i test_performance_compare \\
-        --test-tags /test_performance_compare --stop-after-init --workers=0
-
-The suite is one orchestrating test (``test_benchmark_suite``) so a run always
-produces a *complete* report regardless of test ordering, and so every operation
-sees the same, freshly built corpus.
-"""
-
 import logging
 
 from odoo.tests.common import TransactionCase, tagged
@@ -30,8 +14,6 @@ N_TAGS = 10
 
 @tagged("post_install", "-at_install", "perf_compare")
 class TestPerfCompare(TransactionCase):
-    """Self-contained ORM benchmark, identical on fork and upstream 19.0."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

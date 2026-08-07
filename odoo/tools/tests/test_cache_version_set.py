@@ -1,19 +1,3 @@
-"""Regression tests: ``__version`` digests must be stable for set payloads.
-
-``set``/``frozenset`` have no defined iteration order; the previous coercion
-``default=str`` emitted ``str(set)``, whose order depends on ``PYTHONHASHSEED``
-(randomized per process). Two workers therefore produced *different* digests for
-identical data, making the client rpc cache treat every worker-to-worker
-revalidation as "changed" and refetch — defeating the whole point of the stamp.
-
-The canonical form now emits unordered collections as a deterministically
-ordered JSON array. These tests pin that contract. The cross-*process* stability
-(the actual bug) is covered by the workspace audit; here we pin the two
-consequences observable in-process: order-invariance and array shape.
-
-No Odoo ORM / database dependency — runs under the standalone pytest suite.
-"""
-
 import unittest
 
 from odoo.tools.cache_version import _canonical_bytes
@@ -34,11 +18,9 @@ class TestSetDigestStability(unittest.TestCase):
 
     def test_insertion_order_does_not_change_digest(self):
         s1 = set()
-        for e in ("alpha", "beta", "gamma", "delta", "epsilon"):
-            s1.add(e)
+        s1.update(("alpha", "beta", "gamma", "delta", "epsilon"))
         s2 = set()
-        for e in ("epsilon", "delta", "gamma", "beta", "alpha"):
-            s2.add(e)
+        s2.update(("epsilon", "delta", "gamma", "beta", "alpha"))
         self.assertEqual(_canonical_bytes(s1), _canonical_bytes(s2))
 
     def test_int_set_is_ordered(self):

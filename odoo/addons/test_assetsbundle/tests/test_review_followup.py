@@ -19,13 +19,6 @@ from odoo.addons.base.models.assetsbundle import (
 
 
 class TestPreprocessCssErrorContract(BaseCase):
-    """``CssPipeline.preprocess`` hands back ``""`` on a bundle-level failure.
-
-    The pipeline is bound to a fake bundle (a ``SimpleNamespace`` carrying only
-    the attributes ``preprocess`` touches), so the contract is provable without
-    a real bundle, a cursor, or a Sass install.
-    """
-
     def _pipeline(self, stylesheets):
         bundle = SimpleNamespace(
             stylesheets=stylesheets,
@@ -38,8 +31,6 @@ class TestPreprocessCssErrorContract(BaseCase):
         return CssPipeline(bundle), bundle
 
     def test_compile_failure_returns_empty_not_raw_source(self):
-        """A Sass failure (compile_css -> "" + recorded error) must yield "",
-        not the uncompiled SCSS the split/minify fallback would assemble."""
         scss = Mock(spec=ScssStylesheetAsset)
         scss.get_source.return_value = "$x: 1; a {}"
         scss.minify.return_value = "RAW_UNCOMPILED_SCSS"
@@ -59,11 +50,6 @@ class TestPreprocessCssErrorContract(BaseCase):
         self.assertEqual(bundle.css_errors, ["Sass: something broke"])
 
     def test_leaf_asset_error_still_ships_partial_bundle(self):
-        """A per-asset fetch error is NOT a bundle-level failure: compilation
-        succeeded, so the good assets are validly compiled and the partial
-        bundle is returned (css() still banners on the harvested error). Only a
-        bundle-level compile/rtl failure short-circuits to ""; this guards the
-        narrow boundary against regressing back to "any css_errors -> ''"."""
         plain = Mock(spec=StylesheetAsset)
         plain._content = None
         plain.errors = []
@@ -80,7 +66,6 @@ class TestPreprocessCssErrorContract(BaseCase):
         self.assertIn("audit_missing.css does not exist.", bundle.css_errors)
 
     def test_clean_compile_returns_bundle(self):
-        """No errors -> the assembled, minified bundle is returned verbatim."""
         plain = Mock(spec=StylesheetAsset)
         plain.minify.return_value = "body{color:red}"
         plain.errors = []
@@ -91,19 +76,11 @@ class TestPreprocessCssErrorContract(BaseCase):
         self.assertEqual(bundle.css_errors, [])
 
     def test_no_stylesheets_short_circuits(self):
-        """The empty-bundle guard is unchanged."""
         pipeline, _ = self._pipeline([])
         self.assertEqual(pipeline.preprocess(), "")
 
 
 class TestMinifyNulGuard(BaseCase):
-    """``_minify_css_body`` tolerates a NUL byte in the source.
-
-    A bare ``\\x00<digits>\\x00`` in ordinary CSS text used to be caught by
-    the placeholder-restore regex and index into an empty ``protected``
-    list -> IndexError, aborting the whole bundle's CSS compile.
-    """
-
     def test_nul_digit_no_longer_crashes(self):
         out = StylesheetAsset._minify_css_body("a{}\x000\x00b{}")
         self.assertNotIn("\x00", out)
@@ -111,7 +88,6 @@ class TestMinifyNulGuard(BaseCase):
         self.assertIn("b{}", out)
 
     def test_strip_does_not_disturb_normal_minification(self):
-        """Regression guard: the NUL strip leaves string/comment handling intact."""
         self.assertIn('"x   y"', StylesheetAsset._minify_css_body('a{content:"x   y"}'))
         out = StylesheetAsset._minify_css_body(
             "/*! keep */ a{color:red} /* drop */ b{}"
@@ -121,15 +97,6 @@ class TestMinifyNulGuard(BaseCase):
 
 
 class TestUrlRewriteStringBoundary(BaseCase):
-    """``url()`` rewriting is string-aware via ``_rewrite_css_outside_strings``.
-
-    The raw ``rx_url`` regex stays permissive (it matches ``url(`` anywhere); the
-    string-awareness comes from applying it through the shared scanner, which
-    skips matches that start inside a string literal or comment. Both layers are
-    pinned so a regression in either is caught. (Was a "known limitation" —
-    a mid-string ``url(...)`` used to be rewritten; now it is guarded.)
-    """
-
     rx = StylesheetAsset.rx_url
 
     def _rewrite(self, css):
@@ -146,13 +113,6 @@ class TestUrlRewriteStringBoundary(BaseCase):
         self.assertIn('url("REW/x', self._rewrite('a{background:url("x.png")}'))
 
     def test_multi_url_src_list_all_rewritten(self):
-        """Every url() of a @font-face src list is rewritten, not just the first.
-
-        Regression: the regex used to consume the opening quote but not the
-        closing one, desynchronizing the scanner's quote pairing — ``") format("``
-        then read as a string literal and swallowed every subsequent ``url(``
-        token, so bundle web fonts 404'd in browsers and WeasyPrint PDFs alike.
-        """
         out = self._rewrite(
             'src:url("./l/a.eot?#iefix") format("embedded-opentype"),'
             'url("./l/a.woff") format("woff"),'
@@ -168,7 +128,6 @@ class TestUrlRewriteStringBoundary(BaseCase):
         self.assertIn('url("x y.png")', out)
 
     def test_consecutive_imports_all_rewritten(self):
-        """Both quoted @imports are rewritten — same quote-pairing regression."""
 
         def repl(match):
             q = match.group("q")
@@ -182,7 +141,6 @@ class TestUrlRewriteStringBoundary(BaseCase):
         self.assertEqual(out.count("REW/"), 2, out)
 
     def test_url_inside_string_value_is_skipped(self):
-        """A ``url(...)`` mid-string is no longer rewritten (the fix)."""
         out = self._rewrite('a{content:"hello url(x.png) y"}')
         self.assertNotIn("REW/", out)
         self.assertIn('"hello url(x.png) y"', out)
@@ -192,22 +150,6 @@ class TestUrlRewriteStringBoundary(BaseCase):
 
 
 class TestPreprocessCssAtRulesIdempotent(BaseCase):
-    """``CssPipeline.preprocess`` assembles @at-rules WITHOUT mutating the source list.
-
-    Dart Sass hoists ``@at-rules`` (e.g. ``@charset``) above the per-file split
-    markers; ``preprocess`` peels that leading fragment off and prepends it — as
-    a synthetic asset — to the pipeline's own ``_rendered_assets``, NOT to the
-    bundle's ``stylesheets``. Because the source list is never mutated, re-runs
-    are idempotent by construction: there is no injected fragment to stack
-    (``stylesheets`` used to grow 1->2->3, duplicating ``@charset``) and — under
-    RTL — none can re-enter the compile input via ``plain_css_assets``. The old
-    ``_at_rules_asset`` idempotency guard is gone.
-
-    Bound to a fake bundle — ``preprocess`` touches only a handful of attributes
-    — so the contract is proven without a real bundle or a Sass install,
-    mirroring ``TestPreprocessCssErrorContract``.
-    """
-
     _COMPILED = '@charset "UTF-8";\n/*! odoo-split:abc123 */\nh1{color:red}'
 
     def _pipeline(self, rtl=False):
@@ -239,7 +181,6 @@ class TestPreprocessCssAtRulesIdempotent(BaseCase):
         self.assertEqual(out1.count("@charset"), 1)
 
     def test_rerun_does_not_stack_at_rules(self):
-        """A second call rebuilds ONE render list (stylesheets used to go 1->2->3)."""
         pipeline, bundle = self._pipeline()
         pipeline.preprocess()
         out2 = pipeline.preprocess()
@@ -252,7 +193,6 @@ class TestPreprocessCssAtRulesIdempotent(BaseCase):
         self.assertEqual(out2.count("@charset"), 1, "@charset must not be duplicated")
 
     def test_rerun_idempotent_under_rtl(self):
-        """No stale fragment can leak back into the RTL compile input."""
         pipeline, bundle = self._pipeline(rtl=True)
         pipeline.preprocess()
         pipeline.preprocess()
@@ -263,14 +203,6 @@ class TestPreprocessCssAtRulesIdempotent(BaseCase):
 
 
 class TestCssErrorBannerBackslashEscape(BaseCase):
-    """``_render_css_error_banner`` escapes a literal backslash FIRST.
-
-    A ``\\`` in a compiler error (a Windows load path, a regex echoed by Sass)
-    must become ``\\\\`` in the CSS ``content:`` string — not be read as a CSS
-    escape (``\\f`` -> form feed) and not double the backslashes the ``\\"`` /
-    ``\\A`` / ``\\*`` passes introduce after it.
-    """
-
     def test_backslash_is_escaped_not_interpreted(self):
         banner = AssetsBundle._render_css_error_banner([r"C:\foo broke"], "")
         content_line = next(ln for ln in banner.splitlines() if "C:" in ln)
@@ -284,18 +216,6 @@ class TestCssErrorBannerBackslashEscape(BaseCase):
 
 
 class TestBacktickMinifyGate(BaseCase):
-    """``JavascriptAsset.minify`` escalates to esbuild only for NESTED literals.
-
-    rjsmin (1.2.5) corrupts a template literal nested inside a ``${ }``
-    interpolation but handles every other case, including top-level literals and
-    ``${``-free backtick strings. Nesting requires a ``${``, so the gate routes a
-    file to the esbuild subprocess only when BOTH a backtick and ``${`` are
-    present — sparing the common ``${``-free backtick file an esbuild call.
-
-    ``minify_js`` is the esbuild seam; patching it to a sentinel and asserting
-    whether it was called proves which branch ran, no subprocess needed.
-    """
-
     _TARGET = "odoo.addons.base.models.assetsbundle.assets.minify_js"
 
     def _routes_to_esbuild(self, code):
@@ -314,18 +234,11 @@ class TestBacktickMinifyGate(BaseCase):
         self.assertTrue(self._routes_to_esbuild("var x = `${`a   b`}`;\n"))
 
     def test_rjsmin_path_preserves_top_level_literal(self):
-        """The newly-fast path must not corrupt the literal it now handles."""
         asset = JavascriptAsset(SimpleNamespace(name="b"), inline="var x = `a   b`;\n")
         self.assertIn("a   b", asset.minify())
 
 
 class TestJsContentPredicates(BaseCase):
-    """``has_js_content`` / ``_has_legacy_templates`` are one shared predicate.
-
-    ``get_links`` (link emission) and ``js`` (template wrapping) both consult
-    them, so the "does this bundle ship legacy JS?" decision lives in one place.
-    """
-
     def _has_legacy_templates(self, templates, esm):
         fake = SimpleNamespace(templates=templates, _is_esm_bundle=esm)
         return AssetsBundle._has_legacy_templates.fget(fake)
@@ -348,16 +261,6 @@ class TestJsContentPredicates(BaseCase):
 
 
 class _MissRecordset:
-    """Empty ``ir.attachment`` recordset: falsy, and ``ensure_one()`` raises.
-
-    Mirrors how ``ir.attachment._get_serve_attachment`` reports a miss (an empty
-    recordset whose ``ensure_one()`` raises ``ValueError``), so a url-only asset
-    fails to resolve exactly as it would against a real cursor — no DB needed.
-    The falsy-ness matters: a failed resolve leaves ``WebAsset._ir_attach`` set
-    to this empty set, and the guard in ``_resolve_attachment`` retries while it
-    is falsy, which is what makes the fetch (and its error) repeat per call.
-    """
-
     def __bool__(self):
         return False
 
@@ -377,22 +280,6 @@ class _MissAttachModel:
 
 
 class TestPreprocessLeafErrorRebuilt(BaseCase):
-    """A leaf asset's fetch error is reported exactly ONCE per ``preprocess()``.
-
-    Unlike ``TestPreprocessCssErrorContract`` / ``TestPreprocessCssAtRulesIdempotent``
-    (Mock-bound by design), this drives a REAL ``ScssStylesheetAsset`` so the
-    actual ``get_source()`` -> ``_fetch_content()`` path runs — the one that
-    bypasses the ``content`` cache and appends to ``asset.errors`` on every call.
-    A Mock (fixed ``errors``/``get_source``) cannot surface the duplication, so
-    the regression needs a real asset plus the falsy-miss env above.
-
-    Before the fix ``preprocess`` cleared the bundle's ``css_errors`` but not the
-    per-leaf ``errors`` lists it then harvests, so:
-      * a re-run doubled (then tripled) every leaf error, and
-      * a bundle-level compile failure re-fetched leaves whose ``_content`` the
-        empty compiled output left unset, double-reporting them in ONE call.
-    """
-
     _MISSING = "/web/static/src/audit_missing.scss"
 
     def _bundle_with_missing_scss(self, autoprefix=False, rtl=False):
@@ -410,8 +297,6 @@ class TestPreprocessLeafErrorRebuilt(BaseCase):
         return bundle, asset
 
     def test_single_call_compile_failure_reports_leaf_once(self):
-        """Compile failure + a missing leaf: the leaf error appears once, and
-        the discarded minify() reassembly is skipped (so it cannot re-fetch)."""
         bundle, _asset = self._bundle_with_missing_scss()
         pipeline = CssPipeline(bundle)
 
@@ -427,8 +312,6 @@ class TestPreprocessLeafErrorRebuilt(BaseCase):
         self.assertIn("Sass: build broke", bundle.css_errors)
 
     def test_rerun_does_not_accumulate_leaf_errors(self):
-        """Re-running preprocess rebuilds css_errors from scratch: the leaf
-        error count stays at one rather than growing 1 -> 2 -> 3."""
         bundle, asset = self._bundle_with_missing_scss()
         pipeline = CssPipeline(bundle)
         pipeline.compile_css = lambda compiler, source: source
@@ -441,22 +324,12 @@ class TestPreprocessLeafErrorRebuilt(BaseCase):
 
 
 class TestAutoprefixImportStringBoundary(BaseCase):
-    """The two whole-text CSS rewrites (``_autoprefix_css`` and the ``@import``
-    hoist) are now string-aware, like ``StylesheetAsset.rx_url`` (see
-    ``TestUrlRewriteStringBoundary``): both run through
-    ``_rewrite_css_outside_strings``, so an ``appearance:`` / ``@import`` written
-    inside a string literal is left untouched. Was characterized as a "known
-    limitation"; now fixed and pinned.
-    """
-
     def test_autoprefix_rewrites_real_declaration(self):
         out = CssPipeline._autoprefix_css("a{appearance:none}")
         self.assertIn("-webkit-appearance:none", out)
         self.assertIn("-moz-appearance:none", out)
 
     def test_autoprefix_skips_string_literal(self):
-        """``appearance:`` inside a ``content:`` string is left untouched — the
-        rewrite runs through the string/comment-aware scanner (the fix)."""
         out = CssPipeline._autoprefix_css('.x{content:" appearance: auto"}')
         self.assertNotIn("-webkit-appearance", out)
         self.assertIn('" appearance: auto"', out)
@@ -468,9 +341,6 @@ class TestAutoprefixImportStringBoundary(BaseCase):
         )
 
     def test_import_hoist_skips_string_literal(self):
-        """An ``@import`` written inside a string literal is no longer hoisted
-        or commented out — the hoist runs through the scanner, which skips
-        matches starting inside a string."""
         collected = []
 
         def take(match):
@@ -484,7 +354,6 @@ class TestAutoprefixImportStringBoundary(BaseCase):
         self.assertEqual(out, '.x{content:"@import url(evil);"}')
 
     def test_hoist_import_rules_extracts_only_real_rules(self):
-        """The bundle's hoist seam, exercised where it actually lives."""
         pipeline = CssPipeline.__new__(CssPipeline)
         rules, remainder = pipeline.hoist_import_rules(
             '@import "a.css";\n.x{content:"@import url(evil);"}\nbody{}'
@@ -495,16 +364,6 @@ class TestAutoprefixImportStringBoundary(BaseCase):
 
 
 class TestRewriteScannerDotallScope(BaseCase):
-    """``_rewrite_css_outside_strings`` confines ``re.DOTALL`` to its own arm.
-
-    The scanner is built from the string/comment tokenizer OR the caller's
-    ``target``. DOTALL is needed only by the tokenizer (block comments and
-    ``\\.`` continuations span lines). It used to be OR'd onto the whole
-    combined pattern (``target.flags | re.DOTALL``), which silently changed the
-    meaning of any ``.`` the caller's ``target`` carried. The flag is now scoped
-    with ``(?s:...)`` so the caller's pattern keeps exactly its own flags.
-    """
-
     def test_dot_in_target_does_not_span_newlines(self):
         hits = []
         _rewrite_css_outside_strings(
@@ -530,14 +389,6 @@ class TestRewriteScannerDotallScope(BaseCase):
 
 
 class TestMinifySourceMapStringAware(BaseCase):
-    """``_minify_css_body`` drops a sourcemap link via the (string-aware) mask.
-
-    A ``/*# sourceMappingURL=… */`` link is an ordinary block comment, so the
-    masking step drops it like any other comment — no separate whole-text pass.
-    The old leading ``rx_sourceMap.sub`` ran string-unaware and corrupted a
-    ``sourceMappingURL`` written inside a ``content: "…"`` value.
-    """
-
     @staticmethod
     def _min(css):
         return StylesheetAsset._minify_css_body(css)
@@ -553,22 +404,9 @@ class TestMinifySourceMapStringAware(BaseCase):
 
 
 class TestRunRtlcssEmptyOutputGuard(BaseCase):
-    """``CssPipeline.run_rtlcss`` flags a swallowed payload on the STRIPPED output.
-
-    rtlcss can exit 0 yet emit nothing usable for a real payload. The guard now
-    compares the stripped result (the value actually returned), so a
-    whitespace-only response (``"\\n"``) raises the banner instead of shipping
-    ``""`` silently — while a whitespace-only *source* (legitimately empty
-    output) is not a false positive.
-    """
-
     def _run(self, source, fake_out):
         bundle = SimpleNamespace(css_errors=[], name="t.b", stylesheets=[])
         pipe = CssPipeline(bundle)
-        # These cases feed ONE source through several different rtlcss
-        # outcomes, which the process-wide memo collapses by design (in
-        # production the same bytes always yield the same bytes). Reset it so
-        # each case exercises the guard rather than the previous case's result.
         CssPipeline._compiled_cache.clear()
         with (
             patch.object(_ab.css_pipeline, "_check_rtlcss", return_value=True),
@@ -602,15 +440,6 @@ class TestRunRtlcssEmptyOutputGuard(BaseCase):
 
 
 class TestEsmTemplateBundleForms(BaseCase):
-    """``generate_esm_template_bundle`` emits both header forms (was untested).
-
-    Debug uses a native ``import`` from ``@web/core/templates`` (resolved via
-    import map); production esbuild accesses the SAME module through
-    ``odoo.loader.modules.get`` to avoid a second copy of the registry. Both
-    forms must destructure the identical registrar set and carry the template
-    registration body.
-    """
-
     _TPL = '<templates><t t-name="my.module.Widget">hi</t></templates>'
 
     def _bundle(self):
@@ -636,14 +465,6 @@ class TestEsmTemplateBundleForms(BaseCase):
 
 
 class TestEsbuildCompilerAddonFlagsSeam(BaseCase):
-    """``_make_esbuild_compiler`` threads ``_get_esbuild_addon_flags`` through.
-
-    ``_get_esbuild_addon_flags`` is the documented per-bundle override seam (a
-    classmethod tests can patch to inject fabricated addon flags). This pins
-    that the factory hands that very callable to the compiler, so a patch at the
-    seam reaches production bundling.
-    """
-
     def test_provider_is_threaded_into_compiler(self):
         def sentinel(root):
             return (["--alias:x=y"], [])
@@ -659,15 +480,6 @@ class TestEsbuildCompilerAddonFlagsSeam(BaseCase):
 
 
 class TestImportMapSpecCollision(BaseCase):
-    """``get_native_module_data`` warns instead of silently dropping a mapping.
-
-    Two native modules can resolve to the same specifier — ``foo.js`` and
-    ``foo/index.js`` both yield ``@addon/foo``. The browser import map holds one
-    url per specifier, so one mapping is dropped. Behaviour stays last-wins, but
-    the drop is now loud (``import_map_spec_collision``), matching the
-    "no silent drops" tripwire the constructor uses for skipped files.
-    """
-
     _LOG = "odoo.assets.bundle"
 
     @staticmethod

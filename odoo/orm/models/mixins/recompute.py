@@ -1,16 +1,3 @@
-"""Field recomputation and flush mixin for BaseModel.
-
-The DB-coupled half of the cache subsystem: ``modified`` trigger-tree
-traversal, recompute scheduling, and the batched flush of dirty fields to the
-database. The in-memory record cache and invalidation live in the sibling
-:class:`~odoo.orm.models.mixins.cache.CacheMixin`.
-
-This mixin drives the pure-Python
-:class:`~odoo.orm.components.recompute.RecomputeScheduler` (``components/recompute.py``):
-the scheduler is the DB-free accumulator, this mixin does the model-/DB-side
-traversal and SQL.
-"""
-
 import itertools
 import logging
 import typing
@@ -40,8 +27,6 @@ if typing.TYPE_CHECKING:
 
 
 class RecomputeMixin(_ModelStubs):
-    """Mixin providing field recomputation and database flush for recordsets."""
-
     __slots__ = ()
 
     @api.private
@@ -51,17 +36,6 @@ class RecomputeMixin(_ModelStubs):
         create: bool = False,
         before: bool = False,
     ) -> None:
-        """Notify that fields have been modified on ``self``.  This
-        invalidates the cache where necessary, and prepares the recomputation
-        of dependent stored fields.
-
-        :param fnames: iterable of field names modified on records ``self``
-        :param create: whether called in the context of record creation
-        :param before: whether called BEFORE the modification takes place.
-            ``True`` uses the old dependency graph to capture what needs
-            recomputation before values change; ``False`` (default) marks
-            fields based on the new state.
-        """
         if not self or not fnames:
             return
 
@@ -79,19 +53,6 @@ class RecomputeMixin(_ModelStubs):
             self._modified_trigger_loop(fnames, create, scheduler)
 
     def _modified_before(self, fnames: Collection[str]) -> None:
-        """Capture dependencies BEFORE records in ``self`` are modified.
-
-        Calls ``self.modified(fnames, before=True)`` (via the method, so
-        subclass overrides are respected), using the OLD dependency graph.
-
-        Callers pass different scopes: ``write()`` passes only relational fields
-        (a scalar change doesn't move who depends on it; a relational change
-        moves the dependency path and needs both passes). ``unlink()`` passes
-        ALL fields, since deletion breaks every path and has no
-        post-modification pass.
-
-        :param fnames: iterable of field names about to be modified
-        """
         return self.modified(fnames, before=True)
 
     def _modified_trigger_loop(
@@ -100,34 +61,6 @@ class RecomputeMixin(_ModelStubs):
         create: bool,
         scheduler: RecomputeScheduler,
     ) -> None:
-        """Shared trigger-tree traversal for :meth:`modified` /
-        :meth:`_modified_before`.
-
-        Walks the trigger tree for ``fnames``, delegating each scheduling
-        decision (protection, cycle detection, recompute vs invalidate) to the
-        :class:`RecomputeScheduler`.
-
-        A field F's trigger tree holds the fields that depend on F plus the
-        inverse fields used to find which records to recompute.  E.g. if G
-        depends on F, H on X.F, I on W.X.F, and J on Y.F::
-
-                                      [G]
-                                    X/   \\Y
-                                  [H]     [J]
-                                W/
-                              [I]
-
-        When F is modified, mark G on records, H on inverse(X, records), I on
-        inverse(W, inverse(X, records)), and J on inverse(Y, records).
-
-        :param fnames: field names that were (or will be) modified
-        :param create: whether in record-creation context
-        :param scheduler: accumulates recompute/invalidate decisions.  An
-            inline scheduler (``core.new_scheduler(inline=True)``) additionally
-            pushes each entry's delta into the engine's pending set immediately
-            (required for ``before=False``, so the lazy iterator's __get__
-            reads trigger ``ensure_computed`` on them)
-        """
         prof = _OrmProfile(_orm_compute)
         if prof.debug:
             _fnames_list = (
@@ -136,14 +69,6 @@ class RecomputeMixin(_ModelStubs):
             _mark_count = 0
             _invalidate_count = 0
 
-        # Through the barrier, never the bare attribute: `_field_triggers` is a
-        # cached_property, so a build that lost the publication race to a
-        # concurrent teardown is memoized holding the *pre-teardown* snapshot
-        # (publication swaps a fresh _TriggerState rather than mutating), and
-        # nothing but `_ensure_field_triggers()` ever pops it.  Reading the
-        # attribute here would let the early-exit below consult a permanently
-        # stale map and skip recompute/invalidate for triggers added since.
-        # See orm/tests/test_trigger_publication_staleness.py.
         _field_triggers = self.pool._ensure_field_triggers()
         _fields = self._fields
         fields = [_fields[fname] for fname in fnames]
@@ -215,15 +140,6 @@ class RecomputeMixin(_ModelStubs):
     def _modified(
         self, fields: list[Field], create: bool
     ) -> Iterable[tuple[Field, Self, bool]]:
-        """Build the merged field-trigger tree for ``fields`` on ``self`` and
-        delegate the traversal to :meth:`_modified_triggers`.
-
-        Prunes subtrees of non-stored computed fields with no cached data
-        (nothing to invalidate), then runs the traversal as ``sudo`` with
-        ``active_test=False`` when the tree has relational edges (inverse
-        traversal needs ACL bypass and must see archived records). Yields the
-        ``(field, records, created)`` triples to recompute.
-        """
 
         def select(field):
             return field.is_stored_computed or bool(field._get_all_cache_ids(self.env))
@@ -241,10 +157,6 @@ class RecomputeMixin(_ModelStubs):
     def _modified_triggers(
         self, tree: TriggerTree, create: bool = False
     ) -> Iterable[tuple[Field, Self, bool]]:
-        """Iterate a tree of field triggers on ``self``, walking backwards along
-        field dependencies and yielding ``(field, records, created)`` triples to
-        recompute.
-        """
         if not self:
             return
 
@@ -299,13 +211,6 @@ class RecomputeMixin(_ModelStubs):
 
     @classmethod
     def _get_stored_computed_fields(cls) -> tuple[Field, ...]:
-        """Cached tuple of stored-computed fields for this model.
-
-        Memoized per-class via :func:`own_class_memo` (own-``__dict__`` read, so
-        a child never reuses a parent's tuple). The class survives re-setup
-        (``__bases__`` reassigned in place), so ``registration._prepare_setup``
-        clears the memo explicitly when fields change.
-        """
         return own_class_memo(
             cls,
             "_stored_computed_fields__",
@@ -313,29 +218,14 @@ class RecomputeMixin(_ModelStubs):
         )
 
     def _recompute_model(self, fnames: Collection[str] | None = None) -> None:
-        """Process the pending computations of the fields of ``self``'s model.
-
-        Names are resolved before the "nothing pending" shortcut, so an invalid
-        one is rejected whether or not there happened to be work to do.
-
-        :param fnames: optional iterable of field names to compute
-        """
         self._recompute_fields(self._resolve_recompute_fields(fnames), None)
 
     def _recompute_recordset(self, fnames: Collection[str] | None = None) -> None:
-        """Process the pending computations of the fields of the records in ``self``.
-
-        Names are resolved before the "nothing pending" shortcut, so an invalid
-        one is rejected whether or not there happened to be work to do.
-
-        :param fnames: optional iterable of field names to compute
-        """
         self._recompute_fields(self._resolve_recompute_fields(fnames), self._ids)
 
     def _resolve_recompute_fields(
         self, fnames: Collection[str] | None
     ) -> Collection[Field]:
-        """Resolve *fnames* to fields, defaulting to this model's stored-computed ones."""
         if fnames is None:
             return self._get_stored_computed_fields()
         return resolve_fnames(self, fnames)
@@ -343,12 +233,6 @@ class RecomputeMixin(_ModelStubs):
     def _recompute_fields(
         self, fields: Collection[Field], ids: Sequence[IdType] | None
     ) -> None:
-        """Process the pending computations of already-resolved *fields*.
-
-        The shared tail of :meth:`_recompute_model` / :meth:`_recompute_recordset`
-        and the flush entry points, which resolve their names once and hand the
-        fields down rather than re-resolving them here.
-        """
         if not self.env._core.has_pending():
             return
         for field in fields:
@@ -385,22 +269,6 @@ class RecomputeMixin(_ModelStubs):
 
     @api.private
     def flush_model(self, fnames: Collection[str] | None = None) -> None:
-        """Process the pending computations and database updates on ``self``'s
-        model.  When the parameter is given, the method guarantees that at least
-        the given fields are flushed to the database.  More fields can be
-        flushed, though.
-
-        **Important:** ``fnames`` acts as a **dirty guard**, not a filter.
-        If *any* of the given fields are dirty, ALL dirty fields for this model
-        are flushed (partial flushes would leave computed dependents stale).
-        If *none* of the given fields are dirty, no flush occurs.
-        Pass ``None`` to flush unconditionally.
-
-        Invalid names are rejected before the "nothing dirty" shortcut, so the
-        rejection does not depend on transaction state.
-
-        :param fnames: optional iterable of field names to check for dirtiness
-        """
         fields = None if fnames is None else resolve_fnames(self, fnames)
         if fields is not None:
             core = self.env._core
@@ -429,16 +297,6 @@ class RecomputeMixin(_ModelStubs):
 
     @api.private
     def flush_recordset(self, fnames: Collection[str] | None = None) -> None:
-        """Process the pending computations and database updates on the records
-        ``self``.   When the parameter is given, the method guarantees that at
-        least the given fields on records ``self`` are flushed to the database.
-        More fields and records can be flushed, though.
-
-        Invalid names are rejected before the "empty recordset" and "nothing
-        dirty" shortcuts, so the rejection does not depend on either.
-
-        :param fnames: optional iterable of field names to flush
-        """
         named_fields = None if fnames is None else resolve_fnames(self, fnames)
         if not self:
             return
@@ -510,10 +368,6 @@ class RecomputeMixin(_ModelStubs):
                             if col_val is not PENDING:
                                 vals[f.name] = col_val
                             elif core.is_pending(f, id_):
-                                # Awaiting recomputation: hand the dirty flag
-                                # back (it was popped above) so the next pass
-                                # writes the value once it exists.  Dropping it
-                                # here is what silently lost the write.
                                 core.mark_dirty(f, (id_,))
                             else:
                                 raise RuntimeError(

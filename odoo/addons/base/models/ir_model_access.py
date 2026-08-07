@@ -19,8 +19,6 @@ _logger = logging.getLogger(__name__)
 
 
 class IrModelAccess(models.Model):
-    """Per-model CRUD access control list (ACL) entry."""
-
     _name = "ir.model.access"
     _description = "Model Access"
     _order = "model_id,group_id,name,id"
@@ -51,10 +49,6 @@ class IrModelAccess(models.Model):
 
     @api.model
     def group_names_with_access(self, model_name: str, access_mode: str) -> list[str]:
-        """Return the names of visible groups granted ``access_mode`` on ``model_name``.
-
-        :rtype: list[str]
-        """
         self._check_access_mode(access_mode)
         lang = self.env.lang or "en_US"
         perm_column = SQL.identifier(f"perm_{access_mode}")
@@ -84,7 +78,6 @@ class IrModelAccess(models.Model):
     @api.model
     @tools.ormcache("model_name", "access_mode", cache="stable")
     def _get_access_groups(self, model_name: str, access_mode: str = "read") -> Any:
-        """Return the group expression for users who have ``access_mode`` on ``model_name``."""
         self._check_access_mode(access_mode)
         model = self.env["ir.model"]._get(model_name)
         accesses = self.sudo().search(
@@ -155,7 +148,6 @@ class IrModelAccess(models.Model):
         return has_access
 
     def _make_access_error(self, model: str, mode: str) -> AccessError:
-        """Return the exception corresponding to an access error."""
         _logger.info(
             "Access Denied by ACLs for operation: %s, uid: %s, model: %s",
             mode,

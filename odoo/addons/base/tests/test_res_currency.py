@@ -6,9 +6,6 @@ from odoo.tests.common import TransactionCase
 
 class TestResCurrency(TransactionCase):
     def test_view_company_rate_label(self):
-        """The company_rate / inverse_company_rate labels follow the company
-        currency, e.g. `Unit per EUR` for a company using EUR.
-        """
         company_foo, company_bar = self.env["res.company"].create(
             [
                 {"name": "foo", "currency_id": self.env.ref("base.EUR").id},
@@ -138,7 +135,6 @@ class TestResCurrency(TransactionCase):
             )
 
     def test_convert_rounding_to_target_precision(self):
-        """RCUR-T1: _convert rounds the result to the target currency precision."""
         source, target = self.env["res.currency"].create(
             [
                 {
@@ -164,7 +160,6 @@ class TestResCurrency(TransactionCase):
         )
 
     def test_convert_round_false_returns_unrounded(self):
-        """RCUR-T1: round=False returns the raw (unrounded) converted amount."""
         source, target = self.env["res.currency"].create(
             [
                 {
@@ -191,7 +186,6 @@ class TestResCurrency(TransactionCase):
         )
 
     def test_convert_rate_date_boundary(self):
-        """RCUR-T1: _convert picks the latest rate with name <= date."""
         source, target = self.env["res.currency"].create(
             [
                 {
@@ -217,9 +211,6 @@ class TestResCurrency(TransactionCase):
         )
 
     def test_convert_no_rate_uses_earliest_then_identity(self):
-        """RCUR-T1 / RCUR-L1: a date before the first rate uses the earliest rate;
-        a currency with no rate at all uses the COALESCE -> 1.0 identity path.
-        """
         with_rate = self.env["res.currency"].create(
             {
                 "name": "WR1",
@@ -240,10 +231,6 @@ class TestResCurrency(TransactionCase):
         )
 
     def test_rate_memo_distinct_dates_single_query(self):
-        """RCUR-M1: the first lookup for a currency loads its full rate history
-        in one query; further conversions at any distinct dates in the same
-        transaction are answered from the memo without SQL.
-        """
         cur_a, cur_b = self.env["res.currency"].create(
             [
                 {
@@ -274,11 +261,6 @@ class TestResCurrency(TransactionCase):
                 cur_a._convert(100, cur_b, company, f"2020-02-{day:02d}")
 
     def test_rate_memo_company_scoping_matches_sql(self):
-        """RCUR-M1: the memoized lookup returns exactly what the SQL cold
-        path returns for every (company, date) combination — including
-        company-root vs global scope precedence, the pre-history
-        earliest-rate fallback, NULL-valued rate rows and the 1.0 identity.
-        """
         company_a = self.env.company
         company_b = self.env["res.company"].create({"name": "memo scope co"})
         cur_x, cur_y, cur_z = self.env["res.currency"].create(
@@ -335,10 +317,6 @@ class TestResCurrency(TransactionCase):
         self.assertEqual(currencies._get_rates(company_a, "2018-06-01")[cur_x.id], 2)
 
     def test_rate_memo_invalidated_within_transaction(self):
-        """RCUR-M1: rate create/write/unlink within the same transaction drop
-        the memo (and the cross-record inverse_rate cache), so conversions
-        immediately see the change.
-        """
         cur_a, cur_b = self.env["res.currency"].create(
             [
                 {
@@ -375,16 +353,6 @@ class TestResCurrency(TransactionCase):
         self.assertEqual(convert("2020-06-01"), 400)
 
     def test_rate_date_and_company_change_invalidate_currency_cache(self):
-        """RCUR-C1: changing a rate's date or company within a transaction must
-        refresh the currency's cached rate/rate_string, not only inverse_rate.
-
-        The newest rate is picked by sorting rather than by ``rate_ids[0]``:
-        records created through an inline command stay in the field's cache in
-        creation order until something flushes and re-reads them, so the
-        ``_order`` of ``res.currency.rate`` ("name desc") does not apply yet.
-        Whether a flush happens in between depends on unrelated state, which
-        made this test pass or fail by accident.
-        """
         currency = self.env["res.currency"].create(
             {
                 "name": "CCC",
@@ -409,12 +377,6 @@ class TestResCurrency(TransactionCase):
         self.assertAlmostEqual(currency.rate, rate_before / 2)
 
     def test_rate_change_of_company_currency_invalidates_other_currencies(self):
-        """RCUR-C2: rate/inverse_rate/rate_string of a currency are computed
-        against the company currency's own rate rows — a cross-record
-        dependency @api.depends cannot express.  Creating, writing or deleting
-        a rate of the *company* currency must therefore invalidate all three
-        fields model-wide, not only inverse_rate.
-        """
         company_currency, other = self.env["res.currency"].create(
             [
                 {"name": "CMX", "symbol": "M"},
@@ -466,9 +428,6 @@ class TestResCurrency(TransactionCase):
         self.assertIn(f"{2 / 10:.6f}", other.rate_string)
 
     def test_sanitize_vals_does_not_mutate_caller_dict(self):
-        """RCUR-S1: redundant rate encodings are dropped from a copy; the
-        caller-owned vals dict is left untouched by create() and write().
-        """
         currency = self.env["res.currency"].create({"name": "SAN", "symbol": "S"})
         create_vals = {
             "name": "2020-01-01",
@@ -490,9 +449,6 @@ class TestResCurrency(TransactionCase):
         self.assertAlmostEqual(rate.rate, 3.0)
 
     def test_company_rate_history_fallbacks(self):
-        """RCUR-P1: company_rate uses the record's own rate, else the latest
-        rate strictly before its date, else the identity rate 1.0.
-        """
         currency = self.env["res.currency"].create({"name": "DDD", "symbol": "D"})
         company = self.env["res.company"].create(
             {"name": "company DDD", "currency_id": currency.id}
@@ -533,9 +489,6 @@ class TestResCurrency(TransactionCase):
         self.assertAlmostEqual(empty_first.company_rate, 1 / 4)
 
     def test_amount_to_text_unsupported_lang_falls_back_with_warning(self):
-        """RCUR-T2: an iso_code unknown to num2words falls back to English
-        words and logs a warning naming the missing language.
-        """
         self.env["res.lang"].create(
             {
                 "name": "Klingon",
@@ -554,7 +507,6 @@ class TestResCurrency(TransactionCase):
         self.assertIn("'tlh'", capture.output[0])
 
     def test_amount_to_text_negative(self):
-        """RCUR-T2: amount_to_text on an amount in (-1, 0) keeps the sign."""
         currency = self.env.ref("base.USD")
         text = currency.amount_to_text(-0.5)
         self.assertTrue(
@@ -603,16 +555,6 @@ class TestResCurrency(TransactionCase):
 
 
 class TestResCurrencyRateMemoScope(TransactionCase):
-    """RCUR-M1: the rate memo must not be shared across access contexts.
-
-    ``_get_rates_from_memo`` populates itself with a rule-filtered query, so
-    its result depends on the reader. Keyed on ``(currency, company root)``
-    alone, whichever context first touched a currency answered for every later
-    one in the same transaction, diverging from ``_get_rates_sql`` in both
-    directions. The parity test above cannot see this: it runs as a single
-    user, where rules apply identically to both paths.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -650,7 +592,6 @@ class TestResCurrencyRateMemoScope(TransactionCase):
         return method(company, "2020-06-01")[self.currency.id]
 
     def test_reference_paths_differ_by_access_context(self):
-        """The premise: the rule genuinely hides company B's rate here."""
         self.assertEqual(self._rates(True, sql=True), 7.0)
         self.assertEqual(self._rates(False, sql=True), 1.0)
 

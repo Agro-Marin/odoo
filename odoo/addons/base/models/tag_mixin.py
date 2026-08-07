@@ -5,16 +5,6 @@ from odoo.exceptions import ValidationError
 
 
 class TagMixin(models.AbstractModel):
-    """Shared behaviour for hierarchical, colored tags.
-
-    Concrete models mixing this in MUST declare the self-referential hierarchy
-    fields with their own ``_name`` as comodel -- an abstract model has no table
-    and therefore cannot be the comodel of ``parent_id`` / ``child_ids``::
-
-        parent_id = fields.Many2one(<model>, ondelete="cascade", index=True)
-        child_ids = fields.One2many(<model>, "parent_id")
-    """
-
     _name = "tag.mixin"
     _description = "Tag Mixin"
     _order = "name, id"
@@ -42,7 +32,6 @@ class TagMixin(models.AbstractModel):
 
     @api.depends("name", "parent_id.name")
     def _compute_display_name(self):
-        """Compute the slash-joined full ancestor path as display name."""
         paths = {}
         ancestor_ids = set()
         for tag in self:

@@ -100,12 +100,6 @@ class TestHttpEchoReplyJsonNoDB(TestHttpBase):
         )
 
     def test_echojson3_bad_json(self):
-        """A caller that sent JSON must get its error back as JSON.
-
-        Both aborts used to build a bare ``Response``, whose ``text/html``
-        default mimetype answered an ``application/json`` request with a body
-        the caller could not parse.
-        """
         payload = "some non json garbage"
         res = self.nodb_url_open("/test_http/echo-json", data=payload, headers=CT_JSON)
         self.assertEqual(res.status_code, 400, res.text)
@@ -281,12 +275,6 @@ class TestHttpEchoReplyJsonWithDB(TestHttpBase):
         )
 
     def test_echojson3_bad_json(self):
-        """A caller that sent JSON must get its error back as JSON.
-
-        Both aborts used to build a bare ``Response``, whose ``text/html``
-        default mimetype answered an ``application/json`` request with a body
-        the caller could not parse.
-        """
         payload = "some non json garbage"
         res = self.db_url_open("/test_http/echo-json", data=payload, headers=CT_JSON)
         self.assertEqual(res.status_code, 400, res.text)

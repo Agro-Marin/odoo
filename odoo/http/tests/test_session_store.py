@@ -1,12 +1,3 @@
-"""DB-free unit tests for the filesystem session store's rotation state machine.
-
-:class:`odoo.http.session.FilesystemSessionStore` and :class:`Session` need only
-a temp directory — no registry, no HTTP request — for everything except the
-authenticated-token path (which needs an env). These pin the soft-rotation
-prefix/adoption/GC behaviour that the CSRF token and device-log correlation
-depend on. Run via ``pytest odoo/http/tests``.
-"""
-
 import os
 import pathlib
 import time
@@ -126,8 +117,6 @@ def test_vacuum_reaps_orphaned_tmp_files(store, tmp_path):
 
 
 def test_get_refreshes_stale_mtime(store):
-    """An actively-read but never-modified session must not age into vacuum's
-    threshold: loading it bumps a stale mtime (at most once per interval)."""
     import os
 
     s = _anon(store)
@@ -142,9 +131,6 @@ def test_get_refreshes_stale_mtime(store):
 
 
 def test_corrupt_session_file_is_discarded_and_renewed(store):
-    """Regression: a corrupt session file kept its sid with empty data forever —
-    an all-defaults session is "not modified", so the file was never rewritten,
-    and every later request re-parsed the same corrupt bytes."""
     s = _anon(store)
     fn = pathlib.Path(store.get_session_filename(s.sid))
     fn.write_bytes(b"{corrupt json!!")
@@ -155,8 +141,6 @@ def test_corrupt_session_file_is_discarded_and_renewed(store):
 
 
 def test_non_dict_session_payload_is_treated_as_corrupt(store):
-    """A session file holding JSON ``null``/list crashed ``Session.__init__``
-    (``dict(None)``) into a 500 on every request with that cookie."""
     for payload in (b"null", b"[1, 2]", b'"str"'):
         s = _anon(store)
         fn = pathlib.Path(store.get_session_filename(s.sid))
@@ -186,13 +170,6 @@ def test_session_is_modified_detects_nested_mutation():
 
 
 def _interrupted_peer_rotation(store, session):
-    """Put the store in the window a soft rotation opens.
-
-    ``rotate(soft=True)`` writes ``next_sid`` into the OLD file first, and only
-    then writes the NEW one. Between those two saves a concurrent request can
-    read the announcement while the sid it names still has no file behind it.
-    Reproduce exactly that state.
-    """
     next_sid = (
         session.sid[:STORED_SESSION_BYTES] + store.generate_key()[STORED_SESSION_BYTES:]
     )
@@ -204,14 +181,6 @@ def _interrupted_peer_rotation(store, session):
 
 
 def test_soft_rotation_does_not_adopt_a_sid_with_no_file(store):
-    """Adopting a peer's announced sid before its file lands logs the user out.
-
-    The concurrent request moved onto ``next_sid`` unconditionally. If the peer
-    had not yet written that file (a few milliseconds, or forever if its worker
-    died), the session now points at nothing: the next request's
-    ``renew_missing`` hands out a fresh anonymous session and the user is
-    silently logged out mid-browse.
-    """
     session = store.new()
     session["uid"] = 2
     session["session_token"] = "token-computed-for-the-old-sid"
@@ -231,7 +200,6 @@ def test_soft_rotation_does_not_adopt_a_sid_with_no_file(store):
 
 
 def test_soft_rotation_adopts_once_the_peer_file_lands(store):
-    """The normal case must still adopt: same sid, peer's authoritative token."""
     session = store.new()
     session["uid"] = 2
     session["session_token"] = "old-token"
@@ -250,8 +218,6 @@ def test_soft_rotation_adopts_once_the_peer_file_lands(store):
 
 
 class _RotationRequest:
-    """Minimal stand-in driving :meth:`Request._save_session` over a real store."""
-
     _save_session = Request._save_session
 
     def __init__(self, store, session, sid_on_cookie):
@@ -265,14 +231,6 @@ class _RotationRequest:
 
 
 def test_pending_rotation_survives_a_request_with_no_live_env(store):
-    """An armed rotation that cannot run must be parked in the payload.
-
-    ``should_rotate`` is instance state, so a login that raised after
-    ``Session.finalize`` armed it lost the rotation with the request object and
-    stayed authenticated on its PRE-login sid — forfeiting the session-fixation
-    defence hard rotation exists for. Rotating on the spot is impossible: the
-    authenticated token needs a live cursor and the error path has none.
-    """
     s = store.new()
     s["uid"] = 7
     s["create_time"] = time.time()
@@ -288,11 +246,6 @@ def test_pending_rotation_survives_a_request_with_no_live_env(store):
 
 
 def test_pending_rotation_rearms_on_the_next_load(store):
-    """The parked marker must be consumed and re-arm ``should_rotate``.
-
-    This is the half that makes the deferral worth anything: parking the marker
-    is useless unless the next request picks it up.
-    """
     s = store.new()
     s["uid"] = 7
     s["_rotate_pending"] = True
@@ -319,11 +272,6 @@ def test_pending_rotation_is_not_parked_when_it_can_run(store):
 
 
 def test_touch_is_a_keep_alive_not_a_content_change():
-    """``touch()`` marks the session dirty without changing its bytes.
-
-    This is the distinction ``_save_session`` routes on: a bare touch takes the
-    cheap ``keep_alive`` path, while a real write still forces a full save.
-    """
     s = Session({}, "sid", False)
     s["uid"] = 1
     s.mark_clean()

@@ -1,26 +1,9 @@
-"""``create_index`` must accept a literal ``%`` in expressions and WHERE clauses.
-
-``expressions`` and ``where`` are raw SQL fragments, but they were handed
-straight to ``SQL(fragment)``, whose no-argument branch runs ``code % ()`` as an
-arity check.  A fragment holding a literal ``%`` -- e.g. the partial index
-``where="name LIKE 'a%'"`` -- therefore raised ``TypeError: not enough arguments
-for format string`` before any SQL was emitted, so the index was silently never
-created and module installation failed.
-
-``add_index`` already escaped ``%`` for its ``str`` definition; ``create_index``,
-which builds a definition and delegates to it, did not.  psycopg collapses
-``%%`` back to ``%`` even when the parameter tuple is empty (verified against
-PostgreSQL), so fragments with no ``%`` emit byte-identical DDL.
-"""
-
 import unittest
 
 from odoo.db.schema import create_index
 
 
 class _RecordingCursor:
-    """Reports every index as missing and records the statements it is given."""
-
     def __init__(self):
         self.rowcount = 0
         self.statements = []

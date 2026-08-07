@@ -5,10 +5,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestIndexMethodMigration(TransactionCase):
-    """``Registry.check_indexes`` must rebuild a column index when the field
-    changes the kind of index it wants (e.g. btree -> trigram), even though
-    the index name stays the same."""
-
     def _index_method(self, indexname):
         self.cr.execute(
             """

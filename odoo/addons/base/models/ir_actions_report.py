@@ -54,30 +54,14 @@ _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
 def _effective_port(parsed: Any) -> int:
-    """Return the port *parsed* addresses, filling in the scheme's default."""
     return parsed.port or _DEFAULT_PORTS.get(parsed.scheme or "http", 80)
 
 
 def _verifies_tls(url: str) -> bool:
-    """Whether the report fetcher must validate *url*'s TLS certificate.
-
-    Always, except when talking to the loopback interface. The fetch carries a
-    session cookie for the requesting user, so skipping validation hands that
-    cookie to anyone on the path; a self-signed certificate is only routine for
-    a server calling itself, where there is no path to sit on.
-    """
     return urlparse(url).hostname not in _LOOPBACK_HOSTS
 
 
 def _is_blocked_fetch_ip(hostname: str | None) -> bool:
-    """True if ``hostname`` is an IP literal in a private/reserved range.
-
-    Refuses SSRF via report URLs pointing at internal addresses (RFC 1918,
-    loopback, link-local incl. the ``169.254.169.254`` metadata endpoint).
-    Blocks IP *literals* only — DNS rebinding to internal IPs needs egress
-    controls. Redirect targets pass through too (WeasyPrint 68 re-enters
-    ``fetch()`` on each redirect).
-    """
     if not hostname:
         return False
     try:
@@ -95,12 +79,6 @@ def _is_blocked_fetch_ip(hostname: str | None) -> bool:
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:
-    """Coerce a barcode option to bool, tolerating template/URL string inputs.
-
-    Barcode options arrive as strings (``"1"``/``"true"``/``"yes"``) from QWeb
-    widgets and ``/report/barcode`` query strings. Unrecognised strings fall
-    back to ``default`` rather than raising mid-render.
-    """
     if isinstance(value, bool):
         return value
     if isinstance(value, (int, float)):
@@ -115,11 +93,6 @@ def _coerce_bool(value: Any, default: bool) -> bool:
 
 
 def _inject_page_css(html: str, css: str) -> str:
-    """Inject a CSS ``@page`` ``<style>`` block into an HTML document's ``<head>``.
-
-    :param html: HTML string (may be ``markupsafe.Markup``)
-    :return: modified HTML as plain ``str`` (not ``Markup``)
-    """
     html_str = str(html)
     style_tag = f'<style type="text/css">{css}</style>'
     if "</head>" in html_str:
@@ -128,25 +101,11 @@ def _inject_page_css(html: str, css: str) -> str:
 
 
 def _css_string_escape(text: str) -> str:
-    """Escape ``text`` for use inside a double-quoted CSS string.
-
-    Backslashes and quotes are CSS-escaped; newlines (illegal in CSS strings)
-    collapse to spaces. Used for user-supplied values such as the watermark
-    text, where a stray quote must not break out of the declaration.
-    """
     collapsed = " ".join(str(text).split())
     return collapsed.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _watermark_css(text: str) -> str:
-    """CSS stamping ``text`` diagonally across every page of the document.
-
-    WeasyPrint repeats ``position: fixed`` boxes on each page, which makes a
-    single element a true per-page watermark — no per-page markup needed.
-    Rendered as a translucent overlay so it never reflows the document, and
-    inherits the report font. Requested per print via the
-    ``report_watermark`` context key (see ``_render_html_to_pdf``).
-    """
     return (
         "\nbody::before {"
         f' content: "{_css_string_escape(text)}";'
@@ -162,8 +121,6 @@ def _watermark_css(text: str) -> str:
 
 
 class _ListHandler(logging.Handler):
-    """Logging handler appending formatted records to a caller-owned list."""
-
     def __init__(self, sink: list[str]) -> None:
         super().__init__(level=logging.WARNING)
         self._sink = sink
@@ -173,27 +130,6 @@ class _ListHandler(logging.Handler):
 
 
 class _WeasyWarningCapture:
-    """Scoped capture of WeasyPrint CSS/HTML warnings.
-
-    The process-wide setup silences the ``weasyprint`` logger to ERROR (its
-    warnings are per-declaration and would flood production logs). During a
-    render we still want them: they name the exact unsupported property or
-    broken rule, which is the difference between "PDF rendering failed" and a
-    fixable template diagnosis. The logger level is lowered to WARNING for the
-    duration; refcounted so overlapping captures (threaded dev server) restore
-    the original state only when the outermost capture exits. Captured messages
-    can cross-talk between concurrent renders — acceptable, they only enrich
-    error messages and debug logs.
-
-    Propagation is disabled for the same duration, so ``sink`` is the only
-    destination. Lowering the level alone would defeat the ERROR silencing it
-    is nested inside: the records would still reach the ancestor handlers and
-    flood the log with the very per-declaration warnings that setup suppressed
-    (a single Bootstrap-derived report stylesheet emits several hundred). Their
-    intended visibility is ``sink`` — surfaced on the ``UserError`` when a
-    render fails, and summarised at DEBUG otherwise.
-    """
-
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._depth = 0
@@ -247,17 +183,6 @@ _tolerant_font_lock = threading.Lock()
 
 
 class _WeasySharedState:
-    """Lock-guarded owner of the process-wide WeasyPrint shared state.
-
-    Survives across requests within a worker and owns: the lazy
-    :class:`FontConfiguration` singleton (built lazily, never at import, to
-    avoid Pango/fontconfig mutex corruption after ``fork()`` in prefork mode);
-    the bounded decoded-image cache (so a logo PNG isn't re-decoded per body);
-    and the once-per-process :meth:`setup_process`. Every mutation is
-    lock-serialized, so the state stays sound on a free-threaded (nogil) build
-    without relying on GIL-atomic dict ops.
-    """
-
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._font_config: FontConfiguration | None = None
@@ -267,11 +192,6 @@ class _WeasySharedState:
         self._process_setup_done = False
 
     def setup_process(self) -> None:
-        """Idempotent, lazy once-per-process environment setup.
-
-        Runs on the first render, not at import, so merely importing this module
-        doesn't mutate process-global third-party state.
-        """
         if self._process_setup_done:
             return
         with self._lock:
@@ -292,16 +212,9 @@ class _WeasySharedState:
 
     @property
     def image_cache(self) -> dict[str, Any]:
-        """The shared decoded-image cache (stable dict identity)."""
         return self._image_cache
 
     def evict_image_cache_if_full(self) -> None:
-        """Evict the oldest half of the image cache when it exceeds its limit.
-
-        Called before each render batch to bound the per-worker cache on
-        long-lived workers that print many distinct images. Insertion order
-        (preserved by dict) gives the oldest keys.
-        """
         with self._lock:
             if len(self._image_cache) > _WEASY_IMAGE_CACHE_MAX:
                 evict_count = _WEASY_IMAGE_CACHE_MAX // 2
@@ -309,18 +222,6 @@ class _WeasySharedState:
                     del self._image_cache[key]
 
     def get_parsed_css(self, key: tuple[str, str], parse: Callable[[], Any]) -> Any:
-        """Process-cached parsed stylesheet for a compiled asset stylesheet.
-
-        ``key`` is ``(url, compiled-attachment checksum)`` — the URL alone is
-        not a content address; see :meth:`OdooURLFetcher.asset_checksum`.
-
-        ``parse`` runs under the cache lock, so a cold key is fetched, parsed
-        (and its ``@font-face`` rules registered) exactly once per process even
-        under concurrent renders. Only successful parses are cached; a raising
-        ``parse`` propagates and leaves no entry, so failures are retried on
-        the next render. Cache entries are never invalidated, which is only
-        sound because a (url, checksum) pair pins the exact compiled content.
-        """
         with self._css_lock:
             if key not in self._css_cache:
                 if len(self._css_cache) >= _WEASY_CSS_CACHE_MAX:
@@ -331,11 +232,6 @@ class _WeasySharedState:
             return self._css_cache[key]
 
     def reset_for_tests(self) -> None:
-        """Drop the font config and clear the image and CSS caches in place.
-
-        Clearing in place keeps module-level aliases of the cache dict valid.
-        The idempotent :meth:`setup_process` mutations are not reverted.
-        """
         with self._lock:
             self._font_config = None
             self._image_cache.clear()
@@ -349,23 +245,10 @@ _weasy_image_cache = _weasy_state.image_cache
 
 
 def _get_weasy_font_config() -> FontConfiguration:
-    """Backward-compatible alias for :meth:`_WeasySharedState.get_font_config`."""
     return _weasy_state.get_font_config()
 
 
 def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets, pdf_options=None):
-    """Render a PDF with fontTools patched to tolerate invalid OS/2 unicode range
-    bits (e.g. bit 123 in malformed Unifont).
-
-    ``pdf_options`` is forwarded to ``write_pdf`` so the fallback keeps any
-    requested PDF/A variant / attachments.
-
-    ``setUnicodeRanges`` is a process-global class method, so the whole
-    patch/render/restore is serialized by ``_tolerant_font_lock``: without it
-    two concurrent tolerant renders race on restore order and leak the patch
-    permanently. A concurrent *normal* render may transiently see the patched
-    (strictly more permissive) function while the lock is held — harmless.
-    """
     from fontTools.ttLib.tables.O_S_2f_2 import table_O_S_2f_2
 
     with _tolerant_font_lock:
@@ -427,11 +310,6 @@ _selector_depth = threading.local()
 
 
 def _compile_node_depth_limited(selector: Any) -> str:
-    """Depth-limited wrapper around cssselect2's _compile_node.
-
-    Tracks recursion depth in thread-local storage so concurrent PDF renders
-    don't corrupt each other's counter (a shared global would).
-    """
     if isinstance(selector, _cs2_parser.CombinedSelector):
         depth = getattr(_selector_depth, "value", 0)
         if depth >= _MAX_SELECTOR_DEPTH:
@@ -456,24 +334,6 @@ _BARCODE_RE = re.compile(r"^/report/barcode/(?P<type>[^/]+)/(?P<value>.+)")
 
 
 class OdooURLFetcher(URLFetcher):
-    """WeasyPrint URL fetcher with Odoo resource resolution.
-
-    Subclasses URLFetcher (v68+) so HTTP redirects also go through :meth:`fetch`,
-    closing the SSRF hole of the old function-based fetcher (CVE-2025-68616).
-
-    Local URL resolution order: asset bundles ``/web/assets/<unique>/<filename>``,
-    static files ``/<module>/static/...``, then a session-authenticated HTTP
-    fallback. External URLs delegate to the parent :class:`URLFetcher` unless
-    they point at a private/reserved IP literal (refused as SSRF, see
-    :func:`_is_blocked_fetch_ip`). Only ``http``/``https``/``data`` schemes are
-    allowed — ``file://`` is intentionally disallowed.
-
-    Use as a context manager so the temporary session is cleaned up::
-
-        with OdooURLFetcher(env) as fetcher:
-            weasyprint.HTML(string=html, url_fetcher=fetcher).write_pdf()
-    """
-
     def __init__(self, env: Any, base_url: str | None = None) -> None:
         super().__init__(
             allowed_protocols=["http", "https", "data"],
@@ -490,11 +350,10 @@ class OdooURLFetcher(URLFetcher):
     def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.cleanup()
 
     def cleanup(self) -> None:
-        """Delete the temporary session created for authenticated fetches."""
         if self._temp_session is not None:
             root.session_store.delete(self._temp_session)
             self._temp_session = None
@@ -518,15 +377,6 @@ class OdooURLFetcher(URLFetcher):
             self._session_cookie = self._temp_session.sid
 
     def _is_same_origin(self, parsed: Any) -> bool:
-        """Whether *parsed* addresses this database's own front-end.
-
-        Host AND effective port must match: :meth:`_fetch_via_http` attaches a
-        live session cookie, and matching on hostname alone sent it to whatever
-        listened on any other port of the same machine. Loopback names are
-        interchangeable with each other, but only when the base URL is itself
-        loopback -- otherwise a template naming ``localhost`` on a public
-        deployment would still be handed the cookie.
-        """
         base = self._parsed_base
         if _effective_port(parsed) != _effective_port(base):
             return False
@@ -537,7 +387,6 @@ class OdooURLFetcher(URLFetcher):
     def fetch(
         self, url: str, headers: dict[str, str] | None = None
     ) -> URLFetcherResponse:
-        """Resolve Odoo URLs locally or delegate to the parent fetcher."""
         parsed = urlparse(url)
 
         if parsed.scheme and parsed.scheme not in ("http", "https", ""):
@@ -579,14 +428,6 @@ class OdooURLFetcher(URLFetcher):
         return self._fetch_via_http(url, path)
 
     def _find_asset_attachment(self, path: str) -> Any:
-        """The single ir.attachment row backing a ``/web/assets/`` path.
-
-        Sole owner of the lookup domain: both :meth:`_resolve_asset_bundle`
-        (which serves the content) and :meth:`asset_checksum` (which
-        fingerprints it for the parsed-CSS cache) MUST resolve through here,
-        or the cache key could describe an attachment other than the one
-        actually served.
-        """
         return (
             self._env["ir.attachment"]
             .sudo()
@@ -603,14 +444,6 @@ class OdooURLFetcher(URLFetcher):
 
     @staticmethod
     def _asset_blob_present(attachment: Any) -> bool:
-        """Whether the attachment's binary content is actually readable.
-
-        Equivalent to ``bool(attachment.raw)`` — the serving condition of
-        :meth:`_resolve_asset_bundle` — but reads at most 1 byte from the
-        filestore instead of the whole compiled bundle, since callers only
-        need existence (a lost blob keeps its ``checksum`` column, so the
-        column alone cannot be trusted).
-        """
         if not attachment:
             return False
         if attachment.store_fname:
@@ -619,24 +452,12 @@ class OdooURLFetcher(URLFetcher):
         return bool(attachment.db_datas)
 
     def asset_checksum(self, url: str) -> str | None:
-        """Checksum of the stored compiled asset behind ``url``, or ``None``.
-
-        This is the content fingerprint for the process-wide parsed-CSS
-        cache: the ``<unique>`` URL segment hashes the bundle *sources*, so
-        two databases (or one database before and after a compiler change)
-        can hold different compiled CSS behind an equal URL — the URL alone
-        is NOT a content address. ``None`` when no readable attachment is
-        stored (on-the-fly compile, or a row whose filestore blob was lost):
-        in that case :meth:`_resolve_asset_bundle` serves something this
-        method cannot cheaply fingerprint, so the caller must not cache.
-        """
         attachment = self._find_asset_attachment(urlparse(url).path or "")
         if not self._asset_blob_present(attachment):
             return None
         return attachment.checksum or None
 
     def _resolve_asset_bundle(self, url: str, path: str) -> URLFetcherResponse | None:
-        """Resolve ``/web/assets/<unique>/<filename>`` from ir.attachment or on-the-fly."""
         parts = path.strip("/").split("/")
         if len(parts) < 4 or parts[0] != "web" or parts[1] != "assets":
             return None
@@ -680,7 +501,6 @@ class OdooURLFetcher(URLFetcher):
         return None
 
     def _resolve_static_file(self, url: str, path: str) -> URLFetcherResponse | None:
-        """Resolve ``/<module>/static/...`` from the filesystem."""
         parts = path.lstrip("/").split("/")
         if len(parts) < 3 or parts[1] != "static":
             return None
@@ -693,8 +513,7 @@ class OdooURLFetcher(URLFetcher):
                 continue
             if candidate.is_file():
                 mime = mimetypes.guess_type(candidate)[0] or "application/octet-stream"
-                with Path(candidate).open("rb") as f:
-                    return self._make_response(url, f.read(), mime)
+                return self._make_response(url, Path(candidate).read_bytes(), mime)
         return None
 
     def _resolve_web_image(
@@ -703,11 +522,6 @@ class OdooURLFetcher(URLFetcher):
         path: str,
         query: str,
     ) -> URLFetcherResponse | None:
-        """Resolve ``/web/image/`` URLs directly from the database/filestore.
-
-        Avoids HTTP self-requests that deadlock when all workers are busy.
-        Falls back to None so the caller can try the HTTP fetcher.
-        """
         try:
             model, res_id, field, width, height = self._parse_image_url(path, query)
             ir_binary = self._env["ir.binary"]
@@ -731,10 +545,6 @@ class OdooURLFetcher(URLFetcher):
         path: str,
         query: str,
     ) -> URLFetcherResponse | None:
-        """Resolve ``/report/barcode/`` URLs by generating the barcode directly.
-
-        Avoids HTTP self-requests that deadlock when all workers are busy.
-        """
         try:
             params = parse_qs(query)
             match = _BARCODE_RE.match(path)
@@ -779,7 +589,6 @@ class OdooURLFetcher(URLFetcher):
 
     @staticmethod
     def _parse_image_url(path: str, query: str) -> tuple:
-        """Extract model, id, field, width, height from a ``/web/image/`` URL."""
         width = 0
         height = 0
 
@@ -817,7 +626,6 @@ class OdooURLFetcher(URLFetcher):
         return model, res_id, field, width, height
 
     def _fetch_via_http(self, url: str, path: str) -> URLFetcherResponse:
-        """Authenticated HTTP fallback for URLs that aren't static or asset bundles."""
         parsed = urlparse(url)
         full_url = url if parsed.hostname else f"{self._base_url}{path}"
         try:
@@ -843,17 +651,6 @@ class OdooURLFetcher(URLFetcher):
     def _do_get(
         url: str, cookies: dict[str, str], verify: bool = True
     ) -> requests.Response:
-        """Issue a GET request, handling the test-mode lock and cookie.
-
-        During tests the main thread holds ``_registry_test_lock``, but the HTTP
-        worker serving this request needs it to open a ``TestCursor``. So: set
-        the ``test_request_key`` cookie (for ``assertCanOpenTestCursor``) and
-        temporarily release the lock so the worker can acquire it.
-
-        :param verify: validate the TLS certificate (see :func:`_verifies_tls`);
-            this request carries a live session cookie, so it must not be
-            downgraded to an unauthenticated channel off the loopback interface.
-        """
         current_test = modules.module.current_test
         if not current_test:
             return requests.get(url, cookies=cookies, timeout=10, verify=verify)
@@ -882,23 +679,6 @@ class OdooURLFetcher(URLFetcher):
 
 
 class WeasyPrintEngine:
-    """WeasyPrint rendering pipeline for a batch of pre-rendered HTML bodies.
-
-    Extracted from :class:`IrActionsReport` so the PDF engine runs on plain
-    ``(bodies, page_css)`` — no report record or registry — and is unit-testable
-    in isolation. Dependencies are injected at construction (the model's
-    ``_build_weasyprint_engine`` resolves them). All bodies of a batch share one
-    WeasyPrint session (fetcher, fontconfig, image cache): the first warms the
-    cache, the rest hit it.
-
-    :param fetcher_factory: zero-arg callable returning a URL-fetcher context
-        manager (the model's ``_build_url_fetcher`` override hook).
-    :param merge_pdfs: callable merging PDF ``BytesIO`` streams (``_merge_pdfs``).
-    :param native_merge_max: batch size above which a non-split render serializes
-        incrementally and merges with pypdf instead of the native
-        ``Document.copy()`` merge (see :data:`_NATIVE_MERGE_MAX_BODIES`).
-    """
-
     def __init__(
         self,
         fetcher_factory: Callable[[], OdooURLFetcher],
@@ -917,20 +697,6 @@ class WeasyPrintEngine:
         split: bool = False,
         pdf_options: dict[str, Any] | None = None,
     ) -> bytes | list[bytes]:
-        """Render HTML bodies to PDF.
-
-        :param bodies: complete HTML strings (one per record)
-        :param str page_css: ``@page`` CSS from the paperformat
-        :param bool split: return ``list[bytes]`` (one PDF per body) instead of
-            one merged PDF
-        :param pdf_options: kwargs forwarded verbatim to ``write_pdf``
-            (``pdf_variant``, ``attachments``, ``xmp_metadata``). With a
-            ``pdf_variant`` the batch is never merged through pypdf (which would
-            strip PDF/A intent/ID/XMP), so a multi-body PDF/A always uses the
-            native ``Document.copy`` merge.
-        :type pdf_options: dict | None
-        :return: PDF bytes, or ``list[bytes]`` when ``split=True``
-        """
         if not bodies:
             raise UserError(_("No content to render as PDF."))
 
@@ -1007,12 +773,6 @@ class WeasyPrintEngine:
         body_css: list,
         pdf_options: dict[str, Any] | None = None,
     ) -> bytes:
-        """Render one body to PDF bytes, freeing its Document immediately.
-
-        Peak memory is one Document at a time, not the whole batch. On the
-        malformed-OS/2 serialization error, applies the tolerant-font fallback
-        scoped to this body only. ``pdf_options`` is forwarded to ``write_pdf``.
-        """
         document = self._render_body_document(html_str, fetcher, body_css)
         buf = io.BytesIO()
         try:
@@ -1038,21 +798,6 @@ class WeasyPrintEngine:
         parsed_css_by_url: dict[str, Any],
         fetcher: OdooURLFetcher | None = None,
     ) -> tuple[str, list]:
-        """Inject @page CSS, parse this body's stylesheets, strip the parsed
-        ``<link>`` tags, and return this body's parsed CSS.
-
-        ``parsed_css_by_url`` is the batch-wide memo (``css_url`` -> parsed
-        ``weasyprint.CSS`` or ``None`` on failure); content-addressed asset
-        URLs are additionally cached process-wide (see :meth:`_parse_stylesheet`).
-        Keyed by URL, not shared across bodies, so a mixed-language batch
-        renders each body with its own direction-specific CSS
-        (``...rtl.min.css`` vs ``...min.css``). Links that fail to parse — or
-        that are unknown when no ``fetcher`` is given — are left in place for
-        WeasyPrint.
-
-        :return: ``(html_str, body_css)`` — stripped HTML and parsed
-            ``weasyprint.CSS`` for this body.
-        """
         html_with_css = _inject_page_css(body, page_css)
         body_css = []
         strip_urls = set()
@@ -1074,20 +819,6 @@ class WeasyPrintEngine:
 
     @staticmethod
     def _parse_stylesheet(css_url: str, fetcher: OdooURLFetcher) -> Any:
-        """Parse one linked stylesheet to a ``weasyprint.CSS``, or ``None`` on failure.
-
-        Content-addressed ``/web/assets/<unique>/...`` URLs go through the
-        process-wide cache in :class:`_WeasySharedState`, so the ~300KB report
-        bundle is fetched and parsed once per process (per bundle version), not
-        once per render. Parsed CSS objects are read-only during layout, so
-        sharing them across renders is safe. Other URLs are parsed per batch.
-
-        Parsing registers ``@font-face`` rules into the process-wide
-        :class:`FontConfiguration` — the same one every render passes to
-        WeasyPrint, as its docs require. Without ``font_config`` here,
-        ``preprocess_stylesheet`` silently drops ``@font-face`` rules and
-        bundle web fonts only work when installed as system fonts.
-        """
 
         def parse() -> Any:
             return weasyprint.CSS(
@@ -1109,12 +840,6 @@ class WeasyPrintEngine:
     def _render_body_document(
         self, html_str: str, fetcher: OdooURLFetcher, body_css: list
     ) -> WeasyDocument:
-        """Run WeasyPrint's layout pass for one body (no serialization).
-
-        Separating layout from serialization lets us combine pages from multiple
-        per-record Documents via ``Document.copy()`` before a single
-        serialization, avoiding the pypdf parse/re-serialize cycle.
-        """
         try:
             return weasyprint.HTML(string=html_str, url_fetcher=fetcher).render(
                 font_config=_weasy_state.get_font_config(),
@@ -1134,14 +859,6 @@ class WeasyPrintEngine:
         *,
         pdf_options: dict[str, Any] | None = None,
     ) -> bytes:
-        """Serialize laid-out WeasyPrint Documents to one PDF's bytes.
-
-        Only reached on :meth:`render`'s non-split native path (split
-        early-returns per body): all pages are combined into one Document via
-        ``Document.copy()`` and serialized once — no pypdf cycle. ``pdf_options``
-        is forwarded to ``write_pdf`` and applied to the combined Document, so a
-        merged batch stays one coherent PDF/A.
-        """
         opts = pdf_options or {}
         if len(documents) == 1:
             buf = io.BytesIO()
@@ -1160,16 +877,6 @@ class WeasyPrintEngine:
         *,
         pdf_options: dict[str, Any] | None = None,
     ) -> bytes:
-        """Re-render all bodies with the tolerant-font patch after an OS/2 error.
-
-        Only reached on :meth:`render`'s non-split native path. ``processed`` is
-        the ``(html_str, body_css)`` list from :meth:`_process_body_html`, so
-        each body keeps its own stylesheets; multi-body falls back to the pypdf
-        merge. ``pdf_options`` is forwarded to each ``write_pdf``. A single-body
-        PDF/A keeps its conformance; the rare multi-body pypdf merge can't, but
-        this triggers only on a broken system font and PDF/A output is
-        single-invoice in practice.
-        """
         tolerant_pdfs = [
             _write_pdf_tolerant_fonts(html_str, fetcher, body_css, pdf_options)
             for html_str, body_css in processed
@@ -1180,13 +887,6 @@ class WeasyPrintEngine:
         return self._merge_pdfs(streams).getvalue()
 
     def _pdf_render_error(self, detail: str) -> UserError:
-        """Build the user-facing error for a WeasyPrint layout/serialization failure.
-
-        Appends the CSS/HTML warnings captured during this render (see
-        :class:`_WeasyWarningCapture` and ``_weasy_warning_capture.capture``):
-        they usually name the exact broken rule, turning "rendering failed"
-        into a fixable diagnosis.
-        """
         message = _(
             "PDF rendering failed. Please check the report template.\n\nDetails: %s",
             detail,
@@ -1312,7 +1012,6 @@ class IrActionsReport(models.Model):
         }
 
     def _get_client_only_keys(self) -> frozenset[str]:
-        """Keys carried by the report action dicts that ``report_action`` builds."""
         return super()._get_client_only_keys() | {
             "target",
             "context",
@@ -1321,7 +1020,6 @@ class IrActionsReport(models.Model):
         }
 
     def associated_view(self) -> dict[str, Any] | bool:
-        """Search naively for the view(s) used in rendering, for the report form view."""
         self.ensure_one()
         action_ref = self.env.ref("base.action_ui_view", raise_if_not_found=False)
         if not action_ref or len(self.report_name.split(".")) < 2:
@@ -1334,7 +1032,6 @@ class IrActionsReport(models.Model):
         return action_data
 
     def create_action(self) -> bool:
-        """Create a contextual action for each report."""
         self.check_access("write")
         for model, reports in self.grouped("model").items():
             model_id = self.env["ir.model"]._get(model).id
@@ -1342,19 +1039,11 @@ class IrActionsReport(models.Model):
         return True
 
     def unlink_action(self) -> bool:
-        """Remove the contextual actions created for the reports."""
         self.check_access("write")
         self.filtered("binding_model_id").write({"binding_model_id": False})
         return True
 
     def _get_attachment_filenames(self, records: Any) -> dict[int, Any]:
-        """Evaluate the report's ``attachment`` filename expression per record.
-
-        Evaluated once per record so callers share the result instead of
-        re-``safe_eval``-ing it (it was formerly evaluated twice per record).
-
-        :return: ``{record.id: evaluated name}``; falsy evaluations become ``""``.
-        """
         self.ensure_one()
         if not self.attachment:
             return dict.fromkeys(records.ids, "")
@@ -1365,15 +1054,6 @@ class IrActionsReport(models.Model):
         }
 
     def _retrieve_attachments(self, records: Any) -> dict[int, Any]:
-        """Batched version of :meth:`retrieve_attachment`.
-
-        ONE ``ir.attachment`` search for the whole recordset instead of one per
-        record — 1 query vs N on a large batch.
-
-        :param records: recordset of ``self.model`` owning the attachments.
-        :return: ``{record.id: ir.attachment}``; records with no evaluated name
-            or no stored attachment are absent.
-        """
         self.ensure_one()
         names_by_id = {
             res_id: name
@@ -1397,28 +1077,12 @@ class IrActionsReport(models.Model):
         return result
 
     def retrieve_attachment(self, record: Any) -> Any | None:
-        """Retrieve an attachment for a specific record.
-
-        Per-record extension hook (e.g. snailmail overrides it to force a
-        re-render); the batched implementation is :meth:`_retrieve_attachments`.
-
-        :param record: the record owning the attachment.
-        :return: an ir.attachment record or None.
-        """
         return self._retrieve_attachments(record).get(record.id)
 
     def get_paperformat(self) -> Any:
         return self.paperformat_id or self.env.company.paperformat_id
 
     def get_paperformat_by_xmlid(self, xml_id: str) -> Any:
-        """Resolve a paperformat from an action XML id, for use from QWeb templates.
-
-        Called from ``web.report_templates`` to read ``css_margins``; falls back
-        to the company paperformat when ``xml_id`` is falsy.
-
-        :param str xml_id: external id of the report action
-        :return: report.paperformat record
-        """
         return (
             self.env.ref(xml_id).get_paperformat()
             if xml_id
@@ -1450,14 +1114,6 @@ class IrActionsReport(models.Model):
         landscape: bool = False,
         specific_paperformat_args: dict[str, str] | None = None,
     ) -> str:
-        """Convert a report.paperformat record into CSS @page rules.
-
-        :param paperformat_id: report.paperformat record
-        :param bool landscape: force landscape orientation
-        :param specific_paperformat_args: data-report-* overrides from HTML
-        :type specific_paperformat_args: dict[str, str] | None
-        :return: CSS string with @page rules and running element declarations
-        """
         args = specific_paperformat_args or {}
         for dead_attr in ("data-report-header-spacing", "data-report-dpi"):
             if dead_attr in args:
@@ -1531,23 +1187,10 @@ class IrActionsReport(models.Model):
         )
 
     def _build_url_fetcher(self) -> OdooURLFetcher:
-        """Build the :class:`OdooURLFetcher` for WeasyPrint (model-level override hook).
-
-        Use as a context manager so the temporary session is cleaned up::
-
-            with self._build_url_fetcher() as fetcher:
-                weasyprint.HTML(..., url_fetcher=fetcher).write_pdf()
-        """
         return OdooURLFetcher(self.env)
 
     @api.model
     def _native_merge_max_bodies(self) -> int:
-        """Batch size above which a non-split render serializes incrementally.
-
-        Read from the ``report.weasyprint_native_merge_max`` config parameter,
-        falling back to :data:`_NATIVE_MERGE_MAX_BODIES`.  A malformed value is
-        ignored with a warning rather than crashing the render.
-        """
         param = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -1566,10 +1209,6 @@ class IrActionsReport(models.Model):
 
     @api.model
     def _build_weasyprint_engine(self) -> WeasyPrintEngine:
-        """Assemble a :class:`WeasyPrintEngine` with dependencies resolved from
-        the environment, so the engine never reaches back into the registry.
-        ``_build_url_fetcher`` stays the override hook (bound here as the factory).
-        """
         report_model = self.env["ir.actions.report"]
         return WeasyPrintEngine(
             fetcher_factory=report_model._build_url_fetcher,
@@ -1580,18 +1219,6 @@ class IrActionsReport(models.Model):
     def _prepare_weasyprint_html(
         self, html: str, report_model: str | bool = False
     ) -> tuple[list[str], list[int | None], dict[str, str]]:
-        """Prepare HTML documents for WeasyPrint rendering.
-
-        Headers/footers stay embedded and are placed in page margins via CSS
-        running elements (position: running()).
-
-        :param str html: rendered QWeb HTML containing all records
-        :param report_model: model name for record identification
-        :type report_model: str | bool
-        :return: ``(bodies, res_ids, specific_paperformat_args)`` — complete HTML
-            strings (one per record), matching record ids (or None), and the
-            data-report-* overrides.
-        """
         layout = self._get_layout()
         if not layout:
             return [], [], {}
@@ -1683,13 +1310,6 @@ class IrActionsReport(models.Model):
     def _get_document_titles(
         self, articles: list, report_model: str | bool
     ) -> dict[int, str]:
-        """Evaluate ``print_report_name`` for each record in the batch.
-
-        Returns ``{res_id: name}`` used as the per-document PDF ``<title>`` (and
-        thus the /Title metadata). Same expression the download controller uses
-        for the filename, so the PDF is titled exactly like its file. Evaluation
-        errors skip the record — a broken expression must never block printing.
-        """
         if not (self.print_report_name and report_model):
             return {}
         res_ids = [
@@ -1719,7 +1339,6 @@ class IrActionsReport(models.Model):
 
     @staticmethod
     def _has_duplicated_ids(res_ids: list[int] | None) -> bool:
-        """True if ``res_ids`` contains duplicates (blocks per-record splitting)."""
         return bool(res_ids and len(res_ids) != len(set(res_ids)))
 
     @staticmethod
@@ -1730,25 +1349,6 @@ class IrActionsReport(models.Model):
         dpi: int | None = None,
         jpeg_quality: int | None = None,
     ) -> dict[str, Any] | None:
-        """Translate high-level PDF/A parameters into WeasyPrint ``write_pdf`` kwargs.
-
-        Keeps callers free of the ``weasyprint`` import.
-
-        :param pdf_variant: e.g. ``"pdf/a-3b"``. Also enables ``custom_metadata``
-            so the title and producer flow into the PDF/A XMP.
-        :param attachments: list of :class:`weasyprint.Attachment` or dicts
-            ``{"content", "name", "relationship", "description"}`` (Factur-X XML
-            uses ``relationship="Data"``).
-        :param xmp_metadata: raw XMP RDF fragments (``bytes``/``str``), each a
-            self-contained ``<rdf:RDF>…</rdf:RDF>`` block WeasyPrint appends
-            inside its ``<x:xmpmeta>`` (how the Factur-X extension schema is
-            added); each is wrapped as a ``data:`` URI.
-        :param dpi: cap embedded raster images at this resolution — the main
-            lever on file size for image-heavy reports (catalogs, photo labels).
-        :param jpeg_quality: re-encode embedded JPEGs at this quality (0-95).
-        :return: a ``write_pdf`` kwargs dict, or ``None`` when nothing was
-            requested.
-        """
         if not (pdf_variant or attachments or xmp_metadata or dpi or jpeg_quality):
             return None
         options: dict[str, Any] = {}
@@ -1796,31 +1396,6 @@ class IrActionsReport(models.Model):
         dpi: int | None = None,
         jpeg_quality: int | None = None,
     ) -> bytes | list[bytes]:
-        """Render HTML bodies to PDF using WeasyPrint.
-
-        Resolves the paperformat to ``@page`` CSS, then delegates the WeasyPrint
-        pipeline to :class:`WeasyPrintEngine`.
-
-        :param bodies: list of complete HTML strings
-        :type bodies: list[str]
-        :param report_ref: report reference for paperformat resolution
-        :param bool landscape: force landscape orientation
-        :param specific_paperformat_args: data-report-* overrides
-        :type specific_paperformat_args: dict[str, str] | None
-        :param bool _split: if True, return ``list[bytes]`` — one PDF per
-            body — instead of a single merged PDF.
-        :param pdf_variant: PDF/A variant to render natively (e.g. ``"pdf/a-3b"``)
-        :param attachments: files to embed (Factur-X XML etc.); see
-            :meth:`_build_pdf_options`
-        :param xmp_metadata: extra XMP RDF fragments (e.g. Factur-X schema)
-        :param dpi: cap embedded raster images at this resolution
-        :param jpeg_quality: re-encode embedded JPEGs at this quality (0-95)
-        :return: PDF content as bytes, or list[bytes] when ``_split=True``
-
-        The ``report_watermark`` context key stamps its text diagonally across
-        every page (e.g. ``with_context(report_watermark="DRAFT")``) without
-        touching the template.
-        """
         if not bodies:
             raise UserError(_("No content to render as PDF."))
 
@@ -1864,18 +1439,6 @@ class IrActionsReport(models.Model):
         height: int,
         image_format: str = "jpg",
     ) -> list[bytes | None]:
-        """Render HTML bodies to images using WeasyPrint.
-
-        Renders each body to PDF with WeasyPrint, rasterizes page 1 with PyMuPDF,
-        then uses PIL for format conversion and resizing.
-
-        :param bodies: list of HTML strings
-        :type bodies: list[str]
-        :param int width: target width in pixels
-        :param int height: target height in pixels
-        :param str image_format: 'jpg' or 'png'
-        :return: list of image bytes (or None on error)
-        """
         if modules.module.current_test and not self.env.context.get(
             "force_report_rendering"
         ):
@@ -1924,16 +1487,6 @@ class IrActionsReport(models.Model):
     def _inject_header_footer_html(
         body: str, header: str | None = None, footer: str | None = None
     ) -> str:
-        """Inject standalone header/footer HTML into a body as CSS running elements.
-
-        Extracts their content and wraps it in ``<div class="header">`` /
-        ``<div class="footer">`` inside the body.
-
-        :param str body: complete HTML document
-        :param header: standalone header HTML document (or None)
-        :param footer: standalone footer HTML document (or None)
-        :return: modified HTML body
-        """
         body = str(body)
         inject = ""
         if header:
@@ -1959,7 +1512,6 @@ class IrActionsReport(models.Model):
 
     @api.model
     def _get_report_from_name(self, report_name: str) -> Self:
-        """Return the first ir.actions.report with this ``report_name``."""
         report_obj = self.env["ir.actions.report"]
         conditions = [("report_name", "=", report_name)]
         context = self.env["res.users"].context_get()
@@ -1967,15 +1519,6 @@ class IrActionsReport(models.Model):
 
     @api.model
     def _get_report(self, report_ref: int | str | Any) -> Self:
-        """Get the report (with sudo) from a reference
-
-        :param report_ref: can be one of
-
-            - ir.actions.report id
-            - ir.actions.report record
-            - ir.model.data reference to ir.actions.report
-            - ir.actions.report report_name
-        """
         ReportSudo = self.env["ir.actions.report"].sudo()
         if isinstance(report_ref, bool):
             raise ValueError(
@@ -2081,22 +1624,11 @@ class IrActionsReport(models.Model):
 
     @api.model
     def get_available_barcode_masks(self) -> dict[str, Callable]:
-        """Extension hook: return available QR-code masks.
-
-        Maps each mask code to a function ``(width, height, reportlab Drawing)``
-        that returns the masked reportlab Drawing.
-        """
         return {}
 
     def _render_template(
         self, template: str, values: dict[str, Any] | None = None
     ) -> bytes:
-        """Render a QWeb template python-side, with the extra variables/methods reports use.
-
-        :param values: additional methods/variables for the rendering
-        :returns: html representation of the template
-        :rtype: bytes
-        """
         if values is None:
             values = {}
 
@@ -2156,12 +1688,6 @@ class IrActionsReport(models.Model):
         data: dict[str, Any] | None,
         report_type: str,
     ) -> tuple[list[int] | None, dict[str, Any]]:
-        """Shared normalization for every render entry point.
-
-        Copies ``data`` (entry points mutate it and must not touch the caller's
-        dict), defaults ``report_type``, and wraps a single id into a list.
-        Idempotent, so nested entry points can each normalize their own arguments.
-        """
         data = dict(data) if data else {}
         data.setdefault("report_type", report_type)
         if isinstance(res_ids, int):
@@ -2338,12 +1864,6 @@ class IrActionsReport(models.Model):
     def _prepare_pdf_report_attachment_vals_list(
         self, report: Self, streams: dict[int | bool, dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Hook: build the attachment values to create during PDF report generation.
-
-        :param report: the report (with sudo).
-        :param streams: per-record dict of pdf content and existing attachments.
-        :return: attachment values list for creation.
-        """
         attachment_vals_list = []
         pending = []
         for res_id, stream_data in streams.items():
@@ -2583,11 +2103,6 @@ class IrActionsReport(models.Model):
         data: dict[str, Any] | None = None,
         config: bool = True,
     ) -> dict[str, Any]:
-        """Return an action of type ir.actions.report.
-
-        :param docids: id/ids/browse record of records to print (empty list if unused)
-        :rtype: dict[str, Any]
-        """
         context = self.env.context
         if docids:
             if isinstance(docids, models.Model):
@@ -2632,11 +2147,6 @@ class IrActionsReport(models.Model):
         return action
 
     def get_valid_action_reports(self, model: str, record_ids: list[int]) -> list[int]:
-        """Return the ids of actions whose domain matches at least one of ``record_ids``.
-
-        :param model: the model of the records to validate
-        :param record_ids: ids of records to validate
-        """
         records = self.env[model].browse(record_ids)
         actions_with_domain = self.filtered("domain")
         valid_action_report_ids = (self - actions_with_domain).ids

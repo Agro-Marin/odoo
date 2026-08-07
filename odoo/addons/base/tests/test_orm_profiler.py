@@ -1,13 +1,9 @@
-"""Tests for the aggregate ORM profiler (odoo.libs.profiling.orm_profiler)."""
-
 from odoo.libs.profiling import orm_profiler
 from odoo.tests.common import TransactionCase, tagged
 
 
 @tagged("-standard", "profiler")
 class TestOrmProfiler(TransactionCase):
-    """Test ORM profiler recording and reporting when enabled."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -28,7 +24,6 @@ class TestOrmProfiler(TransactionCase):
         self.profiler.clear()
 
     def test_create_recorded(self):
-        """create() operations are recorded in profiler."""
         self.env["res.partner.category"].create(
             [{"name": f"Prof Cat {i}"} for i in range(3)]
         )
@@ -45,7 +40,6 @@ class TestOrmProfiler(TransactionCase):
         self.assertGreater(stats.time, 0)
 
     def test_write_recorded(self):
-        """write() operations are recorded in profiler."""
         categories = self.env["res.partner.category"].create(
             [{"name": f"Prof Cat {i}"} for i in range(3)]
         )
@@ -63,7 +57,6 @@ class TestOrmProfiler(TransactionCase):
         self.assertEqual(stats.records, 3)
 
     def test_unlink_recorded(self):
-        """unlink() operations are recorded in profiler."""
         categories = self.env["res.partner.category"].create(
             [{"name": f"Prof Cat {i}"} for i in range(3)]
         )
@@ -79,7 +72,6 @@ class TestOrmProfiler(TransactionCase):
         self.assertTrue(entries, "unlink should be recorded")
 
     def test_search_recorded(self):
-        """search() operations are recorded in profiler."""
         self.profiler.clear()
 
         self.env["res.partner.category"].search([("name", "like", "Prof")])
@@ -92,7 +84,6 @@ class TestOrmProfiler(TransactionCase):
         self.assertTrue(entries, "search should be recorded")
 
     def test_read_recorded(self):
-        """read() operations are recorded in profiler."""
         categories = self.env["res.partner.category"].create(
             [{"name": f"Prof Cat {i}"} for i in range(3)]
         )
@@ -108,7 +99,6 @@ class TestOrmProfiler(TransactionCase):
         self.assertTrue(entries, "read should be recorded")
 
     def test_report_emits_warning(self):
-        """report() emits structured warning log."""
         self.env["res.partner.category"].create(
             [{"name": f"Report Cat {i}"} for i in range(3)]
         )
@@ -126,7 +116,6 @@ class TestOrmProfiler(TransactionCase):
         )
 
     def test_clear_resets_data(self):
-        """clear() resets all profiler data."""
         self.env["res.partner.category"].create({"name": "Clear Test"})
         self.assertTrue(self.profiler._data, "Data should exist before clear")
 
@@ -136,7 +125,6 @@ class TestOrmProfiler(TransactionCase):
         self.assertEqual(self.profiler._total_time, 0.0)
 
     def test_timing_accumulates(self):
-        """Multiple operations accumulate timing correctly."""
         for i in range(3):
             self.env["res.partner.category"].create({"name": f"Acc Cat {i}"})
 
@@ -151,8 +139,6 @@ class TestOrmProfiler(TransactionCase):
 
 @tagged("-standard", "profiler")
 class TestOrmProfilerDisabled(TransactionCase):
-    """Test that profiling is zero-cost when disabled."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -165,7 +151,6 @@ class TestOrmProfilerDisabled(TransactionCase):
         super().tearDownClass()
 
     def test_no_profiler_when_disabled(self):
-        """When disabled, CRUD operations succeed without profiler."""
         self.assertFalse(orm_profiler._orm_profiling_enabled)
         cat = self.env["res.partner.category"].create({"name": "Disabled Test"})
         cat.write({"name": "Updated"})

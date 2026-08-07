@@ -1,10 +1,3 @@
-"""Unit coverage for ``odoo.libs.locale.conversions``.
-
-This leaf had no unit tests; the suite pins ``py_to_js_locale`` and
-``posix_to_ldml`` (including the ``%-`` no-pad flag and the descriptive
-error on an unsupported directive).
-"""
-
 import babel
 import pytest
 

@@ -418,7 +418,6 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(self.test_country.name_position, "after")
 
     def test_36_crud_write_m2m_ops(self):
-        """Test that m2m operations work as expected"""
         categ_1 = self.env["res.partner.category"].create({"name": "TestCateg1"})
         categ_2 = self.env["res.partner.category"].create({"name": "TestCateg2"})
         self.action.write(
@@ -506,7 +505,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_37_field_path_traversal(self):
-        """Test the update_path field traversal - allowing records to be updated along relational links"""
         self.action.write(
             {
                 "state": "object_write",
@@ -564,7 +562,6 @@ ZeroDivisionError: division by zero"""
             self.action.flush_recordset(["update_path", "update_field_id"])
 
     def test_39_boolean_update(self):
-        """Test that boolean fields can be updated"""
         self.action.write(
             {
                 "state": "object_write",
@@ -657,7 +654,6 @@ ZeroDivisionError: division by zero"""
             self.action.write({"child_ids": [Command.set([self.action.id])]})
 
     def test_50_groups(self):
-        """check the action is returned only for groups dedicated to user"""
         Actions = self.env["ir.actions.actions"]
 
         group0 = self.env["res.groups"].create({"name": "country group"})
@@ -699,7 +695,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_60_sort(self):
-        """check the actions sorted by sequence"""
         Actions = self.env["ir.actions.actions"]
 
         self.action.write(
@@ -811,7 +806,6 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(self.action._eval_value()[self.action.id], 20.99)
 
     def test_91_update_related_model_cleared_on_state_change(self):
-        """update_related_model_id must be cleared when switching away from object_write."""
         self.action.write(
             {
                 "state": "object_write",
@@ -832,7 +826,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_92_relation_chain_duplicate_field_names(self):
-        """_get_relation_chain must handle paths with repeated field names (e.g. parent_id.parent_id)."""
         self.action.write(
             {
                 "state": "object_write",
@@ -852,7 +845,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_93_webhook_timeout(self):
-        """A webhook read timeout must not escape postcommit; it is logged."""
         self.action.write(
             {
                 "state": "webhook",
@@ -875,7 +867,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_94_webhook_connection_error(self):
-        """A webhook connection error must not escape postcommit; it is logged."""
         self.action.write(
             {
                 "state": "webhook",
@@ -898,7 +889,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_95_code_sandbox_blocked(self):
-        """The safe_eval sandbox must reject forbidden constructs in a code action."""
         with self.assertRaises(ValidationError):
             self.action.write(
                 {
@@ -916,7 +906,6 @@ ZeroDivisionError: division by zero"""
             self.action.with_context(self.context).run()
 
     def test_96_eval_value_m2m_bad_value(self):
-        """A non-numeric m2m value must not raise; it yields a no-op command list."""
         self.action.write(
             {
                 "state": "object_write",
@@ -930,7 +919,6 @@ ZeroDivisionError: division by zero"""
         self.assertFalse(run_res)
 
     def test_97_eval_value_m2m_unknown_operation(self):
-        """An unknown/falsy m2m operation must leave the field untouched (no-op)."""
         self.action.write(
             {
                 "state": "object_write",
@@ -942,7 +930,6 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(self.action._eval_value()[self.action.id], [])
 
     def test_98_object_write_no_path_errors(self):
-        """object_write with neither onchange_self nor update_path raises."""
         self.action.write(
             {
                 "state": "object_write",
@@ -955,7 +942,6 @@ ZeroDivisionError: division by zero"""
             self.action.with_context(self.context).run()
 
     def test_99_object_copy_no_resource_ref_errors(self):
-        """object_copy with an empty resource_ref raises a clean UserError."""
         self.action.write(
             {
                 "state": "object_copy",
@@ -968,7 +954,6 @@ ZeroDivisionError: division by zero"""
             self.action.with_context(self.context).run()
 
     def test_a0_relation_chain_unknown_field(self):
-        """An unknown field in update_path raises a translated ValidationError."""
         with self.assertRaises(ValidationError):
             self.action.write(
                 {
@@ -980,7 +965,6 @@ ZeroDivisionError: division by zero"""
             self.action.flush_recordset(["update_path", "update_field_id"])
 
     def test_a1_create_action_access(self):
-        """A non-writer calling create_action raises AccessError."""
         self.action.write(
             {
                 "model_id": self.res_partner_model.id,
@@ -991,7 +975,6 @@ ZeroDivisionError: division by zero"""
             self.action.with_user(self.user_demo.id).create_action()
 
     def test_a2_write_blank_code_records_history(self):
-        """Blanking a code action's code records a history entry (mirrors create)."""
         History = self.env["ir.actions.server.history"]
         before = History.search_count([("action_id", "=", self.action.id)])
         self.action.write({"code": ""})
@@ -1003,14 +986,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_a3_active_less_non_code_run_warns(self):
-        """A non-``code`` action run with no active record warns instead of
-        no-op'ing silently.
-
-        Every runner except ``code`` needs a target record; with empty
-        ``active_ids`` the per-record loop never iterates (e.g. a cron pointed at
-        an ``object_write``). Assert a warning naming the action is emitted and
-        the record is left untouched.
-        """
         self.action.write(
             {
                 "state": "object_write",
@@ -1033,9 +1008,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_a4_active_less_code_run_does_not_warn(self):
-        """A ``code`` action is the one type that legitimately runs without a
-        target record (its runner is ``_multi``), so it must NOT emit the
-        no-target warning."""
         code_action = self.env["ir.actions.server"].create(
             {
                 "name": "ActiveLessCode",
@@ -1049,8 +1021,6 @@ ZeroDivisionError: division by zero"""
             code_action.run()
 
     def test_b0_eval_value_bad_integer_raises_clean_error(self):
-        """A non-numeric static value for an integer field raises a clean UserError,
-        never leaking the raw string into write() (which would crash with ValueError)."""
         self.action.write(
             {
                 "state": "object_write",
@@ -1063,7 +1033,6 @@ ZeroDivisionError: division by zero"""
             self.action._eval_value()
 
     def test_b1_eval_value_bad_float_raises_clean_error(self):
-        """A non-numeric static value for a float field raises a clean UserError."""
         self.action.write(
             {
                 "state": "object_write",
@@ -1076,7 +1045,6 @@ ZeroDivisionError: division by zero"""
             self.action._eval_value()
 
     def test_b2_eval_value_blank_numeric_is_typed_zero(self):
-        """A blank static value degrades to a typed empty (0 / False), not a crash."""
         self.action.write(
             {
                 "state": "object_write",
@@ -1090,8 +1058,6 @@ ZeroDivisionError: division by zero"""
         self.assertIs(self.action._eval_value()[self.action.id], False)
 
     def test_b3_relation_chain_degrades_without_raising_on_read(self):
-        """_get_relation_chain must NOT raise on an invalid path by default, so that
-        stored computes (crud_model_id, warning) can never explode on plain read."""
         action = self.env["ir.actions.server"].new(
             {
                 "model_id": self.res_partner_model.id,
@@ -1103,8 +1069,6 @@ ZeroDivisionError: division by zero"""
         self.assertFalse(action.update_field_id)
 
     def test_b4_empty_path_segment_raises_clear_error_on_save(self):
-        """A path with an empty segment (double dot) is rejected on save with a
-        message that names the empty segment, not a baffling "Unknown field ''"."""
         with self.assertRaises(ValidationError) as cm:
             self.action.write(
                 {
@@ -1117,17 +1081,10 @@ ZeroDivisionError: division by zero"""
         self.assertIn("empty", str(cm.exception).lower())
 
     def test_b5_available_models_not_state_dependent(self):
-        """available_model_ids is state-invariant, so it must not declare a
-        dependency on `state` (which would force a needless ir.model search on
-        every state change)."""
         compute = type(self.env["ir.actions.server"])._compute_available_model_ids
         self.assertNotIn("state", getattr(compute, "_depends", ()))
 
     def test_b6_equation_evaluates_without_sudo_privilege(self):
-        """SECURITY INVARIANT: an expression must evaluate with the triggering
-        user's own privilege (``env.su`` False), so record ACLs still apply. The
-        dispatch runs sudo, but the per-record eval-context env must stay the
-        user's env, NOT ``run_self.env`` (sudo) — that would bypass ACLs."""
         self.action.write(
             {
                 "state": "object_write",
@@ -1145,9 +1102,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_b7_onchange_new_record_writes_cache_only(self):
-        """An object_write action triggered as an onchange on a NEW record (no
-        origin id) must set the value in the record's in-memory cache via the
-        early-return branch of _run, never touching the database."""
         self.action.write(
             {
                 "state": "object_write",
@@ -1164,9 +1118,6 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(new_record.function, "Set By Action")
 
     def test_b8_onchange_existing_record_writes_cache_not_db(self):
-        """An object_write onchange on an EXISTING record updates only the
-        in-memory cache of the edited pseudo-record; the persisted row is left
-        untouched (onchange must never write to the database)."""
         self.action.write(
             {
                 "state": "object_write",
@@ -1189,7 +1140,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_c0_eval_value_sequence(self):
-        """evaluation_type == 'sequence' draws the next value from the sequence."""
         sequence = self.env["ir.sequence"].create(
             {"name": "Test Seq", "prefix": "SEQ-", "padding": 4, "number_next": 1}
         )
@@ -1205,7 +1155,6 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(value, "SEQ-0001")
 
     def test_c1_eval_value_blank_float_is_typed_zero(self):
-        """A blank value on a float field yields 0.0, not '' (mirrors test_b2 for int)."""
         self.action.write(
             {
                 "state": "object_write",
@@ -1219,8 +1168,6 @@ ZeroDivisionError: division by zero"""
         self.assertIsInstance(result, float)
 
     def test_c2_eval_value_m2o_parsed_zero_is_false(self):
-        """A value that parses to 0 on a many2one field clears the relation (False),
-        not a spurious id 0."""
         self.action.write(
             {
                 "state": "object_write",
@@ -1232,7 +1179,6 @@ ZeroDivisionError: division by zero"""
         self.assertIs(self.action._eval_value()[self.action.id], False)
 
     def test_c3_gc_histories_prunes_to_max(self):
-        """The autovacuum keeps at most ``_max_entries_per_action`` rows per action."""
         History = self.env["ir.actions.server.history"]
         action = self.env["ir.actions.server"].create(
             {
@@ -1256,8 +1202,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_c4_webhook_sample_payload_structure(self):
-        """The webhook sample payload always carries _id/_model/_action plus the
-        selected fields, as valid JSON."""
         import json
 
         self.action.write(
@@ -1274,10 +1218,6 @@ ZeroDivisionError: division by zero"""
         self.assertIn("name", payload)
 
     def test_c5_record_level_acl_is_the_live_gate(self):
-        """For a groupless action, the triggering user's write access on the
-        concrete records is the real gate (the model-level check runs under the
-        sudo dispatch env and never blocks). A user lacking record write access
-        is refused with a logged AccessError."""
         rule_model = self.env["ir.model"].search([("model", "=", "ir.rule")])
         a_rule = self.env["ir.rule"].search([], limit=1)
         self.assertTrue(a_rule, "precondition: at least one ir.rule exists")
@@ -1306,8 +1246,6 @@ ZeroDivisionError: division by zero"""
 
 @tagged("post_install", "-at_install")
 class TestActionsPath(common.TransactionCase):
-    """Cover _check_path format/reserved/cross-table uniqueness (IACT-T1)."""
-
     def _make_window(self, path):
         return self.env["ir.actions.act_window"].create(
             {
@@ -1318,31 +1256,20 @@ class TestActionsPath(common.TransactionCase):
         )
 
     def test_path_invalid_format(self):
-        """The path must be lowercase alnum/_/- starting with a letter."""
         for bad in ("Foo", "1abc", "a b", "-abc"):
             with self.subTest(path=bad), self.assertRaises(ValidationError):
                 self._make_window(bad)
 
     def test_path_reserved_prefixes(self):
-        """The reserved prefixes/literal must be rejected."""
         for bad in ("m-foo", "action-foo", "new"):
             with self.subTest(path=bad), self.assertRaises(ValidationError):
                 self._make_window(bad)
 
     def test_path_valid(self):
-        """A well-formed, unused path is accepted."""
         action = self._make_window("my-valid_path1")
         self.assertEqual(action.path, "my-valid_path1")
 
     def test_path_unique_cross_table(self):
-        """The same path on an act_window and an act_url is rejected cross-table.
-
-        Now by ``ir.actions.path``'s unique index rather than by a Python
-        re-read: the per-child indexes each cover one table, and a re-read
-        cannot see a concurrently committed row at all. The database therefore
-        raises IntegrityError, which the service layer turns into the
-        ValidationError a user sees.
-        """
         self._make_window("shared-path")
         with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
             with self.env.cr.savepoint():
@@ -1356,7 +1283,6 @@ class TestActionsPath(common.TransactionCase):
                 self.env.flush_all()
 
     def test_the_cross_table_rejection_names_the_path_field(self):
-        """The message the service layer builds from that IntegrityError."""
         self._make_window("shared-path-msg")
         try:
             with self.env.cr.savepoint(), mute_logger("odoo.db.cursor"):
@@ -1376,10 +1302,7 @@ class TestActionsPath(common.TransactionCase):
 
 
 class TestActionsReadAndXmlId(common.TransactionCase):
-    """Cover act_window help placeholder and the _for_xml_id guard (IACT-T2)."""
-
     def test_placeholder_with_bad_context(self):
-        """A malformed/non-dict context degrades to {}; help still populated."""
         action = self.env["ir.actions.act_window"].create(
             {
                 "name": "HelpWindow",
@@ -1391,7 +1314,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         self.assertIsNotNone(action._get_action_dict()["help"])
 
     def test_placeholder_with_raising_context(self):
-        """A context that raises on eval degrades to {}; help still populated."""
         action = self.env["ir.actions.act_window"].create(
             {
                 "name": "HelpWindow2",
@@ -1405,11 +1327,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
     PLACEHOLDER = "<p>GENERATED PLACEHOLDER</p>"
 
     def _action_on_a_model_that_generates_a_placeholder(self, help_text):
-        """An act_window whose target model overrides get_empty_list_help.
-
-        Patched rather than borrowed from ``mail``: these run at base install,
-        where no other module is loaded yet.
-        """
         self.patch(
             type(self.env["res.partner"]),
             "get_empty_list_help",
@@ -1420,19 +1337,12 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         )
 
     def test_read_returns_the_stored_help_verbatim(self):
-        """The action's own form edits ``help``, so read must not rewrite it.
-
-        The placeholder used to be added in a read() override, so the form
-        displayed the target model's generated text in the editable field and
-        saving wrote it back over the author's.
-        """
         action = self._action_on_a_model_that_generates_a_placeholder(
             "<p>MY OWN HELP</p>"
         )
         self.env.flush_all()
         self.assertEqual(action.read(["help"])[0]["help"], "<p>MY OWN HELP</p>")
 
-        # what the web client round-trips when the form is saved
         action.write({"help": action.read(["help"])[0]["help"]})
         self.env.flush_all()
         self.env.invalidate_all()
@@ -1443,7 +1353,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         self.assertEqual(action._get_action_dict()["help"], self.PLACEHOLDER)
 
     def test_for_xml_id_valid_window(self):
-        """_for_xml_id of a valid window returns a dict limited to readable fields."""
         action = self.env["ir.actions.act_window"].create(
             {
                 "name": "XmlIdWindow",
@@ -1465,16 +1374,10 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         self.assertTrue(set(result.keys()).issubset(readable))
 
     def test_for_xml_id_non_action_raises(self):
-        """_for_xml_id of a non-action xml_id raises ValidationError."""
         with self.assertRaises(ValidationError):
             self.env["ir.actions.actions"]._for_xml_id("base.model_res_partner")
 
     def test_get_action_dict_act_url_no_invalid_field_warning(self):
-        """act_url._get_action_dict() must not warn about virtual fields (IRA-L2).
-
-        'close' is in the readable-fields allowlist but is not an ORM field;
-        feeding it to read() used to log 'Invalid field(s) [...]' on every load.
-        """
         action = self.env["ir.actions.act_url"].create(
             {"name": "UrlAction", "url": "https://example.com"}
         )
@@ -1486,10 +1389,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         self.assertTrue(set(result) <= set(action._fields))
 
     def test_get_action_dict_window_close_no_invalid_field_warning(self):
-        """act_window_close._get_action_dict() must not warn (IRA-L2).
-
-        'effect'/'infos' are readable but virtual (not ORM fields).
-        """
         action = self.env["ir.actions.act_window_close"].create({"name": "CloseAction"})
         self.assertNotIn("effect", action._fields)
         self.assertNotIn("infos", action._fields)
@@ -1499,15 +1398,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         self.assertNotIn("infos", result)
 
     def test_write_binding_irrelevant_field_skips_cache_clear(self):
-        """Writing only binding-irrelevant fields must not clear the cache (IRA-L3).
-
-        Neither does writing a cached field of an action no registry cache can
-        hold: _get_bindings selects only rows with binding_model_id set and
-        load_menus only embeds a path, so an action with neither is in nothing
-        -- the same rule create() applies (test_unbound_create_keeps_bindings_
-        cache). Acquiring a binding or a path changes that membership, so those
-        two always clear.
-        """
         action = self.env["ir.actions.act_url"].create(
             {"name": "CacheAction", "url": "https://example.com"}
         )
@@ -1542,9 +1432,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         )
 
     def test_write_server_action_value_field_skips_cache_clear(self):
-        """Editing an ir.actions.server runtime-value field (e.g. Python code)
-        must not wipe the registry cache; a binding input still must (IRA-L3).
-        """
         model = self.env["ir.model"]._get("res.partner")
         action = self.env["ir.actions.server"].create(
             {
@@ -1574,10 +1461,7 @@ class TestActionsReadAndXmlId(common.TransactionCase):
 
 
 class TestClientActionParams(common.TransactionCase):
-    """Cover ir.actions.client params (de)serialization (IACT-T3)."""
-
     def test_params_roundtrip_dict(self):
-        """A dict assigned to params is stored and read back unchanged."""
         action = self.env["ir.actions.client"].create(
             {"name": "ClientAction", "tag": "some_tag", "params": {"a": 1, "b": "x"}}
         )
@@ -1585,19 +1469,12 @@ class TestClientActionParams(common.TransactionCase):
         self.assertEqual(action.params, {"a": 1, "b": "x"})
 
     def test_params_empty_store(self):
-        """An empty params_store yields a falsy params without evaluating."""
         action = self.env["ir.actions.client"].create(
             {"name": "ClientAction2", "tag": "some_tag"}
         )
         self.assertFalse(action.params)
 
     def test_params_corrupt_store_degrades(self):
-        """A corrupt params_store must not crash the action (IRA-L5).
-
-        params_store is normally a repr()'d dict, but a malformed value (bad
-        import / manual DB edit) must degrade to False, not raise, so the
-        client action stays loadable via _get_action_dict/read.
-        """
         action = self.env["ir.actions.client"].create(
             {"name": "ClientAction3", "tag": "some_tag"}
         )
@@ -1610,8 +1487,6 @@ class TestClientActionParams(common.TransactionCase):
 
 
 class TestActionsBindings(common.TransactionCase):
-    """Cover get_bindings ordering and cache invalidation (IACT-T4)."""
-
     def _partner_model_id(self):
         return self.env["ir.model"]._get_id("res.partner")
 
@@ -1634,11 +1509,6 @@ class TestActionsBindings(common.TransactionCase):
         return [d["name"] for d in bindings.get(bucket, ())]
 
     def test_report_bucket_sorted_by_sequence(self):
-        """Server actions bound as 'report' are ordered by sequence.
-
-        Regression: _get_bindings previously sorted only the 'action' bucket,
-        leaving sequenced server-actions-as-reports in raw insertion order.
-        """
         self._server("Zeta report", "report", 30)
         self._server("Alpha report", "report", 10)
         ordered = [
@@ -1649,7 +1519,6 @@ class TestActionsBindings(common.TransactionCase):
         self.assertEqual(ordered, ["Alpha report", "Zeta report"])
 
     def test_action_bucket_sorted_by_sequence(self):
-        """The 'action' bucket stays ordered by sequence."""
         self._server("Zeta action", "action", 30)
         self._server("Alpha action", "action", 10)
         ordered = [
@@ -1660,11 +1529,6 @@ class TestActionsBindings(common.TransactionCase):
         self.assertEqual(ordered, ["Alpha action", "Zeta action"])
 
     def test_cache_invalidating_fields_cover_binding_inputs(self):
-        """_cache_invalidating_fields() must contain every _get_bindings input.
-
-        A missing one means write() skips invalidation and get_bindings serves
-        stale data.
-        """
         binding_inputs = {
             "name",
             "type",
@@ -1685,11 +1549,6 @@ class TestActionsBindings(common.TransactionCase):
         )
 
     def test_rename_bound_action_invalidates_bindings(self):
-        """Renaming a bound action surfaces in get_bindings (no stale cache).
-
-        This is the functional guard behind test_cache_safe_fields_disjoint:
-        it fails outright if 'name' ever becomes cache-safe.
-        """
         action = self.env["ir.actions.act_window"].create(
             {
                 "name": "BindOrig",
@@ -1704,12 +1563,6 @@ class TestActionsBindings(common.TransactionCase):
         self.assertNotIn("BindOrig", names)
 
     def test_group_ids_stay_database_ids(self):
-        """group_ids in bindings are ids, never external-id strings.
-
-        Resolving them here made this cached read create an ir.model.data row
-        for any group that had none; see TestIrActionsBindingGroupsStayIds in
-        test_ir_actions_audit.py for the desync that caused.
-        """
         gid = self.env.ref("base.group_user").id
         for i in range(3):
             self.env["ir.actions.act_window"].create(
@@ -1745,7 +1598,6 @@ class TestCommonCustomFields(common.TransactionCase):
         super().setUp()
 
     def create_field(self, name, *, field_type="char"):
-        """create a custom field and return it"""
         model = self.env["ir.model"].search([("model", "=", self.MODEL)])
         field = self.env["ir.model.fields"].create(
             {
@@ -1759,7 +1611,6 @@ class TestCommonCustomFields(common.TransactionCase):
         return field
 
     def create_view(self, name):
-        """create a view with the given field name"""
         return self.env["ir.ui.view"].create(
             {
                 "name": "yet another view",
@@ -1771,53 +1622,44 @@ class TestCommonCustomFields(common.TransactionCase):
 
 class TestCustomFields(TestCommonCustomFields):
     def test_create_custom(self):
-        """custom field names must start with 'x_'"""
         with self.assertRaises(IntegrityError), mute_logger("odoo.db"):
             self.create_field("xyz")
 
     def test_rename_custom(self):
-        """custom field names must start with 'x_'"""
         field = self.create_field("x_xyz")
         with self.assertRaises(IntegrityError), mute_logger("odoo.db"):
             field.name = "xyz"
 
     def test_create_valid(self):
-        """field names must be valid pg identifiers"""
         with self.assertRaises(ValidationError):
             self.create_field("x_foo bar")
 
     def test_rename_valid(self):
-        """field names must be valid pg identifiers"""
         field = self.create_field("x_foo")
         with self.assertRaises(ValidationError):
             field.name = "x_foo bar"
 
     def test_create_unique(self):
-        """one cannot create two fields with the same name on a given model"""
         self.create_field("x_foo")
         with self.assertRaises(IntegrityError), mute_logger("odoo.db"):
             self.create_field("x_foo")
 
     def test_rename_unique(self):
-        """one cannot create two fields with the same name on a given model"""
         field1 = self.create_field("x_foo")
         field2 = self.create_field("x_bar")
         with self.assertRaises(IntegrityError), mute_logger("odoo.db"):
             field2.name = field1.name
 
     def test_remove_without_view(self):
-        """try removing a custom field that does not occur in views"""
         field = self.create_field("x_foo")
         field.unlink()
 
     def test_rename_without_view(self):
-        """try renaming a custom field that does not occur in views"""
         field = self.create_field("x_foo")
         field.name = "x_bar"
 
     @mute_logger("odoo.addons.base.models.ir_ui_view")
     def test_remove_with_view(self):
-        """try removing a custom field that occurs in a view"""
         field = self.create_field("x_foo")
         self.create_view("x_foo")
 
@@ -1827,7 +1669,6 @@ class TestCustomFields(TestCommonCustomFields):
 
     @mute_logger("odoo.addons.base.models.ir_ui_view")
     def test_rename_with_view(self):
-        """try renaming a custom field that occurs in a view"""
         field = self.create_field("x_foo")
         self.create_view("x_foo")
 
@@ -1836,7 +1677,6 @@ class TestCustomFields(TestCommonCustomFields):
         self.assertIn("x_foo", self.env[self.MODEL]._fields)
 
     def test_unlink_base(self):
-        """one cannot delete a non-custom field expect for uninstallation"""
         field = self.env["ir.model.fields"]._get(self.MODEL, "ref")
         self.assertTrue(field)
 
@@ -1846,7 +1686,6 @@ class TestCustomFields(TestCommonCustomFields):
         field.with_context(_force_unlink=True).unlink()
 
     def test_unlink_with_inverse(self):
-        """create a custom o2m and then delete its m2o inverse"""
         model = self.env["ir.model"]._get(self.MODEL)
         comodel = self.env["ir.model"]._get(self.COMODEL)
 
@@ -1878,7 +1717,6 @@ class TestCustomFields(TestCommonCustomFields):
         self.assertFalse(o2m_field.exists())
 
     def test_unlink_with_dependant(self):
-        """create a computed field, then delete its dependency"""
         comodel = self.env["ir.model"].search([("model", "=", self.COMODEL)])
 
         field = self.create_field("x_my_char")
@@ -1900,10 +1738,6 @@ class TestCustomFields(TestCommonCustomFields):
         self.assertFalse(dependant.exists())
 
     def test_unlink_inherited_custom(self):
-        """Creating a field on a model automatically creates an inherited field
-        in the comodel, and the latter can only be removed by deleting the
-        "parent" field.
-        """
         field = self.create_field("x_foo")
         self.assertEqual(field.state, "manual")
 
@@ -1927,16 +1761,12 @@ class TestCustomFields(TestCommonCustomFields):
         )
 
     def test_create_binary(self):
-        """binary custom fields should be created as attachment=True to avoid
-        bloating the DB when creating e.g. image fields via studio
-        """
         self.create_field("x_image", field_type="binary")
         custom_binary = self.env[self.MODEL]._fields["x_image"]
 
         self.assertTrue(custom_binary.attachment)
 
     def test_related_field(self):
-        """create a custom related field, and check filled values"""
 
         countries = self.env["res.country"].search([("code", "!=", False)], limit=100)
         self.assertEqual(
@@ -1979,7 +1809,6 @@ class TestCustomFields(TestCommonCustomFields):
             self.assertEqual(partner.x_oh_boy, partner.country_id.code)
 
     def test_relation_of_a_custom_field(self):
-        """change the relation model of a custom field"""
         model = self.env["ir.model"].search([("model", "=", self.MODEL)])
         field = self.env["ir.model.fields"].create(
             {
@@ -1995,7 +1824,6 @@ class TestCustomFields(TestCommonCustomFields):
             field.relation = "foo"
 
     def test_selection(self):
-        """custom selection field"""
         Model = self.env[self.MODEL]
         model = self.env["ir.model"].search([("model", "=", self.MODEL)])
         field = self.env["ir.model.fields"].create(
@@ -2058,13 +1886,6 @@ class TestCustomFields(TestCommonCustomFields):
 @tagged("post_install", "-at_install")
 class TestCustomFieldsPostInstall(TestCommonCustomFields):
     def test_add_field_valid(self):
-        """custom field names must start with 'x_', even when bypassing the constraints
-
-        If a user bypasses all constraints to add a custom field not starting by `x_`,
-        it must not be loaded in the registry.
-
-        This is to forbid users to override class attributes.
-        """
         field = self.create_field("x_foo")
         self.env.cr.execute(
             "ALTER TABLE ir_model_fields DROP CONSTRAINT ir_model_fields_name_manual_field"

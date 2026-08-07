@@ -1,5 +1,3 @@
-"""Modules dependency graph."""
-
 import functools
 import logging
 import typing
@@ -28,9 +26,6 @@ _logger = logging.getLogger(__name__)
 
 
 class ModuleNode:
-    """Loading and upgrade info for an Odoo module: manifest, DB state, load
-    state, and dependency edges."""
-
     def __init__(self, name: str, module_graph: ModuleGraph) -> None:
         self.name: str = name
         manifest = Manifest.for_addon(name, display_warning=False)
@@ -61,7 +56,6 @@ class ModuleNode:
 
     @functools.cached_property
     def depth(self) -> int:
-        """Return the longest distance from self to module 'base' along dependencies."""
         if self.name.startswith("test_"):
             last_installed_dependency = max(
                 self.depends, key=lambda m: (m.depth, m.order_name)
@@ -94,8 +88,6 @@ class ModuleNode:
 
 
 class ModuleGraph:
-    """Odoo modules sorted by (module.phase, module.depth, module.order_name)."""
-
     def __init__(
         self, cr: BaseCursor, mode: Literal["load", "update"] = "load"
     ) -> None:
@@ -172,15 +164,9 @@ class ModuleGraph:
                 self._remove(cycle_member)
         for name in names:
             if module := self._modules.get(name):
-                module.depth
+                _ = module.depth  # force the cached depth computation
 
     def _find_cycle_members(self) -> set[str]:
-        """Return names of modules that participate in any dependency cycle.
-
-        Uses Tarjan's strongly connected components algorithm: a node is on a
-        cycle iff it lies in a non-singleton SCC or has a self-loop.  Iterative,
-        so it is safe on graphs deeper than Python's recursion limit.
-        """
         indices: dict[str, int] = {}
         lowlinks: dict[str, int] = {}
         on_scc_stack: set[str] = set()

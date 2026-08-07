@@ -43,7 +43,6 @@ if getenv("ODOO_RUNBOT") and not aiosmtpd:
 
 
 def _find_free_local_address():
-    """Return a (family, address, port) triple on which a local TCP service can bind."""
     addr = aiosmtpd.controller.get_localhost()
     family = socket.AF_INET if addr == "127.0.0.1" else socket.AF_INET6
     with socket.socket(family, socket.SOCK_STREAM) as sock:
@@ -53,7 +52,6 @@ def _find_free_local_address():
 
 
 def _smtp_authenticate(server, session, enveloppe, mechanism, data):
-    """Callback method used by aiosmtpd to validate a login/password pair."""
     result = aiosmtpd.smtp.AuthResult(success=data.password == PASSWORD.encode())
     _logger.debug("AUTH %s", "successfull" if result.success else "failed")
     return result
@@ -69,8 +67,6 @@ class Certificate:
 
 
 class _EhloRecordingHandler(aiosmtpd.handlers.Debugging if aiosmtpd else object):
-    """Debugging handler that records the name the client announced in EHLO."""
-
     def __init__(self):
         super().__init__()
         self.hostnames = []
@@ -168,7 +164,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
     @classmethod
     def getaddrinfo(cls, host, port, *args, **kwargs):
-        """Resolve "localhost"/"notlocalhost" to the address bound by aiosmtpd in `start_smtpd`."""
         if host in ("localhost", "notlocalhost") and port == cls.port:
             return cls.localhost
         return getaddrinfo(host, port, family=0, type=0, proto=0, flags=0)
@@ -182,13 +177,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         stop_on_cleanup=True,
         handler=None,
     ):
-        """Start an SMTP daemon in a background thread; stop it on context exit.
-
-        :param encryption: 'none', 'ssl' or 'starttls', the kind of server to start.
-        :param ssl_context: ``ssl.SSLContext`` to use with 'ssl' or 'starttls'.
-        :param auth_required: whether the server enforces password authentication.
-        :param handler: aiosmtpd handler, to observe what reaches the server.
-        """
         encryption = encryption.removesuffix("_strict")
         assert encryption in ("none", "ssl", "starttls")
         assert encryption == "none" or ssl_context
@@ -263,7 +251,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
     @mute_logger("mail.log")
     def test_authentication_certificate_matrix(self):
-        """Test certificate auth (missing, self-signed, valid cert) against STARTTLS and SSL/TLS servers."""
         mail_server = self.env["ir.mail_server"].create(
             {
                 "name": "test smtpd",
@@ -291,18 +278,22 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                 "missing",
                 "",
                 "",
-                r"The server has closed the connection unexpectedly\. "
-                r"Check configuration served on this port number\.\n "
-                r"Connection unexpectedly closed",
+                (
+                    r"The server has closed the connection unexpectedly\. "
+                    r"Check configuration served on this port number\.\n "
+                    r"Connection unexpectedly closed"
+                ),
             ),
             (
                 "certificate",
                 "self signed",
                 self_signed_cert,
                 self_signed_key,
-                r"The server has closed the connection unexpectedly\. "
-                r"Check configuration served on this port number\.\n "
-                r"Connection unexpectedly closed",
+                (
+                    r"The server has closed the connection unexpectedly\. "
+                    r"Check configuration served on this port number\.\n "
+                    r"Connection unexpectedly closed"
+                ),
             ),
             ("certificate", "valid client", client_cert, client_key, None),
         ]
@@ -341,7 +332,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                             mail_server.test_smtp_connection()
 
     def test_authentication_login_matrix(self):
-        """Test login/password auth (missing, invalid, valid) against plain, STARTTLS and SSL/TLS servers."""
         mail_server = self.env["ir.mail_server"].create(
             {
                 "name": "test smtpd",
@@ -369,9 +359,11 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
             (
                 True,
                 INVALID,
-                r"The server has closed the connection unexpectedly\. "
-                r"Check configuration served on this port number\.\n "
-                r"Connection unexpectedly closed:.* timed out",
+                (
+                    r"The server has closed the connection unexpectedly\. "
+                    r"Check configuration served on this port number\.\n "
+                    r"Connection unexpectedly closed:.* timed out"
+                ),
             ),
             (True, PASSWORD, None),
         ]
@@ -408,7 +400,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
     @mute_logger("mail.log")
     def test_encryption_matrix(self):
-        """Connect with an encryption config mismatched to the server; verify a helpful error is raised."""
         mail_server = self.env["ir.mail_server"].create(
             {
                 "name": "test smtpd",
@@ -428,9 +419,11 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
             (
                 "none",
                 "ssl",
-                r"The server has closed the connection unexpectedly\. "
-                r"Check configuration served on this port number\.\n "
-                r"Connection unexpectedly closed: timed out",
+                (
+                    r"The server has closed the connection unexpectedly\. "
+                    r"Check configuration served on this port number\.\n "
+                    r"Connection unexpectedly closed: timed out"
+                ),
             ),
             (
                 "none",
@@ -440,29 +433,37 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
             (
                 "starttls",
                 "none",
-                r"An option is not supported by the server:\n "
-                r"STARTTLS extension not supported by server\.",
+                (
+                    r"An option is not supported by the server:\n "
+                    r"STARTTLS extension not supported by server\."
+                ),
             ),
             (
                 "starttls",
                 "ssl",
-                r"The server has closed the connection unexpectedly\. "
-                r"Check configuration served on this port number\.\n "
-                r"Connection unexpectedly closed: timed out",
+                (
+                    r"The server has closed the connection unexpectedly\. "
+                    r"Check configuration served on this port number\.\n "
+                    r"Connection unexpectedly closed: timed out"
+                ),
             ),
             (
                 "ssl",
                 "none",
-                r"An SSL exception occurred\. "
-                r"Check connection security type\.\n "
-                r".*?wrong version number",
+                (
+                    r"An SSL exception occurred\. "
+                    r"Check connection security type\.\n "
+                    r".*?wrong version number"
+                ),
             ),
             (
                 "ssl",
                 "starttls",
-                r"An SSL exception occurred\. "
-                r"Check connection security type\.\n "
-                r".*?wrong version number",
+                (
+                    r"An SSL exception occurred\. "
+                    r"Check connection security type\.\n "
+                    r".*?wrong version number"
+                ),
             ),
         ]
 
@@ -485,7 +486,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
     @mute_logger("mail.log")
     def test_man_in_the_middle_matrix(self):
-        """Simulate an attacker intercepting traffic between Odoo and the legitimate SMTP server."""
         mail_server = self.env["ir.mail_server"].create(
             {
                 "name": "test smtpd",
@@ -515,32 +515,40 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                 "login",
                 cert_bad,
                 host_good,
-                r"^An SSL exception occurred\. Check connection security type\.\n "
-                r".*certificate verify failed",
+                (
+                    r"^An SSL exception occurred\. Check connection security type\.\n "
+                    r".*certificate verify failed"
+                ),
             ),
             (
                 True,
                 "login",
                 cert_good,
                 host_bad,
-                r"^An SSL exception occurred\. Check connection security type\.\n "
-                r".*Hostname mismatch, certificate is not valid for 'notlocalhost'",
+                (
+                    r"^An SSL exception occurred\. Check connection security type\.\n "
+                    r".*Hostname mismatch, certificate is not valid for 'notlocalhost'"
+                ),
             ),
             (
                 True,
                 "certificate",
                 cert_bad,
                 host_good,
-                r"^An SSL exception occurred\. Check connection security type\.\n "
-                r".*certificate verify failed",
+                (
+                    r"^An SSL exception occurred\. Check connection security type\.\n "
+                    r".*certificate verify failed"
+                ),
             ),
             (
                 True,
                 "certificate",
                 cert_good,
                 host_bad,
-                r"^An SSL exception occurred\. Check connection security type\.\n "
-                r".*CertificateError: hostname 'notlocalhost' doesn't match 'localhost'",
+                (
+                    r"^An SSL exception occurred\. Check connection security type\.\n "
+                    r".*CertificateError: hostname 'notlocalhost' doesn't match 'localhost'"
+                ),
             ),
         ]
 

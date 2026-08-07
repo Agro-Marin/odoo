@@ -5,8 +5,6 @@ from odoo.addons.base.tests.test_expression import TransactionExpressionCase
 
 
 class TestSubqueries(TransactionCase):
-    """Test the subqueries made by search() with relational fields."""
-
     maxDiff = None
 
     def test_and_many2one_with_subfield(self):
@@ -2444,8 +2442,6 @@ class TestNonIntId(TransactionCase):
 
 class TestReadGroupNoGroupby(TransactionCase):
     def test_offset_ignored_without_groupby(self):
-        """Without a groupby, PostgreSQL returns exactly one aggregate row;
-        limit/offset must not slice that single row away."""
         model = self.env["test_orm.message"]
         base = model._read_group([], [], ["__count"])
         self.assertEqual(len(base), 1)

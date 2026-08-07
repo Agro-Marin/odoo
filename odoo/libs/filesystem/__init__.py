@@ -1,13 +1,3 @@
-"""Odoo-agnostic filesystem utilities.
-
-Pure Python filesystem helpers with no Odoo dependencies.
-
-The public boundary of this area is the package, not its modules. Every name
-``mimetypes`` declares in its own ``__all__`` is re-exported here;
-``_odoo_guess_mimetype`` deliberately is not — it is the pure-Python fallback
-used only to test the python-magic path against, and it stays module-private.
-"""
-
 from . import appdirs
 from . import osutil
 from . import mimetypes

@@ -22,7 +22,6 @@ DEFAULT_LANG = "en_US"
 
 
 def get_default_session() -> dict[str, object]:
-    """The dictionary to initialise a new session with."""
     return {
         "context": {},
         "create_time": time.time(),
@@ -76,20 +75,6 @@ ENSURE_DB_PATH_PREFIXES: set[str] = set()
 
 
 def register_ensure_db_paths(*paths: str, prefixes: Iterable[str] = ()) -> None:
-    """Declare paths that must keep working after a database becomes unusable.
-
-    :meth:`~odoo.http.Application._recover_from_registry_error` re-serves these
-    db-less with the ``db`` query parameter stripped, so the client lands on a
-    database selector instead of a 500. The paths belong to whichever addon owns
-    the routes (``/odoo``, ``/web``, ``/web/login`` are ``web``'s), so they are
-    registered from there rather than hard-coded here — the recovery path is
-    framework machinery, the URLs are not.
-
-    Call at import time from the owning addon's ``__init__.py``. Registration
-    must therefore have happened by the time a registry fails, which holds for
-    any addon in ``server_wide_modules``; an unregistered path simply keeps its
-    query string on the way to the selector.
-    """
     ENSURE_DB_PATHS.update(paths)
     ENSURE_DB_PATH_PREFIXES.update(prefixes)
 
@@ -118,12 +103,6 @@ SESSION_ROTATION_EXCLUDED_PATHS: set[str] = set()
 
 
 def register_session_rotation_excluded_paths(*paths: str) -> None:
-    """Exclude ``paths`` from automatic session rotation (see above).
-
-    For module-owned, high-frequency endpoints only: an excluded path never
-    refreshes the rotation clock, so a session whose ONLY traffic is excluded
-    paths keeps its sid until a regular request arrives.
-    """
     SESSION_ROTATION_EXCLUDED_PATHS.update(paths)
 
 

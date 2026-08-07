@@ -1,32 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        base_menu.xml — Single source of truth for all base module menus.
-        Load order: last in manifest, so all actions are already defined.
 
-        Structure:
-          1. Top-level menus (structural, no actions)
-          2. Users & Companies
-          3. Translations
-          4. Technical > User Interface
-          5. Technical > Email
-          6. Technical > Actions
-          7. Technical > Database Structure
-          8. Technical > Sequences & Identifiers
-          9. Technical > Reporting
-         10. Technical > Security
-         11. Technical > Parameters
-         12. Technical > Automation
-         13. Apps
-         14. Supporting records (actions tied to menu navigation)
-    -->
 
-    <!-- ═══════════════════════════════════════
-         TOP-LEVEL MENUS (structural)
-         ═══════════════════════════════════════ -->
-
-    <!-- Settings -->
     <menuitem
         id="menu_administration"
         name="Settings"
@@ -37,7 +13,6 @@
             id="menu_administration_shortcut"
             name="Custom Shortcuts"
             sequence="50" />
-        <!-- FYI The group no_one on 'User & Companies' and 'Translations' is a FP/APR request -->
         <menuitem id="menu_users" name="Users &amp; Companies" sequence="1" />
         <menuitem
             id="menu_translation"
@@ -70,7 +45,6 @@
         </menuitem>
     </menuitem>
 
-    <!-- Apps -->
     <menuitem
         id="menu_management"
         name="Apps"
@@ -78,7 +52,6 @@
         groups="base.group_system"
         web_icon="base,static/description/modules.png" />
 
-    <!-- Tests -->
     <menuitem
         id="base.menu_tests"
         name="Tests"
@@ -91,9 +64,6 @@
             eval="[Command.set([ref('group_system'), ref('group_erp_manager')])]" />
     </record>
 
-    <!-- ═══════════════════════════════════════
-         USERS & COMPANIES
-         ═══════════════════════════════════════ -->
 
     <menuitem
         id="menu_action_res_users"
@@ -120,9 +90,6 @@
         parent="base.menu_users"
         action="action_res_company_form" />
 
-    <!-- ═══════════════════════════════════════
-         TRANSLATIONS
-         ═══════════════════════════════════════ -->
 
     <menuitem
         id="menu_res_lang_act_window"
@@ -140,9 +107,6 @@
         parent="menu_translation_export"
         action="action_wizard_lang_export" />
 
-    <!-- ═══════════════════════════════════════
-         TECHNICAL > USER INTERFACE (menu_user_interface)
-         ═══════════════════════════════════════ -->
 
     <menuitem
         id="menu_grant_menu_access"
@@ -169,9 +133,6 @@
         action="actions_ir_filters_view"
         sequence="5" />
 
-    <!-- ═══════════════════════════════════════
-         TECHNICAL > EMAIL (menu_email)
-         ═══════════════════════════════════════ -->
 
     <menuitem
         id="menu_mail_servers"
@@ -180,9 +141,6 @@
         sequence="5"
         groups="base.group_no_one" />
 
-    <!-- ═══════════════════════════════════════
-         TECHNICAL > ACTIONS (menu_actions)
-         ═══════════════════════════════════════ -->
 
     <menuitem id="menu_actions" name="Actions" parent="base.menu_custom" sequence="5" />
 
@@ -223,9 +181,6 @@
 
     <menuitem id="menu_ir_default" parent="menu_actions" action="ir_default_menu_action" />
 
-    <!-- ═══════════════════════════════════════
-         TECHNICAL > DATABASE STRUCTURE (menu_database_structure)
-         ═══════════════════════════════════════ -->
 
     <menuitem id="menu_ir_model" parent="menu_database_structure" action="action_model_model" />
 
@@ -274,9 +229,6 @@
         parent="base.menu_database_structure"
         action="action_attachment" />
 
-    <!-- ═══════════════════════════════════════
-         TECHNICAL > SEQUENCES & IDENTIFIERS (menu_sequences_identifiers)
-         ═══════════════════════════════════════ -->
 
     <menuitem
         id="menu_sequences_identifiers"
@@ -293,9 +245,6 @@
 
     <menuitem id="menu_ir_sequence_form" parent="menu_sequences_identifiers" action="ir_sequence_form" />
 
-    <!-- ═══════════════════════════════════════
-         TECHNICAL > REPORTING (menu_reporting)
-         ═══════════════════════════════════════ -->
 
     <menuitem
         id="menu_reporting"
@@ -320,9 +269,6 @@
         sequence="3"
         groups="base.group_no_one" />
 
-    <!-- ═══════════════════════════════════════
-         TECHNICAL > SECURITY (menu_security)
-         ═══════════════════════════════════════ -->
 
     <menuitem
         id="menu_ir_access_act"
@@ -341,9 +287,6 @@
         action="action_user_device"
         sequence="10" />
 
-    <!-- ═══════════════════════════════════════
-         TECHNICAL > PARAMETERS (menu_ir_property)
-         ═══════════════════════════════════════ -->
 
     <menuitem
         id="menu_ir_config_parameter"
@@ -351,9 +294,6 @@
         parent="menu_ir_property"
         action="ir_config_list_action" />
 
-    <!-- ═══════════════════════════════════════
-         TECHNICAL > AUTOMATION (menu_automation)
-         ═══════════════════════════════════════ -->
 
     <menuitem
         id="menu_ir_cron_act"
@@ -379,9 +319,6 @@
         action="ir_job_channel_act"
         sequence="5" />
 
-    <!-- ═══════════════════════════════════════
-         APPS (menu_management)
-         ═══════════════════════════════════════ -->
 
     <menuitem id="menu_apps" name="Apps" parent="menu_management" sequence="5" />
 
@@ -428,9 +365,6 @@
         sequence="50"
         groups="base.group_no_one" />
 
-    <!-- ═══════════════════════════════════════
-         SUPPORTING RECORDS (menu navigation)
-         ═══════════════════════════════════════ -->
 
     <record id="action_client_base_menu" model="ir.actions.client">
         <field name="name">Open Settings Menu</field>

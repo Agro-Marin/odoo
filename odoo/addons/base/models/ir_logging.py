@@ -47,13 +47,6 @@ class IrLogging(models.Model):
 
     @api.autovacuum
     def _gc_logging(self) -> tuple[int, bool] | None:
-        """Drop log entries older than the configured retention period.
-
-        Retention is driven by the ``base.logging_retention_days`` config
-        parameter (default ``DEFAULT_LOGGING_RETENTION_DAYS``); a non-positive or
-        unparsable value disables collection (with a warning), for deployments
-        that archive the table externally.
-        """
         param = (
             self.env["ir.config_parameter"]
             .sudo()

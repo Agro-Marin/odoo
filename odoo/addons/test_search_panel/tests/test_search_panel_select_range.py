@@ -16,14 +16,6 @@ class TestSelectRange(odoo.tests.TransactionCase):
         ]
 
     def _select_range(self, *args, **kwargs):
-        """Call ``search_panel_select_range`` and drop the volatile ``__version``.
-
-        The method is ``@versioned`` (odoo/tools/cache_version.py): it stamps a
-        sha256 content-hash on its dict result for the client rpc cache. That
-        hash is non-deterministic across data and irrelevant to these payload
-        assertions, so strip it here and compare the rest by value. The stamp's
-        own contract is pinned by ``web/tests/test_search_panel_version.py``.
-        """
         result = self.SourceModel.search_panel_select_range(*args, **kwargs)
         if isinstance(result, dict):
             result.pop("__version", None)

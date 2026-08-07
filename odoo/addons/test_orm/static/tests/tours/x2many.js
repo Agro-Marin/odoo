@@ -1,6 +1,6 @@
-import { stepUtils } from "@web_tour/tour_utils";
 import { registry } from "@web/core/registry";
-var inc;
+import { stepUtils } from "@web_tour/tour_utils";
+let inc;
 
 registry.category("web_tour.tours").add("widget_x2many", {
     url: "/odoo/action-test_orm.action_discussions?debug=tests",
@@ -98,8 +98,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         {
             content: "create new message a",
-            trigger:
-                ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
+            trigger: ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
             run: "click",
         },
         {
@@ -118,8 +117,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         {
             content: "create new message b",
-            trigger:
-                ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
+            trigger: ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
             run: "click",
         },
         {
@@ -167,8 +165,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         {
             content: "create new message c",
-            trigger:
-                ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
+            trigger: ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
             run: "click",
         },
         {
@@ -260,8 +257,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         {
             content: "create new message d",
-            trigger:
-                ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
+            trigger: ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
             run: "click",
         },
         {
@@ -279,8 +275,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         {
             content: "create new message e",
-            trigger:
-                ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
+            trigger: ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
             run: "click",
         },
         {
@@ -332,8 +327,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         {
             content: "test one2many's line onchange after many2one",
-            trigger:
-                ".o_field_widget[name=name]:contains([test_trigger] Marc Demo)",
+            trigger: ".o_field_widget[name=name]:contains([test_trigger] Marc Demo)",
         },
         {
             content: "test one2many field not triggered onchange",
@@ -346,8 +340,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
             run: "click",
         },
         {
-            content:
-                "test one2many triggered the onchange on save for the line",
+            content: "test one2many triggered the onchange on save for the line",
             trigger:
                 ".o_field_widget[name=messages] .o_data_cell:contains([test_trigger] Marc Demo)",
         },
@@ -415,8 +408,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         {
             content: "create new message ddd",
-            trigger:
-                ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
+            trigger: ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
             run: "click",
         },
         {
@@ -432,8 +424,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         {
             content: "test one2many's line onchange after many2one",
-            trigger:
-                ".o_field_widget[name=name]:contains([test_trigger] Marc Demo)",
+            trigger: ".o_field_widget[name=name]:contains([test_trigger] Marc Demo)",
         },
         {
             content: "insert body",
@@ -451,13 +442,11 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 '.o_field_widget[name="message_concat"] textarea:value([test_trigger] Mitchell Admin:aaa\n[test_trigger] Mitchell Admin:c\n[test_trigger] Mitchell Admin:d\n[test_trigger] Marc Demo:ddd)',
         },
         {
-            trigger:
-                "body:not(:has(.o_field_widget[name=messages] .o_data_row:eq(4)))",
+            trigger: "body:not(:has(.o_field_widget[name=messages] .o_data_row:eq(4)))",
         },
         {
             content: "check data 9",
-            trigger:
-                ".o_content:has(.o_field_widget[name=messages] .o_data_row:eq(3))",
+            trigger: ".o_content:has(.o_field_widget[name=messages] .o_data_row:eq(3))",
         },
         {
             trigger: ".o_field_widget[name=messages]:has(tr td:text(ddd))",
@@ -465,7 +454,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
         ...stepUtils.discardForm({
             content: "cancel change",
         }),
-
 
         {
             content:
@@ -477,8 +465,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         {
             content:
                 "switch to the second form view to test one2many with editable list (open submenu)",
-            trigger:
-                '.dropdown-item[data-menu-xmlid="test_orm.menu_discussions_2"]',
+            trigger: '.dropdown-item[data-menu-xmlid="test_orm.menu_discussions_2"]',
             run: "click",
         },
         {
@@ -602,8 +589,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         {
             content: "create new message eee",
-            trigger:
-                ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
+            trigger: ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
             run: "click",
         },
         {
@@ -621,8 +607,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 '.o_field_widget[name="message_concat"] textarea:value([test_trigger2] Mitchell Admin:aaa\n[test_trigger2] Marc Demo:ccccc\n[test_trigger2] Mitchell Admin:eee)',
         },
         {
-            trigger:
-                "body:not(:has(.o_field_widget[name=messages] .o_data_row:eq(3)))",
+            trigger: "body:not(:has(.o_field_widget[name=messages] .o_data_row:eq(3)))",
         },
         {
             content: "check data 13",
@@ -642,8 +627,7 @@ registry.category("web_tour.tours").add("widget_x2many", {
         {
             content:
                 "switch to the thied form view to test onchange changing one2many (open submenu)",
-            trigger:
-                '.dropdown-item[data-menu-xmlid="test_orm.menu_discussions_3"]',
+            trigger: '.dropdown-item[data-menu-xmlid="test_orm.menu_discussions_3"]',
             run: "click",
         },
         {

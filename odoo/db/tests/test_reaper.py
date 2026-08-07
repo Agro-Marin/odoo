@@ -1,17 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.reaper`.
-
-The reaping *decision* is what this module owns, and it is the part that can be
-wrong in a way nothing notices: reap a pool a borrower is about to use and the
-next access pays a reconnect; fail to reap and a host that serves many databases
-over time accumulates a psycopg_pool — worker threads and idle connections
-included — for every database it ever touched.
-
-A stand-in with a ``get_stats()`` is the whole dependency, so none of this needs
-a pool, a socket or a server.  Reaping against a real registry (that the sweep
-does not race pool creation or ``close_all``) stays in ``test_pool.py`` and in
-``odoo/addons/base/tests/test_db_cursor.py``.
-"""
-
 import unittest
 from time import monotonic
 
@@ -24,8 +10,6 @@ from odoo.db.reaper import (
 
 
 class _FakePool:
-    """Enough of a psycopg_pool for the reaping decision."""
-
     def __init__(self, size=1, available=1):
         self._size = size
         self._available = available
@@ -66,8 +50,6 @@ class TestCollect(unittest.TestCase):
         self.assertEqual(self.reaper.collect({"a": _aged(1)}), [])
 
     def test_a_pool_still_holding_a_connection_is_spared(self):
-        """A cron ``LISTEN`` keeps a connection out for hours; reaping it would
-        close the channel the worker is waiting on."""
         self.assertEqual(self.reaper.collect({"a": _aged(60, available=0)}), [])
 
     def test_the_excluded_key_is_never_reaped(self):
@@ -106,8 +88,6 @@ class TestThrottle(unittest.TestCase):
         self.assertFalse(reaper.due(), "two sweeps within the interval")
 
     def test_only_one_of_many_racing_callers_claims_the_sweep(self):
-        """``due()`` both tests and stamps, so the caller's lock makes it a
-        single claim — otherwise every returning thread sweeps at once."""
         reaper = IdlePoolReaper(10)
         self.assertEqual(sum(1 for _ in range(50) if reaper.due()), 1)
 

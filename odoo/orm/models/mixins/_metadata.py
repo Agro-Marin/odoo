@@ -27,7 +27,7 @@ attributes reached as ``self._name`` / ``self._fields``; only the class that
 *declares* them moves, and attribute lookup crosses that hop through the MRO for
 free. That matters: counting ``self.``-qualified reads in this repo's two addon
 trees (``odoo/addons/`` and ``addons/``), ``self._name`` has 359 sites and
-``self._fields`` 325 — a change in how they are *reached* would be a breaking
+``self._fields`` 323 — a change in how they are *reached* would be a breaking
 change to the most widely used surface in the framework, for no structural gain
 the MRO does not already give. The sibling repos (``enterprise``,
 ``agromarin``, ``design-themes``) add several hundred more; they are left

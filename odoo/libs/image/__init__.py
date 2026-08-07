@@ -1,12 +1,3 @@
-"""Image utilities.
-
-Pure Python image helpers with no Odoo dependencies.
-Uses PIL/Pillow for image processing.
-
-Note: This module raises ValueError for invalid images. For Odoo-specific
-usage with UserError, use odoo.tools.image instead.
-"""
-
 from .utils import (
     FILETYPE_BASE64_MAGICWORD,
     EXIF_TAG_ORIENTATION,

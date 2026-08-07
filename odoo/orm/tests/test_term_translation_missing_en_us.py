@@ -1,8 +1,3 @@
-"""``_mark_dirty_model_term_translation`` must survive legacy jsonb rows that
-lack the ``en_US`` key (SQL-migrated data): it used to KeyError on
-``old_translations["en_US"]`` and abort the whole write.
-"""
-
 from unittest.mock import patch
 
 from odoo import fields, models
@@ -12,7 +7,6 @@ _MOD = "test_term_translation_missing_en_us"
 
 
 def _whole_value_translate(callback, value):
-    """Minimal callable-translate: the whole value is a single term."""
     if not value:
         return value
     return callback(value) or value

@@ -5,7 +5,6 @@ from odoo.tools import frozendict, lazy
 
 class TestFrozendict(BaseCase):
     def test_frozendict_immutable(self):
-        """Ensure that a frozendict is immutable."""
         vals = {"name": "Joe", "age": 42}
         frozen_vals = frozendict(vals)
 
@@ -32,7 +31,6 @@ class TestFrozendict(BaseCase):
             frozen_vals.clear()
 
     def test_frozendict_hash(self):
-        """Ensure that a frozendict is hashable."""
         hash(frozendict({"name": "Joe", "age": 42}))
 
         hash(
@@ -47,7 +45,6 @@ class TestFrozendict(BaseCase):
 
 class TestLazy(BaseCase):
     def test_lazy_compare(self):
-        """Ensure that a lazy can be compared with an other lazy."""
         self.assertEqual(lazy(lambda: 1) <= lazy(lambda: 42), True)
         self.assertEqual(lazy(lambda: 42) <= lazy(lambda: 1), False)
         self.assertEqual(lazy(lambda: 42) == lazy(lambda: 42), True)

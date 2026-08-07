@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.lru.LRU`` resizing."""
-
 import unittest
 
 from odoo.libs.lru import LRU
@@ -30,8 +28,6 @@ class TestLRU(unittest.TestCase):
 
 
 class TestLRURepr(unittest.TestCase):
-    """A mapping type must not fall back to ``object.__repr__``."""
-
     def test_repr_reports_occupancy(self):
         lru = LRU(10, [(i, i) for i in range(3)])
         self.assertEqual(repr(lru), "LRU(count=10, size=3, gen=0)")

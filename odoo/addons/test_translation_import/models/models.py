@@ -88,8 +88,10 @@ class TestTranslationImportModel1(models.Model):
         _("PY Export 26 %s", "NO - PY Export 05" + "".join(terms))
         _("PY Export 27 %s", "".join(terms) + "NO - PY Export 06")
 
-        _(f"PY Export 28")
-        _(f"NO - PY Export 07 {term}")
+        # These two are the fixture: a placeholder-less f-string must still be
+        # exported ("PY Export 28"), one with a placeholder must not ("NO - ...").
+        _(f"PY Export 28")  # noqa: F541, INT001  see comment above
+        _(f"NO - PY Export 07 {term}")  # noqa: INT001  see comment above
 
         _(dummy_function("NO - PY Export 08"))
 

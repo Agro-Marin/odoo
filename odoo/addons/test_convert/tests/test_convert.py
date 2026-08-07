@@ -1,5 +1,5 @@
-import collections
 import unittest
+from typing import NamedTuple
 
 from lxml import etree as ET
 from lxml.builder import E
@@ -7,6 +7,12 @@ from lxml.builder import E
 from odoo.tests import common
 from odoo.tools.convert import _eval_xml, convert_file, xml_import
 from odoo.tools.misc import file_path
+
+
+class _Obj(NamedTuple):
+    module: str
+    idref: object
+
 
 Field = E.field
 Value = E.value
@@ -56,7 +62,7 @@ class TestEvalXML(common.TransactionCase):
         )
 
     def test_file(self):
-        Obj = collections.namedtuple("Obj", ["module", "idref"])
+        Obj = _Obj
         obj = Obj("test_convert", None)
         self.assertEqual(
             self.eval_xml(Field("test_file.txt", type="file"), obj),
@@ -243,12 +249,6 @@ class TestEvalXML(common.TransactionCase):
         self.assertTrue(self.registry.loaded_xmlids.issuperset(xmlids))
 
     def test_translated_field(self):
-        """Tests importing a data file with a lang set in the environment sets the source (en_US)
-        rather than setting the translation (fr_FR)
-        This is currently the expected behavior.
-        Maybe one day we would like that `convert_file` and `xml_import` respect the environment lang,
-        but currently the API, and code blocks using `convert_file`/`xml_import` expect to set the source (en_US)
-        """
         self.env["res.lang"]._activate_lang("fr_FR")
         env_fr = self.env(context=dict(self.env.context, lang="fr_FR"))
         record = self.env.ref("test_convert.test_translated_field")

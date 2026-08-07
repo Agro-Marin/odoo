@@ -51,12 +51,10 @@ class TestCompanyCheck(common.TransactionCase):
         )
 
     def test_check_company_auto(self):
-        """Check the option _check_company_auto is well set on records"""
         m1 = self.env["test_orm.model_child"].create({"company_id": self.company_a.id})
         self.assertTrue(m1._check_company_auto)
 
     def test_company_and_same_company(self):
-        """Check you can create an object if the company are consistent"""
         self.env["test_orm.model_child"].create(
             {
                 "name": "M1",
@@ -67,7 +65,6 @@ class TestCompanyCheck(common.TransactionCase):
         )
 
     def test_company_and_different_company(self):
-        """Check you cannot create a record if the company is inconsistent"""
         with self.assertRaises(UserError):
             self.env["test_orm.model_child"].create(
                 {
@@ -130,7 +127,6 @@ class TestCompanyCheck(common.TransactionCase):
             )
 
     def test_no_company_check(self):
-        """Check you can create a record with the inconsistent company if there are no check"""
         self.env["test_orm.model_child_nocheck"].create(
             {
                 "name": "M1",
@@ -140,7 +136,6 @@ class TestCompanyCheck(common.TransactionCase):
         )
 
     def test_company_write(self):
-        """Check the company consistency is respected at write."""
         child = self.env["test_orm.model_child"].create(
             {
                 "name": "M1",
@@ -195,7 +190,6 @@ class TestCompanyCheck(common.TransactionCase):
         spy.assert_called_once_with(child, ["parent_id", "write_uid", "write_date"])
 
     def test_company_environment(self):
-        """Check the company context on the environment is verified."""
 
         user = self.test_user.with_user(self.test_user).with_context(
             allowed_company_ids=[]
@@ -240,7 +234,6 @@ class TestCompanyCheck(common.TransactionCase):
         self.assertEqual(user.env.companies, user.company_ids)
 
     def test_with_company(self):
-        """Check that with_company() works as expected"""
 
         user = self.test_user.with_user(self.test_user).with_context(
             allowed_company_ids=[]

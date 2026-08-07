@@ -21,33 +21,14 @@ methods still execute, so every method gets at least one batch.
 
 
 def is_autovacuum(func: object) -> bool:
-    """Return whether ``func`` is an autovacuum method."""
     return callable(func) and getattr(func, "_autovacuum", False)
 
 
 class IrAutovacuum(models.AbstractModel):
-    """Helper model to the ``@api.autovacuum`` method decorator."""
-
     _name = "ir.autovacuum"
     _description = "Automatic Vacuum"
 
     def _run_vacuum_cleaner(self) -> None:
-        """Clean up the database by safely calling every ``@api.autovacuum`` method.
-
-        Invariants (IAVAC-M1) -- load-bearing, do not weaken:
-
-        - **Access gate**: requires ``is_admin()`` and a ``cron_id`` in context,
-          else ``AccessDenied`` -- no ad-hoc invocation outside the cron.
-        - **Per-method isolation**: each method commits on success; on failure
-          the cursor is rolled back and the ORM cache invalidated in isolation.
-          One failing method must NOT abort the rest nor roll back committed work.
-        - **Re-queue contract**: a method may return ``(done, remaining)``; a
-          truthy ``remaining`` requeues it. A ``None`` return runs it once.
-        - **Wall-clock budget**: past ``MAX_VACUUM_RUNTIME`` seconds re-enqueueing
-          stops (first-pass methods still run) so a backlog can't make the daily
-          vacuum unbounded. The deferral is only logged -- partial progress is
-          still NOT reported (odoo#265091).
-        """
         if not self.env.is_admin() or not self.env.context.get("cron_id"):
             raise AccessDenied
 

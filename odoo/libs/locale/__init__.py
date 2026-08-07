@@ -1,8 +1,3 @@
-"""Locale conversion utilities.
-
-Pure Python locale helpers with no Odoo dependencies.
-"""
-
 from .number_format import (
     LocaleConventions,
     format_number,

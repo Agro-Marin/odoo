@@ -1,10 +1,3 @@
-"""ORM Transaction — per-cursor state container.
-
-A :class:`Transaction` owns the cache, compute engine, :class:`OrmCore` facade,
-:class:`UnitOfWork`, and profiling tools for a single cursor's lifetime.  Created
-lazily on the first ``Environment.__new__`` for a cursor with no transaction yet.
-"""
-
 import logging
 import typing
 from contextlib import suppress
@@ -36,25 +29,6 @@ MAX_FIXPOINT_ITERATIONS = 1000
 
 
 class _EnvironmentSet(WeakSet):
-    """The transaction's live environments, plus an index for O(1) lookup.
-
-    ``Environment.__new__`` reuses an existing environment for the same
-    ``(uid, su, context)``.  Scanning this set to find it is O(live
-    environments) on every ``with_context`` / ``sudo`` / ``with_company``,
-    which is 2.5 us at one environment and 143 us at a thousand, so the lookup
-    is indexed instead.
-
-    The index lives *inside* the collection because the set is mutated from
-    outside the ORM: ``odoo.tests.common`` clears it on cleanup and re-adds
-    only the environments that predate the test, deliberately retiring the
-    ones a test created.  A parallel index would keep serving those, and their
-    ``user`` / ``company`` / ``companies`` cached properties are stale -- which
-    surfaced as record rules filtering on the wrong company.  :meth:`lookup`
-    additionally confirms membership, so a mutator that bypasses :meth:`add`
-    (``remove``, ``difference_update``, ...) can only cost a rebuilt
-    environment, never hand back a retired one.
-    """
-
     __slots__ = ("_index",)
 
     def __init__(self) -> None:
@@ -64,7 +38,6 @@ class _EnvironmentSet(WeakSet):
 
     @staticmethod
     def key(uid: typing.Any, su: bool, context: typing.Any) -> tuple:
-        """Return the index key identifying an environment."""
         return (uid, su, context)
 
     def add(self, env: Environment) -> None:
@@ -77,23 +50,16 @@ class _EnvironmentSet(WeakSet):
 
     def discard(self, env: Environment) -> None:
         super().discard(env)
-        # Only evict the index entry if it still points at *this* environment:
-        # the key is ``(uid, su, context)``, so a rebuilt environment with the
-        # same parameters shares it, and popping blindly would retire the live
-        # one along with the discarded duplicate.
         key = self.key(env.uid, env.su, env.context)
         if self._index.get(key) is env:
             del self._index[key]
 
     def lookup(self, key: tuple) -> Environment | None:
-        """Return the live environment registered under *key*, if any."""
         env = self._index.get(key)
         return env if env is not None and env in self else None
 
 
 class Transaction:
-    """An object holding ORM data structures for a transaction."""
-
     __slots__ = (
         "_cache_store",
         "_compute_engine",
@@ -159,7 +125,6 @@ class Transaction:
         self.file_open_tmp_paths: list[str] = []
 
     def flush(self) -> None:
-        """Flush pending computations and updates in the transaction."""
         if self.default_env is not None:
             self.default_env.flush_all()
         elif env := next(iter(self.envs), None):
@@ -178,20 +143,11 @@ class Transaction:
             self._orm_profiler.clear()
 
     def _drop_field_cache_memos(self) -> None:
-        """Purge every environment's ``Field._get_cache`` memo.
-
-        Wired into :class:`FieldCache` as its ``on_detach`` callback, so it runs
-        automatically whenever the cache removes a per-field dict rather than
-        emptying it in place.  The memos alias those dicts and the
-        ``Field.__get__`` fast paths read them without revalidating, so leaving
-        one behind serves stale values and swallows writes.
-        """
         for env in self.envs:
             with suppress(AttributeError):
                 del env._field_cache_memo
 
     def clear(self):
-        """Clear the caches and pending computations/updates."""
         self._cache_store.clear()
         self._compute_engine.clear()
         self._ref_cache.clear()
@@ -200,13 +156,6 @@ class Transaction:
             env.cr.cache.clear()
 
     def _live_recompute_order(self) -> dict[typing.Any, int] | None:
-        """Return the current registry's recompute order, or None.
-
-        Bound into :class:`UnitOfWork` as a live source so the flush loop always
-        reads ``self.registry``'s order, surviving a :meth:`reset` registry swap
-        or metadata rebuild (which invalidate the field identities a snapshot
-        would be keyed on).
-        """
         registry = self.registry
         if registry is None:
             return None
@@ -215,25 +164,11 @@ class Transaction:
         return model_graph.recompute_order if model_graph is not None else None
 
     def reset(self) -> None:
-        """Clear the transaction and reassign the registry on all its envs.
-
-        Recommended after reloading the registry.  The :class:`UnitOfWork`
-        recompute order needs no re-wiring: :meth:`_live_recompute_order` reads
-        ``self.registry`` lazily and picks up the new registry below.
-        """
         self.registry = Registry(self.registry.db_name)
         for env in self.envs:
             reset_cached_properties(env)
         self.clear()
 
     def invalidate_field_data(self) -> None:
-        """Invalidate the cache of all fields.
-
-        Unsafe: invalidating a dirty field drops the value to be written.
-
-        The per-environment ``_field_cache_memo`` purge is not done here: the
-        cache fires :meth:`_drop_field_cache_memos` itself (see
-        :meth:`FieldCache.__init__`).
-        """
         self._cache_store.invalidate_all()
         self._ref_cache.clear()

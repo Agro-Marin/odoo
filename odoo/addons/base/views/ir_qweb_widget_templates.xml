@@ -65,8 +65,6 @@
                         title="Mobile" />
                     <span class="o_force_ltr" itemprop="telephone" t-esc="mobile" />
                 </div>
-                <!-- Prevent issue with iOS Safari parsing of schema data without telephone
-                itemprops -->
                 <div
                     t-if="not (phone and 'phone' in fields) and not (mobile and 'mobile' in fields)"
                     itemprop="telephone" />

@@ -1,10 +1,3 @@
-"""Template inheritance utilities.
-
-Pure Python/lxml utilities for applying inheritance specs to XML templates.
-This module raises ValueError for all errors. For Odoo-specific error handling
-(ValidationError for XPath errors), use odoo.tools.template_inheritance.
-"""
-
 import copy
 import functools
 import itertools
@@ -22,13 +15,7 @@ if TYPE_CHECKING:
 
 
 class XPathExpressionError(ValueError):
-    """An ``<xpath expr="...">`` in an inheritance spec is syntactically invalid.
-
-    Subclasses ``ValueError`` so existing ``except ValueError`` handling is
-    unchanged, while :mod:`odoo.tools.template_inheritance` can catch it by type
-    to raise a translated ``ValidationError`` — instead of substring-matching the
-    English message, which silently broke whenever the wording drifted.
-    """
+    pass
 
 
 __all__ = [
@@ -48,11 +35,6 @@ RSTRIP_REGEXP = re.compile(r"\n[ \t]*$")
 
 @functools.lru_cache(maxsize=1024)
 def _compile_xpath(expr: str) -> etree.ETXPath:
-    """Compile and cache an ETXPath expression.
-
-    Compiled XPath objects are document-independent (same pattern works
-    against any tree), so they can be safely cached by expression string.
-    """
     return etree.ETXPath(expr)
 
 
@@ -79,7 +61,6 @@ def add_stripped_items_before(
     spec: etree._Element,
     extract: Callable[[etree._Element], etree._Element],
 ) -> None:
-    """Insert the children of ``spec`` before ``node``, preserving stripped whitespace."""
     text = spec.text or ""
 
     before_text = ""
@@ -119,7 +100,6 @@ def add_stripped_items_before(
 
 
 def add_text_before(node: etree._Element, text: str | None) -> None:
-    """Add text before ``node`` in its XML tree."""
     if text is None:
         return
     prev = node.getprevious()
@@ -131,26 +111,12 @@ def add_text_before(node: etree._Element, text: str | None) -> None:
 
 
 def remove_element(node: etree._Element) -> None:
-    """Remove ``node`` but not its tail, from its XML tree."""
     add_text_before(node, node.tail)
     node.tail = None
     node.getparent().remove(node)
 
 
 def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | None:
-    """Locate a node in a source (parent) architecture.
-
-    Given a complete source (parent) architecture (i.e. the field
-    `arch` in a view), and a 'spec' node (a node in an inheriting
-    view that specifies the location in the source view of what
-    should be changed), return (if it exists) the node in the
-    source view matching the specification.
-
-    :param arch: a parent architecture to modify
-    :param spec: a modifying node in an inheriting view
-    :return: a node in the source matching the spec
-    :raise: ValueError if the xpath expression is invalid
-    """
     if spec.tag == "xpath":
         expr = spec.get("expr")
         if not expr:
@@ -185,29 +151,10 @@ def apply_inheritance_specs(
     inherit_branding: bool = False,
     pre_locate: Callable[[etree._Element], Any] | None = None,
 ) -> etree._Element:
-    """Apply an inheriting view (a descendant of the base view).
-
-    Apply to a source architecture all the spec nodes (i.e. nodes
-    describing where and what changes to apply to some parent
-    architecture) given by an inheriting view.
-
-    :param Element source: a parent architecture to modify
-    :param Element specs_tree: a modifying architecture in an inheriting view
-    :param bool inherit_branding: keep the website editor's branding bookkeeping
-        when replacing nodes (mark copies ``data-oe-no-branding`` and emit a
-        node-removal processing instruction)
-    :param pre_locate: function that is executed before locating a node.
-                        This function receives an arch as argument.
-                        This is required by studio to properly handle group_ids.
-    :return: a modified source where the specs are applied
-    :rtype: Element
-    :raise: ValueError for invalid specs or if nodes cannot be located
-    """
     specs = list(specs_tree) if isinstance(specs_tree, list) else [specs_tree]
     pre_locate = pre_locate or (lambda _: True)
 
     def extract(spec: etree._Element) -> etree._Element:
-        """Locate the node matching ``spec``, remove it from the source and return it."""
         if len(spec):
             raise ValueError(
                 f'Invalid specification for moved nodes: "{etree.tostring(spec, encoding="unicode")}"'

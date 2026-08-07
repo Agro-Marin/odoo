@@ -1,24 +1,3 @@
-"""Every consumer of a context-dependent field's cache must decode its shape
-the same way the cache itself does.
-
-``FieldCache`` keeps a context-dependent field as ``{context_key: {id: value}}``
-and guards its own accessors with ``isinstance(key, tuple)``, because a field
-can also carry a flat ``{id: value}`` entry written while it was not yet
-context-dependent.  Three consumers in ``env.cache`` re-implemented that decode
-without the guard, so on such a cache ``get_records(all_contexts=True)``
-iterated a *scalar value* and returned a recordset of its characters,
-``repr(env.cache)`` raised ``AttributeError``, and ``check()`` fed the scalar to
-a strict ``zip``.
-
-Reachability, measured rather than assumed: the mixed shape could not be
-produced through ``_setup_models__`` (incremental or full) nor through a full
-``-u base`` upgrade of a 154-module database with a probe on
-``Field._get_cache_impl`` (zero flat resolutions of a context-dependent field),
-and ``all_contexts=True`` has no caller outside these tests.  These are
-consistency guards, not a reproduced production failure: they pin the three
-consumers to the cache's own accessors so the shape rule has one owner.
-"""
-
 from odoo import fields, models
 from odoo.orm.model_test_env import model_test_env
 

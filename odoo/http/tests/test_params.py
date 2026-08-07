@@ -1,10 +1,3 @@
-"""DB-free unit tests for annotation-driven typed-route coercion.
-
-Exercises :mod:`odoo.http._params` — pure stdlib+werkzeug, no registry — so the
-coercion rules are pinned without an HTTP stack. Run in the tier-2 (real-import)
-invocation, e.g. ``pytest odoo/http/tests``.
-"""
-
 import typing
 
 import pytest
@@ -24,8 +17,10 @@ def _spec(fn):
 
 
 def test_resolve_optional_forms_are_equivalent():
-    optional = typing.Optional
-    union = typing.Union
+    # The point of this test is that the LEGACY spellings still resolve the same
+    # way as `X | None` / `X | Y`, so it has to name them.
+    optional = typing.Optional  # noqa: TID251  legacy spelling under test
+    union = typing.Union  # noqa: TID251  legacy spelling under test
     assert _resolve(int | None) == (int, None, True)
     assert _resolve(optional[int]) == (int, None, True)
     assert _resolve(union[int, None]) == (int, None, True)
@@ -83,9 +78,6 @@ def test_float_rejects_non_finite():
 
 @pytest.mark.parametrize("bad", ["1_000", "١٢", "٥", "1 "])
 def test_int_rejects_python_only_number_spellings(bad):
-    """Python's ``int()`` accepts digit-group underscores and non-ASCII digits;
-    a JSON/HTTP integer never is either, so a typed route must 400 them instead
-    of silently parsing ``1_000`` as 1000 or an Arabic-Indic digit as its value."""
 
     def ep(self, n: int): ...
 
@@ -102,8 +94,6 @@ def test_float_rejects_python_only_number_spellings(bad):
 
 
 def test_number_coercion_still_tolerates_surrounding_whitespace():
-    """Only the two Python-isms (``_`` / non-ASCII) are refused; ordinary
-    whitespace around an ASCII number stays tolerated as before."""
 
     def ep(self, n: int, x: float): ...
 
@@ -123,11 +113,6 @@ def test_number_coercion_still_tolerates_surrounding_whitespace():
     ],
 )
 def test_str_param_rejects_non_scalars(value):
-    """Regression: a str-typed param must reject a FileStorage/bytes/container.
-
-    Before the whitelist fix these coerced to their Python ``repr`` (e.g.
-    ``"<FileStorage: 'a.png' ...>"``), silently corrupting the value.
-    """
 
     def ep(self, note: str): ...
 
@@ -143,13 +128,6 @@ def test_str_param_stringifies_json_numbers():
 
 
 def test_str_param_rejects_bool():
-    """A JSON ``true`` is a type error for a str param, not the text "True".
-
-    ``bool`` is an ``int`` subclass, so it used to fall into the numeric
-    stringify branch and arrive as ``"True"`` — capitalised, not even the JSON
-    spelling, and a Python-ism leaking into the request contract. ``int`` and
-    ``float`` params already reject ``bool``; ``str`` now agrees.
-    """
 
     def ep(self, note: str): ...
 
@@ -158,12 +136,6 @@ def test_str_param_rejects_bool():
 
 
 def test_string_annotations_are_resolved():
-    """Regression: under ``from __future__ import annotations`` every annotation
-    is a string, and ``typed=True`` silently coerced nothing.
-
-    The quotes are the subject under test, not a style slip: ``ruff --fix`` will
-    strip them and delete the regression unless they are pinned.
-    """
 
     def ep(self, n: "int", opt: "int | None" = None): ...  # noqa: UP037
 
@@ -174,11 +146,6 @@ def test_string_annotations_are_resolved():
 
 
 def test_unresolvable_string_annotation_passes_through():
-    """An annotation naming nothing must degrade to pass-through, not raise.
-
-    ``NotARealName`` is undefined on purpose; unquoting it (which ``ruff --fix``
-    does without the pragma) turns this into a ``NameError`` at import.
-    """
 
     def ep(self, n: "int", ghost: "NotARealName" = None): ...  # noqa: UP037, F821
 

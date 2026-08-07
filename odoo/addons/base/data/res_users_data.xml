@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <!-- user 1 is the technical admin user -->
     <record id="base.user_root" model="res.users">
         <field name="partner_id" ref="base.partner_root" />
         <field name="company_id" ref="main_company" />
@@ -12,7 +11,6 @@
         </field>
     </record>
 
-    <!-- user 2 is the human admin user -->
     <record id="user_admin" model="res.users">
         <field name="login">admin</field>
         <field name="password">admin</field>
@@ -33,7 +31,6 @@
         <field name="name">Public user</field>
         <field name="login">public</field>
         <field name="password" />
-        <!-- Avoid auto-including this demo user in any default group -->
         <field name="group_ids" eval="[Command.set([])]" />
         <field
             name="image_1920"

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import NoReturn
 
 import odoo.cli
-import odoo.init
+import odoo.init  # noqa: F401  imported for the bootstrap side effect (gc, monkeypatches)
 from odoo.modules import initialize_sys_path, load_script
 from odoo.tools import config
 
@@ -348,7 +348,6 @@ def load_addons_commands(command: str | None = None) -> None:
 
 def find_command(name: str) -> type[Command] | None:
     """Get command by name."""
-
     if not Command.is_valid_name(name):
         return None
 

@@ -17,31 +17,10 @@ class _NumericToFloatLoader(Loader):
 
 
 def register_adapters(conn: psycopg.Connection) -> None:
-    """Register Odoo's psycopg type adapters on a single connection.
-
-    Per-connection (from the pool's ``configure`` callback), not on the
-    process-global ``psycopg.adapters``: a module import must not change numeric
-    decoding for other psycopg users in the process.  Odoo's connections all
-    come from the pool, so they all get it; nothing else does.
-
-    :param conn: the freshly-created psycopg connection to configure.
-    """
     conn.adapters.register_loader("numeric", _NumericToFloatLoader)
 
 
 def is_maintenance_db(db_name: str) -> bool:
-    """True for system/template databases Odoo must never hold connections to.
-
-    An idle connection to a template blocks ``CREATE DATABASE ... TEMPLATE``
-    ("source database is being accessed by other users"), so the pool never
-    pools these at all: :meth:`ConnectionPool.borrow` routes them to
-    :meth:`ConnectionPool._borrow_direct` — a dedicated psycopg connection,
-    closed unconditionally on :meth:`ConnectionPool.give_back`.  (Discarding
-    pooled connections on cursor close was insufficient: psycopg_pool replaces
-    every discarded connection to hold its count, leaving an idle replacement
-    parked on the database.)  ``db_template`` is read per call (not frozen at
-    import) so tests and runtime reconfiguration see the current value.
-    """
     return db_name in (
         "template0",
         "template1",
@@ -63,16 +42,6 @@ re_delete = re.compile(r"^\s*delete\b", re.IGNORECASE)
 
 
 def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
-    """Categorize a SQL query as 'from' (read), 'into' (write), or 'other'
-    and extract the table name.
-
-    Writes — INSERT, UPDATE, DELETE — all land in 'into' so the per-table
-    debug stats show every write on one bucket: an UPDATE classified 'other'
-    would be invisible, and a DELETE classified 'from' would read as a SELECT.
-
-    :param decoded_query: The SQL query string to categorize
-    :return: A tuple of (query_type, table_name) where query_type is 'from', 'into', or 'other'
-    """
     res_update = re_update.match(decoded_query)
     if res_update:
         return "into", res_update.group(1)
@@ -112,27 +81,7 @@ _HEALTH_PARAMS: dict[str, str] = {
 
 
 def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, dict]:
-    """Parse *db_or_uri* into a ``(dbname, connection_params)`` tuple.
-
-    ``connection_params`` is either ``{"dsn": <URI>}`` or a dict of psycopg
-    connection keywords.
-
-    :param str db_or_uri: database name or postgres dsn
-    :param bool readonly: take each connection keyword from ``db_replica_*``
-        when it is set, falling back to the primary's ``db_*``.
-
-        All five of host/port/user/password/sslmode are overridable.  Only
-        host and port used to be, so a replica needing its own role — a
-        read-only login, or a managed instance with separate credentials —
-        could not be configured at all: the replica DSN inherited the
-        primary's user and password with nothing to say why the connection
-        was refused.
-
-        An empty ``db_replica_*`` means "inherit", not "send nothing", so a
-        deployment overrides exactly the keywords that differ.
-    :rtype: (str, dict)
-    """
-    global _ODOO_PGAPPNAME_WARNED
+    global _ODOO_PGAPPNAME_WARNED  # noqa: PLW0603  warn-once latch for the whole process
     app_name = tools.config["db_app_name"]
     if "ODOO_PGAPPNAME" in os.environ:
         if not _ODOO_PGAPPNAME_WARNED:
@@ -180,31 +129,6 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
 
 
 def seed_planner_stats(cr, *, reltuples: float = 1000.0, relpages: int = 100) -> int:
-    """Give zero-stat tables a plausible planner-statistics floor.
-
-    Test suites roll back every transaction, so tables that only ever receive
-    test data keep committed statistics of "empty" forever: ANALYZE (manual or
-    autovacuum's) cannot see uncommitted rows, and ``pg_class.reltuples`` stays
-    at 0 (vacuumed empty) or -1 (never analyzed). The planner then estimates
-    ``rows=1`` for every scan of those tables and freely builds nested-loop
-    chains whose join conditions degrade to late filters — effectively
-    cartesian products that get quadratically slower as a long test
-    transaction accumulates rows (observed in the sale suite:
-    ``_compute_payment_state`` at 450ms/execution for 0 result rows, growing
-    ~7ms per execution — the "test suite hang").
-
-    Seeding ``reltuples``/``relpages`` floors via ``pg_restore_relation_stats``
-    (PostgreSQL 18+, guaranteed by ``MIN_PG_VERSION``) keeps estimates
-    non-trivial, so index conditions and sane join orders survive no matter how
-    much uncommitted data a suite accumulates. Scope: ordinary ``public``
-    tables owned by the current role with ``reltuples <= 0``. The floors are
-    ordinary committed statistics — any later ANALYZE simply overwrites them.
-
-    :param cr: cursor on the target database (the caller commits).
-    :param reltuples: row-count floor to install.
-    :param relpages: page-count floor to install.
-    :return: number of tables seeded.
-    """
     cr.execute(
         """
         SELECT count(*)

@@ -1,9 +1,3 @@
-"""Record deletion: ``unlink`` and its batch helper.
-
-Split out of the former CrudMixin; see _crud_common.py for shared
-constants. Copy/duplication lives in copy.py (CopyMixin).
-"""
-
 import typing
 from itertools import batched
 from typing import Self
@@ -27,16 +21,9 @@ _UNLINK_LOG_MAX_IDS = 1000
 
 
 class UnlinkMixin(_ModelStubs):
-    """Record deletion: ``unlink`` and its batch helper."""
-
     __slots__ = ()
 
     def unlink(self) -> typing.Literal[True]:
-        """Delete the records in ``self``.
-
-        :raise AccessError: if the user may not delete all the given records
-        :raise UserError: if a record is the default property of other records
-        """
         if not self:
             return True
 
@@ -53,10 +40,6 @@ class UnlinkMixin(_ModelStubs):
                 func(self)
         prof.mark("ondelete")
 
-        # Flush BEFORE dropping the pending recomputes, not after: a field that
-        # is both dirty and PENDING can only be written once its recompute has
-        # run, and mark_done() first makes _flush raise "the cached value is
-        # PENDING ... but the field is not scheduled for recomputation".
         self.env.flush_all()
 
         core = self.env._core
@@ -99,11 +82,6 @@ class UnlinkMixin(_ModelStubs):
         if ir_attachment_unlink:
             ir_attachment_unlink.unlink()
 
-        # The id list is the audit record, so it is logged in full up to a
-        # bound.  Beyond it the line stops being a log entry and becomes a
-        # transport problem: a million-row unlink renders a ~10 MB line, held
-        # in memory as one string, on every handler.  Past the bound the count
-        # and the range carry the same forensic weight at constant size.
         if len(deleted_ids) <= _UNLINK_LOG_MAX_IDS:
             _unlink.info(
                 "User #%s deleted %s records with IDs: %r",
@@ -151,18 +129,6 @@ class UnlinkMixin(_ModelStubs):
         Defaults: typing.Any,
         Attachment: typing.Any,
     ) -> tuple[Self, Self]:
-        """Process one batch of record deletions during unlink().
-
-        Executes DELETE SQL, collects ir.model.data and ir.attachment records
-        for cleanup, handles company-dependent M2O restrict/set-null cascade,
-        and discards ir.default entries.
-
-        :param sub_ids: tuple of record IDs to delete in this batch
-        :param Data: ir.model.data model proxy (sudo, empty context)
-        :param Defaults: ir.default model proxy (sudo)
-        :param Attachment: ir.attachment model proxy (sudo)
-        :return: (data_records, attachment_records) to unlink after all batches
-        """
         if (backend := self.env.backend) is not None:
             return backend.delete(self, sub_ids, Data, Attachment)
 

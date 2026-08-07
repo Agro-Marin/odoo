@@ -1,18 +1,3 @@
-"""Gettext usage checker using stdlib ``ast``.
-
-Detects misuse of ``_()``, ``_lt()`` translation functions and missing
-``gettext`` wrappers on error messages.
-
-Rules:
-- ``gettext-variable``: ``_()`` / ``_lt()`` called with non-literal first arg.
-- ``gettext-placeholders``: ``_()`` / ``_lt()`` with 2+ unnamed ``%s`` placeholders.
-- ``gettext-repr``: ``%r`` inside a translation string.
-- ``missing-gettext``: Raw string literal as first arg to error constructors.
-
-Replaces the former ``_odoo_checker_gettext.py`` (which required
-``astroid`` + ``pylint``).
-"""
-
 import ast
 import re
 from collections.abc import Iterator
@@ -45,8 +30,6 @@ ERRORS_REQUIRING_GETTEXT = frozenset(
 
 @dataclass
 class Violation:
-    """A single gettext warning."""
-
     lineno: int
     col_offset: int
     rule: str
@@ -54,7 +37,6 @@ class Violation:
 
 
 def _get_call_name(node: ast.Call) -> str:
-    """Extract the function/method name from a Call node."""
     match node.func:
         case ast.Name(id=name):
             return name
@@ -64,11 +46,6 @@ def _get_call_name(node: ast.Call) -> str:
 
 
 def _is_whitelisted_argument(arg: ast.expr) -> bool:
-    """Check if *arg* is unlikely to be a raw untranslated string.
-
-    Whitelisted patterns: variables, attributes, subscripts, calls,
-    conditional expressions with whitelisted branches, boolean ops, binops.
-    """
     match arg:
         case ast.Name() | ast.Attribute() | ast.Subscript() | ast.Call():
             return True
@@ -82,11 +59,6 @@ def _is_whitelisted_argument(arg: ast.expr) -> bool:
 
 
 def check(tree: ast.Module, filepath: str = "") -> Iterator[Violation]:
-    """Walk *tree* and yield gettext violations.
-
-    Files whose path contains ``/test_`` or ``/tests/`` are skipped
-    (same as the original pylint checker).
-    """
     if "/test_" in filepath or "/tests/" in filepath:
         return
 

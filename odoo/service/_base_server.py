@@ -1,11 +1,3 @@
-"""Base server class and process-global stop-hook registry.
-
-``CommonServer`` is the shared parent of ``ThreadedServer`` / ``EventServer``
-(``_threaded.py``) and ``PreforkServer`` (``_prefork.py``).  It lives in this
-leaf module so both siblings and the ``server.py`` facade can import it without
-a cycle.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -36,12 +28,6 @@ class CommonServer:
 
     @classmethod
     def on_stop(cls, func: Callable) -> None:
-        """Register a cleanup function to run when the server stops.
-
-        Idempotent: the process-global list is append-only, so deduping here
-        keeps a twice-imported module (or an in-process restart) from firing
-        the same hook more than once.
-        """
         if func not in _ON_STOP_FUNCS:
             _ON_STOP_FUNCS.append(func)
 

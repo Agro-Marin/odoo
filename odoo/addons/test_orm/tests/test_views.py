@@ -39,7 +39,6 @@ class TestDefaultView(common.TransactionCase):
 @common.tagged("at_install", "groups")
 class TestViewGroups(ViewCase):
     def test_attrs_groups(self):
-        """Checks that attrs/modifiers with groups work"""
         if "notification_type" not in self.env["res.users"]._fields:
             self.env.cr.execute(
                 "SELECT 1 FROM information_schema.columns "

@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.collections.ordered_set``."""
-
 import unittest
 
 from odoo.libs.collections.ordered_set import LastOrderedSet, OrderedSet

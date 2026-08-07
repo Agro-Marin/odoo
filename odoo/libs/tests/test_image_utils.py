@@ -1,10 +1,3 @@
-"""Unit tests for the non-PIL corners of ``odoo.libs.image.utils``.
-
-Covers the two attributes/inputs that had no defined behaviour:
-``ImageProcess.original_format`` for sources PIL never sees, and
-``average_dominant_color`` on degenerate colour lists.
-"""
-
 import unittest
 
 from odoo.libs.image.utils import ImageProcess, average_dominant_color
@@ -14,12 +7,6 @@ WEBP = b"RIFF" + b"\x00" * 4 + b"WEBPVP8 " + b"\x00" * 20
 
 
 class TestOriginalFormatAlwaysDefined(unittest.TestCase):
-    """``original_format`` is public; reading it must never raise.
-
-    It used to be assigned only on the PIL branch, so for an empty, SVG or WEBP
-    source the attribute did not exist at all.
-    """
-
     def test_empty_source(self):
         self.assertEqual(ImageProcess(b"").original_format, "")
 
@@ -41,12 +28,6 @@ class TestOriginalFormatAlwaysDefined(unittest.TestCase):
 
 
 class TestAverageDominantColorDegenerateInput(unittest.TestCase):
-    """Empty / zero-count inputs name the problem instead of leaking.
-
-    The shape invites it: the second return value feeds back in as the first
-    argument, and it empties out.
-    """
-
     def test_empty_list(self):
         with self.assertRaises(ValueError) as ctx:
             average_dominant_color([])

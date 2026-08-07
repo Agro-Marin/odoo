@@ -38,7 +38,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.env.ref("test_orm.message_0_1").write({"author": self.user_demo.id})
 
     def test_00_basics(self):
-        """test accessing new fields"""
         discussion = self.env.ref("test_orm.discussion_0")
 
         self.assertIsInstance(discussion.name, str)
@@ -49,18 +48,16 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(values["name"], discussion.name)
 
     def test_01_basic_get_assertion(self):
-        """test item getter"""
         record = self.env.ref("test_orm.message_0_0")
         self.assertEqual(len(record), 1)
-        ok = record.body
+        record.body
 
         records = self.env["test_orm.message"].search([])
         assert len(records) > 1
         with self.assertRaises(ValueError):
-            faulty = records.body
+            records.body
 
     def test_01_basic_set_assertion(self):
-        """test item setter"""
         record = self.env.ref("test_orm.message_0_0")
         self.assertEqual(len(record), 1)
         record.body = "OK"
@@ -73,7 +70,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(record.priority, 5)
 
     def test_05_unknown_fields(self):
-        """test ORM operations with unknown fields"""
         cat = self.env["test_orm.category"].create({"name": "Foo"})
 
         with self.assertRaisesRegex(ValueError, "Invalid field"):
@@ -96,7 +92,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             cat.new({"name": "Foo", "zzz": 42})
 
     def test_10_computed(self):
-        """check definition of computed fields"""
         field = self.env["test_orm.message"]._fields["size"]
         self.assertFalse(field.store)
         self.assertFalse(field.compute_sudo)
@@ -128,7 +123,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertTrue(field.copy)
 
     def test_10_computed_custom(self):
-        """check definition of custom computed fields"""
         self.env.flush_all()
         self.env["ir.model.fields"].create(
             {
@@ -303,13 +297,11 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_10_display_name(self):
-        """test definition of automatic field 'display_name'"""
         field = self.env.registry["test_orm.discussion"].display_name
         self.assertTrue(field.compute)
         self.assertEqual(self.registry.field_depends[field], ("name",))
 
     def test_10_non_stored(self):
-        """test non-stored fields"""
         field = self.env["test_orm.category"]._fields["dummy"]
         self.assertFalse(field.store)
         self.assertFalse(field.compute)
@@ -335,10 +327,8 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertTrue(record.now)
 
     def test_11_stored(self):
-        """test stored fields"""
 
         def check_stored(disc):
-            """Check the stored computed field on disc.messages"""
             for msg in disc.messages:
                 self.assertEqual(msg.name, "[%s] %s" % (disc.name, msg.author.name))
 
@@ -388,7 +378,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         check_stored(discussion3)
 
     def test_11_stored_protected(self):
-        """test protection against recomputation"""
         model = self.env["test_orm.compute.readonly"]
         field = model._fields["bar"]
 
@@ -424,7 +413,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             self.assertEqual(record2.bar, "unprotected")
 
     def test_11_computed_access(self):
-        """test computed fields with access right errors"""
         User = self.env["res.users"]
         user1 = User.create({"name": "Aaaah", "login": "a"})
         user2 = User.create({"name": "Boooh", "login": "b"})
@@ -446,7 +434,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         user3.company_type
 
     def test_12_recursive(self):
-        """test recursively dependent fields"""
         Category = self.env["test_orm.category"]
         abel = Category.create({"name": "Abel"})
         beth = Category.create({"name": "Bethany"})
@@ -475,7 +462,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(ewan.display_name, "Gabriel / Finnley / Catherine / Ewan")
 
     def test_12_recursive_recompute(self):
-        """test recomputation on recursively dependent field"""
         a = self.env["test_orm.recursive"].create({"name": "A"})
         b = self.env["test_orm.recursive"].create({"name": "B", "parent": a.id})
         c = self.env["test_orm.recursive"].create({"name": "C", "parent": b.id})
@@ -527,7 +513,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(foo.display_name, "foo()")
         bar = foo.create({"name": "bar", "parent_id": foo.id})
         self.assertEqual(foo.display_name, "foo(bar())")
-        baz = foo.create({"name": "baz", "parent_id": bar.id})
+        foo.create({"name": "baz", "parent_id": bar.id})
         self.assertEqual(foo.display_name, "foo(bar(baz()))")
 
     def test_12_recursive_unlink(self):
@@ -557,7 +543,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(d.context_dependent_name, "A1 / B / C / D")
 
     def test_12_cascade(self):
-        """test computed field depending on computed field"""
         message = self.env.ref("test_orm.message_0_0")
         self.env.invalidate_all()
         double_size = message.double_size
@@ -569,9 +554,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(record.baz, "<[Ho]>")
 
     def test_12_unlink_cascade_active_store(self):
-        """Test that `unlink` on many records doesn't raise a RecursionError
-        with a stored related `active` field.
-        """
         message = self.env["test_orm.message"].create(
             {
                 "active": False,
@@ -583,9 +565,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         message.unlink()
 
     def test_12_unlink_cascade_ir_rule_using_related(self):
-        """Test that `unlink` on many records doesn't raise a RecursionError
-        when there is an ir.rule with a stored related field to compute.
-        """
         message = self.env["test_orm.message"].create(
             {
                 "active": False,
@@ -628,16 +607,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(o2m_field.get_comodel_domain(model), Domain.TRUE)
 
     def test_12_relational_domain_any_recurses_in_depends(self):
-        """A field ``domain`` written with ``any`` records its nested
-        dependencies, like the equivalent dotted form.
-
-        Regression: ``get_depends`` walked ``domain.iter_conditions()``, which
-        does not descend into ``any`` sub-domains, so
-        ``('parent', 'any', [('name', '=', x)])`` registered only ``parent`` and
-        silently missed ``parent.name`` — whereas the dotted form
-        ``('parent.name', '=', x)`` recorded the full path. Dependency tracking
-        must not depend on which form the domain is written in.
-        """
         model = self.env["test_orm.discussion"]
         field = model._fields["categories"]
 
@@ -651,15 +620,14 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertLessEqual(dotted_depends, any_depends)
 
     def test_13_inverse(self):
-        """test inverse computation of fields"""
         Category = self.env["test_orm.category"]
         abel = Category.create({"name": "Abel"})
         beth = Category.create({"name": "Bethany"})
         cath = Category.create({"name": "Catherine"})
-        dean = Category.create({"name": "Dean"})
+        Category.create({"name": "Dean"})
         ewan = Category.create({"name": "Ewan"})
-        finn = Category.create({"name": "Finnley"})
-        gabe = Category.create({"name": "Gabriel"})
+        Category.create({"name": "Finnley"})
+        Category.create({"name": "Gabriel"})
         self.assertEqual(ewan.display_name, "Ewan")
 
         ewan.display_name = "Abel / Bethany / Catherine / Erwan"
@@ -765,7 +733,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertCountEqual(log, ["inverse1", "inverse23"])
 
     def test_13_inverse_access(self):
-        """test access rights on inverse fields"""
         foo = self.env["test_orm.category"].create({"name": "Foo"})
         user = self.env["res.users"].create({"name": "Foo", "login": "foo"})
         self.assertFalse(user.has_group("base.group_system"))
@@ -774,7 +741,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             foo.with_user(user).display_name = "Forbidden"
 
     def test_13_inverse_with_unlink(self):
-        """test x2many delete command combined with an inverse field"""
         parent = self.env["test_orm.inverse.with.unlink"].create(
             {
                 "name": "parent",
@@ -799,7 +765,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(parent.child_ids.mapped("name"), ["Child 2"])
 
     def test_14_search(self):
-        """test search on computed fields"""
         discussion = self.env.ref("test_orm.discussion_0")
 
         sizes = {message.size for message in discussion.messages}
@@ -817,7 +782,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             self.assertEqual(messages0, messages1)
 
     def test_15_constraint(self):
-        """test new-style Python constraints"""
         discussion = self.env.ref("test_orm.discussion_0")
         self.env.flush_all()
 
@@ -839,7 +803,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             discussion.name = "X"
 
     def test_15_constraint_inverse(self):
-        """test constraint method on normal field and field with inverse"""
         log = []
         model = self.env["test_orm.compute.inverse"].with_context(
             log=log, log_constraint=True
@@ -954,7 +917,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(user2.group_count, 1)
 
     def test_18_flush_all(self):
-        """check that env.flush_all() effectively recomputes all fields."""
         self.env.invalidate_all()
         self.assertFalse(
             self.env["test_orm.compute.created"].search_count([("name", "=", "foo")])
@@ -970,12 +932,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(record.created_id.value, 3)
 
     def test_18_cache_update_raw(self):
-        """env.cache.update_raw writes raw cache values (and dirties on demand).
-
-        Regression: the method was called by several addons (e.g.
-        hr.employee._copy_cache_from) but missing from the env.cache facade,
-        raising AttributeError on real read/access paths.
-        """
         partner = self.env["res.partner"].create({"name": "original"})
         field = partner._fields["name"]
         self.env.flush_all()
@@ -990,7 +946,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(partner.name, "to_be_flushed")
 
     def test_18_flush_precommit(self):
-        """check that cr.flush() runs precommits as many times as needed."""
         cr = self.env.cr
         record = self.env["test_orm.compute.created"].create({"name": "foo"})
         count = 4
@@ -1014,7 +969,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(record.value, 10, "Flush not triggered correctly")
 
     def test_20_float(self):
-        """test rounding of float fields"""
         record = self.env["test_orm.mixed"].create({})
         query = "SELECT 1 FROM test_orm_mixed WHERE id=%s AND number=%s"
 
@@ -1031,7 +985,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(record.number, 1.1)
 
     def test_21_float_digits(self):
-        """test field description"""
         precision = self.env.ref("test_orm.decimal_orm_number")
         description = self.env["test_orm.mixed"].fields_get()["number2"]
         self.assertEqual(description["digits"], (16, precision.digits))
@@ -1053,7 +1006,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(value, samount, msg)
 
     def test_20_monetary(self):
-        """test monetary fields"""
         model = self.env["test_orm.mixed"]
         currency = self.env["res.currency"].with_context(active_test=False)
         amount = 14.70126
@@ -1089,7 +1041,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
                 self.check_monetary(record, amount, currency, "multi write(amount)")
 
     def test_20_monetary_opw_2223134(self):
-        """test monetary fields with cache override"""
         model = self.env["test_orm.monetary_order"]
         currency = self.env.ref("base.USD")
 
@@ -1122,7 +1073,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         check(1.0)
 
     def test_20_monetary_related(self):
-        """test value rounding with related currency"""
         currency = self.env.ref("base.USD")
         monetary_base = self.env["test_orm.monetary_base"].create(
             {
@@ -1143,7 +1093,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(total, 0.33)
 
     def test_20_like(self):
-        """test filtered_domain() on char fields."""
         record = self.env["test_orm.multi.tag"].create({"name": "Foo"})
         self.assertTrue(record.filtered_domain([("name", "like", "F")]))
         self.assertTrue(record.filtered_domain([("name", "ilike", "f")]))
@@ -1157,13 +1106,11 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertFalse(record.filtered_domain([("name", "ilike", "f")]))
 
     def test_20_like_multiline(self):
-        """test filtered_domain() on multiline fields."""
         record = self.env["test_orm.mixed"].create({"comment1": "Foo\nBar"})
         self.assertTrue(record.filtered_domain([("comment1", "like", "Bar")]))
         self.assertTrue(record.filtered_domain([("comment1", "ilike", "bar")]))
 
     def test_21_date(self):
-        """test date fields"""
         record = self.env["test_orm.mixed"].create({})
 
         record.date = None
@@ -1199,7 +1146,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertTrue(record.filtered_domain([("date", "=", False)]))
 
     def test_21_datetime(self):
-        """test datetime fields"""
         for _i in range(10):
             self.assertEqual(fields.Datetime.now().microsecond, 0)
 
@@ -1254,7 +1200,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_22_selection(self):
-        """test selection fields"""
         record_list = self.env["test_orm.selection"].create({})
         self.assertIsInstance(record_list._fields["state"].selection, list)
 
@@ -1274,7 +1219,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         record_call.lang = "zz_ZZ"
 
     def test_23_relation(self):
-        """test relation fields"""
         demo = self.user_demo
         message = self.env.ref("test_orm.message_0_0")
 
@@ -1301,7 +1245,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(message.discussion.env, self.env)
 
     def test_24_reference(self):
-        """test reference fields."""
         record = self.env["test_orm.mixed"].create({})
 
         record.reference = None
@@ -1315,8 +1258,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             record.reference = self.env["ir.model"].search([], limit=1)
 
     def test_24_reference_validate_false_skips_db(self):
-        """convert_to_cache(validate=False) trusts the input and must not issue
-        the per-record existence query (used by bulk/import paths)."""
         record = self.env["test_orm.mixed"].create({})
         field = record._fields["reference"]
         value = f"res.partner,{2**31}"
@@ -1325,7 +1266,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(cached, value)
 
     def test_25_related(self):
-        """test related fields."""
         message = self.env.ref("test_orm.message_0_0")
         discussion = message.discussion
 
@@ -1367,7 +1307,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(message_field["help"], discussion_field["help"])
 
     def test_25_related_attributes(self):
-        """test the attributes of related fields"""
         text = self.registry["test_orm.foo"].text
         self.assertFalse(text.trim, "The target field is defined with trim=False")
 
@@ -1387,7 +1326,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertTrue(self.registry["test_orm.bar"].text1.trim)
 
     def test_25_related_single(self):
-        """test related fields with a single field in the path."""
         record = self.env["test_orm.related"].create({"name": "A"})
         self.assertEqual(record.related_name, record.name)
         self.assertEqual(record.related_related_name, record.name)
@@ -1405,7 +1343,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(record.name, "C")
 
     def test_25_related_multi(self):
-        """test write() on several related fields based on a common computed field."""
         foo = self.env["test_orm.foo"].create({"name": "A", "value1": 1, "value2": 2})
         oof = self.env["test_orm.foo"].create({"name": "B", "value1": 1, "value2": 2})
         bar = self.env["test_orm.bar"].create({"name": "A"})
@@ -1463,7 +1400,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertFalse(right.left_size)
 
     def test_26_inherited(self):
-        """test inherited fields."""
         for user in self.env["res.users"].search([]):
             partner = user.partner_id
             for field in ("is_company", "name", "email", "country_id"):
@@ -1471,7 +1407,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
                 self.assertEqual(user[field], partner[field])
 
     def test_27_company_dependent(self):
-        """test company-dependent fields."""
         null_record = self.env["test_orm.company"].create({})
         null_record_normal = self.env["test_orm.mixed"].create({})
         null_record.invalidate_recordset()
@@ -1670,9 +1605,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(cr.fetchone(), (None, None, None))
 
     def test_27_company_dependent_missing_many2one(self):
-        """Test ORM can handle missing records for many2one company dependent fields"""
-        company0 = self.env.ref("base.main_company")
-        company1 = self.env["res.company"].create({"name": "A"})
+        self.env["res.company"].create({"name": "A"})
         Model = self.env["test_orm.company"]
         record = Model.create({})
         record.tag_id = 1000
@@ -1690,10 +1623,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_28_company_dependent_search(self):
-        """Test the search on company-dependent fields in all corner cases.
-        This assumes that filtered_domain() correctly filters records when
-        its domain refers to company-dependent fields.
-        """
         IrDefault = self.env["ir.default"]
         Model = self.env["test_orm.company"]
 
@@ -2029,7 +1958,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_30_read(self):
-        """test computed fields as returned by read()."""
         discussion = self.env.ref("test_orm.discussion_0")
 
         for message in discussion.messages:
@@ -2041,7 +1969,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             self.assertEqual(data["size"], size)
 
     def test_31_prefetch(self):
-        """test prefetch of records handle AccessError"""
         Category = self.env["test_orm.category"]
         cat1 = Category.create({"name": "NOACCESS"})
         cat2 = Category.create({"name": "ACCESS", "parent": cat1.id})
@@ -2058,7 +1985,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             cat1.name
 
     def test_32_prefetch_missing_error(self):
-        """Test that prefetching non-column fields works in the presence of deleted records."""
         Discussion = self.env["test_orm.discussion"]
 
         self.env["ir.model.access"].create(
@@ -2102,7 +2028,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         Discussion.browse([None]).read(["categories"])
 
     def test_40_real_vs_new(self):
-        """test field access on new records vs real records."""
         Model = self.env["test_orm.category"]
         real_record = Model.create({"name": "Foo"})
         new_origin = Model.new({"name": "Bar"}, origin=real_record)
@@ -2142,7 +2067,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(new_record.display_name, "Bazz")
 
     def test_40_new_defaults(self):
-        """Test new records with defaults."""
         user = self.env.user
         discussion = self.env.ref("test_orm.discussion_0")
 
@@ -2171,7 +2095,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(new_disc.categories._origin, cat2)
 
     def test_40_new_fields(self):
-        """Test new records with relational fields."""
         msg0 = self.env["test_orm.message"].create({"body": "XXX"})
         msg1 = self.env["test_orm.message"].create({"body": "WWW"})
         cat0 = self.env["test_orm.category"].create({"name": "AAA"})
@@ -2275,7 +2198,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(convert, [(6, 0, self.env.user.ids)])
 
     def test_40_new_inherited_fields(self):
-        """Test the behavior of new records with inherited fields."""
         email = self.env["test_orm.emailmessage"].new({"body": "XXX"})
         self.assertEqual(email.body, "XXX")
         self.assertEqual(email.message.body, "XXX")
@@ -2289,7 +2211,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(email.message.body, "ZZZ")
 
     def test_40_new_ref_origin(self):
-        """Test the behavior of new records with ref/origin."""
         Discussion = self.env["test_orm.discussion"]
         new = Discussion.new
 
@@ -2395,7 +2316,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(vals["lines"], [(6, 0, rec.lines.ids)])
 
     def test_41_new_compute(self):
-        """Check recomputation of fields on new records."""
         move = self.env["test_orm.move"].create(
             {
                 "line_ids": [
@@ -2420,7 +2340,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(move.quantity, 2)
 
     def test_41_new_one2many(self):
-        """Check command on one2many field on new record."""
         move = self.env["test_orm.move"].create({})
         line = self.env["test_orm.move_line"].create(
             {"move_id": move.id, "quantity": 1}
@@ -2475,7 +2394,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
 
     @mute_logger("odoo.addons.base.models.ir_model")
     def test_41_new_related(self):
-        """test the behavior of related fields starting on new records."""
         access = self.env.ref("test_orm.access_discussion")
         access.write({"perm_read": False})
 
@@ -2491,7 +2409,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
 
     @mute_logger("odoo.addons.base.models.ir_model")
     def test_42_new_related(self):
-        """test the behavior of related fields traversing new records."""
         access = self.env.ref("test_orm.access_discussion")
         access.write({"perm_read": False})
 
@@ -2506,7 +2423,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(message.discussion_name, discussion.name)
 
     def test_43_new_related(self):
-        """test the behavior of one2many related fields"""
         partner = self.env["res.partner"].create(
             {
                 "name": "Foo",
@@ -2518,7 +2434,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(multi.partners.mapped("name"), ["Bar"])
 
     def test_50_defaults(self):
-        """test default values."""
         fields = ["discussion", "body", "author", "size"]
         defaults = self.env["test_orm.message"].default_get(fields)
         self.assertEqual(defaults, {"author": self.env.uid})
@@ -2527,14 +2442,12 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(defaults, {"number": 3.14})
 
     def test_50_search_many2one(self):
-        """test search through a path of computed fields"""
         messages = self.env["test_orm.message"].search(
             [("author_partner.name", "=", "Marc Demo")]
         )
         self.assertEqual(messages, self.env.ref("test_orm.message_0_1"))
 
     def test_51_search_many2one_ordered(self):
-        """test search on many2one ordered by id"""
         with self.assertQueries(
             [
                 """
@@ -2630,7 +2543,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             Model.search([("id", "=", False)])
 
     def test_60_one2many_domain(self):
-        """test the cache consistency of a one2many field with a domain"""
         discussion = self.env.ref("test_orm.discussion_0")
         message = discussion.messages[0]
         self.assertNotIn(message, discussion.important_messages)
@@ -2644,7 +2556,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertFalse(message.exists())
 
     def test_60_many2many_domain(self):
-        """test the cache consistency of a many2many field with a domain"""
         tag = self.env["test_orm.multi.tag"].create({"name": "bar"})
         record = self.env["test_orm.multi"].create({"tags": tag.ids})
         self.env.flush_all()
@@ -2690,7 +2601,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(len(discussion.very_important_messages), 2)
 
     def test_70_relational_inverse(self):
-        """Check the consistency of relational fields with inverse(s)."""
         discussion = self.env.ref("test_orm.discussion_0")
         demo_discussion = discussion.with_user(self.user_demo)
 
@@ -2710,7 +2620,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(demo_discussion.messages, discussion.messages)
 
     def test_71_relational_inverse(self):
-        """Check the consistency of relational fields with inverse(s)."""
         move1 = self.env["test_orm.move"].create({})
         move2 = self.env["test_orm.move"].create({})
         line = self.env["test_orm.move_line"].create({"move_id": move1.id})
@@ -2723,7 +2632,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(line.move_id, move2)
 
     def test_72_relational_inverse(self):
-        """Check the consistency of relational fields with inverse(s)."""
         move1 = self.env["test_orm.move"].create({})
         move2 = self.env["test_orm.move"].create({})
 
@@ -2736,7 +2644,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(moves, move2)
 
     def test_73_relational_inverse(self):
-        """Check the consistency of relational fields with inverse(s)."""
         discussion1, discussion2 = self.env["test_orm.discussion"].create(
             [
                 {"name": "discussion1"},
@@ -2873,7 +2780,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(attachment.mimetype, "text/plain")
 
     def test_93_monetary_related(self):
-        """Check the currency field on related monetary fields."""
         model = self.env["test_orm.monetary_base"]
         field = model._fields["amount"]
         self.assertEqual(field.get_currency_field(model), "base_currency_id")
@@ -3293,12 +3199,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         assertBinaryValue(record_bin_size, binary_size)
 
     def test_95_binary_bin_size_write_per_field_key(self):
-        """Binary.mark_dirty must reset the per-field ``bin_size_<name>`` key,
-        not only the global ``bin_size``.  Otherwise a write carrying the
-        bin-size int (the client may send the size back instead of the content)
-        is size-converted by convert_to_cache and the ``human_size`` string is
-        cached as the content of the (content-mode) cache slot.
-        """
         record = self.env["test_orm.related_foo"].create({"name": "bin"})
         field_name = "binary_bin"
         record.with_context(**{f"bin_size_{field_name}": True}).write(
@@ -3329,8 +3229,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(cities.sorted().mapped("name"), ["Brussels", "Kinshasa"])
 
     def test_97_ir_rule_m2m_field(self):
-        """Ensures m2m fields can't be read if the left records can't be read.
-        Also makes sure reading m2m doesn't take more queries than necessary."""
         tag = self.env["test_orm.multi.tag"].create({})
         record = self.env["test_orm.multi.line"].create(
             {
@@ -3607,7 +3505,6 @@ class TestX2many(TransactionExpressionCase):
             )
 
     def test_definition_many2many(self):
-        """Test the definition of inherited many2many fields."""
         field = self.env["test_orm.multi.line"]._fields["tags"]
         self.assertEqual(field.relation, "test_orm_multi_line_test_orm_multi_tag_rel")
         self.assertEqual(field.column1, "test_orm_multi_line_id")
@@ -3619,7 +3516,6 @@ class TestX2many(TransactionExpressionCase):
         self.assertEqual(field.column2, "test_orm_multi_tag_id")
 
     def test_10_ondelete_many2many(self):
-        """Test A can't be deleted when used on the relation."""
         record_a = self.env["test_orm.model_a"].create({"name": "a"})
         record_b = self.env["test_orm.model_b"].create({"name": "b"})
         record_a.write(
@@ -3634,7 +3530,6 @@ class TestX2many(TransactionExpressionCase):
         self.assertFalse(record_b.exists())
 
     def test_11_ondelete_many2many(self):
-        """Test B can't be deleted when used on the relation."""
         record_a = self.env["test_orm.model_a"].create({"name": "a"})
         record_b = self.env["test_orm.model_b"].create({"name": "b"})
         record_a.write(
@@ -3867,7 +3762,6 @@ class TestX2many(TransactionExpressionCase):
         )
 
     def test_search_many2many(self):
-        """Tests search on many2many fields."""
         tags = self.env["test_orm.multi.tag"]
         tagA = tags.create({})
         tagB = tags.create({})
@@ -3925,7 +3819,6 @@ class TestX2many(TransactionExpressionCase):
         self.assertEqual(result, recs - recW)
 
     def test_search_one2many(self):
-        """Tests search on one2many fields."""
         recs = self.env["test_orm.multi"]
         recX = recs.create({"lines": [Command.create({}), Command.create({})]})
         recY = recs.create({"lines": [Command.create({})]})
@@ -4063,20 +3956,6 @@ class TestX2many(TransactionExpressionCase):
     @mute_logger("odoo.addons.base.models.ir_model")
     @users("portal")
     def test_sudo_commands(self):
-        """Test manipulating a x2many field using Commands with `sudo` or with another user (`with_user`)
-        is not allowed when the destination model is flagged `_allow_sudo_commands = False` and the transaction user
-        does not have the required access rights.
-
-        This test asserts an AccessError is raised
-        when a user attempts to pass Commands to a One2many and Many2many field
-        targeting a model flagged with `_allow_sudo_commands = False`
-        while using an environment with `sudo()` or `with_user(admin_user)`.
-
-        The `with_user` are edge cases in some business codes, where a more-priviledged user is used temporary
-        to perform an action, such as:
-        - `Documents.with_user(share.create_uid)`
-        - `request.env['sign.request'].with_user(contract.hr_responsible_id).sudo()`
-        """
 
         admin_user = self.env.ref("base.user_admin")
         my_user = self.env.user.sudo(False)
@@ -4434,7 +4313,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         )
 
     def cats(self, *indexes):
-        """Return the given categories."""
         ids = self._cats.ids
         return self._cats.browse([ids[index] for index in indexes])
 
@@ -4445,7 +4323,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertEqual(category.search([("id", "parent_of", category.ids)]), parents)
 
     def test_base(self):
-        """Check the initial tree structure."""
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
         self.assertChildOf(self.cats(1), self.cats(1))
         self.assertChildOf(self.cats(2), self.cats(2))
@@ -4468,7 +4345,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(9), self.cats(0, 3, 6, 9))
 
     def test_base_compute(self):
-        """Check the tree structure after computation from scratch."""
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
         self.assertChildOf(self.cats(1), self.cats(1))
         self.assertChildOf(self.cats(2), self.cats(2))
@@ -4491,7 +4367,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(9), self.cats(0, 3, 6, 9))
 
     def test_delete(self):
-        """Delete a node."""
         self.cats(6).unlink()
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4, 5))
         self.assertChildOf(self.cats(3), self.cats(3, 4, 5))
@@ -4501,7 +4376,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(5), self.cats(0, 3, 5))
 
     def test_move_1_0(self):
-        """Move a node to a root position."""
         self.cats(6).write({"parent": False})
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4, 5))
         self.assertChildOf(self.cats(3), self.cats(3, 4, 5))
@@ -4509,7 +4383,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(9), self.cats(6, 9))
 
     def test_move_1_1(self):
-        """Move a node into an empty subtree."""
         self.cats(6).write({"parent": self.cats(1).id})
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
         self.assertChildOf(self.cats(1), self.cats(1, 6, 7, 8, 9))
@@ -4518,7 +4391,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(9), self.cats(0, 1, 6, 9))
 
     def test_move_1_N(self):
-        """Move a node into a non-empty subtree."""
         self.cats(6).write({"parent": self.cats(0).id})
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
         self.assertChildOf(self.cats(3), self.cats(3, 4, 5))
@@ -4526,7 +4398,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(9), self.cats(0, 6, 9))
 
     def test_move_N_0(self):
-        """Move multiple nodes to root position."""
         self.cats(5, 6).write({"parent": False})
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4))
         self.assertChildOf(self.cats(3), self.cats(3, 4))
@@ -4536,7 +4407,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(9), self.cats(6, 9))
 
     def test_move_N_1(self):
-        """Move multiple nodes to an empty subtree."""
         self.cats(5, 6).write({"parent": self.cats(1).id})
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
         self.assertChildOf(self.cats(1), self.cats(1, 5, 6, 7, 8, 9))
@@ -4547,7 +4417,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(9), self.cats(0, 1, 6, 9))
 
     def test_move_N_N(self):
-        """Move multiple nodes to a non- empty subtree."""
         self.cats(5, 6).write({"parent": self.cats(0).id})
         self.assertChildOf(self.cats(0), self.cats(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
         self.assertChildOf(self.cats(3), self.cats(3, 4))
@@ -4557,12 +4426,10 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertParentOf(self.cats(9), self.cats(0, 6, 9))
 
     def test_move_1_cycle(self):
-        """Move a node to create a cycle."""
         with self.assertRaises(UserError):
             self.cats(3).write({"parent": self.cats(9).id})
 
     def test_move_N_cycle(self):
-        """Move multiple nodes to create a cycle."""
         with self.assertRaises(UserError):
             self.cats(1, 3).write({"parent": self.cats(9).id})
 
@@ -4762,11 +4629,6 @@ class TestSelectionUpdates(TransactionCase):
 
 @tagged("selection_manual_related_update")
 class TestSelectionManualRelatedUpdate(TransactionCase):
-    """
-    Regression test: adding a value to a manual selection field must update
-    the registry for models that have a manual related field pointing to it.
-    """
-
     MODEL_BASE = "test_orm.model_selection_base"
     MODEL_RELATED = "test_orm.model_selection_related"
 
@@ -5106,7 +4968,6 @@ class TestFieldParametersValidation(TransactionCase):
 
 
 def select(model, *fnames):
-    """Return the expected query string to SELECT the given columns."""
     table = model._table
     model_fields = model._fields
     terms = ", ".join(
@@ -5121,7 +4982,6 @@ def select(model, *fnames):
 
 
 def insert(model, *fnames, rowcount=1):
-    """Return the expected query string to INSERT the given columns."""
     columns = sorted(fnames + ("create_uid", "create_date", "write_uid", "write_date"))
     header = ", ".join(f'"{column}"' for column in columns)
     template = ", ".join("(%s)" for _index in range(rowcount))
@@ -5129,7 +4989,6 @@ def insert(model, *fnames, rowcount=1):
 
 
 def update(model, *fnames):
-    """Return the expected query string to UPDATE the given columns."""
     table = f'"{model._table}"'
     fnames = sorted(fnames + ("write_uid", "write_date"))
     columns = ", ".join(f'"{column}"' for column in fnames)
@@ -5145,8 +5004,6 @@ def update(model, *fnames):
 
 
 class TestComputeQueries(TransactionCase):
-    """Test the queries made by create() with computed fields."""
-
     def test_compute_readonly(self):
         model = self.env["test_orm.compute.readonly"]
         model.create({})
@@ -5233,12 +5090,6 @@ class TestComputeQueries(TransactionCase):
         self.assertEqual(record.foo, "has one child")
 
     def test_x2many_computed_inverse_pending_recompute(self):
-        """Commands written on a stored computed-with-inverse x2many apply on
-        top of the recomputed value: write() must run the field's pending
-        recompute before its batched pre-read, otherwise the fetched stale DB
-        relation becomes the baseline and mark_dirty discards the pending
-        computation without ever running it.
-        """
         record = self.env["test_orm.compute.inverse"].create({"foo": "x"})
         self.env.flush_all()
 
@@ -5270,10 +5121,6 @@ class TestComputeQueries(TransactionCase):
         self.assertEqual(records.mapped("value2"), [0, 12, 0, 0])
 
     def test_create_cache_consistency(self):
-        """The cache should always contains the raw value of the database. The
-        cache value of non-assigned column during create() should be None for
-        any column field type.
-        """
         record = self.env["test_orm.create.performance"].create({})
         self.assertEqual(record.confirmed, False)
         cached_value = record._cache["confirmed"]
@@ -5333,9 +5180,6 @@ class TestComputeQueries(TransactionCase):
             self.assertTrue(record.tag_ids)
 
     def test_partial_compute_batching(self):
-        """Create several 'new' records and check that the partial compute
-        method is called only once.
-        """
         order = self.env["test_orm.order"].new(
             {
                 "line_ids": [Command.create({"reward": False})] * 100,
@@ -5608,15 +5452,6 @@ class TestPrecompute(TransactionCase):
         self.assertEqual(record.baz2, "baz")
 
     def test_precompute_readonly(self):
-        """
-        Ensures
-        - a stored, precomputed, readonly field cannot be altered by the user,
-        - a stored, precomputed, readonly field,
-          but with a states attributes changing the readonly of the field according to the state of the record,
-          can be altered by the user.
-        The `bar` field is store=True, precompute=True, readonly=True
-        The `baz` field is store=True, precompute=True, readonly=False,
-        """
         model = self.env["test_orm.precompute.readonly"]
 
         record = model.create({"foo": "foo"})
@@ -5667,7 +5502,6 @@ class TestPrecompute(TransactionCase):
             model.create([{"partner_id": pid} for pid in partners.ids])
 
     def test_precompute_monetary(self):
-        """Make sure the rounding of monetaries correctly prefetches currency fields"""
         model = self.env["test_orm.precompute.monetary"]
         currency = self.env["res.currency"]
 
@@ -5786,18 +5620,6 @@ class TestModifiedPerformance(TransactionCase):
 
 class TestRelationalGetPending(TransactionCase):
     def test_batched_get_evicts_pending_sentinel(self):
-        """Batched relational ``__get__`` must never leak the PENDING sentinel.
-
-        When a stored computed relational field's compute skipped some records,
-        their cache entry stays PENDING.  Reading the field in batch
-        (``records.mapped(field)``) must evict the sentinel and resolve the real
-        value rather than return a recordset whose ``_ids`` contains PENDING
-        (which then makes ``.ids`` and any downstream int use blow up).
-
-        ``PREFETCH_MAX`` is patched low so the batch exercises the bulk-fetch
-        branch (``len(vals) < len(records) - PREFETCH_MAX``) where the sentinel
-        used to survive; the single-record branch was always correct.
-        """
         from unittest.mock import patch
 
         from odoo.orm.fields.relational import _base
@@ -5825,9 +5647,6 @@ class TestRelationalGetPending(TransactionCase):
 
 class TestTranslatedFieldEnUsFallback(TransactionCase):
     def test_current_lang_value_not_shadowed_by_en_us_fallback(self):
-        """A translated field value cached for the current language must win over
-        the en_US fallback, even when read through a freshly-derived env whose
-        scalar-cache memo is cold (regression: the fallback returned en_US)."""
         self.env["res.lang"]._activate_lang("fr_FR")
         Country = self.env["res.country"]
 
@@ -5847,19 +5666,6 @@ class TestTranslatedFieldEnUsFallback(TransactionCase):
 
 
 class TestReferenceBatchValidation(TransactionCase):
-    """Batch-create existence validation for Reference fields.
-
-    ``Reference.convert_to_cache(validate=True)`` used to issue one
-    ``browse(res_id).exists()`` SELECT per converted value — O(n) on batch
-    create, re-issued even for identical values.  ``_reference_exists`` now
-    memoizes verified ``(model, id)`` pairs per transaction (``env.cr.cache``)
-    and, on the batch-create path, validates the whole batch's targets with
-    one sibling-column fetch plus one existence query per referenced model.
-
-    These tests measure query *deltas* against a reference-free baseline
-    create of the same shape, so unrelated framework queries cancel out.
-    """
-
     def _query_count(self, func):
         self.env.flush_all()
         count0 = self.cr.sql_log_count
@@ -5942,8 +5748,6 @@ class TestReferenceBatchValidation(TransactionCase):
         )
 
     def test_batch_create_invalid_reference_still_dropped(self):
-        """Existence validation semantics are preserved: a syntactically valid
-        reference to a missing record is still nullified on create."""
         partner = self.env["res.partner"].create({"name": "Ref Valid"})
         missing_id = 2**31 - 1
         self._reset_reference_memo()
@@ -5969,17 +5773,6 @@ class TestReferenceBatchValidation(TransactionCase):
 
 
 class TestUpdateDbNotNull(TransactionCase):
-    """A bad Python default must not cancel the NOT NULL constraint.
-
-    ``update_db_notnull`` derives a SQL DEFAULT from the field's Python
-    default.  It used to pass the raw value straight to ``ALTER ... SET
-    DEFAULT`` and register both ALTERs under one post_constraint savepoint, so
-    a type-mismatched default (e.g. a str default on an int column) failed the
-    DEFAULT and rolled back the NOT NULL with it — silently leaving a required
-    column nullable.  The default is now converted via ``convert_to_column``
-    (skipped on failure) and both ALTERs run under separate keys.
-    """
-
     def _column_state(self, model, field):
         self.env.cr.execute(
             "SELECT is_nullable, column_default"

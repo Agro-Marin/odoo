@@ -1,10 +1,3 @@
-"""Regression tests for ``odoo.libs.collections.frozen_dict.frozendict``.
-
-``frozendict`` subclasses ``dict``, so every mutating entry point must be
-overridden.  ``|=`` (``__ior__``) is easy to miss: the inherited
-``dict.__ior__`` mutates in place and leaves the cached ``_hash`` stale.
-"""
-
 import copy
 import pickle
 import unittest
@@ -38,14 +31,6 @@ class TestFrozendictImmutability(unittest.TestCase):
 
 
 class TestFrozendictCopyAndPickle(unittest.TestCase):
-    """Being immutable must not mean being uncopyable.
-
-    ``dict`` subclasses are reconstructed through the pickle protocol's
-    "dictitems" slot, which replays the contents with ``obj[key] = value`` --
-    straight into the ``__setitem__`` override, so all three of ``copy.copy``,
-    ``copy.deepcopy`` and ``pickle`` raised ``NotImplementedError``.
-    """
-
     def test_copy(self):
         fd = frozendict({"a": 1, "b": 2})
         clone = copy.copy(fd)

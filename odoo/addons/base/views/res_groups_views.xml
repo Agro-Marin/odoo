@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Group's sections -->
     <record id="view_res_groups_privilege_list" model="ir.ui.view">
         <field name="name">res.groups.privilege.list</field>
         <field name="model">res.groups.privilege</field>
@@ -55,7 +54,6 @@
         <field name="res_model">res.groups.privilege</field>
     </record>
 
-    <!-- res.groups -->
     <record id="view_groups_search" model="ir.ui.view">
         <field name="name">res.groups.search</field>
         <field name="model">res.groups</field>

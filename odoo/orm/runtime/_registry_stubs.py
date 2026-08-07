@@ -1,19 +1,3 @@
-"""Typing-only declaration of the shared ``Registry`` surface.
-
-``_RegistryFieldsMixin`` and ``_RegistrySchemaMixin`` are composed onto
-:class:`Registry` by multiple inheritance (see ``runtime/registry.py``). Each
-method operates on ``self`` — a full ``Registry`` at runtime — but a type checker
-sees only the *defining* mixin, which does not declare the cross-cutting members
-(``self.model_graph``, ``self.models``, …) that ``Registry`` sets during
-``init()``. That produced ~36 spurious ``[attr-defined]`` errors.
-
-:class:`_RegistryStubs` collects that surface in one place; the mixins inherit it
-to gain a correct, typed view. Mirrors the model-mixin ``_ModelStubs`` pattern.
-Purely a typing aid: declarations under ``if typing.TYPE_CHECKING:`` and
-``__slots__ = ()``, so at runtime it is an empty class contributing only a
-(deduplicated) MRO entry.
-"""
-
 import typing
 
 if typing.TYPE_CHECKING:
@@ -26,8 +10,6 @@ if typing.TYPE_CHECKING:
 
 
 class _RegistryStubs:
-    """Shared, typing-only view of the ``Registry`` surface."""
-
     __slots__ = ()
 
     if typing.TYPE_CHECKING:

@@ -4,7 +4,6 @@ from odoo.tests import TransactionCase, tagged
 @tagged("-at_install", "post_install")
 class TestResCountryState(TransactionCase):
     def test_find_by_name(self):
-        """It should be possible to find a state by its display name"""
         glorious_arstotzka = self.env["res.country"].create(
             {
                 "name": "Arstotzka",
@@ -73,7 +72,6 @@ class TestResCountryState(TransactionCase):
 @tagged("-at_install", "post_install")
 class TestGetAddressFields(TransactionCase):
     def test_get_address_fields_default_format(self):
-        """get_address_fields parses the placeholders of the default format."""
         country = self.env["res.country"].create({"name": "Arstotzka", "code": "AA"})
         self.assertEqual(
             country.get_address_fields(),
@@ -81,7 +79,6 @@ class TestGetAddressFields(TransactionCase):
         )
 
     def test_get_address_fields_empty_format(self):
-        """get_address_fields returns [] (no TypeError) when the format is False."""
         country = self.env["res.country"].create(
             {"name": "Arstotzka", "code": "AA", "address_format": False}
         )
@@ -89,9 +86,6 @@ class TestGetAddressFields(TransactionCase):
         self.assertEqual(country.get_address_fields(), [])
 
     def test_get_address_fields_ignores_literal_parentheses(self):
-        """Only %(field)s placeholders are field names: literal parenthesized
-        text in the format must not leak into the result (it is consumed by
-        portal/website address forms as field names)."""
         country = self.env["res.country"].create(
             {
                 "name": "Arstotzka",

@@ -1,7 +1,3 @@
-"""Field translation mixin for BaseModel: get/update translations of
-translatable fields.
-"""
-
 import typing
 
 from psycopg.types.json import Jsonb
@@ -18,8 +14,6 @@ from ._model_stubs import _ModelStubs
 
 
 class TranslationMixin(_ModelStubs):
-    """Mixin providing field translation functionality."""
-
     __slots__ = ()
 
     def update_field_translations(
@@ -28,10 +22,6 @@ class TranslationMixin(_ModelStubs):
         translations: dict[str, str | typing.Literal[False] | dict[str, str]],
         source_lang: str = "",
     ) -> bool:
-        """Update the translations for a given field.
-
-        See '_update_field_translations' docstring for details.
-        """
         return self._update_field_translations(
             field_name, translations, source_lang=source_lang
         )
@@ -43,44 +33,6 @@ class TranslationMixin(_ModelStubs):
         digest: Callable[[str], str] | None = None,
         source_lang: str = "",
     ) -> bool:
-        """Update a field's translations, optionally using ``digest`` to
-        identify old terms.
-
-        :param field_name: The name of the field to update.
-        :param translations: The translations to apply.
-            If ``field.translate`` is ``True``, the dictionary should be in the
-            format::
-
-                {lang: new_value}
-
-            where ``new_value`` can either be:
-
-            * a ``str``, in which case the new translation for the specified
-              language.
-            * ``False``, in which case it removes the translation for the
-                specified language and falls back to the latest en_US value.
-
-            If ``field.translate`` is a callable, the dictionary should be in
-            the format::
-
-                {lang: {old_source_lang_term: new_term}}
-
-            or (when ``digest`` is callable)::
-
-                {lang: {digest(old_source_lang_term): new_term}}.
-
-            where ``new_term`` can either be:
-
-            * a non-empty ``str``, in which case the new translation of
-              ``old_term`` for the specified language.
-            * ``False`` or ``''``, in which case it removes the translation for
-                the specified language and falls back to the old
-                ``source_lang_term``.
-
-        :param digest: An optional function to generate identifiers for old terms.
-        :param source_lang: The language of ``old_source_lang_term`` in
-            translations. Assumes ``'en_US'`` when it is not set / empty.
-        """
         self.ensure_one()
 
         self.check_access("write")
@@ -192,10 +144,6 @@ class TranslationMixin(_ModelStubs):
             if source_key is not None:
                 old_source_lang_value = old_values[source_key]
             else:
-                # A row can hold no source-language key at all (partial
-                # migration, direct SQL import): fall back to any stored
-                # value, as _mark_dirty_model_term_translation does, instead
-                # of letting the bare next() raise StopIteration.
                 old_source_lang_value = next(iter(old_values.values()))
             old_values_to_translate = {
                 lang: value
@@ -242,15 +190,6 @@ class TranslationMixin(_ModelStubs):
     def get_field_translations(
         self, field_name: str, langs: Collection[str] | None = None
     ) -> tuple[list[dict[str, str]], dict[str, typing.Any]]:
-        """Get model/model_term translations for records.
-
-        :param field_name: field name
-        :param langs: languages
-
-        :return: ``(translations, context)`` where translations is a list of
-            ``{"lang", "source", "value"}`` dicts and context holds
-            ``translation_type`` ("text"/"char") and ``translation_show_source``.
-        """
         self.ensure_one()
         field = self._fields[field_name]
         langs = set(langs or [l[0] for l in self.env["res.lang"].get_installed()])
@@ -290,6 +229,5 @@ class TranslationMixin(_ModelStubs):
         return translations, context
 
     def _get_base_lang(self) -> str:
-        """Return the base language of the record."""
         self.ensure_one()
         return "en_US"

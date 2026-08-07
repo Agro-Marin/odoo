@@ -1,6 +1,3 @@
-"""Regression tests for the 2026-07 ORM audit fixes (relational / company-
-dependent / domain majors). Tier-3: these need a real database."""
-
 from datetime import date, timedelta
 
 from odoo.fields import Command
@@ -8,13 +5,6 @@ from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestOne2manyClearArchived(TransactionCase):
-    """SET/CLEAR on a stored o2m must detach archived lines too.
-
-    Regression: write_real searched the lines to detach under the default
-    ``active_test``, so archived lines kept their inverse and survived a
-    CLEAR — while the m2m counterpart already removed archived links.
-    """
-
     def _make_family(self):
         Category = self.env["res.partner.category"]
         parent = Category.create({"name": "parent"})
@@ -39,7 +29,7 @@ class TestOne2manyClearArchived(TransactionCase):
             )
 
     def test_set_detaches_archived_lines(self):
-        parent, active, archived = self._make_family()
+        parent, _active, archived = self._make_family()
         keeper = self.env["res.partner.category"].create(
             {"name": "keeper", "parent_id": parent.id}
         )
@@ -56,14 +46,6 @@ class TestOne2manyClearArchived(TransactionCase):
 
 
 class TestCompanyDependentInsertFallback(TransactionCase):
-    """The INSERT-time company-dependent dedup must compare against the
-    superuser fallback, like every read path.
-
-    Regression: it compared against the *current user's* ir.default, so a user
-    with a personal default X creating a record with value X stored NULL and
-    read back the global default Y.
-    """
-
     def test_create_with_user_scoped_default_round_trips(self):
         user = new_test_user(self.env, "audit_cd_user", groups="base.group_system")
         IrDefault = self.env["ir.default"]
@@ -107,9 +89,6 @@ class TestCompanyDependentInsertFallback(TransactionCase):
 
 
 class TestDatetimeEqualsDate(TransactionCase):
-    """``datetime_field = <date>`` (and ``= 'today'``) must match the whole
-    day, not the first second of it."""
-
     def test_equals_date_matches_whole_day(self):
         record = self.env["test_orm.mixed"].create({})
         self.env.flush_all()

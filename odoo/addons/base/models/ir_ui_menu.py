@@ -61,13 +61,6 @@ class IrUiMenu(models.Model):
         self._set_full_name("complete_name")
 
     def _set_full_name(self, fname: str) -> None:
-        """Assign each record's full hierarchical name to field ``fname``.
-
-        Building each path from the parent's own ``fname`` (not by walking
-        ``name`` up the chain) caches every ancestor's value, which is what
-        lets recursive invalidation cascade to descendants on a rename. Shared
-        by the ``complete_name`` and ``display_name`` computes.
-        """
         for menu in self:
             if menu.parent_id:
                 menu[fname] = (
@@ -114,7 +107,6 @@ class IrUiMenu(models.Model):
     @api.model
     @tools.ormcache("frozenset(self.env.user._get_group_ids())", "debug")
     def _visible_menu_ids(self, debug: bool = False) -> frozenset[int]:
-        """Return the ids of the menu items visible to the user."""
         group_ids = set(self.env.user._get_group_ids())
         if not debug:
             group_ids.discard(
@@ -142,15 +134,6 @@ class IrUiMenu(models.Model):
             if action:
                 action_ids_by_model[action._name].append(action.id)
 
-        # Each action type names the model gating its menu differently, and the
-        # answer has to match the one ir.actions.actions._unconditional_clear_fields
-        # invalidates on -- a literal copy here disagreed with that one about
-        # ir.actions.client and nothing said so.
-        #
-        # Keyed off the inheritance tree rather than off the models the menus
-        # happen to name: a Reference column holding anything else is junk the
-        # ORM cannot write but raw SQL can, and asking it for the hook raises
-        # where the map lookups below simply miss.
         actions = self.env["ir.actions.actions"]
         MODEL_BY_TYPE = {
             model_name: field_name
@@ -159,7 +142,6 @@ class IrUiMenu(models.Model):
         }
 
         def exists_actions(model_name, action_ids):
-            """Return existing actions and fetch model name field if exists"""
             if model_name not in MODEL_BY_TYPE:
                 return self.env[model_name].browse(action_ids).exists()
             field_name = MODEL_BY_TYPE[model_name]
@@ -189,10 +171,6 @@ class IrUiMenu(models.Model):
             if not action or action not in existing_actions:
                 continue
             model_fname = MODEL_BY_TYPE.get(action._name)
-            # An action type can name a gating field and still leave it empty:
-            # ir.actions.client.res_model is optional, and no model named means
-            # no model-level gate -- which is what get_bindings, asking the same
-            # question, has always done with the same answer.
             gating_model = action[model_fname] if model_fname else None
             if gating_model and not access.check(gating_model, "read", False):
                 continue
@@ -205,7 +183,6 @@ class IrUiMenu(models.Model):
         return frozenset(visible_ids)
 
     def _filter_visible_menus(self) -> Self:
-        """Filter `self` to the menu items visible to the current user (cached)."""
         visible_ids = self._visible_menu_ids(self._get_session_debug())
         return self.filtered(lambda menu: menu.id in visible_ids)
 
@@ -231,9 +208,6 @@ class IrUiMenu(models.Model):
         if self and vals:
             self.env.registry.clear_cache()
         if "web_icon" in vals:
-            # Derived onto a copy: stamping it back into the caller's dict put a
-            # base64 blob in a mapping it never wrote, which a caller reusing
-            # that dict then writes to the next menu.
             vals = {
                 **vals,
                 "web_icon_data": self._compute_web_icon_data(vals.get("web_icon")),
@@ -241,16 +215,6 @@ class IrUiMenu(models.Model):
         return super().write(vals)
 
     def _compute_web_icon_data(self, web_icon: str | None) -> bytes | bool:
-        """Returns the image associated to ``web_icon``.
-
-        :param str | None web_icon: a comma-separated value string for either:
-
-          * an image icon: ``f"{module},{path}"``
-          * a built icon: ``f"{icon_class},{icon_color},{background_color}"``
-
-        The ``web_icon_data`` field is populated (in create/write) using
-        :meth:`_read_image` for image web icons, and is ``False`` for built icons.
-        """
         if web_icon and len(web_icon.split(",")) == 2:
             return self._read_image(web_icon)
         return False
@@ -279,18 +243,12 @@ class IrUiMenu(models.Model):
 
     @api.model
     def get_user_roots(self) -> Self:
-        """Return all root menus visible to the user."""
         return self.search([("parent_id", "=", False)])._filter_visible_menus()
 
     def _load_menus_blacklist(self) -> list[int]:
         return []
 
     def _get_session_debug(self) -> str | bool:
-        """Return ``request.session.debug``, or ``False`` off-request.
-
-        Exposed so :meth:`load_menus_root` can key its ormcache on the debug
-        state without taking a parameter.
-        """
         return request.session.debug if request else False
 
     @api.model

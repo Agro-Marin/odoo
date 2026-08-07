@@ -1,13 +1,3 @@
-"""Regression: ``Property`` honours the ``Mapping`` length invariant.
-
-``Property`` is a ``collections.abc.Mapping`` view over a record's stored
-property values. ``__iter__`` yields only stored keys that still exist in the
-container definition, but ``__len__`` used to return ``len(self._values)`` (the
-raw stored keys), so once a property was removed from the container
-``len(p) != len(list(p))`` and ``keys()`` / ``items()`` / ``dict(p)`` disagreed.
-Pure unit test with stub field/record -- no database.
-"""
-
 import sys
 
 import pytest

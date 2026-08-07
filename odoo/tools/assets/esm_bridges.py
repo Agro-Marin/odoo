@@ -1,20 +1,3 @@
-"""Bridge shims: ES modules re-exporting from ``odoo.loader.modules``.
-
-Production esbuild bundles resolve their specifiers internally — nothing
-leaks to the import map.  Satellite bundles (tests, dynamic children)
-load individual source files whose bare imports (``@web/core/registry``)
-the browser must still resolve.  A *bridge shim* is a tiny ES module that
-reads the already-registered instance from ``odoo.loader.modules`` and
-re-exports its names, preserving singleton identity between the bundled
-and satellite paths.
-
-This module owns shim building and persistence for one bundle
-(:class:`BridgeShimManager`).  Split out of ``AssetsBundle`` following the
-H2 ``esbuild`` / ``esm_graph`` pattern: ``AssetsBundle`` keeps thin
-delegators with the historical method names, and seam-level tests patch
-this class directly.
-"""
-
 import logging
 from collections.abc import Sequence
 from typing import Protocol
@@ -42,44 +25,26 @@ _bridge_log = get_asset_logger("bridge")
 
 
 def _rw_escalation_expected() -> bool:
-    """Whether a failed read-write cursor escalation is an expected condition.
-
-    Under a test the request runs on a readonly ``TestCursor`` and opening a
-    read-write cursor from it is *structurally* refused (see
-    ``odoo/tests/cursor.py``), so the ``data:`` URI fallback is the correct,
-    isolated path — not the production "primary is unwritable" degradation the
-    WARNING is meant to flag. Used to keep that expected path quiet in tests.
-    """
     return bool(modules.module.current_test) or config["test_enable"]
 
 
 class NativeModuleLike(Protocol):
-    """The slice of ``JavascriptAsset`` the bridge layer reads."""
-
     @property
     def module_path(self) -> str:
-        """Bare module specifier (``@addon/path/to/module``)."""
+        pass
 
     @property
     def raw_content(self) -> str:
-        """Untransformed JS source of the module."""
+        pass
 
 
 class BridgeShimManager:
-    """Build and persist the bridge shims of one named bundle.
-
-    Stateless beyond its three inputs; ``AssetsBundle`` constructs one per
-    operation.  Method names mirror the historical ``AssetsBundle``
-    surface so the move stays greppable.
-    """
-
     def __init__(
         self,
         env: Environment,
         bundle_name: str,
         native_modules: Sequence[NativeModuleLike],
     ) -> None:
-        """Bind the manager to ``env``, ``bundle_name`` and ``native_modules``."""
         self.env = env
         self.bundle_name = bundle_name
         self.native_modules = native_modules
@@ -88,12 +53,6 @@ class BridgeShimManager:
         self,
         shims_by_spec: dict[str, str],
     ) -> dict[str, str]:
-        """Persist bridge shims as content-addressed attachments.
-
-        :param shims_by_spec: ``{specifier: shim_js}`` to persist
-        :return: ``{specifier: attachment_url}`` for the import map
-        :rtype: dict[str, str]
-        """
         if not shims_by_spec:
             return {}
         url_by_spec: dict[str, str] = {}
@@ -176,24 +135,6 @@ class BridgeShimManager:
         }
 
     def _persist_bridges_via_rw_cursor(self, to_create: list[dict]) -> bool:
-        """Persist bridge attachments through a dedicated read-write cursor.
-
-        The sole persistence path for bridge shims (see
-        :meth:`_persist_bridge_shims` for why it is unconditional).  The new
-        transaction commits independently of the render, so the bridge rows
-        outlive a request-cursor rollback and any cached bridge URL resolves
-        to a row that exists.  Mirrors the readonly→read-write escalation in
-        ``web/controllers/binary.py``; the current cursor's snapshot may not
-        see the rows, which is fine — the URLs are already known and the
-        browser fetches them in later requests.  Under a ``TestCursor`` the
-        "separate" cursor shares the test transaction, so tests stay
-        isolated.
-
-        :param to_create: ``ir.attachment`` create values
-        :return: ``True`` when persisted; ``False`` when no writable
-            cursor is reachable (caller falls back to ``data:`` URIs)
-        :rtype: bool
-        """
         try:
             with self.env.registry.cursor(readonly=False) as rw_cr:
                 rw_env = Environment(rw_cr, SUPERUSER_ID, {})
@@ -210,32 +151,6 @@ class BridgeShimManager:
         return True
 
     def _build_parent_self_bridge(self) -> dict[str, str]:
-        """Build attachment-URL shims for *this* bundle's own specifiers.
-
-        Needed when this bundle is esbuild-compiled (so its specifiers
-        are hidden inside a single module) *and* a satellite bundle
-        (manifest ``esm.import_map_includes``) loads individual source files that
-        transitively import those specifiers via bare names.
-
-        Example flow that motivated this method:
-
-            * setup bundle (esbuild-compiled) has ``@ai/vad_audio_recorder``
-              in its native_modules.  Inside esbuild the module is
-              resolved internally; nothing leaks to the import map.
-            * unit_tests bundle is import-map-included by setup, so
-              the browser loads test files individually from their URLs.
-            * A test file does ``import "../src/voice_transcription.js"``
-              (relative).  The fetched source contains
-              ``import VAD from "@ai/vad_audio_recorder"`` (bare).
-            * Without this bridge, the browser has no import map entry
-              for ``@ai/vad_audio_recorder`` → "Failed to resolve module
-              specifier".
-
-        The bridge points at ``odoo.loader.modules.get(spec)``, which
-        returns the instance registered by the esbuild bundle's
-        ``registerNativeModules({...})`` call — preserving singleton
-        identity between the bundled and satellite paths.
-        """
         source_map: dict[str, str] = {
             a.module_path: a.raw_content for a in self.native_modules
         }
@@ -274,19 +189,6 @@ class BridgeShimManager:
         ext_lib_names: set[str],
         modules: Sequence[NativeModuleLike] | None = None,
     ) -> tuple[dict[str, set[str]], set[str]]:
-        """Scan native modules for imported ``@addon`` specifiers.
-
-        Returns ``(discovered, ext_seen)``: ``discovered`` maps each
-        cross-bundle specifier to the import kinds used (``__default__`` /
-        ``__star__``; a named import adds an empty set), and ``ext_seen`` is the
-        external-lib specifiers referenced (observability only).  Specifiers in
-        ``native_specifiers``, ``@odoo/owl``, or ``ext_lib_names`` are excluded —
-        they don't travel via ``odoo.loader.modules`` bridges.
-
-        :param modules: the native modules to scan; defaults to this
-            bundle's own.  Callers building a COMBINED bridge (parent +
-            dynamic children) pass the union explicitly.
-        """
         if modules is None:
             modules = self.native_modules
         discovered: dict[str, set[str]] = {}
@@ -328,26 +230,6 @@ class BridgeShimManager:
         return discovered, ext_seen
 
     def build_shim_sources(self, specifiers: set[str]) -> dict[str, str]:
-        """Return ``{specifier: shim_js}`` for ``specifiers``, WITHOUT persisting.
-
-        A leaner sibling of :meth:`_build_native_to_legacy_bridge` for the
-        esbuild stub-alias path: instead of persisting shims as attachments and
-        returning URLs (for an import map), it returns the shim SOURCE so the
-        compiler can write each to a temp file and inline it via a module-exact
-        ``--alias``.  Used to preserve singleton identity for a secondary
-        bundle's shared specifiers (browser/registry/…) without an import-map
-        round trip — the inlined shim reads ``odoo.loader.modules.get(spec)``,
-        the instance the parent app bundle registered.
-
-        ``specifiers`` must be cross-bundle specifiers (not this bundle's own
-        native modules); each shim re-exports the target's names from
-        ``odoo.loader.modules``.  Every shim emits a default export
-        unconditionally (matching the runtime bridge counterpart), and the
-        import kinds only feed the discarded star-fallback telemetry flag, so
-        ``kinds={"__default__"}`` is passed directly (as in
-        :meth:`_build_parent_self_bridge`) instead of lexing the whole bundle
-        to discover kinds the shim source never depends on.
-        """
         if not specifiers:
             return {}
         resolver = _BridgeExportResolver(
@@ -367,38 +249,6 @@ class BridgeShimManager:
         native_specifiers: set[str],
         modules: Sequence[NativeModuleLike] | None = None,
     ) -> dict[str, str]:
-        """Build bridge shims so dynamic ESM bundles can share module instances.
-
-        For each specifier imported by a native module that is NOT in
-        this bundle's own native_specifiers (i.e. it lives in the parent
-        bundle), generate a tiny ES module that re-exports from
-        ``odoo.loader.modules``.  Two distinct concerns:
-
-        1. **Discovery** — which ``@addon/…`` specifiers are imported by
-           the native modules that *belong to this bundle*?  Static regex
-           over the source is good enough: each bundled file's own
-           imports are the complete discovery set.  Specifiers in
-           ``native_specifiers`` are excluded — they are owned by this
-           bundle and resolve without a bridge.
-
-        2. **Export surface** — for each discovered specifier, which
-           named exports does the shim need to expose?  Consumer-import
-           regex is insufficient: names accessed via runtime
-           destructuring of ``odoo.loader.modules.get(…)`` (e.g. the
-           templates bundle) never appear as static imports.  We instead
-           read the *source file* of the specifier and extract every
-           ``export`` declaration.  That gives the complete, correct
-           surface regardless of how callers access it.
-
-        Returns ``{specifier: url}`` for the import map — attachment URLs
-        from :meth:`_persist_bridge_shims` (``data:`` URIs only as the
-        read-only-cursor fallback inside that helper).
-
-        :param modules: the native modules to discover imports from;
-            defaults to this bundle's own.  Combined parent+children
-            bridges pass the union explicitly (see
-            :meth:`_discover_bridge_specifiers`).
-        """
         if modules is None:
             modules = self.native_modules
         discovered, ext_seen = self._discover_bridge_specifiers(

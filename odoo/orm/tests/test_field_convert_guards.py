@@ -1,12 +1,3 @@
-"""Micro-guards on the base conversion helpers.
-
-* ``Field.convert_to_column`` (base implementation): the ``str(value)``
-  fallback is restricted to scalar-ish values — a dict/list/object used to be
-  silently stringified into the column (e.g. ``"{'a': 1}"`` into a varchar).
-* ``Id.expression_getter("id.origin")``: an empty recordset returns ``False``
-  (upstream contract) instead of IndexError-ing on ``record._ids[0]``.
-"""
-
 import pytest
 
 from odoo import fields, models

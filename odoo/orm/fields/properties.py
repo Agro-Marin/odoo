@@ -31,7 +31,6 @@ NoneType = type(None)
 
 
 def check_property_field_value_name(property_name: str) -> None:
-    """Validate that ``property_name`` is alphanumeric and within length limits."""
     if not (0 < len(property_name) <= 512) or not regex_alphanumeric.fullmatch(
         property_name
     ):
@@ -42,26 +41,6 @@ RELATIONAL_PROPERTY_TYPES = frozenset(("many2one", "many2many"))
 
 
 class Properties(Field):
-    """Field that contains a list of properties (aka "sub-field") based on
-    a definition defined on a container. Properties are pseudo-fields, acting
-    like Odoo fields but without being independently stored in database.
-
-    This field allows a light customization based on a container record. Used
-    for relationships such as <project.project> / <project.task>,... New
-    properties can be created on the fly without changing the structure of the
-    database.
-
-    The "definition_record" defines the field used to find the container of the
-    current record. The container must have a :class:`~odoo.fields.PropertiesDefinition`
-    field "definition_record_field" that contains the properties definition
-    (type of each property, default value)...
-
-    Only the value of each property is stored on the child. When we read the
-    properties field, we read the definition on the container and merge it with
-    the value of the child. That way the web client has access to the full
-    field definition (property type, ...).
-    """
-
     type = "properties"
     _column_type = ("jsonb", "jsonb")
     copy = False
@@ -183,37 +162,6 @@ class Properties(Field):
     def _recordsets_to_ids(
         self, values: dict[str, typing.Any], record: ModelLike
     ) -> dict[str, typing.Any]:
-        """Return *values* with any recordset replaced by its stored id form.
-
-        ``convert_to_cache`` accepts four input formats, and the dict one was the
-        only one that stored its values verbatim: ``Property`` carries already
-        normalized ``_values``, and the list format goes through
-        ``_list_to_dict``, which validates relational values. So a dict holding
-        what the RECORD format hands back -- ``record.attributes['m2o_prop']`` is
-        a recordset, by design (see :class:`Property`) -- reached the JSONB column
-        unconverted and died inside psycopg with ``TypeError: Object of type
-        res.partner is not JSON serializable``, at flush time and far from the
-        assignment that caused it.
-
-        That made ``record.attributes = {name: record.attributes[name]}`` fail
-        for relational properties while assigning the whole ``Property``
-        succeeded -- an asymmetry with no reason to exist.
-
-        The stored form depends on the DECLARED type (``many2one`` keeps a scalar
-        id, ``many2many`` a list), which the recordset itself cannot tell us: a
-        one-record many2many is a list of one id, not a scalar. So the definition
-        decides. When it cannot be read (no container, or a write spanning
-        several containers) an unresolvable recordset is refused by name, which
-        is still far better than the psycopg failure it replaces.
-
-        Only the three ways the definition can legitimately be unreadable are
-        swallowed: no single container to ask (``ValueError`` from
-        ``ensure_one``), a deleted one (``MissingError``), or one this user may
-        not read (``AccessError``).  Catching everything also hid real faults --
-        a typo'd ``definition``, a broken ``_get_properties_definition``
-        override -- and reported them as "this property declares no relational
-        type", which points at the caller's value instead of the actual defect.
-        """
         if not any(is_recordset(value) for value in values.values()):
             return values
 
@@ -286,7 +234,6 @@ class Properties(Field):
 
     @override
     def convert_to_write(self, value: typing.Any, record: ModelLike) -> typing.Any:
-        """If we write a list on the child, update the definition record."""
         return value
 
     @override
@@ -298,13 +245,6 @@ class Properties(Field):
     def _get_res_ids_per_model(
         self, env: typing.Any, values_list: list[typing.Any]
     ) -> dict[str, set[int]]:
-        """Prefetch relational property records in batch.
-
-        Resolving relational property names and checking their existence needs
-        SQL; batching it here avoids per-record queries in convert_to_read.
-
-        :return: ``{model: existing_record_ids}`` for the needed models.
-        """
         ids_per_model = defaultdict(OrderedSet)
 
         for record_values in values_list:
@@ -341,16 +281,6 @@ class Properties(Field):
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
-        """Check if the properties definition has been changed.
-
-        To avoid extra SQL queries used to detect definition change, we add a
-        flag in the properties list. Parent update is done only when this flag
-        is present, delegating the check to the caller (generally web client).
-
-        For deletion, we need to keep the removed property definition in the
-        list to be able to put the delete flag in it. Otherwise we have no way
-        to know that a property has been removed.
-        """
         if isinstance(value, str):
             value = json.loads(value)
 
@@ -396,7 +326,6 @@ class Properties(Field):
         return super().mark_dirty(records, value)
 
     def _compute(self, records: BaseModel) -> None:
-        """Add the default properties value when the container is changed."""
         for record in records.sudo():
             record[self.name] = self._add_default_values(
                 record.env,
@@ -409,15 +338,6 @@ class Properties(Field):
     def _add_default_values(
         self, env: typing.Any, values: dict[str, typing.Any]
     ) -> list[typing.Any] | dict[str, typing.Any]:
-        """Read the properties definition to add default values.
-
-        Default values are defined on the container in the 'default' key of
-        the definition.
-
-        :param env: environment
-        :param values: All values that will be written on the record
-        :return: Return the default values in the "dict" format
-        """
         properties_values = values.get(self.name) or {}
 
         if isinstance(properties_values, Property):
@@ -471,7 +391,6 @@ class Properties(Field):
     def _get_properties_definition(
         self, record: ModelLike
     ) -> list[dict[str, typing.Any]] | None:
-        """Return the properties definition of the given record."""
         assert self.definition_record is not None
         container = record[self.definition_record]
         if container:
@@ -485,13 +404,6 @@ class Properties(Field):
         env: typing.Any,
         value_keys: tuple[str, ...] = ("value", "default"),
     ) -> None:
-        """Add the "display_name" for each many2one / many2many properties.
-
-        Modify in place "values_list".
-
-        :param values_list: List of properties definition and values
-        :param env: environment
-        """
         for property_definition in values_list:
             property_type = property_definition.get("type")
             property_model = property_definition.get("comodel")
@@ -542,16 +454,6 @@ class Properties(Field):
         values_list: list[dict[str, typing.Any]],
         value_key: str = "value",
     ) -> None:
-        """Remove the display name received by the web client for the relational properties.
-
-        Modify in place "values_list".
-
-        - many2one: (35, 'Bob') -> 35
-        - many2many: [(35, 'Bob'), (36, 'Alice')] -> [35, 36]
-
-        :param values_list: List of properties definition with properties value
-        :param value_key: In which dict key we need to remove the display name
-        """
         for property_definition in values_list:
             if not isinstance(property_definition, dict) or not property_definition.get(
                 "name"
@@ -577,12 +479,6 @@ class Properties(Field):
 
     @classmethod
     def _add_missing_names(cls, values_list: list[dict[str, typing.Any]]) -> None:
-        """Generate new properties name if needed.
-
-        Modify in place "values_list".
-
-        :param values_list: List of properties definition with properties value
-        """
         for definition in values_list:
             if definition.get("definition_changed") and not definition.get("name"):
                 definition["name"] = str(uuid.uuid4()).replace("-", "")[:16]
@@ -594,14 +490,6 @@ class Properties(Field):
         env: typing.Any,
         res_ids_per_model: dict[str, set[int]],
     ) -> None:
-        """Parse the value stored in the JSON.
-
-        Check for records existence, if we removed a selection option, ...
-        Modify in place "values_list".
-
-        :param values_list: List of properties definition and values
-        :param env: environment
-        """
         for property_definition in values_list:
             property_value = property_definition.get("value")
             property_type = property_definition.get("type")
@@ -667,15 +555,6 @@ class Properties(Field):
     def _list_to_dict(
         cls, values_list: list[dict[str, typing.Any]]
     ) -> dict[str, typing.Any]:
-        """Convert a list of properties with definition into ``{name: value}``.
-
-        Only the value of each property is stored on the child; the definition
-        lives on the container. So the read-format list is reduced to its
-        ``{name: value}`` essence here.
-
-        :param values_list: list of properties definitions with values.
-        :return: a ``{name: value}`` dict.
-        """
         if not is_list_of(values_list, dict):
             raise ValueError(f"Wrong properties value {values_list!r}")
 
@@ -722,13 +601,6 @@ class Properties(Field):
         values_dict: dict[str, typing.Any],
         properties_definition: list[dict[str, typing.Any]],
     ) -> list[dict[str, typing.Any]]:
-        """Convert a dict of {property: value} into a list of property definition with values.
-
-        :param values_dict: JSON value coming from the child table
-        :param properties_definition: Properties definition coming from the container table
-        :return: both merged into a list of properties with values;
-            values in the child that are not defined on the container are ignored.
-        """
         if not is_list_of(properties_definition, dict):
             raise ValueError(f"Wrong properties value {properties_definition!r}")
 
@@ -786,14 +658,6 @@ class Properties(Field):
         if operator != "in" or not isinstance(value, COLLECTION_TYPES):
             return match
 
-        # A ``tags`` property holds a LIST of keys, so the scalar membership
-        # test the base class builds is wrong for it -- and raises outright on
-        # the unhashable list.  ``in`` means "has any of" here, as it does for
-        # every other collection-valued field (a many2many property already
-        # gets that from the recordset branch above).  The base class keeps
-        # owning the falsy case, so an empty list matches exactly when it did.
-        # Shape is probed per record, not once: the definition comes from the
-        # container, so two records of one recordset can disagree on the type.
         value_set = value if isinstance(value, abc.Set) else set(value)
         match_empty = False in value_set or self.falsy_value in value_set
 
@@ -814,14 +678,6 @@ class Properties(Field):
         query: Query,
     ) -> SQL:
         check_property_field_value_name(property_name)
-        # Bound, not spliced into the SQL text.  The name was safe -- the check
-        # above allows only ``[a-z0-9_]`` -- but that made a validator three
-        # frames up the sole thing standing between a caller-supplied string
-        # and the query, which is exactly how this pattern stops being safe.
-        # The sibling read path (:meth:`condition_to_sql`) already bound it.
-        # A grouping key still compares byte-identically between SELECT and
-        # GROUP BY: ``_read_group_groupby`` ends with ``SQL.inlined(cr)``,
-        # which turns the parameter back into a literal for that one use.
         return SQL("(%s -> %s)", field_sql, property_name)
 
     @override
@@ -869,18 +725,6 @@ class Properties(Field):
                             SQL("NOT (%s ? %s)", raw_sql_field, property_name),
                         )
                     )
-            # One test per value, not one test for the whole set.  A property
-            # holds either a scalar (char, selection, ...) or a LIST (tags,
-            # many2many), so matching one value means "equals it" OR "contains
-            # it" -- which is what the single-value case always did.  The
-            # multi-value case instead used ``<@``, "every value I hold is
-            # among these", and that is a different question: with tags
-            # ``["a", "b"]``, ``in ["a"]`` matched but ``in ["a", "c"]`` did
-            # not, so *widening* an ``in`` list dropped records.  It also
-            # disagreed with ``filtered_domain`` and with the ``in`` of an
-            # ordinary many2many field, both of which mean "has any of".
-            # ``?|`` would express it in one operator but only for string
-            # elements, so it cannot serve many2many ids.
             for one_value in value:
                 sql_value = SQL("%s", json.dumps(one_value))
                 sql_array = SQL("%s", json.dumps([one_value]))
@@ -949,23 +793,6 @@ class Properties(Field):
 
 
 class Property(abc.Mapping):
-    """Represent a collection of properties of a record.
-
-    An object that implements the value of a :class:`Properties` field in the "record"
-    format, i.e., the result of evaluating an expression like ``record.property_field``.
-    The value behaves as a ``dict``, and individual properties are returned in their
-    expected type, according to ORM conventions.  For instance, the value of a many2one
-    property is returned as a recordset::
-
-        # attributes is a properties field, and 'partner_id' is a many2one property;
-        # partner is thus a recordset
-        partner = record.attributes["partner_id"]
-        partner.name
-
-    When the accessed key does not exist, i.e., there is no corresponding property
-    definition for that record, the access raises a :class:`KeyError`.
-    """
-
     def __init__(
         self,
         values: dict[str, typing.Any],
@@ -978,13 +805,6 @@ class Property(abc.Mapping):
         self._definitions_by_name: dict[str, typing.Any] | None = None
 
     def _definitions(self) -> dict[str, typing.Any]:
-        """Return the read-format definitions indexed by name, built once.
-
-        ``convert_to_read`` rebuilds the entire property list on every call, so
-        memoizing it once and indexing by name keeps per-key lookup O(1) (and
-        ``Mapping`` traversal O(n) instead of O(n²)). Safe to cache: the
-        instance is an ephemeral view over an immutable ``_values`` snapshot.
-        """
         index = self._definitions_by_name
         if index is None:
             values = self.field.convert_to_read(
@@ -1039,12 +859,6 @@ class Property(abc.Mapping):
         if prop.get("type") == "tags" and prop.get("value"):
             tags = prop.get("tags") or ()
             if self.record.env.context.get("property_selection_get_key"):
-                # Same escape hatch as ``selection`` just above, for the same
-                # reason: domain evaluation needs the stored KEYS, not the
-                # labels.  Without it ``expression_getter`` handed
-                # ``filtered_domain`` a ``"A, B"`` display string while the SQL
-                # side matched ``["a", "b"]``, so every in-memory domain on a
-                # tags property silently matched nothing.
                 return [tag[0] for tag in tags if tag[0] in prop["value"]]
             return ", ".join(tag[1] for tag in tags if tag[0] in prop["value"])
 
@@ -1065,11 +879,6 @@ class Property(abc.Mapping):
 
 
 class PropertiesDefinition(Field):
-    """Field used to define the properties definition (see :class:`~odoo.fields.Properties`
-    field). This field is used on the container record to define the structure
-    of expected properties on subrecords. It is used to check the properties
-    definition."""
-
     type = "properties_definition"
     _column_type = ("jsonb", "jsonb")
     copy = True
@@ -1107,11 +916,6 @@ class PropertiesDefinition(Field):
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
-        """Convert a properties-definition list before inserting it in database.
-
-        Relational properties (many2one/many2many) defaults may carry the
-        records' display_name from the client; it is stripped here.
-        """
         if not value:
             return None
 
@@ -1210,7 +1014,6 @@ class PropertiesDefinition(Field):
     def _validate_properties_definition(
         self, properties_definition: list[dict[str, typing.Any]], env: typing.Any
     ) -> None:
-        """Raise an error if the property definition is not valid."""
         allowed_keys = (
             self.ALLOWED_KEYS
             + env["base"]._additional_allowed_keys_properties_definition()

@@ -1,26 +1,3 @@
-"""Tier-1 tests for one connection budget per PostgreSQL *server*.
-
-``db_maxconn`` means "physical connections to PostgreSQL", the number an
-operator sizes ``max_connections`` against — so the cap belongs to a server, not
-to a pool.  Getting that wrong has failed in both directions:
-
-* one budget per *pool* let a worker hold ``2 * db_maxconn`` (128 against a
-  stock 100) when both pools reached the same server;
-* one budget for *both pools* bounded the sum of two independent servers once a
-  replica was configured, so the replica added no concurrency and — verified
-  against a live pair — four replica checkouts made the primary refuse.
-
-Keying on the resolved endpoint is what satisfies both at once, so the two
-failure modes are pinned here rather than argued about.  The discriminator is
-the whole risk: ``test_enable`` and ``dev_mode=replica`` deliberately point the
-read-only pool at the *primary*, and treating "a replica is configured" as
-"a second server exists" would hand them two budgets against one machine — the
-exact overshoot the shared budget was introduced to remove.
-
-These import ``odoo.db``'s package module, so they exercise the real
-``_get_pool`` wiring rather than a stand-in.
-"""
-
 import unittest
 from unittest.mock import patch
 
@@ -29,8 +6,6 @@ from odoo.db.budget import ConnectionBudget
 
 
 class _BudgetCase(unittest.TestCase):
-    """Each test gets a clean process-wide pool/budget state."""
-
     def setUp(self):
         self._saved = (D._Pool, D._Pool_readonly, dict(D._budgets))
         D._Pool = D._Pool_readonly = None
@@ -79,8 +54,6 @@ class TestOneBudgetPerServer(_BudgetCase):
             self.assertIsNot(D._budget_for(False), D._budget_for(True))
 
     def test_a_replica_pointed_back_at_the_primary_shares_its_budget(self):
-        """Someone may set db_replica_host to the primary to exercise readonly
-        routes; that is one server and must stay one budget."""
         with self._config(db_host="pg.example", db_replica_host="pg.example"):
             self.assertIs(D._budget_for(False), D._budget_for(True))
 
@@ -91,8 +64,6 @@ class TestOneBudgetPerServer(_BudgetCase):
 
 
 class TestTheOvershootCannotComeBack(_BudgetCase):
-    """The regression a wrong discriminator would reintroduce."""
-
     def _ceiling_across_pools(self):
         rw, ro = D._budget_for(False), D._budget_for(True)
         seen = {id(rw): rw, id(ro): ro}
@@ -103,9 +74,6 @@ class TestTheOvershootCannotComeBack(_BudgetCase):
             self.assertEqual(self._ceiling_across_pools(), 64)
 
     def test_test_enable_does_not_split_the_primary_budget(self):
-        """``test_enable`` makes the registry open a readonly connection while
-        leaving ``db_replica_host`` unset, so the endpoint must stay the
-        primary's; this guards the resolution, not the discriminator."""
         with self._config(db_maxconn=64, test_enable=True):
             self.assertEqual(self._ceiling_across_pools(), 64)
 
@@ -114,8 +82,6 @@ class TestTheOvershootCannotComeBack(_BudgetCase):
             self.assertEqual(self._ceiling_across_pools(), 64)
 
     def test_a_replica_pointed_at_the_primary_is_still_one_server_worth(self):
-        """The overshoot itself: treating "a replica is configured" as "a second
-        server exists" hands one machine ``2 * db_maxconn``."""
         with self._config(
             db_maxconn=64, db_host="pg.example", db_replica_host="pg.example"
         ):
@@ -139,8 +105,6 @@ class TestReplicaSizing(_BudgetCase):
             self.assertEqual(D._budget_for(False).maxconn, 64)
 
     def test_it_is_ignored_when_the_replica_is_the_primary(self):
-        """A separate ceiling for a server that is the same server is meaningless,
-        and honouring it would silently shrink or split the primary's budget."""
         with self._config(db_maxconn=64, db_maxconn_replica=16):
             self.assertIs(D._budget_for(False), D._budget_for(True))
             self.assertEqual(D._budget_for(True).maxconn, 64)
@@ -148,8 +112,6 @@ class TestReplicaSizing(_BudgetCase):
 
 class TestPermitsAreNoLongerShared(_BudgetCase):
     def test_replica_checkouts_do_not_consume_primary_permits(self):
-        """The coupling this change removes: a slow replica held permits the
-        primary needed, so replica degradation starved primary traffic."""
         with self._config(db_maxconn=2, db_replica_host="replica.example"):
             primary, replica = D._budget_for(False), D._budget_for(True)
             self.assertTrue(replica.acquire(0))
@@ -188,11 +150,6 @@ class TestBudgetIdentity(_BudgetCase):
 
 
 class TestBudgetAcquireTimeout(unittest.TestCase):
-    """``acquire`` must accept a non-finite timeout — the deadline-less direct
-    borrow path hands it ``float("inf")``, and ``BoundedSemaphore.acquire``
-    raises ``OverflowError`` on it as soon as the semaphore has to wait, i.e.
-    exactly and only when the budget is saturated."""
-
     def test_inf_timeout_waits_instead_of_overflowing(self):
         import threading
 
@@ -201,8 +158,6 @@ class TestBudgetAcquireTimeout(unittest.TestCase):
         releaser = threading.Timer(0.05, budget.release)
         releaser.start()
         try:
-            # Saturated, so this must actually wait: before the fix this
-            # raised OverflowError out of the semaphore's deadline arithmetic.
             self.assertTrue(budget.acquire(float("inf")))
         finally:
             releaser.cancel()

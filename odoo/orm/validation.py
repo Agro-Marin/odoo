@@ -1,8 +1,3 @@
-"""Name and identifier validation for the ORM.
-
-Validation for model names, PostgreSQL identifiers, and method names.
-"""
-
 import re
 
 from odoo.exceptions import AccessError, ValidationError
@@ -15,30 +10,14 @@ MANUAL_NAME_PREFIX = "x_"
 
 
 def is_manual_name(name: str) -> bool:
-    """Return whether *name* denotes a manual (custom / Studio) field or model.
-
-    Single source of truth for the ``x_`` convention, shared by model setup
-    (``orm.registration``) and the ``ir.model`` / ``ir.model.fields`` API.
-    """
     return name.startswith(MANUAL_NAME_PREFIX)
 
 
 def check_object_name(name: str) -> bool:
-    """Return whether *name* is a valid model name.
-
-    Model names are lowercase alphanumeric with underscores and dots (e.g.
-    ``res.partner``); uppercase is disallowed because PostgreSQL folds unquoted
-    identifiers to lowercase and Odoo does not consistently quote them. Prefer
-    :func:`raise_on_invalid_object_name` to validate with an exception.
-    """
     return regex_object_name.match(name) is not None
 
 
 def check_pg_name(name: str) -> None:
-    """Check whether *name* is a valid PostgreSQL identifier.
-
-    :raises ValidationError: invalid characters, or longer than 63 chars.
-    """
     if not regex_pg_name.match(name):
         raise ValidationError(f"Invalid characters in table name {name!r}")
     if len(name) > 63:
@@ -46,12 +25,6 @@ def check_pg_name(name: str) -> None:
 
 
 def check_method_name(name: str) -> None:
-    """Check whether *name* is safe for remote invocation.
-
-    Private methods (prefixed with ``_``) and ``init`` cannot be called via RPC.
-
-    :raises AccessError: if *name* matches the private-method pattern.
-    """
     if name == "init" or name.startswith("_"):
         raise AccessError(
             f"Private methods (such as {name!r}) cannot be called remotely."
@@ -59,7 +32,6 @@ def check_method_name(name: str) -> None:
 
 
 def raise_on_invalid_object_name(name: str) -> None:
-    """Raise :class:`ValueError` if *name* is not a valid model name."""
     if not check_object_name(name):
         msg = f"The _name attribute {name!r} is not valid."
         raise ValueError(msg)

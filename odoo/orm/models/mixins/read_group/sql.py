@@ -1,5 +1,3 @@
-"""SQL generation for read_group: SELECT, GROUP BY, HAVING, ORDER BY."""
-
 import typing
 
 from odoo.exceptions import UserError
@@ -27,15 +25,9 @@ from ....fields.temporal import _get_all_timezones_set
 
 
 class _ReadGroupSQLMixin(_ModelStubs):
-    """SQL expression generation for read_group (SELECT/GROUP BY/HAVING/ORDER BY)."""
-
     __slots__ = ()
 
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
-        """Return the SQL expression for *aggregate_spec*.
-
-        Also checks the aggregated fields are readable.
-        """
         if aggregate_spec == "__count":
             return SQL("COUNT(*)")
 
@@ -118,10 +110,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
         return READ_GROUP_AGGREGATE[func](self._table, sql_field)
 
     def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
-        """Return the SQL expression for *groupby_spec*.
-
-        Also checks the grouped fields are readable.
-        """
         fname, seq_fnames, granularity = parse_read_group_spec(groupby_spec)
         if fname not in self._fields:
             raise ValueError(f"Invalid field {fname!r} on model {self._name!r}")
@@ -228,17 +216,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
         elif field.type == "boolean":
             sql_expr = SQL("COALESCE(%s, FALSE)", sql_expr)
         elif field.is_text:
-            # A text field's ``falsy_value`` is ``""``, which the domain layer
-            # aliases with NULL: ``('ref', '=', '')`` and ``('ref', '=', False)``
-            # both select the NULL *and* the empty-string rows
-            # (``_optimize_in_set_falsy_value``).  Grouping on the raw column
-            # instead split them into two indistinguishable "empty" groups, and
-            # since the web client scopes a group by ``[(field, '=', key)]``
-            # (``web_read_group``), *both* expanded to the union of the two --
-            # so each group showed a count it could not reproduce when opened.
-            # Normalizing onto NULL yields one group, keyed ``False``, which is
-            # what ``_read_group_empty_value`` calls the empty group.  Same
-            # correction the boolean branch above makes for NULL vs FALSE.
             sql_expr = SQL("NULLIF(%s, '')", sql_expr)
 
         return sql_expr.inlined(self.env.cr)
@@ -253,12 +230,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
         alias: str,
         query: Query,
     ) -> SQL:
-        """Apply a date/datetime *granularity* transform to *sql_expr*.
-
-        Covers real date(time) fields and date(time)-typed properties: timezone
-        shift, number-part extraction (``date_part``), week/period truncation
-        (``date_trunc``), and the trailing cast back to ``date``.
-        """
         if not granularity:
             raise ValueError(
                 f"Granularity not set on a date(time) field: {groupby_spec!r}"
@@ -313,7 +284,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
         return sql_expr
 
     def _read_group_having(self, having_domain: list, query: Query) -> SQL:
-        """Return <SQL expression> corresponding to the having domain."""
         if not having_domain:
             return SQL.EMPTY
 
@@ -359,14 +329,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
     def _read_group_orderby(
         self, order: str | None, groupby_terms: dict[str, SQL], query: Query
     ) -> SQL:
-        """Return the ORDER BY SQL for *order* and *groupby_terms*.
-
-        May mutate *groupby_terms*.
-
-        :param order: the order specification
-        :param groupby_terms: ``{spec: sql_expression}`` group by terms
-        :param query: the query being built
-        """
         if order:
             traverse_many2one = True
         else:

@@ -1,14 +1,3 @@
-"""HTTP test-case layer: :class:`HttpCase` and its request plumbing.
-
-Extracted from :mod:`odoo.tests.common` (like the Chrome CDP client in
-:mod:`odoo.tests.browser` before it).  ``HttpCase``, ``Opener``,
-``Transport`` and ``JsonRpcException`` remain re-exported from
-``odoo.tests.common`` for compatibility, including as mock/patch targets —
-in particular ``browser_js`` instantiates ``ChromeBrowser`` through
-``common``'s module globals so ``patch("odoo.tests.common.ChromeBrowser")``
-keeps working.
-"""
-
 import base64
 import contextlib
 import inspect
@@ -48,20 +37,12 @@ _logger = logging.getLogger(__name__)
 
 
 class Opener(requests.Session):
-    """Flush and clear the current transaction before each HTTP request.
-
-    This is necessary when we make requests to the server, as the
-    request is made with a test cursor which uses a different cache than this
-    transaction.
-    """
-
     def __init__(self, http_case: HttpCase) -> None:
         super().__init__()
         self.test_case = http_case
         self.cr = http_case.cr
 
     def request(self, *args: Any, **kwargs: Any) -> Any:
-        """Flush and clear the cursor before forwarding the request."""
         assert self.test_case.opener == self
         self.cr.flush()
         self.cr.clear()
@@ -70,15 +51,12 @@ class Opener(requests.Session):
 
 
 class Transport(xmlrpclib.Transport):
-    """XML-RPC transport that flushes the test cursor before each request. See :class:`Opener`."""
-
     def __init__(self, http_case: HttpCase) -> None:
         self.test_case = http_case
         self.cr = http_case.cr
         super().__init__()
 
     def request(self, *args: Any, **kwargs: Any) -> Any:
-        """Flush and clear the cursor before forwarding the XML-RPC request."""
         self.cr.flush()
         self.cr.clear()
         with self.test_case.allow_requests(all_requests=True):
@@ -86,16 +64,12 @@ class Transport(xmlrpclib.Transport):
 
 
 class JsonRpcException(Exception):
-    """Exception raised when a JSON-RPC response contains an error."""
-
     def __init__(self, code: int, message: str) -> None:
         super().__init__(message)
         self.code = code
 
 
 class HttpCase(TransactionCase):
-    """Transactional HTTP TestCase with url_open and Chrome headless helpers."""
-
     registry_test_mode = True
     browser = None
     browser_size = "1366x768"
@@ -122,12 +96,10 @@ class HttpCase(TransactionCase):
 
     @classmethod
     def base_url(cls) -> str:
-        """Return the base URL for the test HTTP server."""
         return f"http://{HOST}:{cls.http_port():d}"
 
     @classmethod
     def http_port(cls) -> int | None:
-        """Return the HTTP server port, or None if the server is not running."""
         httpd = getattr(odoo.service.lifecycle.server, "httpd", None)
         return httpd.server_port if httpd is not None else None
 
@@ -150,30 +122,21 @@ class HttpCase(TransactionCase):
         for proxy in (self.xmlrpc_common, self.xmlrpc_db, self.xmlrpc_object):
             self.addCleanup(proxy("close"))
         self.opener = Opener(self)
-        self.addCleanup(lambda: self.opener.close())
+        self.addCleanup(self.opener.close)
         self.http_key_sequence = itertools.count()
 
     @contextmanager
     def enter_registry_test_mode(self) -> Generator[None]:
-        """No-op: HTTPCase is already in test mode."""
         _logger.warning("HTTPCase is already in test mode")
         yield
 
     @contextmanager
     def allow_pdf_render(self) -> Generator[None]:
-        """No-op: HTTPCase does not require calling allow_pdf_render."""
         _logger.warning("HTTPCase does not require calling allow_pdf_render")
         yield
 
     @contextmanager
     def allow_requests(self, browser: ChromeBrowser | None = None, all_requests=False):
-        """
-        Allows HTTP requests for the scope of the context.
-
-        Params:
-            browser (ChromeBrowser | None): if given, add the cookie to the browser.
-            all_requests (bool): if True, allows all requests regardless of cookie.
-        """
         with ExitStack() as defer:
             defer.enter_context(release_test_lock())
             if all_requests:
@@ -199,11 +162,6 @@ class HttpCase(TransactionCase):
             yield
 
     def parse_http_location(self, location: str | None) -> Any:
-        """Parse a Location HTTP header found in 201/3xx responses.
-
-        Return the corresponding parsed URL object. The scheme/host
-        are taken from ``base_url()`` in case they are missing from the header.
-        """
         if not location:
             return urlsplit("")
         s = urlsplit(urljoin(self.base_url(), location))
@@ -212,10 +170,6 @@ class HttpCase(TransactionCase):
     def assertURLEqual(
         self, test_url: str, truth_url: str, message: str | None = None
     ) -> None:
-        """Assert that two URLs are equivalent.
-
-        If any URL is missing a scheme and/or host, assume the same scheme/host as ``base_url()``.
-        """
         self.assertEqual(
             self.parse_http_location(test_url),
             self.parse_http_location(truth_url),
@@ -223,7 +177,6 @@ class HttpCase(TransactionCase):
         )
 
     def build_rpc_payload(self, params: dict | None = None) -> dict:
-        """Build a properly structured JSON-RPC 2.0 payload."""
         return {
             "jsonrpc": "2.0",
             "method": "call",
@@ -263,7 +216,6 @@ class HttpCase(TransactionCase):
         )
 
     def _wait_remaining_requests(self, timeout: int = 10) -> None:
-        """Wait for all in-flight HTTP request threads to finish."""
 
         def get_http_request_threads() -> list[threading.Thread]:
             return [
@@ -295,7 +247,6 @@ class HttpCase(TransactionCase):
             odoo.tools.misc.dumpstacks()
 
     def logout(self, keep_db: bool = True) -> None:
-        """Log out the current session."""
         self.session.logout(keep_db=keep_db)
         odoo.http.root.session_store.save(self.session)
 
@@ -366,10 +317,6 @@ class HttpCase(TransactionCase):
         return session
 
     def fetch_proxy(self, url: str) -> dict:
-        """Return a synthetic response for external Chrome requests.
-
-        Called every time Chrome makes a request outside the local network.
-        """
 
         if "https://fonts.googleapis.com/css" in url:
             _logger.info(
@@ -386,7 +333,6 @@ class HttpCase(TransactionCase):
         }
 
     def make_fetch_proxy_response(self, content: str | bytes, code: int = 200) -> dict:
-        """Build a Fetch proxy response dict for Chrome DevTools."""
         if isinstance(content, str):
             content = content.encode()
         return {
@@ -413,27 +359,6 @@ class HttpCase(TransactionCase):
         cpu_throttling=None,
         **kw,
     ):
-        """Test JavaScript code running in the browser.
-
-        To signal success test do: `console.log()` with the expected `success_signal`. Default is "test successful"
-        To signal test failure raise an exception or call `console.error` with a message.
-        Test will stop when a failure occurs if `error_checker` is not defined or returns `True` for this message
-
-        :param string url_path: URL path to load the browser page on
-        :param string code: JavaScript code to be executed
-        :param string ready: JavaScript object to wait for before proceeding with the test
-        :param string login: logged in user which will execute the test. e.g. 'admin', 'demo'
-        :param int timeout: maximum time to wait for the test to complete (in seconds). Default is 60 seconds
-        :param dict cookies: dictionary of cookies to set before loading the page
-        :param error_checker: function to filter failures out.
-            If provided, the function is called with the error log message, and if it returns `False` the log is ignored and the test continue
-            If not provided, every error log triggers a failure
-        :param bool watch: open a new browser window to watch the test execution
-        :param string success_signal: string signal to wait for to consider the test successful
-        :param bool debug: automatically open a fullscreen Chrome window with opened devtools and a debugger breakpoint set at the start of the tour.
-            The tour is ran with the `debug=assets` query parameter. When an error is thrown, the debugger stops on the exception.
-        :param int cpu_throttling: CPU throttling rate as a slowdown factor (1 is no throttle, 2 is 2x slowdown, etc)
-        """
         if not self.env.registry.loaded:
             self._logger.warning("HttpCase test should be in post_install only")
 
@@ -442,7 +367,7 @@ class HttpCase(TransactionCase):
             for f in inspect.stack()
             if f.filename
         ):
-            timeout = timeout * 1.5
+            timeout *= 1.5
 
         if debug is not False:
             watch = True
@@ -540,9 +465,6 @@ class HttpCase(TransactionCase):
         step_delay: int | None = None,
         **kwargs: Any,
     ) -> None:
-        """Wrapper for `browser_js` to start the given `tour_name` with the
-        optional delay between steps `step_delay`. Other arguments from
-        `browser_js` can be passed as keyword arguments."""
         options = {
             "stepDelay": step_delay or 0,
             "keepWatchBrowser": kwargs.get("watch", False),
@@ -562,7 +484,7 @@ class HttpCase(TransactionCase):
         if step_delay is not None:
             self._logger.warning("step_delay is only suitable for local testing")
         if options["delayToCheckUndeterminisms"] > 0:
-            timeout = timeout + 1000 * options["delayToCheckUndeterminisms"]
+            timeout += 1000 * options["delayToCheckUndeterminisms"]
             _logger.runbot(
                 "Tour %s is launched with mode: check for undeterminisms.",
                 tour_name,
@@ -587,7 +509,6 @@ class HttpCase(TransactionCase):
             )
 
     def profile(self, **kwargs: Any) -> Any:
-        """Return a nested profiler that profiles both the test and all HTTP requests."""
         sup = super()
         _profiler = sup.profile(**kwargs)
 
@@ -607,7 +528,6 @@ class HttpCase(TransactionCase):
         )
 
     def get_method_additional_tags(self, test_method: Callable | None) -> list[str]:
-        """Guess if the test_method is a tour and add an ``is_tour`` tag."""
         additional_tags = super().get_method_additional_tags(test_method)
         if (
             odoo.tools.config["test_tags"]
@@ -626,11 +546,6 @@ class HttpCase(TransactionCase):
         cookies: dict | None = None,
         timeout: int = 12,
     ) -> Any:
-        """Make a JSON-RPC request to the server.
-
-        :raises requests.HTTPError: if one occurred
-        :raises JsonRpcException: if the response contains an error
-        """
         response = self.opener.post(
             urljoin(self.base_url(), route),
             json=self.build_rpc_payload(params),

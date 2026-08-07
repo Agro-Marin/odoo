@@ -1,22 +1,3 @@
-"""``export_data()`` and ``load()`` are two halves of one contract.
-
-A file produced by the export menu must be re-importable by the import menu.
-Neither half had a test asserting that, and both were broken:
-
-* ``<m2m>/id`` exported DISPLAY NAMES into an external-id column, so the file
-  could not be re-imported ("No matching record found for external id 'Tag A'").
-  ``<m2m>/.id`` likewise emitted names instead of database ids. Cause: a
-  list-vs-tuple mismatch -- ``export_data`` normalizes paths to tuples via
-  ``fix_import_export_id_paths``, while the m2m branch looked the requested
-  sub-field up with ``fields2.index([name])``, which never matched, and the
-  ``ValueError`` was suppressed into the display-name fallback.
-* ``load()`` raised ``AttributeError``/``TypeError`` on a cell that was not a
-  ``str`` (a native ``bool`` -- exactly what ``export_data`` emits for a Boolean
-  column -- or an ``int``, or a ``list``). ``load()`` is RPC-exposed and
-  contracts to REPORT per-field problems in ``messages``; raising turns a bad
-  cell into a 500 for the whole import.
-"""
-
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase
 
@@ -42,7 +23,6 @@ class TestExportImportRoundtrip(TransactionCase):
         return self.record.export_data(columns)["datas"][0]
 
     def test_m2m_external_id_column_exports_external_ids(self):
-        """``<m2m>/id`` must emit external ids, and create the missing ones."""
         __, cell = self._export(["name", "category_id/id"])
         exported = cell.split(",")
         self.assertEqual(len(exported), 2, cell)
@@ -56,7 +36,6 @@ class TestExportImportRoundtrip(TransactionCase):
             self.assertNotIn(name, exported)
 
     def test_m2m_database_id_column_exports_database_ids(self):
-        """``<m2m>/.id`` must emit database ids, not names."""
         __, cell = self._export(["name", "category_id/.id"])
         self.assertEqual(
             sorted(int(v) for v in cell.split(",")),
@@ -64,7 +43,6 @@ class TestExportImportRoundtrip(TransactionCase):
         )
 
     def test_m2m_bare_column_still_exports_display_names(self):
-        """No regression: a bare m2m column stays human-readable."""
         __, cell = self._export(["name", "category_id"])
         self.assertEqual(
             sorted(cell.split(",")),
@@ -72,7 +50,6 @@ class TestExportImportRoundtrip(TransactionCase):
         )
 
     def test_m2o_columns_unchanged(self):
-        """The many2one selectors already worked; pin them against the m2m fix."""
         self.assertEqual(self._export(["name", "country_id/id"])[1], "base.be")
         self.assertEqual(
             self._export(["name", "country_id/.id"])[1], str(self.country.id)
@@ -82,7 +59,6 @@ class TestExportImportRoundtrip(TransactionCase):
         )
 
     def test_export_then_load_roundtrips(self):
-        """A file exported with /id columns must re-import to the same values."""
         columns = ["name", "country_id/id", "category_id/id", "employee", "color"]
         self.record.employee = True
         self.record.color = 3
@@ -102,11 +78,6 @@ class TestExportImportRoundtrip(TransactionCase):
         self.assertEqual(imported.color, self.record.color)
 
     def test_load_accepts_native_boolean_cells(self):
-        """A native bool/int in a Boolean column imports, it does not raise.
-
-        This is what ``export_data`` emits, and what a JSON-RPC client sends for
-        ``true``. ``_str_to_boolean`` used to call ``value.lower()`` directly.
-        """
         for value, expected in ((True, True), (False, False), (1, True), (0, False)):
             with self.subTest(value=value):
                 result = self.Partner.load(
@@ -118,11 +89,6 @@ class TestExportImportRoundtrip(TransactionCase):
                 self.assertEqual(self.Partner.browse(result["ids"]).employee, expected)
 
     def test_load_reports_unconvertible_cell_type_instead_of_raising(self):
-        """A cell whose SHAPE no converter accepts must be reported, not raised.
-
-        A list in a many2many column reached ``.split(',')`` on an int and blew
-        up out of ``load()``, taking the whole import with it.
-        """
         result = self.Partner.load(
             ["name", "category_id"], [["bad shape", [self.tag_a.id]]]
         )

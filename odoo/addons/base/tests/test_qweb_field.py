@@ -91,8 +91,6 @@ class TestQwebFieldFloatConverter(common.TransactionCase):
 
 
 class TestQwebFieldFloatTime(common.TransactionCase):
-    """QF-T3: ``float_time`` widget (hours-as-fraction -> HH:MM)."""
-
     def value_to_html(self, value, options=None):
         return self.env["ir.qweb.field.float_time"].value_to_html(value, options or {})
 
@@ -104,8 +102,6 @@ class TestQwebFieldFloatTime(common.TransactionCase):
 
 
 class TestQwebFieldDuration(common.TransactionCase):
-    """QF-T4: ``duration`` widget, incl. the digital branch and ``round`` > hour clamp."""
-
     def value_to_html(self, value, options=None):
         return self.env["ir.qweb.field.duration"].value_to_html(value, options or {})
 
@@ -145,10 +141,6 @@ class TestQwebFieldDuration(common.TransactionCase):
 
 
 class TestQwebFieldRelative(common.TransactionCase):
-    """QF-T5: ``relative`` widget. Regression for the t-out path, which reached
-    ``value_to_html`` with no ``now`` option and raised ``KeyError`` instead of
-    defaulting to the current time."""
-
     def value_to_html(self, value, options=None):
         return self.env["ir.qweb.field.relative"].value_to_html(value, options or {})
 
@@ -180,10 +172,6 @@ class TestQwebFieldRelative(common.TransactionCase):
 
 
 class TestQwebFieldRecordContext(common.TransactionCase):
-    """``record_to_html`` propagates only the curated presentation context
-    (template cache keys + tz/bin_size) onto the record, not the qweb
-    per-render internals."""
-
     QWEB_INTERNALS = (
         "__qweb_loaded_functions",
         "__qweb_compiled_cache",
@@ -244,8 +232,6 @@ class TestQwebFieldSelectionRecord(common.TransactionCase):
 
 
 class TestQwebFieldMonetaryType(common.TransactionCase):
-    """QF-T6: monetary must reject non-numbers, including bool (an int subclass)."""
-
     def test_monetary_rejects_bool(self):
         currency = self.env["res.currency"].search([], limit=1)
         with self.assertRaises(TypeError):
@@ -321,13 +307,6 @@ class TestQwebFieldMany2Many(common.TransactionCase):
         self.assertFalse(self.value_to_html(user.group_ids))
 
     def test_many2many_with_values(self):
-        """The renderer joins the records' display names, in recordset order.
-
-        The value is built here rather than taken from a user's ``all_group_ids``:
-        that set depends on which optional feature groups the database has
-        switched on (enabling Multi-Currencies, say, adds one to every internal
-        user), so the assertion used to break on perfectly ordinary databases.
-        """
         groups = self.env["res.groups"].create(
             [{"name": "Zeta Group"}, {"name": "Alpha Group"}]
         )
@@ -363,7 +342,6 @@ class TestQwebFieldHtml(common.TransactionCase):
         return self.env["ir.qweb.field.html"].value_to_html(value, options or {})
 
     def test_html_falsy_values(self):
-        """QF-C1: falsy html values must render empty, not the literal 'False'/'None'."""
         self.assertEqual(self.value_to_html(False), "")
         self.assertEqual(self.value_to_html(None), "")
         self.assertEqual(self.value_to_html(""), "")
@@ -377,19 +355,12 @@ XSS_RAW_FRAGMENTS = ("<script>", '"xss"')
 
 
 class TestQwebFieldEscaping(common.TransactionCase):
-    """QF-T1: per-converter escaping/XSS regression tests.
-
-    Pin the invariant that every converter building ``Markup`` from untrusted
-    data routes it through ``escape``/``nl2br``/``%``/``.format``.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.env = cls.env(context=dict(cls.env.context, **DISABLED_MAIL_CONTEXT))
 
     def _assert_escaped(self, rendered):
-        """Assert no raw XSS fragment survived and the value was escaped."""
         rendered = str(rendered)
         for raw in XSS_RAW_FRAGMENTS:
             self.assertNotIn(
@@ -485,8 +456,6 @@ class TestQwebFieldEscaping(common.TransactionCase):
 
 
 class TestQwebFieldAttributes(common.TransactionCase):
-    """QF-T2: branding metadata (``data-oe-*``) produced by ``attributes()``."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

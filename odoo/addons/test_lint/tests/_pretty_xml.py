@@ -1,34 +1,3 @@
-"""Canonical XML formatter for Odoo data files.
-
-Enforces the coding-guidelines XML style:
-
-- 4-space indentation
-- ``<?xml version="1.0" encoding="utf-8"?>`` declaration (double-quoted, no
-  space before ``?>``)
-- Blank line after ``<odoo>`` opening, between top-level elements, and before
-  ``</odoo>`` closing
-- Self-closing empty elements (``<field name="active"/>`` instead of
-  ``<field name="active"></field>``)
-- Double-quoted attribute values
-- Lines longer than 88 characters are wrapped one-attribute-per-line — at the
-  data layer and inside ``arch``/template content alike. A lone tag whose single
-  attribute already exceeds 88 characters (a long ``domain``/``context``) is left
-  on its own line, since a single attribute cannot be split further.
-
-**Opaque content** (arch fields, template bodies) is *re-indented* to the
-correct depth but never re-formatted — its internal whitespace and mixed text
-content are preserved verbatim.
-
-Standalone usage::
-
-    python _pretty_xml.py [DIR ...]            # rewrite in-place
-    python _pretty_xml.py --dry-run [DIR ...]  # preview only
-
-From the project root::
-
-    ./venv/odoo/bin/python core/odoo/addons/test_lint/tests/_pretty_xml.py addons_custom core
-"""
-
 import argparse
 import re
 import sys
@@ -36,7 +5,6 @@ from io import BytesIO
 from pathlib import Path
 
 from lxml import etree
-
 
 _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
 _XML_DECL = b'<?xml version="1.0" encoding="utf-8"?>'
@@ -51,19 +19,16 @@ _OPAQUE_TAGS: frozenset[str] = frozenset({"template"})
 
 
 def _is_opaque_field(elem: etree._Element) -> bool:
-    """Return ``True`` if this ``<field>`` element contains opaque inner content."""
     return elem.tag == "field" and (
         elem.get("name") == "arch" or elem.get("type") in ("xml", "html")
     )
 
 
 def _esc_attr(value: str) -> str:
-    """Escape a string for use inside double-quoted XML attribute values."""
     return value.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
 
 
 def _esc_text(value: str) -> str:
-    """Escape a string for use as XML text content."""
     return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
@@ -71,16 +36,10 @@ _SELF_CLOSE_RE = re.compile(r"(?<! )/>")
 
 
 def _normalize_self_close(s: str) -> str:
-    """Replace every ``/>`` not already preceded by a space with `` />``."""
     return _SELF_CLOSE_RE.sub(" />", s)
 
 
 def _orig_depth_from_text(text: str | None) -> int:
-    """Return the number of leading spaces before the first content line.
-
-    Given the ``.text`` property of an element (e.g. ``"\\n    "`` before an
-    arch child), returns the indentation depth of the inner content.
-    """
     if not text:
         return 0
     parts = text.split("\n")
@@ -88,22 +47,6 @@ def _orig_depth_from_text(text: str | None) -> int:
 
 
 def _convert_arch_indent(content: str, orig_base: int, new_base: int) -> str:
-    """Convert arch content from its original indentation step to 4-space.
-
-    The *orig_base* is the absolute number of leading spaces before the arch
-    root element (e.g. ``<form>``); *new_base* is the target.  The original
-    indentation step size (typically 4) is auto-detected from the content.
-
-    Algorithm:
-    - Detect *step* = smallest indentation above *orig_base*.
-    - For each line: ``level = (spaces - orig_base) // step``.
-    - New spaces: ``new_base + level * len(_INDENT)``.
-
-    This converts arch content to the canonical 4-space step while adjusting
-    the absolute position to the correct depth in the formatted file.
-    """
-    if orig_base == new_base:
-        pass
 
     lines = content.split("\n")
 
@@ -134,14 +77,6 @@ def _convert_arch_indent(content: str, orig_base: int, new_base: int) -> str:
 
 
 def _inner_content(elem: etree._Element) -> str:
-    """Return the raw inner content of *elem* (between its opening and closing tags).
-
-    Uses lxml's serialisation (``pretty_print=False``, ``with_tail=False``) which
-    preserves the original ``.text`` / ``.tail`` whitespace stored during parsing
-    — safe for mixed-text content.  ``with_tail=False`` prevents the element's
-    own ``.tail`` (sibling-separator whitespace) from being included and
-    corrupting the slice.
-    """
     s = etree.tostring(elem, pretty_print=False, encoding="unicode", with_tail=False)
     start = s.index(">") + 1
     end = len(s) - len(f"</{elem.tag}>")
@@ -149,16 +84,6 @@ def _inner_content(elem: etree._Element) -> str:
 
 
 def _open_tag_lines(tag: str, attrib: dict, pad: str, suffix: str) -> list[str]:
-    """Return lines for a tag opening (or self-closing tag).
-
-    *suffix* is appended after the last attribute (or after the tag name when
-    there are no attributes).  Typical values: ``">"``, ``" />"``,
-    ``">text</tag>"``.
-
-    If the single-line form fits within ``_MAX_LINE`` characters, one line is
-    returned.  Otherwise each attribute is placed on its own line indented by
-    one extra level, with *suffix* on the last attribute line.
-    """
     attr_parts = [f'{k}="{_esc_attr(v)}"' for k, v in attrib.items()]
     if attr_parts:
         single = f"{pad}<{tag} {' '.join(attr_parts)}{suffix}"
@@ -178,14 +103,6 @@ _SERIALIZED_ATTR_RE = re.compile(r'[\w:.\-]+\s*=\s*"[^"]*"')
 
 
 def _is_lone_tag_line(stripped: str) -> bool:
-    """Return ``True`` if *stripped* is a single start/self-closing tag, nothing else.
-
-    *stripped* must already be left-stripped.  A lone tag is the only opaque
-    line that is safe to wrap: it has no surrounding text and no sibling/child
-    tags on the same line.  lxml escapes ``<``/``>`` inside attribute values
-    (``&lt;``/``&gt;``), so a literal ``count("<") == 1`` reliably means "exactly
-    one tag" and a trailing ``>`` means "no text follows the tag".
-    """
     if not stripped.startswith("<"):
         return False
     if stripped.startswith(("</", "<!--", "<?", "<![")):
@@ -194,14 +111,6 @@ def _is_lone_tag_line(stripped: str) -> bool:
 
 
 def _wrap_serialized_tag(line: str) -> list[str]:
-    """Wrap a long lone start-tag *line* one-attribute-per-line at :data:`_MAX_LINE`.
-
-    Operates on an already-serialised (lxml-escaped, double-quoted) line, so the
-    attribute tokens are redistributed **verbatim** — never re-escaped (which
-    would double-escape ``&quot;``/``&amp;``).  Lines at or below ``_MAX_LINE``,
-    or that are not a lone tag, are returned unchanged.  If the tag cannot be
-    parsed back into ``tag + attributes`` losslessly, the line is left as-is.
-    """
     if len(line) <= _MAX_LINE:
         return [line]
     stripped = line.lstrip(" ")
@@ -231,7 +140,6 @@ def _wrap_serialized_tag(line: str) -> list[str]:
 
 
 def _wrap_opaque_lines(lines: list[str]) -> list[str]:
-    """Apply :func:`_wrap_serialized_tag` to every line of opaque content."""
     out: list[str] = []
     for line in lines:
         out.extend(_wrap_serialized_tag(line))
@@ -239,15 +147,6 @@ def _wrap_opaque_lines(lines: list[str]) -> list[str]:
 
 
 def _format_comment(node: etree._Comment, depth: int) -> list[str]:
-    """Format a comment node, re-indenting multi-line comments.
-
-    lxml stores a multi-line comment ``<!-- \\n content \\n indent -->`` as
-    ``node.text = "\\n content \\n indent"``.  The leading ``\\n`` (separator
-    between ``<!--`` and the first content line) and the trailing
-    whitespace-only chunk (indentation before ``-->``) are artefacts of the
-    serialised form, not real content.  Stripping them prevents an extra blank
-    line from accumulating on every formatting pass.
-    """
     pad = _INDENT * depth
     text = node.text or ""
     lines = text.split("\n")
@@ -265,18 +164,6 @@ def _format_comment(node: etree._Comment, depth: int) -> list[str]:
 
 
 def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
-    """Format an opaque element (arch field, template) at *depth*.
-
-    For elements whose ``.text`` is purely whitespace (the common case: view
-    XML, QWeb templates with structured content), the inner content is
-    re-indented to the correct absolute depth while preserving relative
-    indentation and internal structure.
-
-    For elements with *mixed* text content (e.g. ``web.layout`` whose body
-    begins directly with ``<!DOCTYPE html>``), the inner content is preserved
-    completely verbatim — re-indentation would corrupt inline text.  Only the
-    opening/closing tags are formatted.
-    """
     pad = _INDENT * depth
 
     if len(elem) == 0 and not (elem.text and elem.text.strip()):
@@ -327,17 +214,6 @@ def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
 
 
 def _format_element(elem: etree._Element, depth: int) -> list[str]:
-    """Format a single element and its descendants.
-
-    Returns a list of lines (no trailing newline on each).
-
-    - Opaque elements (arch fields, templates) delegate to :func:`_format_opaque`.
-    - Container elements (``<odoo>``, ``<data>``) use blank-line-separated
-      children via :func:`_format_children`.
-    - Elements with children: multi-line.
-    - Text-only elements: single line.
-    - Empty elements: self-closing.
-    """
     if callable(elem.tag):
         return _format_comment(elem, depth)
 
@@ -374,12 +250,6 @@ def _format_element(elem: etree._Element, depth: int) -> list[str]:
 def _group_children(
     children: list[etree._Element],
 ) -> list[list[etree._Element]]:
-    """Group children into logical units for blank-line insertion.
-
-    All consecutive comment nodes immediately preceding a non-comment element
-    are bundled with that element.  Trailing comment-only runs form their own
-    group.
-    """
     groups: list[list[etree._Element]] = []
     i = 0
     while i < len(children):
@@ -400,7 +270,6 @@ def _format_children(
     *,
     blank_sep: bool = False,
 ) -> list[str]:
-    """Format *children* at *depth*, optionally inserting blank lines between groups."""
     if not blank_sep:
         lines: list[str] = []
         for child in children:
@@ -422,22 +291,6 @@ def format_xml_file(
     *,
     dry_run: bool = False,
 ) -> bool | None:
-    """Format an Odoo XML data file with canonical 4-space indentation.
-
-    Processing rules:
-
-    - XML declaration normalised to ``<?xml version="1.0" encoding="utf-8"?>``.
-    - Root element (``<odoo>``) formatted with blank lines around and between
-      its direct children.
-    - All data-layer elements use 4-space indentation.
-    - Arch fields and ``<template>`` inner content are re-indented but
-      otherwise preserved verbatim.
-    - Pre-root comment nodes (copyright headers) are preserved.
-
-    :return: ``True`` if the file was changed (or would change in dry-run mode),
-        ``False`` if it was already canonical, ``None`` if it was skipped due to
-        a parse error (warning on stderr)
-    """
     source = path.read_bytes()
     try:
         tree = etree.parse(BytesIO(source), _PARSER)
@@ -475,7 +328,6 @@ def format_xml_file(
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Entry point for standalone use."""
     parser = argparse.ArgumentParser(
         description=("Format Odoo XML data files with canonical 4-space indentation."),
         formatter_class=argparse.RawDescriptionHelpFormatter,

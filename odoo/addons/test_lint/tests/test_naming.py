@@ -11,9 +11,6 @@ class TestNaming(LintCase):
     failureException = TypeError
 
     def test_parameter_rpc_compatible(self):
-        """Parameters "ids" and "context" are not allowed in public methods.
-        These conflict with standard parameters used in RPC calls.
-        """
         INVALID_NAMES = {"ids", "context"}
         registry = Registry(get_db_name())
 

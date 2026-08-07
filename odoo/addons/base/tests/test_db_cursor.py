@@ -10,6 +10,7 @@ import warnings
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from functools import partial
+from itertools import starmap
 from unittest.mock import MagicMock, patch
 
 import psycopg
@@ -58,13 +59,11 @@ TEXT_OID = _pg_types["text"].oid
 
 
 def _boom(*_args, **_kwargs):
-    """A hook that raises — stands in for an application bug."""
     raise RuntimeError("hook exploded")
 
 
 class _ProbeAbort(Exception):
-    """Sentinel used to leave a COPY context after ``set_types()`` succeeded,
-    without writing a row (see ``test_can_dump_binary_agrees_with_set_types``)."""
+    pass
 
 
 def registry():
@@ -73,7 +72,6 @@ def registry():
 
 class TestRealCursor(BaseCase):
     def test_execute_bad_params(self):
-        """Reject iterable-but-non-list and scalar params."""
         with registry().cursor() as cr:
             with self.assertRaises(ValueError):
                 cr.execute("SELECT id FROM res_users WHERE login=%s", "admin")
@@ -121,15 +119,6 @@ class TestRealCursor(BaseCase):
 
 
 class TestSeedPlannerStats(BaseCase):
-    """``seed_planner_stats`` floors reltuples/relpages for never-analyzed tables.
-
-    Test transactions always roll back, so test-only tables keep committed
-    "empty" stats forever; the planner then estimates ``rows=1`` and builds
-    cartesian nested-loop plans that slow down quadratically as a class
-    accumulates rows.  The floor keeps join order and index choice sane;
-    ``_run_post_install_tests`` seeds once per suite.
-    """
-
     def test_seeds_floors_for_zero_stat_tables(self):
         from odoo.db.utils import seed_planner_stats
 
@@ -157,15 +146,6 @@ class TestSeedPlannerStats(BaseCase):
 
 
 class TestSeedPlannerStatsInClassTransaction(common.TransactionCase):
-    """Every TransactionCase must see planner-stat floors on all its tables.
-
-    Autovacuum can undo the committed pre-suite seeding mid-suite (VACUUM
-    rewrites ``reltuples = 0`` for always-rolled-back tables and invalidates the
-    relcache), reintroducing the cartesian nested-loop pathology.  ``setUpClass``
-    re-seeds inside the class transaction; the stats locks keep autovacuum off
-    the seeded tables while the class runs.
-    """
-
     def test_no_zero_stat_tables_visible(self):
         self.env.cr.execute(
             """
@@ -274,7 +254,6 @@ class TestTestCursor(common.TransactionCase):
         self.assertEqual(record.read(["ref"])[0]["ref"], value)
 
     def test_single_cursor(self):
-        """Check the behavior of a single test cursor."""
         self.assertIsInstance(self.cr, TestCursor)
         self.write(self.record, "A")
         self.cr.commit()
@@ -288,10 +267,6 @@ class TestTestCursor(common.TransactionCase):
         self.check(self.record, "A")
 
     def test_now_is_utc_and_resets(self):
-        """TestCursor.now() must mirror the real cursor: naive UTC, cached, and
-        reset on commit/rollback.  The old ``datetime.now()`` returned local
-        time, landing test create_date/write_date hours off on a non-UTC host.
-        """
         self.assertIsInstance(self.cr, TestCursor)
         self.cr.commit()
         self.assertIsNone(self.cr._now)
@@ -313,13 +288,6 @@ class TestTestCursor(common.TransactionCase):
         self.assertIsNone(self.cr._now, "rollback() must reset now()")
 
     def test_fetch_helpers_forward_to_real_cursor(self):
-        """Regression: BaseCursor.fetchscalar must not shadow TestCursor's
-        __getattr__ forwarding.
-
-        fetchscalar is defined on BaseCursor (fetchone is not), so TestCursor
-        resolves it to the base rather than forwarding.  The base now implements
-        it over self.fetchone() so every subclass inherits a working version.
-        """
         self.assertIsInstance(self.cr, TestCursor)
 
         self.cr.execute("SELECT 42")
@@ -334,7 +302,6 @@ class TestTestCursor(common.TransactionCase):
         self.assertEqual(self.cr.dictfetchone(), {"v": 7})
 
     def test_sub_commit(self):
-        """Check the behavior of a subcursor that commits."""
         self.assertIsInstance(self.cr, TestCursor)
         self.write(self.record, "A")
         self.cr.commit()
@@ -354,7 +321,6 @@ class TestTestCursor(common.TransactionCase):
         self.check(self.record, "A")
 
     def test_sub_rollback(self):
-        """Check the behavior of a subcursor that rollbacks."""
         self.assertIsInstance(self.cr, TestCursor)
         self.write(self.record, "A")
         self.cr.commit()
@@ -376,17 +342,6 @@ class TestTestCursor(common.TransactionCase):
         self.check(self.record, "A")
 
     def test_interleaving(self):
-        """Independently retrieved test cursors can interleave their savepoint
-        operations (some are lazy, e.g. the request cursor) and release one
-        another:
-
-        .. code-block:: sql
-
-            SAVEPOINT A
-            SAVEPOINT B
-            RELEASE SAVEPOINT A
-            RELEASE SAVEPOINT B -- "savepoint b does not exist"
-        """
         a = self.registry.cursor()
         b = self.registry.cursor()
         a._check_savepoint()
@@ -402,19 +357,6 @@ class TestTestCursor(common.TransactionCase):
         self.assertNotIn(b, TestCursor._cursors_stack)
 
     def test_borrow_connection(self):
-        """Pool recycles a returned connection to the next borrower.
-
-        Connections are pooled per-database; compare backend PIDs rather than
-        Python object identity (each getconn wraps a fresh ``psycopg.Connection``).
-
-        Uses a PRIVATE pool rather than the process-wide one: "the connection I
-        just released comes back to me" only holds while nothing else borrows
-        from that pool, and after an HttpCase suite the live server, cron and
-        bus threads are still checking connections in and out of the global
-        pool — one of them takes the freed slot and this asserts a different
-        backend pid. Isolating the pool tests the recycling contract itself
-        instead of the ambient concurrency of whatever ran before.
-        """
         cursors = []
         pool = ConnectionPool(maxconn=4)
         self.addCleanup(pool.close_all)
@@ -489,8 +431,6 @@ class TestCursorHooks(common.TransactionCase):
 
 
 class TestCursorHooksTransactionCaseCleanup(common.TransactionCase):
-    """Check savepoint cases handle commit hooks properly."""
-
     @staticmethod
     def initial_callback():
         pass
@@ -556,10 +496,7 @@ class TestCursorHooksTransactionCaseCleanup(common.TransactionCase):
 
 
 class TestNumericToFloat(common.TransactionCase):
-    """Test that PostgreSQL numeric values are loaded as Python floats."""
-
     def test_numeric_column_returns_float(self):
-        """Ensure the _NumericToFloatLoader adapter is active."""
         self.env.cr.execute("SELECT 1.5::numeric")
         val = self.env.cr.fetchone()[0]
         self.assertIsInstance(val, float)
@@ -578,27 +515,22 @@ class TestNumericToFloat(common.TransactionCase):
 
 
 class TestCursorFetchMethods(BaseCase):
-    """Test fetchscalar, dictfetchone, dictfetchmany, dictfetchall."""
-
     def test_fetchscalar_value(self):
         with registry().cursor() as cr:
             cr.execute("SELECT 42")
             self.assertEqual(cr.fetchscalar(), 42)
 
     def test_fetchscalar_null(self):
-        """fetchscalar returns None for NULL values (not the row tuple)."""
         with registry().cursor() as cr:
             cr.execute("SELECT NULL::int")
             self.assertIsNone(cr.fetchscalar())
 
     def test_fetchscalar_empty(self):
-        """fetchscalar returns None when no rows match."""
         with registry().cursor() as cr:
             cr.execute("SELECT 1 WHERE FALSE")
             self.assertIsNone(cr.fetchscalar())
 
     def test_fetchscalar_multi_column(self):
-        """fetchscalar returns the first column value only."""
         with registry().cursor() as cr:
             cr.execute("SELECT 1, 2, 3")
             self.assertEqual(cr.fetchscalar(), 1)
@@ -621,7 +553,6 @@ class TestCursorFetchMethods(BaseCase):
             self.assertEqual([r["v"] for r in rows], [1, 2, 3])
 
     def test_dictfetchmany_exceeds_available(self):
-        """Requesting more rows than available returns only what's there."""
         with registry().cursor() as cr:
             cr.execute("SELECT generate_series(1, 2) AS v")
             rows = cr.dictfetchmany(10)
@@ -641,22 +572,18 @@ class TestCursorFetchMethods(BaseCase):
 
 
 class TestCursorNow(BaseCase):
-    """Test now() caching and reset behavior."""
-
     def test_now_returns_datetime(self):
         with registry().cursor() as cr:
             result = cr.now()
             self.assertIsInstance(result, datetime)
 
     def test_now_cached_within_transaction(self):
-        """Repeated calls return the exact same object (cached)."""
         with registry().cursor() as cr:
             t1 = cr.now()
             t2 = cr.now()
             self.assertIs(t1, t2)
 
     def test_now_reset_after_commit(self):
-        """commit() resets the cached timestamp."""
         with registry().cursor() as cr:
             cr.now()
             self.assertIsNotNone(cr._now)
@@ -664,7 +591,6 @@ class TestCursorNow(BaseCase):
             self.assertIsNone(cr._now)
 
     def test_now_reset_after_rollback(self):
-        """rollback() resets the cached timestamp."""
         with registry().cursor() as cr:
             cr.now()
             self.assertIsNotNone(cr._now)
@@ -672,11 +598,6 @@ class TestCursorNow(BaseCase):
             self.assertIsNone(cr._now)
 
     def test_now_survives_savepoint(self):
-        """A savepoint (release OR rollback) must NOT invalidate the cache.
-
-        now() is the transaction start timestamp, reset only by
-        commit()/rollback(); assertIs proves it was not recomputed.
-        """
         with registry().cursor() as cr:
             t1 = cr.now()
             with cr.savepoint():
@@ -688,9 +609,6 @@ class TestCursorNow(BaseCase):
             self.assertIs(cr.now(), t1)
 
     def test_now_equals_transaction_timestamp(self):
-        """now() equals transaction_timestamp() at UTC (transaction start), not
-        the per-statement clock_timestamp().
-        """
         with registry().cursor() as cr:
             t = cr.now()
             cr.execute("SELECT transaction_timestamp() AT TIME ZONE 'UTC'")
@@ -698,10 +616,7 @@ class TestCursorNow(BaseCase):
 
 
 class TestCursorBulkMethods(BaseCase):
-    """Test execute_values, executemany, and pipeline."""
-
     def test_execute_values_basic(self):
-        """execute_values builds multi-row VALUES queries."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_ev (a int, b text)")
             cr.execute_values(
@@ -712,7 +627,6 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(cr.fetchall(), [(1, "x"), (2, "y"), (3, "z")])
 
     def test_execute_values_with_fetch(self):
-        """execute_values with fetch=True returns RETURNING results."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_evf (id serial, val int)")
             results = cr.execute_values(
@@ -725,7 +639,6 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(results[1][1], 20)
 
     def test_execute_values_empty(self):
-        """execute_values with empty argslist is a no-op."""
         with registry().cursor() as cr:
             result = cr.execute_values("INSERT INTO nonexistent VALUES %s", [])
             self.assertIsNone(result)
@@ -735,7 +648,6 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(result, [])
 
     def test_execute_values_custom_template(self):
-        """execute_values accepts a custom row template."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_evt (a int, b int)")
             cr.execute_values(
@@ -747,7 +659,6 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(cr.fetchall(), [(1, 10), (2, 20)])
 
     def test_execute_values_paging(self):
-        """execute_values respects page_size for batching large inserts."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_evp (val int)")
             data = [(i,) for i in range(10)]
@@ -760,10 +671,6 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(cr.fetchone()[0], 10)
 
     def test_execute_values_pipeline_error_is_logged(self):
-        """A pipelined (multi-batch, non-fetch) execute_values failure surfaces
-        at pipeline sync on context exit, bypassing execute()'s _log_sql_error.
-        It must still be logged on ``odoo.db.cursor``, not swallowed.
-        """
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_evpl (n int)")
             cr.commit()
@@ -781,7 +688,6 @@ class TestCursorBulkMethods(BaseCase):
         )
 
     def test_executemany_basic(self):
-        """executemany inserts multiple rows via pipeline."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_em (a int, b text)")
             cr.executemany(
@@ -792,7 +698,6 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(cr.fetchall(), [(1, "x"), (2, "y"), (3, "z")])
 
     def test_executemany_returning(self):
-        """executemany with returning=True collects RETURNING result sets."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_emr (id serial, val int)")
             cr.executemany(
@@ -806,12 +711,10 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(len(ids), 3)
 
     def test_executemany_empty(self):
-        """executemany with empty params_seq is a no-op."""
         with registry().cursor() as cr:
             cr.executemany("INSERT INTO nonexistent VALUES (%s)", [])
 
     def test_pipeline_mode(self):
-        """pipeline batches multiple queries in a single round-trip."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_pipe (val int)")
             with cr.pipeline():
@@ -821,7 +724,6 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(cr.fetchone()[0], 5)
 
     def test_pipeline_nesting(self):
-        """Nested pipeline contexts reuse the active pipeline (no-op)."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_nest (val int)")
             with cr.pipeline():
@@ -834,7 +736,6 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(cr.fetchone()[0], 4)
 
     def test_pipeline_fire_and_forget_updates(self):
-        """Pipeline batches fire-and-forget UPDATEs without fetching results."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_upd (id int, val int)")
             cr.execute("INSERT INTO _test_upd VALUES (1, 10), (2, 20), (3, 30)")
@@ -847,10 +748,6 @@ class TestCursorBulkMethods(BaseCase):
 
 
 def _merge(cr, table, columns, rows, on_columns, *, returning="NEW.id"):
-    """Atomic upsert via MERGE (PG15+, RETURNING since PG17).
-
-    Standalone test helper, kept out of the production Cursor API.
-    """
     if not rows:
         return []
 
@@ -889,10 +786,7 @@ def _merge(cr, table, columns, rows, on_columns, *, returning="NEW.id"):
 
 
 class TestMerge(BaseCase):
-    """Test MERGE (atomic upsert) protocol path."""
-
     def test_merge_insert(self):
-        """merge() inserts new rows when no match exists."""
         with registry().cursor() as cr:
             cr.execute(
                 "CREATE TEMP TABLE _test_mg_ins (id serial PRIMARY KEY, key text UNIQUE, val text)"
@@ -909,7 +803,6 @@ class TestMerge(BaseCase):
             self.assertEqual(cr.fetchall(), [("a", "v1"), ("b", "v2")])
 
     def test_merge_update(self):
-        """merge() updates existing rows when match exists."""
         with registry().cursor() as cr:
             cr.execute(
                 "CREATE TEMP TABLE _test_mg_upd (id serial PRIMARY KEY, key text UNIQUE, val text)"
@@ -926,7 +819,6 @@ class TestMerge(BaseCase):
             self.assertEqual(cr.fetchone()[0], "new")
 
     def test_merge_mixed(self):
-        """merge() handles a mix of inserts and updates."""
         with registry().cursor() as cr:
             cr.execute(
                 "CREATE TEMP TABLE _test_mg_mix (id serial PRIMARY KEY, key text UNIQUE, val int)"
@@ -944,7 +836,6 @@ class TestMerge(BaseCase):
             self.assertEqual(cr.fetchall(), [("existing", 20), ("new_key", 30)])
 
     def test_merge_returning(self):
-        """merge() respects custom RETURNING clause."""
         with registry().cursor() as cr:
             cr.execute(
                 "CREATE TEMP TABLE _test_mg_ret (id serial PRIMARY KEY, key text UNIQUE, val text)"
@@ -966,7 +857,6 @@ class TestMerge(BaseCase):
             self.assertEqual(result[1][2], "fresh")
 
     def test_merge_empty_rows(self):
-        """merge() returns empty list for empty input."""
         with registry().cursor() as cr:
             cr.execute(
                 "CREATE TEMP TABLE _test_mg_empty (id serial PRIMARY KEY, key text UNIQUE, val text)"
@@ -978,10 +868,7 @@ class TestMerge(BaseCase):
 
 
 class TestCopyFrom(BaseCase):
-    """Test COPY protocol path (copy_from)."""
-
     def test_copy_from_basic(self):
-        """copy_from inserts rows via PostgreSQL COPY protocol."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_cp (a int, b text)")
             result = cr.copy_from("_test_cp", ["a", "b"], [(1, "x"), (2, "y")])
@@ -990,7 +877,6 @@ class TestCopyFrom(BaseCase):
             self.assertEqual(cr.fetchall(), [(1, "x"), (2, "y")])
 
     def test_copy_from_returning_ids(self):
-        """copy_from with returning_ids pre-generates IDs from the sequence."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_cpid (id serial PRIMARY KEY, val text)")
             ids = cr.copy_from(
@@ -1007,11 +893,6 @@ class TestCopyFrom(BaseCase):
                 self.assertEqual(expected_id, row_id)
 
     def test_resolve_id_sequence_shared_fallback_is_schema_aware(self):
-        """A non-owned (shared) id DEFAULT sequence resolves via the pg_depend
-        fallback, anchored on ``%s::regclass`` (search_path).  Regression: the
-        fallback used to join pg_class on bare relname, matching same-named
-        tables in every schema and returning an arbitrary one via LIMIT 1.
-        """
         cr = registry().cursor()
         try:
             for s, seq in (("_cpseq_s1", "seq_a"), ("_cpseq_s2", "seq_b")):
@@ -1031,19 +912,12 @@ class TestCopyFrom(BaseCase):
             cr.close()
 
     def test_copy_from_empty_returning(self):
-        """copy_from with empty rows and returning_ids returns empty list."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_cpe (id serial PRIMARY KEY, val text)")
             ids = cr.copy_from("_test_cpe", ["val"], [], returning_ids=True)
             self.assertEqual(ids, [])
 
     def test_copy_from_returning_ids_generator_input(self):
-        """returning_ids must handle an unsized (generator) ``rows`` input.
-
-        copy_from materializes ``rows`` only when it lacks ``__len__``; a
-        generator exercises that branch and must still pre-count, pre-generate
-        ids, and insert every row with its id prepended.
-        """
         with registry().cursor() as cr:
             cr.execute(
                 "CREATE TEMP TABLE _test_cpgen (id serial PRIMARY KEY, val text)"
@@ -1057,8 +931,6 @@ class TestCopyFrom(BaseCase):
             self.assertEqual([r[1] for r in inserted], [f"v{i}" for i in range(5)])
 
     def test_copy_from_empty_nonreturning_short_circuits(self):
-        """An empty (sized) non-returning copy_from returns None without issuing
-        a COPY (no wasted round-trip); validations still run first."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_cpens (a int, b text)")
             before = cr.sql_log_count
@@ -1071,15 +943,12 @@ class TestCopyFrom(BaseCase):
                 cr.copy_from("_test_cpens", [], [])
 
     def test_copy_from_empty_columns_raises(self):
-        """An empty column list builds ``COPY t () FROM STDIN``; reject it at the
-        boundary with a clear message, not a cryptic PG syntax error."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_cpec (a int)")
             with self.assertRaises(ValueError):
                 cr.copy_from("_test_cpec", [], [(1,)])
 
     def test_copy_from_null_values(self):
-        """copy_from handles None → NULL conversion."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_cpn (a int, b text)")
             cr.copy_from("_test_cpn", ["a", "b"], [(1, None), (None, "y")])
@@ -1089,7 +958,6 @@ class TestCopyFrom(BaseCase):
             self.assertEqual(rows[1], (1, None))
 
     def test_copy_from_large_batch(self):
-        """COPY handles batches larger than typical INSERT thresholds."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_cplg (val int)")
             rows = [(i,) for i in range(500)]
@@ -1098,7 +966,6 @@ class TestCopyFrom(BaseCase):
             self.assertEqual(cr.fetchone()[0], 500)
 
     def test_copy_from_json_values(self):
-        """COPY adapts JSON (dict/list) types via psycopg3's Transformer."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_cpj (data jsonb)")
             cr.copy_from(
@@ -1111,28 +978,8 @@ class TestCopyFrom(BaseCase):
 
 
 class TestCopyFromBinaryTypeResolution(BaseCase):
-    """Binary COPY must handle every column type, not just built-in scalars.
-
-    Regression: the catalog lookup returned ``pg_type.typname`` and handed those
-    names to ``Copy.set_types()``, which resolves them through psycopg's *name*
-    registry.  That registry only knows built-in scalars, so an array column
-    (``typname`` ``_int4``), an enum, a domain or an extension type raised
-    ``KeyError: couldn't find the type '...' in the types registry`` from inside
-    the COPY context — reached by any ``create()`` of ``COPY_THRESHOLD`` (10)
-    records on such a model.
-    """
-
     @contextlib.contextmanager
     def _rolled_back_cursor(self):
-        """A real cursor whose whole transaction is rolled back afterwards.
-
-        These tests need ``CREATE TYPE`` / ``CREATE DOMAIN``, which — unlike a
-        ``TEMP`` table — are permanent schema objects that ``DISCARD TEMP`` on
-        connection return does not reclaim.  ``with registry().cursor()``
-        COMMITS on a clean exit, so it would leave them behind and every later
-        run would fail with "type already exists".  DDL is transactional in
-        PostgreSQL, so rolling back removes them completely.
-        """
         cr = db_connect(common.get_db_name()).cursor()
         try:
             yield cr
@@ -1141,7 +988,6 @@ class TestCopyFromBinaryTypeResolution(BaseCase):
             cr.close()
 
     def test_binary_copy_array_column(self):
-        """Arrays dump fine by OID even though ``_int4`` is not a registry name."""
         with self._rolled_back_cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_bt_arr (tags int4[])")
             cr.copy_from("_test_bt_arr", ["tags"], [([1, 2, 3],)], binary=True)
@@ -1149,7 +995,6 @@ class TestCopyFromBinaryTypeResolution(BaseCase):
             self.assertEqual(cr.fetchscalar(), [1, 2, 3])
 
     def test_binary_copy_enum_column(self):
-        """An enum is encoded as ``text``: ``enum_recv`` reads the bare label."""
         with self._rolled_back_cursor() as cr:
             cr.execute("CREATE TYPE _test_bt_mood AS ENUM ('up', 'down')")
             cr.execute("CREATE TEMP TABLE _test_bt_en (m _test_bt_mood)")
@@ -1163,7 +1008,6 @@ class TestCopyFromBinaryTypeResolution(BaseCase):
             self.assertEqual(cr.fetchscalar(), "up")
 
     def test_binary_copy_domain_column(self):
-        """A domain resolves to its base type — recursively."""
         with self._rolled_back_cursor() as cr:
             cr.execute("CREATE DOMAIN _test_bt_pos AS int4 CHECK (VALUE > 0)")
             cr.execute("CREATE DOMAIN _test_bt_pos2 AS _test_bt_pos")
@@ -1178,13 +1022,6 @@ class TestCopyFromBinaryTypeResolution(BaseCase):
             self.assertEqual(cr.fetchscalar(), 5)
 
     def test_binary_copy_undumpable_type_falls_back_to_text(self):
-        """A type psycopg cannot encode downgrades the COPY instead of raising.
-
-        A composite type stands in for the real cases (PostGIS ``geometry``,
-        pgvector ``vector``): psycopg has no binary dumper for its
-        server-assigned OID, and ``set_types()`` would raise *inside* the COPY
-        context.  Text COPY inserts the identical row.
-        """
         with self._rolled_back_cursor() as cr:
             cr.execute("CREATE TYPE _test_bt_pair AS (a int, b int)")
             cr.execute("CREATE TEMP TABLE _test_bt_comp (n int, c _test_bt_pair)")
@@ -1198,25 +1035,10 @@ class TestCopyFromBinaryTypeResolution(BaseCase):
             self.assertEqual(cr.fetchall(), [(1, 2, 3)])
 
     def test_can_dump_binary_accepts_builtin_scalars(self):
-        """The probe is not vacuously false: built-ins report dumpable."""
         with self._rolled_back_cursor() as cr:
             self.assertTrue(cr._can_dump_binary([INT4_OID, TEXT_OID]))
 
     def test_can_dump_binary_agrees_with_set_types_on_every_type(self):
-        """The probe's verdict must match what ``set_types()`` actually does.
-
-        Regression: the probe used to look the dumper CLASS up in
-        ``connection.adapters``.  That finds a generic array dumper for *any*
-        array OID — but instantiating one also resolves the ELEMENT dumper, and
-        that is what fails for ``point[]``, ``xml[]``, ``bpchar[]``, ``money[]``
-        and 36 other array types.  The probe passed them, so the crash it exists
-        to prevent went straight back into the COPY context.
-
-        Rather than re-listing psycopg's dumper coverage (which would drift),
-        this asserts the property directly against ground truth: for every
-        column-capable type in ``pg_type``, the probe agrees with opening a real
-        binary COPY and calling ``set_types()``.
-        """
         with self._rolled_back_cursor() as cr:
             cr.execute("""
                 SELECT t.oid, t.typname
@@ -1266,15 +1088,7 @@ class TestCopyFromBinaryTypeResolution(BaseCase):
 
 
 class TestDDLFormatting(BaseCase):
-    """Test that DDL statements use client-side formatting automatically."""
-
     def test_ddl_client_side_formatting(self):
-        """DDL statements use client-side formatting automatically.
-
-        PostgreSQL's extended query protocol rejects $N parameters in DDL
-        structural positions, so execute() detects DDL and inlines params
-        client-side via psycopg.sql.quote().
-        """
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_ddl (val int DEFAULT %s)", (0,))
             cr.execute(
@@ -1285,7 +1099,6 @@ class TestDDLFormatting(BaseCase):
             self.assertEqual(default, "0")
 
     def test_ddl_comment(self):
-        """COMMENT ON is DDL and uses client-side formatting."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_ddl2 (val int)")
             cr.execute("COMMENT ON TABLE _test_ddl2 IS %s", ("test comment",))
@@ -1296,24 +1109,7 @@ class TestDDLFormatting(BaseCase):
 
 
 class TestBytesQuery(BaseCase):
-    """A ``bytes`` statement must be analysed like a ``str`` one.
-
-    psycopg accepts a bytes statement, and one caller relies on it:
-    ``odoo.tools.convert.convert_sql_import`` runs the raw contents of a
-    module's ``.sql`` data file (``file_open(..., "rb")``). ``execute()``
-    asserted in a comment that ``query`` was "always a str here" but never
-    enforced it, so a bytes statement:
-
-    * silently skipped DDL detection -- ``_ddl_keyword`` tests a bytes prefix
-      against str constants and returns None, so no client-side param inlining
-      and no cache invalidation for the CREATE/ALTER a .sql file consists of;
-    * then raised ``TypeError: a bytes-like object is required, not 'str'``
-      inside ``_changes_schema`` (``";" not in qs``), breaking the install or
-      upgrade of any module shipping a .sql file.
-    """
-
     def test_bytes_ddl_executes(self):
-        """The statement runs instead of raising TypeError."""
         with registry().cursor() as cr:
             cr.execute(b"CREATE TEMP TABLE _test_bytes_ddl (val int)")
             cr.execute(b"INSERT INTO _test_bytes_ddl VALUES (42)")
@@ -1321,7 +1117,6 @@ class TestBytesQuery(BaseCase):
             self.assertEqual(cr.fetchone()[0], 42)
 
     def test_bytes_ddl_invalidates_the_caches(self):
-        """Schema-changing DDL must drop the cached plans, bytes or not."""
         with registry().cursor() as cr:
             with patch.object(type(cr), "_invalidate_caches_after_ddl") as invalidate:
                 cr.execute(b"CREATE TEMP TABLE _test_bytes_ddl2 (val int)")
@@ -1331,7 +1126,6 @@ class TestBytesQuery(BaseCase):
             )
 
     def test_bytes_multi_statement_ddl_invalidates_the_caches(self):
-        """The non-leading-DDL case too: it is what ``_changes_schema`` is for."""
         with registry().cursor() as cr:
             cr.execute(b"CREATE TEMP TABLE _test_bytes_ddl3 (val int)")
             with patch.object(type(cr), "_invalidate_caches_after_ddl") as invalidate:
@@ -1345,18 +1139,12 @@ class TestBytesQuery(BaseCase):
             )
 
     def test_bytes_non_ddl_does_not_invalidate(self):
-        """No over-reporting: a plain bytes SELECT is not DDL."""
         with registry().cursor() as cr:
             with patch.object(type(cr), "_invalidate_caches_after_ddl") as invalidate:
                 cr.execute(b"SELECT 1")
             self.assertFalse(invalidate.called)
 
     def test_undecodable_bytes_do_not_crash_the_analysis(self):
-        """Bytes that are not text reach the server instead of raising here.
-
-        The analysis cannot read them, so it must decline rather than guess;
-        PostgreSQL rejects the statement itself.
-        """
         with registry().cursor() as cr, self.assertRaises(psycopg.Error):
             with contextlib.suppress(UnicodeDecodeError):
                 cr.execute(b"SELECT '\xff\xfe'::int", log_exceptions=False)
@@ -1364,17 +1152,7 @@ class TestBytesQuery(BaseCase):
 
 
 class TestComposableQueries(BaseCase):
-    """psycopg ``sql.Composable`` queries are first-class citizens.
-
-    ``sql.SQL(...).format(sql.Identifier(...))`` is psycopg's sanctioned way to
-    build dynamic statements with safely quoted identifiers; SQL-view report
-    models (e.g. fleet's odometer report) use it for ``CREATE VIEW``.  The
-    cursor resolves them to their final text via ``as_string`` so DDL detection
-    works on real SQL (regression: ``qs[:64]`` crashed on a ``Composed``).
-    """
-
     def test_composed_ddl_create_view(self):
-        """The fleet pattern: CREATE VIEW composed with sql.Identifier."""
         with registry().cursor() as cr:
             cr.execute(
                 psycopg.sql.SQL("CREATE TEMP VIEW {} as ({})").format(
@@ -1391,7 +1169,6 @@ class TestComposableQueries(BaseCase):
             )
 
     def test_composed_ddl_with_params(self):
-        """Composed DDL still gets client-side param inlining."""
         with registry().cursor() as cr:
             cr.execute(
                 psycopg.sql.SQL("CREATE TEMP TABLE {} (val int DEFAULT %s)").format(
@@ -1406,7 +1183,6 @@ class TestComposableQueries(BaseCase):
             self.assertEqual(cr.fetchone()[0], "7")
 
     def test_composed_non_ddl(self):
-        """Composed DML/SELECT resolves and binds params server-side."""
         with registry().cursor() as cr:
             cr.execute(
                 psycopg.sql.SQL("SELECT {} FROM res_users WHERE id = %s").format(
@@ -1430,8 +1206,6 @@ class TestComposableQueries(BaseCase):
 
 
 class TestCategorizeQuery(BaseCase):
-    """Test query categorization utility (from/into/other)."""
-
     def test_select_from(self):
         qtype, table = categorize_query("SELECT * FROM res_users")
         self.assertEqual(qtype, "from")
@@ -1443,13 +1217,11 @@ class TestCategorizeQuery(BaseCase):
         self.assertEqual(table, "res_users")
 
     def test_insert_select_prioritizes_into(self):
-        """INSERT INTO ... SELECT FROM ... prioritizes 'into' over 'from'."""
         qtype, table = categorize_query("INSERT INTO t1 SELECT * FROM t2")
         self.assertEqual(qtype, "into")
         self.assertEqual(table, "t1")
 
     def test_update_is_a_write(self):
-        """UPDATE lands in 'into' (write) with its table, not invisible 'other'."""
         qtype, table = categorize_query("UPDATE res_users SET name='x'")
         self.assertEqual(qtype, "into")
         self.assertEqual(table, "res_users")
@@ -1460,7 +1232,6 @@ class TestCategorizeQuery(BaseCase):
         self.assertEqual(table, "res_users")
 
     def test_update_with_from_subquery(self):
-        """The UPDATE target wins over a FROM inside the statement."""
         qtype, table = categorize_query(
             "UPDATE t1 SET a = s.a FROM (SELECT * FROM t2) s WHERE s.id = t1.id"
         )
@@ -1468,13 +1239,11 @@ class TestCategorizeQuery(BaseCase):
         self.assertEqual(table, "t1")
 
     def test_delete_is_a_write(self):
-        """DELETE FROM lands in 'into' (write), not 'from' (read)."""
         qtype, table = categorize_query("DELETE FROM res_users WHERE id = 1")
         self.assertEqual(qtype, "into")
         self.assertEqual(table, "res_users")
 
     def test_select_for_update_stays_a_read(self):
-        """The FOR UPDATE row-locking clause must not misfile a SELECT as a write."""
         qtype, table = categorize_query(
             "SELECT id FROM res_users WHERE id = 1 FOR UPDATE NOWAIT"
         )
@@ -1503,8 +1272,6 @@ class TestCategorizeQuery(BaseCase):
 
 
 class TestConnectionInfoFor(BaseCase):
-    """Test connection_info_for URI/name parsing."""
-
     def test_postgresql_uri(self):
         db, info = connection_info_for("postgresql://user:pass@localhost:5432/mydb")
         self.assertEqual(db, "mydb")
@@ -1514,22 +1281,15 @@ class TestConnectionInfoFor(BaseCase):
         self.assertIn("keepalives", info)
 
     def test_postgres_uri_scheme(self):
-        """Both 'postgresql://' and 'postgres://' schemes are accepted."""
         db, info = connection_info_for("postgres://localhost/testdb")
         self.assertEqual(db, "testdb")
         self.assertIn("dsn", info)
 
     def test_uri_no_path_uses_username(self):
-        """When URI path is just '/', fall back to username as db name."""
         db, _ = connection_info_for("postgresql://admin@localhost/")
         self.assertEqual(db, "admin")
 
     def test_uri_no_path_no_user_uses_hostname(self):
-        """When URI has no path and no username, use hostname.
-
-        The fallback emits a RuntimeWarning by design (asserted in
-        ``TestURIMalformedWarning``); suppress it here to keep the log clean.
-        """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             db, _ = connection_info_for("postgresql://localhost/")
@@ -1548,13 +1308,6 @@ class TestConnectionInfoFor(BaseCase):
 
 
 class TestConnectionDsnRedaction(BaseCase):
-    """Connection.dsn must never expose the password.
-
-    For URI/conninfo connections the secret lives *inside* the ``dsn`` string,
-    so a bare ``pop("password")`` left it to leak into the DEBUG log from
-    ``Connection.cursor()``.  Both URI and keyword forms are covered here.
-    """
-
     CANARY = "s3cr3tPW"
 
     def _dsn_for(self, target):
@@ -1585,8 +1338,6 @@ class TestConnectionDsnRedaction(BaseCase):
 
 
 class TestPoolBasics(BaseCase):
-    """Test pool representation, properties, and statistics."""
-
     def test_readwrite_pool_repr(self):
         pool = ConnectionPool(maxconn=4)
         r = repr(pool)
@@ -1607,8 +1358,6 @@ class TestPoolBasics(BaseCase):
         pool.close_all()
 
     def test_tuning_params_stored_and_derived(self):
-        """Pool lifecycle tuning is per-instance (production passes it from
-        tools.config); the give_back reap throttle derives from the TTL."""
         pool = ConnectionPool(
             maxconn=4,
             borrow_timeout=12.5,
@@ -1624,7 +1373,6 @@ class TestPoolBasics(BaseCase):
         pool.close_all()
 
     def test_tuning_defaults_match_constants(self):
-        """Direct construction (no config) falls back to the _DEFAULT_* values."""
         pool = ConnectionPool(maxconn=1)
         self.assertEqual(pool._borrow_timeout, pool_module._DEFAULT_BORROW_TIMEOUT)
         self.assertEqual(pool._max_lifetime, pool_module._DEFAULT_MAX_LIFETIME)
@@ -1638,8 +1386,6 @@ class TestPoolBasics(BaseCase):
         pool.close_all()
 
     def test_checked_out_formula(self):
-        """reaper.checked_out is the single source of truth for size - available,
-        tolerating missing stat keys (treated as 0)."""
 
         class _StubPool:
             def __init__(self, stats):
@@ -1659,11 +1405,6 @@ class TestPoolBasics(BaseCase):
         self.assertEqual(reaper_checked_out(_StubPool({})), 0)
 
     def test_repr_does_not_deadlock_under_lock(self):
-        """__repr__ runs from logging inside _debug() while self._lock is held
-        (see _get_or_create_pool), so it must NOT re-acquire that non-reentrant
-        lock.  Render the repr on another thread under the held lock; a lock
-        attempt would block it and time out the join.
-        """
         pool = ConnectionPool(maxconn=2)
         out = []
         with pool._lock:
@@ -1676,9 +1417,6 @@ class TestPoolBasics(BaseCase):
         pool.close_all()
 
     def test_repr_survives_concurrent_pool_churn(self):
-        """__repr__ must materialize the pool list atomically before calling
-        get_stats(): the old lazy generator raised "dictionary changed size
-        during iteration" when a pool was added/evicted mid-render."""
 
         class _FakePool:
             closed = False
@@ -1724,11 +1462,6 @@ class TestPoolBasics(BaseCase):
         self.assertEqual(errors, [], "repr(pool) raced with pool churn")
 
     def test_pool_maxconn_rejects_non_positive(self):
-        """Pool maxconn <= 0 raises instead of silently coercing to 1.
-
-        The old max(maxconn, 1) clamp turned a misconfigured db_maxconn=0 into a
-        single-slot pool that wedged the server under load.  Fail fast instead.
-        """
         with self.assertRaises(ValueError):
             ConnectionPool(maxconn=0)
         with self.assertRaises(ValueError):
@@ -1736,8 +1469,6 @@ class TestPoolBasics(BaseCase):
 
 
 class TestSuppressKnownPoolWarnings(BaseCase):
-    """Test the logging filter for known psycopg_pool warnings."""
-
     def test_suppresses_discard_message(self):
         f = _SuppressKnownPoolWarnings()
         record = logging.LogRecord(
@@ -1779,12 +1510,6 @@ class TestSuppressKnownPoolWarnings(BaseCase):
 
 
 class TestPoolSemaphoreAccounting(BaseCase):
-    """The pool-scoped semaphore is accounted via the Odoo-owned ``_odoo_pool``
-    marker (set in ``borrow``, cleared in ``give_back``), independent of
-    psycopg_pool's private ``conn._pool``.  Guards against permit leaks and
-    over-release.  Needs a live database (``borrow`` opens a real connection).
-    """
-
     def _info(self):
         return connection_info_for(common.get_db_name())[1]
 
@@ -1831,11 +1556,6 @@ class TestPoolSemaphoreAccounting(BaseCase):
 
 
 class TestConnectionStateReset(BaseCase):
-    """``_reset_connection`` must not leak a borrower's session-scoped state to
-    the *next* borrower of the same physical connection — a multi-tenant
-    isolation hazard.  Needs a live database (opens a real connection).
-    """
-
     def _raw_conn(self):
         info = connection_info_for(common.get_db_name())[1]
         conn = psycopg.connect(
@@ -1853,7 +1573,9 @@ class TestConnectionStateReset(BaseCase):
         conn.execute("SELECT pg_advisory_lock(987654321)")
 
     def _assert_clean(self, conn):
-        get = lambda q: conn.execute(q).fetchone()[0]
+        def get(q):
+            return conn.execute(q).fetchone()[0]
+
         self.assertNotEqual(get("SHOW application_name"), "tenant_leak_probe")
         self.assertNotIn("leak_schema", get("SHOW search_path"))
         self.assertFalse(get("SELECT to_regclass('pg_temp._leak_probe') IS NOT NULL"))
@@ -1907,16 +1629,6 @@ class TestConnectionStateReset(BaseCase):
 
 
 class TestIdlePoolReaper(BaseCase):
-    """Idle per-DSN pools are reaped when a new pool is created, so a process
-    serving many databases over time does not accumulate pool objects (and
-    their threads).  A pool with a checked-out connection is never reaped, and
-    ``borrow`` rebuilds transparently when its pool is closed underneath it (the
-    reaper / ``close_database`` race).  Needs a live database.
-
-    Distinct ``application_name`` values key distinct pools to the SAME test
-    database, giving several per-DSN pools without several databases.
-    """
-
     def _info(self, app):
         return {**connection_info_for(common.get_db_name())[1], "application_name": app}
 
@@ -2011,12 +1723,6 @@ class TestIdlePoolReaper(BaseCase):
 
 
 class TestCursorDelReclaimsConnection(BaseCase):
-    """An unclosed cursor reclaimed by the GC must (1) warn so the leak is
-    visible and (2) still return its connection and pool-semaphore permit.  A
-    forgotten ``close()`` would otherwise exhaust the pool over the process
-    life.  ``__del__`` is the untested safety net.  Needs a live database.
-    """
-
     def _info(self):
         return connection_info_for(common.get_db_name())[1]
 
@@ -2050,13 +1756,7 @@ class TestCursorDelReclaimsConnection(BaseCase):
 
 
 class TestPoolTimeoutCleanup(BaseCase):
-    """Test that dead pools are cleaned up on PoolTimeout."""
-
     def test_pool_removed_on_timeout(self):
-        """When getconn() raises PoolTimeout, the pool must be removed from
-        _pools so subsequent borrows create a fresh pool instead of hitting
-        the same dead one (e.g. after a database drop).
-        """
         pool = ConnectionPool(maxconn=4)
         info = connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
@@ -2074,11 +1774,6 @@ class TestPoolTimeoutCleanup(BaseCase):
         mock_pool.close.assert_called_once()
 
     def test_pool_kept_on_timeout_with_live_connections(self):
-        """PoolTimeout while the pool still holds live connections means the
-        server is reachable but slow — tearing the pool down would close
-        healthy idle connections and amplify the slowdown into a reconnect
-        storm.  The pool must be kept.
-        """
         pool = ConnectionPool(maxconn=4)
         info = connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
@@ -2096,9 +1791,6 @@ class TestPoolTimeoutCleanup(BaseCase):
         mock_pool.close.assert_not_called()
 
     def test_pool_not_removed_on_other_errors(self):
-        """Non-timeout psycopg errors should NOT remove the pool —
-        the error might be transient (e.g. brief network hiccup).
-        """
         pool = ConnectionPool(maxconn=4)
         info = connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
@@ -2116,23 +1808,9 @@ class TestPoolTimeoutCleanup(BaseCase):
 
 
 class TestDroppedDBRecovery(BaseCase):
-    """Test that check_signaling() cleans up stale registries when the
-    database is unreachable (e.g. dropped by another worker).
-
-    Uses a mock cursor to avoid the 30s psycopg_pool retry timeout —
-    the pool-level behavior is separately tested by TestPoolTimeoutCleanup.
-    """
-
     DB_NAME = "odoo_test_pool_recovery"
 
     def test_check_signaling_cleans_up_after_db_drop(self):
-        """check_signaling() must delete the stale registry when cursor
-        creation fails with OperationalError, and re-raise the error.
-
-        Without this fix, the stale registry stays in the LRU and every
-        subsequent request creates a new pool that blocks for 30s on
-        PoolTimeout — repeated hangs until the process is restarted.
-        """
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
         reg._db_readonly = None
@@ -2152,7 +1830,6 @@ class TestDroppedDBRecovery(BaseCase):
         self.assertNotIn(self.DB_NAME, Registry.registries)
 
     def test_check_signaling_keeps_registry_on_pool_error(self):
-        """check_signaling() propagates PoolError without deleting the registry."""
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
         reg._db_readonly = None
@@ -2170,10 +1847,6 @@ class TestDroppedDBRecovery(BaseCase):
         self.assertIn(self.DB_NAME, Registry.registries)
 
     def test_check_signaling_keeps_registry_when_caller_provides_cursor(self):
-        """When the caller provides a cursor (cr is not None) and it fails
-        mid-query, the registry should NOT be deleted — the failure has a
-        different cause (e.g. dead connection mid-query, not a dropped DB).
-        """
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
         reg._db_readonly = None
@@ -2193,15 +1866,6 @@ class TestDroppedDBRecovery(BaseCase):
 
 
 class TestPoolDrainConcurrency(BaseCase):
-    """drain() must not race concurrent pool creation / close_all.
-
-    drain_all() fires on every `update_module` while the RPC layer keeps
-    calling db_connect() — both paths touch ConnectionPool._pools.
-    Before the fix, the unlocked `for key, pool in self._pools.items()`
-    loop could raise ``RuntimeError: dictionary changed size during
-    iteration``.
-    """
-
     def test_drain_does_not_race_churn(self):
         pool = ConnectionPool(maxconn=4)
         for i in range(500):
@@ -2244,10 +1908,6 @@ class TestPoolDrainConcurrency(BaseCase):
 
 
 class TestExecuteValuesTripwire(BaseCase):
-    """execute_values requires exactly one '%s' marker — anything else
-    silently mis-expands with ``query.replace('%s', ..., 1)``.
-    """
-
     def test_rejects_zero_markers(self):
         with registry().cursor() as cr:
             with self.assertRaises(ValueError):
@@ -2273,14 +1933,7 @@ class TestExecuteValuesTripwire(BaseCase):
 
 
 class TestExecutemanyTripwire(BaseCase):
-    """executemany cannot use SQL objects with embedded params — the per-row
-    params come from params_seq. Silently dropping SQL.params would mask
-    caller bugs.
-    """
-
     def test_rejects_sql_with_embedded_params(self):
-        """Reject SQL("tpl %s", value) — executemany can't merge per-row
-        params_seq with the SQL's own embedded params."""
         with registry().cursor() as cr:
             with self.assertRaises(ValueError):
                 cr.executemany(
@@ -2289,7 +1942,6 @@ class TestExecutemanyTripwire(BaseCase):
                 )
 
     def test_plain_str_query_still_works(self):
-        """The normal path (plain str with %s placeholders) is unaffected."""
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_em_tw (a int, b int)")
             cr.executemany(
@@ -2301,11 +1953,6 @@ class TestExecutemanyTripwire(BaseCase):
 
 
 class TestFlushingSavepointDepthOnFailure(BaseCase):
-    """_FlushingSavepoint must not leak the cursor-level ``_savepoint_depth`` if
-    the SAVEPOINT SQL raises — otherwise the next commit/rollback hits the
-    ``_savepoint_depth`` guard and wedges the transaction.
-    """
-
     def test_savepoint_depth_unchanged_on_sql_failure(self):
         cr = MagicMock()
         cr._savepoint_depth = 0
@@ -2323,10 +1970,6 @@ class TestFlushingSavepointDepthOnFailure(BaseCase):
         )
 
     def test_savepoint_depth_balanced_when_release_fails(self):
-        """The mirror of the above: a RELEASE (or ROLLBACK TO) failure on close
-        must still balance the +1 back down.  If the decrement is skipped, the
-        leaked counter wedges the next commit/rollback on the same
-        ``_savepoint_depth`` guard."""
 
         def execute(sql, *args, **kwargs):
             if "RELEASE" in str(sql):
@@ -2348,10 +1991,6 @@ class TestFlushingSavepointDepthOnFailure(BaseCase):
 
 
 class TestURIMalformedWarning(BaseCase):
-    """URIs without a path AND without a username fall back to using the
-    hostname as the database name — almost always a misconfiguration.
-    The fallback stays for backward compatibility but must warn."""
-
     def test_hostname_fallback_emits_warning(self):
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
@@ -2374,11 +2013,6 @@ class TestURIMalformedWarning(BaseCase):
 
 
 class TestClosedCursorAttributeAccess(BaseCase):
-    """Accessing ANY attribute on a closed cursor reports the *closure*, not the
-    attribute name.  "Cursor already closed" is the actionable fact; an
-    ``AttributeError`` about the name would send the reader hunting for a typo
-    that is not there."""
-
     def test_unknown_attr_on_closed_cursor_raises_cleanly(self):
         cr = registry().cursor()
         cr.close()
@@ -2394,17 +2028,6 @@ class TestClosedCursorAttributeAccess(BaseCase):
 
 
 class TestCloseKeepsHealthyConnections(BaseCase):
-    """A raising Python hook must not cost a pooled connection.
-
-    Regression: ``Cursor._close`` treated ANY exception from ``_do_rollback``
-    as connection damage and returned the connection with ``keep_in_pool=False``,
-    which closes it.  But ``_do_rollback`` also runs ``transaction.clear()`` and
-    the pre/postrollback hooks — application Python.  A buggy hook therefore
-    discarded a perfectly healthy connection and forced a reconnect on top of
-    the error it already caused.  The SQL ROLLBACK lives in a ``finally``, so it
-    has already run by then: the connection is IDLE and reusable.
-    """
-
     def _closed_after_hook(self, hook_name):
         cr = db_connect(common.get_db_name()).cursor()
         cr.execute("SELECT 1")
@@ -2446,14 +2069,6 @@ class TestCloseKeepsHealthyConnections(BaseCase):
 
 
 class TestCursorCloseWithDeadConnection(BaseCase):
-    """Regression: cr.close() must release the pool slot and clean up _obj
-    even when the underlying connection died externally (network failure,
-    peer drop).  The old close() guarded on the ``closed`` property which
-    flips True as soon as _cnx.closed becomes True, silently skipping
-    _close() and leaking both the psycopg Cursor object and the
-    semaphore slot.
-    """
-
     def test_close_releases_slot_when_cnx_dies_externally(self):
         cr = registry().cursor()
         pool = cr._Cursor__pool
@@ -2475,15 +2090,6 @@ class TestCursorCloseWithDeadConnection(BaseCase):
 
 
 class TestCopyFromIncompatibleOptions(BaseCase):
-    """copy_from rejects option combinations that would silently produce
-    wrong results:
-
-    - binary=True with on_error='ignore' silently drops on_error because
-      binary COPY has no ON_ERROR clause.
-    - returning_ids=True with on_error='ignore' returns pre-allocated
-      sequence IDs that do NOT correspond to inserted rows.
-    """
-
     def test_binary_with_on_error_raises(self):
         with registry().cursor() as cr:
             with self.assertRaises(ValueError):
@@ -2496,11 +2102,6 @@ class TestCopyFromIncompatibleOptions(BaseCase):
 
 
 class TestDictFetchoneNoAssert(BaseCase):
-    """dictfetchone must not rely on ``assert desc`` — ``python -O``
-    strips asserts and a missing description would then blow up with
-    AttributeError on None rather than a diagnosable error.
-    """
-
     def test_uses_explicit_raise_not_assert(self):
         src = inspect.getsource(Cursor.dictfetchone)
         self.assertNotIn(
@@ -2511,12 +2112,6 @@ class TestDictFetchoneNoAssert(BaseCase):
 
 
 class TestReadonlyPropertyCached(BaseCase):
-    """Cursor.readonly must return a cached value bound to the cursor, not
-    read through ``_cnx.read_only`` post-close — after _close() returns
-    the connection to the pool, another cursor may own it and flip the
-    state.
-    """
-
     def test_readonly_stable_across_close(self):
         for ro in (False, True):
             with self.subTest(readonly=ro):
@@ -2531,11 +2126,6 @@ class TestReadonlyPropertyCached(BaseCase):
 
 
 class TestGetStatsLocked(BaseCase):
-    """get_stats must snapshot _pools under the lock to avoid
-    ``RuntimeError: dictionary changed size during iteration`` when a
-    concurrent borrow() creates a new per-DB pool mid-iteration.
-    """
-
     def test_get_stats_safe_under_churn(self):
         src = inspect.getsource(ConnectionPool.get_stats)
         self.assertIn(
@@ -2546,11 +2136,6 @@ class TestGetStatsLocked(BaseCase):
 
 
 class TestSuppressKnownPoolWarningsNarrow(BaseCase):
-    """The warning filter must only swallow ``database "..." does not
-    exist`` FATAL lines — role / tablespace / schema errors must reach
-    the log so operators can diagnose misconfiguration.
-    """
-
     def test_does_not_swallow_role_does_not_exist(self):
         f = _SuppressKnownPoolWarnings()
         rec = logging.LogRecord(
@@ -2569,11 +2154,6 @@ class TestSuppressKnownPoolWarningsNarrow(BaseCase):
 
 
 class TestPGAppNameWarningOnce(BaseCase):
-    """The ODOO_PGAPPNAME deprecation warning must fire at most once per
-    process — it was previously emitted on every connection_info_for call,
-    producing thousands of duplicates per request.
-    """
-
     def test_deprecation_warning_is_one_shot(self):
         os.environ["ODOO_PGAPPNAME"] = "test"
         saved = _db_utils._ODOO_PGAPPNAME_WARNED
@@ -2595,16 +2175,6 @@ class TestPGAppNameWarningOnce(BaseCase):
 
 
 class TestExecuteValuesPageSize(BaseCase):
-    """execute_values must reject non-positive page_size at the API
-    boundary.  The old loop used ``range(0, len(argslist), page_size)``,
-    which:
-
-    - Crashes with a cryptic ``ValueError: range() arg 3 must not be
-      zero`` for page_size=0.
-    - Produces an empty range for page_size<0, silently dropping every
-      row the caller asked to insert (confirmed data-loss path).
-    """
-
     def test_zero_page_size_raises(self):
         with registry().cursor() as cr:
             with self.assertRaises(ValueError):
@@ -2616,10 +2186,6 @@ class TestExecuteValuesPageSize(BaseCase):
                 cr.execute_values("INSERT INTO t VALUES %s", [(1,)], page_size=-1)
 
     def test_marker_count_validated_even_when_empty(self):
-        """A query without exactly one '%s' VALUES marker is malformed
-        regardless of batch size.  The validation must run BEFORE the
-        empty-argslist short-circuit, so a caller's empty-data test catches
-        the bug instead of it surfacing only once real rows arrive."""
         with registry().cursor() as cr:
             with self.assertRaises(ValueError):
                 cr.execute_values("INSERT INTO t VALUES %s, %s", [])
@@ -2632,13 +2198,6 @@ class TestExecuteValuesPageSize(BaseCase):
 
 
 class TestResetConnectionRestoresPrepare(BaseCase):
-    """_reset_connection must restore the prepared-statement tuning set
-    by _configure_connection.  Cursor.execute() sets prepare_threshold
-    to None in the DDL-fallback path; without this restore the next
-    borrower of the connection inherits disabled auto-prepare for up
-    to max_lifetime (3600s).
-    """
-
     def test_reset_restores_prepare_threshold(self):
         with registry().cursor() as cr:
             cr.connection.prepare_threshold = None
@@ -2649,17 +2208,8 @@ class TestResetConnectionRestoresPrepare(BaseCase):
 
 
 class TestHealthCheckGracePeriod(BaseCase):
-    """The per-borrow liveness probe (``_check_connection``) is a server
-    round-trip, gated on an idle grace window: a connection released within
-    ``db_healthcheck_grace`` skips it (provably alive then); a longer-idle
-    one is probed so a backend that died while parked (restart, failover,
-    ``pg_terminate_backend``) is discarded before reaching a borrower.
-    ``configure``/``reset`` stamp freshness; a missing stamp fails safe to probe.
-    """
-
     class _Bare:
-        """Plain object whose missing attributes are truly absent — unlike
-        MagicMock, which would synthesize a truthy ``_odoo_idle_since``."""
+        pass
 
     def test_fresh_connection_skips_probe(self):
         conn = self._Bare()
@@ -2702,15 +2252,6 @@ class TestHealthCheckGracePeriod(BaseCase):
 
 
 class TestDiscardOnReturn(BaseCase):
-    """The ``db_discard_on_return`` config option (env ODOO_DB_DISCARD_ON_RETURN)
-    opts into a hard session reset (DISCARD ALL) on connection return, for
-    multi-tenant hosts needing isolation between borrows.  Off by default — the
-    return path runs the cheap single-round-trip session reset
-    (``_RESET_SESSION_STATE_SQL``), closing cross-borrower leaks while keeping
-    the auto-prepared-statement/plan caches warm.  Read from config on each
-    return (no import-time freeze).
-    """
-
     def _set_discard(self, value):
         from odoo.tools import config
 
@@ -2752,11 +2293,6 @@ class TestDiscardOnReturn(BaseCase):
 
 
 class TestURIHealthParamsMerge(BaseCase):
-    """_HEALTH_PARAMS defaults must NOT override user-specified values
-    already present in the URI query string.  Operators who set
-    ``?connect_timeout=60`` expect their value to survive.
-    """
-
     def test_uri_connect_timeout_preserved(self):
         uri = "postgresql://u:p@h:5432/db?connect_timeout=60&keepalives_idle=300"
         _, info = connection_info_for(uri)
@@ -2766,13 +2302,6 @@ class TestURIHealthParamsMerge(BaseCase):
 
 
 class TestExpDropClosesPoolTwice(BaseCase):
-    """``exp_drop`` must call ``odoo.db.close_db`` twice — before and after
-    ``DROP DATABASE`` — because cron/HTTP threads can re-create a pool for the
-    target database in the window between the first close and the DROP.  Without
-    the second close, those pools later reconnect to a dropped database.  This
-    upstream invariant had no regression coverage.
-    """
-
     def test_close_db_called_before_and_after_drop(self):
         events: list[tuple[str, str]] = []
         fake_db = "_t_exp_drop_fake"
@@ -2832,18 +2361,7 @@ class TestExpDropClosesPoolTwice(BaseCase):
 
 
 class TestBulkCatalogFactScope(BaseCase):
-    """``copy_from``'s catalog facts live on the cursor for ONE transaction.
-
-    They are only authoritative while the ``ROW EXCLUSIVE`` lock ``COPY`` needs
-    is held, so ``_lock_table_for_bulk`` takes it *before* the catalog read and
-    the facts die with the transaction that holds it.  The previous
-    process-global, dbname-keyed cache outlived every transaction and had three
-    ways to go stale (concurrent DDL, rolled-back DDL, another worker's DDL);
-    see :mod:`odoo.db.schema_cache`.
-    """
-
     def test_facts_are_reused_within_one_transaction(self):
-        """One catalog read serves every batch of a multi-batch create."""
         with registry().cursor() as cr:
             cr.execute("CREATE TABLE _test_scope (id serial PRIMARY KEY, v int)")
             for _ in range(5):
@@ -2859,7 +2377,6 @@ class TestBulkCatalogFactScope(BaseCase):
             cr.rollback()
 
     def test_commit_and_rollback_drop_the_facts(self):
-        """The locks the facts rest on end with the transaction; so must they."""
         for finish in ("commit", "rollback"):
             with self.subTest(finish=finish):
                 cr = registry().cursor()
@@ -2882,7 +2399,6 @@ class TestBulkCatalogFactScope(BaseCase):
                     cr.close()
 
     def test_facts_are_not_shared_between_cursors(self):
-        """No process-global state: a second cursor re-reads under its own lock."""
         with registry().cursor() as cr:
             cr.execute("CREATE TABLE _test_scope3 (id serial PRIMARY KEY, v int)")
             cr.commit()
@@ -2897,12 +2413,6 @@ class TestBulkCatalogFactScope(BaseCase):
                 cr.commit()
 
     def test_temp_relation_facts_are_cacheable(self):
-        """A per-cursor cache is session-local, so temp relations are fine.
-
-        The old global cache had to refuse ``pg_temp_*`` entries: its keys were
-        name-based and shared across sessions, so one session's temp types
-        could be handed to another's same-named relation.
-        """
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_tmp_nc (id serial PRIMARY KEY, v int)")
             cr.copy_from("_test_tmp_nc", ["v"], [(1,)], returning_ids=True)
@@ -2917,19 +2427,11 @@ class TestBulkCatalogFactScope(BaseCase):
             self.assertEqual(cr.fetchall(), [(1,), (2,)])
 
     def test_get_column_type_oids_missing_column(self):
-        """Unknown column raises a descriptive ValueError, not a KeyError."""
         with registry().cursor() as cr:
             with self.assertRaises(ValueError):
                 cr._get_column_type_oids("ir_model_data", ["id", "no_such_column"])
 
     def test_ddl_invalidates_column_type_cache(self):
-        """A schema change on this cursor must drop its cached column types.
-
-        The cursor holds ROW EXCLUSIVE from the first lookup, but its OWN DDL
-        can still change the table (a lock never blocks its own transaction),
-        so ``_invalidate_caches_after_ddl`` clears the facts and the next
-        lookup re-reads them.
-        """
         tbl = "_test_ddl_inval"
         cr = db_connect(common.get_db_name()).cursor()
         try:
@@ -2953,13 +2455,6 @@ class TestBulkCatalogFactScope(BaseCase):
             cr.close()
 
     def test_rolled_back_ddl_does_not_poison_later_inserts(self):
-        """A rolled-back ALTER must not leave the cursor describing a dead schema.
-
-        Regression: the facts used to be process-global, so an upgrade that
-        ALTERed a column, bulk-loaded (populating the cache with the new types)
-        and then FAILED left every later bulk insert on that table raising
-        ``InvalidBinaryRepresentation`` for the life of the worker.
-        """
         tbl = "_test_ddl_rb"
         cr = db_connect(common.get_db_name()).cursor()
         try:
@@ -2993,16 +2488,6 @@ class TestBulkCatalogFactScope(BaseCase):
 
 
 class TestConcurrentDdlDuringBinaryCopy(BaseCase):
-    """Binary COPY must never encode with types a committed DDL has replaced.
-
-    ``copy_from`` reads the column types, then ``COPY`` acquires its lock.  If
-    another session's ``ALTER`` commits in that gap the COPY writes pre-DDL
-    types — and for a same-width change (``int4`` -> ``date``) PostgreSQL
-    accepts the bytes, so 1234567 lands as '5380-02-17' with no error.  The gap
-    is as wide as the DDL transaction, because our COPY *waits on its lock*.
-    ``_lock_table_for_bulk`` closes it by taking that same lock before the read.
-    """
-
     def test_concurrent_alter_does_not_corrupt_binary_copy(self):
         tbl = "_test_race_copy"
         db_name = common.get_db_name()
@@ -3071,16 +2556,6 @@ class TestConcurrentDdlDuringBinaryCopy(BaseCase):
 
 
 class TestBorrowHonoursItsTimeout(BaseCase):
-    """One ``borrow()`` must stay inside ``db_borrow_timeout``.
-
-    Regression: the shared ``deadline`` used to be taken *after*
-    ``_get_or_create_pool``, so a cold pool's pre-flight probe
-    (``_probe_connectable`` plus the localised-message ``_database_absent``
-    fallback, 5s each) landed on top of the budget instead of inside it.
-    Measured 13.02s against a documented 3s — a worker thread blocked for four
-    times as long as configured, per cold borrow to an unreachable host.
-    """
-
     BLACKHOLE = {
         "dbname": "nonexistent",
         "host": "203.0.113.1",
@@ -3109,9 +2584,6 @@ class TestBorrowHonoursItsTimeout(BaseCase):
             pool.close_all()
 
     def test_maintenance_db_path_stays_inside_the_budget(self):
-        """``_borrow_direct`` bypasses psycopg_pool, so it needs its own clamp:
-        ``_HEALTH_PARAMS`` sets connect_timeout=10, which alone overshoots a
-        shorter budget."""
         budget = 3.0
         pool = ConnectionPool(maxconn=4, borrow_timeout=budget)
         try:
@@ -3130,8 +2602,6 @@ class TestBorrowHonoursItsTimeout(BaseCase):
             pool.close_all()
 
     def test_missing_database_on_a_reachable_host_still_fails_fast(self):
-        """The clamp must not cost the probe its reason for existing: a
-        permanent failure is still reported in ms with the precise class."""
         pool = ConnectionPool(maxconn=4, borrow_timeout=30.0)
         _, info = connection_info_for("_test_no_such_db_borrow_budget")
         try:
@@ -3145,12 +2615,6 @@ class TestBorrowHonoursItsTimeout(BaseCase):
 
 
 class TestCheckSignalingDrains(BaseCase):
-    """The registry-reload branch of check_signaling must drain this
-    worker's pools: stale auto-prepared statements fail once per statement
-    after a type-changing upgrade.  (Source tripwire — same pattern as
-    TestGetStatsLocked.)
-    """
-
     def test_check_signaling_calls_drain_db(self):
         src = inspect.getsource(Registry.check_signaling)
         self.assertIn(
@@ -3161,8 +2625,6 @@ class TestCheckSignalingDrains(BaseCase):
 
 
 class TestCopyFromOnErrorWhitelist(BaseCase):
-    """on_error is interpolated into the COPY options clause — whitelist it."""
-
     def test_rejects_arbitrary_on_error(self):
         with registry().cursor() as cr:
             with self.assertRaises(ValueError):
@@ -3177,13 +2639,6 @@ class TestCopyFromOnErrorWhitelist(BaseCase):
 
 
 class TestExecuteValuesEscapedPercent(BaseCase):
-    """%% escape sequences must not be mistaken for the VALUES marker.
-
-    Naive str.count/str.replace both match the %s inside %%s: a legitimate
-    query with a LIKE 'a%%s' literal was falsely rejected (count == 2), and
-    with no real marker the replace mangled the literal itself.
-    """
-
     def test_literal_double_percent_accepted(self):
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_evpesc (v text)")
@@ -3196,23 +2651,12 @@ class TestExecuteValuesEscapedPercent(BaseCase):
             self.assertEqual(cr.fetchone()[0], 2)
 
     def test_literal_only_rejected(self):
-        """A query whose only %s lives inside a %% escape has no marker."""
         with registry().cursor() as cr:
             with self.assertRaises(ValueError):
                 cr.execute_values("SELECT 'a%%s'", [(1,)])
 
 
 class TestSavepointGuardsSurviveOptimize(BaseCase):
-    """commit/rollback inside a savepoint must raise even under python -O
-    (explicit RuntimeError, not assert).
-
-    The guard reads the CURSOR-level ``cr._savepoint_depth`` (bumped by every
-    savepoint, ORM-attached or bare), so it fires even on a bare
-    ``registry().cursor()`` whose ``transaction`` is None — no stub transaction
-    is needed.  ``savepoint(flush=False)`` keeps this off the ORM flush path so
-    the test exercises the guard in isolation.
-    """
-
     def test_commit_inside_savepoint_raises(self):
         with registry().cursor() as cr:
             self.assertIsNone(cr.transaction)
@@ -3231,14 +2675,7 @@ class TestSavepointGuardsSurviveOptimize(BaseCase):
 
 
 class TestFlushingSavepointLayering(BaseCase):
-    """The db→ORM layering inversion: the db layer's ``_FlushingSavepoint``
-    knows only ``flush()``; the ORM registers a subclass
-    (``_OrmFlushingSavepoint``) that restores cache/env state on rollback.
-    """
-
     def test_orm_subclass_is_registered(self):
-        """Importing the ORM runtime wires the ORM-aware savepoint onto
-        ``BaseCursor`` so ``savepoint(flush=True)`` uses it."""
         from odoo.db.cursor import BaseCursor
         from odoo.db.savepoint import _FlushingSavepoint
         from odoo.orm.runtime.savepoint import _OrmFlushingSavepoint
@@ -3247,9 +2684,6 @@ class TestFlushingSavepointLayering(BaseCase):
         self.assertTrue(issubclass(_OrmFlushingSavepoint, _FlushingSavepoint))
 
     def test_db_layer_does_not_import_orm_helpers(self):
-        """The deep ORM reaches moved out of the db layer: the cache helper is
-        no longer imported there, and the restore/save hooks are no-ops the ORM
-        subclass overrides."""
         from odoo.db import savepoint as db_savepoint
         from odoo.db.savepoint import _FlushingSavepoint
         from odoo.orm.runtime.savepoint import _OrmFlushingSavepoint
@@ -3265,8 +2699,6 @@ class TestFlushingSavepointLayering(BaseCase):
         )
 
     def test_savepoint_restores_orm_state_on_rollback(self):
-        """``cr.savepoint()`` returns the ORM subclass and its rollback restores
-        ``default_env`` and clears the transaction cache."""
         from odoo.orm.runtime.savepoint import _OrmFlushingSavepoint
 
         class _StubTransaction:
@@ -3305,13 +2737,8 @@ class TestFlushingSavepointLayering(BaseCase):
 
 
 class TestFlushNonConvergence(BaseCase):
-    """flush() must raise (not warn) when precommit hooks keep generating
-    work — committing would silently drop the pending hooks."""
-
     def test_flush_nonconvergence_raises(self):
         class _EndlessTransaction:
-            """Stub whose flush() always queues another precommit hook."""
-
             def __init__(self, cr):
                 self._cr = cr
 
@@ -3333,12 +2760,6 @@ class TestFlushNonConvergence(BaseCase):
                 cr.rollback()
 
     def test_flush_self_requeue_drains_in_single_run(self):
-        """A precommit hook that re-queues ITSELF drains inside one
-        ``Callbacks.run()`` and never reaches ``_MAX_FLUSH_PASSES`` (which bounds
-        cross-pass divergence only).  Pinned with a BOUNDED counter far above the
-        budget: it converges via a single run().  An *unconditional* self-re-add
-        would hang in ``run()`` rather than raise — this documents that boundary.
-        """
         from odoo.db.cursor import BaseCursor
 
         with registry().cursor() as cr:
@@ -3362,17 +2783,9 @@ class TestFlushNonConvergence(BaseCase):
                 cr.rollback()
 
     def test_flush_converges_at_budget(self):
-        """A precommit chain that settles on the FINAL allowed pass must
-        converge, not raise.  Before the fix the convergence check ran only
-        *before* each run(), so the last run()'s effect was never re-examined
-        and the effective budget was _MAX_FLUSH_PASSES - 1: a workload needing
-        the full budget raised spuriously."""
         from odoo.db.cursor import BaseCursor
 
         class _BoundedTransaction:
-            """flush() queues a hook for its first ``limit`` calls, then goes
-            quiet — i.e. the ORM settles after exactly ``limit`` rounds."""
-
             def __init__(self, cr, limit):
                 self._cr = cr
                 self.limit = limit
@@ -3403,9 +2816,6 @@ class TestFlushNonConvergence(BaseCase):
 
 
 class TestUninitializedCursorClosed(BaseCase):
-    """An instance that failed before __init__ set _closed must read as
-    closed (class-level default) instead of recursing in __getattr__."""
-
     def test_uninitialized_cursor_raises_interface_error(self):
         cur = object.__new__(Cursor)
         with self.assertRaises(psycopg.InterfaceError):
@@ -3413,9 +2823,6 @@ class TestUninitializedCursorClosed(BaseCase):
 
 
 class TestCloseDatabaseByName(BaseCase):
-    """close_database matches pools on the database component alone, so
-    close_db() reaches URI-form pools too."""
-
     def test_close_database_matches_uri_pools(self):
         pool = ConnectionPool(maxconn=2)
         uri_key = _normalize_dsn_key(
@@ -3438,12 +2845,6 @@ class TestCloseDatabaseByName(BaseCase):
 
 
 class TestVersionGateInBorrow(BaseCase):
-    """The minimum-PG-version check must fail fast in borrow() — raising in
-    the configure callback surfaces as a generic 30s PoolTimeout with the
-    actionable message buried in psycopg.pool warnings.
-    (Source tripwires, same pattern as TestGetStatsLocked.)
-    """
-
     def test_configure_does_not_raise_version_error(self):
         from odoo.db.pool import _configure_connection
 
@@ -3467,12 +2868,6 @@ class TestVersionGateInBorrow(BaseCase):
 
 
 class TestPsycopgPoolPrivateApi(BaseCase):
-    """Pin the private psycopg APIs this package depends on, so a psycopg /
-    psycopg_pool upgrade that drops them fails here, not in production:
-    putconn() requires conn._pool (set by getconn); execute() clears
-    conn._prepared after DDL.  give_back() no longer reads conn._pool itself
-    (it uses its own ``_odoo_pool`` marker), but putconn() still checks it."""
-
     def test_conn_pool_attribute_set_by_getconn(self):
         with registry().cursor() as cr:
             self.assertIsNotNone(getattr(cr._cnx, "_pool", None))
@@ -3483,11 +2878,6 @@ class TestPsycopgPoolPrivateApi(BaseCase):
 
 
 class TestPoolFailsFastOnMissingDatabase(BaseCase):
-    """Connecting to a database that does not exist must fail fast with a
-    precise InvalidCatalogName, not block ~30s on psycopg_pool's reconnect
-    retry and surface an opaque PoolError. This keeps exp_db_exist (and the
-    `db` CLI commands built on it) responsive on a typo'd database name."""
-
     def test_borrow_missing_db_raises_invalid_catalog_name_fast(self):
         pool = ConnectionPool(maxconn=4)
         self.addCleanup(pool.close_all)
@@ -3508,15 +2898,6 @@ class TestPoolFailsFastOnMissingDatabase(BaseCase):
 
 
 class TestBorrowReturnsConnectionOnPostGetconnFailure(BaseCase):
-    """borrow() must return the connection to its psycopg pool if anything
-    AFTER getconn() raises (e.g. conn.info access on a degraded backend).
-
-    The earlier code released only the semaphore on that path, leaking the
-    psycopg-pool slot permanently — over time the per-DSN pool's max_size is
-    exhausted and every borrow blocks.  Forcing conn.info to raise reproduces
-    the leak; the fix wraps the post-getconn block to putconn on any failure.
-    """
-
     def test_info_failure_returns_connection_and_releases_semaphore(self):
         pool = ConnectionPool(maxconn=4)
         info = connection_info_for("nonexistent_db_test")[1]
@@ -3568,12 +2949,6 @@ class TestBorrowReturnsConnectionOnPostGetconnFailure(BaseCase):
 
 
 class TestExecutemanyGeneratorParams(BaseCase):
-    """executemany() must handle a generator params_seq correctly: an empty
-    generator short-circuits like an empty list, and a loaded generator both
-    executes every row and records the right metric count (a generator has no
-    len(), so the pre-fix code recorded 1 for an N-row batch).
-    """
-
     def test_loaded_generator_executes_and_counts_all_rows(self):
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_em_gen (v int)")
@@ -3602,13 +2977,6 @@ class TestExecutemanyGeneratorParams(BaseCase):
 
 
 class TestRecoverableErrorLogLevel(BaseCase):
-    """Recoverable transaction errors (read-only retry, MVCC serialization,
-    deadlock, lock-not-available) are part of normal operation under
-    contention and are retried by the caller.  execute() must log them at
-    WARNING, not ERROR ('bad query'), to avoid flooding the log with false
-    faults on every retry.
-    """
-
     def test_readonly_write_logged_as_warning_not_error(self):
         with self.assertLogs("odoo.db.cursor", level="WARNING") as cm:
             with self.assertRaises(psycopg.errors.ReadOnlySqlTransaction):
@@ -3624,11 +2992,6 @@ class TestRecoverableErrorLogLevel(BaseCase):
         )
 
     def test_lock_not_available_logged_as_warning_not_error(self):
-        """LockNotAvailable (55P03) was NOT in the old special-case and hit the
-        ERROR branch — this is the true old-vs-new differentiator.  Reproduced
-        deterministically with FOR UPDATE NOWAIT against a row another cursor
-        already holds locked.
-        """
         with registry().cursor() as cr_lock:
             cr_lock.execute(
                 "SELECT id FROM res_users WHERE id = %s FOR UPDATE",
@@ -3649,16 +3012,6 @@ class TestRecoverableErrorLogLevel(BaseCase):
 
 
 class TestDDLDetectionLeadingWhitespace(BaseCase):
-    """DDL detection reads the first two non-whitespace chars to gate the regex.
-    The gate slice-then-lstrips a 64-char window to keep the hot path off a
-    full-query copy, but falls back to a full lstrip when that window holds <2
-    keyword chars (leading whitespace >=63).  DDL that begins after leading
-    whitespace (Odoo's triple-quoted SQL) must still be detected so its params
-    are inlined client-side — otherwise psycopg sends $1 which PostgreSQL
-    rejects in a DEFAULT expression — and so the auto-prepared-statement cache
-    is invalidated after a result-shape change.
-    """
-
     def test_leading_whitespace_ddl_still_inlines_params(self):
         with registry().cursor() as cr:
             cr.execute(
@@ -3672,13 +3025,6 @@ class TestDDLDetectionLeadingWhitespace(BaseCase):
             self.assertEqual(cr.fetchone()[0], "7")
 
     def test_deeply_indented_ddl_inlines_params(self):
-        """DDL indented past the 64-char window must still inline params.
-
-        With a fixed 64-char lstrip window, >62 chars of leading whitespace
-        empties the window, the prefix gate misses the keyword, params are not
-        inlined, and psycopg sends ``$1`` into the DEFAULT expression ->
-        ``UndefinedParameter: there is no parameter $1``.
-        """
         with registry().cursor() as cr:
             cr.execute(
                 " " * 70 + "CREATE TEMP TABLE _test_ddl_deep (val int DEFAULT %s)",
@@ -3691,13 +3037,6 @@ class TestDDLDetectionLeadingWhitespace(BaseCase):
             self.assertEqual(cr.fetchone()[0], "7")
 
     def test_deeply_indented_ddl_invalidates_prepared_cache(self):
-        """A deeply-indented result-shape change must invalidate auto-prepare.
-
-        ``CREATE``/``ALTER`` are detected so ``Cursor.execute`` clears psycopg's
-        auto-prepared-statement cache.  If a deeply-indented ALTER slips past the
-        gate, a previously auto-prepared ``SELECT *`` keeps its stale plan and
-        the next execution raises ``cached plan must not change result type``.
-        """
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_ddl_plan (a int)")
             cr.execute("INSERT INTO _test_ddl_plan VALUES (1)")
@@ -3710,15 +3049,6 @@ class TestDDLDetectionLeadingWhitespace(BaseCase):
 
 
 class TestResetConnectionClosesSessionGucLeak(BaseCase):
-    """_reset_connection (the pool's return hook) runs the cheap session reset
-    (``_RESET_SESSION_STATE_SQL``), so a plain ``SET search_path`` left behind
-    by a borrower does NOT leak to the next borrower of the same physical
-    connection — a multi-tenant isolation requirement.  Within a cursor's own
-    life a session SET still survives rollback (the ODOO_FAKETIME_TEST_MODE
-    path in Cursor.__init__ relies on that); the reset happens only at pool
-    return.
-    """
-
     def test_session_set_cleared_by_return_hook(self):
         cr = db_connect(common.get_db_name()).cursor()
         try:
@@ -3744,12 +3074,6 @@ class TestResetConnectionClosesSessionGucLeak(BaseCase):
 
 
 class TestProbeDoesNotBlockOtherDatabases(BaseCase):
-    """_get_or_create_pool must run the synchronous pre-flight probe OUTSIDE
-    self._lock.  self._lock serializes creation of every per-DSN pool, so a
-    slow/unreachable probe for one database held across the lock would stall
-    pool creation for every OTHER database.
-    """
-
     def test_slow_probe_for_one_db_does_not_block_another(self):
         pool = ConnectionPool(maxconn=8)
         probe_sleep = 1.0
@@ -3812,10 +3136,6 @@ class TestProbeDoesNotBlockOtherDatabases(BaseCase):
         )
 
     def test_probe_uses_short_connect_timeout(self):
-        """The throwaway probe must bound itself to _PROBE_CONNECT_TIMEOUT, not
-        inherit the 10s connect_timeout that _HEALTH_PARAMS injects into kwargs
-        (a ``setdefault`` there would be a silent no-op).
-        """
         from odoo.db.pool import _PROBE_CONNECT_TIMEOUT
 
         pool = ConnectionPool(maxconn=2)
@@ -3833,13 +3153,6 @@ class TestProbeDoesNotBlockOtherDatabases(BaseCase):
 
 
 class TestAdapterIsolationPerConnection(BaseCase):
-    """The numeric->float loader is registered per-connection (in the pool's
-    configure callback), NOT on the process-global ``psycopg.adapters``.  So a
-    pooled Odoo cursor decodes numeric as float, while a raw psycopg connection
-    that bypassed the pool decodes it as Decimal.  Locks the fix that stops the
-    db package from mutating global psycopg state merely by being imported.
-    """
-
     def test_pooled_cursor_decodes_numeric_as_float(self):
         with registry().cursor() as cr:
             cr.execute("SELECT 1.5::numeric")
@@ -3857,11 +3170,6 @@ class TestAdapterIsolationPerConnection(BaseCase):
 
 
 class TestPoolMinconn(BaseCase):
-    """db_minconn warms connections per per-DSN pool; it defaults to 0 (lazy
-    open, multi-tenant friendly) and is validated against maxconn so the pool
-    can never be told to keep more connections warm than it can hand out.
-    """
-
     def test_default_minconn_is_zero(self):
         pool = ConnectionPool(maxconn=4)
         try:
@@ -3885,16 +3193,6 @@ class TestPoolMinconn(BaseCase):
             ConnectionPool(maxconn=4, minconn=-1)
 
     def test_maintenance_databases_are_never_pooled(self):
-        """postgres/template connections bypass psycopg_pool entirely.
-
-        A per-DSN pool can never keep a maintenance database connection-free:
-        psycopg_pool replaces every discarded connection to hold its count
-        (regardless of ``min_size``), and the idle replacement blocks
-        ``CREATE DATABASE ... TEMPLATE`` with "source database is being
-        accessed by other users".  So ``borrow`` must not create a pool at all
-        (no worker threads, no replacement race) and ``give_back`` must close
-        the connection outright.
-        """
         pool = ConnectionPool(maxconn=4, minconn=2)
         _, info = connection_info_for("postgres")
         try:
@@ -3920,8 +3218,6 @@ class TestPoolMinconn(BaseCase):
             pool.close_all()
 
     def test_maintenance_db_double_give_back_is_noop(self):
-        """A second give_back of a direct connection must not double-release
-        the semaphore permit (the ``_odoo_pool`` marker is cleared first)."""
         pool = ConnectionPool(maxconn=2)
         _, info = connection_info_for("postgres")
         try:
@@ -3940,12 +3236,6 @@ class TestPoolMinconn(BaseCase):
 
 
 class TestPoolSessionGucOptions(BaseCase):
-    """_get_or_create_pool appends Odoo's session GUCs to the libpq ``options``
-    kwarg.  psycopg gives kwargs per-key precedence over the conninfo string,
-    so a URI's own ``?options=`` GUCs must be folded into the kwarg — setting
-    ours without merging would silently drop the operator's (e.g. search_path).
-    """
-
     def _created_pool_args(self, connection_info, **pool_kw):
         pool = ConnectionPool(maxconn=2, **pool_kw)
         created = {}
@@ -4008,24 +3298,15 @@ class TestPoolSessionGucOptions(BaseCase):
         self.assertNotIn("envpath", opts)
 
     def test_idle_session_timeout_default_unchanged(self):
-        """Default max_idle (600s) keeps the historical 15-minute server net."""
         created = self._created_pool_args({"dbname": "db"})
         self.assertIn("idle_session_timeout=900000", created["kwargs"]["options"])
 
     def test_idle_session_timeout_scales_with_max_idle(self):
-        """Raising db_conn_max_idle must keep the server-side timeout above the
-        pool's idle window, or the server silently kills warm pooled
-        connections and every borrow past the grace period pays a reconnect."""
         created = self._created_pool_args({"dbname": "db"}, max_idle=1200)
         self.assertIn("idle_session_timeout=1800000", created["kwargs"]["options"])
 
 
 class TestCopyFromMetricsQueryLazy(BaseCase):
-    """copy_from renders the COPY statement to text for metrics ONLY when a
-    thread query hook will consume it; otherwise it passes ``query=None`` to
-    skip a wasted SQL render on every bulk insert (copy_from is a hot path).
-    """
-
     def test_no_hook_passes_none(self):
         captured = {}
         orig = Cursor._record_metrics
@@ -4060,11 +3341,6 @@ class TestCopyFromMetricsQueryLazy(BaseCase):
 
 
 class TestCopyFromBinaryNumeric(BaseCase):
-    """Binary COPY into numeric columns: psycopg's binary numeric dumper rejects
-    Python float and requires Decimal, so copy_from converts float->Decimal for
-    numeric columns.  The pre-existing suite exercised only integer columns.
-    """
-
     def test_binary_copy_float_into_numeric_roundtrips(self):
         with registry().cursor() as cr:
             cr.execute(
@@ -4085,20 +3361,6 @@ class TestCopyFromBinaryNumeric(BaseCase):
 
 
 class TestCursorForwardingContract(BaseCase):
-    """Lock the cursor's public surface.
-
-    Anything outside it now RAISES rather than warning-and-forwarding.  The old
-    behaviour meant an unknown attribute silently worked, so a wrapper cursor
-    could reach raw psycopg through two layers of ``__getattr__`` with none of
-    the bookkeeping in between — which is how the ``TestCursor`` bulk-write
-    savepoint bypass survived.  A ``DeprecationWarning`` is invisible in a
-    passing run; an ``AttributeError`` is not.
-
-    Pin the contract: the curated forwards resolve, a non-forwarded psycopg
-    attribute raises, and dunder probes report absent without raising anything
-    a protocol negotiation would choke on.
-    """
-
     FORWARDED = (
         "fetchone",
         "fetchall",
@@ -4126,7 +3388,6 @@ class TestCursorForwardingContract(BaseCase):
             self.assertIn("cr._obj.row_factory", message, "point at the escape hatch")
 
     def test_it_no_longer_silently_forwards_to_psycopg(self):
-        """The whole point: reaching psycopg must be deliberate, not accidental."""
         with registry().cursor() as cr:
             with self.assertRaises(AttributeError):
                 _ = cr.scroll
@@ -4137,14 +3398,6 @@ class TestCursorForwardingContract(BaseCase):
     UNDEFINED_DUNDERS = ("__len__", "__iter__", "__next__", "__fspath__")
 
     def test_dunder_probes_report_absent_without_warning(self):
-        """Protocol negotiation is not API misuse.
-
-        ``hasattr`` asks for ``__len__``, iteration for ``__iter__``, os.fspath
-        for ``__fspath__``.  Reporting "absent" is the correct reply; warning
-        blames the caller for a question the language asked, and forwarding
-        would hand back psycopg's implementation bound to the wrong object
-        (``iter(cr)`` would silently iterate the underlying cursor).
-        """
         with registry().cursor() as cr:
             for name in self.UNDEFINED_DUNDERS:
                 with self.subTest(name=name):
@@ -4163,7 +3416,6 @@ class TestCursorForwardingContract(BaseCase):
                     )
 
     def test_copy_protocol_probes_do_not_warn_either(self):
-        """The names Cursor *does* define must also stay warning-free."""
         with registry().cursor() as cr:
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
@@ -4179,15 +3431,6 @@ class TestCursorForwardingContract(BaseCase):
             )
 
     def test_cursor_refuses_to_be_copied(self):
-        """A copy would share ``_obj``/``_cnx``, so its ``__del__`` would roll
-        back and return the connection to the pool under the original.
-
-        Both hooks are required: ``copy.copy`` looks ``__copy__`` up on the
-        CLASS, so silencing dunder probes in ``__getattr__`` is not enough —
-        without ``__copy__`` the reduce protocol happily builds the broken
-        shared-state duplicate (observed: a spurious "Cursor not closed
-        explicitly" warning from the copy's finalizer).
-        """
         with registry().cursor() as cr:
             for label, call in (
                 ("copy", lambda: copy.copy(cr)),
@@ -4200,8 +3443,6 @@ class TestCursorForwardingContract(BaseCase):
             self.assertEqual(cr.fetchone(), (1,))
 
     def test_dunder_probes_are_quiet_on_a_closed_cursor_too(self):
-        """The dunder check precedes the ``_closed`` guard, so a finalizer
-        probing a dead cursor gets a clean "absent" rather than InterfaceError."""
         cr = registry().cursor()
         cr.close()
         with warnings.catch_warnings(record=True) as w:
@@ -4213,21 +3454,9 @@ class TestCursorForwardingContract(BaseCase):
 
 
 class TestPreparedCacheSurvivesReleaseNotRollback(BaseCase):
-    """Pin the psycopg behaviour ``lifecycle.py``'s prepare tuning rests on.
-
-    ``_RESET_SESSION_STATE_SQL`` deliberately omits ``DEALLOCATE ALL`` so the
-    prepared-statement cache can survive a pool round-trip — but psycopg clears
-    it on any statement whose command tag is ``ROLLBACK``, which is both
-    ``rollback()`` and ``ROLLBACK TO SAVEPOINT``.  That the *happy* path
-    (``RELEASE``) does NOT clear is what makes the tuning worth keeping; if a
-    psycopg upgrade changes it, the documented rationale is wrong and this
-    fails rather than silently costing throughput.
-    """
-
     QUERY = "SELECT id FROM res_partner WHERE active = %s"
 
     def _warm(self, cr):
-        """Execute past prepare_threshold so a statement is actually prepared."""
         for _ in range(4):
             cr.execute(self.QUERY, (True,))
             cr.fetchall()
@@ -4267,7 +3496,6 @@ class TestPreparedCacheSurvivesReleaseNotRollback(BaseCase):
             cr.close()
 
     def test_commit_keeps_the_cache(self):
-        """Why the tuning pays off in production: request handlers commit."""
         cr = db_connect(common.get_db_name()).cursor()
         try:
             before = self._warm(cr)
@@ -4279,16 +3507,6 @@ class TestPreparedCacheSurvivesReleaseNotRollback(BaseCase):
 
 
 class TestBorrowValidationFailureNoLeak(BaseCase):
-    """A validation failure AFTER the semaphore is acquired and getconn()
-    succeeded must release the permit AND return the connection to its psycopg
-    pool — otherwise both the _budget and the per-DSN pool slot leak.
-
-    Since #2 replaced the psycopg-``_pool`` tripwire with an Odoo-owned
-    ``_odoo_pool`` marker (see TestPoolSemaphoreAccounting), the surviving
-    in-borrow validation is the minimum-PostgreSQL-version gate; it exercises
-    the same inner-putconn / outer-release recovery path the tripwire used.
-    """
-
     def test_version_gate_failure_releases_semaphore_and_putconn(self):
         pool = ConnectionPool(maxconn=4)
         info = connection_info_for("nonexistent_db_test")[1]
@@ -4313,18 +3531,6 @@ class TestBorrowValidationFailureNoLeak(BaseCase):
 
 
 class TestCursorInitCursorFailureReturnsConnection(BaseCase):
-    """If ``self._cnx.cursor()`` raises inside ``Cursor.__init__`` right after a
-    successful ``borrow()``, the except handler must (a) surface the REAL error
-    and (b) still ``give_back()`` the borrowed connection — otherwise the
-    connection and its ``ConnectionBudget`` permit leak for the process life.
-
-    Regression: the handler read ``getattr(self, "_obj", None)``; when
-    ``cursor()`` failed ``_obj`` was never set, so that getattr routed through
-    ``Cursor.__getattr__`` and raised ``InterfaceError("Cursor already closed")``
-    — masking the real error and skipping ``give_back()``.  The fix reads
-    ``_obj`` straight from ``__dict__``.
-    """
-
     def test_cursor_failure_propagates_real_error_and_returns_connection(self):
         sentinel = psycopg.OperationalError("simulated cursor() failure")
         conn = MagicMock()
@@ -4347,13 +3553,6 @@ class TestCursorInitCursorFailureReturnsConnection(BaseCase):
 
 
 class TestPasswordRotationEvictsStalePool(BaseCase):
-    """A rotated password yields a new pool key (the password fingerprint in
-    _normalize_dsn_key differs).  _get_or_create_pool must evict and close the
-    OLD per-DSN pool — otherwise its worker threads and idle connections leak in
-    self._pools until close_all().  A genuinely different host/port/user keeps
-    its own pool (those components ARE part of the key).
-    """
-
     @staticmethod
     def _pool_factory():
         def factory(*args, **kwargs):
@@ -4398,18 +3597,6 @@ class TestPasswordRotationEvictsStalePool(BaseCase):
 
 
 class TestCopyFromRecoverableErrorLogLevel(BaseCase):
-    """copy_from() previously hand-rolled ``_logger.error("bad COPY: …")``,
-    so a recoverable serialization failure / deadlock / lock-timeout during a
-    bulk ``create()`` — which the request's ``retrying`` loop catches and
-    retries — logged a false ERROR on every attempt.  It must now log at
-    WARNING like execute()/executemany(), via the shared _log_sql_error().
-
-    Reproduced deterministically (no mocks): a second connection holds an
-    ACCESS EXCLUSIVE lock on the target table, so COPY's RowExclusiveLock
-    acquisition blocks and trips ``lock_timeout`` → LockNotAvailable (55P03),
-    a member of PG_RECOVERABLE_EXCEPTIONS.
-    """
-
     def setUp(self):
         super().setUp()
         with registry().cursor() as cr:
@@ -4445,12 +3632,6 @@ class TestCopyFromRecoverableErrorLogLevel(BaseCase):
 
 
 class TestConcurrencyErrorTaxonomy(BaseCase):
-    """The PG concurrency-retry vocabulary lives once in ``odoo.db.errors``;
-    ``odoo.service.transaction`` aliases it as the public ``PG_CONCURRENCY_*``
-    names that addons import.  These guards stop the SQLSTATE list, the exception
-    list, and the log-level (RECOVERABLE) set from drifting apart again.
-    """
-
     def test_sqlstates_match_exception_classes(self):
         from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_RETRY_SQLSTATES
 
@@ -4476,11 +3657,6 @@ class TestConcurrencyErrorTaxonomy(BaseCase):
 
 
 class TestExecutemanyLogExceptions(BaseCase):
-    """executemany() gained the ``log_exceptions`` flag that execute() already
-    had — a caller that logs its own message can now silence the batched path
-    just like the single-statement one.
-    """
-
     def test_log_exceptions_false_suppresses_error_log(self):
         with self.assertNoLogs("odoo.db.cursor", level="ERROR"):
             with self.assertRaises(psycopg.Error):
@@ -4503,11 +3679,6 @@ class TestExecutemanyLogExceptions(BaseCase):
 
 
 class TestDictFetchManyNegativeSize(BaseCase):
-    """Cursor.dictfetchmany(-1) used to raise psycopg's InterfaceError while
-    BaseCursor.dictfetchmany(-1) returned [] — the base contract and its
-    production override disagreed on the same invalid input.  They now agree.
-    """
-
     def test_negative_size_returns_empty_and_preserves_rows(self):
         with registry().cursor() as cr:
             cr.execute("SELECT generate_series(1, 3) AS v")
@@ -4522,15 +3693,6 @@ class TestDictFetchManyNegativeSize(BaseCase):
 
 
 class TestPoolCleanupIsolatesFailures(BaseCase):
-    """A single per-DSN pool whose close()/drain() raises must not abort the
-    cleanup of its siblings nor propagate out of close_all/close_database/
-    drain/drain_database.  These run on the worst paths — the atexit handler
-    (close_all) and post-upgrade drain_all — where one bad pool stranding the
-    rest (worker threads + idle connections leaked, since _pools is already
-    cleared) is exactly the failure to avoid.  Mirrors the isolation already
-    present in give_back() and the stale-credential eviction.
-    """
-
     class _FakePool:
         def __init__(self, name, raises=False):
             self.name = name
@@ -4598,14 +3760,6 @@ class TestPoolCleanupIsolatesFailures(BaseCase):
 
 
 class TestDdlCacheInvalidationNarrowed(BaseCase):
-    """Only schema-changing DDL invalidates the binary-COPY column-type cache.
-
-    ``Cursor.execute`` used to clear the catalog facts (and the prepared-statement
-    cache) on *any* DDL.  COMMENT / GRANT / REVOKE are DDL for parameter inlining
-    but never change a relation's shape, so they must now leave a populated cache
-    intact; CREATE / ALTER / DROP / DO still clear it.
-    """
-
     def test_comment_grant_keep_cache_alter_clears_it(self):
         tbl = "_test_ddl_narrow"
         cr = db_connect(common.get_db_name()).cursor()
@@ -4640,19 +3794,6 @@ class TestDdlCacheInvalidationNarrowed(BaseCase):
 
 
 class TestDdlParamInliningInjectionLive(BaseCase):
-    """DDL client-side param inlining must neutralise injection through a REAL
-    backend, not just the unit-tested null-adapter-context path.
-
-    ``$N`` server-side params are rejected in DDL structural positions, so
-    ``Cursor.execute`` splices DDL params in client-side via
-    ``psycopg.sql.quote`` (the psycopg2->3 migration debt the db README flags as
-    security-sensitive).  ``odoo/db/tests/test_ddl.py`` fuzzes ``_inline_ddl_params``
-    with ``quote(value, None)`` (no connection), and the cache tests above run
-    ``COMMENT ... IS %s`` with a benign value — but nothing drives adversarial
-    content through a live connection, where the adapter context and the server's
-    own parser are what actually enforce the boundary.  This does.
-    """
-
     def test_injection_values_roundtrip_exact_and_do_not_execute(self):
         tbl = "_test_ddl_injection"
         payloads = [
@@ -4693,17 +3834,6 @@ class TestDdlParamInliningInjectionLive(BaseCase):
 
 
 class TestDdlInvalidatesPreparedPlan(BaseCase):
-    """A schema-changing DDL must drop psycopg's auto-prepared-statement cache on
-    the connection that ran it.  Otherwise a later ``SELECT *`` reusing a plan
-    prepared against the old shape raises PostgreSQL's
-    ``cached plan must not change result type`` (FeatureNotSupported) — a real
-    failure path (reproduced: ``ALTER TABLE ... ADD COLUMN`` after the plan was
-    cached).  ``Cursor._invalidate_caches_after_ddl`` clears it via the private
-    ``_cnx._prepared.clear()`` (no public psycopg API exists).  This guards that
-    half end-to-end against a live backend; the binary-COPY catalog-fact half
-    is covered by :class:`TestDdlCacheInvalidationNarrowed`.
-    """
-
     def test_alter_after_prepared_select_star_does_not_raise(self):
         tbl = "_test_prepared_plan"
         cr = db_connect(common.get_db_name()).cursor()
@@ -4729,14 +3859,6 @@ class TestDdlInvalidatesPreparedPlan(BaseCase):
             cr.close()
 
     def test_alter_hidden_behind_a_leading_non_ddl_statement(self):
-        """The same must hold when the ALTER is not the leading statement.
-
-        ``_ddl_keyword`` reports only the leading keyword, so
-        ``"BEGIN; ALTER ...; COMMIT"`` used to read as non-DDL: the caches were
-        never dropped and the next ``SELECT *`` raised FeatureNotSupported
-        (sqlstate 0A000 — not retryable, so the RPC loop turns it into a 500).
-        ``_changes_schema`` scans statement boundaries for exactly this.
-        """
         tbl = "_test_hidden_ddl"
         cr = db_connect(common.get_db_name()).cursor()
         try:
@@ -4763,19 +3885,11 @@ class TestDdlInvalidatesPreparedPlan(BaseCase):
 
 
 class TestReplicaConnectionInfo(BaseCase):
-    """Every connection keyword is replica-overridable, and inherits when unset.
-
-    Only host and port used to be, so a replica needing its own role — a
-    read-only login, or a managed instance with separate credentials — could not
-    be configured: the replica DSN silently carried the primary's user and
-    password, and the refused connection said nothing about why.
-    """
-
     def _saved(self, *keys):
         from odoo.tools import config
 
         saved = {k: config[k] for k in keys}
-        self.addCleanup(lambda: [config.__setitem__(k, v) for k, v in saved.items()])
+        self.addCleanup(lambda: list(starmap(config.__setitem__, saved.items())))
         return config
 
     def test_readonly_overrides_every_keyword_when_set(self):
@@ -4815,7 +3929,6 @@ class TestReplicaConnectionInfo(BaseCase):
         self.assertEqual(rw["password"], "primary_pw")
 
     def test_an_unset_replica_keyword_inherits_the_primary(self):
-        """So a deployment overrides exactly the keywords that differ."""
         config = self._saved(
             "db_host",
             "db_port",
@@ -4851,21 +3964,6 @@ class TestReplicaConnectionInfo(BaseCase):
 
 
 class TestTestCursorContainsBulkWrites(common.TransactionCase):
-    """Bulk writes on a request cursor must land inside its rollback savepoint.
-
-    ``TestCursor`` creates that savepoint lazily on first use.  It used to hang
-    that off its own ``execute()`` override, so ``executemany`` /
-    ``execute_values`` / ``copy_from`` — which it does not override and which
-    reach the real cursor through ``__getattr__`` — wrote outside it and
-    survived the rollback, leaking rows into whatever ran next.  Only incidental
-    ordering hid this: the ORM issues a read before its first COPY, so
-    ``create()`` happened to be safe.
-
-    ``registry.cursor()`` only yields a ``TestCursor`` while registry test mode
-    is active, which is what ``HttpCase`` does per request; a plain
-    ``TransactionCase`` gets a real ``Cursor`` on its own transaction.
-    """
-
     def setUp(self):
         super().setUp()
         self.env.cr.execute(
@@ -4941,10 +4039,6 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
         )
 
     def test_every_marked_entry_point_is_forwarded_by_the_wrapper(self):
-        """``Cursor`` marks its statement entry points; ``TestCursor`` must own
-        each one.  A hook on the shared real cursor cannot do this job: several
-        test cursors wrap one real cursor, so it would open whichever is
-        innermost rather than the one the caller holds."""
         marked = {
             name
             for name in dir(Cursor)
@@ -4961,7 +4055,6 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
         )
 
     def test_each_cursor_takes_its_own_savepoint(self):
-        """Two test cursors over one real cursor must not share a savepoint."""
         with self.enter_registry_test_mode():
             outer = self.registry.cursor()
             self.addCleanup(outer.close)
@@ -4980,16 +4073,6 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
 
 
 class TestCopyFromTableIdentity(BaseCase):
-    """Every consumer of the table name must reach the same relation.
-
-    ``copy_from`` used to resolve it two incompatible ways: ``LOCK TABLE`` and
-    ``COPY`` quoted it as one identifier, while the catalog lookups passed the
-    raw string to ``::regclass`` / ``pg_get_serial_sequence``, which parse and
-    case-fold.  With both ``"MyTable"`` and ``mytable`` present, binary COPY
-    encoded with the second's column types and wrote into the first's columns —
-    silently, for wire-compatible pairs.
-    """
-
     def setUp(self):
         super().setUp()
         self.db = db_connect(common.get_db_name())
@@ -5034,15 +4117,6 @@ class TestCopyFromTableIdentity(BaseCase):
 
 
 class TestCopyFromChoosesEncodingByCost(BaseCase):
-    """``binary=True`` means "use the faster encoding", not "use binary".
-
-    psycopg has no float-to-numeric binary dumper, so each numeric cell costs a
-    ``Decimal`` conversion; past about a quarter of the row that outweighs what
-    binary encoding saves.  The choice belongs here, where the column type OIDs
-    already are — the ORM used to duplicate it as "any numeric column at all",
-    which gave up a measured 9-56% on the ordinary Odoo row shape.
-    """
-
     def setUp(self):
         super().setUp()
         self.db = db_connect(common.get_db_name())
@@ -5086,14 +4160,6 @@ class TestCopyFromChoosesEncodingByCost(BaseCase):
 
 
 class TestNoRedundantLockAfterDdl(BaseCase):
-    """DDL invalidates the catalog facts, not the table lock.
-
-    PostgreSQL holds a ``ROW EXCLUSIVE`` lock to the end of the transaction and
-    DDL does not end one, so re-issuing ``LOCK TABLE`` after a schema change is
-    a wasted round-trip.  ``ROLLBACK TO SAVEPOINT`` *does* release it, which is
-    why the lock ledger is still cleared there.
-    """
-
     def setUp(self):
         super().setUp()
         self.db = db_connect(common.get_db_name())
@@ -5136,14 +4202,6 @@ class TestNoRedundantLockAfterDdl(BaseCase):
 
 
 class TestSaturatedPoolNamesItsHolders(BaseCase):
-    """Budget exhaustion must say who is holding the permits.
-
-    ``ConnectionBudget`` reports *that* the process ran out; without the
-    checkout tracker, answering *who* required attaching a debugger to a
-    saturated worker.  The pool's own trade — one shared budget that can starve
-    itself — is only defensible if the failure is diagnosable.
-    """
-
     def setUp(self):
         super().setUp()
         self.pool = ConnectionPool(maxconn=2, borrow_timeout=0.2)
@@ -5190,8 +4248,6 @@ class TestSaturatedPoolNamesItsHolders(BaseCase):
 
 
 class TestInsertOrExisting(BaseCase):
-    """The three outcomes of an insert that hits a unique constraint."""
-
     TABLE = "_test_insert_or_existing"
 
     def setUp(self):
@@ -5231,7 +4287,6 @@ class TestInsertOrExisting(BaseCase):
 
     @mute_logger("odoo.db.cursor")
     def test_conflict_with_a_visible_row_returns_it(self):
-        """A row this transaction can already see is recovered, not an error."""
         with self.registry.cursor() as cr:
             first, created = self._insert(cr, "dup", "v1")
             self.assertTrue(created)
@@ -5241,44 +4296,20 @@ class TestInsertOrExisting(BaseCase):
 
     @mute_logger("odoo.db.cursor")
     def test_conflict_with_a_concurrent_row_is_retryable(self):
-        """A row committed after this snapshot began cannot be recovered to.
-
-        ``ROLLBACK TO SAVEPOINT`` keeps the ``REPEATABLE READ`` snapshot, so
-        ``find`` is blind to the winner however it is written; the caller has to
-        replay the request instead.
-        """
         with self.registry.cursor() as cr_a, self.registry.cursor() as cr_b:
-            cr_b.execute(f'SELECT count(*) FROM "{self.TABLE}"')  # pin B's snapshot
+            cr_b.execute(f'SELECT count(*) FROM "{self.TABLE}"')
             self._insert(cr_a, "raced", "winner")
             cr_a.commit()
 
             with self.assertRaises(ConcurrencyError):
                 self._insert(cr_b, "raced", "loser")
 
-            # what ``retrying`` does: the replay sees the winner and recovers
             cr_b.rollback()
             _row, created = self._insert(cr_b, "raced", "loser")
             self.assertFalse(created)
 
 
 class TestCloseRunsHooksOnALiveCursor(BaseCase):
-    """``close()`` must run ``prerollback`` hooks before the cursor is gone.
-
-    ``Cursor.rollback`` documents the invariant — *"prerollback runs BEFORE the
-    SQL ROLLBACK so hooks can still read uncommitted transaction state"* — and
-    ``_close`` used to invert it: the rollback sat in a ``finally`` that ran
-    after ``self._obj.close()`` and ``del self._obj``, so a hook touching the
-    cursor got ``InterfaceError: Cursor already closed``, swallowed at DEBUG.
-
-    Measured before the fix, with one hook doing ``cr.execute("SELECT 1")``::
-
-        via rollback() -> ('read ok', (1,))
-        via close()    -> ('FAILED', 'InterfaceError')
-
-    ``close()`` is how a request-scoped cursor normally ends, so that was the
-    path most hooks actually took.
-    """
-
     def test_prerollback_hook_can_still_read_on_close(self):
         cr = registry().cursor()
         seen = []
@@ -5300,7 +4331,6 @@ class TestCloseRunsHooksOnALiveCursor(BaseCase):
         self.assertEqual(seen, ["postR"])
 
     def test_rollback_runs_even_if_logging_raises(self):
-        """The old placement guaranteed this; the reorder must keep it."""
         cr = registry().cursor()
         seen = []
         cr.prerollback.add(partial(seen.append, "preR"))
@@ -5313,5 +4343,5 @@ class TestCloseRunsHooksOnALiveCursor(BaseCase):
     def test_a_failing_hook_does_not_escape_close(self):
         cr = registry().cursor()
         cr.prerollback.add(lambda: (_ for _ in ()).throw(RuntimeError("hook boom")))
-        cr.close()  # must not raise
+        cr.close()
         self.assertTrue(cr._closed)

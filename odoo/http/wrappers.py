@@ -1,7 +1,7 @@
 import functools
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import werkzeug.datastructures
 import werkzeug.exceptions
@@ -24,14 +24,6 @@ def _apply_cookie_defaults(
     secure: bool | None,
     samesite: str | None,
 ) -> tuple[datetime | int | None, int | None, bool, str | None]:
-    """Apply shared ``set_cookie`` defaults: expiry fallback, consent filtering
-    and security attributes. Shared by :class:`_Response` and
-    :class:`FutureResponse`.
-
-    ``secure`` defaults to ``request.httprequest.is_secure`` and ``samesite`` to
-    ``"Lax"``, so no cookie leaves the server without Secure / SameSite when they
-    apply.
-    """
     if expires == -1:
         expires = datetime.now(tz=UTC) + timedelta(days=365)
 
@@ -51,7 +43,6 @@ def _apply_cookie_defaults(
 
 
 def make_request_wrap_methods(attr: str) -> tuple[Any, Any]:
-    """Create getter/setter pair proxying to the wrapped werkzeug Request."""
 
     def getter(self: HTTPRequest) -> Any:
         return getattr(self._HTTPRequest__wrapped, attr)
@@ -69,17 +60,6 @@ else:
 
 
 class HTTPRequest(_HTTPRequestProxied):
-    """A werkzeug ``Request`` re-exposed through an explicit attribute allow-list.
-
-    The allow-list (:data:`HTTPREQUEST_ATTRIBUTES`) is installed as properties at
-    import time, which no type checker can see — 15% of this package's mypy
-    errors were ``"HTTPRequest" has no attribute``. Declaring the werkzeug base
-    only under ``TYPE_CHECKING`` gives the checker the real signatures without
-    inheriting the behaviour at runtime, where the point is precisely to expose
-    a *narrower* surface than ``Request``. Adding a name to the allow-list needs
-    no second edit here.
-    """
-
     def __init__(self, environ: dict[str, Any]) -> None:
         httprequest = werkzeug.wrappers.Request(environ)
         httprequest.user_agent_class = UserAgent
@@ -103,37 +83,13 @@ class HTTPRequest(_HTTPRequestProxied):
 
     @property
     def session_id(self) -> str | None:
-        """Value of the ``session_id`` cookie on the incoming request."""
         return self.__wrapped.cookies.get("session_id")
 
     @property
     def raw_environ(self) -> dict[str, Any]:
-        """The original, unfiltered WSGI environ.
-
-        Use for low-level operations (:meth:`Request.reroute`) that need
-        the werkzeug/wsgi keys filtered out of :attr:`environ`.
-        """
         return self.__environ
 
     def _adopt_body_state(self, other: HTTPRequest) -> None:
-        """Inherit ``other``'s already-materialised request body.
-
-        A WSGI input stream can be read exactly once. :meth:`Request.reroute`
-        builds a *new* wrapper over a copy of the environ — including the same,
-        possibly already-drained, ``wsgi.input`` — so if the body had been
-        materialised (``form``/``files`` parsed, or ``get_data`` cached) the new
-        wrapper would try to re-read it: the parser blocks waiting for bytes that
-        will never come, the socket eventually times out, and the request dies as
-        a ``400`` after stalling the connection.
-
-        Rerouting means "serve this same request under a different path", so the
-        body is the same body: hand the parsed result over instead. werkzeug
-        keeps all of it in ``__dict__`` (``cached_property``) plus
-        ``_cached_data``, so adopting is a dict copy. When nothing was
-        materialised yet — the usual case, since ``http_routing`` reroutes from
-        ``ir.http._match``, before dispatch parses anything — this copies
-        nothing and behaves exactly as before.
-        """
         src = other.__wrapped
         dst = self.__wrapped
         for key in ("stream", "data", "form", "files"):
@@ -142,7 +98,7 @@ class HTTPRequest(_HTTPRequestProxied):
         if getattr(src, "_cached_data", None) is not None:
             dst._cached_data = src._cached_data
 
-    def __enter__(self) -> HTTPRequest:
+    def __enter__(self) -> Self:
         return self
 
 
@@ -213,24 +169,6 @@ for attr in HTTPREQUEST_ATTRIBUTES:
 
 
 class _Response(werkzeug.wrappers.Response):
-    """
-    Outgoing HTTP response with body, status, headers and qweb support.
-    In addition to the :class:`werkzeug.wrappers.Response` parameters,
-    this class's constructor can take the following additional
-    parameters for QWeb Lazy Rendering.
-
-    :param str template: template to render
-    :param dict qcontext: Rendering context to use
-    :param int uid: User id to use for the ir.ui.view render call,
-        ``None`` to use the request's user (the default)
-
-    these attributes are available as parameters on the Response object
-    and can be altered at any time before rendering
-
-    Also exposes all the attributes and methods of
-    :class:`werkzeug.wrappers.Response`.
-    """
-
     default_mimetype = "text/html"
 
     def __init__(self, *args: Any, **kw: Any) -> None:
@@ -242,19 +180,6 @@ class _Response(werkzeug.wrappers.Response):
 
     @classmethod
     def load(cls, result: Any, fname: str = "<function>") -> Response:
-        """
-        Convert the return value of an endpoint into a Response.
-
-        :param result: The endpoint return value to load the Response from.
-        :type result: Response | werkzeug.wrappers.Response |
-            werkzeug.exceptions.HTTPException | str | bytes | None
-        :param str fname: The endpoint function name wherefrom the
-            result emanated, used for logging.
-        :returns: The created :class:`~odoo.http.Response`.
-        :rtype: Response
-        :raises TypeError: When ``result`` type is none of the above-
-            mentioned type.
-        """
         if isinstance(result, Response):
             return result
 
@@ -292,15 +217,10 @@ class _Response(werkzeug.wrappers.Response):
         return self.template is not None
 
     def render(self) -> bytes:
-        """Render the Response's template and return the result."""
         self.qcontext["request"] = request
         return request.env["ir.ui.view"]._render_template(self.template, self.qcontext)
 
     def flatten(self) -> None:
-        """
-        Force rendering of the response's template, set the result as the
-        response body and unset :attr:`.template`.
-        """
         if self.template:
             self.response.append(self.render())
             self.template = None
@@ -319,15 +239,6 @@ class _Response(werkzeug.wrappers.Response):
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
-        """
-        Werkzeug defaults ``expires`` to ``None`` (a session cookie); we default
-        to 1 year instead. Pass ``expires=None`` explicitly for a session cookie.
-
-        ``secure`` and ``samesite`` default to ``None`` (let
-        :func:`_apply_cookie_defaults` pick the right values based on
-        the current request scheme). Pass ``secure=False`` explicitly
-        only when you really need an insecure cookie.
-        """
         expires, max_age, secure, samesite = _apply_cookie_defaults(
             expires,
             max_age,
@@ -360,7 +271,9 @@ class Headers(Proxy):
     add = ProxyFunc(None)
     add_header = ProxyFunc(None)
     clear = ProxyFunc(None)
-    copy = ProxyFunc(lambda v: Headers(v))
+    # PLW0108: the lambda is load-bearing — `Headers` is the class this body is
+    # still defining, so a bare reference would NameError at import time.
+    copy = ProxyFunc(lambda v: Headers(v))  # noqa: PLW0108  see comment above
     extend = ProxyFunc(None)
     get = ProxyFunc()
     get_all = ProxyFunc()
@@ -428,7 +341,7 @@ class Response(Proxy):
     delete_cookie = ProxyFunc(None)
     direct_passthrough = ProxyAttr(bool)
     expires = ProxyAttr()
-    force_type = ProxyFunc(lambda v: Response(v))
+    force_type = ProxyFunc(lambda v: Response(v))  # noqa: PLW0108  self-reference, see Headers.copy
     freeze = ProxyFunc(None)
     get_data = ProxyFunc()
     get_etag = ProxyFunc()
@@ -441,7 +354,7 @@ class Response(Proxy):
     json = ProxyAttr()
     last_modified = ProxyAttr()
     location = ProxyAttr(str)
-    make_conditional = ProxyFunc(lambda v: Response(v))
+    make_conditional = ProxyFunc(lambda v: Response(v))  # noqa: PLW0108  self-reference, see Headers.copy
     make_sequence = ProxyFunc(None)
     max_cookie_size = ProxyAttr(int)
     mimetype = ProxyAttr(str)
@@ -495,14 +408,12 @@ if not hasattr(werkzeug.exceptions, "_odoo_original_abort"):
 def get_response(
     self: HTTPException, environ: dict[str, Any] | None = None, scope: Any = None
 ) -> Response:
-    """Return an Odoo :class:`Response` wrapping the werkzeug exception response."""
     return Response(
         werkzeug.exceptions._odoo_original_get_response(self, environ, scope)
     )
 
 
 def abort(status: int | Response, *args: Any, **kwargs: Any) -> None:
-    """Abort the current request with an HTTP error, unwrapping Odoo Response if needed."""
     if isinstance(status, Response):
         status = status._wrapped__
     werkzeug.exceptions._odoo_original_abort(status, *args, **kwargs)
@@ -513,28 +424,12 @@ werkzeug.exceptions.abort = abort
 
 
 class FutureResponse:
-    """
-    werkzeug.Response mock class that only serves as placeholder for
-    headers to be injected in the final response.
-    """
-
     max_cookie_size = 4093
 
     def __init__(self) -> None:
         self.headers = werkzeug.datastructures.Headers()
 
     def _drop_staged_cookie(self, key: str) -> None:
-        """Remove a previously staged cookie named ``key``.
-
-        Staging is a *description* of the cookies the response will carry, so
-        the same name must appear at most once — unlike a real response, where
-        werkzeug's ``set_cookie`` blindly appends. Re-staging happens for real:
-        :meth:`Request._save_session` runs once per ``post_dispatch``, and
-        ``post_dispatch`` runs a second time over the error response when a
-        request fails *after* a successful dispatch (a failing ``COMMIT``, a
-        post-commit hook), which would otherwise emit two ``session_id``
-        cookies. Last writer wins, matching plain ``set_cookie`` semantics.
-        """
         prefix = f"{key}="
         staged = self.headers.getlist("Set-Cookie")
         kept = [cookie for cookie in staged if not cookie.startswith(prefix)]

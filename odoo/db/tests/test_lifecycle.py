@@ -1,19 +1,3 @@
-"""Database-free tests for :mod:`odoo.db.lifecycle`.
-
-These three callbacks are the per-*physical*-connection policy every pooled
-connection passes through, and they had no unit coverage at all: their effects
-were only observable through the DB-backed suite, where a change to the reset
-SQL or the health-check window shows up as a mysterious behavioural shift rather
-than a failing assertion.
-
-They take a bare ``psycopg.Connection``, so a recording stand-in is enough to
-pin the parts that matter: WHAT the session reset closes (each clause is there
-to plug a specific cross-borrower leak), that the caches it deliberately spares
-are spared, and that the liveness probe's grace window is applied the right way
-round.  Anything needing a real backend stays in
-``odoo/addons/base/tests/test_db_cursor.py``.
-"""
-
 import unittest
 from time import monotonic
 from unittest.mock import patch
@@ -39,8 +23,6 @@ class _FakePrepared:
 
 
 class _FakeConn:
-    """Records what the callbacks do, without a socket."""
-
     def __init__(self):
         self.executed: list[tuple[str, dict]] = []
         self.autocommit = False
@@ -79,8 +61,6 @@ class TestConfigureConnection(unittest.TestCase):
 
 
 class TestResetSessionStateSql(unittest.TestCase):
-    """Each clause plugs a specific leak from one borrower to the next."""
-
     def test_closes_every_documented_leak(self):
         for clause in (
             "RESET ALL",
@@ -146,8 +126,6 @@ class TestResetConnection(unittest.TestCase):
 
 
 class TestCheckConnection(unittest.TestCase):
-    """The grace window trades a probe round-trip for a bounded staleness risk."""
-
     GRACE = 1.0
 
     def setUp(self):

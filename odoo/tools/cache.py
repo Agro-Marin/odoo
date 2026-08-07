@@ -18,7 +18,7 @@ if typing.TYPE_CHECKING:
     from odoo.libs.lru import LRU
     from odoo.models import BaseModel
 
-unsafe_eval = eval
+unsafe_eval = eval  # noqa: S307  ormcache key expressions built from code, not user input
 
 _logger = logging.getLogger(__name__)
 _logger_lock = threading.RLock()
@@ -26,8 +26,6 @@ _logger_state: typing.Literal["wait", "abort", "run"] = "wait"
 
 
 class ormcache_counter:
-    """Statistic counters for cache entries."""
-
     __slots__ = [
         "cache_name",
         "err",
@@ -69,12 +67,6 @@ _COUNTERS: defaultdict[tuple[str, Callable], ormcache_counter] = defaultdict(
 
 
 def prune_counters(db_name: str) -> None:
-    """Drop the ormcache stat counters for a deleted database.
-
-    ``_COUNTERS`` is keyed by ``(db_name, method)`` and would otherwise grow
-    unbounded on a process that creates and drops many databases. Called from
-    ``Registry.delete``.
-    """
     for cache_key in [k for k in _COUNTERS if k[0] == db_name]:
         del _COUNTERS[cache_key]
 
@@ -85,21 +77,6 @@ _TX_STATS_ENABLED: bool = os.environ.get(
 
 
 def _render_signature(method: Callable) -> tuple[str, dict[str, Any]]:
-    """Render ``method``'s parameter list as lambda source, plus the globals it needs.
-
-    Used to build the cache-key lambda in :meth:`ormcache.determine_key`.
-
-    Defaults are **bound by name** rather than rendered as source.  ``str(Parameter)``
-    formats a default via ``repr()``, which is only valid Python for a minority of
-    objects: a method such as ``def m(self, a, flag=SENTINEL)`` produced
-    ``lambda self, a, flag=<odoo...Sentinel object at 0x7f...>: ...`` and blew up
-    with ``SyntaxError: invalid syntax`` at import time, i.e. the whole server
-    failed to start.  Binding also makes the lambda share the *identical* default
-    object with the method instead of an equal-but-distinct re-parsed literal.
-
-    ``/`` and ``*`` markers are re-emitted too; ``signature().parameters`` drops
-    them, which silently widened positional-only and keyword-only parameters.
-    """
     rendered: list[str] = []
     arg_globals: dict[str, Any] = {}
     params = list(signature(method).parameters.values())
@@ -134,24 +111,6 @@ def _render_signature(method: Callable) -> tuple[str, dict[str, Any]]:
 
 
 class ormcache:
-    """LRU cache decorator for model methods.
-    The parameters are strings that represent expressions referring to the
-    signature of the decorated method, and are used to compute a cache key::
-
-        @ormcache("model_name", "mode")
-        def _compute_domain(self, model_name, mode="read"): ...
-
-    For backward compatibility, the decorator supports the named parameter
-    `skiparg`::
-
-        @ormcache(skiparg=1)
-        def _compute_domain(self, model_name, mode="read"): ...
-
-    Methods implementing this decorator should never return a Recordset,
-    because the underlying cursor will eventually be closed and raise a
-    `psycopg.InterfaceError`.
-    """
-
     key: Callable[..., tuple]
 
     def __init__(
@@ -248,19 +207,6 @@ class ormcache:
         generation: int | None = None,
         **kwargs: Any,
     ) -> None:
-        """Prime the cache with a caller-computed ``cache_value``.
-
-        ``generation`` closes the same race the :meth:`__call__` lookup path
-        guards against, for a value the caller computed itself: pass
-        ``self.<method>.__cache__.generation_of(model)`` captured **before**
-        reading the source of truth, and the write is dropped if the cache was
-        cleared in between (a concurrent ``registry.clear_cache`` /
-        cross-worker signaling invalidation).  Without it the stale value would
-        overwrite the cleared slot and be served until the next invalidation.
-
-        Omitting ``generation`` keeps the historical unconditional write, so
-        existing callers are unaffected.
-        """
         model: BaseModel = args[0]
         d: LRU = model.pool.ormcache_lrus[self.cache_name]
         key = self.key(*args, **kwargs)
@@ -269,15 +215,9 @@ class ormcache:
         d[key] = cache_value
 
     def generation_of(self, model: BaseModel) -> int:
-        """Return the current generation of this cache's LRU on ``model``'s pool.
-
-        Capture it before reading the value you intend to :meth:`add_value`, so
-        the write can be gated against a clear that races the read.
-        """
         return model.pool.ormcache_lrus[self.cache_name].generation
 
     def determine_key(self) -> None:
-        """Determine the function that computes a cache key from arguments."""
         assert self.method is not None
         if self.skiparg is not None:
             self.key = lambda *args, **kwargs: (
@@ -294,12 +234,6 @@ class ormcache:
 
 
 class ormcache_context(ormcache):
-    """Variant of :class:`ormcache` with an extra ``keys`` parameter that
-    defines a sequence of dictionary keys. Those keys are looked up in the
-    ``context`` parameter and combined into the cache key made by
-    :class:`ormcache`.
-    """
-
     def __init__(
         self, *args: str, keys: tuple[str, ...], skiparg: None = None, **kwargs: Any
     ) -> None:
@@ -331,7 +265,7 @@ def log_ormcache_stats(
     if sig not in (None, signal.SIGUSR1, signal.SIGUSR2):
         return
 
-    global _logger_state
+    global _logger_state  # noqa: PLW0603  process-wide cache-stats logging state
     with _logger_lock:
         if _logger_state != "wait":
             _logger_state = "abort"
@@ -353,7 +287,6 @@ def log_ormcache_stats(
             self.method = method
 
     def _log_ormcache_stats() -> None:
-        """Log statistics of ormcache usage by database, model, and method."""
         from odoo.modules.registry import Registry
 
         try:
@@ -482,7 +415,7 @@ def log_ormcache_stats(
         except Exception:
             _logger.exception("error while logging ormcache statistics")
         finally:
-            global _logger_state
+            global _logger_state  # noqa: PLW0603  process-wide cache-stats logging state
             with _logger_lock:
                 _logger_state = "wait"
 
@@ -503,7 +436,6 @@ def get_cache_size(
     seen_ids: set[int] | None = None,
     class_slots: dict[type, tuple[str, ...]] | None = None,
 ) -> int:
-    """A non-thread-safe recursive object size estimator"""
     from odoo.api import Environment
     from odoo.models import BaseModel
 

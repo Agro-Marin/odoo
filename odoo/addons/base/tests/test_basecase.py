@@ -2,10 +2,7 @@ from odoo.tests import common
 
 
 class TestSingleTransactionCase(common.SingleTransactionCase):
-    """Check the whole-class transaction behavior of SingleTransactionCase."""
-
     def test_00(self):
-        """Create a partner."""
         self.env["res.partner"].create({"name": "test_per_class_teardown_partner"})
         partners = self.env["res.partner"].search(
             [("name", "=", "test_per_class_teardown_partner")]
@@ -13,14 +10,12 @@ class TestSingleTransactionCase(common.SingleTransactionCase):
         self.assertEqual(1, len(partners), "Test partner not found.")
 
     def test_01(self):
-        """Find the created partner."""
         partners = self.env["res.partner"].search(
             [("name", "=", "test_per_class_teardown_partner")]
         )
         self.assertEqual(1, len(partners), "Test partner not found.")
 
     def test_20a(self):
-        """Create a partner with a XML ID"""
         pid, _ = self.env["res.partner"].name_create("Mr Blue")
         self.env["ir.model.data"].create(
             {
@@ -32,7 +27,6 @@ class TestSingleTransactionCase(common.SingleTransactionCase):
         )
 
     def test_20b(self):
-        """Resolve xml id with ref() and browse_ref()"""
         xid = "base.test_partner_blue"
         partner = self.env.ref(xid)
         pid = self.ref(xid)
@@ -47,10 +41,7 @@ class TestSingleTransactionCase(common.SingleTransactionCase):
 
 
 class TestTransactionCase(common.TransactionCase):
-    """Check the per-method transaction behavior of TransactionCase."""
-
     def test_00(self):
-        """Create a partner."""
         partners = self.env["res.partner"].search(
             [("name", "=", "test_per_class_teardown_partner")]
         )
@@ -62,14 +53,12 @@ class TestTransactionCase(common.TransactionCase):
         self.assertEqual(1, len(partners), "Test partner not found.")
 
     def test_01(self):
-        """Don't find the created partner."""
         partners = self.env["res.partner"].search(
             [("name", "=", "test_per_class_teardown_partner")]
         )
         self.assertEqual(0, len(partners), "Test partner found.")
 
     def test_20a(self):
-        """Create a partner with a XML ID then resolve xml id with ref() and browse_ref()"""
         pid, _ = self.env["res.partner"].name_create("Mr Yellow")
         self.env["ir.model.data"].create(
             {

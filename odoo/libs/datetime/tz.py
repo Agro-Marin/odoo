@@ -1,5 +1,3 @@
-"""Timezone lookup and localization helpers."""
-
 __all__ = [
     "TIMEZONE_ALIASES",
     "all_timezones",
@@ -126,20 +124,6 @@ _available_timezones: frozenset[str] = available_timezones()
 
 
 def timezone(name: str) -> ZoneInfo:
-    """Return a cached ``ZoneInfo`` for ``name``.
-
-    IANA names are used directly; deprecated names (removed in Ubuntu 24.04)
-    fall back to the alias mapping.
-
-    :param name: Timezone name (e.g., 'Europe/Paris', 'US/Eastern')
-    :returns: A ZoneInfo timezone object
-    :raises ZoneInfoNotFoundError: If the timezone name is not recognized
-
-    Example::
-
-        >>> tz = timezone('Europe/Paris')
-        >>> tz = timezone('US/Eastern')  # Alias for 'America/New_York'
-    """
     if name in _timezone_cache:
         return _timezone_cache[name]
 
@@ -167,33 +151,12 @@ def timezone(name: str) -> ZoneInfo:
 
 
 def localize(dt: datetime, tz: ZoneInfo | dt_timezone) -> datetime:
-    """Attach a timezone to a naive datetime.
-
-    Unlike pytz's localize(), this uses the standard library approach
-    of replacing the tzinfo. For DST-ambiguous times, the fold attribute
-    determines which offset to use (fold=0 for earlier, fold=1 for later).
-
-    :param dt: A naive datetime (tzinfo must be None)
-    :param tz: The timezone to attach
-    :returns: A timezone-aware datetime
-    :raises ValueError: If the datetime already has a timezone
-
-    Example::
-
-        >>> from datetime import datetime
-        >>> dt = datetime(2024, 6, 15, 12, 0)
-        >>> aware_dt = localize(dt, timezone('Europe/Paris'))
-    """
     if dt.tzinfo is not None:
         raise ValueError(f"Cannot localize a datetime that already has tzinfo: {dt}")
     return dt.replace(tzinfo=tz)
 
 
 def all_timezones() -> frozenset[str]:
-    """Return all available timezone names.
-
-    :returns: A frozenset of timezone names available on this system
-    """
     return _available_timezones
 
 
@@ -201,30 +164,7 @@ _country_timezones: Mapping[str, tuple[str, ...]] | None = None
 
 
 def country_timezones() -> Mapping[str, tuple[str, ...]]:
-    """Return a mapping of country codes to their timezone names.
-
-    Uses babel's zone_territories data to build the mapping.
-    This replaces pytz.country_timezones.
-
-    The result is a shared, immutable view of a process-wide cache: it is built
-    once and handed to every caller.  It used to be a plain ``dict`` of
-    ``list``s returned by identity, so a caller appending to one of the lists
-    (or assigning a key) silently corrupted the mapping for the rest of the
-    process -- a lookup table derived from CLDR data has no business being
-    editable by whoever happens to read it.  ``MappingProxyType`` over tuples
-    makes both levels unwritable without paying for a defensive copy per call.
-
-    :returns: An immutable mapping of ISO 3166 country codes to tuples of
-        timezone names
-
-    Example::
-
-        >>> 'America/New_York' in country_timezones()['US']
-        True
-        >>> country_timezones()['JP']
-        ('Asia/Tokyo',)
-    """
-    global _country_timezones
+    global _country_timezones  # noqa: PLW0603  one-shot lazy build of the country->tz map
     if _country_timezones is None:
         zone_territories = get_global("zone_territories")
         grouped: dict[str, list[str]] = {}

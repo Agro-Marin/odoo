@@ -19,17 +19,6 @@ class TestHttpSecurity(TestHttpBase):
         self.assertNotIn("socket", result)
 
     def test_nul_byte_in_path_is_404_not_500(self):
-        """A NUL in the request path must not reach the filesystem or SQL.
-
-        Nothing this server can serve has a NUL in its path, but every consumer
-        of the path chokes on the byte instead of simply failing to match:
-        ``get_static_file`` -> ``file_path`` -> ``lstat`` raises
-        ``ValueError: embedded null character in path``, and an unmatched path
-        goes into ``ir.http._serve_fallback``'s attachment lookup where
-        PostgreSQL refuses the parameter ("text fields cannot contain NUL").
-        Both produced a 500 with a full traceback, so any unauthenticated
-        client could flood the error log one byte at a time.
-        """
         for path in (
             "/test_http/greeting%00",
             "/web/static/src/img/x%00.png",
@@ -44,13 +33,6 @@ class TestHttpSecurity(TestHttpBase):
         self.assertEqual(res.status_code, 200)
 
     def test_malformed_requests_never_5xx(self):
-        """A malformed request must get a 4xx, never an unhandled exception.
-
-        Every 5xx here would be a remotely-triggerable traceback in the
-        operator's log. This is the shape that found the NUL-byte defect above,
-        kept as a standing sweep over the request surfaces the http layer parses
-        for itself: path, query string, headers and body framing.
-        """
         img = "/test_http/static/src/img/gizeh.png"
         cases = [
             ("encoded dot-dot", "GET", "/test_http/greeting%2e%2e%2f", {}, None),

@@ -1,8 +1,3 @@
-"""DB-free regression tests for Response construction and Stream.read().
-
-Run via ``pytest odoo/http/tests``.
-"""
-
 import pytest
 import werkzeug.wrappers
 
@@ -11,10 +6,6 @@ from odoo.http.wrappers import Response, _Response
 
 
 def test_response_load_always_returns_facade():
-    """Regression: loading a plain werkzeug Response returned a raw
-    ``_Response``, which fails ``isinstance(x, Response)`` facade checks
-    (ProxyMeta has no ``__instancecheck__``) — e.g. ``Json2Dispatcher``'s
-    pass-through-vs-serialize decision."""
     raw = werkzeug.wrappers.Response("hi", status=201)
     loaded = Response.load(raw)
     assert isinstance(loaded, Response)
@@ -32,7 +23,6 @@ def test_response_ctor_from_werkzeug_response_is_not_double_wrapped():
 
 
 def test_response_wrapping_rejects_dropped_kwargs():
-    """Regression: ``Response(existing, status=404)`` silently kept status 200."""
     base = Response("hi", status=200)
     with pytest.raises(TypeError, match="ignores keyword arguments"):
         Response(base, status=404)
@@ -52,8 +42,6 @@ def test_response_normal_construction():
 
 
 def test_stream_read_missing_path_raises_value_error():
-    """Regression: ``type='path'`` with ``path=None`` raised TypeError, not the
-    documented ValueError."""
     with pytest.raises(ValueError, match="missing 'path'"):
         Stream(type="path").read()
 

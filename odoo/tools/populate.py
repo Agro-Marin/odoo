@@ -1,17 +1,3 @@
-"""Database population by duplicating existing records.
-
-Duplicates records across models `factors` times via direct SQL, preserving
-referential integrity. Notable behaviours:
-
-- Field variation to avoid unique-constraint clashes and distribute values:
-  char/text get a postfix, date/datetime are spread over a range.
-- Many2one are remapped to the new copies; one2many/many2many are populated by
-  duplicating both sides of the relation.
-- Bulk-insert speedups: indexes are dropped then restored, FK checks are
-  disabled (session_replication_role), and id sequences are realigned.
-- Models with dependencies (e.g. `_inherits`) are populated in dependency order.
-"""
-
 import logging
 from collections import defaultdict
 from contextlib import contextmanager, suppress
@@ -39,11 +25,6 @@ MAX_DATETIME = datetime.now()
 def get_field_variation_date(
     model: Model, field: Field, factor: int, series_alias: str
 ) -> SQL:
-    """Distribute the duplication series evenly over [field - total_days, field].
-
-    total_days is capped at MAX_DATETIME - MIN_DATETIME (~4 years) so duplicates
-    are not pushed too far into the past.
-    """
     total_days = min((MAX_DATETIME - MIN_DATETIME).days, factor)
     cast_type = SQL(field._column_type[1])
 
@@ -67,7 +48,6 @@ def get_field_variation_date(
 
 
 def get_field_variation_char(field: Field, postfix: str | SQL | None = None) -> SQL:
-    """Append `postfix` to a char/text field, or return it unchanged if postfix is None."""
     if postfix is None:
         return SQL.identifier(field.name)
     if not isinstance(postfix, SQL):
@@ -96,14 +76,11 @@ def get_field_variation_char(field: Field, postfix: str | SQL | None = None) -> 
 
 
 class PopulateContext:
-    """Context manager container for duplicate-population helpers."""
-
     def __init__(self) -> None:
         self.has_session_replication_role: bool = True
 
     @contextmanager
     def ignore_indexes(self, model: Model) -> Generator[None]:
-        """Temporarily drop indexes to speed up insertion; keep PKey/Unique for constraints."""
         indexes = model.env.execute_query_dict(
             SQL(
                 """
@@ -137,7 +114,6 @@ class PopulateContext:
 
     @contextmanager
     def ignore_fkey_constraints(self, model: Model) -> Generator[None]:
-        """Disable FK constraint checks by setting the session to replica."""
         if not self.has_session_replication_role:
             yield
             return
@@ -162,19 +138,8 @@ class PopulateContext:
 
 
 def field_needs_variation(model: Model, field: Field) -> bool:
-    """Return whether the field must be varied across copies.
-
-    Needed for: unique constraints; date/datetime distribution; the record-name
-    fields (_rec_name / _rec_names_search), where variety makes searches
-    meaningful; trigram-indexed fields.
-    """
 
     def is_unique(model_, field_):
-        """Detect a unique constraint via pg_index.
-
-        Postgres enforces unique constraints as unique indexes, whether declared
-        as a table constraint or a manual unique index, so both appear here.
-        """
         query = SQL(
             """
         SELECT EXISTS(SELECT 1
@@ -206,10 +171,6 @@ def field_needs_variation(model: Model, field: Field) -> bool:
 def get_field_variation(
     model: Model, field: Field, factor: int, series_alias: str
 ) -> SQL:
-    """Return a varied source expression for the field (avoids unique clashes / spreads data).
-
-    :return: a SQL(identifier|expression|subquery)
-    """
     match field.type:
         case "char" | "text":
             return get_field_variation_char(field, postfix=series_alias)
@@ -243,12 +204,6 @@ def populate_field(
     table_alias: str = "t",
     series_alias: str = "s",
 ) -> SQL | None:
-    """Return the source expression for copying the field, or None.
-
-    :param table_alias: identifier referencing the table being populated
-    :param series_alias: identifier referencing its generated series
-    :return: a SQL(identifier|expression|subquery), or None
-    """
 
     def copy_noop():
         return None
@@ -378,16 +333,12 @@ def populate_model(
 
 
 class Many2oneFieldWrapper(Many2one):
-    """Thin wrapper around Many2one for population algorithm duck-typing."""
-
     def __init__(self, model: Any, field_name: str, comodel_name: str) -> None:
         super().__init__(comodel_name)
         self._setup_attrs__(model, field_name)
 
 
 class Many2manyModelWrapper:
-    """Fake model wrapper for implicit M2M relation tables."""
-
     def __init__(self, env: Environment, field: Field) -> None:
         self._name = field.relation
         self._table = field.relation
@@ -415,11 +366,6 @@ class Many2manyModelWrapper:
 def infer_many2many_model(
     env: Environment, field: Field
 ) -> Model | Many2manyModelWrapper:
-    """Return the relation model used by the m2m.
-
-    A custom model is returned as-is; an implicit ORM-generated relation table
-    is returned wrapped as a duck-typed fake model for the population algorithm.
-    """
     for model_name, model_class in env.registry.items():
         if model_class._table == field.relation:
             return env[model_name]
@@ -427,11 +373,6 @@ def infer_many2many_model(
 
 
 def populate_models(model_factors: dict[Any, int], separator_code: int) -> None:
-    """Duplicate existing records `factor` times per model.
-
-    A model pulled in as a dependency but not specified by the user inherits
-    the factor of the model that depends on it.
-    """
 
     def has_records(model_):
         query = SQL("SELECT EXISTS (SELECT 1 FROM %s)", SQL.identifier(model_._table))

@@ -1,14 +1,3 @@
-"""Lint test: every ``# noqa`` should carry a rationale.
-
-First-iteration policy: scan all core Python files, log every violation,
-**but do not fail the suite**.  This gives the team visibility on existing
-debt without breaking CI on day one.
-
-Once the legacy debt is cleaned up, flip ``ENFORCE`` to ``True`` (or wire
-in a baseline/ratchet so only NEW violations fail) — see the comment at
-the bottom of ``test_noqa_rationale``.
-"""
-
 import logging
 from pathlib import Path
 
@@ -27,20 +16,12 @@ _SKIP_FRAGMENTS = (
 
 
 def _is_core_path(path: str) -> bool:
-    """True if *path* is under the core Odoo directory tree.
-
-    Mirrors ``test_checkers._is_core_path`` so this lint is scoped to the
-    code we own, not the surrounding addons workspace (enterprise,
-    design-themes, customer addons).
-    """
     root = tools.config.root_path
     core_dir = str(Path(root).parent)
     return path.startswith(core_dir)
 
 
 class TestNoqaRationale(lint_case.LintCase):
-    """Each ``# noqa`` suppression should explain *why* the rule was waived."""
-
     def test_noqa_rationale(self):
         violations: list[tuple[str, _checker_noqa_rationale.Violation]] = []
 
@@ -53,8 +34,9 @@ class TestNoqaRationale(lint_case.LintCase):
                 source = Path(path).read_text(encoding="utf-8")
             except OSError, UnicodeDecodeError:
                 continue
-            for v in _checker_noqa_rationale.find_violations(source):
-                violations.append((path, v))
+            violations.extend(
+                (path, v) for v in _checker_noqa_rationale.find_violations(source)
+            )
 
         if not violations:
             _logger.info("noqa rationale check: no violations across core")
@@ -65,13 +47,14 @@ class TestNoqaRationale(lint_case.LintCase):
             by_file.setdefault(path, []).append(v)
 
         report_lines = [
-            f"Found {len(violations)} ``# noqa`` suppression(s) "
-            f"without rationale across {len(by_file)} file(s):"
+            (
+                f"Found {len(violations)} ``# noqa`` suppression(s) "
+                f"without rationale across {len(by_file)} file(s):"
+            )
         ]
         for path in sorted(by_file):
             report_lines.append(f"  {path}")
-            for v in by_file[path]:
-                report_lines.append(f"    - {v}")
+            report_lines.extend(f"    - {v}" for v in by_file[path])
         report = "\n".join(report_lines)
 
         if ENFORCE:

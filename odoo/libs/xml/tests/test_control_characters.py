@@ -1,10 +1,3 @@
-"""Regression tests for ``odoo.libs.xml.utils.remove_control_characters``.
-
-The contract that matters: whatever comes out must parse as XML, since the
-whole point of the call site (``odoo.tools.xml_utils``) is to feed the result
-straight to ``etree.fromstring``.
-"""
-
 import pytest
 from lxml import etree
 

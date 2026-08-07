@@ -4,9 +4,13 @@ import io
 import logging
 
 import docutils.nodes
-import docutils.parsers.rst.directives
-import docutils.parsers.rst.directives.admonitions
-import docutils.parsers.rst.roles
+
+# Imported for their REGISTRATION side effect: these modules populate docutils'
+# directive/role registries, and without them the parser this test drives
+# reports every `.. note::` and `:ref:` in a docstring as an unknown directive.
+import docutils.parsers.rst.directives  # noqa: F401  see comment above
+import docutils.parsers.rst.directives.admonitions  # noqa: F401  see comment above
+import docutils.parsers.rst.roles  # noqa: F401  see comment above
 
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, get_db_name, no_retry, tagged
@@ -167,7 +171,6 @@ class TestDocstring(BaseCase):
         cls.doctree_settings_verbose = doctree.settings
 
     def test_docstring(self):
-        """Verify that the function signature and its docstring match."""
         registry = Registry(get_db_name())
         seen_methods = set()
 
@@ -191,11 +194,12 @@ class TestDocstring(BaseCase):
                     settings = self.doctree_settings_silent
                 elif (model_cls._original_module or model_name).startswith(
                     MODULES_TO_LINT
+                ) or (
+                    (model_cls._original_module or model_name).startswith(
+                        MODULES_TO_LINT_ONLY_PUBLIC_METHODS
+                    )
+                    and not method_name.startswith("_")
                 ):
-                    settings = self.doctree_settings_verbose
-                elif (model_cls._original_module or model_name).startswith(
-                    MODULES_TO_LINT_ONLY_PUBLIC_METHODS
-                ) and not method_name.startswith("_"):
                     settings = self.doctree_settings_verbose
                 else:
                     settings = self.doctree_settings_silent

@@ -1,17 +1,3 @@
-"""Enforce the ``HttpExtension`` protocol against the real ``ir.http`` model.
-
-:class:`odoo.http._protocols.HttpExtension` documents every ``env["ir.http"]``
-hook the http package calls. No type checker runs on this fork, so without this
-test the protocol was a hand-maintained comment: renaming a hook on either side
-(or changing its arity) would only surface as a runtime error mid-request. Here
-we assert, for each protocol method, that ``ir.http``:
-
-* exposes a callable of that name, and
-* can be *called the way the http package calls it* — every protocol
-  parameter passed positionally must bind (implementations may add extra
-  optional parameters; they may not require more, or accept fewer).
-"""
-
 import inspect
 
 from odoo.http._protocols import HttpExtension
@@ -19,8 +5,6 @@ from odoo.tests import TransactionCase, tagged
 
 
 def _positional_capacity(func) -> tuple[int, float]:
-    """Return ``(required, maximum)`` positional-argument counts of ``func``,
-    excluding the bound ``self``/``cls`` (``func`` must be a bound method)."""
     required = 0
     maximum = 0.0
     for param in inspect.signature(func).parameters.values():

@@ -2,8 +2,6 @@ from odoo import fields, models
 
 
 class IrExports(models.Model):
-    """Named export preset listing the fields to export for a given model."""
-
     _name = "ir.exports"
     _description = "Exports"
     _order = "name, id"
@@ -16,8 +14,6 @@ class IrExports(models.Model):
 
 
 class IrExportsLine(models.Model):
-    """Single field entry of an export preset."""
-
     _name = "ir.exports.line"
     _description = "Exports Line"
     _order = "id"

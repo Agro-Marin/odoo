@@ -1,16 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.pool`.
-
-``pool.py`` is the package's largest and most concurrency-sensitive module, and
-was previously covered only by the DB-backed integration suite.  Everything here
-runs without a server: the pure budget/conninfo helpers, and the bookkeeping
-that only needs a stand-in for ``psycopg_pool.ConnectionPool`` (semaphore
-accounting on every failure path, idle-pool reaping, stale-credential eviction,
-name-based close/drain matching).
-
-Borrow paths that must actually reach a backend live in
-``odoo/addons/base/tests/test_db_cursor.py``.
-"""
-
 import logging
 import os
 import threading
@@ -36,12 +23,10 @@ from odoo.db.reaper import _LAST_BORROW_ATTR, note_activity
 
 
 def _fake_pool_factory(*_a, **_k):
-    """Ignore psycopg_pool's real constructor kwargs and hand back a stand-in."""
     return _FakePool()
 
 
 def _raise(exc):
-    """Return a callable that raises *exc* — a stand-in for a failing getconn."""
 
     def _fn(*a, **k):
         raise exc
@@ -50,8 +35,6 @@ def _raise(exc):
 
 
 class TestBorrowBudgetHelpers(unittest.TestCase):
-    """The clamps that keep one ``borrow()`` inside ``db_borrow_timeout``."""
-
     def test_remaining_is_unbounded_without_a_deadline(self):
         self.assertEqual(_remaining(None), float("inf"))
 
@@ -69,22 +52,12 @@ class TestBorrowBudgetHelpers(unittest.TestCase):
         self.assertEqual(_libpq_connect_timeout(monotonic() + 3.9, 5), 3)
 
     def test_exhausted_budget_returns_zero_not_a_libpq_forever(self):
-        """0 means "skip the connect", never a value to hand libpq.
-
-        libpq reads ``connect_timeout=0``/negative as *wait indefinitely* (and
-        silently raises 1 to 2), so returning a sub-second budget verbatim would
-        turn the tail of a deadline into an unbounded connect — the overrun this
-        helper exists to prevent (borrow measured 13s against a 3s budget).
-        """
         for deadline in (monotonic() + 0.9, monotonic(), monotonic() - 10):
             with self.subTest(deadline=deadline):
                 self.assertEqual(_libpq_connect_timeout(deadline, 5), 0)
 
 
 class TestBaseConnOptions(unittest.TestCase):
-    """kwarg > URI ``?options=`` > ``PGOPTIONS``, so Odoo extends rather than
-    silently replaces whatever GUCs the operator configured."""
-
     def test_explicit_kwarg_wins(self):
         with patch.dict(os.environ, {"PGOPTIONS": "-c from_env=1"}):
             self.assertEqual(
@@ -129,8 +102,6 @@ class TestSuppressKnownPoolWarnings(unittest.TestCase):
 
 
 class _FakePool:
-    """Stand-in for ``psycopg_pool.ConnectionPool`` — no sockets, no threads."""
-
     def __init__(self, size=1, available=1, closed=False):
         self._stats = {"pool_size": size, "pool_available": available}
         self.closed = closed
@@ -168,14 +139,7 @@ class TestConstructorValidation(unittest.TestCase):
 
 
 class TestSemaphoreAccounting(unittest.TestCase):
-    """The permit is taken in ``borrow`` and released exactly once."""
-
     def test_give_back_of_an_untracked_connection_never_over_releases(self):
-        """No ``_odoo_pool`` marker means no permit is held.
-
-        Releasing anyway would over-increment the BoundedSemaphore and inflate
-        the budget past ``maxconn`` — a leak that only shows up under load.
-        """
         pool = ConnectionPool(maxconn=3)
 
         class Conn:
@@ -190,8 +154,6 @@ class TestSemaphoreAccounting(unittest.TestCase):
         self.assertTrue(Conn.closed, "an unowned live connection must be closed")
 
     def test_direct_connection_release_is_claimed_exactly_once(self):
-        """``give_back`` pops the marker atomically, so a double return is a
-        no-op rather than a double release."""
         pool = ConnectionPool(maxconn=3)
         pool._budget.acquire(1.0)
         with pool._lock:
@@ -247,8 +209,6 @@ class TestIdlePoolReaping(unittest.TestCase):
         )
 
     def test_never_reaps_a_pool_with_a_checked_out_connection(self):
-        """A long-lived cron ``LISTEN`` holds a connection while its pool looks
-        idle; reaping it would close the connection out from under the holder."""
         pool = self._pool(ttl=10)
         held = _FakePool(size=2, available=1)
         setattr(held, _LAST_BORROW_ATTR, monotonic() - 60)
@@ -264,8 +224,6 @@ class TestIdlePoolReaping(unittest.TestCase):
         self.assertEqual(pool._reaper.collect(pool._pools, exclude_key=k), [])
 
     def test_note_pool_activity_protects_a_returned_pool(self):
-        """``give_back`` re-stamps the pool, so a connection held longer than the
-        TTL and then returned does not leave a stale stamp for the next sweep."""
         pool = self._pool(ttl=10)
         p = _FakePool()
         setattr(p, _LAST_BORROW_ATTR, monotonic() - 60)
@@ -286,9 +244,6 @@ class TestIdlePoolReaping(unittest.TestCase):
 
 
 class TestCloseAndDrainMatching(unittest.TestCase):
-    """``close_db``/``drain_db`` match on the database component alone: the same
-    database reached by a URI and by keywords lands in different keys."""
-
     def _pool_with(self):
         return ConnectionPool(maxconn=8)
 
@@ -328,15 +283,6 @@ class TestCloseAndDrainMatching(unittest.TestCase):
         self.assertEqual(cp.get_stats(), {"db": {"pool_size": 4, "pool_available": 2}})
 
     def test_health_reports_backends_summed_across_databases(self):
-        """The server footprint, which ``db_maxconn`` does not bound.
-
-        The budget caps concurrent *checkouts*; each per-DSN pool separately
-        retains up to that many idle connections, so a process serving several
-        databases holds up to ``maxconn x databases`` backends.  Measured
-        against a live server before this gauge existed: four databases under
-        ``db_maxconn = 2`` held four backends with never more than one checked
-        out.  Nothing else in ``health()`` exposes that number.
-        """
         cp = ConnectionPool(maxconn=2)
         cp._pools = {
             _key(database="a"): _FakePool(size=3, available=3),
@@ -352,15 +298,12 @@ class TestCloseAndDrainMatching(unittest.TestCase):
         )
 
     def test_health_backends_includes_direct_connections(self):
-        """Maintenance-DB borrows bypass the per-DSN pools but hold a backend."""
         cp = ConnectionPool(maxconn=4)
         cp._pools = {_key(database="a"): _FakePool(size=1, available=1)}
         cp._direct_out = 2
         self.assertEqual(cp.health()["backends"], 3)
 
     def test_safe_close_and_drain_swallow_one_pools_failure(self):
-        """One pool's teardown must not abort its siblings' — ``close()`` joins
-        worker threads and can raise (e.g. at interpreter shutdown)."""
 
         class Boom(_FakePool):
             def close(self):
@@ -386,12 +329,6 @@ class TestPoolErrorIsRaisedForCapacity(unittest.TestCase):
         self.assertIn("2 direct maintenance connection(s)", msg)
 
     def test_borrow_budget_is_taken_before_pool_creation(self):
-        """The deadline must cover the cold path's probe, not start after it.
-
-        Regression: ``deadline`` used to be computed *after*
-        ``_get_or_create_pool``, so the two 5s probe connects landed on top of
-        ``db_borrow_timeout`` (13s measured against a 3s budget).
-        """
         pool = ConnectionPool(maxconn=1, borrow_timeout=2.0)
         pool._budget.acquire(1.0)
         seen = {}
@@ -412,15 +349,6 @@ class TestPoolErrorIsRaisedForCapacity(unittest.TestCase):
 
 
 class TestConnectionBudgetSharing(unittest.TestCase):
-    """``db_maxconn`` must cap the PROCESS, not each pool separately.
-
-    Regression: the R/W and read-only pools each owned a
-    ``BoundedSemaphore(db_maxconn)``, so one worker could check out
-    ``2 * db_maxconn`` connections — 128 at the default, past a stock
-    ``max_connections = 100``.  ``odoo/db/__init__.py`` now builds ONE
-    :class:`ConnectionBudget` and hands it to both.
-    """
-
     def test_a_shared_budget_is_consumed_by_both_pools(self):
         budget = ConnectionBudget(2)
         rw = ConnectionPool(maxconn=2, budget=budget)
@@ -455,15 +383,6 @@ class TestConnectionBudgetSharing(unittest.TestCase):
                 ConnectionBudget(bad)
 
     def test_saturation_is_bounded_not_a_hang(self):
-        """The trade a shared budget makes: two pools CAN starve each other.
-
-        A request holding a R/W cursor while opening a read-only one now
-        competes with itself for permits, where two independent budgets could
-        not.  That is acceptable only because it degrades on a clock:
-        ``db_borrow_timeout`` turns saturation into a ``PoolError``.  Silently
-        exceeding the server's ``max_connections`` — what the two-budget
-        arrangement did — has no such bound.
-        """
         budget = ConnectionBudget(1)
         ro = ConnectionPool(
             maxconn=1, readonly=True, budget=budget, borrow_timeout=0.05
@@ -486,7 +405,6 @@ class TestConnectionBudgetSharing(unittest.TestCase):
             budget.release()
 
     def test_note_pool_activity_needs_no_lock(self):
-        """``setattr`` is atomic under the GIL; hammer it from many threads."""
         p = _FakePool()
         errors = []
 
@@ -507,14 +425,6 @@ class TestConnectionBudgetSharing(unittest.TestCase):
 
 
 class TestReachabilityProof(unittest.TestCase):
-    """The pre-flight probe must not re-ask a question already answered.
-
-    It costs a full extra connect and exists only to turn a *permanent* connect
-    failure into a fast one.  With ``db_pool_reap_idle`` (300s) below
-    ``db_conn_max_idle`` (600s), a quiet database is reaped and rebuilt over and
-    over, so the probe ran repeatedly against a DSN already known to work.
-    """
-
     def _pool_with_probe_counter(self, **kw):
         pool = ConnectionPool(maxconn=2, **kw)
         calls = []
@@ -564,7 +474,6 @@ class TestReachabilityProof(unittest.TestCase):
         self.assertTrue(pool._is_proven_reachable(keep))
 
     def test_a_connect_failure_revokes_the_proof(self):
-        """A target that stops answering must become fast-failing again."""
         pool = ConnectionPool(maxconn=2, borrow_timeout=0.05)
         key = _normalize_dsn_key({"dbname": "d"})
         pool._mark_reachable(key)
@@ -575,7 +484,6 @@ class TestReachabilityProof(unittest.TestCase):
         self.assertFalse(pool._is_proven_reachable(key))
 
     def test_rotated_credentials_revoke_the_old_proof(self):
-        """A stale-credential eviction voids the evicted key, not the new one."""
         pool, _ = self._pool_with_probe_counter()
         old = _normalize_dsn_key({"dbname": "d", "password": "old"})
         new = _normalize_dsn_key({"dbname": "d", "password": "new"})

@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.text.arabic_reshaper.reshape``."""
-
 import unittest
 
 from odoo.libs.text.arabic_reshaper import reshape

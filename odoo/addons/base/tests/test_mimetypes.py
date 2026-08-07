@@ -148,9 +148,13 @@ class test_guess_mimetype(BaseCase):
         self.assertEqual(
             capture.output,
             [
-                "WARNING:odoo.libs.filesystem.mimetypes:File 'image.txt' has an invalid "
-                "extension for mimetype 'image/jpeg', adding '.jpg'",
-                "WARNING:odoo.libs.filesystem.mimetypes:File 'words.jpg' has an invalid "
-                "extension for mimetype 'text/plain', adding '.txt'",
+                (
+                    "WARNING:odoo.libs.filesystem.mimetypes:File 'image.txt' has an invalid "
+                    "extension for mimetype 'image/jpeg', adding '.jpg'"
+                ),
+                (
+                    "WARNING:odoo.libs.filesystem.mimetypes:File 'words.jpg' has an invalid "
+                    "extension for mimetype 'text/plain', adding '.txt'"
+                ),
             ],
         )

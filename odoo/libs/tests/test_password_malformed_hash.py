@@ -1,14 +1,3 @@
-"""``CryptContext.verify`` must answer False for a malformed stored hash.
-
-``_MCF_RE`` accepts ``[^$]+`` for the salt and checksum fields, so a string that
-merely *looks* like the pbkdf2 MCF format reached ``base64.b64decode`` and raised
-``binascii.Error`` out of ``verify()``.  Every login goes through
-``ResUsers._check_credentials`` -> ``verify_and_update(password, hashed)`` with
-``hashed`` read straight from ``res_users.password``, so one truncated or
-hand-edited row turned "wrong password" into an uncaught HTTP 500 on the
-unauthenticated login route.
-"""
-
 import unittest
 
 from odoo.libs.password import (
@@ -48,17 +37,10 @@ class TestMalformedHash(unittest.TestCase):
                 )
 
     def test_a_malformed_hash_does_not_fall_through_to_plaintext(self):
-        """A damaged hash must not become a working password.
-
-        ``verify`` falls back to a plaintext comparison for values that were
-        never hashed (legacy passwords).  Routing an unparseable *hash* there
-        would mean submitting the stored hash string itself logs the user in.
-        """
         self.assertFalse(self.ctx.verify(MALFORMED, MALFORMED))
         self.assertFalse(self.ctx.verify(NON_BASE64, NON_BASE64))
 
     def test_plaintext_fallback_still_applies_to_non_mcf_values(self):
-        """The legacy path the fail-closed branch must not disturb."""
         self.assertTrue(self.ctx.verify("legacy-plain", "legacy-plain"))
 
     def test_real_hashes_still_verify(self):
@@ -72,13 +54,6 @@ class TestMalformedHash(unittest.TestCase):
 
 
 class TestAdaptedBase64Padding(unittest.TestCase):
-    """``_ab64_decode`` restores ``-len % 4`` pad chars, not ``4 - len % 4``.
-
-    The old form appended four ``=`` when the length was already a multiple of
-    four.  b64decode tolerates the surplus, so the round trip happened to work,
-    but the two spellings only agreed by accident.
-    """
-
     def test_round_trip_for_every_length_class(self):
         for size in range(33):
             raw = bytes(range(size))

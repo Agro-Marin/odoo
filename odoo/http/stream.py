@@ -18,20 +18,6 @@ from .wrappers import Response, _Response
 
 
 class Stream:
-    """
-    Send the content of a file, an attachment or a binary field via HTTP
-
-    This utility is safe, cache-aware and uses the best available
-    streaming strategy. Works best with the --x-sendfile cli option.
-
-    Create a Stream via one of the constructors :meth:`~from_path` or
-    :meth:`~from_binary_field`, then generate the corresponding HTTP response
-    via :meth:`~get_response`.
-
-    Instantiating a Stream object manually without using one of the
-    dedicated constructors is discouraged.
-    """
-
     type: str = ""
     data: bytes | None = None
     path: str | None = None
@@ -78,29 +64,11 @@ class Stream:
     def from_path(
         cls, path: str, filter_ext: tuple[str, ...] = ("",), public: bool = False
     ) -> Stream:
-        """
-        Create a :class:`~Stream` from an addon resource.
-
-        :param path: See :func:`~odoo.tools.file_path`
-        :param filter_ext: See :func:`~odoo.tools.file_path`
-        :param bool public: Advertise the resource as being cachable by
-            intermediate proxies, otherwise only let the browser cache
-            it.
-        """
         path = file_path(path, filter_ext)
         return cls._from_trusted_path(path, public=public)
 
     @classmethod
     def _from_trusted_path(cls, path: str, public: bool = False) -> Stream:
-        """Build a ``type='path'`` :class:`~Stream` from an absolute path the
-        caller has ALREADY validated as under the addons tree (e.g. via
-        :func:`~odoo.tools.file_path` or :meth:`Application.get_static_file`).
-
-        Skips re-running that resolution (the biggest per-request static cost) but
-        still stats the file for etag/mtime/size. ``stat()`` runs first so a
-        vanished file surfaces as an ``OSError`` (404 in
-        :meth:`Request._serve_static`), not a misleading ``ValueError``.
-        """
         p = Path(path)
         st = p.stat()
         if not S_ISREG(st.st_mode):
@@ -122,7 +90,6 @@ class Stream:
 
     @classmethod
     def from_binary_field(cls, record: Any, field_name: str) -> Stream:
-        """Create a :class:`~Stream` from a binary field."""
         data = record[field_name] or b""
 
         with contextlib.suppress(ValueError):
@@ -140,12 +107,6 @@ class Stream:
         )
 
     def read(self) -> bytes:
-        """Get the stream content as bytes.
-
-        Mirrors :meth:`get_response`'s validation so the ``-> bytes`` contract
-        holds: a stream with its backing attribute unset raises ``ValueError``
-        instead of returning ``None``.
-        """
         if self.type == "url":
             msg = "Cannot read an URL"
             raise ValueError(msg)
@@ -160,8 +121,7 @@ class Stream:
             if self.path is None:
                 msg = "There is nothing to stream, missing 'path' attribute."
                 raise ValueError(msg)
-            with Path(self.path).open("rb") as file:
-                return file.read()
+            return Path(self.path).read_bytes()
 
         msg = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
         raise ValueError(msg)
@@ -173,24 +133,6 @@ class Stream:
         content_security_policy: str | None = "default-src 'none'",
         **send_file_kwargs: Any,
     ) -> Any:
-        """
-        Create the corresponding :class:`~Response` for the current stream.
-
-        :param bool|None as_attachment: Indicate to the browser that it
-            should offer to save the file instead of displaying it.
-        :param bool|None immutable: Add the ``immutable`` directive to
-            the ``Cache-Control`` response header, allowing intermediary
-            proxies to aggressively cache the response. This option also
-            sets the ``max-age`` directive to 1 year.
-        :param str|None content_security_policy: Optional value for the
-            ``Content-Security-Policy`` (CSP) header. This header is
-            used by browsers to allow/restrict the downloaded resource
-            to itself perform new http requests. By default CSP is set
-            to ``"default-src 'none'"`` which restricts all requests.
-        :param send_file_kwargs: Other keyword arguments to send to
-            :func:`werkzeug.utils.send_file` instead of the stream
-            sensitive values. Discouraged.
-        """
         if self.type not in ("url", "data", "path"):
             e = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
             raise ValueError(e)

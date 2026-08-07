@@ -25,15 +25,6 @@ from ..base import Field, _logger
 
 
 def _strip_granularity_suffix(field_expr: str) -> str:
-    """Return ``field_expr`` without a trailing date-part granularity segment.
-
-    A domain may filter on a date part, e.g. ``('create_date.year_number', '=',
-    x)``.  The granularity suffix is a projection of the date field, not a field
-    of some comodel, so it can never be a dependency trigger: keeping it would
-    make :meth:`Field.resolve_depends` walk past the (non-relational) date field
-    and abort the whole registry build.  Only the trigger path is truncated —
-    the domain itself keeps its granularity condition.
-    """
     prefix, _sep, last = field_expr.rpartition(".")
     if prefix and last in READ_GROUP_NUMBER_GRANULARITY:
         return prefix
@@ -41,15 +32,6 @@ def _strip_granularity_suffix(field_expr: str) -> str:
 
 
 def _domain_depend_paths(domain: Domain) -> Iterator[str]:
-    """Yield the dotted field paths a field ``domain`` depends on, descending
-    into ``any`` / ``not any`` sub-domains.
-
-    :meth:`Domain.iter_conditions` does not recurse, so an ``any`` condition
-    ``('partner_id', 'any', [('country_id', '=', x)])`` would contribute only
-    ``partner_id`` and miss ``partner_id.country_id``. Recursing makes dependency
-    tracking independent of whether the domain uses the ``any`` or the dotted
-    form. ``any!`` values that are SQL/Query rather than sub-domains are skipped.
-    """
     for condition in domain.iter_conditions():
         yield _strip_granularity_suffix(condition.field_expr)
         value = condition.value
@@ -79,8 +61,6 @@ if typing.TYPE_CHECKING:
 
 
 class _Relational(Field["BaseModel"]):
-    """Abstract class for relational fields."""
-
     relational: typing.Literal[True] = True
     comodel_name: str
     domain: DomainType = []
@@ -158,11 +138,9 @@ class _Relational(Field["BaseModel"]):
         return self.convert_to_record_multi(vals, records)
 
     def _update_inverse(self, records: BaseModel, value: BaseModel) -> None:
-        """Update the cached value of ``self`` for ``records`` with ``value``."""
         raise NotImplementedError
 
     def convert_to_record_multi(self, values: list, records: BaseModel) -> BaseModel:
-        """Convert cache-format values to record format in batch."""
         raise NotImplementedError
 
     @override
@@ -175,10 +153,9 @@ class _Relational(Field["BaseModel"]):
     def setup_inverses(
         self, registry: Registry, inverses: Collector[Field, Field]
     ) -> None:
-        """Populate ``inverses`` with ``self`` and its inverse fields."""
+        pass
 
     def get_comodel_domain(self, model: ModelLike) -> Domain:
-        """Return a domain from the domain attribute."""
         domain = self.domain
         if callable(domain):
             domain = domain(model)
@@ -239,7 +216,6 @@ class _Relational(Field["BaseModel"]):
         return domain
 
     def _description_allow_hierarchy_operators(self, env: Environment) -> bool:
-        """Return if the child_of/parent_of makes sense on this field."""
         comodel = env[self.comodel_name]
         return comodel._parent_name in comodel._fields
 
@@ -300,8 +276,6 @@ class _Relational(Field["BaseModel"]):
 
 
 class _RelationalMulti(_Relational):
-    r"Abstract class for relational fields \*2many."
-
     write_sequence = 20
 
     @override
@@ -393,13 +367,6 @@ class _RelationalMulti(_Relational):
     def _make_corecords(
         self, env: Environment, ids: tuple[int | NewId, ...], prefetch_ids: typing.Any
     ) -> BaseModel:
-        """Build a corecord recordset from raw *ids* without going through
-        ``type.__call__``, dropping inactive corecords when ``active_test`` is on.
-
-        The cache holds the ids of all records in the relation (including
-        inactive ones); the active filter is applied here, once, so the two
-        ``convert_to_record*`` entry points cannot drift.
-        """
         Comodel = env.registry[self.comodel_name]
         corecords = object.__new__(Comodel)
         corecords.env = env
@@ -504,12 +471,6 @@ class _RelationalMulti(_Relational):
 
     @override
     def create(self, record_values: Collection[tuple[BaseModel, typing.Any]]) -> None:
-        """Write the value of ``self`` on the given records, which have just
-        been created.
-
-        :param record_values: a list of pairs ``(record, value)``, where
-            ``value`` is in the format of method :meth:`BaseModel.write`
-        """
         self.write_batch(record_values, True)
 
     @override
@@ -642,7 +603,6 @@ class _RelationalMulti(_Relational):
         operator: str,
         value: Domain | Query,
     ) -> Query:
-        """Return Query run on the comodel with the field.domain injected."""
         field_domain = self.get_comodel_domain(model)
         if isinstance(value, Domain):
             domain = value & field_domain
@@ -673,8 +633,6 @@ class _RelationalMulti(_Relational):
 
 
 class PrefetchX2many(Reversible):
-    """Iterable over an x2many's values across a record's prefetch set."""
-
     __slots__ = ("field", "record")
 
     def __init__(self, record: ModelLike, field: _RelationalMulti) -> None:

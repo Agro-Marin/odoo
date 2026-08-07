@@ -1,19 +1,3 @@
-"""Guards around read_group internals (audit fixes).
-
-- ``_read_group_having`` must reject under-arity polish-notation domains with a
-  clear ``ValueError`` instead of leaking a raw ``IndexError`` (the method is
-  reachable from RPC via ``formatted_read_group(having=...)``).
-- The deprecated ``read_group()`` must not crash when ``groupby=[]`` while the
-  context carries a dict ``fill_temporal``, and must ignore unknown
-  ``fill_temporal`` keys instead of raising ``TypeError`` on ``**``-unpacking.
-- The empty-query shortcut of ``_read_group`` must accept a *virtual* groupby
-  spec (one with no backing field, resolved by a ``_read_group_groupby``
-  override) the same way the non-empty path does, while still rejecting a
-  genuinely unknown spec with ``ValueError``.
-
-Tier-2 suite: real ``import odoo``, no database.
-"""
-
 import warnings
 
 import pytest
@@ -27,8 +11,6 @@ _MOD = "test_read_group_guards"
 
 
 class _HavingStub(_ReadGroupSQLMixin):
-    """Bare instance: ``__count`` leaves never touch model state."""
-
     __slots__ = ()
 
 
@@ -53,8 +35,6 @@ class ReadGroupVirtual(models.Model):
     name = fields.Char()
 
     def _read_group_groupby(self, alias, groupby_spec, query):
-        # A virtual groupby with no backing field, resolved entirely here --
-        # the pattern account_followup uses for 'followup_overdue'.
         if groupby_spec == "is_named":
             return SQL("%s IS NOT NULL", self._field_to_sql(self._table, "name", query))
         return super()._read_group_groupby(alias, groupby_spec, query)
@@ -91,7 +71,6 @@ def test_read_group_having_valid_forms_still_build():
 
 
 def test_read_group_empty_groupby_with_dict_fill_temporal():
-    """groupby=[] + dict fill_temporal: old guard crashed IndexError."""
     with model_test_env(ReadGroupThing) as env:
         model = env["read.group.thing"].with_context(fill_temporal={})
         with warnings.catch_warnings():
@@ -102,7 +81,6 @@ def test_read_group_empty_groupby_with_dict_fill_temporal():
 
 
 def test_read_group_fill_temporal_unknown_keys_ignored():
-    """Unknown fill_temporal context keys: old code TypeErrored on **kwargs."""
     with model_test_env(ReadGroupThing) as env:
         model = env["read.group.thing"].with_context(
             fill_temporal={"bogus_key": 1, "fill_from": False}
@@ -114,19 +92,13 @@ def test_read_group_fill_temporal_unknown_keys_ignored():
 
 
 def test_read_group_empty_path_accepts_virtual_groupby():
-    """Empty-query shortcut must accept a virtual groupby resolved by a
-    ``_read_group_groupby`` override (regression: was rejected as
-    ``Invalid field`` by the parallel spec validator)."""
     with model_test_env(ReadGroupVirtual) as env:
         model = env["read.group.virtual"]
-        # ('id', 'in', []) is a contradiction => empty query => shortcut path.
         rows = model._read_group([("id", "in", [])], ["is_named"], ["__count"])
         assert rows == []
 
 
 def test_read_group_empty_path_rejects_unknown_groupby():
-    """The shortcut must still raise for a genuinely unknown spec, so
-    invalid-spec detection does not depend on whether data matched."""
     with model_test_env(ReadGroupVirtual) as env:
         model = env["read.group.virtual"]
         with pytest.raises(ValueError, match="Invalid field 'nope'"):

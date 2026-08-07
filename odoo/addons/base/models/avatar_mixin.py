@@ -12,10 +12,6 @@ _FieldName = str
 
 @functools.cache
 def _get_placeholder_image(path: str) -> bytes:
-    """Return the raw bytes of the placeholder image at ``path``.
-
-    Cached: the static images never change at runtime.
-    """
     with file_open(path, "rb") as file:
         return file.read()
 
@@ -35,12 +31,6 @@ class AvatarMixin(models.AbstractModel):
     def _compute_avatar(
         self, avatar_field: _FieldName, image_field: _FieldName
     ) -> None:
-        """Set ``avatar_field`` from the resized image, or fall back to a
-        generated SVG (initial + color) or the grey placeholder.
-
-        :param str avatar_field: name of the avatar field to populate
-        :param str image_field: name of the same-resolution image field to read
-        """
         for record in self:
             avatar = record[image_field]
             if not avatar:
@@ -72,9 +62,6 @@ class AvatarMixin(models.AbstractModel):
         self._compute_avatar("avatar_128", "image_128")
 
     def _avatar_generate_svg(self) -> bytes:
-        """Build a base64-encoded SVG avatar: the name's first initial over an
-        HSL background seeded from the name and create date.
-        """
         self.ensure_one()
         initial = html_escape(self[self._avatar_name_field].strip()[0].upper())
         bgcolor = hsl_from_seed(
@@ -99,12 +86,8 @@ class AvatarMixin(models.AbstractModel):
         return "base/static/img/avatar_grey.png"
 
     def _avatar_get_placeholder(self) -> bytes:
-        """Return the raw bytes of the grey placeholder avatar image."""
         return _get_placeholder_image(self._avatar_get_placeholder_path())
 
     def _get_avatar_128_access_token(self) -> str:
-        """Return a scoped access token for `avatar_128`, usable with
-        `ir_binary._find_record` to bypass access rights.
-        """
         self.ensure_one()
         return limited_field_access_token(self, "avatar_128", scope="binary")

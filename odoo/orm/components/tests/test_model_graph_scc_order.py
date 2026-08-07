@@ -1,17 +1,3 @@
-"""Recompute-order contract tests: Kahn on the SCC condensation (no Odoo, no DB).
-
-The ``ModelGraph.recompute_order`` contract: for any pair of stored-computed
-fields where B (transitively) depends on A and the two are not in the same
-dependency cycle, ``order[A] < order[B]``; all fields of one cycle (strongly
-connected component) share a single priority. In particular, the acyclic
-region *downstream* of a cycle keeps strict topological order — the plain
-Kahn drain used before could never reach those nodes and flattened them all
-to one max priority.
-
-Includes a seeded property fuzzer for the strict except-within-SCC property
-that only holds with the condensation.
-"""
-
 import random
 import unittest
 
@@ -24,7 +10,6 @@ from .test_model_graph import MockField
 
 
 def _sc(name: str) -> MockField:
-    """A stored-computed mock field (participates in the ordering)."""
     return MockField(name, store=True, compute="_compute_" + name)
 
 
@@ -42,10 +27,7 @@ def _reachable(adjacency, src, dst) -> bool:
 
 
 class TestDownstreamOfCycle(unittest.TestCase):
-    """The acyclic region downstream of a cycle keeps strict order."""
-
     def test_chain_after_cycle_is_strictly_ordered(self) -> None:
-        """source → (a ⇄ b) → c → d: cycle shares one priority, c before d."""
         g = ModelGraph()
         source, a, b, c, d = (_sc(n) for n in ["source", "a", "b", "c", "d"])
         g.add_trigger(source, (), [a])
@@ -60,7 +42,6 @@ class TestDownstreamOfCycle(unittest.TestCase):
         self.assertLess(order[c], order[d])
 
     def test_two_cycles_in_sequence(self) -> None:
-        """(a ⇄ b) → (c ⇄ d) → e: SCCs order strictly among themselves."""
         g = ModelGraph()
         a, b, c, d, e = (_sc(n) for n in ["a", "b", "c", "d", "e"])
         g.add_trigger(a, (), [b])
@@ -75,11 +56,6 @@ class TestDownstreamOfCycle(unittest.TestCase):
         self.assertLess(order[c], order[e])
 
     def test_self_loop_is_a_singleton_cycle(self) -> None:
-        """a → a → b: the self-loop does not break ordering of its dependents.
-
-        (Self-edges are dropped when building adjacency — ``target is not
-        dep_field`` — so a self-dependent field is a plain singleton node.)
-        """
         g = ModelGraph()
         a, b = _sc("a"), _sc("b")
         g.add_trigger(a, (), [a, b])
@@ -88,8 +64,6 @@ class TestDownstreamOfCycle(unittest.TestCase):
 
 
 class TestSeededFuzzProperties(unittest.TestCase):
-    """Seeded fuzzer: the recompute-order strict property holds on random graphs."""
-
     N_TRIALS = 300
 
     def test_seeded_random_graphs(self) -> None:
@@ -139,8 +113,6 @@ class TestSeededFuzzProperties(unittest.TestCase):
 
 
 class TestStronglyConnectedComponents(unittest.TestCase):
-    """Unit tests for the iterative Tarjan helper."""
-
     def test_acyclic_graph_yields_singletons(self) -> None:
         a, b, c = "a", "b", "c"
         components = _strongly_connected_components({a: {b}, b: {c}, c: set()})
@@ -164,7 +136,6 @@ class TestStronglyConnectedComponents(unittest.TestCase):
         self.assertEqual(components, {frozenset({"a", "b"}), frozenset({"c", "d"})})
 
     def test_deep_chain_does_not_recurse(self) -> None:
-        """The explicit work stack handles chains far beyond the recursion limit."""
         n = 20000
         adjacency = {i: {i + 1} for i in range(n)}
         adjacency[n] = set()

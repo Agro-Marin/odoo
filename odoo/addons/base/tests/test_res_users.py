@@ -54,7 +54,6 @@ class UsersCommonCase(TransactionCase):
 
 class TestUsers(UsersCommonCase):
     def test_name_search(self):
-        """Check name_search on user."""
         User = self.env["res.users"]
 
         test_user = User.create({"name": "Flad the Impaler", "login": "vlad"})
@@ -85,7 +84,6 @@ class TestUsers(UsersCommonCase):
         self.assertEqual(User.browse(i[0] for i in res) & all_users, other_user)
 
     def test_user_partner(self):
-        """Check that the user partner is well created"""
 
         User = self.env["res.users"]
         Partner = self.env["res.partner"]
@@ -127,7 +125,6 @@ class TestUsers(UsersCommonCase):
         )
 
     def test_change_user_company(self):
-        """Check the partner company update when the user company is changed"""
 
         User = self.env["res.users"]
         Company = self.env["res.company"]
@@ -160,7 +157,6 @@ class TestUsers(UsersCommonCase):
 
     @mute_logger("odoo.db")
     def test_deactivate_portal_users_access(self):
-        """Test that only a portal users can deactivate his account."""
         with self.assertRaises(
             UserError,
             msg="Internal users should not be able to deactivate their account",
@@ -169,10 +165,6 @@ class TestUsers(UsersCommonCase):
 
     @mute_logger("odoo.db", "odoo.addons.base.models.res_users_deletion")
     def test_deactivate_portal_users_archive_and_remove(self):
-        """An account that can't be removed is archived and its sensitive info wiped.
-
-        Here portal_user's deletion succeeds; portal_user_2's fails.
-        """
         User = self.env["res.users"]
         portal_user = User.create(
             {
@@ -257,7 +249,6 @@ class TestUsers(UsersCommonCase):
         )
 
     def test_delete_public_user(self):
-        """Test that the public user cannot be deleted."""
         public_user = self.env.ref("base.public_user")
         public_partner = public_user.partner_id
 
@@ -322,10 +313,6 @@ class TestUsers(UsersCommonCase):
         self.assertEqual(user.context_get()["lang"], "en_US")
 
     def test_context_get_request_lang_not_pinned(self):
-        """The request's Accept-Language is overlaid per call, never memoised under
-        the uid-wide context_get cache key (W2): otherwise a shared uid (e.g. the
-        public user) would serve the first visitor's language to everyone.
-        """
         self.env["res.lang"].with_context(active_test=False).search(
             [("code", "in", ["fr_FR", "es_ES", "de_DE", "en_US"])]
         ).write({"active": True})
@@ -349,7 +336,6 @@ class TestUsers(UsersCommonCase):
             self.assertEqual(user.context_get()["lang"], "fr_FR")
 
     def test_user_self_update(self):
-        """Check that the user has access to write his phone."""
         test_user = self.env["res.users"].create(
             {"name": "John Smith", "login": "jsmith"}
         )
@@ -363,7 +349,6 @@ class TestUsers(UsersCommonCase):
         )
 
     def test_session_non_existing_user(self):
-        """Sessions bound to a non-existing (or deleted) user are invalidated."""
         User = self.env["res.users"]
         last_user_id = User.with_context(active_test=False).search(
             [], limit=1, order="id desc"
@@ -375,7 +360,6 @@ class TestUsers(UsersCommonCase):
 @tagged("post_install", "-at_install", "groups")
 class TestUsers2(UsersCommonCase):
     def test_change_user_login(self):
-        """Check that partner email is updated when changing user's login"""
 
         User = self.env["res.users"]
         with Form(User, view="base.view_users_simple_form") as UserForm:
@@ -391,9 +375,6 @@ class TestUsers2(UsersCommonCase):
             )
 
     def test_default_groups(self):
-        """During installation the groups handler uses the normal group_ids field,
-        not the "real" view with pseudo-fields, so it always works.
-        """
         default_group = self.env.ref("base.default_user_group")
         test_group = self.env["res.groups"].create({"name": "test_group"})
         default_group.implied_ids = test_group
@@ -466,7 +447,6 @@ class TestUsers2(UsersCommonCase):
         self.assertEqual(groups, user.all_group_ids)
 
     def test_implied_groups_on_change(self):
-        """Test that a change on a reified fields trigger the onchange of group_ids."""
         group_public = self.env.ref("base.group_public")
         group_portal = self.env.ref("base.group_portal")
         group_user = self.env.ref("base.group_user")
@@ -533,7 +513,6 @@ class TestUsers2(UsersCommonCase):
                 user_form.save()
 
     def test_view_group_hierarchy(self):
-        """Test that the group hierarchy shows up in the correct language of the user."""
         self.env["res.lang"]._activate_lang("fr_FR")
         group_system = self.env.ref("base.group_system")
         group_system.with_context(lang="fr_FR").name = "Administrateur"
@@ -578,11 +557,6 @@ class TestUsers2(UsersCommonCase):
     @users("portal_1")
     @mute_logger("odoo.addons.base.models.ir_model")
     def test_self_writeable_fields(self):
-        """Check that a portal user:
-        - can write on fields in SELF_WRITEABLE_FIELDS on himself,
-        - cannot write on fields not in SELF_WRITEABLE_FIELDS on himself,
-        - and none of the above on another user than himself.
-        """
         self.assertIn(
             "post_install",
             self.test_tags,
@@ -614,9 +588,6 @@ class TestUsers2(UsersCommonCase):
 
     @users("user_internal")
     def test_self_readable_writeable_fields_preferences_form(self):
-        """Test that a field protected by a `groups='...'` with a group the user doesn't belong to
-        but part of the `SELF_WRITEABLE_FIELDS` is shown in the user profile preferences form and is editable
-        """
         my_user = self.env["res.users"].browse(self.env.user.id)
         self.assertIn(
             "name",
@@ -728,11 +699,6 @@ class TestUsers2(UsersCommonCase):
 
 
 class TestEmptyPassword(TransactionCase):
-    """Setting an empty password must store SQL NULL (not a verifiable hash of
-    the empty string) and block any login attempt, honoring the field help
-    "Keep empty if you don't want the user to be able to connect". (W2)
-    """
-
     def _stored_password(self, user):
         self.env.cr.execute("SELECT password FROM res_users WHERE id=%s", (user.id,))
         return self.env.cr.fetchone()[0]
@@ -763,7 +729,6 @@ class TestEmptyPassword(TransactionCase):
                 self._check_credentials(user, attempt)
 
     def test_reset_after_empty_password(self):
-        """A password set again after being emptied works normally."""
         user = new_test_user(self.env, "repwd_user", password="Secret!Pwd123")
         user.password = ""
         self.assertIsNone(self._stored_password(user))
@@ -777,7 +742,6 @@ class TestEmptyPassword(TransactionCase):
 
 class TestUsersTweaks(TransactionCase):
     def test_superuser(self):
-        """The superuser is inactive and must remain as such."""
         user = self.env["res.users"].browse(SUPERUSER_ID)
         self.assertFalse(user.active)
         with self.assertRaises(UserError):
@@ -788,7 +752,6 @@ class TestUsersTweaks(TransactionCase):
 class TestUsersIdentitycheck(HttpCase):
     @users("admin")
     def test_revoke_all_devices(self):
-        """Revoking all devices (via a password re-entry) invalidates other sessions."""
         self.env.user.password = "admin@odoo"
 
         session = self.authenticate(
@@ -820,11 +783,6 @@ class TestUsersIdentitycheck(HttpCase):
 
 @tagged("post_install", "-at_install")
 class TestContextGetPartnerInvalidation(TransactionCase):
-    """RU-L01: context_get (a uid-keyed ormcache reading lang/tz, which live on
-    res.partner via _inherits) must be invalidated when lang/tz is written directly
-    on the partner, bypassing res.users.write's own invalidation.
-    """
-
     def test_partner_lang_write_invalidates_context_get(self):
         self.env["res.lang"].with_context(active_test=False).search(
             [("code", "in", ["fr_FR", "en_US"])]
@@ -846,14 +804,6 @@ class TestContextGetPartnerInvalidation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestLoginCooldown(TransactionCase):
-    """Brute-force login cooldown (RU-T01).
-
-    _assert_can_auth records failures per source IP and, after
-    base.login_cooldown_after failures within base.login_cooldown_duration, refuses
-    further attempts at context-manager entry. A success resets the counter,
-    cooldown_after=0 disables the feature, and with no request the guard is a no-op.
-    """
-
     _REQUEST = "odoo.addons.base.models.res_users.request"
 
     def setUp(self):
@@ -929,11 +879,6 @@ class TestLoginCooldown(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.res_users")
     def test_stale_failure_entries_are_pruned(self):
-        """RU-M4: entries are only popped on a successful login from the same source,
-        so one-shot scanning IPs accumulate forever. Once the map grows past
-        LOGIN_FAILURES_PRUNE_THRESHOLD, recording a failure must drop entries older
-        than the cooldown window and keep the fresh ones.
-        """
         users = self.env["res.users"]
         with patch(self._REQUEST, self._request("203.0.113.7")):
             self._fail_once(users)
@@ -967,13 +912,6 @@ class TestLoginCooldown(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestResUsersInitPasswordMigration(TransactionCase):
-    """res.users.init plaintext-password migration (RU-L09).
-
-    init() hashes any plaintext password and must invalidate the cached `password`
-    for EVERY migrated user, not just the last (the bug: a `uid` loop variable leaked
-    from a comprehension that browsed only the last migrated row).
-    """
-
     def test_init_invalidates_all_migrated_passwords(self):
         User = self.env["res.users"]
         password_field = User._fields["password"]
@@ -1011,15 +949,6 @@ class TestResUsersInitPasswordMigration(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCheckUidPasswdCacheContract(TransactionCase):
-    """_check_uid_passwd_cached invalidation contract (RU-T3).
-
-    The cache is keyed on (uid, sha256(passwd)) and only memoises successes:
-      - an ORM password change MUST invalidate the cache (old password stops
-        authenticating);
-      - a raw-SQL change WITHOUT registry.clear_cache() leaves it stale (old
-        password keeps authenticating) -- hence raw-SQL mutations must clear it.
-    """
-
     def setUp(self):
         super().setUp()
         self.addCleanup(self.env.registry.clear_cache)
@@ -1058,16 +987,7 @@ class TestCheckUidPasswdCacheContract(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSelfWriteCompanyGuard(UsersCommonCase):
-    """Self-write company_id range guard (RU-T4).
-
-    A self-written company_id outside the user's own company_ids is refused by
-    ``_check_user_company``; one that is a member applies.
-    """
-
     def test_self_write_company_id_non_member_is_refused(self):
-        """It used to be dropped from vals, so write() returned True having
-        ignored the request -- masking the constraint that already covers it.
-        """
         user = new_test_user(self.env, login="rut4_company", groups="base.group_user")
         other_company = self.env["res.company"].create({"name": "RU-T4 Other Co"})
         self.assertNotIn(other_company.id, user.company_ids.ids)
@@ -1095,13 +1015,6 @@ class TestSelfWriteCompanyGuard(UsersCommonCase):
         )
 
     def test_self_write_does_not_mutate_the_caller_vals(self):
-        """A refused write must not reach back into the caller's dict either.
-
-        The drop was a ``del vals["company_id"]`` on the very dict the caller
-        passed in, so a caller reusing its vals (a loop over several users, a
-        retry after a serialisation failure) silently lost the key for every
-        subsequent use.
-        """
         user = new_test_user(self.env, login="rut4_novals", groups="base.group_user")
         other_company = self.env["res.company"].create({"name": "RU-T4 Untouched Co"})
         vals = {"company_id": other_company.id, "tz": "Europe/Brussels"}
@@ -1120,11 +1033,6 @@ class TestSelfWriteCompanyGuard(UsersCommonCase):
 
 @tagged("post_install", "-at_install")
 class TestAtLeastOneAdministrator(TransactionCase):
-    """The at-least-one-administrator constraint must count *effective*
-    administrators — users holding base.group_system through an implying
-    group — not only direct members of base.group_system (audit RU-M3).
-    """
-
     def test_admin_via_implying_group_only(self):
         group_system = self.env.ref("base.group_system")
         implying_group = self.env["res.groups"].create(
@@ -1162,14 +1070,6 @@ class TestAtLeastOneAdministrator(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDeviceLogGC(TransactionCase):
-    """Keep-semantics of res.device.log._gc_device_log (audit RDEV-P3).
-
-    The GC keeps exactly one row per device group (session_identifier,
-    platform, browser, ip_address) — the greatest (last_activity, id), the
-    same tie-break as the res.device view — and groups NULL platform/browser
-    together, as the previous IS NOT DISTINCT FROM self-join did.
-    """
-
     def _log(self, **vals):
         base = {
             "session_identifier": "sid_rdev_p3_a",
@@ -1226,14 +1126,6 @@ class TestDeviceLogGC(TransactionCase):
 
 
 class TestAccessesCount(UsersCommonCase):
-    """accesses_count / rules_count computed via search_count (RU-P5).
-
-    The compute must not materialize every reachable ir.model.access /
-    ir.rule record into the ORM cache; the counts must keep matching the
-    x2many reads they replaced, which filter archived ACLs/rules at access
-    time under the caller's active_test (RelationalMulti._make_corecords).
-    """
-
     def test_counts_match_relational_reads(self):
         user = self.user_internal
         groups = user.all_group_ids
@@ -1298,15 +1190,6 @@ class TestAccessesCount(UsersCommonCase):
 
 
 class TestWriteCacheInvalidation(UsersCommonCase):
-    """Cache invalidation contract of res.users.write (RU-P6).
-
-    A group_ids write clears the "stable" cache group, whose cascade already
-    covers the "default" group; the invalidation-fields branch is skipped in
-    that case (no double clear). These tests pin that the cascade keeps
-    invalidating the default-cached per-uid context — with and without
-    group_ids in the same write.
-    """
-
     def _user_context_lang(self, user):
         return self.env["res.users"].with_user(user).context_get()["lang"]
 
@@ -1328,8 +1211,6 @@ class TestWriteCacheInvalidation(UsersCommonCase):
 
 
 class TestInstalledLangCodes(TransactionCase):
-    """Memoised installed-language codes used by context_get (RU-P7)."""
-
     def test_codes_match_get_installed_and_track_activation(self):
         Users = self.env["res.users"]
         codes = Users._get_installed_lang_codes()
@@ -1346,14 +1227,6 @@ class TestInstalledLangCodes(TransactionCase):
 
 
 class TestDeviceIdentityAlignment(TransactionCase):
-    """GC / res.device view shared device identity (audit RDEV-P4).
-
-    Both the view de-dup and the GC derive their grouping from
-    _DEVICE_IDENTITY_COLUMNS; the GC additionally keeps one row per
-    ip_address so linked_ip_addresses retains the IP history of rows the
-    view hides.
-    """
-
     def _log(self, **vals):
         base = {
             "session_identifier": "sid_rdev_p4",
@@ -1414,14 +1287,6 @@ class TestDeviceIdentityAlignment(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSelfServiceEscalation(TransactionCase):
-    """The sudo() escalation in res.users.write must not reach past the row.
-
-    Listing a relational field in SELF_WRITEABLE_FIELDS used to hand the caller
-    unchecked create/update/delete on the comodel, by id: as long as every key
-    of ``vals`` was self-writable the whole write ran as superuser, and an
-    x2many command is applied to the comodel, not to res.users.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1436,8 +1301,6 @@ class TestSelfServiceEscalation(TransactionCase):
         self.user.with_user(self.user).write(vals)
 
     def test_no_one2many_is_self_writeable(self):
-        """The escalation is withheld from every one2many, so none should be
-        listed: a listed one2many would silently be half-served."""
         fields_ = self.env["res.users"]._fields
         listed = [
             name
@@ -1447,7 +1310,6 @@ class TestSelfServiceEscalation(TransactionCase):
         self.assertFalse(listed, "one2many fields cannot be self-written")
 
     def test_one2many_command_is_not_escalated(self):
-        """A one2many command writes the comodel row holding the inverse."""
         key = (
             self.env["res.users.apikeys"]
             .with_user(self.user)
@@ -1471,7 +1333,6 @@ class TestSelfServiceEscalation(TransactionCase):
         self.assertTrue(record.exists(), "the key was destroyed by a self-write")
 
     def test_destructive_many2many_command_is_not_escalated(self):
-        """Command.delete on a many2many unlinks the comodel record itself."""
         with patch.object(
             type(self.env["res.users"]),
             "SELF_WRITEABLE_FIELDS",
@@ -1490,8 +1351,6 @@ class TestSelfServiceEscalation(TransactionCase):
         self.assertEqual(self.tag.name, "victim tag", "the tag was renamed")
 
     def test_relation_only_many2many_command_is_escalated(self):
-        """Linking an existing tag touches the relation table only, so the
-        self-service grant still covers it (hr's category_ids relies on this)."""
         with patch.object(
             type(self.env["res.users"]),
             "SELF_WRITEABLE_FIELDS",
@@ -1510,7 +1369,6 @@ class TestSelfServiceEscalation(TransactionCase):
         self.assertTrue(self.tag.exists(), "a relation edit destroyed the tag")
 
     def test_shorthand_values_are_classified_by_effect(self):
-        """dict is a create and a bare id is a link, whatever the syntax."""
         Users = self.env["res.users"]
         self.assertTrue(
             Users._escapes_own_record({"category_id": [{"name": "forged"}]}),
@@ -1531,27 +1389,7 @@ class TestSelfServiceEscalation(TransactionCase):
 
 
 class TestSelfFieldBatchAccessLeak(UsersCommonCase):
-    """The batch fast paths must field-check the WHOLE recordset, not records[:1].
-
-    ``mapped``/``filtered``/``grouped``/``sorted`` read the field cache for every
-    record after a single ``ensure_access`` check. When that check ran on
-    ``records[:1]`` only, a record-sensitive grant on the first record
-    (``res.users._has_field_access`` grants a self-accessible field on the
-    current user's *own* record) let the batch serve every *other* record's
-    value from cache unchecked — a real disclosure, closed by checking the full
-    recordset like ``read()`` does. Regression for audit B7.
-
-    Verified two ways. The end-to-end leak is demonstrable but its reproduction
-    depends on cache-warming order (a warm miss falls back to the safe
-    per-record path), which makes a value-based assertion flaky as a *guard*
-    against reintroduction. So the reintroduction guard is deterministic: it
-    spies on ``Field.ensure_access`` and asserts each fast path hands it the
-    whole recordset. ``test_end_to_end_disclosure_is_blocked`` additionally
-    pins the observable security outcome.
-    """
-
     def _spy_ensure_access(self):
-        """Record the size of the recordset each ``ensure_access`` receives."""
         from odoo.fields import Field
 
         seen = []
@@ -1569,7 +1407,7 @@ class TestSelfFieldBatchAccessLeak(UsersCommonCase):
     def test_mapped_checks_the_whole_recordset(self):
         pair = self.user_internal | self.user_portal_1
         seen = self._spy_ensure_access()
-        pair.mapped("login")  # identity-scannable char field
+        pair.mapped("login")
         self.assertIn(
             2,
             seen,
@@ -1580,7 +1418,7 @@ class TestSelfFieldBatchAccessLeak(UsersCommonCase):
     def test_filtered_checks_the_whole_recordset(self):
         pair = self.user_internal | self.user_portal_1
         seen = self._spy_ensure_access()
-        pair.filtered("share")  # truthy-scannable boolean field
+        pair.filtered("share")
         self.assertIn(2, seen)
         self.assertNotIn(1, seen)
 
@@ -1599,12 +1437,6 @@ class TestSelfFieldBatchAccessLeak(UsersCommonCase):
         self.assertNotIn(1, seen)
 
     def test_end_to_end_disclosure_is_blocked(self):
-        """The observable outcome: a mixed recordset cannot read past record 0.
-
-        A self-accessible field made group-restricted is granted on the current
-        user's own record but not another's; ``mapped`` over both must refuse
-        rather than serve the other user's value.
-        """
         alice = new_test_user(self.env, login="b7_alice", groups="base.group_user")
         bob = new_test_user(self.env, login="b7_bob", groups="base.group_user")
         login = self.env["res.users"]._fields["login"]
@@ -1615,7 +1447,7 @@ class TestSelfFieldBatchAccessLeak(UsersCommonCase):
 
         as_alice = self.env(user=alice)
         pair = as_alice["res.users"].browse([alice.id, bob.id])
-        pair.sudo().read(["login"])  # warm both values into the shared cache
+        pair.sudo().read(["login"])
         with self.assertRaises(AccessError):
             pair.mapped("login")
 

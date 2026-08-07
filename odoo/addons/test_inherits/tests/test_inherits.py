@@ -13,7 +13,6 @@ class test_inherits(common.TransactionCase):
         self.assertEqual(imi.parent_field_id.name, "unit_id")
 
     def test_create_3_levels_inherits(self):
-        """Check that we can create an inherits on 3 levels"""
         pallet = self.env["test.pallet"].create(
             {
                 "name": "B",
@@ -52,18 +51,15 @@ class test_inherits(common.TransactionCase):
         self.assertEqual(pallet.size, 2)
 
     def test_read_3_levels_inherits(self):
-        """Check that we can read an inherited field on 3 levels"""
         pallet = self.env.ref("test_inherits.pallet_a")
         self.assertEqual(pallet.read(["name"]), [{"id": pallet.id, "name": "Unit A"}])
 
     def test_write_3_levels_inherits(self):
-        """Check that we can write an inherited field on 3 levels"""
         pallet = self.env.ref("test_inherits.pallet_a")
         pallet.write({"name": "C"})
         self.assertEqual(pallet.name, "C")
 
     def test_write_4_one2many(self):
-        """Check that we can write on an inherited one2many field."""
         box = self.env.ref("test_inherits.box_a")
         box.write({"line_ids": [Command.create({"name": "Line 1"})]})
         self.assertTrue(all(box.line_ids._ids))
@@ -85,7 +81,6 @@ class test_inherits(common.TransactionCase):
         self.assertEqual(box.line_ids, box.unit_id.line_ids)
 
     def test_write_5_field_readonly(self):
-        """Check that we can write on an inherited readonly field."""
         self.assertTrue(self.env["test.box"]._fields["readonly_name"])
         box = self.env.ref("test_inherits.box_a")
         box.write({"readonly_name": "Superuser's box"})
@@ -93,7 +88,6 @@ class test_inherits(common.TransactionCase):
         self.assertEqual(box.unit_id.readonly_name, "Superuser's box")
 
     def test_ir_model_data_inherits(self):
-        """Check the existence of the correct ir.model.data"""
         IrModelData = self.env["ir.model.data"]
         field = IrModelData.search([("name", "=", "field_test_unit__name")])
         self.assertEqual(len(field), 1)
@@ -104,7 +98,6 @@ class test_inherits(common.TransactionCase):
         self.assertEqual(field.module, "test_inherits")
 
     def test_constraint_inherits(self):
-        """Validate constraints on inherits when the parent is not updated"""
         Model = self.env["test.another_box"]
 
         with self.assertRaises(ValidationError):
@@ -116,7 +109,6 @@ class test_inherits(common.TransactionCase):
         another_box.write({"val1": 2, "val2": 2})
 
     def test_constraint_inherits_parent_change(self):
-        """Validate constraints on inherits when parent is updated too"""
         UnitModel = self.env["test.another_unit"]
         BoxModel = self.env["test.another_box"]
 
@@ -138,7 +130,6 @@ class test_inherits(common.TransactionCase):
             box.write({"another_unit_id": unit5.id, "val1": 8, "val2": 7})
 
     def test_display_name(self):
-        """Check the 'display_name' of an inherited translated 'name'."""
         self.env["res.lang"]._activate_lang("fr_FR")
 
         pallet_en = self.env["test.pallet"].create({"name": "Bread"})
@@ -156,7 +147,6 @@ class test_inherits(common.TransactionCase):
         self.assertIn("lang", self.registry.field_depends_context[Pallet.display_name])
 
     def test_multi_write_m2o_inherits(self):
-        """Verify that an inherits m2o field can be written to in batch"""
         unit_foo = self.env["test.unit"].create({"name": "foo"})
         boxes = self.env["test.box"].create([{"unit_id": unit_foo.id}] * 5)
 

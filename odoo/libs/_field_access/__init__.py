@@ -1,5 +1,3 @@
-"""Field cache access accelerator (Rust-backed batch operations)."""
-
 __all__ = [
     "batch_cache_fill",
     "batch_cache_filter",

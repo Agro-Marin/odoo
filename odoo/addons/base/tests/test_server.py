@@ -1,8 +1,3 @@
-"""Unit tests for ``odoo.service`` process-control helpers.
-
-Database-free (``BaseCase``): the helpers under test are pure decision logic.
-"""
-
 from types import SimpleNamespace
 
 from odoo.service._helpers import over_memory_soft_limit
@@ -10,13 +5,10 @@ from odoo.tests.common import BaseCase
 
 
 def _proc(rss):
-    """A psutil-process stand-in exposing only ``memory_info().rss``."""
     return SimpleNamespace(memory_info=lambda: SimpleNamespace(rss=rss))
 
 
 class TestMemorySoftLimit(BaseCase):
-    """``over_memory_soft_limit`` — the decision shared by all three servers."""
-
     def test_disabled_limit_skips_the_proc_read(self):
         class Boom:
             def memory_info(self):
@@ -35,12 +27,6 @@ class TestMemorySoftLimit(BaseCase):
 
 
 class TestDbDispatchAuth(BaseCase):
-    """Pin the db-service master-password gate (``service.db.dispatch``).
-
-    A regression here is a security hole: a destructive method served without
-    the master password, or a public method made unreachable.
-    """
-
     def test_master_password_set_is_subset_of_dispatch(self):
         from odoo.service import db
 

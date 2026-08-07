@@ -104,8 +104,7 @@
                                             options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}" />
                                     </div>
                                     <field name="vat" />
-                                    <field name="company_registry_placeholder" invisible="1" /> <!--
-                                    Needed for the placeholder widget -->
+                                    <field name="company_registry_placeholder" invisible="1" />
                                     <field name="company_registry"
                                         options="{'placeholder_field': 'company_registry_placeholder'}" />
                                     <field name="currency_id"

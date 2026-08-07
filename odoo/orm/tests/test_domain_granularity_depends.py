@@ -1,19 +1,3 @@
-"""An x2many field domain filtering on a date-part granularity must not crash
-the registry build.
-
-Regression: ``_domain_depend_paths`` yielded trigger paths like
-``partner_id.create_date.year_number``; ``Field.resolve_depends`` then walked
-the granularity suffix as if it were a field of some comodel, making the next
-``model_name`` ``None`` and killing the whole registry build with a bare
-``KeyError: None`` naming no culprit.  Two layers fix this:
-
-* the granularity suffix is stripped from the trigger path (it is a projection
-  of the date field and can never be a trigger) — the domain itself keeps its
-  granularity condition;
-* a dependency path that walks past a non-relational field now fails loud with
-  a descriptive error naming the field and path.
-"""
-
 import pytest
 
 from odoo import api, fields, models

@@ -114,7 +114,6 @@ class TestSort(TransactionCase):
                 )
 
     def test_nulls_single_field(self):
-        """Single-field null sort exercises _sorted_by_ids fast path."""
         countries = self.env["test_orm.country"].create(
             [
                 {"name": "B"},
@@ -255,16 +254,6 @@ class TestSort(TransactionCase):
 
 
 class TestSortNullPlacement(TransactionCase):
-    """``sorted(order)`` must place NULLs where ``search(order=...)`` does.
-
-    A NULL column reads as ``0`` / ``0.0`` / ``False`` in *record* format, so a
-    sort key built from record values cannot tell "no value" from a stored zero:
-    the NULL rows were sorted into the zero bucket instead of the NULL bucket.
-    That disagreed with SQL *and* with ``_sorted_by_ids`` -- the cache fast path
-    of this very method, which keeps ``None`` distinct -- so the result also
-    depended on whether the field happened to be in cache.
-    """
-
     def setUp(self):
         super().setUp()
         self.Model = self.env["test_orm.empty_int"]
@@ -300,9 +289,6 @@ class TestSortNullPlacement(TransactionCase):
                 self._assert_same_order(order)
 
     def test_secondary_key_still_applies(self):
-        """The ``id`` tie-break must keep working: ``id`` is not cache-backed, so
-        its sort key can only come from the record value.
-        """
         null_ids = sorted((self.records[1] + self.records[4]).ids)
         self.env.invalidate_all()
         ordered = self.records.sorted("number NULLS LAST, id").ids

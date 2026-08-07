@@ -12,8 +12,6 @@ INT4_MAX = 2**31 - 1
 
 
 class IrDefault(models.Model):
-    """User-defined default values for fields."""
-
     _name = "ir.default"
     _description = "Default Values"
     _rec_name = "field_id"
@@ -53,11 +51,6 @@ class IrDefault(models.Model):
 
     @staticmethod
     def _fits_column(field, parsed: Any) -> bool:
-        """Whether a ``convert_to_cache`` result fits the field's storage column.
-
-        Only the ``int4`` range is enforced; both value-validation paths funnel
-        through this single guard.
-        """
         if field.type == "integer":
             return INT4_MIN <= parsed <= INT4_MAX
         return True
@@ -105,13 +98,6 @@ class IrDefault(models.Model):
                 model._check_field_access(model._fields[field.name], "write")
 
     def _invalidate_defaults_cache(self) -> None:
-        """Drop the caches derived from the stored defaults.
-
-        Company-dependent fields cache a per-company fallback computed from
-        these defaults, so a change must invalidate both the record cache and
-        the ormcaches built on it (``_get_model_defaults``,
-        ``_get_field_column_fallbacks``).
-        """
         self.env.invalidate_all()
         self.env.registry.clear_cache()
 
@@ -139,7 +125,6 @@ class IrDefault(models.Model):
     def _resolve_scope(
         self, user_id: int | bool, company_id: int | bool
     ) -> tuple[int | bool, int | bool]:
-        """Resolve the ``True`` sentinels to the current user / company ids."""
         if user_id is True:
             user_id = self.env.uid
         if company_id is True:
@@ -153,9 +138,6 @@ class IrDefault(models.Model):
         company_id: int | bool,
         condition: str | bool,
     ) -> Self:
-        """Return the single default row for an exact (field, user, company,
-        condition) scope, or an empty recordset.
-        """
         return self.search(
             [
                 ("field_id", "=", field_id),
@@ -176,19 +158,6 @@ class IrDefault(models.Model):
         company_id: int | bool = False,
         condition: str | bool = False,
     ) -> bool:
-        """Set the default value for a field, replacing any entry for the same
-        (field, user, company, condition) scope. Stored JSON-encoded.
-
-        :param model_name: technical name of the model owning the field
-        :param field_name: name of the field to set a default for
-        :param value: the default value (JSON-encoded for storage)
-        :param user_id: ``False`` for all users, ``True`` for the current user,
-                        or a user id
-        :param company_id: ``False`` for all companies, ``True`` for the current
-                           user's company, or a company id
-        :param condition: optional opaque condition restricting applicability;
-                          the client typically uses ``'key=val'`` form.
-        """
         user_id, company_id = self._resolve_scope(user_id, company_id)
 
         try:
@@ -255,18 +224,6 @@ class IrDefault(models.Model):
         company_id: int | bool = False,
         condition: str | bool = False,
     ) -> Any:
-        """Return the default value for the given field, user and company, or
-        ``None`` if no default is available.
-
-        :param model_name: technical name of the model owning the field
-        :param field_name: name of the field to read the default for
-        :param user_id: ``False`` for all users, ``True`` for the current user,
-                        or a user id
-        :param company_id: ``False`` for all companies, ``True`` for the current
-                           user's company, or a company id
-        :param condition: optional opaque condition restricting applicability;
-                          the client typically uses ``'key=val'`` form.
-        """
         user_id, company_id = self._resolve_scope(user_id, company_id)
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         default = self._get_default_record(field.id, user_id, company_id, condition)
@@ -277,9 +234,6 @@ class IrDefault(models.Model):
     def _get_model_defaults(
         self, model_name: str, condition: str | bool = False
     ) -> dict[str, Any]:
-        """Return the available default values for the given model (for the
-        current user), as a dict mapping field names to values.
-        """
         cr = self.env.cr
         self.flush_model()
         company_id = self.env.company.id or None
@@ -314,9 +268,6 @@ class IrDefault(models.Model):
 
     @api.model
     def discard_records(self, records: Self) -> bool:
-        """Discard all the defaults of many2one fields using any of the given
-        records.
-        """
         json_vals = [json.dumps(id) for id in records.ids]
         domain = [
             ("field_id.ttype", "=", "many2one"),
@@ -327,7 +278,6 @@ class IrDefault(models.Model):
 
     @api.model
     def discard_values(self, model_name: str, field_name: str, values: list) -> bool:
-        """Discard all the defaults for any of the given values."""
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         json_vals = [json.dumps(value, ensure_ascii=False) for value in values]
         domain = [("field_id", "=", field.id), ("json_value", "in", json_vals)]
@@ -357,11 +307,6 @@ class IrDefault(models.Model):
     def _evaluate_condition_with_fallback(
         self, model_name: str, field_expr: str, operator: str, value: Any
     ) -> bool | None:
-        """Evaluate whether a company-dependent field's fallback value satisfies the condition.
-
-        :return: True if satisfied, False if not, None if unknown.
-        :rtype: bool | None
-        """
         field_name, _property_name = fields.parse_field_expr(field_expr)
         model = self.env[model_name]
         field = model._fields[field_name]

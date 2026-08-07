@@ -1,19 +1,3 @@
-"""Layer-0 unit tests for :mod:`odoo.orm.parsing` and :mod:`odoo.orm.validation`.
-
-Tier-2 suite (real ``import odoo``, no database — run as ``pytest
-odoo/orm/tests``).  Both modules are dependency-free leaves that are reachable
-from authenticated RPC (field expressions in domains/read_group specs, method
-names in call dispatch), so their rejection paths are security-relevant and
-must stay locked:
-
-* ``parse_field_expr``: malformed-dot rejection and the bounded LRU cache;
-* ``fix_import_export_id_paths``: the ``.id`` / ``:id`` normalization;
-* ``check_pg_name``: the 63-char PostgreSQL identifier limit and the
-  character whitelist;
-* ``check_method_name``: private-method / ``init`` rejection, including the
-  newline defense documented in the implementation.
-"""
-
 import pytest
 
 from odoo.exceptions import AccessError, ValidationError

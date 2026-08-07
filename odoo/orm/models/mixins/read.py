@@ -1,5 +1,3 @@
-"""Read operations mixin for BaseModel."""
-
 import logging
 import typing
 from collections import defaultdict, deque
@@ -31,8 +29,6 @@ _orm_read = logging.getLogger("odoo.orm.read")
 
 
 class ReadMixin(_ModelStubs):
-    """Mixin providing read and fetch operations for recordsets."""
-
     __slots__ = ()
 
     @api.model
@@ -41,16 +37,6 @@ class ReadMixin(_ModelStubs):
         allfields: Collection[str] | None = None,
         attributes: Collection[str] | None = None,
     ) -> dict[str, ValuesType]:
-        """Return the definition of each field.
-
-        The returned value is a dictionary (indexed by field name) of
-        dictionaries. The _inherits'd fields are included. The string, help,
-        and selection (if present) attributes are translated.
-
-        :param allfields: fields to document, all if empty or not provided
-        :param attributes: attributes to return for each field, all if empty or not provided
-        :return: dictionary mapping field names to a dictionary mapping attributes to values.
-        """
         res = {}
         for fname, field in self._fields.items():
             if allfields and fname not in allfields:
@@ -71,26 +57,6 @@ class ReadMixin(_ModelStubs):
     def read(
         self, fields: Sequence[str] | None = None, load: str = "_classic_read"
     ) -> list[ValuesType]:
-        """Read the requested fields for the records in ``self``, and return their
-        values as a list of dicts.
-
-        :param fields: field names to return (default is all fields)
-        :param load: loading mode, currently the only option is to set to
-            ``None`` to avoid loading the `display_name` of m2o fields
-        :return: a list of dictionaries mapping field names to their values,
-                 with one dictionary per record
-        :raise AccessError: if user is not allowed to access requested information
-
-        Unknown or non-string field names (e.g. integer field ids sent by the
-        web client) are not fatal here: they are logged as a warning and
-        dropped from the result, so a typo'd name simply yields a dict without
-        that key. (``search``/``create``/``write`` still raise ``ValueError``
-        for unknown fields; only ``read`` is lenient.)
-
-        This is a high-level method that is not supposed to be overridden. To
-        modify how fields are read from the database, see methods
-        :meth:`_fetch_query` and :meth:`_read_format`.
-        """
         prof = _OrmProfile(_orm_read)
 
         if not fields:
@@ -130,13 +96,6 @@ class ReadMixin(_ModelStubs):
     def _read_format(
         self, fnames: Sequence[str], load: str = "_classic_read"
     ) -> list[ValuesType]:
-        """Return a list of dicts (one per existing record) mapping field names to
-        values, in the format expected by :meth:`read`.  Unlike ``read`` this
-        reads from cache, avoiding a query when possible.
-
-        Properties and many2one fields use ``convert_to_read_multi`` to batch
-        record existence, display names and the target access check.
-        """
         use_display_name = load == "_classic_read"
         env = self.env
         ids = self._ids
@@ -159,12 +118,6 @@ class ReadMixin(_ModelStubs):
             field = _fields[name]
             field.ensure_computed(self)
             field_cache = field._get_cache(env)
-            # ``self[:1]`` rather than ``None``: every ``can_scan_read`` type
-            # ignores the record when converting ``None``, but the parameter is
-            # declared ``ModelLike``, and passing ``None`` made that lie load-
-            # bearing -- the first such type that consults the record would fail
-            # with an opaque ``AttributeError`` deep in the read fast path.  An
-            # empty slice is a real recordset and costs nothing.
             none_val: typing.Any = field.convert_to_record(None, self[:1])
             if type(field_cache) is dict:
                 miss_indices = _batch_cache_fill_rust(
@@ -206,12 +159,6 @@ class ReadMixin(_ModelStubs):
 
         for name in record_fnames:
             field = _fields[name]
-            # Fields that answer for a whole column at once. `properties`
-            # batches record existence and display names; `many2one` batches the
-            # access check that decides whether the target may be named at all,
-            # which is one query per value whenever the comodel's record rules
-            # are written on a search-defined field (see
-            # `Many2one.convert_to_read_multi`).
             if field.type in ("properties", "many2one"):
                 if field.store:
                     field.ensure_computed(self)
@@ -228,16 +175,6 @@ class ReadMixin(_ModelStubs):
                     except MissingError:
                         vals.clear()
 
-                # `load` speaks for many2one fields only. Its contract is "do
-                # not resolve the display name of m2o fields", and a caller
-                # that passes it can always name those targets itself later.
-                # A name buried inside a properties blob is not recoverable
-                # that way -- the blob is opaque to the field specification --
-                # so properties always convert with their names attached.
-                # `web_read` is the case that makes this load-bearing: it reads
-                # with `load=None` precisely because it resolves real relational
-                # fields itself, and honouring that for properties hands the
-                # web client bare ids where it expects `{id, name}`.
                 multi_results = field.convert_to_read_multi(
                     values_list,
                     self.browse(records),
@@ -294,42 +231,9 @@ class ReadMixin(_ModelStubs):
         return [vals for record, vals in data if vals]
 
     def _read_format_miss_record(self, id_):
-        """Singleton for ``_read_format``'s scalar cache-miss fallback.
-
-        Wrapped in a tuple because ``NewId.__bool__`` is False, so a bare
-        ``browse()`` would yield an empty recordset.
-
-        ``with_prefetch`` is what keeps the fallback batched. The scalar phase
-        was written assuming ``fetch()`` already ran (as :meth:`read` does), so
-        a miss meant one odd record. But ``_read_format`` is also called
-        directly — it advertises reading from cache "avoiding a query when
-        possible" — and on a cold recordset *every* record misses. A plain
-        ``self.browse((id_,))`` carries only its own id as prefetch, so each
-        miss issued ``WHERE id IN (<one id>)``: one SELECT per record, i.e. an
-        N+1 that grew with the recordset (measured on ``mail.message``: 20
-        records, 20 queries). Batching the miss collapses that to one query.
-
-        The prefetch set is deliberately ``self._ids`` and *not*
-        ``self._prefetch_ids``: these are the records being formatted, so this
-        is exactly the data the caller is about to read. ``_prefetch_ids`` is
-        the ambient set the recordset was browsed with and may hold up to
-        ``PREFETCH_MAX`` unrelated ids — widening to it would let a one-record
-        format pull a thousand rows of every stored column, trading an N+1 for
-        an occasional very large query.
-
-        Relational/translated/html fields never had the problem: they take
-        ``_read_format``'s record phase, which iterates ``self`` directly and so
-        keeps its prefetch.
-
-        Safe against access errors: :meth:`Field._get_cache_miss` already
-        catches ``AccessError`` from a batched fetch and retries the single
-        record, so widening the batch cannot turn a readable record into a
-        failing one.
-        """
         return self.browse((id_,)).with_prefetch(self._ids)
 
     def _fetch_field(self, field: Field) -> None:
-        """Fetch ``field`` for ``self`` from the database into cache."""
         if self.env.context.get("prefetch_fields", True) and field.prefetch:
             fnames = [
                 name
@@ -345,17 +249,6 @@ class ReadMixin(_ModelStubs):
 
     @api.private
     def fetch(self, field_names: Collection[str] | None = None) -> None:
-        """Make sure the given fields are in memory for the records in ``self``,
-        by fetching what is necessary from the database.  Non-stored fields are
-        mostly ignored, except for their stored dependencies.
-
-        :param field_names: a collection of field names to fetch, or ``None`` for
-            all accessible fields marked with ``prefetch=True``
-        :raise AccessError: if user is not allowed to access requested information
-
-        This method is implemented thanks to methods :meth:`_search` and
-        :meth:`_fetch_query`, and should not be overridden.
-        """
         self = self._origin
         if not self or not (field_names is None or field_names):
             return
@@ -401,16 +294,6 @@ class ReadMixin(_ModelStubs):
         field_names: Collection[str] | None = None,
         ignore_when_in_cache: bool = False,
     ) -> list[Field]:
-        """Return the fields to fetch among the given field names, following the
-        dependencies of computed fields.  Used by :meth:`fetch` and
-        :meth:`search_fetch`.
-
-        :param field_names: the collection of requested fields, or ``None`` for
-            all accessible fields marked with ``prefetch=True``
-        :param ignore_when_in_cache: skip fields already in cache for ``self``
-        :return: the list of fields that must be fetched
-        :raise AccessError: when fetching fields the user cannot access
-        """
         if field_names is None:
             return [
                 field
@@ -454,12 +337,6 @@ class ReadMixin(_ModelStubs):
         return fields_to_fetch
 
     def _fetch_query(self, query: Query, fields: Sequence[Field]) -> Self:
-        """Fetch the given fields from the given query, cache them, and return
-        the fetched records.
-
-        This method may be overridden to change what fields to actually fetch,
-        or to change the values that are put in cache.
-        """
         prof = _OrmProfile(_orm_read)
 
         column_fields: OrderedSet[Field] = OrderedSet()
@@ -529,19 +406,6 @@ class ReadMixin(_ModelStubs):
         return fetched
 
     def get_metadata(self) -> list[ValuesType]:
-        """Return some metadata about the given records.
-
-        :returns: list of ownership dictionaries for each requested record with the following keys:
-
-            * id: object id
-            * create_uid: user who created the record
-            * create_date: date when the record was created
-            * write_uid: last user who changed the record
-            * write_date: date of the last change to the record
-            * xmlid: XML ID to use to refer to this record (if there is one), in format ``module.name``
-            * xmlids: list of dict with xmlid in format ``module.name``, and noupdate as boolean
-            * noupdate: A boolean telling if the record will be updated or not
-        """
 
         IrModelData = self.env["ir.model.data"].sudo()
         if self._log_access:

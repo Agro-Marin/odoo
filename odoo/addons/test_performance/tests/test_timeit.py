@@ -61,7 +61,6 @@ class TestPerformanceTimeit(TransactionCase):
 
     @classmethod
     def get_test_children(cls, *, max_size=10**6):
-        """Get records for testing, give the max size of the recordset"""
         all_records = [p.child_ids for p in cls.get_parents()]
         result = [recs for recs in all_records if len(recs) < max_size]
         if bigger := next((recs for recs in all_records if len(recs) > max_size), None):
@@ -80,13 +79,8 @@ class TestPerformanceTimeit(TransactionCase):
         relative_size: int = 1,
         number: int = 100,
         repeat: int = 3,
-        ctx: dict = None,
+        ctx: dict | None = None,
     ) -> float:
-        """Run a performance test.
-
-        Returns the best execution run time in microseconds.
-        The number of runs is `number * repeat`.
-        """
         if ctx is None:
             ctx = {}
         assert repeat > 1, "repeat at least twice as the first result is often slower"

@@ -1,19 +1,3 @@
-"""Correctness and safety preconditions of the Rust ``rows_to_dicts``.
-
-``rows_to_dicts`` (``odoo_rust``) backs ``Cursor.dictfetchall`` /
-``dictfetchmany`` and ``Environment.execute_query_dict`` — it replaces
-``[dict(zip(cols, row)) for row in rows]`` with a tight loop that uses the
-*unchecked* ``PyTuple_GET_ITEM``. That unsafe access is sound only because the
-function validates, per row, that the row **is a tuple** and that its **length
-matches** the column count; a non-tuple or a wrong-length row would otherwise
-read past the object and is undefined behaviour. The audit noted those
-preconditions had no test at all — so a refactor could drop a guard and the
-suite would stay green while the accelerator segfaulted on malformed input.
-
-These pin both halves: parity with the Python expression for well-formed input,
-and the two guards for malformed input. Imports ``odoo_rust`` directly; no DB.
-"""
-
 import unittest
 
 from odoo_rust import rows_to_dicts
@@ -39,7 +23,6 @@ class TestRowsToDictsCorrectness(unittest.TestCase):
         self.assertEqual(rows_to_dicts(("x",), [(1,), (2,)]), [{"x": 1}, {"x": 2}])
 
     def test_duplicate_column_names_last_wins(self):
-        # dict semantics: the Python expression collapses to the last value too.
         names = ("k", "k")
         rows = [(1, 2)]
         self.assertEqual(rows_to_dicts(names, rows), _python_equivalent(names, rows))
@@ -51,7 +34,7 @@ class TestRowsToDictsCorrectness(unittest.TestCase):
         rows = [(1, 1.5, "x", None, obj, [1, 2])]
         result = rows_to_dicts(names, rows)
         self.assertIs(result[0]["o"], obj)
-        self.assertIs(result[0]["lst"], rows[0][5])  # shared, not copied
+        self.assertIs(result[0]["lst"], rows[0][5])
 
     def test_many_rows_and_columns(self):
         names = tuple(f"c{j}" for j in range(20))
@@ -60,11 +43,9 @@ class TestRowsToDictsCorrectness(unittest.TestCase):
 
 
 class TestRowsToDictsSafetyPreconditions(unittest.TestCase):
-    """The guards that make the unchecked ``PyTuple_GET_ITEM`` sound."""
-
     def test_a_non_tuple_row_raises_type_error(self):
         with self.assertRaises(TypeError):
-            rows_to_dicts(("a", "b"), [[1, 2]])  # a list, not a tuple
+            rows_to_dicts(("a", "b"), [[1, 2]])
 
     def test_a_short_row_raises_value_error(self):
         with self.assertRaises(ValueError):
@@ -81,7 +62,7 @@ class TestRowsToDictsSafetyPreconditions(unittest.TestCase):
     def test_the_error_names_the_offending_row_index(self):
         with self.assertRaises(ValueError) as ctx:
             rows_to_dicts(("a", "b"), [(1, 2), (3,)])
-        self.assertIn("1", str(ctx.exception))  # row index 1 is the bad one
+        self.assertIn("1", str(ctx.exception))
 
 
 if __name__ == "__main__":

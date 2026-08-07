@@ -2,8 +2,6 @@ from odoo import fields, models
 
 
 class IrUiViewCustom(models.Model):
-    """Per-user Copy-on-Write override of a parent view's arch (dashboards)."""
-
     _name = "ir.ui.view.custom"
     _description = "Custom View"
     _order = "create_date desc, id desc"

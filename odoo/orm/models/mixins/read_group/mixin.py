@@ -1,10 +1,3 @@
-"""Core read_group mixin — main entry points.
-
-``ReadGroupMixin`` exposes the public methods (``_read_group``,
-``_read_grouping_sets``, ``_read_group_empty_value``, deprecated ``read_group``)
-and inherits SQL/format/fill logic from the sub-mixins in this package.
-"""
-
 import inspect
 import itertools
 import typing
@@ -27,11 +20,6 @@ if typing.TYPE_CHECKING:
 
 
 class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMixin):
-    """Grouping/aggregation methods inherited by BaseModel.
-
-    SQL generation, formatting, and fill logic live in dedicated sub-mixins.
-    """
-
     __slots__ = ()
 
     @api.model
@@ -42,42 +30,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         aggregates: Sequence[str] = (),
         order: str | None = None,
     ) -> list[list[tuple]]:
-        """Aggregate with several groupings in one query when possible.
-
-        Uses SQL ``GROUPING SETS`` as an efficient alternative to calling
-        :meth:`~._read_group` once per ``groupby``, getting several aggregation
-        levels in one round-trip. many2many groupbys may still need extra SQL
-        because of deduplicated rows.
-
-        :param domain: :ref:`a search domain <reference/orm/domains>`
-        :param grouping_sets: list of ``groupby`` specs, each like the ``groupby``
-            of :meth:`~._read_group`, e.g. ``[['partner_id'], ['partner_id',
-            'state']]``.
-        :param aggregates: list of ``'field:agg'`` specs. ``agg`` is one of the
-            allow-listed aggregates in ``odoo.orm.constants.READ_GROUP_AGGREGATE``
-            (``sum``, ``avg``, ``max``, ``min``, ``bool_and``, ``bool_or``,
-            ``array_agg``, ``array_agg_distinct``, ``count``, ``count_distinct``,
-            ``any_value``, or ``recordset`` — ``array_agg`` as a recordset), or
-            ``sum_currency`` (monetary fields only).
-        :param order: optional ``order by`` overriding the natural group order;
-            see also :meth:`~.search`.
-        :return: list of lists of tuples mirroring *grouping_sets*; each inner
-            list holds the rows for one grouping spec, each row being grouped
-            values followed by aggregate values, in spec order. E.g. for
-            ``grouping_sets=[['foo'], ['foo', 'bar']]`` and
-            ``aggregates=['baz:sum']``::
-
-                    [
-                        [(foo1_val, baz_sum_1), (foo2_val, baz_sum_2), ...],
-                        [
-                            (foo1_val, bar1_val, baz_sum_3),
-                            (foo2_val, bar2_val, baz_sum_4),
-                            ...,
-                        ],
-                    ]
-
-        :raise AccessError: if user is not allowed to access requested information
-        """
         if not grouping_sets:
             msg = "The 'grouping_sets' parameter cannot be empty."
             raise ValueError(msg)
@@ -232,10 +184,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         )
 
     def _groupby_spec_might_duplicate_rows(self, model, spec) -> bool:
-        """Whether grouping by *spec* on *model* can duplicate rows (m2m/tags).
-
-        Recurses through a dotted many2one path down to its comodel.
-        """
         fname, property_name, __ = parse_read_group_spec(spec)
         field = model._fields[fname]
         if field.type == "properties":
@@ -264,12 +212,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         groupby_terms: dict[str, SQL],
         result: list[list[tuple]],
     ) -> list[list[tuple]]:
-        """Split the ``GROUPING SETS`` rows back into per-grouping-set results.
-
-        Each row carries a ``GROUPING()`` bitmask identifying which grouping set
-        it belongs to; this maps every mask to its target result list and the
-        column extractor, then dispatches the (column-transposed) rows.
-        """
         aggregates_indexes = tuple(
             range(len(all_groupby_specs), len(all_groupby_specs) + len(aggregates))
         )
@@ -352,34 +294,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         limit: int | None = None,
         order: str | None = None,
     ) -> list[tuple]:
-        """Aggregate ``aggregates`` grouped by ``groupby`` over records in
-        ``domain``.
-
-        :param domain: :ref:`a search domain <reference/orm/domains>`; empty list
-            matches all records.
-        :param groupby: list of groupby descriptions. Each is a field name or
-            ``'field:granularity'``. Granularities (date/datetime only) are
-            ``'hour'``, ``'day'``, ``'week'``, ``'month'``, ``'quarter'``,
-            ``'year'``, and integer date parts: ``'year_number'``, ``'quarter_number'``,
-            ``'month_number'``, ``'iso_week_number'``, ``'day_of_year'``,
-            ``'day_of_month'``, ``'day_of_week'``, ``'hour_number'``,
-            ``'minute_number'``, ``'second_number'``.
-        :param aggregates: list of ``'field:agg'`` specs. ``agg`` is one of the
-            allow-listed aggregates in ``odoo.orm.constants.READ_GROUP_AGGREGATE``
-            (``sum``, ``avg``, ``max``, ``min``, ``bool_and``, ``bool_or``,
-            ``array_agg``, ``array_agg_distinct``, ``count``, ``count_distinct``,
-            ``any_value``, or ``recordset`` — ``array_agg`` as a recordset), or
-            ``sum_currency`` (monetary fields only).
-        :param having: a domain whose "fields" are the aggregates.
-        :param offset: optional number of groups to skip
-        :param limit: optional max number of groups to return
-        :param order: optional ``order by`` overriding the natural group order;
-            see also :meth:`~.search`.
-        :return: flat list of tuples ``[(groupby_1_value, ..., aggregate_1_value,
-            ...), ...]``. A related groupby value is a recordset (with a correct
-            prefetch set).
-        :raise AccessError: if user is not allowed to access requested information
-        """
         query = self._search(domain)
         if query.is_empty():
             self._check_read_group_spec_access(groupby, aggregates, query)
@@ -444,29 +358,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
 
     @api.model
     def _check_read_group_spec_access(self, groupby, aggregates, query) -> None:
-        """Validate groupby/aggregate specs and check field read access.
-
-        Mirrors the field-level checks of :meth:`_read_group_groupby` and
-        :meth:`_read_group_select`; used on the empty-query shortcut of
-        :meth:`_read_group` / :meth:`_read_grouping_sets` so field-level
-        :class:`~odoo.exceptions.AccessError` (and invalid-spec errors) do not
-        depend on whether the domain matched records.
-
-        :param query: the (empty) query of the shortcut; passed through to a
-            :meth:`_read_group_groupby` override so a virtual groupby spec can
-            be resolved. Any SQL built for validation is discarded.
-        """
         for spec in groupby:
             model = self
             sub_spec = spec
             while True:
                 fname, seq_fnames, granularity = parse_read_group_spec(sub_spec)
                 if fname not in model._fields:
-                    # May still be a virtual groupby claimed by a
-                    # _read_group_groupby override (e.g. account_followup's
-                    # 'followup_overdue'), so defer to that resolver instead of
-                    # rejecting here: it raises ValueError for genuinely unknown
-                    # specs and runs its own field-level read-access checks.
                     model._read_group_groupby(model._table, sub_spec, query)
                     break
                 field = model._fields[fname]
@@ -503,8 +400,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             self._check_spec_field_read_access(self._fields[fname])
 
     def _check_spec_field_read_access(self, field) -> None:
-        """Field read-access check equivalent to :meth:`_field_to_sql`, minus
-        the SQL generation (so no query/joins are needed)."""
         if field.related and not field.store:
             if not (self.env.su or field.compute_sudo or field.inherited):
                 raise ValueError(
@@ -536,41 +431,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         orderby=False,
         lazy=True,
     ):
-        """Deprecated - records grouped by ``groupby`` fields for list view.
-
-        :param list domain: :ref:`a search domain <reference/orm/domains>`; empty
-            list matches all records.
-        :param list fields: each is ``'field'`` (default aggregation),
-            ``'field:agg'``, or ``'name:agg(field)'`` (aggregate returned as
-            ``name``). ``agg`` is one of the allow-listed aggregates in
-            ``odoo.orm.constants.READ_GROUP_AGGREGATE`` (``sum``, ``avg``,
-            ``max``, ``min``, ``bool_and``, ``bool_or``, ``array_agg``,
-            ``array_agg_distinct``, ``count``, ``count_distinct``,
-            ``any_value``, ``recordset``) or ``sum_currency`` (monetary
-            fields only).
-        :param list groupby: groupby descriptions. Each is a field name, or
-            ``'field:granularity'`` for date/datetime. Granularities: ``'hour'``,
-            ``'day'``, ``'week'``, ``'month'``, ``'quarter'``, ``'year'``, plus
-            integer date parts (``'year_number'``, ``'quarter_number'``,
-            ``'month_number'``, ``'iso_week_number'``, ``'day_of_year'``,
-            ``'day_of_month'``, ``'day_of_week'``, ``'hour_number'``,
-            ``'minute_number'``, ``'second_number'``).
-        :param int offset: optional number of groups to skip
-        :param int limit: optional max number of groups to return
-        :param str orderby: optional ``order by`` overriding the natural group
-            order; see also :meth:`~.search` (many2one fields only for now).
-        :param bool lazy: if true, group only by the first groupby and put the
-            rest under the ``__context`` key; if false, group by all at once.
-        :return: list of dicts (one per group), each containing the grouped
-            field values plus:
-
-                    * ``__domain``: search criteria
-                    * ``__context``: dict with arguments like ``groupby``
-                    * ``__range``: (date/datetime) ``{field:granularity}`` to
-                        ``{"from": inclusive, "to": exclusive}`` temporal bounds
-        :rtype: [{'field_name_1': value, ...}, ...]
-        :raise AccessError: if user is not allowed to access requested information
-        """
         groupby = [groupby] if isinstance(groupby, str) else groupby
         lazy_groupby = groupby[:1] if lazy else groupby
 

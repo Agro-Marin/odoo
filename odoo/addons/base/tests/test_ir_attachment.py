@@ -86,7 +86,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertTrue(a2_fn.is_file())
 
     def test_07_write_mimetype(self):
-        """Document mimetypes stay consistent."""
 
         Attachment = self.Attachment.with_user(self.user_demo.id)
         a2 = Attachment.create(
@@ -123,13 +122,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def _zip_bytes(self, entry):
-        """Return a zip archive carrying no format marker of its own.
-
-        Sniffing can only call it ``application/zip``; the filename is the only
-        thing that can type it as the OOXML document it stands in for (a real
-        one whose ``[Content_Types].xml`` the sniffer cannot reach — encrypted,
-        or written with a non-standard entry order).
-        """
         import zipfile
 
         buf = io.BytesIO()
@@ -138,14 +130,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         return buf.getvalue()
 
     def test_write_mimetype_matches_create_of_the_same_file(self):
-        """Rewriting the content must type the file as ``create`` would.
-
-        ``_mimetype_from_values`` only ever saw the write's own keys, so it
-        never saw the row's filename and fell through to sniffing the bytes:
-        ``sheet.xlsx`` came back as ``application/zip`` (served to the browser
-        as a zip), and ``report.csv`` flipped between ``text/csv`` and
-        ``text/plain`` with the column count.
-        """
         cases = [
             ("sheet.xlsx", self._zip_bytes("first"), self._zip_bytes("second")),
             ("report.csv", b"a,b,c\n1,2,3\n", b"c,d\n3,4\n"),
@@ -165,11 +149,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 )
 
     def test_write_mimetype_explicit_and_heterogeneous(self):
-        """An explicit ``mimetype`` wins, and mixed names fall back to sniffing.
-
-        One ``write`` stores one mimetype, so a recordset whose rows disagree on
-        their filename has no single name to derive it from.
-        """
         forced = self.Attachment.create({"name": "a.txt", "raw": b"hello"})
         forced.write({"raw": b"other", "mimetype": "application/vnd.custom"})
         self.assertEqual(forced.mimetype, "application/vnd.custom")
@@ -188,13 +167,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_bin_size_reports_file_size_without_reading_content(self):
-        """``bin_size`` must answer from ``file_size``, not from the payload.
-
-        Neutralizing the computed value instead read the whole file back to
-        measure it, and sized ``raw`` as if it were base64 — so a 5000-byte
-        file reported ``3.66 Kb`` (a quarter short) while a 4999-byte one, whose
-        length is not a multiple of four, reported the correct ``4.88 Kb``.
-        """
         even = self.Attachment.create({"name": "even.bin", "raw": b"x" * 5000})
         odd = self.Attachment.create({"name": "odd.bin", "raw": b"y" * 4999})
         self.env.flush_all()
@@ -218,14 +190,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             self.assertEqual(raw, expected, "raw was sized as base64")
 
     def test_db_datas_create_goes_through_the_content_pipeline(self):
-        """``db_datas`` on create is content, not a column write (IRA-R2).
-
-        It used to reach ``super()`` untouched, producing a row with content but
-        no ``file_size``, no ``checksum`` and no ``index_content``, held inline
-        whatever ``ir_attachment.location`` says. The size reported to clients,
-        the ETag ``_to_http_stream`` serves and the full-text index were all
-        missing from a row that reads back perfectly well.
-        """
         payload = b"inline,payload\n1,2\n"
         attachment = self.Attachment.create(
             {"name": "inline.csv", "db_datas": payload, "mimetype": "text/csv"}
@@ -248,14 +212,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(attachment._to_http_stream().etag, attachment.checksum)
 
     def test_db_datas_write_replaces_the_content(self):
-        """A ``db_datas`` write must replace content, not be silently dropped.
-
-        ``store_fname`` wins in every reader, so writing the column on a
-        filestore-backed row left the OLD bytes being served while Postgres
-        gained a second, unreachable copy of the new ones — and
-        ``file_size``/``checksum`` went on describing the old ones. The write
-        returned success.
-        """
         attachment = self.Attachment.create(
             {"name": "r.txt", "raw": b"original", "mimetype": "text/plain"}
         )
@@ -285,12 +241,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_copying_a_keyed_row_carries_no_inline_column(self):
-        """A keyed row's copy takes its content from the key, never the column.
-
-        ``db_datas`` describes where content lives, not that there is none, so
-        neither the falsy value a filestore-backed row carries nor the dead
-        bytes a legacy dual row carries may be read as the copy's content.
-        """
         attachment = self.Attachment.create({"name": "src.bin", "raw": self.blob1})
         attachment.flush_recordset()
         self.addCleanup(
@@ -304,15 +254,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(attachment.copy().raw, self.blob1)
 
     def test_copy_reapplies_the_derived_columns_it_never_carries(self):
-        """The four derived columns are `copy=False`, and `copy` restores them.
-
-        `copy_data` used to carry values `create` immediately discarded
-        (`_normalize_content_vals` pops all four), so the only thing the copy
-        flag changed was the work done to reach the same row. It is safe
-        because neither half of the copy path reads them out of the vals:
-        `copy_data` triages on `attachment.store_fname`/`checksum`, and `copy`
-        writes them onto the copies from `origin`.
-        """
         attachment = self.Attachment.create({"name": "src.bin", "raw": self.blob1})
         attachment.flush_recordset()
         self.addCleanup(
@@ -331,13 +272,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(copied.raw, self.blob1)
 
     def test_copying_a_legacy_dual_row_writes_no_new_content(self):
-        """A row holding both a key and stale inline bytes must copy for free.
-
-        ``copy`` points the copy at the origin's key, so carrying the inline
-        column through made the copy hash those dead bytes and write them to
-        the filestore — a content file, and a GC marker, for something nothing
-        ever references.
-        """
         attachment = self.Attachment.create({"name": "dual.bin", "raw": self.blob1})
         attachment.flush_recordset()
         self.addCleanup(
@@ -364,7 +298,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_08_neuter_xml_mimetype(self):
-        """Harmful XML mimetypes (XSS vectors) are forced to text."""
         Attachment = self.Attachment.with_user(self.user_demo.id)
         document = Attachment.create({"name": "document", "datas": self.blob1_b64})
         document.write({"datas": self.blob1_b64, "mimetype": "text/xml"})
@@ -393,7 +326,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_09_dont_neuter_xml_mimetype_for_admin(self):
-        """Admin users bypass the mimetype filter."""
         document = self.Attachment.create({"name": "document", "datas": self.blob1_b64})
         document.write({"datas": self.blob1_b64, "mimetype": "text/xml"})
         self.assertEqual(
@@ -489,7 +421,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(attach.raw, gif_bin)
 
     def test_11_copy(self):
-        """Copying an attachment preserves the data."""
         document = self.Attachment.create({"name": "document", "datas": self.blob2_b64})
         document2 = document.copy({"name": "document (copy)"})
         self.assertEqual(document2.name, "document (copy)")
@@ -527,11 +458,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertFalse(store_path.is_file(), "file removed")
 
     def test_gc_prewalked_checklist(self):
-        """GC accepts a checklist scanned before the lock (IRA-P2-3).
-
-        The collect phase drops orphans yet spares files a live row still
-        references (the whitelist query under the lock).
-        """
         self.patch(IrAttachment, "_GC_CHECKLIST_GRACE", 0)
         Attachment = self.env["ir.attachment"]
         orphan = Attachment.create({"name": "orphan", "raw": os.urandom(16)})
@@ -554,24 +480,14 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertTrue(kept_path.is_file(), "referenced file must be spared")
 
     def _checklist_marker(self, fname):
-        """Return the checklist marker path for *fname*."""
         return Path(self.filestore, "checklist", fname)
 
     def _age_marker(self, fname, age_seconds):
-        """Backdate *fname*'s checklist marker mtime by *age_seconds*."""
         marker = self._checklist_marker(fname)
         past = marker.stat().st_mtime - age_seconds
         os.utime(marker, (past, past))
 
     def test_gc_grace_spares_fresh_markers(self):
-        """GC must not sweep a checklist entry younger than the grace window
-        (IRA-G1).
-
-        create() writes and marks the file BEFORE super().create() flushes the
-        INSERT, so an autovacuum racing that window would delete a not-yet-
-        committed transaction's content. The age gate in _gc_checklist closes
-        the race.
-        """
         unique_blob = os.urandom(16)
         a1 = self.Attachment.create({"name": "a1", "raw": unique_blob})
         fname = a1.store_fname
@@ -595,13 +511,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertFalse(self._checklist_marker(fname).is_file())
 
     def test_gc_grace_remark_refreshes_clock(self):
-        """A dedup-hit re-mark must reset the marker's grace clock (IRA-G1).
-
-        Both _file_write and _file_write_stream re-mark on dedup hits: the
-        existing file may be an aborted transaction's orphan whose marker
-        already outlived the grace window, and without an mtime refresh the GC
-        could sweep it before the CURRENT transaction flushes its INSERT.
-        """
         unique_blob = os.urandom(16)
         checksum = self.Attachment._content_checksum(unique_blob)
 
@@ -629,15 +538,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_gc_sweep_restats_marker_before_unlink(self):
-        """The sweep re-stats the checklist marker under the lock, sparing a
-        file whose marker was refreshed after the pre-lock scan (IRA-G1
-        residual race).
-
-        _gc_checklist stats marker mtimes before the SHARE lock; between that
-        scan and the unlink, a concurrent transaction can re-mark (refreshing
-        the grace clock) and rewrite the file, whose still-uncommitted INSERT
-        the whitelist query cannot see. Re-stating under the lock closes the gap.
-        """
         a1 = self.Attachment.create({"name": "restat", "raw": os.urandom(16)})
         fname = a1.store_fname
         store_path = Path(self.filestore, fname)
@@ -657,15 +557,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_force_storage_migrates_rows_its_caller_cannot_read(self):
-        """`force_storage` moves EVERY row, not every readable row (IRA-D2).
-
-        The migration itself has always written as superuser, so the caller's
-        ACL only decided which rows the sweep found -- and it dropped the rest
-        without an error or a log line. An attachment whose ``res_model`` names
-        a model that is no longer installed is unreadable by every non-superuser
-        including an administrator, so it stayed on the old backend and no
-        number of re-runs moved it.
-        """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
         readable = self.Attachment.create({"name": "readable.txt", "raw": b"readable"})
         orphaned = self.Attachment.create(
@@ -713,13 +604,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_to_http_stream_ignores_bin_size(self):
-        """The stream must carry content, never a human-readable size (IRA-D3).
-
-        `_stored_content` and `_read_prefix` both neutralize ``bin_size``,
-        because under it a stored binary column reads back as its own size.
-        `_to_http_stream` runs the same triage a third time and did not, so a
-        db-stored attachment streamed ``b"4.88 Kb"`` as its response body.
-        """
         payload = b"X" * 5000
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
         in_db = self.Attachment.create({"name": "d.bin", "raw": payload})
@@ -746,16 +630,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_both_search_paths_agree_on_a_non_binary_res_field(self):
-        """`search` must not depend on how many models the domain names (IRA-D5).
-
-        The per-comodel field clause listed only binary fields and relations to
-        ``ir.attachment``; `_check_access` -- the authority both paths are
-        documented to follow -- accepts any field the user can read. So a row
-        whose ``res_field`` names an ordinary readable field was returned by the
-        `_fetch_accessible_ids` path (used past `_SEARCH_MODEL_DOMAIN_LIMIT`
-        models) and dropped by the per-model domain path, for the same user over
-        the same rows.
-        """
         partner = self.env["res.partner"].sudo().create({"name": "IRA-D5"})
         att = self.Attachment.sudo().create(
             {
@@ -768,8 +642,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
         self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
         att.flush_recordset()
-        # such a row can no longer be created (`_check_res_field_valid`), but
-        # databases written before that check still hold them
         self.env.cr.execute(
             "UPDATE ir_attachment SET res_field = 'comment' WHERE id = %s", [att.id]
         )
@@ -808,14 +680,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_res_field_must_name_an_attachment_backed_field(self):
-        """`res_field` claims "this row IS field X"; only some fields can be.
-
-        Every writer in the codebase passes a Binary field or a relation to
-        ir.attachment, and every reader assumes it -- but nothing enforced it,
-        so the readers could be handed a state they each interpreted
-        differently. Enforced for the superuser too: it is a data-model
-        invariant, not a permission.
-        """
         partner = self.env["res.partner"].sudo().create({"name": "IRA-D7"})
         base = {
             "name": "backed",
@@ -857,7 +721,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_full_path_confines_every_input_to_the_filestore(self):
-        """No input escapes the filestore, and a leaky sanitizer is refused."""
         root = Path(self.filestore).resolve()
         for path in (
             "../../etc/passwd",
@@ -882,16 +745,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             self.Attachment._full_path("/etc/passwd")
 
     def test_full_path_refuses_a_symlink_out_of_the_filestore(self):
-        """A store key that is a symlink to elsewhere must not be readable.
-
-        This is the whole reason `_full_path` resolves symlinks per call instead
-        of joining the path lexically -- which is ~3x faster and equally proof
-        against an escape spelled INTO the path. Nothing in Odoo can create such
-        a link (restore writes regular files, duplicate dereferences), so it
-        takes filesystem write access to plant one; the check is what keeps that
-        from turning into "serve any file the server can read". It had no test,
-        which is how it nearly got optimized away.
-        """
         outside = Path(self.filestore).parent / f"outside-{os.urandom(6).hex()}.txt"
         outside.write_bytes(b"outside the filestore")
         self.addCleanup(outside.unlink, missing_ok=True)
@@ -915,7 +768,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             )
 
     def test_fixed_subdirs_resolve_to_the_same_place_as_full_path(self):
-        """The cached constant-dir helper must not drift from `_full_path`."""
         for name in ("tmp", "checklist"):
             self.assertEqual(
                 str(self.Attachment._filestore_dir(name)),
@@ -948,7 +800,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             self.assertEqual(patch_file_read.call_count, 0)
 
     def test_read_prefix_filestore_and_db(self):
-        """_read_prefix reads a bounded head from either content location."""
         on_disk = self.Attachment.create({"name": "a1", "raw": self.blob1})
         self.assertTrue(on_disk.store_fname)
         self.assertEqual(on_disk._read_prefix(3), self.blob1[:3])
@@ -961,12 +812,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(in_db._read_prefix(), self.blob2)
 
     def test_read_prefix_ignores_bin_size(self):
-        """A bin_size context must not turn the read into a size string.
-
-        Under bin_size a stored binary column reads back as
-        ``pg_size_pretty(length(...))``, so without neutralizing it the caller
-        would receive b"5 bytes" and treat it as content.
-        """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
         in_db = self.Attachment.create({"name": "a1", "raw": self.blob1})
         self.env.invalidate_all()
@@ -976,12 +821,10 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(sized._read_prefix(3), self.blob1[:3])
 
     def test_read_prefix_without_content(self):
-        """A content-less row reads as empty rather than raising."""
         bare = self.Attachment.create({"name": "a1", "type": "binary"})
         self.assertEqual(bare._read_prefix(10), b"")
 
     def test_create_unique_invalid_base64(self):
-        """create_unique raises UserError with chained exception on bad base64."""
         from odoo.exceptions import UserError
 
         with self.assertRaises(UserError) as cm:
@@ -999,7 +842,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_create_unique_dedup(self):
-        """create_unique deduplicates by checksum/size/mimetype."""
         data = base64.b64encode(b"hello dedup").decode()
         ids = self.Attachment.create_unique(
             [
@@ -1011,14 +853,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(ids[0], ids[1], "Same content should deduplicate")
 
     def test_create_unique_contentless_matches_create(self):
-        """Content-less values behave exactly as in create() (IRA-R1/IRA-C4).
-
-        create_unique used to re-implement the raw/datas normalization instead
-        of sharing `_normalize_content_vals`, and unconditionally set
-        ``raw = b""``. A value carrying NO content key therefore got the digest
-        of b"" stamped on it, and every such row collapsed onto one id because
-        they all shared that digest.
-        """
         created = self.Attachment.create({"name": "bare", "mimetype": "text/plain"})
         ids = self.Attachment.create_unique(
             [
@@ -1038,13 +872,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(uniques.mapped("name"), ["bare-a", "bare-b"])
 
     def test_create_unique_treats_db_datas_as_content(self):
-        """``db_datas`` is content on every entry point, create_unique included.
-
-        It used to reach ``super()`` untouched, so a row written through it kept
-        its content but had no ``checksum`` — and the dedup key IS the checksum,
-        so two such rows never matched each other and create_unique degraded to
-        create for them.
-        """
         vals = {"name": "hatch", "mimetype": "text/plain", "db_datas": b"hand-written"}
         created = self.Attachment.create(dict(vals))
         [unique_id] = self.Attachment.create_unique([dict(vals)])
@@ -1060,7 +887,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_create_unique_does_not_mutate_caller_values(self):
-        """create_unique copies before normalizing (model_create_multi contract)."""
         values = {
             "name": "keep.txt",
             "mimetype": "text/plain",
@@ -1070,13 +896,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertIn("datas", values, "the caller's dict must not be mutated")
 
     def test_create_unique_dedups_against_unreadable_row(self):
-        """create_unique dedups against a row the caller cannot read (IRA-C2).
-
-        The dedup search runs sudo(), so identical content owned by someone else
-        / in another company is reused (reading it stays ACL-gated downstream).
-        A non-sudo dedup would apply the caller's ACL, miss the row, and wrongly
-        duplicate.
-        """
         company_b = self.env["res.company"].sudo().create({"name": "IRA-C2 B"})
         user_b = (
             self.env["res.users"]
@@ -1123,16 +942,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_create_unique_does_not_dedup_across_a_digest_collision(self):
-        """A dedup hit must not hand back a row serving different bytes.
-
-        `_verify_content_collision` exists because a digest with practical
-        collisions otherwise lets one upload serve another's content, and
-        `_get_path` honours it before sharing a filestore key. `create_unique`
-        deduplicates a whole ROW on ``(checksum, file_size, mimetype)`` and
-        never reached that check, so with the mitigation *enabled* an upload
-        colliding with a stored file returned the stored file's id and dropped
-        the caller's payload unread.
-        """
         self.env["ir.config_parameter"].set_param(
             "ir_attachment.verify_content_collision", "True"
         )
@@ -1175,7 +984,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_to_http_stream_missing_file(self):
-        """_to_http_stream gracefully handles missing filestore file."""
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         att = self.Attachment.create(
             {
@@ -1213,7 +1021,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_postprocess_bad_max_resolution(self):
-        """Bad base.image_autoresize_max_px config skips resize instead of crashing."""
         from PIL import Image as PILImage
 
         img = PILImage.new("RGB", (2000, 2000), color="red")
@@ -1235,12 +1042,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_postprocess_bad_quality(self):
-        """Bad base.image_autoresize_quality must skip, not crash the upload.
-
-        Mirrors test_postprocess_bad_max_resolution for the quality param: an
-        over-bounds JPEG forces the resize+quality path, where int(quality)
-        previously raised ValueError and blocked every such upload (P0-5).
-        """
         img = Image.new("RGB", (64, 64), color="blue")
         buf = io.BytesIO()
         img.save(buf, format="JPEG")
@@ -1260,11 +1061,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_to_http_stream_url_without_request(self):
-        """url-branch of _to_http_stream must not crash with no request bound.
-
-        P0-1: cron / server-side report rendering reach this path with an empty
-        request stack, where ``request.httprequest`` raised.
-        """
         from odoo.http.core import _request_stack
 
         att = self.Attachment.create(
@@ -1280,13 +1076,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(mock_root.get_static_file.call_args.kwargs.get("host"), "")
 
     def test_compute_res_name_orphaned_res_id(self):
-        """_compute_res_name degrades to False for an orphaned res_id (P0-6).
-
-        A res_id pointing at a missing record must not raise MissingError and
-        break list views. ORM deletion would cascade-delete this attachment, so
-        the real trigger is an orphaned reference (import, raw-SQL deletion,
-        cross-model leftover); reproduced here with an id that cannot exist.
-        """
         att = self.Attachment.create(
             {
                 "name": "orphan",
@@ -1299,12 +1088,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertFalse(att.res_name)
 
     def test_index_preserves_non_ascii_text(self):
-        """_index keeps accented/non-ASCII words whole for text content.
-
-        The old byte-class [\\x20-\\x7E] split every multi-byte UTF-8 char,
-        shredding Spanish words and crippling full-text search. The Unicode-aware
-        scan keeps them intact while matching the old output for pure ASCII.
-        """
         Att = self.env["ir.attachment"]
         spanish = "Configuración del módulo árbol genealógico".encode()
         indexed = Att._index(spanish, "text/plain")
@@ -1320,11 +1103,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_migrate_preserves_content_on_empty_read(self):
-        """_migrate must never blank a non-empty file on an empty read (P0-2).
-
-        Simulates a transient _file_read failure (returns b"") during migration;
-        stored content and store_fname must be untouched.
-        """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         att = self.Attachment.create({"name": "precious", "raw": b"precious-bytes"})
         original_fname = att.store_fname
@@ -1343,12 +1121,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_create_from_stream_unreadable_readback_skips_index(self):
-        """_create_from_stream must not index an empty read-back of stored content.
-
-        _file_read returns b"" on a (possibly transient) read error; indexing
-        that would derive the index from the wrong (empty) bytes. Same guard as
-        _compute_raw/_migrate.
-        """
         payload = b"streamed text payload for indexation"
         ok = self.Attachment._create_from_stream(
             io.BytesIO(payload), name="ok.txt", mimetype="text/plain"
@@ -1377,12 +1149,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(att.raw, payload)
 
     def test_invalid_base64_datas_raises_user_error(self):
-        """Every 'datas' entry point surfaces invalid base64 as a UserError.
-
-        b64decode raises binascii.Error (a ValueError subclass) on malformed
-        padding/length; all decodes go through _decode_datas, which wraps it as
-        a clean UserError instead of a 500.
-        """
         bad = b"a"
         with self.assertRaises(UserError):
             self.Attachment.create({"name": "bad", "datas": bad})
@@ -1397,12 +1163,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             self.Attachment._mimetype_from_values({"datas": bad})
 
     def test_content_derivation_memoized_within_batch(self):
-        """Identical payloads in one batch derive their metadata once.
-
-        Both content loops memoize _get_datas_related_values over identical
-        bytes (create() keyed on the checksum, write on the payload's identity),
-        so _index runs once, not once per record.
-        """
         IrAttachmentCls = self.registry["ir.attachment"]
         payload = b"same text payload for every record in the batch"
 
@@ -1440,12 +1200,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             self.assertIn("rewritten", att.index_content)
 
     def test_write_res_field_check_grouped_by_model(self):
-        """write() checks the res_field ACL once per distinct res_model (IRA-L2).
-
-        The field ACL is deterministic per (res_model, res_field, operation,
-        user), so a batch on the same comodel needs one check, not one per
-        record — same rationale as _check_access's memoization.
-        """
         partner = self.env["res.partner"].create({"name": "grouped-check"})
         atts = self.Attachment.create(
             [
@@ -1470,11 +1224,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(set(atts.mapped("res_field")), {"image_1920"})
 
     def test_migrate_does_not_resize_images(self):
-        """_migrate is a storage move, not a content rewrite (P0-3).
-
-        An image stored larger than the current autoresize limit must keep its
-        exact bytes across a migration — image_no_postprocess guards the write.
-        """
         img = Image.new("RGB", (64, 64), color="green")
         buf = io.BytesIO()
         img.save(buf, format="JPEG")
@@ -1493,14 +1242,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(att.raw, stored, "migration must not mutate image bytes")
 
     def test_serving_check_on_content_write(self):
-        """Swapping a served binary+url attachment's content re-checks the
-        serving group (IRA-P1-1).
-
-        ``write`` only re-runs ``_check_serving_attachments`` on url/type change,
-        but the *content* is what ir.http._serve_fallback serves. The check lives
-        in ``_set_attachment_data``, which both content paths reach
-        (``write({'raw': ...})`` and ``record.raw = ...`` via the inverse).
-        """
         att = self.Attachment.create(
             {"name": "asset", "type": "binary", "url": "/web/assets/x.js", "raw": b"v1"}
         )
@@ -1519,12 +1260,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_file_write_atomic_no_poison(self):
-        """A failed _file_write must not poison the content-addressed path (P0-4).
-
-        A crash mid-write used to leave a truncated file at the final path,
-        failing every future _same_content check with a spurious collision
-        UserError. tmp-file + atomic replace prevents that.
-        """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         payload = b"atomic-write-" + os.urandom(16)
         checksum = self.Attachment._content_checksum(payload)
@@ -1556,13 +1291,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(self.env["ir.attachment"]._file_read(fname), payload)
 
     def test_file_write_stages_temp_in_tmp_dir(self):
-        """_file_write stages its temp in the filestore tmp/ dir, not the shard.
-
-        A shard-dir temp left by a pre-replace crash was reachable by no GC (the
-        checklist walk never saw it, the tmp/ sweep only scans tmp/). Staging in
-        tmp/ lets _gc_stale_filestore_temps collect it. Pin the location so a
-        revert to shard-dir staging is caught.
-        """
         payload = b"tmp-staging-" + os.urandom(16)
         checksum = self.Attachment._content_checksum(payload)
         store_path = self.Attachment._file_store_path(checksum)
@@ -1595,12 +1323,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_file_write_single_get_path(self):
-        """A filestore create resolves the path once, not twice (IRA-P2-1).
-
-        Only _file_write calls _get_path now (not _get_datas_related_values).
-        Guards against reintroducing the double mkdir + double full-file
-        collision read.
-        """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         unique = b"single-path-" + os.urandom(16)
         with patch.object(
@@ -1613,13 +1335,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(patched.call_count, 1, "exactly one _get_path per write")
 
     def test_stream_write_resolves_path_through_get_path(self):
-        """The streaming writer resolves its path through _get_path too.
-
-        _file_write_stream used to re-derive the store path, the shard mkdir and
-        the collision check inline, so a deployment overriding _get_path — the
-        documented single resolution point, pinned by the test above — silently
-        kept stock behaviour on every streamed upload.
-        """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         payload = b"stream-path-" + os.urandom(16)
         with patch.object(
@@ -1636,12 +1351,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(self.Attachment._file_read(fname), payload)
 
     def test_stream_write_collision_unstages_temp(self):
-        """A collision on the streamed path must not leak the staged temp.
-
-        The temp is written before the digest is known, so the collision is only
-        detected afterwards; the failure path has to unstage it rather than
-        leave it for the age-based sweep.
-        """
         self.env["ir.config_parameter"].set_param(
             "ir_attachment.verify_content_collision", "True"
         )
@@ -1660,12 +1369,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(after, before, "the staged temp must be removed on failure")
 
     def test_empty_content_checksum_consistency(self):
-        """Empty content gets the same checksum whether created or written (P0-7).
-
-        _content_checksum's contract is "an empty file has a checksum too (for
-        caching)". write honoured it; create used to skip it, leaving an empty
-        attachment with checksum=False and no ETag in _to_http_stream.
-        """
         empty_sha = self.Attachment._content_checksum(b"")
         created = self.Attachment.create({"name": "empty", "raw": b""})
         self.assertEqual(created.checksum, empty_sha, "create must set empty checksum")
@@ -1675,13 +1378,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(written.checksum, empty_sha, "write path agrees")
 
     def test_audit_url_attachments_warns_on_suspicious(self):
-        """``_audit_url_attachments`` flags non-public binary attachments with
-        ``url`` set.
-
-        Defense-in-depth for ``ir.http._serve_fallback``: any such record is
-        publicly servable at ``url``. The autovacuum pass logs a WARNING so ops
-        can review before a real exposure occurs.
-        """
         suspicious = self.Attachment.sudo().create(
             {
                 "name": "probe.bin",
@@ -1704,9 +1400,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_audit_url_attachments_warns_once_per_row(self):
-        """A suspicious row is WARNING-reported once, then INFO while it
-        remains unresolved (seen ids persist in ir_attachment.url_audit_seen).
-        """
         self.Attachment.sudo().create(
             {
                 "name": "probe-once.bin",
@@ -1735,7 +1428,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
     def test_audit_url_attachments_silent_on_clean_fleet(self):
-        """No suspicious rows → no WARNING emitted."""
         self.env.cr.execute(
             "UPDATE ir_attachment SET public = TRUE "
             "WHERE type = 'binary' AND url IS NOT NULL"
@@ -1747,15 +1439,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
 
 class TestContentDigestKeys(TransactionCaseWithUserDemo):
-    """Algorithm-tagged store keys and coexistence with legacy sha1 keys.
-
-    The digest moved from sha1 to ``libs.hashing``'s content family; keys
-    written under the new algorithm carry its tag so the two layouts share one
-    filestore.  What must hold is compatibility, not any particular algorithm:
-    rows written before the switch keep resolving, and every filestore
-    primitive stays agnostic to the key's shape.
-    """
-
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
@@ -1764,20 +1447,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
 
     @contextlib.contextmanager
     def _tagged_digest_build(self):
-        """Run the body as a deployment whose digest is tagged and 64 wide.
-
-        Which digest is installed is a property of the WHEEL, not of the code:
-        without ``blake3``, ``ALGO_TAG`` is ``"s1"``, the current layout IS the
-        untagged sha1 one, and every test about converging onto a tagged layout
-        had nothing to converge to. They all called ``skipTest`` -- so on the
-        build this workspace actually runs, the convergence pass, the shape
-        matching and the digest-provenance guard had no coverage at all, which
-        is how a `_migrate` bug reachable only under BLAKE3 survived.
-
-        Substituting a deterministic 64-wide digest exercises the mechanism on
-        any build. The real installed digest is still covered by the tests that
-        do not enter this block.
-        """
         with (
             patch.object(ir_attachment_module, "ALGO_TAG", "b3"),
             patch.object(ir_attachment_module, "CONTENT_DIGEST_LEN", 64),
@@ -1790,8 +1459,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             yield
 
     def _legacy_key(self, payload):
-        """Write *payload* at an untagged ``<shard>/<sha1>`` key, as pre-BLAKE3
-        code did, and return that key."""
         sha = hashlib.sha1(payload, usedforsecurity=False).hexdigest()
         fname = sha[:2] + "/" + sha
         path = Path(self.filestore, fname)
@@ -1801,12 +1468,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         return fname, sha
 
     def test_new_keys_carry_the_algorithm_tag(self):
-        """A fresh write is stored under ``<algo>/<shard>/<digest>``.
-
-        The tagged shape is asserted under a simulated tagged build so it is
-        checked on every build, not only where the wheel happens to be present
-        -- the ``if ALGO_TAG != "s1"`` it replaces asserted nothing here.
-        """
         att = self.Attachment.create({"name": "tagged", "raw": b"tag-" + os.urandom(8)})
         self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
         self.assertEqual(
@@ -1830,22 +1491,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             )
 
     def test_migration_never_tags_a_key_with_a_foreign_digest(self):
-        """`_migrate` must re-derive a checksum it did not produce (IRA-D1).
-
-        Only ``store_fname`` records which algorithm made a digest; the
-        ``checksum`` column does not. `_migrate` reused that column as the store
-        key whenever it merely looked plausible, so a row checksummed under an
-        earlier algorithm was filed under the CURRENT tag carrying the OLD
-        digest -- ``b3/88/<40-char sha1>``. Three things follow, none of them
-        visible: `_gc_rehash_legacy_keys` skips the row forever (it matches
-        ``b3/%``), the content no longer dedups against its own re-upload, and
-        the key inherits the collision resistance the tag advertises while
-        holding a digest that does not have it -- which is exactly what
-        `_verify_content_collision` stops byte-comparing on.
-
-        Stated without naming an algorithm: whatever ends up in the key must be
-        `_content_checksum` of the bytes.
-        """
         payload = b"pre-rollout-" + os.urandom(16)
         foreign = (
             hashlib.sha256(payload).hexdigest()
@@ -1887,16 +1532,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         )
 
     def test_migration_rekeys_without_reindexing(self):
-        """Re-keying a stale digest must not re-derive the other columns.
-
-        `_migrate` moves bytes between backends; it never changes them. So a row
-        whose stored metadata is sound has exactly one column that can be
-        unusable -- the checksum, when it came from another algorithm. Sending
-        such a row through the full derivation to fix that would re-run `_index`
-        too, which `attachment_indexation` turns into a whole PDF/OOXML parse,
-        for content that did not change. On a sha1-to-BLAKE3 upgrade that is
-        every row of the filestore.
-        """
         payload = b"rekey-" + os.urandom(24)
         foreign = (
             hashlib.sha256(payload).hexdigest()
@@ -1941,7 +1576,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.assertEqual(att.raw, payload)
 
     def test_checksum_column_fits_the_digest(self):
-        """The stored checksum survives a flush + reread (column is wide enough)."""
         att = self.Attachment.create({"name": "len", "raw": b"len-" + os.urandom(8)})
         self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
         att.flush_recordset()
@@ -1950,7 +1584,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.assertLessEqual(len(att.checksum), 64)
 
     def test_legacy_key_still_reads(self):
-        """A row whose store_fname predates the tag keeps serving its bytes."""
         payload = b"legacy-" + os.urandom(16)
         fname, sha = self._legacy_key(payload)
         att = self.Attachment.create({"name": "legacy", "raw": b"placeholder"})
@@ -1967,7 +1600,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.assertEqual(len(att.checksum), 40)
 
     def test_legacy_key_is_gc_collectable(self):
-        """The GC sweeps an untagged key exactly like a tagged one."""
         payload = b"legacy-gc-" + os.urandom(16)
         fname, _sha = self._legacy_key(payload)
         self.Attachment._mark_for_gc(fname)
@@ -1982,7 +1614,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.assertFalse(marker.exists())
 
     def test_both_layouts_coexist_in_one_filestore(self):
-        """Same bytes under both layouts: each key resolves to its own file."""
         payload = b"coexist-" + os.urandom(16)
         legacy_fname, _sha = self._legacy_key(payload)
 
@@ -2005,7 +1636,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         )
 
     def test_collision_verification_default_follows_the_algorithm(self):
-        """The re-read defaults on only for the collision-prone digest."""
         self.assertEqual(
             self.Attachment._verify_content_collision(),
             ALGO_TAG == "s1",
@@ -2013,20 +1643,12 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         )
 
     def test_collision_verification_param_wins(self):
-        """An explicit parameter overrides the algorithm-derived default."""
         ICP = self.env["ir.config_parameter"]
         for value, expected in (("True", True), ("False", False)):
             ICP.set_param("ir_attachment.verify_content_collision", value)
             self.assertEqual(self.Attachment._verify_content_collision(), expected)
 
     def test_legacy_key_domain_matches_shape_not_prefix(self):
-        """Convergence is owed to malformed keys too, not just untagged ones.
-
-        Selecting the rehash batch on the ``<algo>/`` prefix alone declared a
-        key converged as soon as it carried the tag -- including one whose
-        digest came from another algorithm, which is precisely the key that
-        needs re-keying most. Matching the whole shape catches both.
-        """
         payload = b"shape-" + os.urandom(16)
         good = self.Attachment.create({"name": "well-formed", "raw": payload})
         good.flush_recordset()
@@ -2063,28 +1685,16 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         )
 
     def test_untagged_layout_under_the_sha1_tag(self):
-        """Without the extension, keys keep the historical untagged shape.
-
-        The compatibility promise runs both ways: a node that lost the wheel
-        must write where the pre-BLAKE3 code wrote, or it would strand its
-        content under a prefix the rest of the fleet never looks at.
-        """
         sha = "0" * 40
         with patch.object(ir_attachment_module, "ALGO_TAG", "s1"):
             self.assertEqual(self.Attachment._file_store_path(sha), f"{sha[:2]}/{sha}")
 
     def test_verification_defaults_on_under_the_sha1_tag(self):
-        """The byte-compare comes back on when the digest is the broken one."""
         with patch.object(ir_attachment_module, "ALGO_TAG", "s1"):
             self.assertTrue(self.Attachment._verify_content_collision())
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_forced_verification_still_detects_a_mismatch(self):
-        """With verification forced on, wrong bytes at the key are refused.
-
-        Guards the opt-in path: the check must still work when an operator
-        turns it back on, whatever the digest in use.
-        """
         self.env["ir.config_parameter"].set_param(
             "ir_attachment.verify_content_collision", "True"
         )
@@ -2099,7 +1709,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             self.Attachment._file_write(payload, checksum)
 
     def test_stream_and_buffered_writes_agree(self):
-        """``_file_write_stream`` produces the same key/digest as ``_file_write``."""
         payload = b"stream-" + os.urandom(4096)
         fname, size, checksum = self.Attachment._file_write_stream(io.BytesIO(payload))
         self.addCleanup(Path(self.filestore, fname).unlink, missing_ok=True)
@@ -2109,7 +1718,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.assertEqual(self.Attachment._file_read(fname), payload)
 
     def _legacy_row(self, payload):
-        """Create a row whose stored content sits at an untagged legacy key."""
         fname, sha = self._legacy_key(payload)
         att = self.Attachment.create({"name": "legacy-row", "raw": b"placeholder"})
         self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
@@ -2123,24 +1731,16 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         return att, fname
 
     def _drain_legacy_rows(self):
-        """Re-key every pre-existing legacy row so counts are the test's own.
-
-        A dev/CI database carries rows written before the digest switch; without
-        this, a count assertion measures the database's history rather than the
-        behaviour under test. Rolled back with the test transaction.
-        """
         while self.Attachment._gc_rehash_legacy_keys(limit=1000)[0]:
             pass
 
     def test_rehash_is_disabled_by_default(self):
-        """Absent the parameter, the pass must not touch a single row."""
         att, fname = self._legacy_row(b"untouched-" + os.urandom(16))
         self.assertEqual(self.Attachment._gc_rehash_legacy_keys(), (0, 0))
         att.invalidate_recordset()
         self.assertEqual(att.store_fname, fname, "no re-key without the opt-in")
 
     def test_rehash_rekeys_and_preserves_content(self):
-        """An opted-in run moves the row to the current layout, bytes intact."""
         with self._tagged_digest_build():
             self._drain_legacy_rows()
             payload = b"converge-" + os.urandom(16)
@@ -2165,7 +1765,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             self.assertTrue(Path(self.filestore, "checklist", old_fname).exists())
 
     def test_rehash_respects_its_limit_and_is_resumable(self):
-        """The batch size caps a run; the next run picks up where it stopped."""
         with self._tagged_digest_build():
             self._drain_legacy_rows()
             rows = [
@@ -2187,11 +1786,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
                 )
 
     def test_rehash_leaves_shared_legacy_content_readable(self):
-        """Re-keying one of two rows sharing a key must not strand the other.
-
-        The old key is marked for GC, and the sweep whitelists any key a row
-        still references — so the sibling keeps resolving.
-        """
         with self._tagged_digest_build():
             self._drain_legacy_rows()
             payload = b"shared-" + os.urandom(16)
@@ -2215,12 +1809,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_rehash_reports_no_remaining_when_it_makes_no_progress(self):
-        """A batch that re-keys nothing must not re-enqueue itself.
-
-        The read guard skips rows whose content cannot be read. If such a batch
-        still reported rows remaining, the autovacuum would re-enqueue it for
-        its whole wall-clock budget, re-reading the same broken rows.
-        """
         with self._tagged_digest_build():
             self._drain_legacy_rows()
             att, _fname = self._legacy_row(b"unreadable-" + os.urandom(16))
@@ -2234,7 +1822,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             self.assertFalse(att.store_fname.startswith("b3/"))
 
     def test_rehash_skips_other_backends_keys(self):
-        """A schemed key belongs to another backend and is never re-keyed."""
         with self._tagged_digest_build():
             att = self.Attachment.create({"name": "remote", "raw": b"remote-ish"})
             self.addCleanup(
@@ -2251,7 +1838,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             self.assertEqual(att.store_fname, "s3://bucket/deadbeef")
 
     def test_rehash_is_a_noop_under_db_storage(self):
-        """Under ``db`` storage a rewrite would move content between backends."""
         att, fname = self._legacy_row(b"dbmode-" + os.urandom(16))
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
         self.assertEqual(self.Attachment._gc_rehash_legacy_keys(limit=10), (0, 0))
@@ -2289,10 +1875,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         a.invalidate_recordset()
 
     def test_read_permission(self):
-        """If the record can't be read, the attachment can't be read either
-        If the attachment is public, the attachment can be read even if the record can't be read
-        If the attachment has no res_model/res_id, it can be read by its author and admins only
-        """
         _ = self.attachment.datas
         self.rule.perm_read = True
         self.attachment.invalidate_recordset()
@@ -2318,10 +1900,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_field_read_permission(self):
-        """If the record field can't be read,
-        e.g. `groups="base.group_system"` on the field,
-        the attachment can't be read either.
-        """
         skip_if_dev_mode("xml")
         main_partner = self.env.ref("base.main_partner")
         self.assertTrue(main_partner.image_128)
@@ -2377,14 +1955,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
             _ = attachment.datas
 
     def test_field_read_permission_uses_comodel_acl(self):
-        """The res_field ACL in _check_access must defer to the *comodel's*
-        _has_field_access, not ir.attachment's.
-
-        A comodel overriding the method (e.g. res.users self-service fields)
-        would otherwise be bypassed, leaking a field it forbids. Unlike a plain
-        ``groups=...`` field (covered above, model-independent), only an override
-        exposes the wrong-model dispatch this guards against.
-        """
         main_partner = self.env.ref("base.main_partner")
         attachment = self.env["ir.attachment"].search(
             [
@@ -2426,13 +1996,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_search_unbounded_model_fallback(self):
-        """The unbounded ``_search`` fallback filters inaccessible rows (IRA-T1).
-
-        A broad ``('id', 'in', [...])`` domain has no ``res_model`` constraint,
-        so ``_search`` takes the ``sudo()`` batched-fetch + ``_filtered_access``
-        post-filter branch instead of the ≤5-model branch; an attachment the
-        demo user must not see stays excluded.
-        """
         public_att = self.Attachments.sudo().create({"name": "public", "public": True})
         admin_orphan = self.Attachments.with_user(SUPERUSER_ID).create(
             {"name": "admin-orphan"}
@@ -2450,10 +2013,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         )
 
     def test_search_unbounded_matches_limited(self):
-        """Unbounded (limit=None) _search returns the same accessible set as a
-        limited search — the batched fetch must not drop or duplicate rows
-        (IRA-P1-3). Guards the memory-bounding rewrite of the limit=None branch.
-        """
         atts = self.Attachments.sudo().create(
             [{"name": f"pub{i}", "public": True} for i in range(12)]
         )
@@ -2466,16 +2025,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         )
 
     def test_search_keyset_pagination_crosses_batches(self):
-        """Multi-batch keyset/OFFSET pagination must equal a single fetch (IRA-B5).
-
-        ``test_search_unbounded_matches_limited`` uses fewer rows than
-        ``PREFETCH_MAX`` (1000), leaving the keyset seek predicate in
-        ``_fetch_accessible_ids`` (and a forbidden row as batch anchor)
-        unexercised. Patching ``PREFETCH_MAX`` to 3 over interleaved rows: the
-        batch size must not change which rows ``_search`` returns in ANY mode
-        (limit=None keyset, bounded keyset, offset slices, caller order), and
-        must never drop, duplicate, or leak an inaccessible row across a boundary.
-        """
         all_ids = []
         for i in range(24):
             kind = i % 3
@@ -2525,14 +2074,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
             )
 
     def test_batch_seek_keysets_the_order_search_actually_passes(self):
-        """An ``id``-led order must yield a keyset, not OFFSET (IRA-B5).
-
-        ``search_fetch`` substitutes ``_order`` for a missing order, so
-        ``_search`` sees ``'id desc'`` on every ordinary ``search()`` and the
-        keyset branch — which would have chosen that very order for itself —
-        was reachable only from ``search_count`` and subqueries. Every page
-        then paid OFFSET's re-scan of the rows it skipped.
-        """
         model = self.Attachments
         anchor = model.create({"name": "anchor"})
 
@@ -2561,13 +2102,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_write_access_is_enforced_without_the_duplicate_check(self):
-        """``super().write`` is the single gate on writing the attachments.
-
-        ``write`` used to check that itself as well, re-running the whole
-        comodel resolution of ``_check_access`` on every write. The checks it
-        keeps cover only what that gate cannot see: the NEW ``res_model`` /
-        ``res_id`` target and the NEW ``res_field``.
-        """
         outsider = (
             self.env["res.users"]
             .sudo()
@@ -2597,14 +2131,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_res_field_write_access(self):
-        """A new ``res_field`` must pass the comodel field's ACL (IRA-L2).
-
-        Otherwise a non-system user could re-point an attachment's ``res_field``
-        at a field they cannot access, since the ``res_field`` Char has no
-        ``groups``. The field has to be one an attachment can actually back
-        (see `_check_res_field_valid`), so the vehicle is a restricted Image
-        field rather than an arbitrary one.
-        """
         partner = self.user_demo.partner_id
         self.patch(
             self.env.registry["res.partner"]._fields["image_1920"],
@@ -2634,16 +2160,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_res_model_write_retargets_res_field_and_is_gated(self):
-        """Moving ``res_model`` re-targets ``res_field`` and passes its ACL.
-
-        ``res_field`` means nothing alone: the pair says "this row IS field X of
-        model Y", and a write naming only ``res_model`` moves it just as surely
-        as one naming ``res_field``. Only the second was gated, so the first
-        skipped the comodel field ACL entirely — a user allowed to write a
-        record could hand it the content of a binary field they are NOT allowed
-        to write, by re-pointing a row they had legitimately created against a
-        model where the same field is open (IRA-L2).
-        """
         partner = self.user_demo.partner_id
         attachment = self.Attachments.create(
             {
@@ -2664,7 +2180,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         self.assertEqual(attachment.res_model, "res.partner")
 
     def _revoke_model_read(self, model_name):
-        """Make *model_name* unreadable at the ACL level for the demo user."""
         self.env["ir.model.access"].sudo().search(
             [("model_id.model", "=", model_name), ("perm_read", "=", True)]
         ).write({"perm_read": False})
@@ -2677,7 +2192,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         )
 
     def _unprefiltered(self, func):
-        """Run *func* with the scan prefilter reduced to what it replaced."""
         with patch.object(
             IrAttachment,
             "_scan_prefilter",
@@ -2687,13 +2201,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_scan_prefilter_agrees_with_the_unprefiltered_scan(self):
-        """Narrowing the scan in SQL must not change one row of its answer.
-
-        The prefilter only decides how many rows ``_check_access`` is handed;
-        the post-filter stays the authority. So the whole contract is that the
-        two agree, and it is asserted against the condition the prefilter
-        replaced rather than against a hand-written expectation.
-        """
         view = self.env["ir.ui.view"].sudo().search([], limit=1)
         self.Attachments.sudo().create(
             [
@@ -2727,12 +2234,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_scan_prefilter_keeps_public_rows_of_an_unreadable_model(self):
-        """A public row survives its comodel being unreadable (IRA-B7).
-
-        ``public`` short-circuits :meth:`_check_access` before the comodel is
-        ever consulted, so pruning by model alone would drop rows the authority
-        allows — the one way this prefilter could be too restrictive.
-        """
         view = self.env["ir.ui.view"].sudo().search([], limit=1)
         public, private = self.Attachments.sudo().create(
             [
@@ -2761,14 +2262,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_scan_prefilter_keeps_rows_with_no_res_model(self):
-        """``res_model NOT IN (...)`` must not drop the rows where it is NULL.
-
-        SQL says ``NULL NOT IN ('x')`` is NULL, i.e. not true, so a literal
-        ``NOT IN`` would silently drop every unlinked row from every scan — and
-        those are precisely the rows :meth:`_check_access` hands to their
-        creator. ``Domain`` compiles the ``OR res_model IS NULL`` that makes it
-        safe; this pins that, since the prefilter is built on it.
-        """
         mine = self.Attachments.create({"name": "mine-unlinked.txt", "raw": b"mine"})
         self.env.flush_all()
         self.env.cr.execute(
@@ -2803,7 +2296,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         )
 
     def test_scan_prefilter_declines_past_the_discovery_cap(self):
-        """Too many distinct models and nothing is narrowed at all."""
         sec_domain = Domain("public", "=", True)
         with patch.object(
             IrAttachment,
@@ -2816,14 +2308,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
             )
 
     def test_res_field_cannot_outlive_its_res_model(self):
-        """Clearing ``res_model`` while ``res_field`` stays is refused, clearly.
-
-        The pair carries the meaning; a ``res_field`` alone names a field of
-        nothing, and no reader can resolve the row. Refused for the superuser
-        too — it is the data-model invariant, not a permission — and as a
-        ``ValidationError``, since "this pair makes no sense" is not an access
-        answer.
-        """
         backed = self.Attachments.create(
             {
                 "name": "avatar",
@@ -2849,13 +2333,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_a_non_string_res_model_is_refused_not_crashed_on(self):
-        """A client-supplied ``res_model`` must never 500 out of an access gate.
-
-        The value reaches ``create``/``write`` unconverted and is used as a dict
-        key and a registry lookup, so a list raised ``TypeError: cannot use
-        'list' as a dict key`` from inside the comodel access check — a 500
-        where the answer is "that is not a model".
-        """
         partner = self.user_demo.partner_id
         for res_model in ([], ["res.partner"], {"a": 1}, 42, 0.5):
             with self.subTest(res_model=res_model):
@@ -2877,15 +2354,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
                 row.write({"res_model": res_model})
 
     def test_res_field_targets_cover_every_way_the_pair_moves(self):
-        """Every write that moves either half of the pair is checked, once each.
-
-        The enumeration is what the gate sees, so it is pinned directly: the
-        ``res_model``-only case is the one that used to yield nothing at all,
-        and both halves of :meth:`_check_res_field_access` — the data-model
-        invariant and the field ACL — were skipped with it. Rows with no
-        ``res_field`` still yield a falsy pair, which the check returns on, so
-        an ordinary re-parenting write stays free.
-        """
         partner = self.user_demo.partner_id
         backed = self.Attachments.create(
             {
@@ -2920,16 +2388,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         )
 
     def test_derive_mode_reproduces_the_buffered_create(self):
-        """The streaming upload path must produce the row ``create`` produced.
-
-        ``/mail/attachment/upload`` and ``/web/binary/upload_attachment`` used
-        to hold the whole file in the worker (``create({"raw": ufile.read()})``)
-        because none of ``_from_request_file``'s modes typed a row the way
-        ``create`` does: ``TRUST`` believes the client's Content-Type and
-        ``GUESS`` renames the file. ``DERIVE`` is that missing mode, so the
-        switch is a memory change and nothing else — asserted field by field,
-        including the ones that are only right if the same bytes were stored.
-        """
 
         class _FakeFile:
             def __init__(self, content, filename):
@@ -2967,12 +2425,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
                     )
 
     def test_from_request_file_mimetype_modes(self):
-        """``_from_request_file`` honours the three mimetype modes (IRA-T2).
-
-        Also pins the XSS-neuter contract: a ``TRUST``-ed ``text/html`` /
-        ``image/svg+xml`` upload is forced to ``text/plain`` for a non-view
-        writer (the demo user), so the upload path is no stored-XSS vector.
-        """
 
         class _FakeFile:
             def __init__(self, content, content_type, filename):
@@ -3022,9 +2474,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         )
 
     def test_with_write_permissions(self):
-        """With write permissions to the linked record, attachment can be
-        created, updated, or deleted (or copied).
-        """
         self.rule.perm_write = False
         attachment = self.Attachments.create(self.vals)
         attachment.copy()
@@ -3032,9 +2481,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         attachment.unlink()
 
     def test_basic_modifications(self):
-        """Lacking write access to the linked record means create, update, and
-        delete on the attachment are forbidden
-        """
         with self.assertRaises(AccessError):
             self.Attachments.create(self.vals)
         with self.assertRaises(AccessError):
@@ -3045,9 +2491,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
             self.attachment.copy()
 
     def test_cross_record_copies(self):
-        """Copying attachments between records (in the same model or not) adds
-        wrinkles as the ACLs may diverge a lot more
-        """
         unwritable = self.env["res.users.apikeys.description"].create(
             {"name": "Unwritable"}
         )
@@ -3071,14 +2514,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
             copied.copy({"res_model": unwritable._name, "res_id": unwritable.id})
 
     def test_write_error(self):
-        """An unwritable target propagates its OSError out of ``_file_write``.
-
-        The stub returns what the real ``_get_path`` returns — a ``str`` store
-        key and its absolute path. It used to hand back the payload ``bytes``
-        as the key, which only went unnoticed because nothing touched the key
-        before the write failed; ``_file_write`` now marks it for collection
-        first (IRA-G2), and a bytes key raises a ``TypeError`` there instead.
-        """
         key = "te/test_write_error"
         self.patch(
             IrAttachment,
@@ -3092,13 +2527,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
             self.env["ir.attachment"]._file_write(b"test", "test")
 
     def test_write_create_url_binary_attachment(self):
-        """A non-serving user cannot create/write a binary+url attachment.
-
-        Assert on the exception type only: the message goes through ``_()`` and
-        this dev DB serves ``es_MX``, so matching the English string is flaky.
-        ``_check_serving_attachments`` is the only ValidationError these paths
-        can raise.
-        """
         with self.assertRaises(ValidationError):
             self.Attachments.create(
                 {"name": "Py", "url": "/blabla.js", "raw": b"Something"}
@@ -3122,14 +2550,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
             existing_attachment.type = "binary"
 
     def test_res_id_without_res_model_stays_owner_only(self):
-        """An attachment carrying ``res_id`` but no ``res_model`` is unlinked.
-
-        ``_check_access`` used to read that state as "linked to a record" and
-        skip the creator check, while ``res_model and res_id`` then skipped the
-        comodel check too — so the row fell through every branch and any
-        internal user could read, write and delete it. ``res_id`` is
-        caller-supplied at create time, so the state is trivially reachable.
-        """
         other_user = (
             self.env["res.users"]
             .sudo()
@@ -3169,12 +2589,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         )
 
     def _rule_free_comodel(self):
-        """Return a model whose ``_search`` produces no WHERE for this user.
-
-        That is the shape the per-comodel subdomain used to treat as
-        unrestricted, and it is the common one: master data usually carries no
-        record rule at all.
-        """
         for name in ("res.country", "res.country.state", "res.groups"):
             comodel = self.env.get(name)
             if comodel is not None and not comodel._search(Domain.TRUE).where_clause:
@@ -3183,16 +2597,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         return None
 
     def test_search_by_model_excludes_unlinked_rows_of_others(self):
-        """The ≤5-model search path must not out-run ``_check_access`` (IRA-B6).
-
-        With no record rule and no ``res_id`` condition, the comodel subquery
-        restricts nothing, and the ``res_id IN (subquery)`` clause used to be
-        dropped as a tautology. It is not one: it also excludes NULL and ``0``,
-        and those rows are the unlinked ones ``_check_access`` reserves for
-        their creator. Dropping it let any user read another's
-        ``res_model``-set, ``res_id``-less attachment — content included — on
-        the path that has no post-filter to catch it.
-        """
         comodel = self._rule_free_comodel()
         real_id = comodel.search([], limit=1).id
         rows = {
@@ -3233,14 +2637,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_search_by_unreadable_model_is_empty_not_an_error(self):
-        """An unreachable comodel contributes nothing; it does not raise.
-
-        ``comodel._search`` raises for a model the user cannot read, so
-        searching one's own attachments by ``res_model`` failed with an
-        ``AccessError`` naming an unrelated model — while the same search
-        spanning six models quietly returned nothing for it, and
-        ``_check_access`` simply treats those attachments as forbidden.
-        """
         forbidden = next(
             (
                 name
@@ -3271,13 +2667,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
 
 class TestFilestoreDedup(TransactionCaseWithUserDemo):
-    """Regression tests for the deduplicated filestore read/write/delete paths.
-
-    Each pins an invariant that two implementations used to encode separately,
-    so re-splitting them (or letting one drift) fails here rather than in
-    production on one path only.
-    """
-
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
@@ -3289,12 +2678,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         return {path.name for path in self.tmp_dir.iterdir()}
 
     def test_unlink_and_content_replacement_share_the_delete_hook(self):
-        """`_file_delete_multi` is THE local-filestore deletion override point.
-
-        `unlink()` used to reach `_mark_for_gc_multi` directly, so a deployment
-        overriding the per-key hook saw content *replacements* and silently
-        never saw *deletions*.
-        """
         seen = []
         real = IrAttachment._file_delete_multi
 
@@ -3348,11 +2731,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         )
 
     def test_read_prefix_keeps_the_static_url_leg_raw_does_not(self):
-        """The one place the two readers deliberately differ.
-
-        `_read_prefix` resolves a url naming an addon file; `raw` does not, and
-        collapsing them would start serving those bytes through the field.
-        """
         attachment = self.Attachment.create(
             {
                 "name": "logo.png",
@@ -3415,7 +2793,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_a_failed_stage_never_leaks_its_temp(self):
-        """Whatever goes wrong mid-write, tmp/ is left as it was found."""
         before = self._temps()
         boom = OSError("disk on fire")
 
@@ -3477,11 +2854,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_rewrite_skips_a_row_whose_content_vanished(self):
-        """A read that comes back empty must never be written back.
-
-        Writing it would blank the row AND make the GC reclaim its only copy;
-        both whole-filestore rewrites share this guard.
-        """
         attachment = self.Attachment.create(
             {"name": "lost.bin", "raw": b"about-to-vanish" * 7}
         )
@@ -3502,15 +2874,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         self.assertEqual(attachment.file_size, size_before)
 
     def test_all_readers_resolve_the_same_content_location(self):
-        """`raw`, `_read_prefix` and `_to_http_stream` share one precedence.
-
-        The triage (keyed backend → inline db_datas → addon-static url → empty)
-        is spelled out three times: twice in bytes (`_stored_content`, which
-        `raw` and `_read_prefix` share) and once in streams (`_to_http_stream`),
-        because a Stream cannot be expressed as a bytes read. Forcing those two
-        shapes into one abstraction would be contrived — what must not drift is
-        the *order*, so that is what this pins.
-        """
         payload = b"precedence" * 7
 
         on_disk = self.Attachment.create({"name": "disk.bin", "raw": payload})
@@ -3548,19 +2911,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         self.assertEqual(empty_stream.size, 0)
 
     def test_store_key_wins_over_inline_data_for_every_reader(self):
-        """A row carrying both must resolve to the keyed content, three ways.
-
-        Rows holding a store key AND inline bytes exist — a half-finished
-        migration, a restore, or any of the writes that produced them back when
-        ``db_datas`` reached the column untouched. If one reader preferred the
-        inline copy it would serve different content than the other two —
-        silently, and only for such rows.
-
-        The decoy goes in by SQL because the API no longer writes that state:
-        ``db_datas`` is content now, so assigning it REPLACES the keyed copy
-        rather than shadowing it (IRA-R2). The shape under test outlives the way
-        it used to be produced.
-        """
         payload = b"the-real-content" * 5
         attachment = self.Attachment.create({"name": "both.bin", "raw": payload})
         self.env.flush_all()
@@ -3584,14 +2934,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
 
 
 class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
-    """``bin_size`` is a presentation mode; no content path may observe it.
-
-    Under it every binary field reads back as a human size string
-    (``b"4.90 Kb"``) instead of its payload, and nothing downstream can tell
-    that from a legitimately tiny file. Each test here drives one content path
-    from a ``bin_size`` context and asserts the bytes survive (IRA-Z1).
-    """
-
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
@@ -3606,7 +2948,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         return self.Attachment.browse(record.id)
 
     def test_bin_size_really_hides_the_payload(self):
-        """The premise: without neutralization a binary field is a size string."""
         attachment = self.Attachment.create({"name": "p.bin", "raw": self.payload})
         attachment = self._reread(attachment)
         self.assertEqual(
@@ -3616,14 +2957,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         )
 
     def test_content_write_under_bin_size_keeps_the_bytes(self):
-        """A content ``write`` used to BLANK the row.
-
-        The inverse reads ``raw`` back to store it, and the ORM caches the
-        assigned value with ``bin_size`` stripped — so reading it in the
-        caller's ``bin_size`` env missed the cache entirely and the row was
-        rewritten with ``b""``: no ``store_fname``, ``file_size = 0``, and the
-        previous content left for the GC.
-        """
         for key, value in (
             ("raw", self.payload),
             ("datas", base64.b64encode(self.payload)),
@@ -3639,11 +2972,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
                 self.assertEqual(attachment.file_size, len(self.payload))
 
     def test_copy_under_bin_size_keeps_the_bytes(self):
-        """``copy`` stored ``b"4.90 Kb"`` as the copy's content.
-
-        Only db-stored rows were hit: a filestore-backed copy shares its
-        origin's key and never round-trips the payload.
-        """
         for location in ("db", "file"):
             with self.subTest(location=location):
                 self.env["ir.config_parameter"].set_param(
@@ -3658,12 +2986,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
                 self.assertEqual(copied.file_size, len(self.payload))
 
     def test_force_storage_under_bin_size_keeps_the_bytes(self):
-        """The worst case: a whole-table sweep rewriting every row it moves.
-
-        ``_migrate``'s own guard cannot catch it — it compares ``file_size``
-        against the content it just read, disagrees, and "repairs" the row by
-        re-deriving every column from the size string.
-        """
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
         attachment = self.Attachment.create({"name": "m.bin", "raw": self.payload})
         attachment = self._reread(attachment)
@@ -3678,7 +3000,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         self.assertEqual(attachment.file_size, len(self.payload))
 
     def test_pdf_raw_under_bin_size_keeps_the_bytes(self):
-        """``_get_pdf_raw`` fed the size string to every PDF consumer."""
         pdf = b"%PDF-1.4\n" + b"x" * 3000
         attachment = self.Attachment.create(
             {"name": "d.pdf", "raw": pdf, "mimetype": "application/pdf"}
@@ -3687,11 +3008,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         self.assertEqual(self._sized(attachment)._get_pdf_raw(), pdf)
 
     def test_per_field_bin_size_is_neutralized_too(self):
-        """``bin_size_raw`` is a second, independent axis and must also be cleared.
-
-        ``Binary.compute_value`` reads it straight from the context, so a reader
-        that clears only the global ``bin_size`` still gets the size string.
-        """
         attachment = self.Attachment.create({"name": "pf.bin", "raw": self.payload})
         attachment = self._reread(attachment)
         scoped = attachment.with_context(bin_size_raw=True, bin_size_db_datas=True)
@@ -3703,16 +3019,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         self.assertEqual(self._reread(attachment).raw, b"replacement-payload")
 
     def test_per_field_bin_size_does_not_poison_plain_readers(self):
-        """A ``bin_size_<field>`` read must not answer a caller who asked for none.
-
-        ``Binary`` honours ``bin_size_<name>`` in ``read``/``compute_value`` but
-        declared only the global ``bin_size`` in its cache key, so both contexts
-        shared ONE entry: a single read under ``bin_size_raw`` wrote
-        ``b"1.96 Kb"`` into the entry every plain reader uses, and
-        ``record.raw`` then returned it to a caller with no ``bin_size`` in
-        context at all. Fixed in ``Binary.get_depends``; this pins it from the
-        model whose content the confusion corrupted.
-        """
         attachment = self.Attachment.create({"name": "poison.bin", "raw": self.payload})
         attachment = self._reread(attachment)
 
@@ -3725,15 +3031,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         )
 
     def test_per_field_flags_shorten_only_their_own_field(self):
-        """``bin_size_raw`` must shorten ``raw`` and nothing else.
-
-        ``datas`` is computed FROM ``raw``, and its own ``bin_size`` short
-        circuit does not fire for a flag naming a different field — so
-        ``bin_size_raw`` alone reached ``_compute_datas``, which encoded the
-        size string: ``datas`` came back as the base64 of ``b"1.97 Kb"``. That
-        decodes cleanly, so a caller gets a well-formed 7-byte file rather than
-        an error.
-        """
         attachment = self.Attachment.create({"name": "ind.bin", "raw": self.payload})
         attachment = self._reread(attachment)
         size = human_size(len(self.payload)).encode()
@@ -3756,18 +3053,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         )
 
     def test_attachment_backed_host_field_ignores_the_storage_flags(self):
-        """``bin_size_datas`` names ir.attachment's field, not the host's.
-
-        An attachment-backed binary field is read out of ``ir.attachment``
-        rows, and ``Binary.read`` used to read them under whatever context the
-        host carried. ``bin_size_datas`` — scoped to a field on a model the
-        caller never mentioned — therefore made ``res.partner.image_1920``
-        return ``b"70.00 bytes"``, and that value lands in the entry keyed by
-        ``bin_size``/``bin_size_image_1920``, neither of which is set: every
-        later plain reader in the transaction is served the size string too.
-        Same cross-field poisoning ``Binary.get_depends`` fixed for one field,
-        arriving through the storage model instead.
-        """
         image = image_to_base64(Image.new("RGB", (4, 4)), "PNG")
         partner = self.env["res.partner"].create({"name": "host", "image_1920": image})
         self.env.flush_all()
@@ -3788,14 +3073,6 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
                 )
 
     def test_attachment_backed_host_field_honours_its_own_flag(self):
-        """``bin_size_<name>`` must shorten the field it names, wherever it lives.
-
-        ``_fetch_query`` honours it for a column-stored binary field and
-        ``Binary.compute_value`` for a computed one; ``Binary.read`` — the
-        attachment-backed leg — ignored it, so the same flag shortened two of
-        the three storage shapes and silently did nothing to the third, while
-        ``get_depends`` still spent a separate cache entry on it.
-        """
         image = image_to_base64(Image.new("RGB", (4, 4)), "PNG")
         partner = self.env["res.partner"].create({"name": "host", "image_1920": image})
         self.env.flush_all()
@@ -3811,15 +3088,12 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         )
 
     def test_unsized_is_a_no_op_without_bin_size(self):
-        """The common path must not allocate a new environment per call."""
         attachment = self.Attachment.create({"name": "n.bin", "raw": b"x"})
         self.assertIs(attachment._unsized(), attachment)
         self.assertIsNot(self._sized(attachment)._unsized(), self._sized(attachment))
 
 
 class TestDedupOwnership(TransactionCaseWithUserDemo):
-    """``create_unique`` may only reuse rows that stand on their own (IRA-C4)."""
-
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
@@ -3853,11 +3127,6 @@ class TestDedupOwnership(TransactionCaseWithUserDemo):
         )
 
     def test_create_unique_never_reuses_a_field_backing_row(self):
-        """A ``res_field`` row is field X of record Y, not a shareable blob.
-
-        Reusing one handed the caller a reference the ORM rewrites on the next
-        write of that field and deletes with its host record.
-        """
         field_row = self._field_row()
         [reused] = self._create_unique()
         self.assertNotEqual(
@@ -3869,13 +3138,6 @@ class TestDedupOwnership(TransactionCaseWithUserDemo):
         self.assertEqual(self.Attachment.browse(reused).raw, self.payload)
 
     def test_a_res_field_value_never_reuses_anything(self):
-        """Asking for "field X of record Y" must produce that row, not a match.
-
-        The exclusion ran on the match SET only, so a value carrying
-        ``res_field`` still matched a free-standing row and was handed its id:
-        the caller asked to back a field and got an unrelated attachment, the
-        field stayed unbacked, and nothing said so.
-        """
         free = self.Attachment.create(
             {"name": "free.png", "raw": self.payload, "mimetype": "image/png"}
         )
@@ -3901,12 +3163,6 @@ class TestDedupOwnership(TransactionCaseWithUserDemo):
         self.assertEqual(backing.res_id, self.partner.id)
 
     def test_a_res_field_value_is_never_reused_within_its_own_batch(self):
-        """The same guard from the other end: it must not seed the batch's keys.
-
-        A ``res_field`` value registering the content key first handed the NEXT,
-        free-standing value a field-backing id — the exact reference IRA-C4
-        forbids, produced inside one call rather than found in the table.
-        """
         [backed, standalone] = self.Attachment.sudo().create_unique(
             [
                 {
@@ -3929,7 +3185,6 @@ class TestDedupOwnership(TransactionCaseWithUserDemo):
         self.assertEqual(self.Attachment.browse(standalone).raw, self.payload)
 
     def test_reused_row_survives_its_lookalike_host(self):
-        """The consequence the exclusion prevents: content swap and deletion."""
         field_row = self._field_row()
         [reused] = self._create_unique()
         self.env.flush_all()
@@ -3949,7 +3204,6 @@ class TestDedupOwnership(TransactionCaseWithUserDemo):
         self.assertEqual(self.Attachment.browse(reused).raw, self.payload)
 
     def test_create_unique_still_dedups_free_standing_rows(self):
-        """The exclusion must not disable dedup for ordinary rows."""
         free = self.Attachment.create(
             {"name": "free.png", "raw": self.payload, "mimetype": "image/png"}
         )
@@ -3958,21 +3212,12 @@ class TestDedupOwnership(TransactionCaseWithUserDemo):
 
 
 class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
-    """The GC must unlink the file it asked the database about (IRA-G2, IRA-G3)."""
-
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
         self.checklist = self.Attachment._filestore_dir("checklist")
 
     def test_a_stray_marker_never_unlinks_an_unrelated_file(self):
-        """A checklist name the sanitizer rewrites addresses two files.
-
-        The whitelist query used the name as found, the unlink used its
-        sanitized form — so a stray ``ab/cd.ef`` marker (an editor swap file, an
-        NFS silly-rename) made the sweep delete ``ab/cdef``, which no marker
-        ever named and which may be live content.
-        """
         live = self.Attachment.create({"name": "live.bin", "raw": b"live-content"})
         self.env.flush_all()
         victim = Path(self.Attachment._full_path(live.store_fname))
@@ -4003,17 +3248,6 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_a_refused_store_key_does_not_stop_the_sweep(self):
-        """One un-addressable marker must not disable the GC for good.
-
-        ``_full_path`` refuses a key whose shard resolves out of the filestore —
-        that refusal is the point of the ``resolve()`` there. Raising it out of
-        the sweep turned the confinement check into a denial of the GC: the run
-        aborts, every later marker in the walk is left, the autovacuum rolls
-        back, and the next run stops in the same place. The marker is dropped
-        instead: a key the filestore refuses addresses neither a file nor a live
-        ``store_fname``, so keeping it reclaims nothing and pins it against
-        ``_GC_MAX_ENTRIES`` forever.
-        """
         live = self.Attachment.create({"name": "live.bin", "raw": b"survivor"})
         self.env.flush_all()
         victim = Path(self.Attachment._full_path(live.store_fname))
@@ -4042,8 +3276,6 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
         collectable.unlink()
         self.env.flush_all()
 
-        # explicit order: the refused entry has to be swept BEFORE the
-        # collectable one for the abort to be observable at all
         self.Attachment._gc_file_store_unsafe(
             {refused: marker, orphan_key: self.checklist / orphan_key}, grace=0
         )
@@ -4058,11 +3290,6 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
         self.assertEqual(live.raw, b"survivor")
 
     def test_content_is_marked_before_it_is_published(self):
-        """A crash between publishing and marking leaks content forever.
-
-        The sweep walks the checklist, not the filestore, so an unmarked file
-        whose row rolled back is unreachable to every later GC run.
-        """
         payload = b"marked-before-published"
         checksum = self.Attachment._content_checksum(payload)
         fname = self.Attachment._file_store_path(checksum)
@@ -4087,7 +3314,6 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
         )
 
     def test_streamed_content_is_marked_before_it_is_published(self):
-        """Same ordering for the streaming writer."""
         payload = b"streamed-marked-before-published"
         checksum = self.Attachment._content_checksum(payload)
         fname = self.Attachment._file_store_path(checksum)
@@ -4109,8 +3335,6 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
 
 
 class TestAccessibleIdScanFootprint(TransactionCaseWithUserDemo):
-    """The batched access scan must cost O(batch) memory, not O(table) (P2-9)."""
-
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
@@ -4149,12 +3373,6 @@ class TestAccessibleIdScanFootprint(TransactionCaseWithUserDemo):
         )
 
     def test_unbounded_scan_keeps_only_one_batch_cached(self):
-        """``search_count`` is the caller that never passes a bound.
-
-        Batching bounded the query but not the cache, so every row ever
-        examined stayed resident: 23 MB of ``SECURITY_FIELDS`` to produce one
-        integer over 50k rows.
-        """
         scanned = self.Attachment.with_user(self.user)
         self.assertGreaterEqual(scanned.search_count([]), self.expected)
         self.assertLessEqual(
@@ -4164,7 +3382,6 @@ class TestAccessibleIdScanFootprint(TransactionCaseWithUserDemo):
         )
 
     def test_scan_still_agrees_with_the_authority(self):
-        """Invalidating a batch must not change which ids it reported."""
         scanned = self.Attachment.with_user(self.user)
         found = scanned.search([("name", "=like", "scan-%")], order="id")
         self.env.invalidate_all()
@@ -4177,7 +3394,6 @@ class TestAccessibleIdScanFootprint(TransactionCaseWithUserDemo):
         self.assertEqual(found.ids, expected.ids)
 
     def test_deep_paging_agrees_with_a_full_ordered_scan(self):
-        """Keyset batches must not skip or repeat a row across a boundary."""
         scanned = self.Attachment.with_user(self.user)
         domain = [("name", "=like", "scan-%")]
         for order in ("id", "id desc"):

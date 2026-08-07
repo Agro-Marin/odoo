@@ -32,9 +32,6 @@ def read_group_list(model, domain=None, groupby=(), aggregates=("__count",)):
 
 
 def search_read_clean(model, domain, spec):
-    """``web_search_read`` result as the /json API exposes it — without the
-    internal ``@versioned`` ``__version`` cache stamp (mirrors the controller's
-    cleanup of internal keys, like ``read_group_list`` does for groups)."""
     result = model.web_search_read(domain, spec)
     result.pop("__version", None)
     return result

@@ -39,16 +39,6 @@ def _find_duplicate(
     company_id: int | None,
     company_scoped: bool = False,
 ) -> ResPartner | Literal[False]:
-    """Return the first pre-fetched candidate duplicating the partner, or False.
-
-    Python-only equivalent of the former per-partner ``search(domain, limit=1)``.
-    *values* are scanned in list order (VAT variants), so the earliest-listed
-    variant wins — a harmless deviation for these warning-only fields.
-
-    *company_scoped* applies the company filter even to a company-less partner
-    (registry check); otherwise the company term applies only when the partner
-    has a company (VAT check).
-    """
     for value in values:
         for candidate in candidates_by_value.get(value, []):
             if candidate.id == partner_id:
@@ -72,10 +62,6 @@ def _find_duplicate(
 
 
 def _is_descendant_of(candidate: Any, ancestor_id: int) -> bool:
-    """Return whether candidate is a descendant of ancestor_id via parent_id.
-
-    Walks up the (ORM-prefetched) parent chain, with a visited-set cycle guard.
-    """
     seen = set()
     record = candidate
     while record := record.parent_id:
@@ -108,13 +94,6 @@ _RE_WHITESPACE_BEFORE_NEWLINE = re.compile(r"\s+\n")
 
 
 def _complete_name_trgm_index_definition(registry) -> str:
-    """GIN trigram index definition for ``complete_name`` (empty when ``pg_trgm``
-    is unavailable).
-
-    The ORM wraps both operands of ``ilike`` in ``unaccent()``, so the index
-    expression must match — but only when ``unaccent`` is immutable/indexable
-    (same rule as ``check_indexes``).
-    """
     if not registry.has_trigram:
         return ""
     from odoo.modules.db import FunctionStatus
@@ -155,7 +134,6 @@ class ResPartner(models.Model):
 
     @api.model
     def default_get(self, fields: list[str]) -> dict[str, Any]:
-        """Add the company of the parent as default if we are creating a child partner."""
         values = super().default_get(fields)
         if "company_id" in fields and "parent_id" in fields and values.get("parent_id"):
             parent = self.browse(values.get("parent_id"))
@@ -408,8 +386,6 @@ class ResPartner(models.Model):
             p.application_statistics = result.get(p.id, [])
 
     def _compute_application_statistics_hook(self) -> dict[int, list]:
-        """Override hook: overriding the compute directly does not update the
-        cache; all overrides receive False instead of the previously assigned value."""
         return defaultdict(list)
 
     def _get_street_split(self) -> dict[str, str]:
@@ -467,11 +443,6 @@ class ResPartner(models.Model):
         return super()._avatar_get_placeholder_path()
 
     def _get_complete_name(self, type_description: dict[str, str]) -> str:
-        """Build the full display name for a single partner.
-
-        :param type_description: Pre-computed ``{type_key: label}`` mapping,
-            i.e. ``dict(self._fields["type"]._description_selection(self.env))``.
-        """
         self.ensure_one()
 
         name = self.name or ""
@@ -500,8 +471,6 @@ class ResPartner(models.Model):
 
     @api.depends("parent_id")
     def _compute_lang(self) -> None:
-        """While creating / updating child contact, take the parent lang by
-        default if any. Otherwise, fallback to default context / DB lang"""
         if not self:
             return
         default_lang = self.default_get(["lang"]).get("lang")
@@ -529,7 +498,6 @@ class ResPartner(models.Model):
 
     @api.depends("parent_id")
     def _compute_user_id(self) -> None:
-        """Synchronize sales rep with parent if partner is a person"""
         for partner in self.filtered(
             lambda partner: (
                 not partner.user_id
@@ -542,12 +510,6 @@ class ResPartner(models.Model):
     @api.depends_context("uid")
     @api.depends("user_ids.active", "user_ids.share")
     def _compute_main_user_id(self) -> None:
-        """Determine the main user for each partner.
-
-        Users are fetched sorted (share ASC, id ASC), so the first match per
-        partner is the best (internal over share, smallest id) — no per-partner
-        ``min()`` needed.
-        """
         Users = self.env["res.users"].sudo()
         current_user = self.env.user
         current_partner_id = current_user.partner_id.id
@@ -579,7 +541,6 @@ class ResPartner(models.Model):
 
     @api.depends("user_ids.share", "user_ids.active")
     def _compute_partner_share(self) -> None:
-        """Batch-determine which partners have internal (non-share) users."""
         super_partner = self.env["res.users"].browse(api.SUPERUSER_ID).partner_id
         if super_partner in self:
             super_partner.partner_share = False
@@ -610,11 +571,6 @@ class ResPartner(models.Model):
         "country_id.code",
     )
     def _compute_same_vat_partner_id(self) -> None:
-        """Detect duplicate VAT/company_registry via batch pre-fetching.
-
-        Fetches all candidates in 1-2 bulk queries and matches in Python instead
-        of one search() per partner.
-        """
         Partner = self.with_context(active_test=False).sudo()
 
         all_vats = set()
@@ -755,7 +711,6 @@ class ResPartner(models.Model):
 
     @api.constrains("company_id")
     def _check_partner_company(self) -> None:
-        """Ensure a partner representing a company has that company as its ``company_id``."""
         partners = self.filtered(lambda p: p.is_company and p.company_id)
         companies = self.env["res.company"].search_fetch(
             [("partner_id", "in", partners.ids)], ["partner_id"]
@@ -806,14 +761,6 @@ class ResPartner(models.Model):
 
     @api.depends("name", "email")
     def _compute_email_formatted(self) -> None:
-        """Compute formatted email for partner, using formataddr.
-
-        Handles edge cases:
-          * double format: strips formatting if email is already formatted
-          * multi emails: joins normalized addresses (some servers accept this)
-          * invalid email: keeps raw value for debugging at mail level
-          * void email: email_formatted is False
-        """
         normalize_all = tools.email_normalize_all
         fmt = tools.formataddr
         for partner in self:
@@ -844,15 +791,6 @@ class ResPartner(models.Model):
 
     @api.constrains("barcode")
     def _check_barcode_unicity(self) -> None:
-        """Check barcode uniqueness within the current company.
-
-        barcode is company_dependent (JSONB ``{company_id: value}``), so
-        uniqueness is per company. The check reads the EXPLICIT per-company slot
-        via raw SQL rather than an ORM domain: a domain term on a
-        company_dependent field resolves through ``COALESCE(slot, ir.default)``,
-        so a non-empty barcode ir.default would make fallback-only partners look
-        like duplicates of that default value and raise spuriously (RP-L1).
-        """
         self.flush_model(["barcode"])
         cid = str(self.env.company.id)
         self.env.cr.execute(
@@ -889,7 +827,6 @@ class ResPartner(models.Model):
             raise ValidationError(_("Another partner already has this barcode"))
 
     def _convert_fields_to_values(self, field_names: list[str]) -> dict[str, Any]:
-        """Returns dict of write() values for synchronizing ``field_names``"""
         if any(self._fields[fname].type == "one2many" for fname in field_names):
             msg = "One2Many fields cannot be synchronized as part of `commercial_fields` or `address fields`"
             raise ValueError(msg)
@@ -897,37 +834,25 @@ class ResPartner(models.Model):
 
     @api.model
     def _address_fields(self) -> list[str]:
-        """Returns the list of address fields that are synced from the parent."""
         return list(ADDRESS_FIELDS)
 
     @api.model
     def _formatting_address_fields(self) -> list[str]:
-        """Returns the list of address fields usable to format addresses."""
         return self._address_fields()
 
     def _get_address_values(self) -> dict[str, Any]:
-        """Get address values from record if at least one value is set. Otherwise
-        it is considered empty and nothing is returned."""
         address_fields = self._address_fields()
         if any(self[key] for key in address_fields):
             return self._convert_fields_to_values(address_fields)
         return {}
 
     def _update_address(self, vals: dict[str, Any]) -> None:
-        """Filter values from vals that are linked to address definition, and
-        update recordset using super().write to avoid loops and side effects
-        due to synchronization of address fields through partner hierarchy."""
         addr_vals = {key: vals[key] for key in self._address_fields() if key in vals}
         if addr_vals:
             super().write(addr_vals)
 
     @api.model
     def _commercial_fields(self) -> list[str]:
-        """Return the fields managed by the partner's commercial entity.
-
-        These are hidden on non-commercial-entity partners and delegated to the
-        parent commercial entity (synced ones live in _synced_commercial_fields).
-        Meant to be extended by inheriting classes."""
         return self._synced_commercial_fields() + [
             "company_registry",
             "industry_id",
@@ -935,22 +860,16 @@ class ResPartner(models.Model):
 
     @api.model
     def _synced_commercial_fields(self) -> list[str]:
-        """Return commercial fields that, when modified on a child, propagate up
-        to the commercial entity."""
         return ["vat"]
 
     def _get_set_field_values(self, field_names: list[str]) -> dict[str, Any]:
-        """Return write values for the subset of ``field_names`` set on the record
-        (commercial values are considered individually; empty set yields ``{}``)."""
         set_fields = [fname for fname in field_names if self[fname]]
         return self._convert_fields_to_values(set_fields) if set_fields else {}
 
     def _get_commercial_values(self) -> dict[str, Any]:
-        """Return the record's set commercial values (unset values are omitted)."""
         return self._get_set_field_values(self._commercial_fields())
 
     def _get_synced_commercial_values(self) -> dict[str, Any]:
-        """Return the record's set synced commercial values."""
         return self._get_set_field_values(self._synced_commercial_fields())
 
     @api.model
@@ -962,8 +881,6 @@ class ResPartner(models.Model):
         ]
 
     def _commercial_sync_from_company(self) -> None:
-        """Handle sync of commercial fields when a new parent commercial entity is set,
-        as if they were related fields"""
         commercial_partner = self.commercial_partner_id
         if commercial_partner != self:
             sync_vals = commercial_partner._get_commercial_values()
@@ -973,12 +890,6 @@ class ResPartner(models.Model):
             self._company_dependent_commercial_sync()
 
     def _company_dependent_commercial_sync(self) -> None:
-        """Propagate company-dependent commercial fields to other companies.
-
-        Only fields that actually differ are written; companies already in sync
-        are skipped, avoiding a full ``write()`` cycle per company on every
-        re-parenting when there is nothing to update.
-        """
         if not (fields_to_sync := self._company_dependent_commercial_fields()):
             return
 
@@ -1003,12 +914,6 @@ class ResPartner(models.Model):
     def _commercial_sync_to_descendants(
         self, fields_to_sync: list[str] | None = None
     ) -> None:
-        """Sync commercial fields to descendants.
-
-        The non-company subtree below ``self`` is collected breadth-first and
-        written in one ``write()`` (the values are loop-invariant). ``is_company``
-        nodes are their own commercial entities: not synced, subtrees not entered.
-        """
         commercial_partner = self.commercial_partner_id
         if fields_to_sync is None:
             fields_to_sync = self._commercial_fields()
@@ -1031,22 +936,11 @@ class ResPartner(models.Model):
                 descendants_to_sync.write(sync_vals)
 
     def _fields_sync(self, values: dict[str, Any]) -> None:
-        """Sync commercial and address fields across the partner hierarchy.
-
-        Mimics related fields with more control; call after updating values in
-        cache (self must hold the new values). Three directions, in order:
-        parent→self (:meth:`_sync_from_parent`), self→parent
-        (:meth:`_sync_to_parent`), self→children (:meth:`_children_sync`).
-
-        :param values: updated values triggering the sync
-        """
         self._sync_from_parent(values)
         self._sync_to_parent(values)
         self._children_sync(values)
 
     def _sync_from_parent(self, values: dict[str, Any]) -> None:
-        """Pull values down from the parent onto self: commercial fields when the
-        parent changed, and address fields for contacts. See :meth:`_fields_sync`."""
         if not (values.get("parent_id") or values.get("type") == "contact"):
             return
         if values.get("parent_id"):
@@ -1056,9 +950,6 @@ class ResPartner(models.Model):
                 self._update_address(address_values)
 
     def _sync_to_parent(self, values: dict[str, Any]) -> None:
-        """Push editable values up from self onto the parent: contact address, and
-        synchronized commercial fields (e.g. vat), but only when they were part of
-        the update and now actually differ from the parent. See :meth:`_fields_sync`."""
         if not self.parent_id:
             return
         address_fields = self._address_fields()
@@ -1088,8 +979,6 @@ class ResPartner(models.Model):
                 contacts._update_address(values)
 
     def _handle_first_contact_creation(self) -> None:
-        """On creation of first contact for a company (or root) that has no address, assume contact address
-        was meant to be company address"""
         parent = self.parent_id
         address_fields = self._address_fields()
         if (
@@ -1110,8 +999,6 @@ class ResPartner(models.Model):
         return website
 
     def _compute_is_public(self) -> None:
-        """Detect public partners via a single ``_read_group`` on ``res.users``
-        joining through the public group, instead of per-partner user_ids."""
         self.is_public = False
         public_group = self.env.ref("base.group_public", raise_if_not_found=False)
         if not public_group:
@@ -1135,11 +1022,6 @@ class ResPartner(models.Model):
     def _raise_linked_user_error(
         self, users: ResUsers, operation: str
     ) -> typing.NoReturn:
-        """Raise the archive/delete refusal for partners linked to active users.
-
-        :param users: the linked active users blocking the operation
-        :param operation: ``"archive"`` or ``"delete"``, selecting the wording
-        """
         names = ", ".join(users.mapped("display_name"))
         if self.env["res.users"].sudo(False).has_access("write"):
             if operation == "archive":
@@ -1348,7 +1230,6 @@ class ResPartner(models.Model):
         return self.browse()
 
     def open_commercial_entity(self) -> dict[str, Any]:
-        """Open the partner's commercial entity (the "Open Company" button)."""
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -1419,10 +1300,6 @@ class ResPartner(models.Model):
 
     @api.model
     def name_create(self, name: str) -> tuple[int, str]:
-        """Create a partner from a free-form name/email string.
-
-        If only an email is received and no name can be parsed, the name is set to
-        the email. With the ``force_email`` context key, an email must be found."""
         default_type = self.env.context.get("default_type")
         if default_type and default_type not in self._fields["type"].get_values(
             self.env
@@ -1442,13 +1319,6 @@ class ResPartner(models.Model):
 
     @api.model
     def find_or_create(self, email: str, assert_valid_email: bool = False) -> Self:
-        """Find a partner with the given ``email`` or create a new one.
-
-        :param str email: email-like string, which should contain at least one email,
-            e.g. ``"Raoul Grosbedon <r.g@grosbedon.fr>"``
-        :param bool assert_valid_email: raise if no valid email is found
-        :return: the matching partner, or a newly created one
-        """
         if not email:
             raise ValueError(_("An email is required for find_or_create to work"))
 
@@ -1472,20 +1342,6 @@ class ResPartner(models.Model):
         return self.create(create_values)
 
     def address_get(self, adr_pref: list[str] | None = None) -> dict[str, int | bool]:
-        """Find contacts/addresses of the requested type(s) by DFS through
-        descendants within company boundaries (stopping at ``is_company`` nodes),
-        then continuing at ancestors within the same boundaries. Falls back to the
-        ``'contact'`` address, then to the first partner itself.
-
-        Multi-record contract: a SINGLE result dict is shared by all records in
-        ``self``, scanned in recordset order — the first address found for a type
-        wins, and the fallback default is resolved against the FIRST partner. Call
-        one partner at a time for per-partner resolution.
-
-        The reachable forest is prefetched with one ``child_of`` search under the
-        current user's record rules (deliberately NO sudo: addresses the user
-        cannot see must not be resolved).
-        """
         adr_pref = set(adr_pref or [])
         if "contact" not in adr_pref:
             adr_pref.add("contact")
@@ -1587,13 +1443,6 @@ class ResPartner(models.Model):
         return address_format, args
 
     def _display_address(self, without_company: bool = False) -> str:
-        """Build the address formatted according to the standards of its country.
-
-        :param bool without_company: omit the company name from the address
-        :return: the address formatted to fit its country's conventions (or the
-            default format if no country is specified)
-        :rtype: str
-        """
         address_format, args = self._prepare_display_address(without_company)
         try:
             return address_format % args
@@ -1641,14 +1490,6 @@ class ResPartner(models.Model):
 
     @api.model
     def _check_import_consistency(self, vals_list: list[ValuesType]) -> None:
-        """Validate that state_id/country_id pairs are consistent on import.
-
-        During import, field values are resolved independently by name search, so
-        a state from one country may be paired with a different country.  This
-        method corrects such mismatches: if a state does not belong to the
-        specified country, it searches for a state with the same code in the
-        correct country, or clears state_id when none exists.
-        """
         States = self.env["res.country.state"]
         states_ids = {vals["state_id"] for vals in vals_list if vals.get("state_id")}
         state_info_by_id = {

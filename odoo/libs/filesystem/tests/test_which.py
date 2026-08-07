@@ -1,5 +1,3 @@
-"""Regression test for ``odoo.libs.filesystem.which.which_files``."""
-
 import unittest
 
 from odoo.libs.filesystem.which import which_files

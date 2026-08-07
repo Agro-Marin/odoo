@@ -1,9 +1,3 @@
-"""ORM Fields package: all field types for Odoo models.
-
-Re-exports from base, binary, misc, numeric, properties, reference, relational,
-selection, temporal, and textual. Use via ``odoo.fields`` (public API).
-"""
-
 from .base import (
     COMPANY_DEPENDENT_FIELDS,
     IR_MODELS,

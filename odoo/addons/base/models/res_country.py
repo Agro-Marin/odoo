@@ -115,11 +115,6 @@ class ResCountry(models.Model):
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[tuple[int, str]]:
-        """Search countries, matching a 2-char ``name`` against ``code`` first
-        so code matches rank before name matches.
-
-        :rtype: list[tuple[int, str]]
-        """
         result = []
         domain = Domain(domain or Domain.TRUE)
         if operator not in Domain.NEGATIVE_OPERATORS and name and len(name) == 2:
@@ -163,7 +158,6 @@ class ResCountry(models.Model):
         return super().unlink()
 
     def get_address_fields(self) -> list[str]:
-        """Return the address placeholder names parsed from ``address_format``."""
         self.ensure_one()
         return re.findall(r"%\((\w+)\)s", self.address_format or "")
 
@@ -197,7 +191,6 @@ class ResCountry(models.Model):
 
     @api.depends("country_group_ids")
     def _compute_country_group_codes(self) -> None:
-        """Compute the JSON list of country group codes for this country."""
         for country in self:
             country.country_group_codes = [
                 g.code for g in country.country_group_ids if g.code
@@ -265,13 +258,6 @@ class ResCountryState(models.Model):
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[tuple[int, str]]:
-        """Search states, matching ``name`` against ``code`` (=ilike) first so
-        code matches rank before name matches.
-
-        Also accepts the ``in`` operator by fanning out one search per item.
-
-        :rtype: list[tuple[int, str]]
-        """
         result = []
         domain = Domain(domain or Domain.TRUE)
         if operator == "in":
@@ -303,17 +289,6 @@ class ResCountryState(models.Model):
 
     @api.model
     def _search_display_name(self, operator: str, value: str) -> Domain:
-        """Also match the ``Name (Country)`` display form.
-
-        Only a *string* comparand can carry that form, and only a string can be
-        fed to the regex in :meth:`_get_name_search_domain`.  A null comparand
-        reaches here as ``('display_name', 'in', {False})`` -- the shape the
-        optimizer normalizes ``('display_name', '=', False)`` into, and a
-        non-empty (so truthy) set -- and used to be regex-matched, raising
-        ``TypeError: expected string or bytes-like object, got 'bool'`` out of
-        any ``search([('display_name', '=', False)])`` or the ``state_id any
-        (...)`` sub-domain built from one.
-        """
         domain = super()._search_display_name(operator, value)
         if value and operator not in Domain.NEGATIVE_OPERATORS:
             if operator in ("ilike", "=") and isinstance(value, str):

@@ -1,13 +1,3 @@
-"""Schema DDL operations: create/alter tables, columns, constraints, indexes.
-
-The cursor-executing half of the former ``odoo/tools/sql.py``. These functions
-take a ``cr`` and run structural DDL against PostgreSQL; they are PostgreSQL-
-generic (any psycopg cursor) but database-coupled, so under ADR-0004's hybrid
-criterion they live in ``db/`` rather than the framework-free ``libs/``.
-Distinct from :mod:`odoo.db.ddl` (which *detects* DDL in a query string) and
-:mod:`odoo.db.schema_cache` (which caches catalog facts).
-"""
-
 from __future__ import annotations
 
 import enum
@@ -38,7 +28,6 @@ _CONFDELTYPES = {
 
 
 def existing_tables(cr: Cursor, tablenames: Iterable[str]) -> list[str]:
-    """Return the names of existing tables among ``tablenames``."""
     cr.execute(
         SQL(
             """
@@ -56,7 +45,6 @@ def existing_tables(cr: Cursor, tablenames: Iterable[str]) -> list[str]:
 
 
 def table_exists(cr: Cursor, tablename: str) -> bool:
-    """Return whether the given table exists."""
     return len(existing_tables(cr, {tablename})) == 1
 
 
@@ -70,10 +58,6 @@ class TableKind(enum.Enum):
 
 
 def table_kind(cr: Cursor, tablename: str) -> TableKind | None:
-    """Return the kind of a table, if ``tablename`` is a regular or foreign
-    table, or a view (ignores indexes, sequences, toast tables, and partitioned
-    tables; unlogged tables are considered regular)
-    """
     cr.execute(
         SQL(
             """
@@ -118,7 +102,6 @@ SQL_ORDER_BY_TYPE = defaultdict(
 def create_model_table(
     cr: Cursor, tablename: str, comment: str | None = None, columns: Sequence = ()
 ) -> None:
-    """Create the table for a model."""
     colspecs = [
         SQL("id SERIAL NOT NULL"),
         *(
@@ -156,13 +139,6 @@ def create_model_table(
 
 
 def table_columns(cr: Cursor, tablename: str) -> dict[str, dict]:
-    """Return a dict mapping column names to their configuration.
-
-    Each value is a dict with keys ``column_name``, ``udt_name``,
-    ``character_maximum_length``, and ``is_nullable`` (matching the legacy
-    ``information_schema.columns`` contract).  Uses ``pg_catalog`` directly
-    for better performance.
-    """
     cr.execute(
         SQL(
             """
@@ -188,7 +164,6 @@ def table_columns(cr: Cursor, tablename: str) -> dict[str, dict]:
 
 
 def column_exists(cr: Cursor, tablename: str, columnname: str) -> bool:
-    """Return whether the given column exists."""
     cr.execute(
         SQL(
             """
@@ -215,7 +190,6 @@ def create_column(
     columntype: str,
     comment: str | None = None,
 ) -> None:
-    """Create a column with the given type."""
     sql = SQL(
         "ALTER TABLE %s ADD COLUMN %s %s %s",
         SQL.identifier(tablename),
@@ -245,7 +219,6 @@ def create_column(
 def convert_column(
     cr: Cursor, tablename: str, columnname: str, columntype: str
 ) -> None:
-    """Convert the column to the given type."""
     using = SQL("%s::%s", SQL.identifier(columnname), SQL(columntype))
     _convert_column(cr, tablename, columnname, columntype, using)
 
@@ -253,7 +226,6 @@ def convert_column(
 def convert_column_translatable(
     cr: Cursor, tablename: str, columnname: str, columntype: str
 ) -> None:
-    """Convert the column from/to a 'jsonb' translated field column."""
     drop_index(cr, make_index_name(tablename, columnname), tablename)
     if columntype == "jsonb":
         using = SQL(
@@ -292,7 +264,6 @@ def _convert_column(
 
 
 def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
-    """Drop views depending on a field so the ORM can resize it in-place."""
     for v, k in get_depending_views(cr, table, column):
         quoted = '"%s"' % v.replace('"', '""')
         cr.execute(
@@ -306,20 +277,6 @@ def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
 
 
 def get_depending_views(cr: Cursor, table: str, column: str) -> list[tuple[str, str]]:
-    """Return ``(view_name, relkind)`` for every view depending on a column.
-
-    ``relname`` is returned **raw**, not through ``quote_ident``.  The single
-    consumer, :func:`drop_depending_views`, passes it to ``SQL.identifier``,
-    which does its own quoting -- so pre-quoting produced a name that already
-    carried literal double quotes and was then rejected outright::
-
-        ValueError: '"MixedCaseView"' invalid for SQL.identifier()
-
-    That only stayed hidden because ``quote_ident`` is a no-op for the ordinary
-    lowercase names the ORM generates; any view needing quotes (mixed case, a
-    reserved word, a space) turned a column-type migration into a hard failure
-    inside :func:`_convert_column`'s fallback path.
-    """
     cr.execute(
         SQL(
             """
@@ -344,7 +301,6 @@ def get_depending_views(cr: Cursor, table: str, column: str) -> list[tuple[str, 
 
 
 def set_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
-    """Add a NOT NULL constraint on the given column."""
     query = SQL(
         "ALTER TABLE %s ALTER COLUMN %s SET NOT NULL",
         SQL.identifier(tablename),
@@ -357,7 +313,6 @@ def set_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
 
 
 def drop_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
-    """Drop the NOT NULL constraint on the given column."""
     cr.execute(
         SQL(
             "ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL",
@@ -373,12 +328,6 @@ def drop_not_null(cr: Cursor, tablename: str, columnname: str) -> None:
 
 
 def set_default(cr: Cursor, tablename: str, columnname: str, value: object) -> None:
-    """Set a SQL DEFAULT on the given column.
-
-    This ensures the database fills in a default value even when the ORM
-    omits the column from INSERT (e.g. when the module that added the
-    field is not loaded but the NOT NULL constraint remains).
-    """
     cr.execute(
         SQL(
             "ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s",
@@ -395,7 +344,6 @@ def set_default(cr: Cursor, tablename: str, columnname: str, value: object) -> N
 def constraint_definition(
     cr: Cursor, tablename: str, constraintname: str
 ) -> str | None:
-    """Return the given constraint's definition."""
     cr.execute(
         SQL(
             """
@@ -417,7 +365,6 @@ def constraint_definition(
 def add_constraint(
     cr: Cursor, tablename: str, constraintname: str, definition: str
 ) -> None:
-    """Add a constraint on the given table."""
     query1 = SQL(
         "ALTER TABLE %s ADD CONSTRAINT %s %s",
         SQL.identifier(tablename),
@@ -441,7 +388,6 @@ def add_constraint(
 
 
 def drop_constraint(cr: Cursor, tablename: str, constraintname: str) -> None:
-    """Drop the given constraint."""
     cr.execute(
         SQL(
             "ALTER TABLE %s DROP CONSTRAINT %s",
@@ -460,7 +406,6 @@ def add_foreign_key(
     columnname2: str,
     ondelete: str,
 ) -> None:
-    """Create the given foreign key."""
     cr.execute(
         SQL(
             "ALTER TABLE %s ADD FOREIGN KEY (%s) REFERENCES %s(%s) ON DELETE %s",
@@ -495,10 +440,6 @@ _FK_BASE_QUERY = """
 def _get_fk_constraints(
     cr: Cursor, tablename: str, columnname: str
 ) -> list[tuple[str, str, str, str]]:
-    """Return all FK constraints on (tablename, columnname).
-
-    Each result is a tuple (conname, target_table, target_column, confdeltype).
-    """
     cr.execute(
         SQL(
             "SELECT fk.conname, c2.relname, a2.attname, fk.confdeltype"
@@ -514,11 +455,6 @@ def _get_fk_constraints(
 def get_fk_constraints_batch(
     cr: Cursor, tablenames: Iterable[str]
 ) -> list[tuple[str, str, str, str, str, str]]:
-    """Return all FK constraints on the given tables in a single query.
-
-    Each result is a tuple
-    (conname, source_table, source_column, target_table, target_column, confdeltype).
-    """
     cr.execute(
         SQL(
             "SELECT fk.conname, c1.relname, a1.attname, c2.relname, a2.attname, fk.confdeltype"
@@ -554,9 +490,6 @@ def fix_foreign_key(
     columnname2: str,
     ondelete: str,
 ) -> bool:
-    """Update the foreign keys between tables to match the given one, and
-    return ``True`` if the given foreign key has been recreated.
-    """
     deltype = _CONFDELTYPES.get(ondelete.upper(), "a")
     found = False
     for conname, target_table, target_col, del_type in _get_fk_constraints(
@@ -577,21 +510,6 @@ def fix_foreign_key(
 
 
 def index_exists(cr: Cursor, indexname: str) -> bool:
-    """Return whether the given index exists **in the current schema**.
-
-    The schema predicate is not incidental: ``pg_indexes`` spans every schema in
-    the database, so without it an unrelated index of the same name in another
-    schema reported a false positive here -- and :func:`create_index` returns
-    early on a true, so the index the caller asked for was silently never
-    created in the schema that needed it.  Every other catalogue lookup in this
-    module is already scoped this way; this one was the outlier.
-
-    ``relkind`` matches ``'i'`` *and* ``'I'`` to keep the previous result set
-    intact: ``pg_indexes`` is itself defined as ``i.relkind = ANY('i','I')``, so
-    dropping the partitioned-index kind would have turned this fix into a
-    regression -- an existing partitioned index would report missing and
-    :func:`create_index` would try to recreate it.
-    """
     cr.execute(
         SQL(
             """
@@ -608,21 +526,6 @@ def index_exists(cr: Cursor, indexname: str) -> bool:
 
 
 def index_definition(cr: Cursor, indexname: str) -> tuple[str | None, str | None]:
-    """Read the index definition from the database.
-
-    Scoped and kind-matched exactly like :func:`index_exists`, which the callers
-    pair this with.  Two mismatches used to make the pair disagree:
-
-    * ``pg_indexes`` spans every schema, and the join was on bare
-      ``c.relname = idx.indexname``.  A same-named index in another schema
-      produced a second row, so ``fetchone()`` could hand back a *different*
-      index's definition -- which the schema layer then compares against the
-      expected one and "repairs".  Joining on ``idx.schemaname`` too keeps the
-      row set to this schema.
-    * ``relkind = 'i'`` dropped partitioned indexes (``'I'``), so an existing
-      partitioned index reported present via :func:`index_exists` but definition
-      ``None`` here.
-    """
     cr.execute(
         SQL(
             """
@@ -652,14 +555,6 @@ def create_index(
     comment: str | None = None,
     unique: bool = False,
 ) -> None:
-    """Create the given index unless it already exists.
-
-    :param expressions: the indexed expressions/columns
-    :param method: the index type (default: btree)
-    :param where: WHERE clause for a partial index (default: none)
-    :param comment: comment to set on the index
-    :param unique: whether the index is unique (default: False)
-    """
     if not expressions:
         raise ValueError("Missing expressions")
     if index_exists(cr, indexname):
@@ -684,7 +579,6 @@ def add_index(
     unique: bool,
     comment: str | None = None,
 ) -> None:
-    """Create an index."""
     if isinstance(definition, str):
         definition = SQL(definition.replace("%", "%%"))
     else:
@@ -714,7 +608,6 @@ def add_index(
 
 
 def drop_index(cr: Cursor, indexname: str, tablename: str) -> None:
-    """Drop the given index if it exists."""
     cr.execute(SQL("DROP INDEX IF EXISTS %s", SQL.identifier(indexname)))
     _schema.debug("Table %r: dropped index %r", tablename, indexname)
 

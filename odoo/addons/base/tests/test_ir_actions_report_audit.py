@@ -1,9 +1,3 @@
-"""Regression coverage for ir.actions.report's WeasyPrint URL fetcher.
-
-Audit finding IAR-T2: the OdooURLFetcher path-traversal guard
-(_resolve_static_file) and the _parse_image_url parser were untested.
-"""
-
 import io
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
@@ -25,8 +19,6 @@ from odoo.addons.base.models.ir_actions_report import (
 
 @tagged("post_install", "-at_install")
 class TestReportUrlFetcher(TransactionCase):
-    """Lock the OdooURLFetcher static-file guard and image-URL parser."""
-
     def setUp(self):
         super().setUp()
         self.report = self.env["ir.actions.report"]
@@ -35,13 +27,11 @@ class TestReportUrlFetcher(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_static_file_rejects_path_traversal(self):
-        """A ``../``-escaping static path resolves to nothing (no escape)."""
         url = "http://localhost/base/static/../../../../../../etc/passwd"
         path = "/base/static/../../../../../../etc/passwd"
         self.assertIsNone(self.fetcher._resolve_static_file(url, path))
 
     def test_static_file_ignores_non_static_path(self):
-        """A path whose 2nd segment is not ``static`` is skipped early."""
         self.assertIsNone(
             self.fetcher._resolve_static_file(
                 "http://localhost/base/models/foo.py", "/base/models/foo.py"
@@ -52,7 +42,6 @@ class TestReportUrlFetcher(TransactionCase):
         )
 
     def test_parse_image_url_variants(self):
-        """Table-drive _parse_image_url across its three resolution regexes."""
         cases = [
             (
                 "/web/image/res.partner/42/image_1920",
@@ -90,12 +79,10 @@ class TestReportUrlFetcher(TransactionCase):
                 self.assertEqual(self.fetcher._parse_image_url(path, query), expected)
 
     def test_parse_image_url_missing_id_raises(self):
-        """The query-string fallback raises ValueError when no id is given."""
         with self.assertRaises(ValueError):
             self.fetcher._parse_image_url("/web/image", "model=res.partner")
 
     def test_blocked_fetch_ip_classification(self):
-        """_is_blocked_fetch_ip flags private/reserved IP literals, not hosts."""
         for host in (
             "169.254.169.254",
             "127.0.0.2",
@@ -114,22 +101,16 @@ class TestReportUrlFetcher(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_fetch_refuses_private_ip(self):
-        """fetch() refuses an absolute URL pointing at a private/reserved IP."""
         with self.assertRaises(ValueError):
             self.fetcher.fetch("http://169.254.169.254/latest/meta-data/")
 
     def test_fetch_rejects_file_scheme(self):
-        """file:// is not in allowed_protocols, so local-file reads are refused."""
         with self.assertRaises(ValueError):
             self.fetcher.fetch("file:///etc/passwd")
 
 
 @tagged("post_install", "-at_install")
 class TestReportAuditFixes(TransactionCase):
-    """Regression coverage for ir.actions.report audit fixes: create_action
-    access check, _search_model_id fallback, single ref resolution per render,
-    unknown-report_type error, and the barcode Code128 fallback."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -154,7 +135,6 @@ class TestReportAuditFixes(TransactionCase):
         )
 
     def test_create_action_binds_per_model(self):
-        """create_action must bind every report, grouped per model."""
         self.reports.create_action()
         partner_model = self.env["ir.model"]._get("res.partner")
         users_model = self.env["ir.model"]._get("res.users")
@@ -164,8 +144,6 @@ class TestReportAuditFixes(TransactionCase):
         self.assertEqual(set(self.reports.mapped("binding_type")), {"report"})
 
     def test_create_action_checks_write_access(self):
-        """Like unlink_action (and the ir.actions.server twin), create_action
-        must be denied to users without write access on the report."""
         user = self.env["res.users"].create(
             {
                 "name": "Report Audit User",
@@ -177,8 +155,6 @@ class TestReportAuditFixes(TransactionCase):
             self.reports.with_user(user).create_action()
 
     def test_search_model_id_unhandled_combo_returns_notimplemented(self):
-        """An operator/value combo no branch handles must return
-        NotImplemented (generic ORM fallback), not silently match nothing."""
         Report = self.env["ir.actions.report"]
         self.assertIs(Report._search_model_id("=", None), NotImplemented)
         partner_model = self.env["ir.model"]._get("res.partner")
@@ -186,7 +162,6 @@ class TestReportAuditFixes(TransactionCase):
         self.assertIn(self.reports[0], found)
 
     def test_render_unknown_report_type_raises(self):
-        """_render must raise a UserError naming the type, not return None."""
         report = self.reports[0]
         self.env.flush_all()
         self.env.cr.execute(
@@ -199,8 +174,6 @@ class TestReportAuditFixes(TransactionCase):
         self.assertIn("qweb-bogus", str(capture.exception))
 
     def test_render_resolves_string_reference_once(self):
-        """A string report_ref must hit the report_name search once per
-        render; internal calls receive the resolved record."""
         self.env["ir.actions.report"].create(
             {
                 "name": "Audit Render Report",
@@ -240,8 +213,6 @@ class TestReportAuditFixes(TransactionCase):
         )
 
     def test_barcode_fallback_to_code128_logs_warning(self):
-        """The Code128 fallback must log the original failure (observability)
-        while still producing a valid PNG."""
         with self.assertLogs(
             "odoo.addons.base.models.ir_actions_report", level="WARNING"
         ) as capture:
@@ -252,18 +223,11 @@ class TestReportAuditFixes(TransactionCase):
         )
 
     def test_report_name_is_indexed(self):
-        """report_name is searched on every string-ref resolution: keep it
-        btree-indexed."""
         self.assertTrue(self.env["ir.actions.report"]._fields["report_name"].index)
 
 
 @tagged("post_install", "-at_install")
 class TestReportAttachmentNameCache(TransactionCase):
-    """_prepare_pdf_report_attachment_vals_list must consume the
-    "attachment_name" cache written by _render_qweb_pdf_prepare_streams and
-    only fall back to safe_eval for entries that lack it (overridden
-    prepare_streams)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -315,10 +279,6 @@ class TestReportAttachmentNameCache(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestPdfOptionsChannel(TransactionCase):
-    """Native PDF options travel ONLY under data[PDF_OPTIONS_DATA_KEY]: the
-    namespaced key is popped before the QWeb context, and legacy top-level
-    keys are plain template data, never interpreted as options."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -392,9 +352,6 @@ class TestPdfOptionsChannel(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestReportRenderEntryPoints(TransactionCase):
-    """Entry-point argument normalization (single _normalize_render_args) and
-    the report_action docids contract."""
-
     def test_render_qweb_html_accepts_int_docids(self):
         module = self.env["ir.module.module"].search([("name", "=", "base")])
         content, report_type = self.env["ir.actions.report"]._render_qweb_html(
@@ -424,9 +381,6 @@ class TestReportRenderEntryPoints(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestValidActionReportsDomainGuard(TransactionCase):
-    """get_valid_action_reports is a public RPC feeding the action menu: one
-    malformed stored domain must not 500 the menu for the whole model."""
-
     def test_malformed_domain_is_logged_and_treated_valid(self):
         Report = self.env["ir.actions.report"]
         common = {
@@ -463,9 +417,6 @@ class TestValidActionReportsDomainGuard(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestWeasyPrintFailureObservability(TransactionCase):
-    """WeasyPrint failure paths keep the traceback in the server log while the
-    user still gets a clean UserError."""
-
     def test_layout_failure_logs_traceback(self):
         engine = self.env["ir.actions.report"]._build_weasyprint_engine()
         with (
@@ -487,9 +438,6 @@ class TestWeasyPrintFailureObservability(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestHtmlToImageTestMode(TransactionCase):
-    """_render_html_to_image honors force_report_rendering, mirroring the PDF
-    path's test-mode contract."""
-
     def test_short_circuits_in_test_mode(self):
         registry_cls = type(self.env["ir.actions.report"])
         with patch.object(
@@ -531,18 +479,8 @@ class TestHtmlToImageTestMode(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAssociatedViewMissingActionRef(TransactionCase):
-    """Lock associated_view()'s graceful-False behaviour on a missing action ref.
-
-    Commit b4ed4ad92d76 changed ``env.ref("base.action_ui_view")`` from its
-    default ``raise_if_not_found=True`` to ``raise_if_not_found=False``,
-    labeling the change a "dead guard removal" — it is not: before the fix,
-    a missing xmlid raised instead of hitting the ``if not action_ref``
-    guard below it. This locks the corrected (graceful False) behaviour.
-    """
-
     @classmethod
     def setUpClass(cls) -> None:
-        """Create a dummy report with a valid two-part report_name."""
         super().setUpClass()
         cls.report = cls.env["ir.actions.report"].create(
             {
@@ -553,12 +491,6 @@ class TestAssociatedViewMissingActionRef(TransactionCase):
         )
 
     def test_returns_action_data_when_action_ref_exists(self) -> None:
-        """Baseline: an existing xmlid returns a domain-filtered action dict.
-
-        Asserted functionally (search the resulting domain) rather than by
-        exact structural equality, since installed addons (e.g. web_studio)
-        may combine the base domain with extra terms via their own override.
-        """
         data = self.report.associated_view()
         self.assertIsInstance(data, dict)
         matching_view, other_view = self.env["ir.ui.view"].create(
@@ -572,7 +504,6 @@ class TestAssociatedViewMissingActionRef(TransactionCase):
         self.assertNotIn(other_view, found)
 
     def test_returns_false_when_action_ref_missing(self) -> None:
-        """A missing ``base.action_ui_view`` returns False, never raises."""
         imd = self.env["ir.model.data"].search(
             [("module", "=", "base"), ("name", "=", "action_ui_view")]
         )
@@ -580,35 +511,13 @@ class TestAssociatedViewMissingActionRef(TransactionCase):
         self.assertFalse(self.report.associated_view())
 
     def test_returns_false_when_report_name_has_no_module_part(self) -> None:
-        """A ``report_name`` with no ``module.name`` split (< 2 parts) short-circuits to False."""
         self.report.report_name = "audit_no_module_part"
         self.assertFalse(self.report.associated_view())
 
 
 @tagged("post_install", "-at_install")
 class TestXmlidLookupCacheOrderingAfterWrite(TransactionCase):
-    """Lock the flush-before-clear ordering in ir.model.data.write().
-
-    ``_xmlid_lookup`` reads via raw SQL (``@tools.ormcache`` + ``cr.execute``,
-    no ORM autoflush): a concurrent reader between the two calls could
-    re-cache the pre-write row if the cache were busted before the UPDATE
-    reached the DB. Commit 117c4a6abea7 fixed the ordering in write(): was
-    ``clear_cache()`` then ``flush_recordset()``, now ``flush_recordset()``
-    then ``clear_cache()``. That race isn't observable sequentially in a
-    single-threaded test (both calls complete before write() returns either
-    way), so this locks the ORDER of the two calls directly via mock instead
-    of the end-visible cache content.
-    """
-
     def test_db_row_reflects_write_before_cache_clear(self) -> None:
-        """The DB row must already carry the new value by clear_cache() time.
-
-        Asserted at the behavior level (what a concurrent raw-SQL reader
-        would observe), not by tracking which private methods get called in
-        what order: patch only ``clear_cache`` to probe the DB — via the
-        same raw SQL ``_xmlid_lookup`` uses — at the exact instant it fires.
-        Reintroducing the old order (clear then flush) must fail this test.
-        """
         group_a = self.env["res.groups"].create({"name": "Audit Group A"})
         group_b = self.env["res.groups"].create({"name": "Audit Group B"})
         imd = self.env["ir.model.data"].create(
@@ -645,10 +554,6 @@ class TestXmlidLookupCacheOrderingAfterWrite(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestFetcherHttpFallback(TransactionCase):
-    """OdooURLFetcher._fetch_via_http retries the stock WeasyPrint fetcher
-    with the absolute URL (a relative path is unresolvable there) and the
-    local barcode fast path forwards every option the HTTP route accepts."""
-
     def setUp(self):
         super().setUp()
         self.fetcher = self.env["ir.actions.report"]._build_url_fetcher()
@@ -701,22 +606,12 @@ class TestFetcherHttpFallback(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestReportFetcherOrigin(TransactionCase):
-    """_fetch_via_http attaches a live session cookie, so its notion of "local"
-    is a security boundary, not a routing convenience.
-
-    Matching on hostname alone made every port of the base host local, so a
-    report resource such as ``https://erp.example.com:9999/x`` handed the
-    cookie to whatever listened there -- and the request also ran with
-    ``verify=False``, so the same cookie survived an unvalidated TLS session.
-    """
-
     def _fetcher(self, base_url):
         fetcher = OdooURLFetcher(self.env, base_url=base_url)
         fetcher._session_cookie = "SESSIONSECRET"
         return fetcher
 
     def _route(self, fetcher, url):
-        """Return ('local', verify) or ('parent', None) for *url*."""
         seen = {}
 
         def do_get(target, cookies, verify=True):
@@ -754,8 +649,6 @@ class TestReportFetcherOrigin(TransactionCase):
         fetcher.cleanup()
 
     def test_tls_verification_is_waived_only_for_loopback(self):
-        """A server calling itself may use a self-signed certificate; anything
-        else must validate, since the request carries the session cookie."""
         loopback = self._fetcher("http://localhost:8069")
         self.assertEqual(
             self._route(loopback, "http://localhost:8069/web/content/1"),

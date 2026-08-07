@@ -1,24 +1,3 @@
-"""N+1 query pattern checker using stdlib ``ast``.
-
-Detects ORM query methods (``search``, ``search_count``, ``search_fetch``,
-``_read_group``) called inside ``for`` loop bodies.  These are almost always
-N+1 anti-patterns — the query should be hoisted before the loop and the
-results filtered or indexed in memory.
-
-Example of flagged code::
-
-    for record in records:
-        partners = self.env["res.partner"].search([("id", "=", record.partner_id.id)])
-
-Correct alternative::
-
-    partners = self.env["res.partner"].search(
-        [("id", "in", records.mapped("partner_id").ids)]
-    )
-    for record in records:
-        partner = partners.filtered(lambda p: p.id == record.partner_id.id)
-"""
-
 import ast
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -35,22 +14,12 @@ _QUERY_METHODS = frozenset(
 
 @dataclass(slots=True)
 class Violation:
-    """A single N+1 query warning."""
-
     lineno: int
     col_offset: int
     message: str
 
 
 def _is_query_call(node: ast.Call) -> str | None:
-    """Return the method name if *node* is an ORM query call, else ``None``.
-
-    Matches patterns like ``self.env['model'].search(...)``,
-    ``records.search(...)``, ``self.search(...)``.
-
-    Excludes non-ORM calls like ``re.search()``, ``REGEX.search()``,
-    ``pattern.search()``.
-    """
     match node.func:
         case ast.Attribute(attr=attr) if attr in _QUERY_METHODS:
             if attr != "search" or _looks_like_orm_receiver(node.func.value):
@@ -59,18 +28,6 @@ def _is_query_call(node: ast.Call) -> str | None:
 
 
 def _looks_like_orm_receiver(node: ast.expr) -> bool:
-    """Return True if *node* looks like an ORM recordset expression.
-
-    Rejects patterns that are clearly not ORM:
-    - ``re.search(...)`` — stdlib module
-    - ``CONSTANT.search(...)`` — compiled regex (ALL_CAPS name)
-    - ``pattern.search(...)`` — bare name that could be a regex variable
-
-    Accepts patterns that are clearly ORM:
-    - ``self.search(...)`` / ``self.env[...].search(...)``
-    - ``Model.search(...)`` where Model is CamelCase
-    - ``records.search(...)`` via attribute chain (``obj.field.search``)
-    """
     match node:
         case ast.Name(id="self"):
             return True
@@ -86,7 +43,6 @@ def _looks_like_orm_receiver(node: ast.expr) -> bool:
 
 
 def _has_self_root(node: ast.expr) -> bool:
-    """Return True if the leftmost name in an attribute/subscript chain is ``self``."""
     match node:
         case ast.Name(id="self"):
             return True
@@ -100,11 +56,6 @@ def _has_self_root(node: ast.expr) -> bool:
 
 
 def check(tree: ast.Module, filepath: str = "") -> Iterator[Violation]:
-    """Walk *tree* and yield N+1 query violations.
-
-    Skips test files and test directories since test code often uses loops
-    for readability over performance.
-    """
     if filepath and (
         filepath.rsplit("/", 1)[-1].startswith("test_") or "/tests/" in filepath
     ):
@@ -119,11 +70,6 @@ def check(tree: ast.Module, filepath: str = "") -> Iterator[Violation]:
 
 
 def _walk_for_queries_in_subtree(node: ast.AST) -> Iterator[Violation]:
-    """Yield violations for ORM query calls anywhere in *node*'s subtree.
-
-    Skips nested function/class definitions (new scopes) — queries inside
-    those execute when called, not per-iteration of the outer loop.
-    """
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
         return
 

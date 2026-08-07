@@ -1,7 +1,3 @@
-"""Lifecycle mixin for BaseModel: external IDs, archive/unarchive, registration
-hooks, onchange support, and model identity/URL helpers.
-"""
-
 import typing
 from collections import defaultdict
 
@@ -22,19 +18,9 @@ if typing.TYPE_CHECKING:
 
 
 class LifecycleMixin(_ModelStubs):
-    """Mixin providing lifecycle and metadata operations for recordsets."""
-
     __slots__ = ()
 
     def _get_external_ids(self) -> dict[IdType, list[str]]:
-        """Retrieve the External ID(s) of any database record.
-
-        :return: map of ids to the list of their fully qualified External IDs
-                 in the form ``module.key``, or an empty list when there's no
-                 External ID for a record, e.g.::
-
-                     {"id": ["module.ext_id", "module.ext_id_bis"], "id2": []}
-        """
         result = defaultdict(list)
         domain: DomainType = [
             ("model", "=", self._name),
@@ -49,29 +35,15 @@ class LifecycleMixin(_ModelStubs):
         return {record.id: result[record._origin.id] for record in self}
 
     def get_external_id(self) -> dict[IdType, str]:
-        """Retrieve one External ID per record (chosen arbitrarily when several
-        exist). Usable as a function field via ``Model.get_external_id``.
-
-        :return: map of ids to their fully qualified XML ID, defaulting to an
-                 empty string when there's none, e.g.::
-
-                     {"id": "module.ext_id", "id2": ""}
-        """
         results = self._get_external_ids()
         return {key: val[0] if val else "" for key, val in results.items()}
 
     @classmethod
     def is_transient(cls) -> bool:
-        """Return whether the model is transient.
-
-        See :class:`TransientModel`.
-
-        """
         return cls._transient
 
     @api.deprecated("Deprecated since 19.0, use action_archive or action_unarchive")
     def toggle_active(self) -> None:
-        "Inverses the value of :attr:`active` on the records in ``self``."
         if not self._active_name:
             raise UserError(self.env._("No 'active' field on model %s", self._name))
         active_recs = self.filtered(self._active_name)
@@ -79,11 +51,6 @@ class LifecycleMixin(_ModelStubs):
         (self - active_recs).action_unarchive()
 
     def action_archive(self) -> None:
-        """Set :attr:`active` to ``False`` on a recordset for active records.
-
-        Note, you probably want to override `write()` method if you want to take
-        action once the active field changes.
-        """
         field_name = self._active_name
         if not field_name:
             raise UserError(self.env._("No 'active' field on model %s", self._name))
@@ -91,11 +58,6 @@ class LifecycleMixin(_ModelStubs):
         active_recs[field_name] = False
 
     def action_unarchive(self) -> None:
-        """Set :attr:`active` to ``True`` on a recordset for inactive records.
-
-        Note, you probably want to override `write()` method if you want to take
-        action once the active field changes.
-        """
         field_name = self._active_name
         if not field_name:
             raise UserError(self.env._("No 'active' field on model %s", self._name))
@@ -103,17 +65,12 @@ class LifecycleMixin(_ModelStubs):
         inactive_recs[field_name] = True
 
     def _register_hook(self) -> None:
-        """Run right after the registry is built (override point)."""
+        pass
 
     def _unregister_hook(self) -> None:
-        """Clean up what :meth:`_register_hook` has done."""
+        pass
 
     def _get_redirect_suggested_company(self) -> typing.Any:
-        """Return the company to set on the context when redirecting to this
-        record via a shared link, to avoid multi-company issues. Override to
-        pick a better-suited company (e.g. hr.leave uses the leave type's
-        company, per its ir.rule).
-        """
         if "company_id" in self:
             return self.company_id
         elif "company_ids" in self:
@@ -123,23 +80,10 @@ class LifecycleMixin(_ModelStubs):
     def _can_return_content(
         self, field_name: str | None = None, access_token: str | None = None
     ) -> bool:
-        """Determine whether one can export a file or an image from a field of
-        record ``self``, even if ``self`` is not accessible to the current user.
-        If so, the record will be ``sudo()``-ed to access the corresponding file
-        or image.
-
-        :param field_name: image field name to check the access to
-        :param access_token: access token to use instead of the
-            access rights and access rules
-        :return: whether the extra access is allowed
-        """
         self.ensure_one()
         return False
 
     def _has_onchange(self, field: Field, other_fields: Collection[Field]) -> bool:
-        """Return whether ``field`` should trigger an onchange event in the
-        presence of ``other_fields``.
-        """
         return (field.name in self._onchange_methods) or any(
             dep in other_fields
             for dep in self.pool.get_dependent_fields(field.base_field)
@@ -148,10 +92,6 @@ class LifecycleMixin(_ModelStubs):
     def _apply_onchange_methods(
         self, field_name: str, result: dict, excluded_methods=()
     ) -> None:
-        """Apply onchange method(s) (not in ``excluded_methods``) for field
-        ``field_name`` on ``self``. Value assignments are applied on ``self``,
-        while warning messages are put in dictionary ``result``.
-        """
         for method in self._onchange_methods.get(field_name, ()):
             if method in excluded_methods:
                 continue
@@ -176,8 +116,4 @@ class LifecycleMixin(_ModelStubs):
         raise NotImplementedError(msg)
 
     def _get_placeholder_filename(self, field: str) -> str | bool:
-        """Returns the filename of the placeholder to use,
-        set on web/static/img by default, or the
-        complete path to access it (eg: module/path/to/image.png).
-        """
         return False

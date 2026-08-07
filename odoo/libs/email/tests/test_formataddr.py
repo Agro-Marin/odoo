@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.email.parsing.formataddr`` header safety."""
-
 import unittest
 
 from odoo.libs.email.parsing import formataddr

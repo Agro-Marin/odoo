@@ -1,5 +1,3 @@
-"""Date and datetime manipulation helpers."""
-
 __all__ = [
     "WEEKDAY_NUMBER",
     "Granularity",
@@ -61,23 +59,10 @@ Granularity = Literal["year", "quarter", "month", "week", "day", "hour"]
 
 
 def float_to_time(hours: float) -> time:
-    """Convert a number of hours into a time object.
-
-    :param hours: Number of hours, in ``[0.0, 24.0]``
-    :returns: A time object
-    :raises ValueError: if ``hours`` is NaN or outside ``[0.0, 24.0]``
-
-    Example::
-
-        >>> float_to_time(8.5)
-        datetime.time(8, 30)
-        >>> float_to_time(24.0)
-        datetime.time(23, 59, 59, 999999)
-    """
     if not 0.0 <= hours <= 24.0:
         msg = f"hours must be a number in [0.0, 24.0], got {hours!r}"
         raise ValueError(msg)
-    if hours == 24.0:
+    if hours == 24.0:  # noqa: RUF069  exact boundary: 24.0 is representable and the range is already checked
         return time.max
     fractional, integral = math.modf(hours)
     minutes = int(float_round(60 * fractional, precision_digits=0))
@@ -90,18 +75,6 @@ def float_to_time(hours: float) -> time:
 
 
 def time_to_float(duration: time | timedelta) -> float:
-    """Convert a time object to a number of hours.
-
-    :param duration: A time object or timedelta
-    :returns: Number of hours as float
-
-    Example::
-
-        >>> time_to_float(time(8, 30))
-        8.5
-        >>> time_to_float(timedelta(hours=2, minutes=15))
-        2.25
-    """
     if isinstance(duration, timedelta):
         return duration.total_seconds() / 3600
     if duration == time.max:
@@ -111,50 +84,16 @@ def time_to_float(duration: time | timedelta) -> float:
 
 
 def localized(dt: datetime) -> datetime:
-    """When missing, add UTC tzinfo to a datetime.
-
-    :param dt: A datetime object
-    :returns: The datetime with tzinfo set to UTC if it was naive
-
-    Example::
-
-        >>> localized(datetime(2024, 1, 1, 12, 0)).tzinfo
-        datetime.timezone.utc
-    """
     return dt if dt.tzinfo else dt.replace(tzinfo=utc)
 
 
 def to_timezone(tz: tzinfo | None) -> Callable[[datetime], datetime]:
-    """Get a function converting a datetime to another localized datetime.
-
-    :param tz: Target timezone (None means convert to naive UTC)
-    :returns: A function that converts datetimes
-
-    Example::
-
-        >>> from zoneinfo import ZoneInfo
-        >>> to_utc = to_timezone(None)
-        >>> to_paris = to_timezone(ZoneInfo('Europe/Paris'))
-    """
     if tz is None:
         return lambda dt: dt.astimezone(utc).replace(tzinfo=None)
     return lambda dt: dt.astimezone(tz)
 
 
 def parse_iso_date(value: str) -> date | datetime:
-    """Parse an ISO encoded string to a date or datetime.
-
-    :param value: ISO formatted date string (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
-    :returns: A date or datetime object
-    :raises ValueError: When the format is invalid or has a timezone
-
-    Example::
-
-        >>> parse_iso_date('2024-01-15')
-        datetime.date(2024, 1, 15)
-        >>> parse_iso_date('2024-01-15T10:30:00')
-        datetime.datetime(2024, 1, 15, 10, 30)
-    """
     if len(value) <= 10:
         return date.fromisoformat(value)
     now = datetime.fromisoformat(value)
@@ -164,46 +103,16 @@ def parse_iso_date(value: str) -> date | datetime:
 
 
 def get_month[D: (date, datetime)](date: D) -> tuple[D, D]:
-    """Compute the month date range from a date (first and last day of month).
-
-    :param date: Any date within the month
-    :returns: Tuple of (first_day, last_day) of the month
-
-    Example::
-
-        >>> get_month(date(2024, 2, 15))
-        (datetime.date(2024, 2, 1), datetime.date(2024, 2, 29))
-    """
     return date.replace(day=1), date.replace(
         day=calendar.monthrange(date.year, date.month)[1]
     )
 
 
 def get_quarter_number(date: date) -> int:
-    """Get the quarter number from a date (1-4).
-
-    :param date: Any date
-    :returns: Quarter number (1, 2, 3, or 4)
-
-    Example::
-
-        >>> get_quarter_number(date(2024, 5, 15))
-        2
-    """
     return (date.month - 1) // 3 + 1
 
 
 def get_quarter[D: (date, datetime)](date: D) -> tuple[D, D]:
-    """Compute the quarter date range from a date (first and last day of quarter).
-
-    :param date: Any date within the quarter
-    :returns: Tuple of (first_day, last_day) of the quarter
-
-    Example::
-
-        >>> get_quarter(date(2024, 5, 15))
-        (datetime.date(2024, 4, 1), datetime.date(2024, 6, 30))
-    """
     month_from = (date.month - 1) // 3 * 3 + 1
     date_from = date.replace(month=month_from, day=1)
     date_to = date_from.replace(month=month_from + 2)
@@ -214,24 +123,6 @@ def get_quarter[D: (date, datetime)](date: D) -> tuple[D, D]:
 def get_fiscal_year[D: (date, datetime)](
     date: D, day: int = 31, month: int = 12
 ) -> tuple[D, D]:
-    """Compute the fiscal year date range from a date.
-
-    A fiscal year is the period used by governments for accounting purposes
-    and varies between countries. By default, calling this method with only
-    one parameter gives the calendar year (ending YYYY-12-31).
-
-    :param date: A date belonging to the fiscal year
-    :param day: The day of month the fiscal year ends (default: 31)
-    :param month: The month of year the fiscal year ends (default: 12)
-    :returns: Tuple of (first_day, last_day) of the fiscal year
-
-    Example::
-
-        >>> get_fiscal_year(date(2024, 3, 15))
-        (datetime.date(2024, 1, 1), datetime.date(2024, 12, 31))
-        >>> get_fiscal_year(date(2024, 3, 15), day=31, month=3)
-        (datetime.date(2023, 4, 1), datetime.date(2024, 3, 31))
-    """
 
     def fix_day(year: int, month: int, day: int) -> int:
         max_day = calendar.monthrange(year, month)[1]
@@ -248,7 +139,7 @@ def get_fiscal_year[D: (date, datetime)](
         date_from += relativedelta(days=1)
     else:
         date_from = date_to + relativedelta(days=1)
-        date_to = date_to + relativedelta(years=1)
+        date_to += relativedelta(years=1)
         day = fix_day(date_to.year, date_to.month, date_to.day)
         date_to = date_to.replace(day=day)
     return date_from, date_to
@@ -258,17 +149,6 @@ def get_timedelta(
     qty: int,
     granularity: Literal["hour", "day", "week", "month", "year"],
 ) -> relativedelta:
-    """Get a relativedelta object for the given quantity and interval unit.
-
-    :param qty: Number of intervals
-    :param granularity: Type of interval ('hour', 'day', 'week', 'month', 'year')
-    :returns: A relativedelta object
-
-    Example::
-
-        >>> get_timedelta(3, 'month')
-        relativedelta(months=+3)
-    """
     switch = {
         "hour": relativedelta(hours=qty),
         "day": relativedelta(days=qty),
@@ -280,19 +160,6 @@ def get_timedelta(
 
 
 def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
-    """Get start of a time period from a date or a datetime.
-
-    :param value: Initial date or datetime
-    :param granularity: Type of period ('year', 'quarter', 'month', 'week', 'day', 'hour')
-    :returns: A date/datetime object corresponding to the start of the period
-
-    Example::
-
-        >>> start_of(date(2024, 5, 15), 'month')
-        datetime.date(2024, 5, 1)
-        >>> start_of(datetime(2024, 5, 15, 14, 30), 'day')
-        datetime.datetime(2024, 5, 15, 0, 0)
-    """
     is_datetime = isinstance(value, datetime)
     if granularity == "year":
         result = value.replace(month=1, day=1)
@@ -321,19 +188,6 @@ def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
 
 
 def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
-    """Get end of a time period from a date or a datetime.
-
-    :param value: Initial date or datetime
-    :param granularity: Type of period ('year', 'quarter', 'month', 'week', 'day', 'hour')
-    :returns: A date/datetime object corresponding to the end of the period
-
-    Example::
-
-        >>> end_of(date(2024, 5, 15), 'month')
-        datetime.date(2024, 5, 31)
-        >>> end_of(datetime(2024, 5, 15, 14, 30), 'day')
-        datetime.datetime(2024, 5, 15, 23, 59, 59, 999999)
-    """
     is_datetime = isinstance(value, datetime)
     if granularity == "year":
         result = value.replace(month=12, day=31)
@@ -362,53 +216,22 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
 
 
 def add[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
-    """Return the sum of a date/datetime and a relativedelta.
-
-    :param value: Initial date or datetime
-    :param args: Positional args to pass to relativedelta
-    :param kwargs: Keyword args to pass to relativedelta
-    :returns: The resulting date/datetime
-
-    Example::
-
-        >>> add(date(2024, 1, 15), months=1, days=5)
-        datetime.date(2024, 2, 20)
-    """
     return value + relativedelta(*args, **kwargs)
 
 
 def subtract[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
-    """Return the difference between a date/datetime and a relativedelta.
-
-    :param value: Initial date or datetime
-    :param args: Positional args to pass to relativedelta
-    :param kwargs: Keyword args to pass to relativedelta
-    :returns: The resulting date/datetime
-
-    Example::
-
-        >>> subtract(date(2024, 3, 15), months=1)
-        datetime.date(2024, 2, 15)
-    """
     return value - relativedelta(*args, **kwargs)
 
 
 def date_range[D: (date, datetime)](
     start: D, end: D, step: relativedelta = relativedelta(months=1)
 ) -> Iterator[datetime]:
-    """Date range generator with a step interval.
+    # E731: kept as lambdas on purpose. As `def`s these become two CONDITIONAL
+    # variants of one name, which mypy rejects outright ("must have identical
+    # signatures"), and annotating them drags `date.replace(tzinfo=...)` into
+    # scope for the `D = date` instantiation. The lambda form types cleanly.
+    post_process = lambda dt: dt  # noqa: E731  see comment above
 
-    :param start: Beginning date of the range
-    :param end: Ending date of the range (inclusive)
-    :param step: Interval of the range (positive, default: 1 month)
-    :returns: An iterator of dates/datetimes from start to end
-
-    Example::
-
-        >>> list(date_range(date(2024, 1, 1), date(2024, 3, 1)))
-        [datetime.date(2024, 1, 1), datetime.date(2024, 2, 1), datetime.date(2024, 3, 1)]
-    """
-    post_process = lambda dt: dt
     if isinstance(start, datetime) and isinstance(end, datetime):
         are_naive = start.tzinfo is None and end.tzinfo is None
         are_utc = start.tzinfo == utc and end.tzinfo == utc
@@ -432,7 +255,8 @@ def date_range[D: (date, datetime)](
 
         if not are_naive:
             tz = start.tzinfo
-            post_process = lambda dt, tz=tz: dt.replace(tzinfo=tz)
+
+            post_process = lambda dt, tz=tz: dt.replace(tzinfo=tz)  # noqa: E731  see comment above
             start = start.replace(tzinfo=None)
             end = end.replace(tzinfo=None)
 
@@ -458,17 +282,6 @@ def date_range[D: (date, datetime)](
 
 
 def sum_intervals(intervals: Iterable[tuple[datetime, datetime, ...]]) -> float:
-    """Sum the intervals duration in hours.
-
-    :param intervals: Iterable of tuples where first two elements are start/end datetimes
-    :returns: Total duration in hours
-
-    Example::
-
-        >>> intervals = [(datetime(2024, 1, 1, 9, 0), datetime(2024, 1, 1, 12, 0))]
-        >>> sum_intervals(intervals)
-        3.0
-    """
     return sum(
         (interval[1] - interval[0]).total_seconds() / 3600 for interval in intervals
     )
@@ -477,22 +290,6 @@ def sum_intervals(intervals: Iterable[tuple[datetime, datetime, ...]]) -> float:
 def weeknumber(
     locale: babel.Locale, date: date, first_week_day: int | None = None
 ) -> tuple[int, int]:
-    """Compute the year and week number of a date.
-
-    The week number is 1-indexed (first week is week number 1).
-
-    For ISO locales (first day of week = monday, min week days = 4) the concept
-    is clear and the Python stdlib implements it directly.
-
-    For other locales, the first week of the year is the one which contains
-    the first day of the year (taking first day of week into account).
-
-    :param locale: Babel locale object
-    :param date: The date to compute week number for
-    :param first_week_day: Optional override for the first day of the week
-        (0 = Monday, ..., 6 = Sunday). If None, derived from the locale.
-    :returns: Tuple of (year, week_number)
-    """
     if first_week_day is None:
         first_week_day = locale.first_week_day
     if first_week_day == 0 and locale.min_week_days == 4:
@@ -510,36 +307,8 @@ def weeknumber(
 
 
 def weekstart(locale: babel.Locale, date: date) -> date:
-    """Return the first weekday of the week containing the date.
-
-    If the date is already that weekday, it is returned unchanged.
-    Otherwise, it is shifted back to the most recent such weekday.
-
-    :param locale: Babel locale object
-    :param date: The reference date
-    :returns: The first day of the week containing the date
-
-    Example (week starts Sunday)::
-
-        weekstart of Sat 30 Aug -> Sun 24 Aug
-        weekstart of Sat 23 Aug -> Sun 17 Aug
-    """
     return date + relativedelta(weekday=weekdays[locale.first_week_day](-1))
 
 
 def weekend(locale: babel.Locale, date: date) -> date:
-    """Return the last weekday of the week containing the date.
-
-    If the date is already that weekday, it is returned unchanged.
-    Otherwise, it is shifted forward to the next such weekday.
-
-    :param locale: Babel locale object
-    :param date: The reference date
-    :returns: The last day of the week containing the date
-
-    Example (week starts Sunday, ends Saturday)::
-
-        weekend of Sun 24 Aug -> Sat 30 Aug
-        weekend of Sat 30 Aug -> Sat 30 Aug
-    """
     return weekstart(locale, date) + relativedelta(days=6)

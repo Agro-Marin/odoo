@@ -1,15 +1,3 @@
-"""Benchmark suite for base module optimized code paths.
-
-Measures absolute timing with statistical analysis for manual profiling.
-Not intended for CI — use test_base_perf_regression.py for query count gates.
-
-Run with:
-    > ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
-        --test-tags '/base:TestBaseBenchmark' -u base \
-        --stop-after-init --workers=0
-    grep "BASE_BENCHMARK" ./odoo.log
-"""
-
 import gc
 import logging
 
@@ -24,8 +12,6 @@ WARMUP_ITERATIONS = 5
 
 @tagged("post_install", "-at_install", "base_benchmark")
 class TestBaseBenchmark(TransactionCase):
-    """Benchmark suite for base module N+1-optimized methods."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -45,7 +31,6 @@ class TestBaseBenchmark(TransactionCase):
         setup=None,
         invalidate_cache: bool = True,
     ) -> BenchmarkStats:
-        """Run a benchmark with statistical analysis and log results."""
         stats = run_benchmark(
             name,
             func,
@@ -59,7 +44,6 @@ class TestBaseBenchmark(TransactionCase):
         return stats
 
     def test_bench_check_path(self):
-        """Benchmark: path constraint validation on 50 window actions."""
         actions = self.env["ir.actions.act_window"].create(
             [
                 {
@@ -77,7 +61,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_check_barcode(self):
-        """Benchmark: barcode uniqueness constraint on 50 partners."""
         partners = self.env["res.partner"].create(
             [
                 {"name": f"BenchBC_{i}", "barcode": f"BENCH-BC-{i:04d}"}
@@ -91,7 +74,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_get_bindings(self):
-        """Benchmark: cold-cache binding load for res.partner."""
         Actions = self.env["ir.actions.actions"]
         registry = self.registry
 
@@ -106,7 +88,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_compute_partner_share(self):
-        """Benchmark: partner_share computation on 100 partners."""
         partners = self.env["res.partner"].create(
             [{"name": f"BenchShare_{i}"} for i in range(100)]
         )
@@ -117,7 +98,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_compute_same_vat(self):
-        """Benchmark: same VAT compute on 20 partners with unique VATs."""
         partners = self.env["res.partner"].create(
             [
                 {
@@ -135,7 +115,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_compute_is_public(self):
-        """Benchmark: is_public computation on 50 partners."""
         partners = self.env["res.partner"].create(
             [{"name": f"BenchPublic_{i}"} for i in range(50)]
         )
@@ -146,7 +125,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_compute_main_user_id(self):
-        """Benchmark: main_user_id computation on 50 partners."""
         partners = self.env["res.partner"].create(
             [{"name": f"BenchMainUser_{i}"} for i in range(50)]
         )
@@ -157,7 +135,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_selection_target_model(self):
-        """Benchmark: _selection_target_model on warm cache."""
         ServerAction = self.env["ir.actions.server"]
         ServerAction._selection_target_model()
 
@@ -169,7 +146,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_company_init(self):
-        """Benchmark: company init (paperformat default)."""
         Company = self.env["res.company"]
 
         self._run_benchmark(
@@ -178,7 +154,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_ir_model_view_ids(self):
-        """Benchmark: batch view_ids computation on 50 models."""
         models = self.env["ir.model"].search([], limit=50)
 
         self._run_benchmark(
@@ -187,7 +162,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_ir_model_inherited_models(self):
-        """Benchmark: batch inherited_models computation on 50 models."""
         models = self.env["ir.model"].search([], limit=50)
 
         self._run_benchmark(
@@ -196,7 +170,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_ir_model_compute_count(self):
-        """Benchmark: batch record count via UNION ALL on 50 models."""
         models = self.env["ir.model"].search([], limit=50)
 
         self._run_benchmark(
@@ -205,7 +178,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_ir_model_fields_display_name(self):
-        """Benchmark: display_name with ormcache pre-warming on 100 fields."""
         ir_fields = self.env["ir.model.fields"].search([], limit=100)
 
         def bench():

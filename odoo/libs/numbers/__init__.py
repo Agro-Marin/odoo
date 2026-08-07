@@ -1,8 +1,3 @@
-"""Odoo-agnostic numeric utilities.
-
-Pure Python numeric helpers with no Odoo dependencies.
-"""
-
 from .float_utils import (
     RoundingMethod,
     float_compare,
@@ -13,7 +8,7 @@ from .float_utils import (
     float_split,
     float_split_str,
     json_float_round,
-    round,  # re-export; deliberately absent from __all__, see below
+    round,
 )
 
 __all__ = [

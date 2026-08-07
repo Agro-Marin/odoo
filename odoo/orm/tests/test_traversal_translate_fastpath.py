@@ -1,14 +1,3 @@
-"""Regression: recordset fast paths must not feed a translated cache to Rust.
-
-Per-term-translated char/text fields (``translate=<callable>``) cache their
-value as a ``{lang: value}`` dict (a ``LangProxyDict``), not a scalar. The
-C-accelerated ``sorted``/``filtered`` scanners require plain-dict scalar values,
-so the fast-path type gate must exclude these fields exactly as ``mapped`` and
-``grouped`` already do. Before the fix ``sorted``/``filtered`` raised ``TypeError``
-on a Rust build. These tests assert the fast paths agree with the general
-per-record path. Tier-2 suite: real ``import odoo``, no database.
-"""
-
 import sys
 
 import pytest
@@ -20,7 +9,6 @@ _MOD = "test_traversal_translate_fastpath"
 
 
 def _term_translate(_callback, value):
-    """Minimal per-term translate callable (shape of xml_translate)."""
     return value
 
 

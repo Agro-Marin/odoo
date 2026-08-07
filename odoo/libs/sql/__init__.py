@@ -1,10 +1,3 @@
-"""SQL string utilities and the composable ``SQL`` query wrapper.
-
-Framework-free (no ``odoo`` runtime imports): the ``SQL`` builder, the pure
-string helpers, and the trigram search-pattern transforms. Cursor-executing
-schema DDL lives in :mod:`odoo.db.schema`, not here (ADR-0004).
-"""
-
 from .builder import SQL
 from .trigram import (
     pattern_to_translated_trigram_pattern,

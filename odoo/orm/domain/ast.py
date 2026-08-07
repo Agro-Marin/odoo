@@ -1,12 +1,3 @@
-"""Domain AST classes.
-
-The ``Domain`` hierarchy: ``Domain`` (base + factory), ``DomainBool``
-(TRUE/FALSE), ``DomainNot`` (negation), ``DomainNary`` / ``DomainAnd`` /
-``DomainOr``, ``DomainCustom`` (custom SQL), ``DomainCondition`` (a
-``(field, operator, value)`` leaf). Also defines ``OptimizationLevel`` and the
-optimization registries populated by ``optimizations.py``.
-"""
-
 import collections
 import contextlib
 import datetime
@@ -50,8 +41,6 @@ _logger = logging.getLogger("odoo.domains")
 
 
 class OptimizationLevel(enum.IntEnum):
-    """Indicator whether the domain was optimized."""
-
     NONE = 0
     BASIC = enum.auto()
     DYNAMIC_VALUES = enum.auto()
@@ -59,7 +48,6 @@ class OptimizationLevel(enum.IntEnum):
 
     @functools.cached_property
     def next_level(self) -> OptimizationLevel:
-        """Return the next optimization level."""
         if self is OptimizationLevel.FULL:
             raise ValueError("FULL level is the last one")
         return OptimizationLevel(int(self) + 1)
@@ -79,25 +67,6 @@ interpreter recursion limit.
 
 
 def _comparand_eq(left: typing.Any, right: typing.Any) -> bool:
-    """Compare two condition comparands, keeping ``0``/``False`` distinct.
-
-    :meth:`DomainCondition.__eq__` already refuses to equate values of different
-    classes, because they compile to different SQL (``0`` is a column value,
-    ``False`` is a null test).  That guard stopped at the *container*: two
-    ``OrderedSet``s are the same class, and ``OrderedSet([0]) ==
-    OrderedSet([False])`` because ``0 == False`` and their hashes agree.
-
-    ``Domain._optimize`` detects "this pass changed nothing" with ``==``, so any
-    optimization canonicalizing *inside* a set between such twins was silently
-    discarded and the original value survived to both evaluators — which is how
-    ``('country_id', 'in', [0])`` kept reaching SQL as ``country_id IN (NULL)``
-    (matching nothing) while the Python evaluator read the falsy ``0`` as "no
-    relation".  Applying the existing class rule element-wise closes that.
-
-    Falls back to plain ``==`` when the elements are not hashable (an ``any``
-    sub-domain, an ``SQL`` value), where the type-tagging trick does not apply
-    and the class guard above is already the discriminator.
-    """
     if left.__class__ in (list, tuple, set, frozenset, OrderedSet):
         if len(left) != len(right):
             return False
@@ -109,13 +78,6 @@ def _comparand_eq(left: typing.Any, right: typing.Any) -> bool:
 
 
 def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
-    """Yield the direct operator-child domains of *node* (none for leaves).
-
-    Only the n-ary/not structure. ``any``/``not any`` sub-domains are bounded
-    separately by :func:`_check_subdomain_nesting` (called from
-    :meth:`DomainCondition.checked`), because at parse time their value is still
-    an unparsed ``list`` — not a child Domain this walk could reach.
-    """
     if isinstance(node, DomainNary):
         yield from node.children
     elif isinstance(node, DomainNot):
@@ -124,16 +86,6 @@ def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
 
 @contextlib.contextmanager
 def _recursion_error_as_value_error():
-    """Convert a ``RecursionError`` raised while optimizing into a ``ValueError``.
-
-    The parse-time guards (:func:`_check_domain_nesting`,
-    :func:`_check_subdomain_nesting`) bound the n-ary and ``any`` nesting axes
-    *independently* at :data:`MAX_DOMAIN_NESTING`.  A domain nesting deeply on
-    both axes at once can still exhaust the Python stack during optimization
-    (each ``any`` sub-domain is optimized inside its parent's frame), so the
-    per-axis guards do not bound their combination.  Surface the same catchable
-    ``ValueError`` the guards raise instead of an opaque ``RecursionError``.
-    """
     try:
         yield
     except RecursionError:
@@ -144,13 +96,6 @@ def _recursion_error_as_value_error():
 
 
 def _check_domain_nesting(domain: Domain, max_depth: int) -> None:
-    """Raise ``ValueError`` if *domain* nests deeper than *max_depth*.
-
-    Explicit-stack DFS with early exit (never recurses itself), turning a
-    deep-domain ``RecursionError`` into a catchable validation error. Covers the
-    built n-ary/not AST (deep ``!`` chains, alternating ``&``/``|`` that resist
-    flattening); ``any`` nesting is covered by :func:`_check_subdomain_nesting`.
-    """
     stack: list[tuple[Domain, int]] = [(domain, 1)]
     while stack:
         node, depth = stack.pop()
@@ -163,17 +108,6 @@ def _check_domain_nesting(domain: Domain, max_depth: int) -> None:
 
 
 def _check_subdomain_nesting(value: object, max_depth: int) -> None:
-    """Raise ``ValueError`` if a raw ``any`` sub-domain value nests too deep.
-
-    An ``any``/``not any`` value arrives as an unparsed ``list``/``tuple`` and is
-    turned into a Domain — one level per pass — only at evaluation time, so a
-    deep ``parent_id any (parent_id any (...))`` chain (a single self-referential
-    field is enough) recurses one stack frame per level in ``_optimize`` /
-    ``_to_sql`` and blows the stack with a ``RecursionError``. Neither
-    :func:`_check_domain_nesting` (walks the built AST) nor the single-condition
-    fast path sees it. Count the ``any`` nesting structurally here, with an
-    explicit stack and early exit, so it is rejected at parse time instead.
-    """
     stack: list[tuple[object, int]] = [(value, 1)]
     while stack:
         node, depth = stack.pop()
@@ -214,13 +148,6 @@ _CONSTANT_TIEBREAK: tuple[int, typing.Any] = (2, "")
 
 
 def _nary_value_tiebreak(value: typing.Any) -> tuple[int, typing.Any]:
-    """``(kind, value)`` tie-break that orders comparable scalars canonically.
-
-    Wrapping the value with a ``kind`` rank means leaves whose values are of
-    different, non-comparable types (e.g. a ``str`` and an ``int`` under the same
-    field+operator) sort by ``kind`` first and never raise ``TypeError`` during
-    the sort. ``bool`` is an ``int`` subclass, handled by the numeric branch.
-    """
     if isinstance(value, str):
         return (0, value)
     if isinstance(value, (int, float)):
@@ -235,46 +162,12 @@ def _nary_value_tiebreak(value: typing.Any) -> tuple[int, typing.Any]:
 
 
 def _nary_subtree_tiebreak(domain: Domain) -> tuple[int, typing.Any]:
-    """Content-based 4th key element for a *non-condition* nary child.
-
-    Nested boolean children (``DomainAnd`` / ``DomainOr`` / ``DomainNot``) share
-    the same ``(field, type, operator)`` key prefix, so without a content
-    tie-break the *stable* sort keeps the caller's order — making ``(X) & (Y)``
-    and ``(Y) & (X)`` optimize to two different forms and fragment the query
-    cache (the very fragmentation the sort key exists to prevent, here for
-    nested boolean structure). Keying on the child's canonical list form makes
-    equivalent subtrees sort identically and distinct ones deterministically;
-    ``repr`` yields an always-comparable string, avoiding ``TypeError`` on
-    heterogeneous leaf values.
-    """
     return (2, repr(list(domain)))
 
 
 def _optimize_nary_sort_key(
     domain: Domain,
 ) -> tuple[str, str, str, tuple[int, typing.Any]]:
-    """Sort key grouping nary children by (field, operator type, operator, value).
-
-    Equivalent conditions sort together, yielding canonical domains and SQL
-    ordered by field name (better DB caching).
-
-    Load-bearing invariant: nary merge passes (``_MERGE_OPTIMIZATIONS``) only
-    combine *adjacent* conditions, so this key MUST place every co-mergeable
-    pair next to each other regardless of input order. Optimization confluence
-    depends on it; locked in by ``TestDomainConfluence`` in
-    ``addons/test_orm/tests/test_domain.py``.
-
-    The fourth element tie-breaks *within* a ``(field, order, op)`` group so the
-    optimized domain — and the SQL/query-cache key derived from it — never
-    depends on the caller's leaf order. It orders by value for the operators
-    that have **no** value-merge pass — pattern operators (``like``, ``ilike``,
-    …) and scalar inequalities (``<``/``>``/``<=``/``>=``), whose same-field
-    leaves would otherwise keep *input* order and fragment the query cache — and
-    is a constant for the rest: ``in``/``any`` value-merge regardless of order,
-    so a large ``in`` collection is never stringified into the key. Wrapping the
-    value as ``(kind, value)`` keeps non-comparable value types from raising
-    during the sort.
-    """
     if isinstance(domain, DomainCondition):
         op = domain.operator
         positive_op = NEGATIVE_CONDITION_OPERATORS.get(op, op)
@@ -296,8 +189,6 @@ def _optimize_nary_sort_key(
 
 
 class Domain:
-    """Representation of a domain as an AST."""
-
     __slots__ = ("_opt",)
     _opt: tuple[OptimizationLevel, str | None]
 
@@ -309,19 +200,10 @@ class Domain:
     def _opt_model_name(self) -> str | None:
         return self._opt[1]
 
-    def __new__(cls, *args: object, internal: bool = False) -> Domain:
-        """Build a domain AST.
-
-        A single argument is a ``Domain``, a list representation, or a bool.
-        Three arguments form one condition: field (str), operator (str), value::
-
-            Domain([("a", "=", 5), ("b", "=", 8)])
-            Domain("a", "=", 5) & Domain("b", "=", 8)
-
-        The ``'any!'`` / ``'not any!'`` operators are allowed in conditions
-        (``Domain('a', 'any!', dom)``) but not in domain lists unless
-        ``internal=True``.
-        """
+    # PYI034 wants `Self` here, but `Domain(...)` genuinely returns a DIFFERENT
+    # class than `cls` — a bare field expr builds a DomainCondition, a bool builds
+    # a DomainBool. `Self` would be a lie and costs 9 mypy [return-value] errors.
+    def __new__(cls, *args: object, internal: bool = False) -> Domain:  # noqa: PYI034  see comment above
         if len(args) > 1:
             if isinstance(args[0], str):
                 return DomainCondition(*args).checked()
@@ -417,22 +299,14 @@ class Domain:
         to_sql: Callable[[BaseModel, str, Query], SQL],
         predicate: Callable[[BaseModel], bool] | None = None,
     ) -> DomainCustom:
-        """Create a custom domain.
-
-        :param to_sql: callable(model, alias, query) that returns the SQL
-        :param predicate: callable(record) that checks whether a record is kept
-                          when filtering
-        """
         return DomainCustom(to_sql, predicate)
 
     @staticmethod
     def AND(items: Iterable[object]) -> Domain:
-        """Build the conjunction of domains: (item1 AND item2 AND ...)"""
         return DomainAnd.apply(Domain(item) for item in items)
 
     @staticmethod
     def OR(items: Iterable[object]) -> Domain:
-        """Build the disjunction of domains: (item1 OR item2 OR ...)"""
         return DomainOr.apply(Domain(item) for item in items)
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -461,15 +335,9 @@ class Domain:
         return DomainNot(self)
 
     def _negate(self, model: BaseModel) -> Domain:
-        """Apply (propagate) negation onto this domain."""
         return ~self
 
     def __add__(self, other: object) -> Domain | list[object]:
-        """Deprecated list concatenation; use ``&`` (AND) or ``|`` (OR).
-
-        Domain + Domain is ``&``; Domain + list concatenates as raw (possibly
-        unnormalized) lists. Kept for backward compatibility.
-        """
         if isinstance(other, Domain):
             warnings.warn(
                 "Domain + Domain is deprecated, use Domain & Domain (AND) "
@@ -489,7 +357,6 @@ class Domain:
         return list(self) + other
 
     def __radd__(self, other: list[object]) -> list[object]:
-        """Deprecated ``list + Domain``; returns a (possibly unnormalized) list."""
         warnings.warn(
             "list + Domain is deprecated, convert the list to a Domain first",
             DeprecationWarning,
@@ -498,11 +365,6 @@ class Domain:
         return other + list(self)
 
     def __bool__(self) -> bool:
-        """Whether the domain is not TRUE (so the TRUE domain is falsy).
-
-        Deprecated; prefer ``is_true()`` / ``is_false()``. The deprecation
-        warning is deferred until core callers stop using ``if domain:``.
-        """
         return not self.is_true()
 
     def __eq__(self, other: object) -> bool:
@@ -512,7 +374,6 @@ class Domain:
         raise NotImplementedError
 
     def __iter__(self) -> typing.Iterator[object]:
-        """Yield the polish-notation domain list (backward compatibility)."""
         yield from ()
         raise NotImplementedError
 
@@ -529,95 +390,34 @@ class Domain:
         return False
 
     def iter_conditions(self) -> typing.Iterator[DomainCondition]:
-        """Yield the simple conditions of the domain."""
         yield from ()
 
     def map_conditions(self, function: Callable[[DomainCondition], Domain]) -> Domain:
-        """Map *function* over each condition and return the combined result."""
         return self
 
     def validate(self, model: BaseModel) -> None:
-        """Validate the domain, raising on error."""
         with _recursion_error_as_value_error():
             self._optimize(model, OptimizationLevel.FULL)
 
     def _as_predicate(self, records: M) -> Callable[[M], bool]:
-        """Return a predicate testing whether a single record satisfies self.
-
-        Used to implement ``Model.filtered_domain``.
-        """
         raise NotImplementedError
 
     def _predicate_optimized(self, records: BaseModel) -> Domain | None:
-        """Return a predicate-ready equivalent of this node, or ``None`` if ready.
-
-        ``_to_sql`` is reached through a fully optimized tree, but
-        ``filtered_domain`` used to call ``_as_predicate`` on the *raw* domain
-        and only :class:`DomainCondition` optimized itself, one leaf at a time.
-        The operator nodes therefore built a predicate for every child,
-        including children the optimizer would have discarded -- so a sibling
-        collapsing an ``|`` to TRUE removed a malformed leaf for ``search()``
-        but not for ``filtered_domain()``, and the two evaluators disagreed on
-        whether the domain was even *legal* depending on the order the leaves
-        happened to be written in.
-
-        Optimizing the node itself first makes both evaluators start from the
-        same tree.  Nodes already at ``DYNAMIC_VALUES`` (the level
-        ``_as_predicate`` needs) answer ``None`` and are used as-is, so this
-        costs one stamp check per node rather than a repeated traversal.
-
-        Used by the n-ary nodes only, deliberately: they are where a sibling
-        eliminates a child.  :class:`DomainNot` has no siblings to collapse
-        against, and pre-optimizing it instead pushes the negation *into* the
-        condition, which is not equivalent for a value that may be absent --
-        ``~('attributes.myint', '>=', 0)`` over a record with no such property
-        stopped agreeing with SQL (``test_filtered_domain_integer_property_zero``).
-        """
         if self._opt_level >= OptimizationLevel.DYNAMIC_VALUES:
             return None
         with _recursion_error_as_value_error():
             return self._optimize(records, OptimizationLevel.DYNAMIC_VALUES)
 
     def optimize(self, model: BaseModel) -> Domain:
-        """Rewrite the domain into a canonical, logically equivalent form.
-
-        Basic level only: transaction-independent, depending solely on the
-        model's field definitions (no model-specific overrides), so the result
-        is reusable across transactions and suitable for the client side.
-        """
         with _recursion_error_as_value_error():
             return self._optimize(model, OptimizationLevel.BASIC)
 
     def optimize_full(self, model: BaseModel) -> Domain:
-        """Rewrite the domain applying basic and advanced optimizations.
-
-        Advanced optimizations may use model-specific overrides (field search
-        methods) and resolve inherited/non-stored fields, so equivalence holds
-        only at this point in the transaction.
-        """
         with _recursion_error_as_value_error():
             return self._optimize(model, OptimizationLevel.FULL)
 
     @typing.final
     def _optimize(self, model: BaseModel, level: OptimizationLevel) -> Domain:
-        """Optimize to a fixed point, advancing one level at a time up to *level*.
-
-        Termination rests on the monotonic advance of ``_opt_level`` (a bounded
-        enum, NONE..FULL): each level runs to a per-level fixed point -- iterate
-        ``_optimize_step`` until it returns a value-``==``-equal node -- then the
-        level is bumped. The ``==`` (not ``is``) is required: a no-merge step may
-        still return a new, value-equal node with sorted children, and ``is``
-        would never settle. ``__eq__`` short-circuits on identity, so the common
-        no-op case stays O(1).
-
-        ``MAX_OPTIMIZE_ITERATIONS`` is a genuine backstop, not merely theoretical:
-        the passes are NOT all size-decreasing (e.g. ``in`` over a datetime set
-        expands into an OR of ranges, relational name-search splits one leaf into
-        two) and per-level confluence is not guaranteed for every shape (sibling
-        order of mixed AND/OR nests and merged ``in`` value order are
-        input-order-dependent). Convergence relies on those expansions not being
-        re-expandable; a future pass that oscillates would hit the backstop.
-        """
         model_name = model._name
         opt_level, opt_model = self._opt
         if opt_model == model_name and opt_level >= level:
@@ -638,14 +438,6 @@ class Domain:
         return domain
 
     def _reset_opt_copy(self) -> Domain:
-        """Return a shallow copy of this node with its per-node caches reset.
-
-        Used by :meth:`_optimize` to work on a private node when the shared one
-        already carries an optimization stamp, so the shared node's mutable
-        ``_opt`` (and, for conditions, the cached resolved field) are never
-        written across threads/models.  Children are shared by reference: they
-        are re-optimized (and copied in turn if stamped) via the recursion.
-        """
         missing = object()
         clone = object.__new__(type(self))
         for klass in type(self).__mro__:
@@ -661,21 +453,13 @@ class Domain:
         return clone
 
     def _optimize_step(self, model: BaseModel, level: OptimizationLevel) -> Domain:
-        """Run one level of optimizations (overridden per subclass)."""
         return self
 
     def _to_sql(self, model: BaseModel, alias: str, query: Query) -> SQL:
-        """Build the SQL to inject into the query; optimize the domain first."""
         raise NotImplementedError
 
 
 class DomainBool(Domain):
-    """Constant domain: True/False
-
-    It is NOT considered as a condition and these constants are removed
-    from nary domains.
-    """
-
     __slots__ = ("value",)
     value: bool
 
@@ -728,15 +512,12 @@ _FALSE_DOMAIN = DomainBool(False)
 
 
 class DomainNot(Domain):
-    """Negation domain, contains a single child"""
-
     OPERATOR = "!"
 
     __slots__ = ("child",)
     child: Domain
 
     def __new__(cls, child: Domain):
-        """Create a domain which is the inverse of the child."""
         self = object.__new__(cls)
         object.__setattr__(self, "child", child)
         object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
@@ -776,8 +557,6 @@ class DomainNot(Domain):
 
 
 class DomainNary(Domain):
-    """Domain for a nary operator: AND or OR with multiple children"""
-
     OPERATOR: str
     OPERATOR_SQL: SQL = SQL(" ??? ")
     ZERO: DomainBool = _FALSE_DOMAIN
@@ -786,7 +565,6 @@ class DomainNary(Domain):
     children: tuple[Domain, ...]
 
     def __new__(cls, children: tuple[Domain, ...]):
-        """Create the n-ary domain with at least 2 conditions."""
         if len(children) < 2:
             raise ValueError(
                 f"DomainNary requires at least 2 children, got {len(children)}"
@@ -798,7 +576,6 @@ class DomainNary(Domain):
 
     @classmethod
     def apply(cls, items: Iterable[Domain]) -> Domain:
-        """Return the result of combining AND/OR to a collection of domains."""
         children = cls._flatten(items)
         if len(children) == 1:
             return children[0]
@@ -806,11 +583,6 @@ class DomainNary(Domain):
 
     @classmethod
     def _flatten(cls, children: Iterable[Domain]) -> list[Domain]:
-        """Flatten children for this class's boolean op (AND/OR).
-
-        Boolean subdomains are simplified and same-class subdomains are inlined.
-        The returned list is never empty.
-        """
         result: list[Domain] = []
         for child in children:
             if isinstance(child, DomainBool):
@@ -839,7 +611,6 @@ class DomainNary(Domain):
 
     @classproperty
     def INVERSE(self) -> type[DomainNary]:
-        """Return the inverted nary type, AND/OR"""
         raise NotImplementedError
 
     def __invert__(self) -> DomainNary:
@@ -886,8 +657,6 @@ class DomainNary(Domain):
 
 
 class DomainAnd(DomainNary):
-    """Domain: AND with multiple children"""
-
     __slots__ = ()
     OPERATOR = "&"
     OPERATOR_SQL = SQL(" AND ")
@@ -914,8 +683,6 @@ class DomainAnd(DomainNary):
 
 
 class DomainOr(DomainNary):
-    """Domain: OR with multiple children"""
-
     __slots__ = ()
     OPERATOR = "|"
     OPERATOR_SQL = SQL(" OR ")
@@ -942,8 +709,6 @@ class DomainOr(DomainNary):
 
 
 class DomainCustom(Domain):
-    """Domain condition that directly generates SQL and possibly a ``filtered`` predicate."""
-
     __slots__ = ("_filtered", "_sql")
 
     _filtered: Callable[[BaseModel], bool] | None
@@ -954,12 +719,6 @@ class DomainCustom(Domain):
         sql: Callable[[BaseModel, str, Query], SQL],
         filtered: Callable[[BaseModel], bool] | None = None,
     ):
-        """Create a custom domain.
-
-        :param sql: ``callable(model, alias, query)`` implementing ``_to_sql``.
-        :param filtered: ``callable(record)`` deciding whether a record is kept
-            for ``Model.filtered``.
-        """
         self = object.__new__(cls)
         object.__setattr__(self, "_sql", sql)
         object.__setattr__(self, "_filtered", filtered)
@@ -992,12 +751,6 @@ class DomainCustom(Domain):
 
 
 class DomainCondition(Domain):
-    """Domain condition on field: (field, operator, value)
-
-    A field (or expression) is compared to a value. The list of supported
-    operators are described in CONDITION_OPERATORS.
-    """
-
     __slots__ = (
         "_field_instance",
         "_hash",
@@ -1011,8 +764,7 @@ class DomainCondition(Domain):
     operator: str
     value: typing.Any
 
-    def __new__(cls, field_expr: str, operator: str, value: object) -> DomainCondition:
-        """Build a simple condition (field name/path, operator, value)."""
+    def __new__(cls, field_expr: str, operator: str, value: object) -> DomainCondition:  # noqa: PYI034  see Domain.__new__
         self = object.__new__(cls)
         object.__setattr__(self, "field_expr", field_expr)
         object.__setattr__(self, "operator", operator)
@@ -1022,7 +774,6 @@ class DomainCondition(Domain):
         return self
 
     def checked(self) -> DomainCondition:
-        """Validate `self` and return it if correct, otherwise raise an exception."""
         if not isinstance(self.field_expr, str) or not self.field_expr:
             self._raise("Empty field name", error=TypeError)
         op = self.operator.lower()
@@ -1132,14 +883,12 @@ class DomainCondition(Domain):
         raise error(message % (*args, self.field_expr, self.operator, self.value))
 
     def _field(self, model: BaseModel) -> Field:
-        """Return the cached Field for the expression."""
         field = self._field_instance
         if field is None or field.model_name != model._name:
             field, _ = self.__get_field(model)
         return field
 
     def __get_field(self, model: BaseModel) -> tuple[Field, str]:
-        """Resolve the field (raising if invalid) and cache it."""
         field_name, property_name = parse_field_expr(self.field_expr)
         try:
             field = model._fields[field_name]
@@ -1149,12 +898,6 @@ class DomainCondition(Domain):
         return field, property_name or ""
 
     def _optimize_step(self, model: BaseModel, level: OptimizationLevel) -> Domain:
-        """Optimization step.
-
-        Validate the field, decompose paths into ``any`` sub-domains, run the
-        field's search method for non-stored fields, then dispatch the
-        registered optimizations for the operator and field type.
-        """
         opt_level = self._opt_level
         if level <= opt_level:
             return self
@@ -1186,16 +929,6 @@ class DomainCondition(Domain):
                         if isinstance(collapsed, DomainBool):
                             return collapsed
                 domain = self._optimize_field_search_method(model)
-                # A search method that hands the condition back unchanged means
-                # "I have no rewrite for this; compile me as a plain column".
-                # The equality is tested BEFORE re-optimizing: optimizing an
-                # unchanged condition re-enters this branch, calls the same
-                # search method, gets the same answer, and recurses until
-                # ``_recursion_error_as_value_error`` converts the blowup into a
-                # ValueError.  The check after the re-optimization stays -- a
-                # method that rewrites to something which *optimizes back* to
-                # this condition is also a no-op -- so the only behaviour that
-                # changes is the one that used to crash.
                 if domain != self:
                     domain = domain.optimize(model)
                     if domain != self:
@@ -1276,49 +1009,12 @@ class DomainCondition(Domain):
         )
 
     def _is_search_defined(self, records: BaseModel) -> bool:
-        """Whether a ``search`` method, not the field's value, defines this condition.
-
-        The rewrites registered at ``FULL`` -- a field's ``search`` method, and
-        the inherited-field hop onto the parent -- were reached by ``_to_sql``
-        and never by ``_as_predicate``, which stops at ``DYNAMIC_VALUES``.  The
-        two evaluators therefore answered different *questions* for the same
-        domain: ``('currency_id', 'like', 'a')`` asked PostgreSQL for currencies
-        whose ``full_name`` or ``name`` matches
-        (``res.currency._search_display_name``) and asked Python whether the
-        rendered ``display_name`` matches, so ``search()`` returned 10 countries
-        and ``filtered_domain()`` none.  A search-vs-filter differential over
-        24 150 ``(model, field, operator, value)`` triples found 116 such
-        divergences, every one of this shape.
-
-        ``search()`` is the reference: ``filtered_domain`` exists to reproduce
-        it over an in-memory subset, which is how the web client uses it.
-        """
         field = self._field(records)
         return bool((field.search and field.name == self.field_expr) or field.inherited)
 
     def _search_defined_predicate(
         self, records: BaseModel
     ) -> Callable[[BaseModel], bool]:
-        """Answer a search-defined condition by running the search itself.
-
-        Evaluating the *rewritten* domain in memory instead is wrong, and
-        expensively so: the rewrite names fields of the corecords, and reading
-        them raises ``AccessError`` for any record a rule hides, where
-        ``search()`` simply filters it out inside the sub-SELECT.  That turned
-        116 silent disagreements into hard failures on ordinary record rules
-        (``test_like_complement_m2o_access``).
-
-        Delegating to ``_search`` over exactly the records being filtered gets
-        the semantics right by construction -- it *is* the SQL path, so record
-        rules, field ACL and the search method's own rewriting all behave as
-        they do for ``search()`` -- at one query per condition, not per record.
-        This is the pattern the ``SQL``-valued branch below already uses.
-
-        New records have no row to search, so they keep the in-memory answer:
-        it is the only one available, and it is what ``filtered_domain`` gave
-        before.  ``active_test=False`` matches the surrounding predicate
-        contract -- filtering must not silently drop archived records.
-        """
         real_ids = [id_ for id_ in records._ids if id_]
         matched: set = set()
         if real_ids:
@@ -1354,12 +1050,6 @@ class DomainCondition(Domain):
         return self._value_predicate(records)
 
     def _value_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
-        """Build the predicate from the field's own value.
-
-        The tail of :meth:`_as_predicate`, split out so
-        :meth:`_search_defined_predicate` can reuse it verbatim for the new
-        records it cannot delegate a search for.
-        """
         op = self.operator
         if not all(records._ids):
             fallback = getattr(self, "_predicate_fallback", None)

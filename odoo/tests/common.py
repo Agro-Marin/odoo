@@ -1,9 +1,3 @@
-"""
-The module :mod:`odoo.tests.common` provides unittest test cases and a few
-helpers and classes to write tests.
-
-"""
-
 import contextlib
 import difflib
 import importlib
@@ -14,6 +8,7 @@ import re
 import sys
 import threading
 import traceback
+import types
 import unittest
 import warnings
 from collections import defaultdict, deque
@@ -21,7 +16,7 @@ from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 from functools import partial, wraps
 from itertools import zip_longest
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Self, cast
 from unittest import TestResult
 from unittest.mock import Mock, _patch, patch
 from urllib.parse import urlsplit
@@ -123,10 +118,6 @@ else:
 
 
 def get_cache_key_counter(bound_method, *args, **kwargs):
-    """Return the cache, key and stat counter for the given call.
-
-    Test utility for inspecting ORM cache internals (hit/miss counters).
-    """
     model = bound_method.__self__
     ormcache_instance = bound_method.__cache__
     cache = model.pool.ormcache_lrus[ormcache_instance.cache_name]
@@ -141,18 +132,6 @@ TEST_CURSOR_COOKIE_NAME = "test_request_key"
 
 
 def skip_if_dev_mode(*flags: str) -> None:
-    """Skip the running test when ``--dev`` disables what it asserts.
-
-    Several caches are deliberately switched off in dev mode so edits are
-    picked up live: the QWeb template-compile and ir.rule domain ormcaches key
-    on ``"xml" not in config["dev_mode"]``, and QWeb error messages gain the
-    generated source when ``"qweb"`` is set. A test pinning the *cached*
-    behaviour is therefore meaningless on a dev-mode server — it must skip
-    with a reason, not fail with a confusing diff, which is what a developer
-    running the suite against their own ``--dev=xml,qweb`` server used to get.
-
-    :param flags: ``--dev`` flags that invalidate the assertion (e.g. ``xml``).
-    """
     dev_mode = config["dev_mode"]
     if active := [flag for flag in flags if flag in dev_mode]:
         raise unittest.SkipTest(
@@ -166,7 +145,6 @@ standalone_tests = defaultdict(list)
 class RegistryRLock(threading._RLock):
     @property
     def count(self) -> int:
-        """Expose the private reentrant lock acquisition count."""
         return self._count
 
 
@@ -175,20 +153,11 @@ _registry_test_lock.acquire()
 
 
 def current_test_tag() -> str:
-    """Return a printable tag for the running test.
-
-    ``odoo.modules.module.current_test`` is a test case only while a suite is
-    running; :func:`~odoo.tests.loader.run_suite` sets it to ``True``/``False``
-    around that. Reaching for ``.canonical_tag`` unconditionally turned every
-    diagnostic that used it into ``AttributeError: 'bool' object has no
-    attribute 'canonical_tag'``, hiding the failure it was meant to report.
-    """
     return getattr(odoo.modules.module.current_test, "canonical_tag", "<no test>")
 
 
 @contextmanager
 def release_test_lock() -> Generator[None]:
-    """Release the test lock in a context manager; reacquire when done."""
     try:
         _registry_test_lock.release()
         yield
@@ -201,10 +170,6 @@ def release_test_lock() -> Generator[None]:
 
 
 def standalone(*tags: str) -> Callable[[Callable], Callable]:
-    """Decorator for standalone test functions, mainly for tests that install,
-    upgrade or uninstall modules (forbidden in regular test cases). Registers the
-    function under the given ``tags`` and its Odoo module name.
-    """
 
     def register(func: Callable) -> Callable:
         if func.__module__.startswith("odoo.addons."):
@@ -219,13 +184,6 @@ def standalone(*tags: str) -> Callable[[Callable], Callable]:
 
 
 def test_xsd(url=None, path=None, skip=False):
-    """Decorate a test method returning XML documents to validate them
-    against the XSD at ``url`` or ``path``.
-
-    ``skip`` disables the whole test as *skipped* (pass a reason string).
-    It used to make the test silently pass without running its body, which
-    hid disabled validations from test reports.
-    """
 
     def decorator(func):
         @wraps(func)
@@ -243,21 +201,6 @@ def test_xsd(url=None, path=None, skip=False):
 
 
 def new_test_user(env, login="", groups="base.group_user", context=None, **kwargs):
-    """Create a new test user given its login and groups (a comma-separated list
-    of xml ids). Kwargs are propagated to ``create`` to further customize the user.
-
-    The ``context`` parameter customizes the environment used for creation, e.g.
-    to force a specific behavior or simplify record creation (such as mail-related
-    context keys in mail tests to speed up record creation).
-
-    Some specific fields are automatically filled to avoid issues
-
-     * group_ids: it is filled using groups function parameter;
-     * name: "login (groups)" by default as it is required;
-     * email: it is either the login (if it is a valid email) or a generated
-       string 'x.x@example.com' (x being the first login letter). This is due
-       to email being required for most odoo operations;
-    """
     if not login:
         raise ValueError("New users require at least a login")
     if not groups:
@@ -288,38 +231,36 @@ def new_test_user(env, login="", groups="base.group_user", context=None, **kwarg
 
 
 def loaded_demo_data(env: api.Environment) -> bool:
-    """Return whether demo data is loaded in the given environment."""
     return bool(env.ref("base.user_demo", raise_if_not_found=False))
 
 
 class RecordCapturer:
-    """Context manager that captures records created within its scope."""
-
     def __init__(self, model: Any, domain: list | None = None) -> None:
         self._model = model
         self._domain = domain or []
 
-    def __enter__(self) -> RecordCapturer:
+    def __enter__(self) -> Self:
         self._before = self._model.search(self._domain, order="id")
         self._after = None
         return self
 
     def __exit__(
-        self, exc_type: type | None, exc_value: BaseException | None, exc_traceback: Any
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: types.TracebackType | None,
     ) -> None:
         if exc_type is None:
             self._after = self._model.search(self._domain, order="id") - self._before
 
     @property
     def records(self) -> Any:
-        """Return the records created within this context."""
         if self._after is None:
             return self._model.search(self._domain, order="id") - self._before
         return self._after
 
 
 def _enter_context(cm: Any, addcleanup: Callable) -> Any:
-    """Enter a context manager and register its __exit__ as a cleanup function."""
     cls = type(cm)
     try:
         enter = cls.__enter__
@@ -334,14 +275,6 @@ def _enter_context(cm: Any, addcleanup: Callable) -> Any:
 
 
 def _normalize_arch_for_assert(arch_string: str, parser_method: str = "xml") -> str:
-    """Normalize XML arch for assertion comparison.
-
-    Removes blank text and pretty-prints the output.
-
-    :param arch_string: the string representing an XML arch
-    :param parser_method: which lxml.Parser class to use — ``"xml"`` or ``"html"``
-    :return: the normalized arch
-    """
     if parser_method == "xml":
         Parser = etree.XMLParser
     elif parser_method == "html":
@@ -356,15 +289,6 @@ def _normalize_arch_for_assert(arch_string: str, parser_method: str = "xml") -> 
 
 
 def _query_text(query: Any) -> str:
-    """Render a query as the text :meth:`BaseCase.assertQueries` compares.
-
-    Callers hand :class:`~odoo.db.Cursor` three shapes: a plain string, an
-    :class:`~odoo.tools.SQL` object, and — since the bulk-write paths landed —
-    a psycopg ``Composable``. Storing the object as-is let a ``Composed`` reach
-    ``_normalize_query`` / ``"\\n".join(...)``, turning a query-count mismatch
-    into ``TypeError: expected str instance, Composed found``: an unrelated
-    error at exactly the moment the real assertion message was needed.
-    """
     if isinstance(query, SQL):
         return query.code
     if isinstance(query, str):
@@ -375,7 +299,6 @@ def _query_text(query: Any) -> str:
 
 
 def _copy_from_text(table, columns, *args, **kwargs) -> str:
-    """Render a ``COPY`` bulk insert, which carries no query string of its own."""
     columns_sql = ", ".join(f'"{column}"' for column in columns)
     return f'COPY "{table}" ({columns_sql}) FROM STDIN'
 
@@ -406,10 +329,6 @@ _super_send = requests.Session.send
 
 
 class BaseCase(case.TestCase):
-    """Subclass of TestCase for Odoo-specific code. This class is abstract and
-    expects self.registry, self.cr and self.uid to be initialized by subclasses.
-    """
-
     registry: Registry = None
     env: api.Environment = None
     cr: Cursor = None
@@ -421,16 +340,6 @@ class BaseCase(case.TestCase):
     test_module: str = ""
 
     def __init_subclass__(cls) -> None:
-        """Assign default test tags ``standard`` and ``at_install`` to test
-        cases not having them. Also sets ``test_module``, which tag
-        selection (``TagsSelector.check``) matches ``/module`` specs against.
-
-        ``test_tags is None`` is the "never tagged" sentinel, and only addon
-        classes are ever given the default: assigning an empty set to the
-        framework's own bases (``TransactionCase``, ``HttpCase``, …) would
-        consume the sentinel, so every addon subclass of them would inherit
-        ``set()`` and silently drop out of test selection.
-        """
         super().__init_subclass__()
         if cls.__module__.startswith("odoo.addons."):
             if cls.test_tags is None:
@@ -520,12 +429,6 @@ class BaseCase(case.TestCase):
         cls.addClassCleanup(check_remaining_processes)
 
         def check_remaining_patchers():
-            """Stop every patcher a test left running.
-
-            Iterates a *copy*: ``_patch.stop()`` removes the patcher from
-            ``_active_patches``, so walking the live list skips every other
-            entry and leaks half of them into the next test class.
-            """
             for patcher in list(_patch._active_patches):
                 _logger.warning(
                     "A patcher (targeting %s.%s) was remaining active at the end of %s, disabling it...",
@@ -538,7 +441,6 @@ class BaseCase(case.TestCase):
         cls.addClassCleanup(check_remaining_patchers)
 
         def close_sass():
-            """Shut down the dart:sass subprocess before child-process check."""
             try:
                 from odoo.tools.sass_embedded import close_sass_compiler
 
@@ -549,13 +451,6 @@ class BaseCase(case.TestCase):
         cls.addClassCleanup(close_sass)
 
         def close_esm_lexer():
-            """Shut down the node ESM-lexer worker before child-process check.
-
-            Same rationale as `close_sass`: the worker is an intentional
-            long-lived child of the asset pipeline, so leaving it to the leak
-            check turned every browser-test class into a spurious "A child
-            process was found, terminating it: node-MainThread" warning.
-            """
             try:
                 from odoo.tools.assets.esm_lexer import close_lexer_worker
 
@@ -569,7 +464,11 @@ class BaseCase(case.TestCase):
             patcher = patch.object(
                 requests.sessions.Session,
                 "send",
-                lambda s, r, **kw: cls._request_handler(s, r, **kw),
+                # PLW0108: `cls._request_handler` cannot replace this lambda —
+                # it is a classmethod, so the bare reference is already bound to
+                # cls, and a bound method is not a descriptor. Session.send would
+                # then never fill `s`, and the request would land in it instead.
+                lambda s, r, **kw: cls._request_handler(s, r, **kw),  # noqa: PLW0108  see comment above
             )
             patcher.start()
             cls.addClassCleanup(patcher.stop)
@@ -586,87 +485,57 @@ class BaseCase(case.TestCase):
         )
 
     def cursor(self) -> Cursor:
-        """Return a new cursor from the test registry."""
         return self.registry.cursor()
 
     @property
     def uid(self):
-        """Get the current uid."""
         return self.env.uid
 
     @uid.setter
     def uid(self, user):
-        """Set the uid by changing the test's environment."""
         self.env = self.env(user=user)
         self.env.transaction.default_env = self.env
 
     def ref(self, xid: str) -> int:
-        """Return database ID for the provided :term:`external identifier`.
-
-        Shortcut for ``_xmlid_lookup``.
-
-        :param xid: fully-qualified :term:`external identifier`, in the form
-                    :samp:`{module}.{identifier}`
-        :raise: ValueError if not found
-        :returns: registered id
-        """
         return self.browse_ref(xid).id
 
     def browse_ref(self, xid: str) -> Any:
-        """Return a record object for the provided :term:`external identifier`.
-
-        :param xid: fully-qualified :term:`external identifier`, in the form
-                    :samp:`{module}.{identifier}`
-        :raise: ValueError if not found
-        :returns: :class:`~odoo.models.BaseModel`
-        """
         assert "." in xid, (
             "this method requires a fully qualified parameter, in the following form: 'module.identifier'"
         )
         return self.env.ref(xid)
 
     def patch(self, obj: Any, key: str, val: Any) -> None:
-        """Do the patch ``setattr(obj, key, val)``, and prepare cleanup."""
         patcher = patch.object(obj, key, val)
         patcher.start()
         self.addCleanup(patcher.stop)
 
     @classmethod
     def classPatch(cls, obj: Any, key: str, val: Any) -> None:
-        """Do the patch ``setattr(obj, key, val)``, and prepare cleanup."""
         patcher = patch.object(obj, key, val)
         patcher.start()
         cls.addClassCleanup(patcher.stop)
 
     def startPatcher(self, patcher: Any) -> Any:
-        """Start a patcher and register its stop as a cleanup."""
         mock = patcher.start()
         self.addCleanup(patcher.stop)
         return mock
 
     @classmethod
     def startClassPatcher(cls, patcher: Any) -> Any:
-        """Start a class-level patcher and register its stop as a class cleanup."""
         mock = patcher.start()
         cls.addClassCleanup(patcher.stop)
         return mock
 
     def enterContext(self, cm: Any) -> Any:
-        """Enter the supplied context manager.
-
-        If successful, also adds its __exit__ method as a cleanup
-        function and returns the result of the __enter__ method.
-        """
         return _enter_context(cm, self.addCleanup)
 
     @classmethod
     def enterClassContext(cls, cm: Any) -> Any:
-        """Same as enterContext, but class-wide."""
         return _enter_context(cm, cls.addClassCleanup)
 
     @contextmanager
     def with_user(self, login: str) -> Generator[None]:
-        """Change user for a given test, like with self.with_user() ..."""
         old_uid = self.uid
         old_env = self.env
         try:
@@ -680,7 +549,6 @@ class BaseCase(case.TestCase):
 
     @contextmanager
     def debug_mode(self) -> Generator[None]:
-        """Enable the effects of debug mode (in particular for group ``base.group_no_one``)."""
         request = Mock(
             httprequest=Mock(host="localhost"),
             db=self.env.cr.dbname,
@@ -706,7 +574,6 @@ class BaseCase(case.TestCase):
         *,
         msg: str | None = None,
     ) -> Generator[Any]:
-        """Context manager that clears the environment upon failure."""
         with ExitStack() as init:
             if self.env:
                 init.enter_context(self.env.cr.savepoint())
@@ -730,7 +597,6 @@ class BaseCase(case.TestCase):
         *args: Any,
         **kwargs: Any,
     ) -> Any:
-        """Assert that an exception is raised, clearing the env on failure."""
         if func:
             with self._assertRaises(exception):
                 func(*args, **kwargs)
@@ -739,20 +605,6 @@ class BaseCase(case.TestCase):
         return None
 
     def _patchExecute(self, actual_queries, flush=True):
-        """Record every statement issued through the cursor.
-
-        Wraps *all* of ``Cursor``'s statement entry points, not just
-        ``execute``.  ``executemany``/``execute_values``/``copy_from``/``copy``
-        used to pass straight through, so a bulk create — which this fork
-        routes through ``COPY`` above ``COPY_THRESHOLD`` rows — recorded zero
-        queries and ``assertQueries`` cheerfully asserted a list with the write
-        itself missing.  ``TestPatchExecuteStatementApi`` pins
-        :data:`_STATEMENT_RECORDERS` against the entry points ``Cursor`` marks.
-
-        One entry is recorded per *call*, so a batched write is one line rather
-        than one per row; ``assertQueryCount`` keeps counting the SQL work
-        instead (an N-row ``executemany`` is N queries, an N-row ``COPY`` is 1).
-        """
 
         def recorded(name, describe):
             original = getattr(Cursor, name)
@@ -780,10 +632,6 @@ class BaseCase(case.TestCase):
 
     @staticmethod
     def _normalize_query(query: str) -> str:
-        """Normalize a query for comparison: lowercase, strip whitespace,
-        and collapse value tuples ``(%s,%s,...,%s)`` (possibly containing
-        ``DEFAULT``) to ``(%s)`` so that assertions are independent of the
-        number of parameters per row."""
         normalized = "".join(query.lower().split())
         return re.sub(r"\((?:%s|default)(?:,(?:%s|default))*\)", "(%s)", normalized)
 
@@ -791,10 +639,6 @@ class BaseCase(case.TestCase):
     def assertQueries(
         self, expected: list[str], flush: bool = True
     ) -> Generator[list[str]]:
-        """Check the queries made by the current cursor. ``expected`` is a list
-        of strings representing the expected queries being made. Query strings
-        are matched against each other, ignoring case and whitespaces.
-        """
         actual_queries = []
 
         yield from self._patchExecute(actual_queries, flush)
@@ -823,14 +667,6 @@ class BaseCase(case.TestCase):
     def assertQueriesContain(
         self, expected: list[str], flush: bool = True
     ) -> Generator[list[str]]:
-        """Check the queries made by the current cursor. ``expected`` is a list
-        of strings representing the expected queries being made.
-
-        Despite the name this is not a subset check: exactly ``len(expected)``
-        queries must run, and ``expected[i]`` must be *contained in* the i-th
-        actual query (ignoring case and whitespace) — use it over
-        :meth:`assertQueries` when only fragments of each query matter.
-        """
         actual_queries = []
 
         yield from self._patchExecute(actual_queries, flush)
@@ -859,17 +695,6 @@ class BaseCase(case.TestCase):
     def assertQueryCount(
         self, default: int = 0, flush: bool = True, **counters: int
     ) -> Generator[None]:
-        """Context manager that counts queries. It may be invoked either with
-        one value, or with a set of named arguments like ``login=value``::
-
-            with self.assertQueryCount(42):
-                ...
-
-            with self.assertQueryCount(admin=3, demo=5):
-                ...
-
-        The second form is convenient when used with :func:`users`.
-        """
         if self.warm:
             with patch("random.random", lambda: 1):
                 login = self.env.user.login
@@ -934,23 +759,6 @@ class BaseCase(case.TestCase):
         *,
         field_names: Iterable[str] | None = None,
     ) -> None:
-        """Compare a recordset element-by-element (by index) with a list of dicts
-        of expected values. Order matters.
-
-        .. note::
-
-            - ``None`` expected values can be used for empty fields.
-            - x2many fields are expected by ids (so the expected value should be
-              a ``list[int]``
-            - many2one fields are expected by id (so the expected value should
-              be an ``int``
-
-        :param records: The records to compare.
-        :param expected_values: Items to check the ``records`` against.
-        :param field_names: list of fields to check during comparison, if
-                            unspecified all expected_values must have the same
-                            keys and all are checked
-        """
         if not field_names:
             field_names = expected_values[0].keys()
             for i, v in enumerate(expected_values):
@@ -1021,11 +829,9 @@ class BaseCase(case.TestCase):
         self.fail(self._formatMessage(None, standardMsg + "\n" + diffMsg))
 
     def assertItemsEqual(self, a: Any, b: Any, msg: str | None = None) -> None:
-        """Assert that two sequences contain the same elements."""
         self.assertCountEqual(a, b, msg=msg)
 
     def assertTreesEqual(self, n1: Any, n2: Any, msg: str | None = None) -> None:
-        """Assert two lxml element trees are structurally equal."""
         self.assertIsNotNone(n1, msg)
         self.assertIsNotNone(n2, msg)
         self.assertEqual(n1.tag, n2.tag, msg)
@@ -1039,12 +845,6 @@ class BaseCase(case.TestCase):
     def _assertXMLEqual(
         self, original: str, expected: str, parser: str = "xml"
     ) -> None:
-        """Assert that two XML arch strings are equal after normalization.
-
-        :param original: the xml arch to test
-        :param expected: the xml arch of reference
-        :param parser: which lxml.Parser class to use — ``"xml"`` or ``"html"``
-        """
         self.maxDiff = 10000
         if original:
             original = _normalize_arch_for_assert(original, parser)
@@ -1053,15 +853,12 @@ class BaseCase(case.TestCase):
         self.assertEqual(original, expected)
 
     def assertXMLEqual(self, original: str, expected: str) -> None:
-        """Assert two XML arch strings are semantically equal."""
         return self._assertXMLEqual(original, expected)
 
     def assertHTMLEqual(self, original: str, expected: str) -> None:
-        """Assert two HTML arch strings are semantically equal."""
         return self._assertXMLEqual(original, expected, "html")
 
     def profile(self, description: str = "", **kwargs: Any) -> Any:
-        """Return a Profiler for the current test method."""
         test_method = getattr(self, "_testMethodName", "Unknown test method")
         if not hasattr(self, "profile_session"):
             self.profile_session = profiler.make_session(test_method)
@@ -1081,10 +878,6 @@ class BaseCase(case.TestCase):
 
     @classmethod
     def _registry_test_mode_patches(cls, *, cr: Cursor, registry: Registry):
-        """
-        Returns the patches required for entering registry test mode.
-        The patches are not started.
-        """
 
         def _patched_cursor(readonly: bool = False):
             return TestCursor(
@@ -1125,11 +918,6 @@ class BaseCase(case.TestCase):
 
     @classmethod
     def registry_enter_test_mode_cls(cls) -> None:
-        """Put the registry in test mode.
-
-        New cursors returned by the registry will be instances of `TestCursor`
-        which will wrap the current cursor.
-        """
         assert not cls._registry_patched, "Can only patch registry once"
         assert cls.cr, "No cursor"
         assert cls.registry, "No registry"
@@ -1146,15 +934,6 @@ class BaseCase(case.TestCase):
     def registry_enter_test_mode(
         self, *, cr: Cursor | None = None, register_cleanup: bool = True
     ) -> None:
-        """
-        Puts the registry in test mode.
-
-        New cursors returned by the registry will be instances of `TestCursor`
-        which will wrap the current cursor.
-
-        :param cr: the cursor to wrap (defaults to the current cursor if none)
-        :param register_cleanup: whether to register cleanup.
-        """
         assert not type(self)._registry_patched, "Can only patch registry once"
         assert cr or self.cr, "No cursor"
         assert self.registry, "No registry"
@@ -1171,7 +950,6 @@ class BaseCase(case.TestCase):
 
     @classmethod
     def registry_leave_test_mode(cls) -> None:
-        """Restore the registry to its normal (non-test) mode."""
         assert cls._registry_patched, "Registry is not patched"
 
         for p in cls.registry_patches:
@@ -1181,21 +959,11 @@ class BaseCase(case.TestCase):
 
     @classmethod
     def set_registry_readonly_mode(cls, enabled: bool) -> None:
-        """Enable or disable readonly mode for test cursors.
-
-        The setting is restored at the end of the test that changed it (see
-        :meth:`BaseCase.setUp`), so a test which flips it — often in a loop
-        over both values — cannot leave the next test running against
-        read/write cursors where it asked for readonly. Calls made from
-        ``setUpClass`` still apply to the whole class, because the per-test
-        snapshot is taken after class setup.
-        """
         assert cls._registry_patched, "Registry is not patched"
 
         cls._registry_readonly_enabled = enabled
 
     def assertCanOpenTestCursor(self) -> None:
-        """Assert that we can currently open a test cursor."""
         if odoo.modules.module.current_test is not self:
             message = f"Trying to open a test cursor for {self.canonical_tag} while already in a test {current_test_tag()}"
             _logger.runbot(message)
@@ -1222,7 +990,6 @@ class BaseCase(case.TestCase):
             )
 
     def get_method_additional_tags(self, test_method: Callable | None) -> list[str]:
-        """Add an ``is_query_count`` tag if the test method uses assertQueryCount."""
         additional_tags = []
         if (
             odoo.tools.config["test_tags"]
@@ -1235,38 +1002,6 @@ class BaseCase(case.TestCase):
 
 
 class Like:
-    """
-    A string-like object comparable to other strings but where the substring
-    '...' can match anything in the other string.
-
-    Example of usage:
-
-        self.assertEqual("SELECT field1, field2, field3 FROM model", Like('SELECT ... FROM model'))
-        self.assertIn(Like('Company ... (SF)'), ['TestPartner', 'Company 8 (SF)', 'SomeAdress'])
-        self.assertEqual([
-            'TestPartner',
-            'Company 8 (SF)',
-            'Anything else'
-        ], [
-            'TestPartner',
-            Like('Company ... (SF)'),
-            Like('...'),
-        ])
-
-    In case of mismatch, here is an example of error message
-
-        AssertionError: Lists differ: ['TestPartner', 'Company 8 (LA)', 'Anything else'] != ['TestPartner', ~Company ... (SF), ~...]
-
-        First differing element 1:
-        'Company 8 (LA)'
-        ~Company ... (SF)~
-
-        - ['TestPartner', 'Company 8 (LA)', 'Anything else']
-        + ['TestPartner', ~Company ... (SF), ~...]
-
-
-    """
-
     def __init__(self, pattern: str) -> None:
         self.pattern = pattern
         self.regex = ".*".join(
@@ -1285,8 +1020,6 @@ class Like:
 
 
 class WhitespaceInsensitive(str):
-    """A str subclass that compares equal to other strings with equivalent whitespace."""
-
     __slots__ = ()
 
     def __hash__(self) -> int:
@@ -1299,17 +1032,10 @@ class WhitespaceInsensitive(str):
 
 
 class Approx:
-    """A wrapper for approximate float comparisons. Uses float_compare under
-    the hood.
-
-    Most of the time, :meth:`TestCase.assertAlmostEqual` is more useful, but it
-    doesn't work for all helpers.
-    """
-
     def __init__(
         self,
         value: float,
-        rounding: int | float | odoo.addons.base.models.res_currency.ResCurrency,
+        rounding: float | odoo.addons.base.models.res_currency.ResCurrency,
         /,
         decorate: bool,
     ) -> None:
@@ -1332,29 +1058,18 @@ class Approx:
             return NotImplemented
         return self.cmp(self.value, other) == 0
 
+    # Tolerance-based equality is not transitive, so no hash can honour the
+    # "equal objects hash equal" contract. Python already sets this implicitly
+    # once __eq__ is defined; spelling it out states the intent.
+    __hash__ = None
+
 
 class TransactionCase(BaseCase):
-    """Test class in which all test methods are run in a single transaction,
-    but each test method is run in a sub-transaction managed by a savepoint.
-    The transaction's cursor is always closed without committing.
-
-    The data setup common to all methods should be done in the class method
-    `setUpClass`, so that it is done once for all test methods. This is useful
-    for test cases containing fast tests but with significant database setup
-    common to all cases (complex in-db test data).
-
-    After being run, each test method cleans up the record cache and the
-    registry cache. However, there is no cleanup of the registry models and
-    fields. If a test modifies the registry (custom models and/or fields), it
-    should prepare the necessary cleanup (`self.registry.reset_changes()`).
-    """
-
     muted_registry_logger = mute_logger(odoo.orm.runtime.registry._logger.name)
     freeze_time = None
 
     @classmethod
     def _gc_filestore(cls) -> None:
-        """Garbage-collect the filestore outside of the test cursor."""
         with Registry(get_db_name()).cursor() as cr:
             gc_env = api.Environment(cr, api.SUPERUSER_ID, {})
             gc_env["ir.attachment"]._gc_file_store_unsafe()
@@ -1497,9 +1212,6 @@ class TransactionCase(BaseCase):
 
     @contextmanager
     def enter_registry_test_mode(self) -> Generator[None]:
-        """Make all new cursors opened on this database registry reuse the
-        one currently used by the tests. See ``registry_enter_test_mode``.
-        """
         env = self.env
         env.flush_all()
         self.registry_enter_test_mode(register_cleanup=False)
@@ -1511,11 +1223,6 @@ class TransactionCase(BaseCase):
 
     @contextmanager
     def allow_pdf_render(self) -> Generator[None]:
-        """Enter registry test mode for PDF rendering if necessary.
-
-        WeasyPrint runs in-process (no subprocess), so no cookie/lock
-        workarounds are needed — just ensure the registry is in test mode.
-        """
         with ExitStack() as stack:
             if not type(self)._registry_patched:
                 stack.enter_context(self.enter_registry_test_mode())
@@ -1523,11 +1230,6 @@ class TransactionCase(BaseCase):
 
 
 class SingleTransactionCase(BaseCase):
-    """TestCase in which all test methods are run in the same transaction,
-    the transaction is started with the first test method and rolled back at
-    the end of the last.
-    """
-
     @classmethod
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
@@ -1556,13 +1258,11 @@ class SingleTransactionCase(BaseCase):
 
 
 def no_retry(arg: Any) -> Any:
-    """Disable auto retry on decorated test method or test class."""
     arg._retry = False
     return arg
 
 
 def users(*logins: str) -> Callable:
-    """Decorate a method to execute it once for each given user."""
     assert logins, "Expecting at least one login to execute"
 
     def users_decorator(func: Callable, /) -> Callable:
@@ -1592,13 +1292,6 @@ def users(*logins: str) -> Callable:
 
 
 def warmup(func: Callable, /) -> Callable:
-    """Stabilize assertQueries and assertQueryCount assertions.
-
-    Flush pending changes and invalidate the cache, then warm up the ORM caches
-    by running the decorated function an extra time before the real run. The extra
-    execution ignores assertQueries/assertQueryCount assertions and discards all
-    changes except ORM cache ones.
-    """
 
     @wraps(func)
     def warmup(self: Any, *args: Any, **kwargs: Any) -> None:
@@ -1616,11 +1309,6 @@ def warmup(func: Callable, /) -> Callable:
 
 
 def can_import(module: str) -> bool:
-    """Check if ``module`` can be imported.
-
-    Returns ``True`` if it can be, ``False`` otherwise.  Use with
-    ``unittest.skipUnless`` for tests conditional on optional dependencies.
-    """
     try:
         importlib.import_module(module)
     except ImportError:
@@ -1630,15 +1318,6 @@ def can_import(module: str) -> bool:
 
 
 def tagged(*tags: str) -> Callable:
-    """Decorate a BaseCase class to add or remove test tags.
-
-    Tags are stored in a set accessible via the ``test_tags`` attribute.
-    A tag prefixed by ``'-'`` removes that tag (e.g. ``'-standard'``).
-
-    By default, all test classes from ``odoo.tests.common`` have
-    ``test_tags`` defaulting to ``{'standard', 'at_install'}``.
-    Tags are inherited through class inheritance.
-    """
     include = {t for t in tags if not t.startswith("-")}
     exclude = {t[1:] for t in tags if t.startswith("-")}
 
@@ -1657,12 +1336,6 @@ def tagged(*tags: str) -> Callable:
 
 
 class freeze_time:
-    """Odoo-aware replacement for freezegun in test suites.
-
-    Properly handles test class decoration and can also be used as a
-    method decorator or context manager.
-    """
-
     _freeze_time = staticmethod(freezegun.freeze_time)
 
     def __init__(
@@ -1682,7 +1355,6 @@ class freeze_time:
         )
 
     def __call__(self, arg: Any) -> Any:
-        """Apply freeze_time as a class or method decorator."""
         if isinstance(arg, type) and issubclass(arg, case.TestCase):
             arg.freeze_time = self
             return arg
@@ -1692,7 +1364,7 @@ class freeze_time:
     def __enter__(self) -> Any:
         return self.freezer.start()
 
-    def __exit__(self, *args: Any) -> None:
+    def __exit__(self, *args: object) -> None:
         self.freezer.stop()
 
     start = __enter__
@@ -1701,4 +1373,12 @@ class freeze_time:
 
 freezegun.freeze_time = freeze_time
 
-from .http import HttpCase, JsonRpcException, Opener, Transport
+# Imported last on purpose: `odoo.tests.http` imports from this module, so
+# hoisting this to the top makes the cycle unresolvable. The names are
+# re-exported here for `from odoo.tests.common import HttpCase`.
+from .http import (  # noqa: E402  see comment above
+    HttpCase,
+    JsonRpcException,
+    Opener,
+    Transport,
+)

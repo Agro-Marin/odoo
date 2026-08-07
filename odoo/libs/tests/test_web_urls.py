@@ -1,12 +1,3 @@
-"""Security-contract tests for :func:`odoo.libs.web.urls.urljoin`.
-
-This fork ships its own ``urljoin`` (instead of stdlib) specifically to keep a
-trusted base URL from being redirected elsewhere: no path traversal, no
-host/scheme override.  These are DB-free unit tests pinning that contract,
-including the traversal-bypass classes (``;`` path-parameter and NUL/control
-truncation) that a raw ``seg == ".."`` check misses.
-"""
-
 import pytest
 
 from odoo.libs.web.urls import _segment_core, urljoin

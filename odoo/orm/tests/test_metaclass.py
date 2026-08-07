@@ -1,14 +1,3 @@
-"""Unit tests for the model metaclass (:mod:`odoo.orm.models.metaclass`).
-
-Tier-2 (real ``import odoo``), but these need **no** harness, database, or
-registry: ``MetaModel.__new__`` runs at *class definition* time, so deriving
-``_name`` and normalising ``_inherit`` are pure, production-faithful behaviours
-that a plain class statement exercises directly.
-
-Each test defines throwaway models under a unique ``_module`` so they never
-collide with the harness suites' auto-discovery.
-"""
-
 import logging
 
 from odoo import models

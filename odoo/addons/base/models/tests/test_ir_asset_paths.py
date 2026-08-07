@@ -1,13 +1,3 @@
-"""Standalone (database-free) tests for the ``ir.asset`` bundle algebra.
-
-Everything exercised here is a pure function of its arguments — a path
-definition, a list of files, an ordering operation — so it needs neither a
-registry nor a cursor. The equivalent ``TransactionCase`` coverage in
-``base/tests/test_ir_asset_audit.py`` pins the same contracts *through* the
-model; these run in milliseconds and are where the exhaustive/property cases
-belong.
-"""
-
 import random
 import re
 from pathlib import Path
@@ -37,12 +27,6 @@ def paths_of(asset_paths):
 
 
 def make_walk(bundles, resolve=None, seed=(), seed_bundle="seed"):
-    """A walk over *bundles*, a ``{name: [(directive, target, path), ...]}`` map.
-
-    Every path definition resolves to itself unless *resolve* says otherwise —
-    which is the whole point of the split: the directive algebra needs a
-    resolver, not a filesystem, a registry or a cursor.
-    """
 
     def directives_for(bundle):
         return [
@@ -57,7 +41,6 @@ def make_walk(bundles, resolve=None, seed=(), seed_bundle="seed"):
 
 
 def resolver_for(mapping):
-    """A resolver where a definition may expand to several files (a glob)."""
     return lambda path_def: [rp(p) for p in mapping.get(path_def, [path_def])]
 
 
@@ -191,7 +174,6 @@ class TestAnchors:
         assert ap.anchors == [second]
 
     def test_released_anchors_are_matched_by_identity(self):
-        """Two anchors on the same index are distinct frames, not duplicates."""
         ap = AssetPaths()
         first, second = ap.new_anchor(), ap.new_anchor()
         assert first.index == second.index == 0
@@ -200,10 +182,6 @@ class TestAnchors:
 
     @pytest.mark.parametrize("seed", range(20))
     def test_an_open_anchor_always_splits_old_from_new(self, seed):
-        """Property: everything before a live anchor is exactly what the list
-        already held when the frame opened (minus what has since been removed),
-        in its original order. That is the whole contract ``prepend`` relies on.
-        """
         rng = random.Random(seed)
         names = [f"/p{index}" for index in range(10)]
         ap = AssetPaths()
@@ -285,9 +263,6 @@ class TestGlobStaticFile:
         assert [p for p, _m in found] == [str(addon / "src" / "a.js")]
 
     def test_the_containment_memo_is_keyed_by_root(self, addon, tmp_path):
-        """One memo is shared by every glob of a resolution, and the answer is
-        only meaningful against the root it was computed for.
-        """
         memo: dict[tuple[str, str], bool] = {}
         directory = str(addon / "src")
         assert _reaches_root_without_symlink(directory, str(addon), memo)
@@ -298,11 +273,6 @@ class TestGlobStaticFile:
 
 
 class TestWalkStructure:
-    """Cycle detection, the already-walked guard, and unknown directives —
-    previously reachable only through a ``TransactionCase`` and a patched
-    ``IrAsset._get_paths``.
-    """
-
     def test_a_cycle_is_reported_as_the_path_that_closes_it(self):
         walk = make_walk(
             {
@@ -342,7 +312,6 @@ class TestWalkStructure:
         assert "declared for bundle 'a.root'" in str(e.value)
 
     def test_attribution_happens_once_across_includes(self):
-        """The innermost declaration is named; outer frames re-raise as is."""
         walk = make_walk(
             {
                 "a.outer": [("include", None, "a.inner")],
@@ -356,13 +325,6 @@ class TestWalkStructure:
 
 
 class TestPrependAnchorInWalk:
-    """``prepend`` inserts at the start of the segment the current bundle
-    contributed. That start was once a plain index, so a directive that later
-    removed something *in front of* it shifted the segment and left the index
-    one slot too far right — inside an ``include``, far enough to fall off the
-    end and degrade to ``append``.
-    """
-
     def test_prepend_in_included_bundle_after_a_remove(self):
         walk = make_walk(
             {
@@ -450,12 +412,6 @@ class TestPrependAnchorInWalk:
 
 
 class TestReplaceDirective:
-    """IRASSET-L1 / IRASSET-C2: a present source is repositioned to the target
-    slot (not dropped), a source set including the target keeps it, and sources
-    land in source order — the old new-then-present order reordered interleaved
-    sources.
-    """
-
     def _run(self, seed, target, sources):
         walk = make_walk(
             {"b1": [("replace", "TARGET", "SOURCE")]},
@@ -496,10 +452,6 @@ class TestReplaceDirective:
 
 
 class TestGlobTargets:
-    """A glob target designates every file it matched: ``replace`` three files
-    with one and all three go, not just the first.
-    """
-
     def _run(self, directive, seed, targets, sources):
         walk = make_walk(
             {"b1": [(directive, "/f*.js", "SOURCE")]},
@@ -539,7 +491,6 @@ class TestGlobTargets:
             self._run("replace", ["/keep.js"], ["/f1.js", "/f2.js"], ["/new.js"])
 
     def test_before_anchors_on_the_first_resolved_target_the_bundle_holds(self):
-        """Decided by the target definition, not by how the bundle got ordered."""
         got = self._run(
             "before",
             ["/f2.js", "/f1.js", "/keep.js"],
@@ -556,11 +507,6 @@ class TestGlobTargets:
 
 
 class TestPositioningIsNotMoving:
-    """IRASSET-A1: ``insert`` dedups, so every directive built on it leaves an
-    already-present source where it was while looking like it positioned it.
-    Only ``replace`` really moves one, and the asymmetry must be visible.
-    """
-
     def _run(self, directive, target, source, caplog):
         walk = make_walk(
             {"b1": [(directive, target, source)]},
@@ -588,18 +534,12 @@ class TestPositioningIsNotMoving:
         assert not log
 
     def test_appending_what_another_addon_contributed_stays_silent(self, caplog):
-        """The normal case: 3297 of 3708 declared commands are appends."""
         paths, log = self._run("append", None, "/a", caplog)
         assert paths == ["/a", "/b", "/c"]
         assert not log
 
 
 class TestRemoveDirectiveSemantics:
-    """Task 23534: a wildcarded ``remove`` resolves against disk while the
-    bundle holds any subset of it, so absent matches are expected set
-    subtraction; a literal remove keeps the must-be-present contract.
-    """
-
     def _run(self, path_def, resolved, caplog):
         walk = make_walk(
             {"b1": [("remove", None, path_def)]},
@@ -635,10 +575,6 @@ class TestRemoveDirectiveSemantics:
         assert not log
 
     def test_an_append_resolving_to_nothing_does_not_warn(self, caplog):
-        """Unlike ``remove``, appending nothing is not evidence of a stale
-        path: an addon that is not installed resolves to no files at all, and
-        every bundle that mentions it would warn on every resolution.
-        """
         walk = make_walk(
             {"b1": [("append", None, "/web/absent/**/*.js")]},
             resolve=resolver_for({"/web/absent/**/*.js": []}),
@@ -683,7 +619,6 @@ class TestResolvedPath:
 
 
 def test_the_leaf_module_stays_framework_free():
-    """The point of the split: importing it must not drag in the ORM."""
     source = Path(__file__).resolve().parents[1] / "ir_asset_paths.py"
     text = source.read_text()
     for forbidden in ("from odoo import", "models.Model", "odoo.modules", "odoo.api"):

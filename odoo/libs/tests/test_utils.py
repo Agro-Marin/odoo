@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.utils`` helpers."""
-
 import unittest
 
 from odoo.libs.utils import named_to_positional_printf, replace_exceptions

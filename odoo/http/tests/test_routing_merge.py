@@ -1,10 +1,3 @@
-"""DB-free unit tests for @route decoration and the inheritance merge.
-
-Drives :func:`odoo.http.routing._generate_routing_rules` over controllers
-registered by hand — no database — to pin how ``@route`` fragments merge across
-an inheritance chain. Run via ``pytest odoo/http/tests``.
-"""
-
 import contextlib
 import logging
 
@@ -17,7 +10,6 @@ from odoo.http.routing import route
 
 @pytest.fixture(autouse=True)
 def _clean_registry():
-    """Isolate Controller.children_classes per test (it is process-global)."""
     saved = {k: list(v) for k, v in Controller.children_classes.items()}
     Controller.children_classes.clear()
     yield
@@ -53,8 +45,6 @@ def test_bearer_route_is_stateless_by_default():
 
 
 def test_bearer_overridden_to_user_regains_session_persistence():
-    """Regression: overriding a bearer route to auth='user' used to keep the
-    inherited ``save_session=False`` and silently never persist the cookie."""
 
     class Parent(Controller):
         @route("/b", type="json2", auth="bearer")
@@ -110,9 +100,6 @@ def test_plain_user_route_persists_session():
 
 
 def test_merge_never_mutates_declared_fragments():
-    """Regression: the merge used to write its ``type``/``readonly`` corrections
-    back into ``original_routing``, leaking one build's context into every later
-    build (maps are rebuilt per database with different module sets)."""
 
     class Parent(Controller):
         @route("/m", type="http", auth="user")
@@ -159,8 +146,6 @@ def test_options_added_to_methods_allow_list():
 
 
 def test_unknown_route_parameter_warns(caplog):
-    """A typo'd @route kwarg (``raedonly=True``) used to be silently stored in
-    endpoint.routing and ignored; it must draw a warning at decoration."""
     import logging
 
     from odoo.http.routing import register_routing_parameters, route
@@ -188,7 +173,6 @@ def test_unknown_route_parameter_warns(caplog):
 
 
 def _endpoints(*mod_cls):
-    """Like ``_merge`` but yields the endpoint objects, not just their routing."""
     from odoo.http.routing import _generate_routing_rules
 
     Controller.children_classes.clear()
@@ -202,13 +186,6 @@ def _endpoints(*mod_cls):
 
 
 def test_typed_is_inherited_by_an_override_that_does_not_restate_it():
-    """``typed=True`` must survive the merge, coercion included.
-
-    Compiling the specs at DECORATION time meant an override silently lost
-    coercion while the merged routing — and the OpenAPI document built from it —
-    kept advertising the schema and its 400: a handler declaring ``n: int``
-    received the raw query string.
-    """
     seen = {}
 
     class Parent(Controller):
@@ -262,8 +239,6 @@ def test_an_override_can_still_opt_out_of_typed():
 
 
 def test_typed_specs_are_stable_across_repeated_map_builds():
-    """Routing maps are rebuilt per database, each build minting fresh endpoints,
-    so repeated builds must produce identical specs and touch nothing shared."""
     seen = {}
 
     class Parent(Controller):

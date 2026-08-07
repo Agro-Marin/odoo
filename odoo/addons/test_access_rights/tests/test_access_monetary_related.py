@@ -3,12 +3,6 @@ from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 class TestMonetaryAccess(TransactionCaseWithUserDemo):
     def test_monetary_access_create(self):
-        """Monetary fields that depend on compute/related currency
-        have never really been supported by the ORM.
-        However most currency fields are related.
-        This limitation can cause monetary fields to not be rounded,
-        as well as trigger spurious ACL errors.
-        """
         user_admin = self.env.ref("base.user_admin")
         user_demo = self.user_demo.with_user(user_admin)
 

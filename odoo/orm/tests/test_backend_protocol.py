@@ -1,19 +1,3 @@
-"""Enforce the ``StorageBackend`` persistence contract.
-
-``Environment.backend`` is ``None`` for PostgreSQL (the CRUD mixins run SQL
-inline) or a :class:`StorageBackend` for the in-memory tier. The contract used
-to be implicit: a new persistence op that added a backend method but forgot its
-``if backend is not None`` dispatch site (or vice-versa) would silently run SQL
-against the in-memory store -- exactly the row-lock gap that shipped. These
-tests pin (a) that ``InMemoryBackend`` implements the whole Protocol, and (b)
-that the Protocol methods and the dispatch sites are the same set, so either
-kind of drift fails here. Pure introspection + source scan -- no database.
-
-Dispatch sites live in the CRUD mixins (row-level ops) and in the field layer
-(``fields/``: the Many2many relation-table ops in ``relational/many2many.py``),
-so both directories are scanned.
-"""
-
 import pathlib
 import re
 import typing

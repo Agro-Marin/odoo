@@ -8,8 +8,6 @@ from ..models.res_users import check_identity
 
 
 class ChangePasswordWizard(models.TransientModel):
-    """A wizard to manage the change of users' passwords."""
-
     _name = "change.password.wizard"
     _description = "Change Password Wizard"
     _transient_max_hours = 0.2
@@ -32,11 +30,6 @@ class ChangePasswordWizard(models.TransientModel):
     )
 
     def change_password_button(self) -> dict[str, str]:
-        """Apply the new password to every wizard line and close the wizard.
-
-        :return: a client reload action if the acting user changed their own
-            password, otherwise a window-close action.
-        """
         self.ensure_one()
         self.user_ids.change_password_button()
         if self.env.user in self.user_ids.user_id:
@@ -45,8 +38,6 @@ class ChangePasswordWizard(models.TransientModel):
 
 
 class ChangePasswordUser(models.TransientModel):
-    """A model to configure users in the change password wizard."""
-
     _name = "change.password.user"
     _description = "User, Change Password Wizard"
     wizard_id = fields.Many2one(
@@ -62,15 +53,6 @@ class ChangePasswordUser(models.TransientModel):
     new_passwd = fields.Char(string="New Password", default="")
 
     def change_password_button(self) -> None:
-        """Write each line's new password onto its target user.
-
-        Cross-user password setting is blocked upstream by three independent
-        layers (do not weaken any): the ``change.password.user`` ACL is limited to
-        ``base.group_erp_manager``; the ``change_password_rule`` record rule scopes
-        lines to ``[('create_uid', '=', user.id)]``; and ``_change_password``'s
-        ``res.users`` write needs real ORM rights (``password`` is not in
-        ``SELF_WRITEABLE_FIELDS``).
-        """
         for line in self:
             if line.new_passwd:
                 line.user_id._change_password(line.new_passwd)
@@ -78,13 +60,6 @@ class ChangePasswordUser(models.TransientModel):
 
 
 class ChangePasswordOwn(models.TransientModel):
-    """A wizard letting a user change only their own password.
-
-    Unlike ``change.password.user`` this model has no ``user_id`` field: it is
-    hard-bound to ``self.env.user`` and additionally protected by
-    ``@check_identity``, so it can never target another user's record.
-    """
-
     _name = "change.password.own"
     _description = "User, change own password wizard"
     _transient_max_hours = 0.1

@@ -66,12 +66,6 @@ class TestMergePartner(TransactionCase):
         )
 
     def test_merge_parent_with_child_is_rejected(self):
-        """Merging a contact with its own parent/child must raise.
-
-        Regression: the guard intersected ``all_descendants - partner_ids`` back
-        with ``partner_ids`` (always empty), so a parent+child merge slipped
-        through and repointed the survivor onto itself (``parent_id = id``).
-        """
         parent = self.Partner.create(
             {"name": "Parent Co", "email": "parent@example.com"}
         )
@@ -206,7 +200,6 @@ class TestMergePartner(TransactionCase):
         )
 
     def test_merge_partners_with_peon_user(self):
-        """Test merging partners with a user having the bare minimum access rights"""
         self.env["ir.model.access"].create(
             {
                 "name": "peon.access.merge.wizard",
@@ -286,12 +279,6 @@ class TestMergePartner(TransactionCase):
         )
 
     def test_merge_aligns_user_company_to_destination(self):
-        """Merge re-homes a linked user to the destination partner's company.
-
-        res.partner requires its company_id to match its users' company. BPM-L03's
-        proposed "preserve the user's own default" is NOT viable: it would leave
-        partner and user inconsistent and abort the merge.
-        """
         Company = self.env["res.company"]
         company_a, company_b = Company.create(
             [{"name": "Merge A"}, {"name": "Merge B"}]
@@ -319,17 +306,6 @@ class TestMergePartner(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMergePartnerForeignKeyClash(TransactionCase):
-    """BPM-L06: on a multi-column UNIQUE/CHECK clash, the FK-update helper must
-    repoint the non-clashing source rows and drop only the offending row, not
-    blanket-delete every source row.
-
-    res_partner_bank's ``unique(sanitized_acc_number, partner_id)`` constraint
-    lets a source bank row whose number already exists on dst drive the savepoint
-    ``else`` branch of ``_update_foreign_keys_generic``. The helper is called
-    directly, not via ``_merge``, because ``_merge`` re-points bank accounts in
-    ``_merge_bank_accounts`` before the generic FK pass runs.
-    """
-
     def test_clashing_row_dropped_non_clashing_repointed(self):
         Partner = self.env["res.partner"]
         Bank = self.env["res.partner.bank"]
@@ -362,16 +338,6 @@ class TestMergePartnerForeignKeyClash(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMergePartnerCompanyDependent(TransactionCase):
-    """BPM-P1: company-dependent references on merged partners must still resolve
-    after the EXISTS row-filter optimisation of the company-dependent jsonb rewrite.
-
-    The jsonb-m2o path (``many2one_company_dependents[dst._name]``) can't be tested
-    directly: no base model declares a ``company_dependent=True`` Many2one at
-    res.partner, and adding a throwaway jsonb-backed model would require runtime
-    table creation plus registry teardown with no precedent in the suite. This
-    exercises the adjacent path via the real ``res.partner.barcode`` field instead.
-    """
-
     def test_company_dependent_reference_resolves_after_merge(self):
         Company = self.env["res.company"]
         company_a, company_b = Company.create(

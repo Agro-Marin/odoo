@@ -18,7 +18,6 @@
         <field name="phone">(441)-695-2334</field>
     </record>
 
-    <!-- Only update if we don't have information coming from the database manager -->
     <function model="res.partner" name="write">
         <value eval="[ref('base.main_partner')]" />
         <value
@@ -75,7 +74,6 @@
         </field>
     </record>
 
-    <!-- Portal : partner and user -->
     <record id="partner_demo_portal" model="res.partner">
         <field name="name">Joel Willis</field>
         <field name="email">joel.willis63@example.com</field>
@@ -103,11 +101,9 @@
             <div>Mr Demo Portal</div>
         </field>
         <field name="group_ids" eval="[Command.clear()]" />
-        <!-- Avoid auto-including this user in any default group -->
     </record>
 
     <record id="base.group_portal" model="res.groups">
-        <!-- Add the demo user to the portal (and therefore to the portal member group) -->
         <field name="user_ids" eval="[Command.link(ref('demo_user0'))]" />
     </record>
 

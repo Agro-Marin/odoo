@@ -7,8 +7,6 @@ from odoo.tools.misc import get_diff
 
 
 class ServerActionHistoryWizard(models.TransientModel):
-    """Compare and restore previous revisions of server action code."""
-
     _name = "server.action.history.wizard"
     _description = "Server Action History Wizard"
 
@@ -53,6 +51,5 @@ class ServerActionHistoryWizard(models.TransientModel):
             )
 
     def restore_revision(self) -> None:
-        """Replace the server action's code with the selected revision."""
         self.ensure_one()
         self.action_id.code = self.revision.code

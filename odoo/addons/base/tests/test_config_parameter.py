@@ -12,8 +12,6 @@ from odoo.addons.base.models.ir_config_parameter import _default_parameters
 
 class TestIrConfigParameter(TransactionCase):
     def test_default_parameters(self):
-        """Check the behavior of _default_parameters
-        when updating keys and deleting records."""
         for key in _default_parameters:
             config_parameter = self.env["ir.config_parameter"].search(
                 [("key", "=", key)], limit=1
@@ -27,12 +25,6 @@ class TestIrConfigParameter(TransactionCase):
 
 
 class TestTypedParams(TransactionCase):
-    """``get_param_int`` / ``get_param_float`` share one contract: a parameter is
-    free text an administrator can edit, so an unusable value must degrade to the
-    default and warn rather than raise out of whatever request happens to read it
-    (``base.default_max_email_size`` is read while sending mail). Tested as a pair
-    so the two cannot drift."""
-
     KEY = "base.test_typed_param"
 
     def _read(self, reader, raw, default):
@@ -61,13 +53,11 @@ class TestTypedParams(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_config_parameter")
     def test_float_string_is_not_an_int(self):
-        """int() does not silently truncate "4.5"; it degrades to the default."""
         self.assertEqual(self._read("get_param_int", "4.5", 7), 7)
 
 
 class TestSetGetParam(TransactionCase):
     def test_set_get_param_lifecycle(self):
-        """ICP-T1: cover set_param create/update/no-op/unlink and get_param fallback."""
         ICP = self.env["ir.config_parameter"]
         key = "base.test_set_get_param"
         self.assertEqual(ICP.get_param(key, default="fallback"), "fallback")
@@ -85,14 +75,6 @@ class TestSetGetParam(TransactionCase):
 
     @mute_logger("odoo.db.cursor")
     def test_set_param_create_race(self):
-        """ICP-C1: when the key exists but the search missed it, set_param must
-        fall back to the update path instead of aborting the whole transaction
-        on the unique constraint.
-
-        The row is visible to this transaction (a record rule hiding it, say);
-        the cross-transaction race, where it is not, is
-        ``test_set_param_concurrent_create_is_retryable``.
-        """
         ICP = self.env["ir.config_parameter"]
         key = "base.test_set_param_race"
         ICP.set_param(key, "concurrent")
@@ -115,8 +97,6 @@ class TestSetGetParam(TransactionCase):
 
 
 class TestSetParamConcurrency(BaseCase):
-    """set_param racing a concurrent transaction on the same new key."""
-
     KEY = "base.test_set_param_cross_tx_race"
 
     def setUp(self):
@@ -132,19 +112,10 @@ class TestSetParamConcurrency(BaseCase):
 
     @mute_logger("odoo.db.cursor")
     def test_set_param_concurrent_create_is_retryable(self):
-        """The loser of a create race asks for a request replay.
-
-        Both transactions find no row for the key and both insert.  The loser
-        used to re-``search`` -- which cannot see the winner's row under
-        ``REPEATABLE READ`` -- and then ``create`` again, so the caller got a
-        raw ``ir_config_parameter_key_uniq`` violation.  It must raise
-        ``ConcurrencyError`` instead, which ``retrying`` replays.
-        """
         registry = Registry(common.get_db_name())
         with registry.cursor() as cr_a, registry.cursor() as cr_b:
             env_a = odoo.api.Environment(cr_a, common.ADMIN_USER_ID, {})
             env_b = odoo.api.Environment(cr_b, common.ADMIN_USER_ID, {})
-            # pin both snapshots while the key does not exist
             for env in (env_a, env_b):
                 env["ir.config_parameter"].search_count([("key", "=", self.KEY)])
 
@@ -154,7 +125,6 @@ class TestSetParamConcurrency(BaseCase):
             with self.assertRaises(ConcurrencyError):
                 env_b["ir.config_parameter"].set_param(self.KEY, "loser")
 
-            # what ``retrying`` does: roll back, then run the request again
             cr_b.rollback()
             env_b = odoo.api.Environment(cr_b, common.ADMIN_USER_ID, {})
             self.assertEqual(

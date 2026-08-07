@@ -1,14 +1,3 @@
-"""An explicit write must always cancel a pending recomputation of the same
-field (the ``mark_dirty`` prologue contract), and translated ``Html`` keeps
-the en_US fallback for records with no DB row.
-
-Regression (2026-07 audit): ``BaseString.mark_dirty``'s translate branch
-skipped ``remove_to_compute``, so writing a translated stored computed field
-was silently overwritten by the pending compute at the next read/flush; and
-``Html`` aliased ``Field.__get__``, dropping the fallback entirely (a non-en
-read of a new ``mail.template.body_html``-style field returned ``False``).
-"""
-
 import pathlib
 import re
 
@@ -91,9 +80,6 @@ def test_html_translate_keeps_en_us_fallback():
 
 
 def test_every_mark_dirty_override_runs_the_prologue():
-    """Source scan: every ``mark_dirty`` implementation must run the shared
-    prologue (directly, via ``super()``, or via the base inline sequence) —
-    skipping it recreates the lost-write bug this module pins."""
     fields_dir = pathlib.Path(__file__).resolve().parent.parent / "fields"
     pattern = re.compile(r"^(\s+)def mark_dirty\(", re.MULTILINE)
     markers = ("_mark_dirty_prologue(", "remove_to_compute(", ".mark_dirty(")

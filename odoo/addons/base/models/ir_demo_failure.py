@@ -4,8 +4,6 @@ from odoo import api, fields, models
 
 
 class IrDemo_Failure(models.TransientModel):
-    """Stores modules for which we could not install demo data"""
-
     _name = "ir.demo_failure"
     _description = "Demo failure"
 
@@ -15,8 +13,6 @@ class IrDemo_Failure(models.TransientModel):
 
 
 class IrDemo_FailureWizard(models.TransientModel):
-    """Dialog aggregating per-module demo-data installation failures."""
-
     _name = "ir.demo_failure.wizard"
     _description = "Demo Failure wizard"
 
@@ -34,5 +30,4 @@ class IrDemo_FailureWizard(models.TransientModel):
             r.failures_count = len(r.failure_ids)
 
     def done(self) -> dict[str, Any]:
-        """Dismiss the dialog and advance the module install/config todo chain."""
         return self.env["ir.module.module"]._next_todo_action()

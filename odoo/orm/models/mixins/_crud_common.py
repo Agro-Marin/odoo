@@ -1,5 +1,3 @@
-"""Shared constants and loggers for the CRUD mixins (create/write/unlink)."""
-
 import logging
 import os
 
@@ -17,12 +15,6 @@ _BAD_NAMES_LOG = _BAD_NAMES | frozenset(LOG_ACCESS_COLUMNS)
 
 
 def bad_field_names(model) -> frozenset:
-    """Field names to strip from ``create()``/``write()`` vals.
-
-    Always the magic columns (``id``, ``parent_path``); for ``_log_access``
-    models also the log-access columns — except the superuser may set those
-    while the registry is still loading.
-    """
     if model._log_access and not (
         model.env.uid == SUPERUSER_ID and not model.pool.ready
     ):

@@ -5,14 +5,6 @@ from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestResUsersSettingsOwnership(TransactionCase):
-    """Cross-user access denial for res.users.settings (RUSET-T1).
-
-    Ownership rests on the ``res_users_settings_rule_user`` record rule
-    [('user_id','=',user.id)]: a group_user cannot read or write another user's
-    settings, and ``user_id`` (in _PROTECTED_SETTINGS_FIELDS) cannot be
-    rewritten via set_res_users_settings to hijack a row.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -55,15 +47,6 @@ class TestResUsersSettingsOwnership(TransactionCase):
 
 
 class TestResUsersSettingsChangeDetection(TransactionCase):
-    """Per-field-type change detection of set_res_users_settings (RUSET-P1).
-
-    Detection branches on field type: many2one compares ids, x2many compares
-    the id-set resulting from the incoming commands (normalized by
-    ``_x2many_command_target_ids``). Guards the old bug where every relational
-    value was reduced to ``.id`` — raising "Expected singleton" on multi-record
-    x2many values.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -120,12 +103,6 @@ class TestResUsersSettingsChangeDetection(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestResUsersSettingsWriteOnlyChanges(TransactionCase):
-    """Integration check of the "only write actual changes" contract on real
-    fields contributed by installed modules (base itself only declares the
-    protected ``user_id``): re-submitting the current value of a writable
-    x2many (resp. many2one) field must not report it as changed.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

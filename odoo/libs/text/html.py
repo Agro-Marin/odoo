@@ -1,5 +1,3 @@
-"""HTML text utilities: sanitization, normalization, and conversion to/from plaintext."""
-
 import html as htmllib
 import itertools
 import logging
@@ -79,17 +77,10 @@ html_escape = markupsafe.escape
 
 
 def nl2br(string: str) -> Markup:
-    """Convert newlines to HTML line breaks in ``string`` after HTML-escaping it."""
     return escape_silent(string).replace("\n", Markup("<br>\n"))
 
 
 def nl2br_enclose(string: str, enclosure_tag: str = "div") -> Markup:
-    """Like nl2br, but wraps the result in an enclosure tag.
-
-    Returns enclosed Markup allowing to better manipulate trusted and
-    untrusted content. New lines added by us are trusted, other content
-    is escaped.
-    """
     return Markup("<{enclosure_tag}>{converted}</{enclosure_tag}>").format(
         enclosure_tag=enclosure_tag,
         converted=nl2br(string),
@@ -154,23 +145,6 @@ safe_attrs = defs.safe_attrs | frozenset(
     ]
 )
 
-#: Teach lxml that SVG's ``xlink:href`` is a link attribute.
-#:
-#: **This is a security control, and a process-wide mutation of a third party.**
-#: ``Cleaner``'s ``javascript=True`` strips ``javascript:`` URLs only from
-#: attributes it considers links, and lxml's ``defs.link_attrs`` does not list
-#: ``xlink:href``. Measured against stock lxml::
-#:
-#:     <svg><a xlink:href="javascript:alert(1)">x</a></svg>
-#:       stock lxml     -> xlink:href="javascript:alert(1)"   (survives)
-#:       with this line -> xlink:href=""                      (stripped)
-#:
-#: It is stated here rather than left as a bare statement among the constants
-#: because every importer of ``odoo.libs.text`` inherits it, and because a
-#: one-line ``|=`` reads like configuration rather than the XSS fix it is —
-#: deleting it as tidy-up would silently reopen the vector. The same argument
-#: ``odoo/libs/xml/parsers.py`` makes for keeping global lxml policy visible and
-#: next to the layer it applies to.
 defs.link_attrs |= {"xlink:href"}
 
 SANITIZE_TAGS = {
@@ -211,7 +185,7 @@ SANITIZE_TAGS = {
 class _Cleaner(clean.Cleaner):
     _style_re = re.compile(r"""([\w-]+)\s*:\s*((?:[^;"']|"[^";]*"|'[^';]*')+)""")
 
-    _style_whitelist = [
+    _style_whitelist = (
         "font-size",
         "font-family",
         "font-weight",
@@ -261,7 +235,7 @@ class _Cleaner(clean.Cleaner):
         "caption-side",
         "empty-cells",
         "table-layout",
-    ]
+    )
 
     _style_whitelist = frozenset(_style_whitelist) | {
         f"border-{position}-{attribute}"
@@ -311,26 +285,11 @@ class _Cleaner(clean.Cleaner):
                 del el.attrib["style"]
 
     def kill_conditional_comments(self, doc: etree._Element) -> None:
-        """Override the default behavior of lxml.
-
-        https://github.com/lxml/lxml/blob/e82c9153c4a7d505480b94c60b9a84d79d948efb/src/lxml/html/clean.py#L501-L510
-
-        In some use cases, e.g. templates used for mass mailing,
-        we send emails containing conditional comments targeting Microsoft Outlook,
-        to give special styling instructions.
-        https://github.com/odoo/odoo/pull/119325/files#r1301064789
-
-        Within these conditional comments, unsanitized HTML can lie.
-        However, in modern browser, these comments are considered as simple comments,
-        their content is not executed.
-        https://caniuse.com/sr_ie-features
-        """
         if self.conditional_comments:
             super().kill_conditional_comments(doc)
 
 
 def tag_quote(el: etree._Element) -> None:
-    """Mark email quote and signature parts of ``el`` with ``data-o-mail-quote`` attributes."""
 
     def _create_new_node(
         tag: str,
@@ -357,8 +316,8 @@ def tag_quote(el: etree._Element) -> None:
             return
 
         child_node = None
-        idx, node_idx = 0, 0
-        for item in re.finditer(regex, text):
+        idx = 0
+        for node_idx, item in enumerate(re.finditer(regex, text)):
             new_node = _create_new_node(
                 tag, text[item.start() : item.end()], None, attrs
             )
@@ -372,7 +331,6 @@ def tag_quote(el: etree._Element) -> None:
                 node.insert(node_idx, new_node)
             child_node = new_node
             idx = item.end()
-            node_idx = node_idx + 1
 
     el_class = el.get("class", "") or ""
     el_id = el.get("id", "") or ""
@@ -455,16 +413,6 @@ def fromstring(
     parser: Any = None,
     **kw: Any,
 ) -> tuple[etree._Element, bool]:
-    """Mimic lxml.html.fromstring, returning the parsed element and a flag.
-
-    Besides the parsed element/document, return a flag indicating whether the
-    input is a single body element or not.
-
-    This tries to minimally parse the chunk of text, without knowing if it
-    is a fragment or a document.
-
-    base_url will set the document's base_url attribute (and the tree's docinfo.URL)
-    """
     if parser is None:
         parser = html_parser
     if isinstance(html_, bytes):
@@ -539,21 +487,6 @@ def html_normalize(
     filter_callback: Callable[[etree._Element], etree._Element] | None = None,
     output_method: str = "html",
 ) -> str:
-    """Normalize `src` for storage as an html field value.
-
-    The string is parsed as an html tag soup, made valid, then decorated for
-    "email quote" detection, and prepared for an optional filtering.
-    The filtering step (e.g. sanitization) should be performed by the
-    `filter_callback` function (to avoid multiple parsing operations, and
-    normalize the result).
-
-    :param src: the html string to normalize
-    :param filter_callback: optional callable taking a single `etree._Element`
-        document parameter, to be called during normalization in order to
-        filter the output document
-    :param output_method: defines the output method to pass to `html.tostring`.
-        It defaults to 'html', but can also be 'xml' for xhtml output.
-    """
     if not src:
         return src
 
@@ -602,7 +535,6 @@ def html_sanitize(
     strip_classes: bool = False,
     output_method: str = "html",
 ) -> markupsafe.Markup | None:
-    """Sanitize ``src`` HTML and return it as safe Markup."""
     if not src:
         return src
 
@@ -612,14 +544,6 @@ def html_sanitize(
         if prestrip and sanitize_tags:
             etree.strip_elements(doc, *SANITIZE_TAGS["kill_tags"], with_tail=False)
         kwargs = {
-            # Stated, not inherited. These two are the load-bearing half of the
-            # sanitizer -- ``scripts`` removes <script>, ``javascript`` removes
-            # on* handlers and javascript: URLs -- and they were the only
-            # security-relevant options left to lxml's defaults while nine less
-            # important ones were spelled out. Both default to True today (and
-            # the behaviour is unchanged by naming them), but a sanitizer whose
-            # core guarantee depends on a third-party default not moving is one
-            # library upgrade away from silently passing <script> through.
             "scripts": True,
             "javascript": True,
             "page_structure": True,
@@ -717,7 +641,6 @@ _BR_TAGS_RE = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
 
 
 def validate_url(url: str) -> str:
-    """Validate and normalize URL, adding http:// if no valid scheme present."""
     if urlparse(url).scheme not in ("http", "https", "ftp", "ftps"):
         return "http://" + url
     return url
@@ -726,15 +649,6 @@ def validate_url(url: str) -> str:
 def is_html_empty(
     html_content: str | markupsafe.Markup | Literal[False] | None,
 ) -> bool:
-    """Check whether an HTML content is empty.
-
-    Return True if there are only formatting tags with style attributes or a
-    void content. Famous use case is a '<p style="..."><br></p>' added by some
-    web editor.
-
-    :param html_content: html content, coming from example from an HTML field
-    :returns: True if no content found or if containing only void formatting tags
-    """
     if not html_content:
         return True
     text_content = htmllib.unescape(_EMPTY_TAG_RE.sub("", html_content))
@@ -742,20 +656,6 @@ def is_html_empty(
 
 
 def html_keep_url(text: str | Markup) -> Markup:
-    """Transform the url into clickable link with <a/> tag.
-
-    ``text`` follows the usual markupsafe convention: a plain ``str`` is
-    HTML-escaped exactly once, while a ``Markup`` value is taken as
-    already-escaped and passed through untouched.  Callers that escaped their
-    input beforehand (e.g. :func:`plaintext2html`) must therefore hand over
-    ``Markup``, otherwise the text -- and the generated ``href`` -- would be
-    escaped a second time.
-
-    The result is always ``Markup``.  Note the pieces are joined explicitly
-    rather than accumulated with ``+``: concatenating a ``Markup`` onto a plain
-    ``str`` invokes ``Markup.__radd__``, which escapes everything gathered so
-    far.
-    """
     idx = 0
     parts: list[Markup] = []
     for item in _LINK_TAGS_RE.finditer(text):
@@ -768,10 +668,6 @@ def html_keep_url(text: str | Markup) -> Markup:
 
 
 def html_to_inner_content(html: str | markupsafe.Markup | None) -> str:
-    """Return unformatted text from a string/Markup.
-
-    Remove html tags and excessive whitespace; passed strings are first sanitized.
-    """
     if is_html_empty(html):
         return ""
     if not isinstance(html, markupsafe.Markup):
@@ -785,22 +681,6 @@ def html_to_inner_content(html: str | markupsafe.Markup | None) -> str:
 
 
 def create_link(url: str, label: str) -> Markup:
-    """Return an HTML anchor tag linking ``label`` to ``url``.
-
-    ``url`` and ``label`` are HTML-escaped, so a quote in either can no longer
-    break out of the ``href`` attribute (XSS). Values already marked safe
-    (``markupsafe.Markup``) pass through unchanged, since ``Markup.format``
-    does not re-escape them.
-
-    .. warning::
-
-        Escaping is *all* this does. The URL **scheme is not validated**, so
-        ``create_link("javascript:...", label)`` yields a working javascript
-        link. Callers handling untrusted URLs must restrict the scheme
-        themselves (:func:`html_keep_url` does, by only matching
-        ``ftp``/``http``/``https``), or run the result through
-        :func:`html_sanitize`.
-    """
     return Markup(
         '<a href="{}" target="_blank" rel="noreferrer noopener">{}</a>'
     ).format(url, label)
@@ -812,14 +692,6 @@ def html2plaintext(
     encoding: str = "utf-8",
     include_references: bool = True,
 ) -> str:
-    """Convert HTML content to plain text.
-
-    :param body_id: id of the tag where the body (not necessarily ``<body>``)
-        starts; returns ``""`` if no such tag. ``<body>`` is used when omitted
-    :param encoding: codec used to decode ``html_content`` when it is bytes
-    :param include_references: If False, numbered references and
-        URLs for links and images will not be included.
-    """
     if not (html_content and html_content.strip()):
         return ""
 
@@ -901,20 +773,6 @@ def html2plaintext(
 def plaintext2html(
     text: str, container_tag: str | None = None, with_paragraph: bool = True
 ) -> markupsafe.Markup:
-    r"""Convert plaintext into html.
-
-    Content of the text is escaped to manage html entities, using
-    markupsafe.escape.
-
-    - all ``\n``, ``\r`` are replaced by ``<br/>``
-    - convert url into clickable link
-
-    :param text: plaintext to convert
-    :param container_tag: container of the html; by default the content is
-        embedded into a ``<div>``
-    :param with_paragraph: whether or not considering 2 or more consecutive ``<br/>``
-        as paragraph breaks and enclosing content in ``<p>``
-    """
     assert isinstance(text, str)
     text = html_escape(text)
 
@@ -947,31 +805,6 @@ def append_content_to_html(
     preserve: bool = False,
     container_tag: str | None = None,
 ) -> markupsafe.Markup:
-    """Append extra content at the end of an HTML snippet.
-
-    Try to locate the end of the HTML document (</body>, </html>, or
-    EOF), and convert the provided content to html unless ``plaintext``
-    is ``False``.
-
-    Content conversion can be done in two ways:
-
-    - wrapping it into a pre (``preserve=True``)
-    - use plaintext2html (``preserve=False``, using ``container_tag`` to
-      wrap the whole content)
-
-    A side-effect of this method is to coerce all HTML tags to
-    lowercase in ``html``, and strip enclosing <html> or <body> tags in
-    content if ``plaintext`` is False.
-
-    :param str html_body: html tagsoup (doesn't have to be XHTML)
-    :param str content: extra content to append
-    :param bool plaintext: whether content is plaintext and should
-        be wrapped in a <pre/> tag.
-    :param bool preserve: if content is plaintext, wrap it into a <pre>
-        instead of converting it into html
-    :param str container_tag: tag to wrap the content into, defaults to `div`.
-    :rtype: markupsafe.Markup
-    """
     if plaintext and preserve:
         content = f"\n<pre>{html_escape(content)}</pre>\n"
     elif plaintext:
@@ -993,7 +826,6 @@ def append_content_to_html(
 
 
 def prepend_html_content(html_body: str, html_content: str | markupsafe.Markup) -> str:
-    """Prepend some HTML content at the beginning of an other HTML content."""
     replacement = re.sub(
         r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)", "", html_content
     )

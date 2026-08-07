@@ -1,24 +1,3 @@
-"""A failing post-commit hook must not swallow the peer-invalidation signal.
-
-``Cursor.commit`` (``odoo/db/cursor.py:698-714``) issues the SQL ``COMMIT``
-first and runs ``self.postcommit.run()`` *after* it.  So a post-commit hook that
-raises does so with the transaction already durable.
-
-``retrying()`` (``odoo/service/transaction.py:208-222``) treats any exception out
-of ``env.cr.commit()`` as a failed commit: it calls ``_reset_env_state(env)`` --
-which runs ``registry.reset_changes()`` and clears ``registry_invalidated`` --
-and re-raises, so ``env.registry.signal_changes()`` on the next line never runs.
-
-The result, verified against a live database before this test was written: the
-rows are committed, ``registry_invalidated`` is cleared locally, and no row is
-inserted into ``orm_signaling_registry``.  Every *other* worker process therefore
-keeps serving its old registry and ormcache for a schema change that is already
-committed, and nothing anywhere records that it happened.
-
-The failure is only observable across processes, which is why it needs pinning
-here rather than in an integration test: a single-worker run cannot see it.
-"""
-
 from unittest.mock import MagicMock
 
 import pytest
@@ -141,3 +120,59 @@ class TestClosedCursorIsNotSilentSuccess:
         with caplog.at_level(logging.WARNING):
             retrying(lambda: None, env)
         assert "NOT committed" in caplog.text
+
+
+class TestHookClosedCursorStillSignals:
+    """A durable commit must announce itself even if a hook closed the cursor.
+
+    The sibling of ``test_peers_are_signalled_when_the_commit_itself_succeeded``,
+    reached through the *success* path instead of the exception path.
+
+    ``Cursor.commit`` runs the SQL ``COMMIT`` and then ``postcommit.run()``. A
+    hook that raises is handled: ``retrying`` sees the exception, notices
+    ``commit_count`` advanced, and signals anyway. But a hook that *closes the
+    cursor without raising* returns normally, and ``retrying``'s last line is
+
+        if not env.cr.closed:
+            env.registry.signal_changes()
+
+    so the signal is skipped — for a transaction that is already durable. That
+    is exactly the outcome the durable branch above exists to prevent: every
+    other worker keeps serving a stale registry and ormcache for a committed
+    change, with nothing recording it.
+
+    Note the asymmetry in how much the two paths try: the durable branch signals
+    inside ``suppress(Exception)`` (best-effort, because announcing matters),
+    while this path declines to attempt it at all.
+    """
+
+    def _env_whose_hook_closes_the_cursor(self):
+        env = MagicMock()
+        env.cr.closed = False
+        env.cr.flush = MagicMock()
+        env.cr.rollback = MagicMock()
+        env.cr.commit_count = 0
+
+        def commit_then_hook_closes():
+            env.cr.commit_count += 1  # durable
+            env.cr.closed = True  # a post-commit hook closed it, no exception
+
+        env.cr.commit = MagicMock(side_effect=commit_then_hook_closes)
+        env.transaction.reset = MagicMock()
+        env.registry.reset_changes = MagicMock()
+        env.registry.signal_changes = MagicMock()
+        env.registry.values.return_value = []
+        env._.side_effect = lambda tmpl, *a: tmpl % a if a else tmpl
+        return env
+
+    def test_the_commit_is_durable(self):
+        """Guard the guard: if the commit never ran, the test below is vacuous."""
+        env = self._env_whose_hook_closes_the_cursor()
+        retrying(lambda: "ok", env)
+        assert env.cr.commit_count == 1
+        assert env.cr.closed is True
+
+    def test_peers_are_signalled(self):
+        env = self._env_whose_hook_closes_the_cursor()
+        retrying(lambda: "ok", env)
+        env.registry.signal_changes.assert_called_once()

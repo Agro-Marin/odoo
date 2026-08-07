@@ -20,7 +20,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         self.EmailMessage = self.env["test_orm.emailmessage"]
 
     def test_default_get(self):
-        """checking values returned by default_get()"""
         fields = ["name", "categories", "participants", "messages"]
         values = self.Discussion.default_get(fields)
         self.assertEqual(values, {})
@@ -37,7 +36,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         self.assertEqual(values["size"], 0)
 
     def test_default_x2many(self):
-        """checking default values for x2many fields"""
         tag = self.env["test_orm.multi.tag"].create({"name": "alpha"})
         model = self.env["test_orm.multi"].with_context(
             default_tags=[Command.set(tag.ids)]
@@ -53,12 +51,10 @@ class TestOnchange(SavepointCaseWithUserDemo):
         )
 
     def test_get_field(self):
-        """checking that accessing an unknown attribute does nothing special"""
         with self.assertRaises(AttributeError):
             self.Discussion.not_really_a_method()
 
     def test_onchange(self):
-        """test the effect of onchange()"""
         discussion = self.env.ref("test_orm.discussion_0")
         BODY = "What a beautiful day!"
         USER = self.env.user
@@ -162,7 +158,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         )
 
     def test_onchange_one2many(self):
-        """test the effect of onchange() on one2many fields"""
         USER = self.env.user
 
         message1 = self.Message.create({"body": "ABC"})
@@ -233,7 +228,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         )
 
     def test_onchange_one2many_reference(self):
-        """test the effect of onchange() on one2many fields with line references"""
         BODY = "What a beautiful day!"
         USER = self.env.user
 
@@ -284,7 +278,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         )
 
     def test_onchange_one2many_multi(self):
-        """test the effect of multiple onchange methods on one2many fields"""
         partner1 = self.env["res.partner"].create({"name": "A partner"})
         multi = self.env["test_orm.multi"].create({"partner": partner1.id})
         line1 = multi.lines.create({"multi": multi.id})
@@ -418,7 +411,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         self.assertEqual(result["value"], expected_value)
 
     def test_onchange_one2many_default(self):
-        """test onchange on x2many field with default value in context"""
         default_messages = [Command.create({"body": "A"})]
         model = self.Discussion.with_context(default_messages=default_messages)
 
@@ -448,7 +440,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         )
 
     def test_fields_specific(self):
-        """test the effect of field-specific onchange method"""
         discussion = self.env.ref("test_orm.discussion_0")
         demo = self.user_demo
 
@@ -480,7 +471,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         )
 
     def test_onchange_default(self):
-        """test the effect of a conditional user-default on a field"""
         Foo = self.env["test_orm.foo"]
         fields_spec = Foo._get_fields_spec()
         self.assertTrue(type(Foo).value1.change_default)
@@ -513,7 +503,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
                 self.assertEqual(line.partner, partner)
 
     def test_onchange_one2many_value(self):
-        """test the value of the one2many field inside the onchange"""
         discussion = self.env.ref("test_orm.discussion_0")
         demo = self.user_demo
 
@@ -565,7 +554,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         self.assertEqual(result["value"]["message_concat"], "\n".join(lines))
 
     def test_onchange_one2many_with_domain_on_related_field(self):
-        """test the value of the one2many field when defined with a domain on a related field"""
         discussion = self.env.ref("test_orm.discussion_0")
         demo = self.user_demo
 
@@ -680,7 +668,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         self.assertEqual(result["value"], expected)
 
     def test_onchange_many2one_one2many(self):
-        """Setting a many2one field should not read the inverse one2many."""
         discussion = self.env.ref("test_orm.discussion_0")
         fields_spec = self.Message._get_fields_spec()
         self.assertEqual(
@@ -736,7 +723,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         self.assertEqual(result["value"]["order_id"], order.id)
 
     def test_onchange_inherited(self):
-        """Setting an inherited field should assign the field on the parent record."""
         foo, bar = self.env["test_orm.multi.tag"].create(
             [{"name": "Foo"}, {"name": "Bar"}]
         )
@@ -932,7 +918,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         )
 
     def test_one2many_field_with_context_many2one(self):
-        """test many2one fields with a context on their one2many container field"""
         multi = self.env["test_orm.multi"].create({})
         line = multi.lines.create({"multi": multi.id})
 
@@ -995,7 +980,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         )
 
     def test_one2many_field_with_context_many2many(self):
-        """test relational fields with a context on their one2many container field"""
         partner = self.env["res.partner"].create({"name": "A partner"})
         multi = self.env["test_orm.multi"].create({"partner": partner.id})
         line = multi.lines.create({"multi": multi.id})
@@ -1051,7 +1035,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         )
 
     def test_one2many_field_with_many2many_subfield(self):
-        """test relational fields with a context on their one2many container field"""
         tag1 = self.env["test_orm.multi.tag"].create({"name": "a1"})
         tag2 = self.env["test_orm.multi.tag"].create({"name": "a2"})
         multi = self.env["test_orm.multi"].create({})
@@ -1317,8 +1300,6 @@ class TestComputeOnchange2(TransactionCase):
         self.assertEqual(form.quux, "no")
 
     def test_onchange_once(self):
-        """Modifies `foo` field which will trigger an onchange method and
-        checks it was triggered only one time."""
         form = Form(
             self.env["test_orm.compute.onchange"].with_context(default_foo="oof")
         )
@@ -1389,7 +1370,6 @@ class TestComputeOnchange2(TransactionCase):
         self.assertEqual(result, expected)
 
     def test_computed_editable_one2many_domain(self):
-        """Test a computed, editable one2many field with a domain."""
         record = self.env["test_orm.one2many"].create({"name": "foo"})
         self.assertRecordValues(
             record.line_ids,
@@ -1447,7 +1427,6 @@ class TestComputeOnchange2(TransactionCase):
         )
 
     def test_one2many_compute(self):
-        """Test a computed, editable one2many field with a domain."""
         record = self.env["test_orm.compute_editable"].create(
             {"line_ids": [Command.create({})]},
         )

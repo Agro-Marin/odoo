@@ -1,13 +1,3 @@
-"""The validated-bytecode cache must evict when full, not freeze.
-
-``assert_valid_codeobj`` memoises "this bytecode passed validation" so identical
-expressions skip the ``dis.get_instructions`` scan.  The bound used to be a
-``len(cache) < MAX`` insert guard: once the process had validated MAX distinct
-expressions the cache stopped accepting new ones forever, so every later novel
-expression re-ran the full scan for the life of the process.  It now evicts the
-oldest entry (FIFO) so a steady stream of new expressions keeps its fast path.
-"""
-
 import unittest
 
 import odoo.tools.safe_eval as se

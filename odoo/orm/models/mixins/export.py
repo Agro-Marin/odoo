@@ -1,10 +1,3 @@
-"""Data-export operations for BaseModel (ExportMixin).
-
-The :meth:`export_data` pipeline resolves field paths, fetches values, injects
-external ids, and formats rows for the web client / data export. Disjoint from
-the ``load()`` import pipeline (see :mod:`.load`).
-"""
-
 import collections
 import logging
 import typing
@@ -28,14 +21,9 @@ if typing.TYPE_CHECKING:
 
 
 class ExportMixin(_ModelStubs):
-    """Data-export operations, inherited by BaseModel."""
-
     __slots__ = ()
 
     def _ensure_xml_ids(self, skip: bool = False) -> Iterator[tuple[Self, str | None]]:
-        """Create missing external ids for records in ``self``, and return an
-        iterator of pairs ``(record, xmlid)`` for the records in ``self``.
-        """
         if skip:
             return ((record, None) for record in self)
 
@@ -102,12 +90,6 @@ class ExportMixin(_ModelStubs):
     def _export_rows(
         self, fields: list[list[str]], *, _is_toplevel_call: bool = True
     ) -> list[list]:
-        """Export fields of the records in ``self``.
-
-        :param fields: list of lists of fields to traverse
-        :param _is_toplevel_call: internal recursion flag; do not pass externally
-        :return: list of lists of corresponding values
-        """
         import_compatible = self.env.context.get("import_compat", True)
         lines = []
 
@@ -218,7 +200,6 @@ class ExportMixin(_ModelStubs):
     def _export_fill_properties_cache(
         self, records, fnames_by_path, fname, cache_properties
     ):
-        """Fill the export cache for the ``fname`` properties field."""
         cache_properties_field = cache_properties[records._fields[fname]]
 
         for row in records.read([fname]):
@@ -257,9 +238,6 @@ class ExportMixin(_ModelStubs):
                 cache_by_id[rec_id] = value
 
     def _export_fetch_fields(self, records, field_paths, cache_properties):
-        """Recursively fill the cache of ``records`` for all ``field_paths``,
-        including properties.
-        """
         if not records:
             return
 
@@ -311,7 +289,6 @@ class ExportMixin(_ModelStubs):
             self._export_fetch_fields(subrecords, paths, cache_properties)
 
     def _inject_export_xids(self, lines, fields):
-        """Resolve ``(model, id)`` placeholder cells in ``lines`` to xml-ids."""
         bymodels = collections.defaultdict(set)
         xidmap = collections.defaultdict(list)
         for i, line in enumerate(lines):
@@ -330,11 +307,6 @@ class ExportMixin(_ModelStubs):
             )
 
     def export_data(self, fields_to_export: list[str]) -> dict[str, list]:
-        """Export fields for selected objects, for the client's export menu.
-
-        :param fields_to_export: list of fields
-        :returns: dictionary with a *datas* matrix
-        """
         if not (
             self.env.is_admin() or self.env.user.has_group("base.group_allow_export")
         ):

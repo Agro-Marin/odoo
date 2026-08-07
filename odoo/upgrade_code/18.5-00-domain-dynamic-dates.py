@@ -16,12 +16,10 @@ if typing.TYPE_CHECKING:
 
 
 class NoChange(Exception):
-    """Raised when no transformation is applicable to a domain."""
+    pass
 
 
 class InvertUnaryTransformer(ast.NodeTransformer):
-    """Fold a unary minus on a constant (``-X``) into the constant itself."""
-
     def visit_UnaryOp(self, node: ast.UnaryOp) -> ast.expr:
         if isinstance(node.op, ast.USub) and isinstance(
             value := node.operand, ast.Constant
@@ -32,15 +30,12 @@ class InvertUnaryTransformer(ast.NodeTransformer):
 
 
 class UpgradeDomainTransformer(ast.NodeTransformer):
-    """Transform legacy dynamic domain expressions to the modern string syntax."""
-
     def __init__(self) -> None:
         super().__init__()
         self.log: list[str] | None = None
         self._invert_transformer = InvertUnaryTransformer()
 
     def transform(self, domain: str) -> str:
-        """Transform a domain expression string; raise NoChange if no change possible."""
         self.log = None
         node = ast.parse(domain.strip(), mode="eval")
         node = self._invert_transformer.visit(node)
@@ -101,7 +96,7 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             return None
         result = ""
 
-        def build(value: int | float, suffix: str, eq: bool = False) -> None:
+        def build(value: float, suffix: str, eq: bool = False) -> None:
             nonlocal result
             if eq:
                 sign = "="
@@ -233,7 +228,6 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
 
 
 def upgrade(file_manager: FileManager) -> None:
-    """Rewrite dynamic-date domains in XML views/data to the modern string syntax."""
     upgrade_domain = UpgradeDomainTransformer()
     no_whitespace = functools.partial(re.compile(r"\s", re.MULTILINE).sub, "")
     for file in file_manager:

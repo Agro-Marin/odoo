@@ -39,7 +39,7 @@
         <field name="model">ir.model</field>
         <field name="arch" type="xml">
             <form string="Model Description" duplicate="0">
-                <header><!-- used for override -->
+                <header>
                 </header>
                 <sheet>
                     <group>
@@ -236,7 +236,6 @@ for record in self:
         <field name="context">{}</field>
     </record>
 
-    <!-- ir model fields -->
     <record id="view_model_fields_form" model="ir.ui.view">
         <field name="model">ir.model.fields</field>
         <field name="arch" type="xml">
@@ -440,7 +439,6 @@ for record in self:
         <field name="context">{}</field>
     </record>
 
-    <!-- ir model fields selection -->
     <record id="view_model_fields_selection_form" model="ir.ui.view">
         <field name="model">ir.model.fields.selection</field>
         <field name="arch" type="xml">
@@ -488,7 +486,6 @@ for record in self:
         <field name="view_id" ref="view_model_fields_selection_tree" />
     </record>
 
-    <!-- ir model data -->
     <record id="view_model_data_form" model="ir.ui.view">
         <field name="model">ir.model.data</field>
         <field name="arch" type="xml">
@@ -556,7 +553,6 @@ for record in self:
         <field name="view_id" ref="view_model_data_list" />
     </record>
 
-    <!-- ir model contraints -->
     <record id="view_model_constraint_form" model="ir.ui.view">
         <field name="model">ir.model.constraint</field>
         <field name="arch" type="xml">
@@ -611,7 +607,6 @@ for record in self:
         <field name="search_view_id" ref="view_model_constraint_search" />
     </record>
 
-    <!-- ir model relations -->
     <record id="view_model_relation_form" model="ir.ui.view">
         <field name="model">ir.model.relation</field>
         <field name="arch" type="xml">
@@ -644,7 +639,6 @@ for record in self:
         <field name="view_id" ref="view_model_relation_list" />
     </record>
 
-    <!-- ir.model.access -->
     <record id="ir_access_view_tree" model="ir.ui.view">
         <field name="name">ir.model.access.view.list</field>
         <field name="model">ir.model.access</field>

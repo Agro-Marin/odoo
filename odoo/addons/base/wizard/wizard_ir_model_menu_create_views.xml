@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- menu_create from model form -->
     <record id="view_model_menu_create" model="ir.ui.view">
         <field name="name">Create Menu</field>
         <field name="model">wizard.ir.model.menu.create</field>

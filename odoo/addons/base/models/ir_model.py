@@ -26,15 +26,11 @@ _logger = logging.getLogger(__name__)
 
 
 class Base(models.AbstractModel):
-    """The base model, which is implicitly inherited by all models."""
-
     _name = "base"
     _description = "Base"
 
 
 class Unknown(models.AbstractModel):
-    """Substitute for relational fields with an unknown comodel."""
-
     _name = "_unknown"
     _description = "Unknown"
 
@@ -114,7 +110,6 @@ class IrModel(models.Model):
 
     @api.depends()
     def _compute_inherited_model_ids(self) -> None:
-        """Batch-resolve inherited models with a single search."""
         self.inherited_model_ids = False
         all_parent_names = set()
         inherits_by_model: dict[str, list[str]] = {}
@@ -144,7 +139,6 @@ class IrModel(models.Model):
 
     @api.depends()
     def _compute_view_ids(self) -> None:
-        """Batch-fetch views for all models in a single query."""
         model_names = [m.model for m in self]
         View = self.env["ir.ui.view"]
         views_by_model: dict[str, list[int]] = defaultdict(list)
@@ -156,7 +150,6 @@ class IrModel(models.Model):
 
     @api.depends()
     def _compute_count(self) -> None:
-        """Batch-count records using a single UNION ALL query."""
         self.count = 0
         table_models: list[tuple[str, str]] = [
             (records._table, model.model)
@@ -167,8 +160,6 @@ class IrModel(models.Model):
         ]
         if not table_models:
             return
-        # A single missing table would make the whole UNION fail and abort the
-        # transaction, so the batch is restricted to tables that exist.
         existing = {
             row[0]
             for row in self.env.execute_query(
@@ -250,10 +241,6 @@ class IrModel(models.Model):
     )
 
     def _get(self, name: str) -> Self:
-        """Return the (sudoed) `ir.model` record with the given name.
-
-        Empty recordset if the model is not found.
-        """
         model_id = self._get_id(name) if name else False
         return self.sudo().browse(model_id)
 
@@ -325,8 +312,6 @@ class IrModel(models.Model):
         if model_data:
             model_data.unlink()
 
-        # the model's own field rows go through the model_id FK cascade, which
-        # runs no Python: their m2m tables have to be dropped here or never
         self.field_id._drop_m2m_tables()
         self._drop_table()
         res = super().unlink()
@@ -373,12 +358,6 @@ class IrModel(models.Model):
     @api.model
     @override
     def name_create(self, name: str) -> tuple[int, str]:
-        """Infer the model name from the description, e.g. 'My New Model' -> 'x_my_new_model'.
-
-        The name is slugified (accents stripped, non-alphanumeric runs collapsed
-        to underscores) so punctuation or diacritics can't fail the
-        ``_check_model_name`` constraint.
-        """
         slug = re.sub(r"[^a-z0-9]+", "_", remove_accents(name).lower()).strip("_")
         ir_model = self.create(
             {
@@ -389,7 +368,6 @@ class IrModel(models.Model):
         return ir_model.id, ir_model.display_name
 
     def _reflect_model_params(self, model: models.BaseModel) -> dict[str, Any]:
-        """Return the values to write to the database for the given model."""
         return {
             "model": model._name,
             "name": model._description,
@@ -409,13 +387,8 @@ class IrModel(models.Model):
         }
 
     def _reflect_models(self, model_names: list[str]) -> None:
-        """Reflect the given models."""
         if not model_names:
             return
-        # Snapshot the cache generation before reading the ids we are about to
-        # prime, so a clear that races this reflection drops the stale write
-        # instead of resurrecting an id under the cleared key (see
-        # ormcache.add_value).
         id_cache_generation = self._get_id.__cache__.generation_of(self)
         rows = [
             self._reflect_model_params(self.env[model_name])
@@ -456,7 +429,6 @@ class IrModel(models.Model):
 
     @api.model
     def _instantiate_attrs(self, model_data: dict[str, Any]) -> dict[str, Any]:
-        """Return the class attributes for a custom model defined by ``model_data``."""
         return {
             "_name": model_data["model"],
             "_description": model_data["name"],
@@ -493,7 +465,6 @@ class IrModelInherit(models.Model):
     )
 
     def _reflect_inherits(self, model_names: list[str]) -> None:
-        """Reflect the given models' inherits (_inherit and _inherits)."""
         IrModel = self.env["ir.model"]
         get_model_id = IrModel._get_id
 

@@ -14,7 +14,6 @@ WHITELIST = [
 
 class TestDunderinit(lint_case.LintCase):
     def test_dunderinit(self):
-        """Test that __init__.py exists in Odoo modules, otherwise they won't get packaged"""
 
         modules_list = [
             mod for mod in Manifest.all_addon_manifests() if mod.name not in WHITELIST

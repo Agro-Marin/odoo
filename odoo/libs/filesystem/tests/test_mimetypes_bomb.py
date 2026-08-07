@@ -1,5 +1,3 @@
-"""Regression test for the decompression-bomb guard in the ODF mimetype check."""
-
 import io
 import resource
 import unittest

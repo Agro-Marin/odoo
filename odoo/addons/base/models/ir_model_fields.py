@@ -33,11 +33,6 @@ FIELD_TYPES = [(key, key) for key in sorted(fields.Field._by_type__)]
 
 
 def _check_translate_value(vals: dict[str, Any]) -> None:
-    """Reject the pre-Odoo-19 boolean form of ``translate``.
-
-    It is a Selection since Odoo 19; the upstream shim guessed "standard" when
-    ``ttype`` was absent (wrong for html fields), so this fork raises instead.
-    """
     if vals.get("translate") and not isinstance(vals["translate"], str):
         raise ValueError(
             "ir.model.fields.translate is a selection since Odoo 19; pass "
@@ -306,7 +301,6 @@ class IrModelFields(models.Model):
     )
 
     def _related_field(self) -> Self:
-        """Return the ``ir.model.fields`` record corresponding to ``self.related``."""
         names = self.related.split(".")
         last = len(names) - 1
         model_name = self.model or self.model_id.model
@@ -391,7 +385,6 @@ class IrModelFields(models.Model):
 
     @api.constrains("depends")
     def _check_depends(self) -> None:
-        """Check whether all fields in dependencies are valid."""
         for record in self:
             if not record.depends:
                 continue
@@ -482,7 +475,6 @@ class IrModelFields(models.Model):
     def _custom_many2many_names(
         self, model_name: str, comodel_name: str
     ) -> tuple[str, str, str]:
-        """Return default names for the table and columns of a custom many2many field."""
         rel1 = self.env[model_name]._table
         rel2 = self.env[comodel_name]._table
         s1, s2 = sorted([rel1, rel2])
@@ -547,10 +539,6 @@ class IrModelFields(models.Model):
                 )
 
     def _get(self, model_name: str, name: str) -> Self:
-        """Return the sudoed ``ir.model.fields`` record for the given model and name.
-
-        May be an empty recordset if the model is not found.
-        """
         field_id = model_name and name and self._get_ids(model_name).get(name)
         return self.sudo().browse(field_id)
 
@@ -587,14 +575,6 @@ class IrModelFields(models.Model):
         return True
 
     def _drop_m2m_tables(self) -> None:
-        """Drop the relation tables owned by the custom many2many fields in self.
-
-        The single owner of that schema: a custom m2m table is never reflected
-        into ``ir.model.relation`` (only non-manual ones are), so nothing else
-        will ever drop it.  ``ir.model.unlink`` therefore has to call this too --
-        it removes its fields' rows through the ``model_id`` FK cascade, which
-        runs no Python and used to leave every custom m2m table behind forever.
-        """
         tables_to_drop = set()
         for field in self:
             if not field.store or field.state != "manual":
@@ -626,15 +606,6 @@ class IrModelFields(models.Model):
             )
 
     def _views_mentioning(self, field_names: list[str]) -> Any:
-        """Return the views whose arch mentions any of ``field_names``.
-
-        Matched on a word boundary across every translation of ``arch_db``.  A
-        ``LIKE`` scan cannot express this: ``_`` is a wildcard (so ``x_ab_cd``
-        matched ``xZabZcd``), and even escaped it stays a substring match (so
-        deleting ``x_ab`` pulled in every view using ``x_ab_long``).  Every false
-        positive costs a needless ``_check_xml``, and turns into a bogus
-        "still present in views" error if that view is broken on its own account.
-        """
         if not field_names:
             return self.env["ir.ui.view"].browse()
         View = self.env["ir.ui.view"]
@@ -652,17 +623,9 @@ class IrModelFields(models.Model):
                 )
             )
         ]
-        # re-select through the ORM so active_test and record rules still apply
         return View.search([("id", "in", view_ids)])
 
     def _m2m_table_name(self, field: Self) -> str | None:
-        """Return the relation table of a custom many2many with no stored
-        ``relation_table``, or ``None`` if it cannot be determined.
-
-        The registry field is the authority, but ``_prepare_update`` pops it
-        before :meth:`_drop_column` runs, so fall back to the same default name
-        ``_instantiate_attrs`` builds -- otherwise the table is silently leaked.
-        """
         model = self.env.get(field.model)
         registry_field = None if model is None else model._fields.get(field.name)
         if registry_field is not None:
@@ -672,10 +635,6 @@ class IrModelFields(models.Model):
         return None
 
     def _prepare_update(self) -> Self:
-        """Check whether the fields in ``self`` may be modified or removed.
-
-        Prevents modifying/deleting a many2one that has an inverse one2many, etc.
-        """
         uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
         if not uninstalling and any(record.state != "manual" for record in self):
             raise UserError(
@@ -826,8 +785,6 @@ class IrModelFields(models.Model):
                         )
                     )
 
-        # before super(), so the constraints validating the new rows re-read
-        # _get_ids instead of a pre-insert snapshot
         self.env.registry.clear_cache("stable")
 
         res = super().create(vals_list)
@@ -840,12 +797,6 @@ class IrModelFields(models.Model):
         return res
 
     def _ensure_group_xmlids(self) -> None:
-        """Give every restricting group an external id.
-
-        ``Field.groups`` is a comma-separated list of external ids, so a group
-        without one cannot be reflected: its restriction would be dropped and
-        the field would end up readable by everyone (see ``_instantiate_attrs``).
-        """
         groups = self.filtered(lambda field: field.state == "manual").groups
         if groups:
             groups.sudo()._ensure_xml_id()
@@ -862,11 +813,6 @@ class IrModelFields(models.Model):
 
         patched_models = set()
         translate_only = all(self._fields[field_name].translate for field_name in vals)
-        # A translatable attribute appearing or disappearing changes the field's
-        # own description: ``Field._description_string``/``_description_help``
-        # fall back to the registry attribute and consult the translation cache
-        # only when that attribute is already truthy. Such a write needs the
-        # registry rebuilt, not just the label cache cleared.
         translate_presence_changed = translate_only and any(
             bool(record[fname]) != bool(value)
             for fname, value in vals.items()
@@ -994,7 +940,6 @@ class IrModelFields(models.Model):
             field.display_name = f"{field.field_description} ({model_string})"
 
     def _reflect_field_params(self, field: Any, model_id: int) -> dict[str, Any]:
-        """Return the values to write to the database for the given field."""
         translate = next(
             (k for k, v in FIELD_TRANSLATE.items() if v == field.translate),
             "standard",
@@ -1043,7 +988,6 @@ class IrModelFields(models.Model):
         }
 
     def _reflect_fields(self, model_names: list[str]) -> None:
-        """Reflect the fields of the given models."""
         for model_name in model_names:
             model = self.env[model_name]
             by_label = {}
@@ -1140,11 +1084,9 @@ class IrModelFields(models.Model):
         return frozendict(result)
 
     def _get_manual_field_data(self, model_name: str) -> dict[str, Any]:
-        """Return the given model's manual field data."""
         return self._all_manual_field_data().get(model_name, {})
 
     def _instantiate_attrs(self, field_data: dict[str, Any]) -> dict[str, Any] | None:
-        """Return the parameters for a field instance for ``field_data``."""
         attrs = {
             "manual": True,
             "string": field_data["field_description"],
@@ -1160,8 +1102,6 @@ class IrModelFields(models.Model):
         if group_count := field_data.get("group_count"):
             group_xmlids = field_data.get("group_xmlids")
             known = group_xmlids.count(",") + 1 if group_xmlids else 0
-            # Fail closed: with no reflectable group the restriction would
-            # otherwise vanish and leave the field readable by everyone.
             attrs["groups"] = group_xmlids or NO_ACCESS
             if known != group_count:
                 _logger.error(
@@ -1249,10 +1189,6 @@ class IrModelFields(models.Model):
 
     @api.model
     def get_field_string(self, model_name: str) -> dict[str, str]:
-        """Return the field labels of ``model_name``, translated for the context language.
-
-        :return: ``{field_name: field_string}`` (available translations only)
-        """
         return {
             field_name: values["field_description"]
             for field_name, values in self._get_fields_cached(model_name).items()
@@ -1260,10 +1196,6 @@ class IrModelFields(models.Model):
 
     @api.model
     def get_field_help(self, model_name: str) -> dict[str, str | None]:
-        """Return the field help of ``model_name``, translated for the context language.
-
-        :return: ``{field_name: field_help}`` (available translations only)
-        """
         return {
             field_name: values["help"]
             for field_name, values in self._get_fields_cached(model_name).items()
@@ -1273,10 +1205,6 @@ class IrModelFields(models.Model):
     def get_field_selection(
         self, model_name: str, field_name: str
     ) -> list[tuple[str, str]]:
-        """Return the field's selection, translated for the context language.
-
-        :return: list of ``(value, label)`` (available translations only)
-        """
         return (
             self._get_fields_cached(model_name).get(field_name, {}).get("selection", [])
         )
@@ -1284,10 +1212,6 @@ class IrModelFields(models.Model):
     @api.model
     @tools.ormcache("model_name", "self.env.lang", cache="stable")
     def _get_fields_cached(self, model_name: str) -> dict[str, dict[str, Any]]:
-        """Return translated info for all of ``model_name``'s fields (available translations only).
-
-        :return: ``{field_name: {id, help, field_description, [selection]}}``
-        """
         fields_ = self.sudo().browse(self._get_ids(model_name).values())
         result = {
             field.name: {

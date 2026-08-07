@@ -1,14 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.dsn`.
-
-DSN normalization (pool-key hygiene: password fingerprinting, URI expansion)
-and connect-phase error classification are pure functions in a
-security-sensitive module — tested at the lowest tier that can express them
-(coding_guidelines §6): plain pytest, no database, no framework import.
-
-Moved from ``odoo/addons/base/tests/test_db_cursor.py`` so a regression fails
-in milliseconds instead of requiring a live database with ``base`` installed.
-"""
-
 import unittest
 
 import psycopg
@@ -17,15 +6,12 @@ from odoo.db.dsn import _normalize_dsn_key, _translate_connect_error
 
 
 class TestNormalizeDsnKey(unittest.TestCase):
-    """Test DSN normalization for pool lookup keys."""
-
     def test_dbname_aliased_to_database(self):
         key_dict = dict(_normalize_dsn_key({"dbname": "test", "host": "localhost"}))
         self.assertEqual(key_dict["database"], "test")
         self.assertNotIn("dbname", key_dict)
 
     def test_password_excluded(self):
-        """Passwords are excluded from pool keys (security + correctness)."""
         key_dict = dict(_normalize_dsn_key({"dbname": "test", "password": "secret"}))
         self.assertNotIn("password", key_dict)
 
@@ -34,24 +20,17 @@ class TestNormalizeDsnKey(unittest.TestCase):
         self.assertNotIn("host", key_dict)
 
     def test_string_dsn(self):
-        """String DSNs are parsed via conninfo_to_dict."""
         key_dict = dict(_normalize_dsn_key("dbname=test host=localhost"))
         self.assertEqual(key_dict["database"], "test")
         self.assertEqual(key_dict["host"], "localhost")
 
     def test_same_dsn_same_key(self):
-        """Different dict representations of the same DSN produce equal keys."""
         key1 = _normalize_dsn_key({"dbname": "test", "host": "localhost"})
         key2 = _normalize_dsn_key({"database": "test", "host": "localhost"})
         self.assertEqual(key1, key2)
 
 
 class TestNormalizeDsnKeyPassword(unittest.TestCase):
-    """_normalize_dsn_key must differentiate pools by password (via
-    fingerprint) so rotating a database password invalidates the
-    cached pool and forces a reconnect with the new credentials.
-    """
-
     def test_password_rotation_yields_different_key(self):
         base = {"dbname": "x", "host": "h", "user": "u"}
         k0 = _normalize_dsn_key({**base, "password": "old"})
@@ -71,10 +50,6 @@ class TestNormalizeDsnKeyPassword(unittest.TestCase):
 
 
 class TestNormalizeDsnKeyUriExpansion(unittest.TestCase):
-    """URI DSNs must be expanded into components before keying: the raw
-    URI string carries the cleartext password into the key (and the pool
-    logs), and keyword-form lookups can never match URI-form pools."""
-
     def test_uri_password_not_in_key(self):
         key = _normalize_dsn_key(
             {"dsn": "postgresql://u:s3cret@h:5433/dbz", "application_name": "x"}
@@ -102,13 +77,6 @@ class TestNormalizeDsnKeyUriExpansion(unittest.TestCase):
 
 
 class TestConnectErrorTranslation(unittest.TestCase):
-    """libpq surfaces connection-phase failures as a bare OperationalError with
-    no SQLSTATE (diag.sqlstate is None), so the precise subclass is never raised
-    on a *connect* — only the server's FATAL text. ``_translate_connect_error``
-    maps that text back to the precise, permanent psycopg class so the pool can
-    fail fast instead of letting psycopg_pool retry a hopeless connection for
-    the full ~30s getconn budget."""
-
     def _op_error(self, message):
         return psycopg.OperationalError(message)
 

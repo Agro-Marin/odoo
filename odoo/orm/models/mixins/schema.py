@@ -1,8 +1,3 @@
-"""Database schema management mixin: table/column init, constraints, and
-conversion of SQL errors to user messages. Table object classes are in
-``odoo.orm.models.table_objects``.
-"""
-
 import logging
 
 import psycopg
@@ -20,16 +15,9 @@ _logger = logging.getLogger("odoo.models")
 
 
 class SchemaMixin(_ModelStubs):
-    """Mixin providing database schema management.
-
-    Table creation, column initialization, constraint management, and SQL
-    error handling.
-    """
-
     __slots__ = ()
 
     def _parent_store_compute(self) -> None:
-        """Compute parent_path field from scratch."""
         if not self._parent_store:
             return
 
@@ -72,7 +60,6 @@ class SchemaMixin(_ModelStubs):
                 sql.drop_not_null(cr, self._table, col_name)
 
     def _init_column(self, column_name: str) -> None:
-        """Initialize the value of the given column for existing rows."""
         field = self._fields[column_name]
         if field.default:
             value = field.default(self)
@@ -101,31 +88,12 @@ class SchemaMixin(_ModelStubs):
 
     @ormcache()
     def _table_has_rows(self) -> bool:
-        """Return whether the model's table has rows. This method should only
-        be used when updating the database schema (:meth:`~._auto_init`).
-        """
         self.env.cr.execute(
             SQL("SELECT 1 FROM %s LIMIT 1", SQL.identifier(self._table))
         )
         return bool(self.env.cr.rowcount)
 
     def _auto_init(self) -> None:
-        """Initialize the database schema of ``self``:
-        - create the corresponding table,
-        - create/update the necessary columns/tables for fields,
-        - initialize new columns on existing rows,
-        - add the SQL constraints given on the model,
-        - add the indexes on indexed fields,
-
-        Also prepare post-init stuff to:
-        - add foreign key constraints,
-        - reflect models, fields, relations and constraints,
-        - mark fields to recompute on existing records.
-
-        Note: you should not override this method. Instead, you can modify
-        the model's database schema by overriding method :meth:`~.init`,
-        which is called right after this one.
-        """
         raise_on_invalid_object_name(self._name)
 
         self = self.with_context(prefetch_fields=False)
@@ -195,9 +163,7 @@ class SchemaMixin(_ModelStubs):
 
     @api.private
     def init(self) -> None:
-        """This method is called after :meth:`~._auto_init`, and may be
-        overridden to create or modify a model's database schema.
-        """
+        pass
 
     def _check_parent_path(self) -> None:
         field = self._fields.get("parent_path")
@@ -213,18 +179,11 @@ class SchemaMixin(_ModelStubs):
             )
 
     def _add_sql_constraints(self) -> None:
-        """Modify this model's database table objects so they match the one
-        in _table_objects.
-        """
         for obj in self._table_objects.values():
             obj.apply_to_database(self)
 
     @api.model
     def _sql_error_to_message(self, exc: psycopg.Error) -> str:
-        """Convert a database exception to a user error message depending on the model.
-
-        The cursor on self must be in a valid state.
-        """
         if (constraint_name := exc.diag.constraint_name) and (
             cons := self._table_objects.get(constraint_name)
         ):
@@ -248,7 +207,6 @@ class SchemaMixin(_ModelStubs):
 
     @api.model
     def _sql_error_to_message_generic(self, exc: psycopg.Error) -> str:
-        """Convert a database exception to a generic user error message."""
         diag = exc.diag
         unknown = self.env._("Unknown")
         model_string = self.env["ir.model"]._get(self._name).name or self._description

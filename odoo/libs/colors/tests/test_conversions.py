@@ -1,5 +1,3 @@
-"""Regression tests for ``odoo.libs.colors.conversions.hex_to_rgb``."""
-
 import unittest
 
 from odoo.libs.colors.conversions import hex_to_rgb

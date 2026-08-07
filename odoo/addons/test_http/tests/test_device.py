@@ -391,10 +391,6 @@ class TestDevice(TestHttpBase):
         )
 
     def test_deletion_device(self):
-        """
-        A user is authenticated and the administrator
-        wants to block his device (and therefore its session).
-        """
         self.authenticate(self.user_internal.login, self.user_internal.login)
         res = self.hit("2024-01-01 08:00:00", "/test_http/greeting-user?readonly=0")
         self.assertNotIn("/web/login", res.url)
@@ -467,9 +463,6 @@ class TestDevice(TestHttpBase):
         self.assertIn("/web/login", res.url)
 
     def test_revoke_foreign_device_denied_for_non_system(self):
-        """RDEV-T1: a non-system user cannot revoke another user's device even
-        when the foreign device is forced into the recordset (defense-in-depth
-        self-scoping inside ``_revoke``, audit RDEV-L1)."""
         self.authenticate(self.user_admin.login, self.user_admin.login)
         self.hit("2024-01-01 08:00:00", "/test_http/greeting-user?readonly=0")
         admin_device = self.user_admin.device_ids
@@ -481,8 +474,6 @@ class TestDevice(TestHttpBase):
         self.assertFalse(admin_device.revoked)
 
     def test_revoke_foreign_device_allowed_for_system(self):
-        """RDEV-T2: a system user (admin) may revoke another user's device by
-        design (counterpart to the non-system denial)."""
         self.authenticate(self.user_internal.login, self.user_internal.login)
         self.hit("2024-01-01 08:00:00", "/test_http/greeting-user?readonly=0")
         internal_device = self.user_internal.device_ids
@@ -546,11 +537,6 @@ class TestDevice(TestHttpBase):
         self.assertEqual(len(self.user_internal.device_ids), 0)
 
     def test_specific_public_user_write(self):
-        """
-        A public user who hits a non-readonly route
-        does not have to create a session file if there
-        are no changes in the session itself.
-        """
         session = self.authenticate(None, None)
         self.hit("2024-01-01 08:00:00", "/test_http/greeting-public?readonly=0")
 

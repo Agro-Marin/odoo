@@ -1,13 +1,3 @@
-"""``get_column_update`` must raise ``KeyError`` on a total cache miss in ALL
-branches.
-
-The flush loop (``models/mixins/recompute.py``) wraps a ``KeyError`` into a
-diagnostic RuntimeError naming record and context.  The context-dependent
-branch used to raise ``AssertionError`` (bypassing that handler entirely) and
-the ``translate=True`` branch silently returned ``None`` — flushing SQL NULL
-over the real value.
-"""
-
 import pytest
 
 from odoo import api, fields, models

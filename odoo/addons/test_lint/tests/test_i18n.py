@@ -33,13 +33,6 @@ class TestI18n(lint_case.LintCase):
     )
 
     def test_directives_regex(self):
-        """
-        Checks that the regex:
-            - Catches components that are spread across multiple lines.
-            - Does not catch directives.
-            - Does not catch props that use `.translate`.
-            - Does not catch strings that do not start with a capital letter.
-        """
         test_cases = [
             (
                 """
@@ -107,9 +100,6 @@ class TestI18n(lint_case.LintCase):
         self.assertEqual(error_count, 0)
 
     def test_user_content_as_prop_is_translatable(self):
-        """
-        Checks if there are any props that does not use `.translate` and reports it.
-        """
         error_count = 0
         for file_path in self.iter_module_files("**/static/**/*.xml"):
             with tools.file_open(file_path, "r") as f:

@@ -121,13 +121,13 @@ class Cloc:
         for i in odoo.modules.module.MANIFEST_NAMES:
             manifest_path = str(Path(path, i))
             try:
-                with Path(manifest_path).open("rb") as manifest:
-                    exclude_list.extend(DEFAULT_EXCLUDE)
-                    d = ast.literal_eval(manifest.read().decode("latin1"))
-                    for j in ["cloc_exclude", "demo", "demo_xml"]:
-                        exclude_list.extend(d.get(j, []))
-                    break
-            except Exception:
+                manifest = Path(manifest_path).read_bytes()
+                exclude_list.extend(DEFAULT_EXCLUDE)
+                d = ast.literal_eval(manifest.decode("latin1"))
+                for j in ["cloc_exclude", "demo", "demo_xml"]:
+                    exclude_list.extend(d.get(j, []))
+                break
+            except Exception:  # noqa: S110  absent/unparsable manifest just means "try the next name"
                 pass
         if not exclude:
             exclude = set()
@@ -156,8 +156,7 @@ class Cloc:
                     self.book(module_name, file_path, (-1, "Max file size exceeded"))
                     continue
 
-                with Path(file_path).open("rb") as f:
-                    content = f.read().decode("latin1")
+                content = Path(file_path).read_bytes().decode("latin1")
                 self.book(module_name, file_path, self.parse(content, ext))
 
     def count_modules(self, env: Environment) -> None:

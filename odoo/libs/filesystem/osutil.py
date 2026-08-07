@@ -1,5 +1,3 @@
-"""Filesystem and OS helper utilities."""
-
 __all__ = [
     "WINDOWS_RESERVED",
     "clean_filename",
@@ -33,33 +31,6 @@ _CLEAN_FILENAME_RE = re.compile(r"[^\w_.()\[\] -]+")
 
 
 def clean_filename(name: str, replacement: str = "") -> str:
-    """Strip or replace characters that are problematic in a filename.
-
-    Sanitize the input string to make it a valid filename in most operating
-    systems (including dropping reserved Windows filenames).
-
-    If this results in an empty string, return "Untitled".
-
-    Allows:
-
-    * any alphanumeric character (unicode)
-    * underscore (_) as that's innocuous
-    * dot (.) except in leading position to avoid creating dotfiles
-    * dash (-) except in leading position to avoid annoyance / confusion with
-      command options
-    * brackets ([ and ]), while they correspond to shell *character class*
-      they're a common way to mark / tag files especially on windows
-    * parenthesis ("(" and ")"), a more natural though less common version of
-      the former
-    * space (" ")
-
-    :param str name: file name to clean up
-    :param str replacement:
-        replacement string to use for sequences of problematic input, by default
-        an empty string to remove them entirely, each contiguous sequence of
-        problems is replaced by a single replacement
-    :rtype: str
-    """
     if WINDOWS_RESERVED.match(name):
         return "Untitled"
     return _CLEAN_FILENAME_RE.sub(replacement, name).lstrip(".-") or "Untitled"
@@ -71,13 +42,6 @@ def zip_dir(
     include_dir: bool = True,
     fnct_sort: Callable | None = None,
 ) -> None:
-    """Write the files under ``path`` into ``stream`` as a ZIP archive.
-
-    :param include_dir: whether archive members are prefixed with ``path``'s own
-        directory name; when ``False`` they are relative to ``path`` itself
-    :param fnct_sort: function passed to the ``key`` parameter of the built-in
-        python ``sorted()`` to control the order of files inside the ZIP archive
-    """
     path = str(Path(path))
     dir_root_path = os.path.realpath(path)
     parent = path.rpartition(os.sep)[0] if include_dir else path
@@ -106,13 +70,7 @@ def zip_dir(
 
 if os.name != "nt":
 
-    def is_running_as_nt_service(service_name: str) -> bool:
-        """Return whether this process runs as the named Windows NT service.
-
-        Always ``False`` off Windows. ``service_name`` is accepted for a uniform
-        signature and is supplied by the caller (e.g. ``odoo.release``), keeping
-        this module dependency-free.
-        """
+    def is_running_as_nt_service(service_name: str) -> bool:  # noqa: ARG001  POSIX stub; keeps the NT signature
         return False
 else:
     from contextlib import contextmanager
@@ -121,12 +79,6 @@ else:
     import win32serviceutil as wsu
 
     def is_running_as_nt_service(service_name: str) -> bool:
-        """Return whether this process runs as the named Windows NT service.
-
-        Queries the Service Control Manager for ``service_name`` and compares its
-        process id to this process's parent. ``service_name`` is supplied by the
-        caller (e.g. ``odoo.release``), keeping this module dependency-free.
-        """
 
         @contextmanager
         def close_srv(srv: Any) -> Iterator[Any]:

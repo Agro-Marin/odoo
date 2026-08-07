@@ -1,12 +1,3 @@
-"""
-Security and cryptographic utilities for Odoo.
-
-This module provides utilities for:
-- HMAC computation with database secrets
-- Signed token generation and verification (JWT-like)
-- Field-level access token management
-"""
-
 import base64
 import datetime
 import hashlib
@@ -33,16 +24,6 @@ def hmac(
     message: typing.Any,
     hash_function: Callable[..., object] = hashlib.sha256,
 ) -> str:
-    """Compute HMAC with `database.secret` config parameter as key.
-
-    :param env: sudo environment to use for retrieving config parameter
-    :param scope: scope of the authentication, to have different signature
-        for the same message in different usage contexts
-    :param message: message to authenticate
-    :param hash_function: hash function to use for HMAC (default: SHA-256)
-    :return: hexadecimal digest of the HMAC
-    :raises ValueError: if scope is empty, or ``database.secret`` is unset
-    """
     if not scope:
         msg = "Non-empty scope required"
         raise ValueError(msg)
@@ -69,23 +50,6 @@ def hash_sign(
     expiration: datetime.datetime | datetime.timedelta | None = None,
     expiration_hours: float | None = None,
 ) -> str:
-    """Generate a URL-safe signed token with optional expiration.
-
-    The token includes the message values, expiration timestamp, and
-    cryptographic signature.
-
-    :param env: sudo environment to use for retrieving config parameter
-    :param scope: scope of the authentication, to have different signature
-        for the same message in different usage contexts
-    :param message_values: values to be encoded inside the payload
-        (must be JSON-serializable)
-    :param expiration: optional datetime or timedelta for token expiration
-    :param expiration_hours: optional number of hours before expiration
-        (cannot be set at the same time as expiration)
-    :return: URL-safe base64-encoded signed token
-    :raises AssertionError: if both expiration and expiration_hours are set,
-        or if message_values is None
-    """
     assert not (expiration and expiration_hours)
     assert message_values is not None
 
@@ -113,27 +77,6 @@ def hash_sign(
 
 
 def verify_hash_signed(env: Environment, scope: str, payload: str) -> typing.Any | None:
-    """Verify and extract data from a signed token.
-
-    :param env: sudo environment to use for retrieving config parameter
-    :param scope: scope of the authentication (must match the scope
-        used when the token was created)
-    :param payload: the token to verify
-    :return: the message_values if verification succeeds, None otherwise
-
-    Any malformed/undecodable payload (bad base64, unknown version, non-UTF-8
-    body) returns None rather than raising: ``payload`` is attacker-controllable
-    (e.g. a value POSTed to a webhook), so a bad token is a verification failure,
-    not a server error.
-
-    That includes a payload of the wrong *type*.  ``payload`` typically arrives
-    straight out of a JSON body or query string, where ``None``, a number, a
-    list or a dict are all one client away; every one of them used to reach
-    ``payload.encode()`` and raise ``AttributeError`` -- an uncaught HTTP 500 on
-    an unauthenticated route.  :func:`verify_limited_field_access_token`
-    documents itself as sharing this contract and already guards its own input,
-    so the guard belongs here too.
-    """
     if not isinstance(payload, str):
         return None
     try:
@@ -169,25 +112,6 @@ def limited_field_access_token(
     *,
     scope: str,
 ) -> str:
-    """Generate a token granting access to a specific record field.
-
-    The validity of the token is determined by the timestamp parameter.
-    When not specified, a timestamp is automatically generated with a
-    validity of at least 14 days. For a given record and field_name, the
-    generated timestamp is deterministic within a 14-day period to allow
-    browser caching, and expires after maximum 42 days. Different
-    record/field combinations expire at different times to prevent
-    thundering herd problems.
-
-    :param record: the record to generate the token for
-    :type record: odoo.models.BaseModel
-    :param field_name: the field name to generate the token for
-    :param timestamp: optional expiration timestamp (hex format),
-        or None to generate automatically
-    :param scope: scope of the authentication, to have different
-        signatures for the same record/field in different contexts
-    :return: the token, which includes the timestamp in hex format
-    """
     record.ensure_one()
     if not timestamp:
         unique_str = repr((record._name, record.id, field_name))
@@ -211,23 +135,6 @@ def verify_limited_field_access_token(
     *,
     scope: str,
 ) -> bool:
-    """Verify a field access token.
-
-    :param record: the record to verify the token for
-    :type record: odoo.models.BaseModel
-    :param field_name: the field name to verify the token for
-    :param access_token: the access token to verify
-    :param scope: scope of the authentication (must match the scope
-        used when the token was created)
-    :return: whether the token is valid for the record/field at
-        the current date and time
-
-    ``access_token`` is attacker-controllable — it arrives as a URL query
-    parameter (``/web/content``, an ``auth="public"`` route), a JSON body field
-    (``mail`` message-post mention tokens) or a websocket payload — so **any**
-    malformed value is a verification failure returning ``False``, never an
-    exception.  Same contract as :func:`verify_hash_signed`.
-    """
     if not isinstance(access_token, str) or not access_token.isascii():
         return False
     *_, timestamp = access_token.rsplit("o", 1)

@@ -1,8 +1,3 @@
-"""
-Tests the ability to update environmental information on various nodes (e.g.
-change user, add context keys, ...)
-"""
-
 from pathlib import Path
 
 from lxml import etree

@@ -1,17 +1,3 @@
-"""SQL injection checker using stdlib ``ast``.
-
-Detects unsafe string construction in ``cr.execute()``, ``cr.executemany()``,
-and ``SQL()`` calls by recursively evaluating whether the query argument is
-a compile-time constant expression.
-
-Replaces the former ``_odoo_checker_sql_injection.py`` (which required
-``astroid`` + ``pylint``).  All logic is equivalent; the test suite in
-``test_checkers.py`` validates parity.
-
-Inspired by the OCA/pylint-odoo project.
-Thanks @moylop260 (Moisés López) & @nilshamerlinck (Nils Hamerlinck).
-"""
-
 import ast
 from collections import defaultdict
 from collections.abc import Iterator
@@ -59,8 +45,6 @@ FUNCTION_WHITELIST = frozenset(
 
 @dataclass
 class Violation:
-    """A single SQL injection warning."""
-
     lineno: int
     col_offset: int
     message: str = ""
@@ -68,14 +52,6 @@ class Violation:
 
 @dataclass
 class SqlInjectionChecker:
-    """Check a single Python module AST for SQL injection risks.
-
-    Usage::
-
-        checker = SqlInjectionChecker("path/to/file.py")
-        violations = list(checker.check(ast.parse(source)))
-    """
-
     filepath: str
 
     _function_defs: dict[str, list[ast.FunctionDef]] = field(
@@ -90,11 +66,9 @@ class SqlInjectionChecker:
     _const_def_cache: dict = field(default_factory=dict, init=False)
 
     def check(self, tree: ast.Module) -> Iterator[Violation]:
-        """Walk *tree* and yield SQL injection violations."""
         yield from self._walk(tree)
 
     def _walk(self, node: ast.AST) -> Iterator[Violation]:
-        """Depth-first walk, dispatching to visitors."""
         match node:
             case ast.Call():
                 yield from self._visit_call(node)
@@ -104,12 +78,10 @@ class SqlInjectionChecker:
             yield from self._walk(child)
 
     def _visit_call(self, node: ast.Call) -> Iterator[Violation]:
-        """Check ``cr.execute()``, ``SQL()`` etc. calls."""
         if self._check_sql_injection_risky(node):
             yield Violation(node.lineno, node.col_offset)
 
     def _visit_functiondef(self, node: ast.FunctionDef) -> Iterator[Violation]:
-        """Record function definitions and re-evaluate earlier call sites."""
         if Path(self.filepath).name.startswith("test_"):
             return
 
@@ -124,7 +96,6 @@ class SqlInjectionChecker:
                 )
 
     def _check_sql_injection_risky(self, node: ast.Call) -> bool:
-        """Return True if *node* is a risky SQL call."""
         if Path(self.filepath).name.startswith("test_"):
             return False
 
@@ -151,10 +122,6 @@ class SqlInjectionChecker:
         return True
 
     def _check_concatenation(self, node: ast.expr) -> bool | None:
-        """Check if *node* is an unsafe string construction.
-
-        Returns True (injection), False (safe), or None (unknown/not applicable).
-        """
         node = self._resolve(node)
 
         if self._allowable(node):
@@ -189,12 +156,6 @@ class SqlInjectionChecker:
         return None
 
     def _resolve(self, node: ast.expr) -> ast.expr:
-        """If *node* is a Name, try to find its simple assignment value.
-
-        Tuple-unpack assignments (``a, b = ...``) are intentionally skipped
-        here because position context is needed for correct resolution.
-        Those are handled by :meth:`_check_name_constexpr` instead.
-        """
         if isinstance(node, ast.Name):
             scope = self._find_enclosing_scope(node)
             if scope is not None:
@@ -212,7 +173,6 @@ class SqlInjectionChecker:
         args_allowed: bool = False,
         position: int | None = None,
     ) -> bool:
-        """Recursively evaluate whether *node* is a compile-time constant."""
         match node:
             case ast.Constant():
                 return True
@@ -320,7 +280,6 @@ class SqlInjectionChecker:
         return False
 
     def _all_const(self, nodes, *, args_allowed=False, position=None) -> bool:
-        """Return True if all *nodes* are constant expressions."""
         return all(
             self._is_constexpr(n, args_allowed=args_allowed, position=position)
             for n in nodes
@@ -333,7 +292,6 @@ class SqlInjectionChecker:
         *,
         args_allowed: bool = False,
     ) -> bool:
-        """Evaluate whether a variable reference resolves to a constant."""
         scope = self._find_enclosing_scope(node)
         if scope is None:
             return False
@@ -383,7 +341,6 @@ class SqlInjectionChecker:
         return self._is_asserted(scope, name)
 
     def _find_tuple_position(self, targets: list[ast.expr], name: str) -> int | None:
-        """Return the index of *name* in a tuple-unpack target, or None."""
         for target in targets:
             if isinstance(target, ast.Tuple):
                 for i, elt in enumerate(target.elts):
@@ -398,7 +355,6 @@ class SqlInjectionChecker:
         args_allowed: bool = False,
         position: int | None = None,
     ) -> bool:
-        """Evaluate whether a function call returns a safe value."""
         match node.func:
             case ast.Attribute(attr=name):
                 pass
@@ -432,7 +388,6 @@ class SqlInjectionChecker:
         position: int | None = None,
         const_args: bool = False,
     ) -> bool:
-        """Check whether a function always returns a constant expression."""
         cache_key = (id(node), position, const_args)
         if cache_key in self._const_def_cache:
             return self._const_def_cache[cache_key]
@@ -454,7 +409,6 @@ class SqlInjectionChecker:
         return result
 
     def _allowable(self, node: ast.expr) -> bool:
-        """Return True if *node* is safe to include in SQL construction."""
         scope = self._find_enclosing_scope(node)
         if isinstance(scope, ast.FunctionDef) and (
             scope.name.startswith("_") or scope.name == "init"
@@ -474,7 +428,6 @@ class SqlInjectionChecker:
         )
 
     def _check_attribute_whitelist(self, node: ast.Attribute) -> bool:
-        """Check if an attribute access chain is whitelisted."""
         chain = self._get_attribute_chain(node)
         while chain:
             if chain in ATTRIBUTE_WHITELIST or chain.startswith("_"):
@@ -487,7 +440,6 @@ class SqlInjectionChecker:
 
     @staticmethod
     def _get_attribute_chain(node: ast.expr) -> str:
-        """Build a dotted name string from an attribute access chain."""
         match node:
             case ast.Attribute(value=value, attr=attr):
                 prefix = SqlInjectionChecker._get_attribute_chain(value)
@@ -500,7 +452,6 @@ class SqlInjectionChecker:
 
     @staticmethod
     def _get_cursor_name(node: ast.Attribute) -> str:
-        """Build the cursor expression chain (e.g. ``self.env.cr``)."""
         parts: list[str] = []
         current = node.value
         while isinstance(current, ast.Attribute):
@@ -513,10 +464,6 @@ class SqlInjectionChecker:
 
     @staticmethod
     def _find_enclosing_scope(node: ast.AST) -> ast.AST | None:
-        """Walk up the AST to find the enclosing function/module scope.
-
-        Requires ``ast.fix_missing_locations`` or a parent-annotated tree.
-        """
         current = getattr(node, "_parent", None)
         while current is not None:
             if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)):
@@ -526,11 +473,6 @@ class SqlInjectionChecker:
 
     @staticmethod
     def _find_assignments(scope: ast.AST, name: str) -> Iterator[ast.AST]:
-        """Find all nodes in *scope* that assign to *name*.
-
-        Yields the **statement** node (Assign, AugAssign, For, etc.) or the
-        FunctionDef/arg node if the name comes from parameters.
-        """
         if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for arg in scope.args.args + scope.args.kwonlyargs:
                 if arg.arg == name:
@@ -570,12 +512,10 @@ class SqlInjectionChecker:
 
     @staticmethod
     def _find_return_nodes(node: ast.AST) -> list[ast.Return]:
-        """BFS for all Return nodes inside *node*."""
         return [child for child in ast.walk(node) if isinstance(child, ast.Return)]
 
     @staticmethod
     def _is_asserted(scope: ast.AST, name: str) -> bool:
-        """Check if *name* is referenced in any ``assert`` within *scope*."""
         for node in ast.walk(scope):
             if isinstance(node, ast.Assert) and node.test is not None:
                 for child in ast.walk(node.test):
@@ -585,10 +525,6 @@ class SqlInjectionChecker:
 
     @staticmethod
     def _looks_like_psycopg(node: ast.expr) -> bool:
-        """Heuristic: does *node* look like a psycopg SQL object?
-
-        Replaces ``astroid.utils.safe_infer()`` with a name-based check.
-        """
         match node:
             case ast.Call(func=ast.Attribute(attr="format", value=value)):
                 return SqlInjectionChecker._looks_like_psycopg(value)
@@ -602,21 +538,12 @@ class SqlInjectionChecker:
 
 
 def annotate_parents(tree: ast.AST) -> None:
-    """Add ``_parent`` attribute to every node in the AST.
-
-    Required by :meth:`SqlInjectionChecker._find_enclosing_scope`.
-    """
     for node in ast.walk(tree):
         for child in ast.iter_child_nodes(node):
             child._parent = node
 
 
 def check_file(filepath: str, source: bytes | str | None = None) -> list[Violation]:
-    """Convenience: check a single file for SQL injection risks.
-
-    :param filepath: Path to the Python file.
-    :param source: Optional source code; read from *filepath* if not given.
-    """
     if source is None:
         source = Path(filepath).read_bytes()
     try:

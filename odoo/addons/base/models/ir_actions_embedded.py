@@ -75,18 +75,6 @@ class IrEmbeddedActions(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Create embedded actions, deriving a name and coercing the action XOR.
-
-        An omitted ``name`` defaults to the linked ``action_id`` name. When a
-        vals dict has both ``action_id`` and ``python_method``, the pair is
-        silently coerced (not rejected) to satisfy the SQL CHECK: a truthy
-        ``python_method`` wins, otherwise the falsy ``python_method`` is dropped.
-
-        Both are applied to a copy. Editing the caller's dicts leaked a derived
-        ``name`` and a deleted key back out, so passing one dict twice — or
-        reusing it after the call, as a loop over users does — created records
-        from values nobody wrote.
-        """
         action_ids = [
             v["action_id"] for v in vals_list if "name" not in v and "action_id" in v
         ]
@@ -107,7 +95,6 @@ class IrEmbeddedActions(models.Model):
         return super().create([normalised(vals) for vals in vals_list])
 
     def _compute_is_deletable(self) -> None:
-        """Mark records not seeded from a data file as user-deletable."""
         external_ids = self._get_external_ids()
         for record in self:
             record_external_ids = external_ids[record.id]
@@ -126,12 +113,6 @@ class IrEmbeddedActions(models.Model):
     )
     @api.depends_context("active_id", "active_model", "uid")
     def _compute_is_visible(self) -> None:
-        """Compute per-user read-time visibility of each embedded action.
-
-        Gated by the parent record matching the domain on the active id, by the
-        user belonging to one of group_ids (if any), and by owner-or-shared
-        scoping on user_id.
-        """
         active_id = self.env.context.get("active_id", False)
         if not active_id:
             self.is_visible = False
@@ -169,7 +150,6 @@ class IrEmbeddedActions(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_if_action_deletable(self) -> None:
-        """Prevent unlinking seeded (non-deletable) default embedded actions."""
         for record in self:
             if not record.is_deletable:
                 raise UserError(
@@ -177,7 +157,6 @@ class IrEmbeddedActions(models.Model):
                 )
 
     def _get_readable_fields(self) -> frozenset[str]:
-        """Return the ORM fields safe to read."""
         return frozenset(
             {
                 "name",

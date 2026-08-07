@@ -1,23 +1,3 @@
-"""
-ORM Performance Benchmark Suite for Odoo.
-
-This module provides comprehensive benchmarks to assess ORM layer performance.
-Focuses on:
-- ORM overhead vs raw SQL
-- Recordset operations
-- Environment operations
-- Cache behavior
-- Computed field chains
-- Field type performance
-
-Run with:
-    ./odoo-bin -c ./conf/odoo.conf -d benchmark_db \
-        --test-tags '/test_performance:TestORMBenchmark' -u test_performance \
-        --stop-after-init --workers=0
-
-Results are logged to odoo.log with tag [ORM_BENCHMARK].
-"""
-
 import gc
 import json
 import logging
@@ -38,12 +18,6 @@ WARMUP_ITERATIONS = 5
 
 @tagged("standard", "orm_benchmark")
 class TestORMBenchmark(TransactionCase):
-    """
-    Comprehensive ORM performance benchmark suite.
-
-    Measures ORM-specific overhead beyond raw SQL execution.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -55,7 +29,6 @@ class TestORMBenchmark(TransactionCase):
 
     @classmethod
     def _create_test_data(cls):
-        """Create test data for benchmarks."""
         existing = cls.Model.search_count([("name", "like", "ORMBench%")])
         if existing < 100:
             _logger.info("[ORM_BENCHMARK] Creating test data...")
@@ -82,7 +55,6 @@ class TestORMBenchmark(TransactionCase):
         setup: Callable[[], None] | None = None,
         invalidate_cache: bool = True,
     ) -> BenchmarkStats:
-        """Run a benchmark with statistical analysis."""
         stats = run_benchmark(
             name,
             func,
@@ -96,7 +68,6 @@ class TestORMBenchmark(TransactionCase):
         return stats
 
     def test_01_browse_single(self):
-        """Benchmark: browse() single record."""
         record = self.Model.search([], limit=1)
         record_id = record.id
 
@@ -108,7 +79,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_01_browse_multiple(self):
-        """Benchmark: browse() multiple records."""
         records = self.Model.search([], limit=50)
         ids = records.ids
 
@@ -120,7 +90,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_02_recordset_iteration(self):
-        """Benchmark: Iterate over recordset."""
         records = self.Model.search([], limit=100)
 
         def bench():
@@ -135,7 +104,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_02_recordset_indexing(self):
-        """Benchmark: Recordset indexing."""
         records = self.Model.search([], limit=100)
 
         def bench():
@@ -150,7 +118,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_03_recordset_slicing(self):
-        """Benchmark: Recordset slicing."""
         records = self.Model.search([], limit=100)
 
         def bench():
@@ -163,7 +130,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_10_recordset_union(self):
-        """Benchmark: Recordset union (|)."""
         records1 = self.Model.search([], limit=50)
         records2 = self.Model.search([], limit=50, offset=25)
 
@@ -175,7 +141,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_10_recordset_intersection(self):
-        """Benchmark: Recordset intersection (&)."""
         records1 = self.Model.search([], limit=50)
         records2 = self.Model.search([], limit=50, offset=25)
 
@@ -190,7 +155,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_10_recordset_difference(self):
-        """Benchmark: Recordset difference (-)."""
         records1 = self.Model.search([], limit=50)
         records2 = self.Model.search([], limit=25)
 
@@ -205,7 +169,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_11_filtered_lambda(self):
-        """Benchmark: filtered() with lambda."""
         records = self.Model.search([], limit=100)
         _ = records.mapped("value")
 
@@ -217,7 +180,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_11_filtered_field(self):
-        """Benchmark: filtered() with field name."""
         records = self.SimpleModel.search([], limit=100)
         _ = records.mapped("active")
 
@@ -229,7 +191,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_12_mapped_field(self):
-        """Benchmark: mapped() single field."""
         records = self.Model.search([], limit=100)
 
         def bench():
@@ -238,7 +199,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("mapped() single field (100 records)", bench)
 
     def test_12_mapped_relation(self):
-        """Benchmark: mapped() through relation."""
         records = self.Model.search([("partner_id", "!=", False)], limit=50)
 
         def bench():
@@ -247,7 +207,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("mapped() through relation (50 records)", bench)
 
     def test_13_sorted_field(self):
-        """Benchmark: sorted() by field."""
         records = self.Model.search([], limit=100)
         _ = records.mapped("name")
 
@@ -259,7 +218,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_13_sorted_lambda(self):
-        """Benchmark: sorted() with lambda."""
         records = self.Model.search([], limit=100)
         _ = records.mapped("value")
 
@@ -271,7 +229,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_14_exists(self):
-        """Benchmark: exists() check."""
         records = self.Model.search([], limit=100)
 
         def bench():
@@ -280,7 +237,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("exists() (100 records)", bench)
 
     def test_20_field_access_cached(self):
-        """Benchmark: Field access (cached)."""
         record = self.Model.search([], limit=1)
         _ = record.name
 
@@ -295,7 +251,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_20_field_access_uncached(self):
-        """Benchmark: Field access (uncached, triggers fetch)."""
         record = self.Model.search([], limit=1)
 
         def bench():
@@ -304,7 +259,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("Field access (uncached)", bench)
 
     def test_21_field_getitem_vs_getattr(self):
-        """Benchmark: record['field'] vs record.field."""
         record = self.Model.search([], limit=1)
         _ = record.name
 
@@ -328,7 +282,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_22_multi_field_access(self):
-        """Benchmark: Access multiple fields on same record."""
         record = self.Model.search([], limit=1)
 
         def bench():
@@ -339,7 +292,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("Multi-field access (3 fields)", bench)
 
     def test_23_relational_field_access(self):
-        """Benchmark: Many2one field access."""
         record = self.Model.search([("partner_id", "!=", False)], limit=1)
 
         def bench():
@@ -348,7 +300,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("Many2one field access", bench)
 
     def test_24_one2many_access(self):
-        """Benchmark: One2many field access."""
         parent = self.SimpleModel.search([("child_ids", "!=", False)], limit=1)
 
         def bench():
@@ -357,7 +308,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("One2many field access", bench)
 
     def test_30_with_context(self):
-        """Benchmark: with_context() overhead."""
         records = self.Model.search([], limit=50)
 
         def bench():
@@ -368,7 +318,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_30_with_user(self):
-        """Benchmark: with_user() overhead."""
         records = self.Model.search([], limit=50)
         user = self.env.user
 
@@ -380,7 +329,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_31_sudo(self):
-        """Benchmark: sudo() overhead."""
         records = self.Model.search([], limit=50)
 
         def bench():
@@ -389,7 +337,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("sudo()", bench, iterations=100, invalidate_cache=False)
 
     def test_32_env_ref(self):
-        """Benchmark: env.ref() lookup."""
 
         def bench():
             self.env.ref("base.user_admin")
@@ -397,7 +344,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("env.ref()", bench, iterations=100, invalidate_cache=False)
 
     def test_40_cache_invalidate_recordset(self):
-        """Benchmark: invalidate_recordset()."""
         records = self.Model.search([], limit=100)
         _ = records.mapped("name")
 
@@ -411,7 +357,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_40_cache_invalidate_model(self):
-        """Benchmark: invalidate_model()."""
         records = self.Model.search([], limit=100)
         _ = records.mapped("name")
 
@@ -421,7 +366,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("invalidate_model()", bench, invalidate_cache=False)
 
     def test_41_prefetch_trigger(self):
-        """Benchmark: Prefetch trigger on first access."""
         records = self.Model.search([], limit=100)
 
         def bench():
@@ -430,7 +374,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("Prefetch trigger (100 records)", bench)
 
     def test_50_computed_simple(self):
-        """Benchmark: Simple computed field."""
         records = self.Model.search([], limit=50)
 
         def bench():
@@ -439,7 +382,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("Computed field (simple)", bench)
 
     def test_51_computed_with_depends(self):
-        """Benchmark: Computed field with @api.depends."""
         records = self.Model.search([], limit=50)
 
         def bench():
@@ -448,7 +390,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("Computed field (display_name)", bench)
 
     def test_60_write_single_field(self):
-        """Benchmark: write() single field."""
         record = self.Model.search([], limit=1)
 
         def bench():
@@ -457,7 +398,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("write() single field", bench, iterations=30)
 
     def test_60_write_multiple_fields(self):
-        """Benchmark: write() multiple fields."""
         record = self.Model.search([], limit=1)
 
         def bench():
@@ -466,7 +406,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("write() multiple fields", bench, iterations=30)
 
     def test_61_field_assignment(self):
-        """Benchmark: Direct field assignment."""
         record = self.Model.search([], limit=1)
 
         def bench():
@@ -475,7 +414,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("Field assignment", bench, iterations=30)
 
     def test_62_batch_write(self):
-        """Benchmark: write() on multiple records."""
         records = self.Model.search([], limit=50)
 
         def bench():
@@ -484,7 +422,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("Batch write() (50 records)", bench, iterations=20)
 
     def test_70_create_single(self):
-        """Benchmark: create() single record."""
         counter = [0]
 
         def bench():
@@ -494,7 +431,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("create() single record", bench, iterations=20)
 
     def test_70_create_batch(self):
-        """Benchmark: create() batch."""
         counter = [0]
 
         def bench():
@@ -506,7 +442,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("create() batch (10 records)", bench, iterations=15)
 
     def test_80_search_simple(self):
-        """Benchmark: search() with simple domain."""
 
         def bench():
             self.Model.search([("value", ">", 50)], limit=50)
@@ -514,7 +449,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("search() simple domain", bench)
 
     def test_80_search_empty(self):
-        """Benchmark: search() with empty domain."""
 
         def bench():
             self.Model.search([], limit=50)
@@ -522,7 +456,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("search() empty domain", bench)
 
     def test_81_search_count(self):
-        """Benchmark: search_count()."""
 
         def bench():
             self.Model.search_count([("value", ">", 50)])
@@ -530,7 +463,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("search_count()", bench)
 
     def test_82_search_read(self):
-        """Benchmark: search_read() combined."""
 
         def bench():
             self.Model.search_read(
@@ -540,7 +472,6 @@ class TestORMBenchmark(TransactionCase):
         self._run_benchmark("search_read()", bench)
 
     def test_90_orm_vs_raw_read(self):
-        """Benchmark: ORM read vs raw SQL."""
         records = self.Model.search([], limit=100)
         ids = list(records.ids)
 
@@ -560,7 +491,6 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_91_orm_overhead_calculation(self):
-        """Benchmark: Calculate ORM overhead percentage."""
         records = self.Model.search([], limit=100)
         ids = list(records.ids)
 
@@ -598,12 +528,11 @@ class TestORMBenchmark(TransactionCase):
         )
 
     def test_99_generate_summary(self):
-        """Generate final summary."""
         if not self.all_results:
             _logger.info("[ORM_BENCHMARK] No results to summarize.")
             return
 
-        _logger.info("\n" + "=" * 80)
+        _logger.info("\n%s", "=" * 80)
         _logger.info("[ORM_BENCHMARK] FINAL SUMMARY")
         _logger.info("=" * 80)
 

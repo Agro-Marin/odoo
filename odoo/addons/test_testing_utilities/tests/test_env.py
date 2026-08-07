@@ -18,10 +18,6 @@ class TestEnv(TransactionCase):
         cls.sudo_env = cls.env(su=True)
 
     def test_env_company_part_01(self):
-        """
-        The main goal of the test is actually to check the values of the
-        environment after this test execution (see test_env_company_part_02)
-        """
         company = self.env["res.company"].create(
             {
                 "name": "Test Company",

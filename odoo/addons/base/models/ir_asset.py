@@ -43,18 +43,6 @@ _logger = getLogger(__name__)
 
 @dataclass(slots=True)
 class Resolution:
-    """What one ``_get_asset_paths`` walk must look up, gathered once.
-
-    Everything here is a *lookup* the walk needs from outside itself -- rows,
-    manifests, filesystem facts -- and the memos that keep each one from being
-    repeated. The ordering of the bundle being built lives in
-    :class:`BundleWalk`, which knows nothing about any of this.
-
-    ``assets_params`` is kept because it is the resolution's identity (website,
-    lang): it selects the records in :attr:`bundle_assets` and is what an
-    override needs to reach.
-    """
-
     installed: Collection[str]
     assets_params: dict[str, Any] = field(default_factory=dict)
     manifest_assets: Mapping[str, tuple[tuple[str, Any], ...]] = field(
@@ -68,13 +56,6 @@ class Resolution:
     _addon_roots: dict[str, tuple[str, str]] = field(default_factory=dict)
 
     def manifest_for(self, addon: str) -> Manifest | None:
-        """Return *addon*'s manifest, remembering that it has none.
-
-        ``Manifest`` memoizes the manifests it finds but not the misses, and a
-        miss walks every addons path attempting to open a manifest file. Path
-        definitions whose first segment is not a module (``/web/content/...``)
-        would pay that walk once per definition.
-        """
         try:
             return self._manifests[addon]
         except KeyError:
@@ -83,11 +64,6 @@ class Resolution:
             return manifest
 
     def addon_roots(self, addon: str, manifest: Manifest) -> tuple[str, str]:
-        """Return ``(addon_root, static_dir)``, both absolute and symlink-resolved.
-
-        Resolved once per addon so a path definition can be joined onto the root
-        lexically instead of being ``realpath``\\ ed again.
-        """
         try:
             return self._addon_roots[addon]
         except KeyError:
@@ -98,8 +74,6 @@ class Resolution:
 
 
 class IrAsset(models.Model):
-    """Resolve asset bundle file paths, and store directives that customize bundle contents."""
-
     _name = "ir.asset"
     _description = "Asset"
     _order = "sequence, id"
@@ -130,19 +104,6 @@ class IrAsset(models.Model):
 
     @api.constrains("bundle")
     def _check_bundle_name(self) -> None:
-        """Warn -- not raise -- when a bundle can never be served as a file.
-
-        ``_parse_bundle_name`` splits ``<addon>.<name>.min.js`` and demands
-        exactly one dot in what is left, so any other spelling resolves fine
-        but 404s when the browser asks for it, and the record looks correct
-        the whole time. Every one of the 145 bundles declared across this
-        workspace's manifests already conforms.
-
-        A hard constraint would be the natural place for an invariant this
-        sharp, except that a bundle reached only through ``include`` is never
-        parsed as a filename and is therefore legal -- rare, but not wrong, and
-        an existing record spelt that way would start rejecting unrelated edits.
-        """
         for asset in self:
             if asset.bundle and asset.bundle.count(".") != 1:
                 _logger.warning(
@@ -182,16 +143,6 @@ class IrAsset(models.Model):
 
     @api.model
     def _resolution_fields(self) -> frozenset[str]:
-        """Fields a bundle's contents depend on.
-
-        Writing anything else -- ``name`` is the whole of it in base -- cannot
-        change what a bundle resolves to, so it must not drop the ``assets``
-        cache for the worker; a rename of one record currently costs every
-        bundle its cached resolution. Extend this in a subclass that adds a
-        field the resolution reads (website's ``website_id`` and ``key``
-        arbitrate between competing records), or edits to it stop taking effect
-        until something else invalidates.
-        """
         return frozenset(
             {"active", "sequence", "bundle", "directive", "path", "target"}
         )
@@ -204,16 +155,6 @@ class IrAsset(models.Model):
         return result
 
     def _invalidate_assets_cache(self) -> None:
-        """Drop the ``assets`` ormcache now *and* again once the change commits.
-
-        Clearing only before/at the write leaves a window until COMMIT during
-        which a concurrent reader repopulates the cache from the pre-change
-        rows. That entry then outlives the commit: ``Registry.signal_changes``
-        only tells the *other* workers to drop theirs, so this worker keeps
-        serving the stale bundle until something else invalidates it. Clearing
-        again from a post-commit callback closes the window; the immediate clear
-        stays so this transaction still reads its own writes.
-        """
         registry = self.env.registry
         postcommit = self.env.cr.postcommit
         if not postcommit.data.get("ir_asset_cache_cleared"):
@@ -222,11 +163,6 @@ class IrAsset(models.Model):
         registry.clear_cache("assets")
 
     def _get_asset_params(self) -> dict[str, Any]:
-        """Return extra parameters for ``_get_asset_paths``.
-
-        Override to inject context (e.g. website_id). Every value must be
-        hashable: it becomes part of the ``assets`` ormcache key.
-        """
         return {}
 
     def _get_asset_bundle_url(
@@ -241,12 +177,6 @@ class IrAsset(models.Model):
     def _parse_bundle_name(
         self, bundle_name: str, debug_assets: bool
     ) -> tuple[str, bool, str, bool]:
-        """Parse a bundle filename into ``(bundle_name, rtl, asset_type, autoprefix)``.
-
-        Strips suffixes right-to-left: ``.css``/``.js`` → ``.min`` (non-debug)
-        → ``.autoprefixed`` → ``.rtl``, then validates that exactly one dot
-        remains (e.g. ``web.assets_frontend``).
-        """
         parts = bundle_name.rsplit(".", 1)
         if len(parts) != 2:
             raise ValueError(
@@ -286,21 +216,6 @@ class IrAsset(models.Model):
     def _get_asset_paths(
         self, bundle: str, assets_params: dict[str, Any]
     ) -> tuple[AssetEntry, ...]:
-        """Fetch all asset file paths from addons matching a bundle.
-
-        Loading order: (1) 'ir.asset' records with sequence < 16; (2) the
-        addons' manifest declarations, applied in dependency order; (3) the
-        remaining 'ir.asset' records.
-
-        Both sources are indexed by bundle up front — see
-        :meth:`_get_manifest_assets` and :meth:`_fetch_bundle_assets` — since
-        re-scanning either source once per walked bundle made resolution cost
-        scale with the depth of the include graph.
-
-        :param assets_params: parameters needed by overrides, mainly website_id
-        :returns: tuple of ``AssetEntry``. Immutable because the ormcache hands
-            the very same object to every subsequent caller.
-        """
         addons = self._get_active_addons_list(**assets_params)
         resolution = Resolution(
             installed=self._get_installed_addons_list(),
@@ -312,12 +227,6 @@ class IrAsset(models.Model):
         return tuple(walk.paths.list)
 
     def _bundle_walk(self, resolution: Resolution) -> BundleWalk:
-        """Bind a :class:`BundleWalk` to this model and *resolution*.
-
-        The two callables are the entire coupling between the directive algebra
-        and the ORM. Override this to drive the same walk over a different
-        source of directives.
-        """
         return BundleWalk(
             resolve=partial(self._get_paths, resolution=resolution),
             directives_for=partial(self._directives_for, resolution=resolution),
@@ -328,24 +237,6 @@ class IrAsset(models.Model):
     def _get_manifest_assets(
         self, addons: tuple[str, ...]
     ) -> Mapping[str, tuple[tuple[str, Any], ...]]:
-        """Index the manifest ``assets`` declarations of *addons* by bundle name.
-
-        Values are ``(addon, command)`` pairs in the topological addon order the
-        directives must be applied in.
-
-        Building this index once — rather than rescanning every manifest for
-        each bundle walked — is what keeps resolution independent of the number
-        of installed addons: ``Manifest.__getitem__`` deep-copies the value it
-        returns, so a per-bundle scan deep-copies every addon's whole asset
-        declaration once per bundle.
-
-        Read-only, like every other cached accessor here (``_topological_sort``
-        returns a tuple, ``_get_installed_addons_list`` a frozenset): the
-        ormcache hands the very same object to every later caller of the
-        process, so a consumer that added a bundle to it -- an override
-        injecting a synthetic bundle is the obvious way to write that -- would
-        make it a permanent part of every later resolution.
-        """
         by_bundle: dict[str, list[tuple[str, Any]]] = {}
         for addon in self._topological_sort(addons):
             manifest = Manifest.for_addon(addon)
@@ -362,19 +253,6 @@ class IrAsset(models.Model):
     def _directives_for(
         self, bundle: str, resolution: Resolution
     ) -> list[AssetDirective]:
-        """Every directive that applies to *bundle*, in application order.
-
-        Loading order: (1) 'ir.asset' records with sequence < 16; (2) the
-        addons' manifest declarations, in dependency order; (3) the remaining
-        'ir.asset' records. Producing one flat ordered list is what lets
-        :class:`BundleWalk` stay free of both sources -- deciding *what* applies
-        is a question about rows, manifests and websites, and only this side can
-        answer it.
-
-        A malformed manifest command is reported here, where the command is
-        still in hand; :meth:`_process_command` raises and this wraps the blame
-        around it.
-        """
         self._fetch_bundle_assets(
             resolution, self._included_bundles(bundle, resolution.manifest_assets)
         )
@@ -402,13 +280,6 @@ class IrAsset(models.Model):
         return [*early, *middle, *late]
 
     def _get_related_assets(self, domain: list, **kwargs: Any) -> Self:
-        """Return assets matching *domain*, regardless of active state.
-
-        Override to widen or narrow the *search* (e.g. a website's domain).
-        Choosing between records that compete for the same slot belongs in
-        :meth:`_filter_bundle_assets`, which is applied per bundle. The caller
-        filters on ``active`` afterward.
-        """
         return (
             self.with_context(active_test=False)
             .sudo()
@@ -416,43 +287,11 @@ class IrAsset(models.Model):
         )
 
     def _filter_bundle_assets(self, assets: Self, **kwargs: Any) -> Self:
-        """Reduce *assets* -- one bundle's records -- to the ones that apply.
-
-        Called once per bundle so that "most specific record wins" arbitration
-        (website's generic-vs-specific ``key`` matching) compares records that
-        actually compete. Doing it on a batch spanning several bundles instead
-        lets a specific record in one bundle suppress the generic record of
-        another: reproduced with a website COW write that also moves the record
-        to a different bundle, which drops the generic one entirely.
-        """
         return assets
 
     def _fetch_bundle_assets(
         self, resolution: Resolution, bundles: Collection[str]
     ) -> None:
-        """Index the active ``ir.asset`` records of *bundles* into *resolution*.
-
-        A resolution walks a bundle plus every bundle it includes -- 13 of them
-        for ``web.assets_backend`` -- and issued one search per walked bundle,
-        re-selecting from the same table each time. Fetching the *whole* table
-        once instead removes those round-trips but makes the cost grow with
-        rows a bundle will never use: measured on this workspace it wins below
-        ~1000 ``ir.asset`` rows and loses 2x at 20 000, which a multi-website
-        install with per-website copies can reach. So the set is bounded
-        up front by :meth:`_included_bundles` and fetched in one query, with
-        this same method called again for any bundle only an ``ir.asset``
-        ``include`` record reveals -- with *that* bundle's own manifest closure,
-        which is why :meth:`_fill_asset_paths` and not
-        :meth:`_get_asset_paths` computes it: a record include landing on a
-        bundle that manifest-includes four more used to cost a query per level,
-        the very round-trips the batching removed for the root bundle.
-
-        One query, but :meth:`_filter_bundle_assets` still arbitrates per
-        bundle, so batching cannot make one bundle's records suppress another's.
-
-        Records keep the ``sequence, id`` order :meth:`_get_related_assets`
-        returns them in, which is what the early/late split relies on.
-        """
         missing = [b for b in bundles if b not in resolution.fetched_bundles]
         if not missing:
             return
@@ -473,12 +312,6 @@ class IrAsset(models.Model):
     def _included_bundles(
         self, bundle: str, manifest_assets: Mapping[str, tuple[tuple[str, Any], ...]]
     ) -> set[str]:
-        """Bundles reachable from *bundle* through manifest ``include`` commands.
-
-        Malformed commands are ignored here on purpose: this is a prefetch hint,
-        and reporting a bad command is :meth:`_process_command`'s job, where the
-        error can name the addon that declared it.
-        """
         closure: set[str] = set()
         pending = [bundle]
         while pending:
@@ -496,14 +329,6 @@ class IrAsset(models.Model):
         return closure
 
     def _get_related_bundle(self, target_path_def: str, root_bundle: str) -> str:
-        """Return the first bundle directly defining *target_path_def*.
-
-        Useful when generating an 'ir.asset' record to override a specific
-        asset.
-
-        :param root_bundle: bundle from which to start the search
-        :returns: the first matching bundle, or *root_bundle* as fallback
-        """
         resolution = Resolution(installed=self._get_installed_addons_list())
         paths = self._get_paths(target_path_def, resolution)
         if not paths:
@@ -519,22 +344,11 @@ class IrAsset(models.Model):
         return root_bundle
 
     def _get_active_addons_list(self, **kwargs: Any) -> Collection[str]:
-        """Return the active addons for asset resolution.
-
-        Override to filter modules (e.g. discard inactive themes per website).
-        """
         return self._get_installed_addons_list()
 
     @api.model
     @tools.ormcache("addons_tuple")
     def _topological_sort(self, addons_tuple: tuple[str, ...]) -> tuple[str, ...]:
-        """Return addon names sorted by ir.module.module ordering.
-
-        Sorts by application (desc), sequence, name, then topologically to
-        respect dependency order.
-
-        Immutable: the ormcache hands the same object to every caller.
-        """
         IrModule = self.env["ir.module.module"]
 
         def mapper(addon):
@@ -557,18 +371,6 @@ class IrAsset(models.Model):
 
     @api.model
     def _get_installed_addons_list(self) -> frozenset[str]:
-        """Return the set of all installed addon names.
-
-        Deliberately *not* ormcached. It reads ``registry._init_modules``, a set
-        the module loader fills in as it goes, and an ormcache with no key would
-        freeze whatever prefix of it happened to be loaded when the first caller
-        asked — for the life of the registry, since ``Registry.new`` hands the
-        one being loaded straight over to the workers and nothing on that path
-        clears the cache. Measured on this workspace the cache saved 0.7 us on
-        each of the two calls a resolution makes, against a 43 ms resolution.
-
-        Returns a frozenset so a caller cannot mutate the answer either.
-        """
         return frozenset(
             self.env.registry._init_modules.union(tools.config["server_wide_modules"])
         )
@@ -576,28 +378,6 @@ class IrAsset(models.Model):
     def _get_paths(
         self, path_def: str, resolution: Resolution
     ) -> tuple[ResolvedPath, ...]:
-        """Resolve *path_def* against the filesystem, once per resolution.
-
-        A definition is resolved by more than one directive of a single walk --
-        a glob a bundle appends and a later one reorders around, the same
-        variables file pulled in by several sub-bundles -- and each resolution
-        is a fresh filesystem observation. Two directives of one walk could
-        therefore disagree about which files exist, and the bundle they produce
-        together would correspond to no single state of the disk. One
-        observation per definition removes that window.
-
-        Not a meaningful speed-up on its own -- on this workspace
-        ``web.assets_backend`` repeats only 7 of its 153 definitions, all cheap
-        literals -- what dominates is the recursive globs, which are not shared
-        between definitions.
-
-        Memoizing here also makes the diagnostics honest: a stale path warns
-        once per resolution naming the definition, instead of once per directive
-        that happens to mention it.
-
-        The result is a tuple because it is shared by every later caller of the
-        same definition -- the same reason :meth:`_get_asset_paths` returns one.
-        """
         try:
             return resolution.resolved_paths[path_def]
         except KeyError:
@@ -608,37 +388,6 @@ class IrAsset(models.Model):
     def _resolve_path_def(
         self, path_def: str, resolution: Resolution
     ) -> tuple[ResolvedPath, ...]:
-        """Resolve *path_def* to a tuple of ``ResolvedPath`` tuples.
-
-        Globs can only occur inside the ``static/`` directory of an installed
-        addon. The ``full_path`` field distinguishes the resolution kind: a
-        filesystem path (static file), the ``EXTERNAL_ASSET`` sentinel
-        (http:// or /web/content), or ``None`` (attachment fallback).
-
-        Containment is decided lexically, against the addon root
-        :meth:`Resolution.addon_roots` already resolved: ``..`` is
-        collapsed without consulting the filesystem, and a symlink met on the
-        way is caught where a wildcard could also land on one, in
-        :func:`_glob_static_file`. Resolving the whole path here instead cost a
-        second ``realpath`` per definition and made a literal path through a
-        symlink and a glob expanding onto the same symlink take different
-        branches.
-
-        Path strings are interned because the ``assets`` ormcache keeps one
-        resolution per ``(bundle, assets_params)`` and every one of them mints
-        its own copies of the same file names: ``web.assets_backend`` is 1592
-        entries / 528 KiB, and a second resolution of it -- a second website,
-        which is what ``assets_params`` exists for -- shared nothing with the
-        first, so a full 512-slot store was ~3x larger than the files it
-        describes. Interning brings the second copy down to 174 KiB, for two
-        dict lookups per resolved file.
-
-        Override this rather than :meth:`_get_paths`, which only memoizes it.
-
-        :param path_def: glob or URL to resolve
-        :param resolution: the current walk, for its installed addons and its
-            filesystem caches
-        """
         path_def = fs2web(path_def)
         path_parts = [part for part in path_def.split("/") if part]
         if not path_parts:
@@ -711,29 +460,6 @@ class IrAsset(models.Model):
         return paths
 
     def _warn_unbacked_attachment_path(self, path_def: str, addon: str | None) -> None:
-        """Warn about a literal path that neither the disk nor an attachment backs.
-
-        The attachment is looked up **exactly** as the definition spells it,
-        because that is what the bundle will do: :meth:`AssetsBundle`'s asset
-        resolves its URL through ``ir.attachment._get_serve_attachment``, an
-        exact ``url =`` match. Accepting either spelling here -- ``x`` when the
-        attachment is at ``/x`` -- certified a path that then failed at bundle
-        build with ``Could not find ...``, which is where the two spellings
-        stopped being interchangeable.
-
-        A definition that is only mis-spelled is worth its own message: the
-        attachment exists, the path just names it the other way, and that is a
-        one-character fix rather than a hunt for a missing file.
-
-        ``addon`` is ``None`` for a path whose first segment is not a module,
-        which is what website's customisation URLs look like
-        (``/_custom/<bundle>/<addon>/static/...``, minted by
-        ``WebsiteAssets._make_custom_asset_url``). Those are the paths most
-        likely to lose their backing attachment -- an ``ir.asset`` row and an
-        ``ir.attachment`` row created as a pair, deleted separately -- and they
-        were the one shape that reached this fallback with no diagnostic at all,
-        surfacing only as a CSS error banner on the frontend.
-        """
         attachments = self.env["ir.attachment"].sudo()
         if attachments.search_count([("url", "=", path_def)], limit=1):
             return
@@ -764,19 +490,6 @@ class IrAsset(models.Model):
         )
 
     def _process_command(self, command: str | list) -> tuple[str, str | None, str]:
-        """Parse a manifest asset command into ``(directive, target, path_def)``.
-
-        Accepts a plain string (implicit append) or a list whose first element
-        is the directive name.
-
-        The members are type-checked here, where the offending command is still
-        in hand. A command of the right *shape* holding the wrong kind of value
-        -- ``["append", 123]``, or a path left as a list after an edit -- got
-        through and blew up two frames down inside path resolution as
-        ``AttributeError: 'int' object has no attribute 'split'``, which the
-        attribution wrappers do not catch (they catch ``ValueError``), so the
-        admin got a bare traceback naming neither the addon nor the bundle.
-        """
         if isinstance(command, str):
             return APPEND_DIRECTIVE, None, command
         try:

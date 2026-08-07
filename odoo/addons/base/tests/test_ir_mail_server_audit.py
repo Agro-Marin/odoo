@@ -27,9 +27,6 @@ _IR_MAIL_SERVER_LOGGER = "odoo.addons.base.models.ir_mail_server"
 
 @tagged("post_install", "-at_install")
 class TestMailServerArchiveAndHeaders(TransactionCase):
-    """Cover the ir.mail_server archive guard (write) and the anti-spoofing
-    header rewrite (_alter_message__). Audit findings MS-T1, MS-T2, MS-L3."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -58,16 +55,12 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         )
 
     def test_smtp_connection_test_disabled_send_raises_clean_error(self):
-        """With _disable_send() active, _connect__ returns None and
-        test_smtp_connection must raise a clear UserError, not an AttributeError
-        wrapped in a misleading 'Connection Test Failed' message."""
         self.assertTrue(self.IrMailServer._disable_send())
         with self.assertRaises(UserError) as ctx:
             self.server_a.test_smtp_connection()
         self.assertIn("outgoing emails are disabled", str(ctx.exception))
 
     def test_archive_unused_server_succeeds(self):
-        """In base, _active_usages_compute returns {} so archiving always works."""
         self.assertEqual(self.IrMailServer._active_usages_compute(), {})
         self.server_a.active = True
         self.server_a.write({"active": False})
@@ -75,11 +68,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
 
     @mute_logger(_IR_MAIL_SERVER_LOGGER)
     def test_archive_ignores_usages_of_servers_not_being_archived(self):
-        """``_active_usages_compute`` may describe servers outside ``self``.
-
-        Regression: any non-empty return blocked the write, raising a UserError
-        that named no server and listed no usage.
-        """
         usages = {self.server_c.id: ["Charlie usage"]}
         with patch.object(
             type(self.IrMailServer),
@@ -91,8 +79,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
 
     @mute_logger(_IR_MAIL_SERVER_LOGGER)
     def test_archive_single_server_message_stays_singular(self):
-        """The plural form keys off the servers actually blocked, not off the
-        size of the whole usage map."""
         usages = {
             self.server_a.id: ["Alpha usage"],
             self.server_b.id: ["Bravo usage"],
@@ -110,11 +96,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         self.assertNotIn("(Dedicated Outgoing Mail Server)", message)
 
     def test_archive_non_active_write_skips_usage_check(self):
-        """A write that does not flip active to False never consults usages.
-
-        The guard only runs on explicit archive, so writing an unrelated field
-        on an in-use server still goes through.
-        """
         usages = {self.server_a.id: ["Some usage"]}
         with patch.object(
             type(self.IrMailServer),
@@ -127,7 +108,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
 
     @mute_logger(_IR_MAIL_SERVER_LOGGER)
     def test_archive_single_used_server_message(self):
-        """Archiving one in-use server raises the singular-form error message."""
         usages = {self.server_a.id: ["Used by alias catchall"]}
         with patch.object(
             type(self.IrMailServer),
@@ -145,8 +125,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
 
     @mute_logger(_IR_MAIL_SERVER_LOGGER)
     def test_archive_multiple_used_servers_message_and_ordering(self):
-        """Archiving several in-use servers raises the plural-form message,
-        with servers and detail lines ordered by display_name."""
         servers = self.server_b | self.server_a | self.server_c
         usages = {
             self.server_a.id: ["Alpha usage"],
@@ -172,20 +150,12 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         self.assertTrue(all(servers.mapped("active")))
 
     def _make_message(self):
-        """Build a minimal SMTP-policy EmailMessage for header-rewrite tests."""
         message = EmailMessage(policy=email.policy.SMTP)
         message["From"] = "sender@example.com"
         message["Subject"] = "Subject"
         return message
 
     def test_alter_message_x_msg_to_add_empty_to(self):
-        """With no original To, X-Msg-To-Add yields a clean To (just the added
-        address).
-
-        Note this asserts the *re-parsed* header, which normalizes stray commas
-        away; ``TestAlterMessageWireFormat`` asserts the serialized form, where
-        the leading comma was actually observable.
-        """
         message = self._make_message()
         message["X-Msg-To-Add"] = "added@example.com"
         self.IrMailServer._alter_message__(message, "sender@example.com")
@@ -193,8 +163,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         self.assertIsNone(message["X-Msg-To-Add"])
 
     def test_alter_message_x_msg_to_add_dedupes_against_existing_to(self):
-        """X-Msg-To-Add appends only the addresses not already in To, and with a
-        non-empty original To there is no leading comma."""
         message = self._make_message()
         message["To"] = "keep@example.com"
         message["X-Msg-To-Add"] = "keep@example.com, extra@example.com"
@@ -202,8 +170,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         self.assertEqual(message["To"], "keep@example.com, extra@example.com")
 
     def test_alter_message_x_forge_to_overrides_and_scrubs_headers(self):
-        """X-Forge-To replaces the To header entirely and all control headers
-        (Bcc, X-Forge-To, X-Msg-To-Add) are removed."""
         message = self._make_message()
         message["To"] = "original@example.com"
         message["Bcc"] = "hidden@example.com"
@@ -218,12 +184,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
 
 
 class _FailingSMTPSession:
-    """SMTP session double whose delivery always fails.
-
-    ``from_filter``/``smtp_from`` mirror the ``(False, False)`` defaults of
-    ``_read_session_context`` for a session that was never stashed.
-    """
-
     from_filter = False
     smtp_from = False
 
@@ -233,11 +193,6 @@ class _FailingSMTPSession:
 
 @tagged("post_install", "-at_install")
 class TestMailServerSendFailureObservability(TransactionCase):
-    """``send_email`` delivery failures must be observable: logged at WARNING
-    with the SMTP traceback, and the ``MailDeliveryError`` must chain the root
-    cause (``from e``) while keeping its rendered message (the ``mail.mail``
-    failure_reason) intact."""
-
     def _make_message(self):
         message = EmailMessage(policy=email.policy.SMTP)
         message["From"] = "sender@example.com"
@@ -272,10 +227,6 @@ class TestMailServerSendFailureObservability(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMailServerOnchangeEncryption(TransactionCase):
-    """``_onchange_encryption`` rewrites ``smtp_port`` only when it still holds
-    the default of the mode being left (25 or 465); custom ports survive a
-    toggle."""
-
     def _new_server(self, encryption, port):
         return self.env["ir.mail_server"].new(
             {
@@ -287,7 +238,6 @@ class TestMailServerOnchangeEncryption(TransactionCase):
         )
 
     def test_default_port_follows_encryption(self):
-        """Default ports keep tracking the encryption mode: 25 <-> 465."""
         server = self._new_server("none", 25)
         server.smtp_encryption = "ssl"
         server._onchange_encryption()
@@ -303,7 +253,6 @@ class TestMailServerOnchangeEncryption(TransactionCase):
         self.assertEqual(server.smtp_port, 25)
 
     def test_custom_port_survives_toggle(self):
-        """A custom port (e.g. 2525) is never clobbered by the onchange."""
         server = self._new_server("none", 2525)
         server.smtp_encryption = "ssl"
         server._onchange_encryption()
@@ -313,8 +262,6 @@ class TestMailServerOnchangeEncryption(TransactionCase):
         self.assertEqual(server.smtp_port, 2525)
 
     def test_starttls_submission_port_survives_ssl_toggle(self):
-        """587 (STARTTLS submission) is not a mode default: toggling to SSL
-        and back must leave it untouched."""
         server = self._new_server("starttls", 587)
         server.smtp_encryption = "ssl_strict"
         server._onchange_encryption()
@@ -326,9 +273,6 @@ class TestMailServerOnchangeEncryption(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSmtpRecipientList(TransactionCase):
-    """``_prepare_smtp_to_list`` builds the envelope recipient list (one RCPT TO
-    per entry), so any duplicate in it is a duplicate delivery."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -343,11 +287,6 @@ class TestSmtpRecipientList(TransactionCase):
         return message
 
     def test_recipient_repeated_across_headers_is_sent_once(self):
-        """An address in To *and* Cc *and* Bcc is one mailbox: one RCPT TO.
-
-        Regression: dedup ran per header, so a recipient who was also CC'd (and
-        BCC'd) received the same message two or three times.
-        """
         message = self._message(
             to="dup@example.com, only_to@example.com",
             cc="dup@example.com",
@@ -359,7 +298,6 @@ class TestSmtpRecipientList(TransactionCase):
         )
 
     def test_recipient_dedup_is_case_insensitive(self):
-        """``Dup@Example.COM`` and ``dup@example.com`` are the same mailbox."""
         message = self._message(to="Dup@Example.COM", cc="dup@example.com")
         self.assertEqual(
             self.IrMailServer._prepare_smtp_to_list(message, None),
@@ -367,7 +305,6 @@ class TestSmtpRecipientList(TransactionCase):
         )
 
     def test_recipient_order_is_to_then_cc_then_bcc(self):
-        """First-seen order is preserved across the three headers."""
         message = self._message(
             to="a@example.com", cc="b@example.com", bcc="c@example.com"
         )
@@ -377,9 +314,6 @@ class TestSmtpRecipientList(TransactionCase):
         )
 
     def test_validated_to_accepts_normalized_match(self):
-        """``send_validated_to`` holds normalized addresses (that is what
-        ``mail.mail`` passes), so a header spelling the same mailbox with
-        different casing must not be dropped."""
         message = self._message(to='"Alice B" <Alice@Example.COM>')
         self.assertEqual(
             self.IrMailServer.with_context(
@@ -389,7 +323,6 @@ class TestSmtpRecipientList(TransactionCase):
         )
 
     def test_validated_to_still_filters_unvetted_addresses(self):
-        """The allow-list keeps filtering: an address absent from it is dropped."""
         message = self._message(to="alice@example.com, mallory@example.com")
         self.assertEqual(
             self.IrMailServer.with_context(
@@ -399,7 +332,6 @@ class TestSmtpRecipientList(TransactionCase):
         )
 
     def test_skip_list_still_blocks_recipients(self):
-        """``send_smtp_skip_to`` (normalized block list) is unaffected by dedup."""
         message = self._message(to="bad@example.com, good@example.com")
         self.assertEqual(
             self.IrMailServer.with_context(
@@ -411,10 +343,6 @@ class TestSmtpRecipientList(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAlterMessageWireFormat(TransactionCase):
-    """``_alter_message__`` header rewrites are asserted on the *serialized*
-    message. Reading ``message["To"]`` back hides a malformed header, because
-    the header registry re-parses and silently drops stray commas."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -440,13 +368,11 @@ class TestAlterMessageWireFormat(TransactionCase):
         return message
 
     def test_no_original_to_emits_no_leading_comma(self):
-        """Regression: an absent To produced ``To: , added@example.com``."""
         message = self._message(None, "added@example.com")
         self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertEqual(self._to_line(message), "To: added@example.com")
 
     def test_fully_redundant_addition_emits_no_trailing_comma(self):
-        """Regression: an addition already in To produced ``To: keep@…, ``."""
         message = self._message("keep@example.com", "keep@example.com")
         self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertEqual(self._to_line(message), "To: keep@example.com")
@@ -461,14 +387,6 @@ class TestAlterMessageWireFormat(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestEnvelopeOnlyHeaders(TransactionCase):
-    """Headers that only exist to feed the SMTP envelope must never reach the
-    wire: the delivering MTA prepends its own ``Return-Path`` from the envelope
-    (RFC 5321 §4.4), so transmitting ours leaves the recipient with two.
-
-    ``mail.thread`` sets ``Return-Path`` on every notification email (to route
-    bounces to the alias domain), so this was on virtually all outgoing mail.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -504,13 +422,6 @@ class TestEnvelopeOnlyHeaders(TransactionCase):
         self.assertIsNone(message["Return-Path"])
 
     def test_falsy_header_value_emits_no_header(self):
-        """Regression: a header whose value is falsy serialized to a bare
-        ``Key:`` line -- a syntax error, not an empty header.
-
-        Callers build these dicts as
-        ``headers.setdefault("Return-Path", a.bounce_email or b.bounce_email)``,
-        so an unconfigured source arrives here as ``False``.
-        """
         message = self.IrMailServer._build_email__(
             email_from="sender@example.com",
             email_to="rcpt@example.com",
@@ -520,8 +431,6 @@ class TestEnvelopeOnlyHeaders(TransactionCase):
                 "X-Unset": False,
                 "X-None": None,
                 "X-Empty": "",
-                # not a string: the header registry renders it to an empty
-                # header too, so it must be dropped like the rest
                 "X-Zero": 0,
                 "X-Kept": "value",
                 "X-Kept-Numeric": "0",
@@ -537,10 +446,6 @@ class TestEnvelopeOnlyHeaders(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestFromFilterIndex(TransactionCase):
-    """``from_filter`` parsing/matching lives in one place (``_from_filter_index``)
-    so ``_match_from_filter`` and ``_find_mail_server``'s fallback cannot disagree
-    about what a filter means."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -555,9 +460,6 @@ class TestFromFilterIndex(TransactionCase):
         self.assertFalse(index.unrestricted)
 
     def test_separator_only_filter_is_unrestricted(self):
-        """Regression: ``" , "`` is truthy, so it counted as a restriction that
-        nothing could satisfy -- the server matched no sender, yet was excluded
-        from the "no from_filter" fallback too, leaving it dead."""
         for from_filter in (" , ", ",,", "   ", "", False):
             with self.subTest(from_filter=from_filter):
                 self.assertTrue(
@@ -570,13 +472,6 @@ class TestFromFilterIndex(TransactionCase):
                 )
 
     def test_unparseable_part_restricts_without_matching(self):
-        """A junk entry must not fail open (it is still a restriction) and must
-        not fail sideways either.
-
-        Regression: ``_match_from_filter`` compared ``email_normalize(part)`` to
-        ``email_normalize(sender)``, so a junk filter matched any sender that
-        also failed to normalize -- ``False == False``.
-        """
         index = self.IrMailServer._from_filter_index("@@@, example.com")
         self.assertEqual(index.emails, frozenset())
         self.assertEqual(index.domains, frozenset({"example.com"}))
@@ -638,8 +533,6 @@ class TestTransportAndSizeLimits(TransactionCase):
         cls.IrMailServer = cls.env["ir.mail_server"]
 
     def test_cli_authentication_still_honours_smtp_debug(self):
-        """A ``cli`` server delegates host/auth/encryption to the CLI, but
-        ``smtp_debug`` is a property of the record's UI and was dropped."""
         server = self.IrMailServer.create(
             {
                 "name": "cli",
@@ -654,8 +547,6 @@ class TestTransportAndSizeLimits(TransactionCase):
         self.assertEqual(transport.from_filter, "example.com")
 
     def test_max_email_size_survives_a_non_numeric_parameter(self):
-        """``base.default_max_email_size`` is admin-editable free text; a typo
-        must not raise out of every outgoing email."""
         self.env["ir.config_parameter"].sudo().set_param(
             "base.default_max_email_size", "ten"
         )
@@ -670,8 +561,6 @@ class TestTransportAndSizeLimits(TransactionCase):
 
 
 class _Session:
-    """SMTP session double exposing only the ESMTP feature map."""
-
     def __init__(self, features):
         if features is not None:
             self.esmtp_features = features
@@ -679,15 +568,6 @@ class _Session:
 
 @tagged("post_install", "-at_install")
 class TestSmtputf8Envelope(TransactionCase):
-    """A non-ASCII envelope address is a permanent failure on a server without
-    RFC 6531, and must be reported as one.
-
-    ``extract_rfc2822_addresses`` punycodes the domain but passes a non-ASCII
-    local part through, so such an address used to reach ``smtplib``, which
-    raised ``SMTPNotSupportedError`` mid-``send_message``. ``mail.mail`` filed
-    that under the generic ``unknown`` bucket, i.e. retry forever.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -731,7 +611,6 @@ class TestSmtputf8Envelope(TransactionCase):
         self.assertEqual(ctx.exception.code, self.IrMailServer.NO_VALID_RECIPIENT)
 
     def test_non_ascii_allowed_when_the_server_advertises_smtputf8(self):
-        """The check must not regress internationalized email on capable servers."""
         message = self._message(
             email_from="jos\xe9@example.com", email_to="r\xe9cipient@example.com"
         )
@@ -752,9 +631,6 @@ class TestSmtputf8Envelope(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSmtpTimeout(TransactionCase):
-    """The per-command socket timeout is an operational knob (--smtp-timeout),
-    not a constant recompiled into the module."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -789,15 +665,6 @@ class TestSmtpTimeout(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCertificateLoadErrors(TransactionCase):
-    """Both certificate-loading paths must reject invalid admin-supplied PEM
-    material with a UserError.
-
-    Regression: the ``except`` clauses only listed pyOpenSSL's exceptions, but
-    ``cryptography`` raises ``ValueError`` and ``PyOpenSSLContext.load_cert_chain``
-    raises ``ssl.SSLError``, so a bad certificate escaped as a raw traceback and
-    ``_ssl_load_error`` was never reached.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -830,7 +697,6 @@ class TestCertificateLoadErrors(TransactionCase):
         self.assertIn("not a valid file", str(ctx.exception))
 
     def test_non_base64_certificate_field_raises_user_error(self):
-        """A corrupted Binary field value must not escape as binascii.Error."""
         with self.assertRaises(UserError):
             self.IrMailServer.create(
                 {
@@ -845,7 +711,6 @@ class TestCertificateLoadErrors(TransactionCase):
 
 
 def _self_signed(common_name, issuer_key=None, issuer_name=None, ca=False):
-    """Return ``(certificate, private_key)`` for a throwaway RSA certificate."""
     import datetime
 
     from cryptography import x509
@@ -874,13 +739,6 @@ def _self_signed(common_name, issuer_key=None, issuer_name=None, ca=False):
 
 @tagged("post_install", "-at_install")
 class TestCertificateChain(TransactionCase):
-    """A stored ``fullchain.pem`` must reach the server whole.
-
-    Regression: only the first PEM block was loaded, so the intermediates a CA
-    ships next to the leaf were silently dropped and a peer that cannot build a
-    path from the leaf alone rejected the client certificate.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -912,7 +770,6 @@ class TestCertificateChain(TransactionCase):
         )
 
     def _loaded_chain(self, cert_pem):
-        """Return the certificates handed to OpenSSL for the given stored PEM."""
         loaded = []
         real_context = self.IrMailServer._client_ssl_context
 
@@ -955,12 +812,6 @@ class TestCertificateChain(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestPrepareEmailMessageIsNonDestructive(TransactionCase):
-    """``send_email`` documents that a caller should catch MailDeliveryError so
-    "the mail is never lost", i.e. retry. Preparing a message consumes the
-    envelope-only headers, so the caller's object must come back untouched or
-    the retry silently drops every Bcc recipient and the bounce address.
-    """
-
     class _Session:
         from_filter = False
         smtp_from = False
@@ -1019,13 +870,6 @@ class TestPrepareEmailMessageIsNonDestructive(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestFindMailServerOrdering(TransactionCase):
-    """Server selection must be reproducible.
-
-    ``sequence`` defaults to 10, so equal-priority servers are the norm rather
-    than the exception; searching on ``sequence`` alone left the winner to
-    Postgres' physical row order, which moves on any update to a competing row.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1053,7 +897,6 @@ class TestFindMailServerOrdering(TransactionCase):
                 "someone@shared.example.com"
             )
             self.assertEqual(server, expected)
-            # a plain rename rewrites the row, moving it to the end of the heap
             self.env.cr.execute(
                 "UPDATE ir_mail_server SET name = name || '.' WHERE id = %s",
                 (self.servers[0].id,),
@@ -1070,13 +913,6 @@ class TestFindMailServerOrdering(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestMailServerDeletionGuard(TransactionCase):
-    """Deleting an in-use server must fail as loudly as archiving one.
-
-    Every reference is a many2one defaulting to ``ondelete='set null'``, so the
-    delete that ``write({'active': False})`` refuses used to go through and
-    quietly unhook the mail templates and mailings pointing at the server.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1109,10 +945,6 @@ class TestMailServerDeletionGuard(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestConnectionTestErrorClassification(TransactionCase):
-    """A failed connection test must name the likely cause instead of falling
-    back to the generic 'here is what we got instead', which also logs a full
-    traceback at WARNING for what is only ever a misconfiguration."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1136,7 +968,6 @@ class TestConnectionTestErrorClassification(TransactionCase):
         self.assertIn("Network is unreachable", message)
 
     def test_more_specific_handlers_still_win_over_oserror(self):
-        """smtplib and ssl errors derive from OSError; the catch-all is last."""
         self.assertIn(
             "Server replied with following exception",
             self._message_for(smtplib.SMTPResponseException(550, "nope")),
@@ -1157,9 +988,6 @@ class TestConnectionTestErrorClassification(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSmtpDebugGoesThroughTheLogger(TransactionCase):
-    """``smtp_debug`` claims the transcript lands in the Odoo log; smtplib's own
-    implementation ``print()``s to stderr, so it never reached ``--logfile``."""
-
     def test_debug_transcript_is_logged(self):
         with self.assertLogs(_IR_MAIL_SERVER_LOGGER, logging.DEBUG) as captured:
             _log_smtp_debug("send:", "'EHLO odoo\\r\\n'")
@@ -1195,13 +1023,6 @@ class TestSmtpDebugGoesThroughTheLogger(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCertificateChainOnTheWire(TransactionCase):
-    """Prove the intermediate is actually transmitted, not merely loaded.
-
-    A real TLS handshake against a server that trusts ONLY the root and demands
-    a client certificate: the leaf is issued by an intermediate, so verification
-    can only succeed if the client puts leaf+intermediate on the wire.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1234,7 +1055,6 @@ class TestCertificateChainOnTheWire(TransactionCase):
         )
 
     def _handshake(self, cert_pem):
-        """Present ``cert_pem`` to a root-only-trusting server; return its verdict."""
         import socket
         import threading
 
@@ -1283,7 +1103,6 @@ class TestCertificateChainOnTheWire(TransactionCase):
                 )
                 context.verify_mode = ssl.CERT_NONE
                 plain = socket.create_connection(listener.getsockname(), timeout=10)
-                # no `with`: urllib3's WrappedSocket is not a context manager
                 with contextlib.suppress(OSError):
                     context.wrap_socket(plain, server_hostname="localhost").close()
             finally:
@@ -1299,7 +1118,6 @@ class TestCertificateChainOnTheWire(TransactionCase):
         )
 
     def test_leaf_alone_cannot_be_verified(self):
-        """The failure a truncated chain produces, pinned so the fix cannot rot."""
         self.assertEqual(
             self._handshake(self.leaf_pem).get("error"),
             "SSLCertVerificationError",
@@ -1309,12 +1127,6 @@ class TestCertificateChainOnTheWire(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDetachedCopyIsolation(TransactionCase):
-    """``_detached_copy`` must isolate *both* mutable containers of an
-    EmailMessage. ``copy.copy`` shares them, so a ``_alter_message__`` override
-    that sets a header or attaches a part would reach back into the caller's
-    message.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1348,13 +1160,11 @@ class TestDetachedCopyIsolation(TransactionCase):
         self.assertEqual(len(detached.get_payload()), parts_before + 1)
 
     def test_parts_are_shared_not_cloned(self):
-        """A big attachment must not be duplicated in memory by the copy."""
         original = self._multipart()
         detached = self.IrMailServer._detached_copy(original)
         self.assertIs(detached.get_payload(1), original.get_payload(1))
 
     def test_prepared_message_is_byte_identical_to_in_place_preparation(self):
-        """The copy is an isolation change only -- the wire format must not move."""
 
         class _Session:
             from_filter = False
@@ -1378,15 +1188,6 @@ class TestDetachedCopyIsolation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestConnectionErrorDispatchMatrix(TransactionCase):
-    """Every branch of ``_connection_test_error`` must be reachable.
-
-    The handlers are an ordered tuple over exception classes that inherit from
-    one another (``SMTPException``, ``ssl.SSLError`` and ``gaierror`` are all
-    ``OSError``; ``CertificateError`` and ``UnicodeError`` are both
-    ``ValueError``), so a reordering silently makes a branch dead. This walks
-    the whole matrix rather than sampling it.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1444,18 +1245,6 @@ class TestConnectionErrorDispatchMatrix(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestNotificationsEmailNormalization(TransactionCase):
-    """``_find_mail_server`` must normalize the notifications address it is
-    given before matching it against ``from_filter``.
-
-    ``mail.alias.domain.name`` is validated but never lower-cased (its own
-    ``_check_name`` refuses to rewrite what the admin typed), so
-    ``default_from_email`` -- which ``mail.mail`` puts in the
-    ``domain_notifications_email`` context key -- legitimately reaches this
-    method as ``notifications@Example.COM``. Compared raw against the
-    normalized ``from_filter`` index it matches nothing, and the dedicated
-    server is skipped in favour of whatever sorts first.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1479,24 +1268,16 @@ class TestNotificationsEmailNormalization(TransactionCase):
         )
 
     def _find(self, notifications_email):
-        """Resolve as ``mail.mail`` does: a sender no server is dedicated to, so
-        selection falls through to the notifications address."""
         return self.IrMailServer.with_context(
             domain_notifications_email=notifications_email
         )._find_mail_server("stranger@nowhere.example.com")
 
     def test_uppercase_domain_selects_the_notifications_server(self):
-        # Asserted outside assertNoLogs: which server carries the mail is the
-        # finding, the spurious warning is only its symptom, and a context
-        # manager that raises on exit would hide the real assertion.
         server, email_from = self._find("notifications@Example.COM")
         self.assertEqual(server, self.notifier)
         self.assertEqual(email_from, "notifications@example.com")
 
     def test_uppercase_domain_does_not_fall_back_past_an_open_server(self):
-        """The realistic multi-server shape: an unrestricted catch-all outranks
-        the fallback branch, so the mail leaves through a server that was never
-        meant to carry the notification address."""
         self.IrMailServer.create(
             {"name": "open", "smtp_host": "open.example.com", "sequence": 5}
         )
@@ -1532,11 +1313,6 @@ class TestNotificationsEmailNormalization(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestTestEmailFromSelection(TransactionCase):
-    """The "Test Connection" sender is taken from ``from_filter``; a part that
-    is not a parseable address must not be handed to ``MAIL FROM`` just because
-    it contains an ``@``.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1558,9 +1334,6 @@ class TestTestEmailFromSelection(TransactionCase):
         )
 
     def test_unparseable_part_does_not_shadow_a_usable_domain(self):
-        # The local part is left to the override chain (``mail`` prefers an
-        # alias domain's default_from); the invariant is that the sender is a
-        # real address in the domain the filter authorizes.
         self._assert_sender_in_domain(self._server("@@@, example.com"), "example.com")
 
     def test_formatted_filter_entry_yields_a_bare_address(self):
@@ -1587,10 +1360,6 @@ class TestTestEmailFromSelection(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCertificateMaterialValidatedOnWrite(TransactionCase):
-    """Certificate authentication must reject unusable PEM material when it is
-    saved, not hours later inside a cron send.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1659,14 +1428,6 @@ class TestCertificateMaterialValidatedOnWrite(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSmtpHeloName(TransactionCase):
-    """The EHLO/HELO name Odoo announces must be configurable.
-
-    smtplib derives it from ``socket.getfqdn()``, which on a container or any
-    host without a resolvable FQDN yields a domain literal such as
-    ``[172.17.0.2]``; MTAs that require a fully-qualified HELO reject the
-    session outright, and nothing in Odoo could override it.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1710,17 +1471,6 @@ class TestSmtpHeloName(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestRemoteCallSurface(TransactionCase):
-    """``ir.mail_server`` must expose over RPC only its two UI buttons.
-
-    ``send_email`` accepts caller-supplied ``smtp_server`` / ``smtp_port``, and
-    dials them before it ever looks at the message. Every one of its arguments
-    is JSON-expressible, so a plain ``call_kw`` with a dict for ``message`` was
-    enough to make the Odoo host open a TCP connection to any address, with the
-    outcome reflected back in the error -- a blind SSRF and port scanner. Read
-    access on this model is not an admin privilege (``mass_mailing`` grants it
-    to ``group_mass_mailing_user``), so this is reachable by non-admins.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1731,7 +1481,6 @@ class TestRemoteCallSurface(TransactionCase):
                 "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
             }
         )
-        # Reproduce mass_mailing's grant without depending on that module.
         cls.env["ir.model.access"].create(
             {
                 "name": "ir_mail_server read for the audit",
@@ -1749,7 +1498,6 @@ class TestRemoteCallSurface(TransactionCase):
         )
 
     def test_reader_really_has_read_but_not_write(self):
-        """Guard the premise: without it the two tests below pass vacuously."""
         as_reader = self.env["ir.mail_server"].with_user(self.reader)
         self.assertTrue(as_reader.has_access("read"))
         self.assertFalse(as_reader.has_access("write"))
@@ -1780,15 +1528,6 @@ class TestRemoteCallSurface(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSessionAdvertisedSizeLimit(TransactionCase):
-    """``_get_max_email_size`` must respect both bounds that exist.
-
-    ``max_email_size`` is an admin policy (it decides when attachments become
-    links) and the EHLO ``SIZE`` is what the provider enforces right now. The
-    stored value is a snapshot somebody had to refresh by hand, so once a
-    provider tightens its limit every oversized mail fails at DATA instead of
-    being converted to links.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1817,7 +1556,6 @@ class TestSessionAdvertisedSizeLimit(TransactionCase):
         self.assertEqual(self.server._get_max_email_size(), 25.0)
 
     def test_size_advertised_without_a_value_is_not_a_zero_limit(self):
-        """``250-SIZE`` with no number means "supported, no stated limit"."""
         self.assertEqual(self.server._get_max_email_size(self._session("")), 25.0)
 
     def test_a_server_not_advertising_size_keeps_the_configured_value(self):
@@ -1841,14 +1579,6 @@ class TestSessionAdvertisedSizeLimit(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestResolvedServerIsNotResolvedTwice(TransactionCase):
-    """A caller that already ran ``_find_mail_server`` must be able to say so.
-
-    ``mail.mail`` groups its batches by the outcome, then handed ``_connect__``
-    a falsy ``mail_server_id`` that was indistinguishable from "not resolved
-    yet" -- so the search ran again for every batch and could reach a different
-    verdict than the one the batch was grouped under.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1860,7 +1590,6 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
 
     @contextlib.contextmanager
     def _capture(self):
-        """Open a connection against a stub, yielding the stashed session context."""
         captured = {}
 
         class _FakeConn:
@@ -1919,8 +1648,6 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
         )
 
     def _fake_cli_session_context_reference(self):
-        """The session an explicit-host connection produces, which is the
-        transport a resolved-to-no-server batch must also get."""
         with self._capture():
             return self.IrMailServer._connect__(
                 host="cli.example.com", smtp_from="notifications@example.com"

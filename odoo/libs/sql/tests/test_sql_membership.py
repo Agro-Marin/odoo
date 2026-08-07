@@ -1,17 +1,3 @@
-"""Tests for the explicit membership helpers ``SQL.in_`` / ``SQL.not_in``.
-
-These render ``= ANY`` / ``<> ALL`` on a list (the psycopg3-native idiom) and
-handle the empty set correctly, avoiding the tuple-expansion traps of bare
-``IN %s`` / ``NOT IN %s``:
-
-  * an empty ``IN`` must match nothing  -> ``FALSE``;
-  * an empty ``NOT IN`` must match every row -> ``TRUE`` (the tuple path rendered
-    ``NOT IN (NULL)``, which silently matched *nothing*);
-  * a tuple passed where an array is expected (``ANY((%s, %s))``) crashes in PG.
-
-No Odoo ORM / database dependency — runs under the standalone pytest suite.
-"""
-
 import unittest
 
 from odoo.libs.sql import SQL

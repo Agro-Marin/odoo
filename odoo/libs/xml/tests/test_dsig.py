@@ -1,13 +1,3 @@
-"""Contract for ``odoo.libs.xml.dsig``, the shared xmldsig reference processing.
-
-These pin the axes on which the five localization copies had drifted before
-they were merged: which signature nodes get stripped for an enveloped
-reference, whether canonicalization is exclusive, and which digest algorithm
-signs the result. ``test_matches_legacy_regex_stripping`` is the migration
-guard -- it asserts the DOM-based stripping reproduces, byte for byte, what the
-old ``re.sub`` in the TicketBAI/Ecuador copies produced.
-"""
-
 import hashlib
 import re
 from base64 import b64encode
@@ -77,20 +67,11 @@ class TestEnvelopedStripping:
         assert b"Signature" not in octets
 
     def test_only_the_references_own_signature_is_removed(self):
-        """xmldsig-core §6.6.4: the transform removes *the* enveloping Signature.
-
-        Stripping every ``ds:Signature`` is indistinguishable on a singly-signed
-        document and wrong on a co-signed one: each signer would digest a
-        document with the *other* signatures removed, while a verifier removes
-        only the one it is checking. The two byte streams differ, so every
-        signature after the first fails to verify — silently, and only on
-        documents that have been counter-signed.
-        """
         doc = (
             f'<Invoice xmlns:ds="{DS_NS}"><Amount>100</Amount>'
-            f"<ds:Signature><ds:SignedInfo><ds:Reference URI=\"\"/></ds:SignedInfo>"
+            f'<ds:Signature><ds:SignedInfo><ds:Reference URI=""/></ds:SignedInfo>'
             f"<ds:SignatureValue>FIRST</ds:SignatureValue></ds:Signature>"
-            f"<ds:Signature><ds:SignedInfo><ds:Reference URI=\"\"/></ds:SignedInfo>"
+            f'<ds:Signature><ds:SignedInfo><ds:Reference URI=""/></ds:SignedInfo>'
             f"<ds:SignatureValue>SECOND</ds:SignatureValue></ds:Signature>"
             f"</Invoice>"
         )
@@ -100,16 +81,12 @@ class TestEnvelopedStripping:
 
         first, second = (resolve_reference("", ref, "") for ref in references)
 
-        # Each signer's octets keep the *other* signature and drop its own.
         assert b"SECOND" in first and b"FIRST" not in first
         assert b"FIRST" in second and b"SECOND" not in second
-        # ... so the two digests differ, which is the property that makes a
-        # counter-signature verifiable at all.
         assert first != second
         assert b"<Amount>100</Amount>" in first
 
     def test_detached_reference_still_strips_every_signature(self):
-        """No enveloping Signature to single out, so the old behaviour stands."""
         doc = f'<Invoice xmlns:ds="{DS_NS}"><A/><ds:Signature Id="s"/></Invoice>'
         root = etree.fromstring(doc.encode())
         reference = etree.SubElement(root, f"{{{DS_NS}}}Reference")
@@ -128,16 +105,6 @@ class TestEnvelopedStripping:
         assert b"TAIL" in octets
 
     def test_diverges_from_legacy_regex_on_leading_whitespace(self):
-        """Pins the one intended behaviour change against the old ``re.sub``.
-
-        The TicketBAI/Ecuador copies stripped the signature with
-        ``re.sub(r'^[^\\n]*<ds:Signature.*</ds:Signature>', ...)``. The leading
-        ``^[^\\n]*`` also swallowed the indentation *preceding* the signature --
-        but that whitespace is a text node owned by the parent, not part of the
-        ``ds:Signature`` element, so the enveloped-signature transform must
-        leave it in place. A conformant verifier keeps it, which means the
-        legacy digest was computed over octets the verifier never reproduces.
-        """
         root = _tree()
         legacy = canonicalize(
             re.sub(

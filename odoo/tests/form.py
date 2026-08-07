@@ -1,14 +1,9 @@
-"""
-The module :mod:`odoo.tests.form` provides an implementation of a client form
-view for server-side unit tests.
-"""
-
 import ast
 import collections.abc
 import itertools
 import logging
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 from lxml import etree
 
@@ -27,9 +22,6 @@ MODIFIER_ALIASES = {"1": "True", "0": "False"}
 
 
 def _combine_bool_exprs(op: str, expr1: Any, expr2: Any) -> str:
-    """Combine two boolean modifier expressions with ``"or"``/``"and"``,
-    simplifying away literal ``"True"``/``"False"`` operands instead of
-    building noise like ``"(False) and (False)"``."""
     expr1, expr2 = str(expr1), str(expr2)
     absorbing, neutral = ("True", "False") if op == "or" else ("False", "True")
     if absorbing in (expr1, expr2):
@@ -42,87 +34,8 @@ def _combine_bool_exprs(op: str, expr1: Any, expr2: Any) -> str:
 
 
 class Form:
-    """Server-side form view implementation (partial)
-
-    Implements much of the "form view" manipulation flow, such that server-side
-    tests can more properly reflect the behaviour which would be observed when
-    manipulating the interface:
-
-    * call the relevant onchanges on "creation";
-    * call the relevant onchanges on setting fields;
-    * properly handle defaults & onchanges around x2many fields.
-
-    Saving the form returns the current record (which means the created record
-    if in creation mode). It can also be accessed as ``form.record``, but only
-    when the form has no pending changes.
-
-    Regular fields can just be assigned directly to the form. In the case
-    of :class:`~odoo.fields.Many2one` fields, one can assign a recordset::
-
-        # empty recordset => creation mode
-        f = Form(self.env["sale.order"])
-        f.partner_id = a_partner
-        so = f.save()
-
-    One can also use the form as a context manager to create or edit a record.
-    The changes are automatically saved at the end of the scope::
-
-        with Form(self.env["sale.order"]) as f1:
-            f1.partner_id = a_partner
-            # f1 is saved here
-
-        # retrieve the created record
-        so = f1.record
-
-        # call Form on record => edition mode
-        with Form(so) as f2:
-            f2.payment_term_id = env.ref("account.account_payment_term_15days")
-            # f2 is saved here
-
-    For :class:`~odoo.fields.Many2many` fields, the field itself is a
-    :class:`~odoo.tests.common.M2MProxy` and can be altered by adding or
-    removing records::
-
-        with Form(user) as u:
-            u.group_ids.add(env.ref("account.group_account_manager"))
-            u.group_ids.remove(id=env.ref("base.group_portal").id)
-
-    Finally :class:`~odoo.fields.One2many` are reified as :class:`~O2MProxy`.
-
-    Because the :class:`~odoo.fields.One2many` only exists through its parent,
-    it is manipulated more directly by creating "sub-forms" with
-    the :meth:`~O2MProxy.new` and :meth:`~O2MProxy.edit` methods. These would
-    normally be used as context managers since they get saved in the parent
-    record::
-
-        with Form(so) as f3:
-            f.partner_id = a_partner
-            # add support
-            with f3.order_line.new() as line:
-                line.product_id = env.ref("product.product_product_2")
-            # add a computer
-            with f3.order_line.new() as line:
-                line.product_id = env.ref("product.product_product_3")
-            # we actually want 5 computers
-            with f3.order_line.edit(1) as line:
-                line.product_uom_qty = 5
-            # remove support
-            f3.order_line.remove(index=0)
-            # SO is saved here
-
-    :param record: empty or singleton recordset. An empty recordset will put
-                   the view in "creation" mode from default values, while a
-                   singleton will put it in "edit" mode and only load the
-                   view's data.
-    :param view: the id, xmlid or actual view object to use for onchanges and
-                 view constraints. If none is provided, simply loads the
-                 default view for the model.
-
-    .. versionadded:: 12.0
-    """
-
     def __init__(
-        self, record: BaseModel, view: None | int | str | BaseModel = None
+        self, record: BaseModel, view: int | str | BaseModel | None = None
     ) -> None:
         assert isinstance(record, BaseModel)
         assert len(record) <= 1
@@ -183,11 +96,6 @@ class Form:
         return cls(record, view_id)
 
     def _process_view(self, tree: Any, model: BaseModel, level: int = 2) -> dict:
-        """Post-process a view tree to augment view_get with:
-        * an id field (may not be present if not in the view but needed)
-        * pre-processed modifiers
-        * pre-processed onchanges list
-        """
         fields = {"id": {"type": "id"}}
         fields_spec = {}
         modifiers = {"id": {"required": "False", "readonly": "True"}}
@@ -288,7 +196,6 @@ class Form:
     def _get_one2many_edition_view(
         self, field_info: dict, node: Any, level: int
     ) -> dict:
-        """Return a suitable view for editing records into a one2many field."""
         submodel = self._env[field_info["relation"]]
 
         views = {view.tag: view for view in node.xpath("./*[descendant::field]")}
@@ -322,7 +229,6 @@ class Form:
         return f"<{type(self).__name__} {self._record}>"
 
     def _init_from_record(self) -> None:
-        """Initialize the form for an existing record."""
         assert self._record.id, "editing unstored records is not supported"
         self._values.clear()
 
@@ -334,7 +240,6 @@ class Form:
         self._values.update(values)
 
     def _init_from_defaults(self) -> None:
-        """Initialize the form for a new record."""
         vals = self._values
         vals["id"] = False
 
@@ -342,14 +247,6 @@ class Form:
         self._values._changed.update(self._view["fields"])
 
     def __getattr__(self, field_name: str) -> Any:
-        """Return the current value of the given field.
-
-        Names that cannot be view fields are refused with ``AttributeError``,
-        the exception every protocol probe expects. Routing them to
-        :meth:`__getitem__` made ``hasattr(form, x)`` raise ``AssertionError``
-        instead of returning ``False``, and turned any access on a half-built
-        form — whose ``_view`` is not set yet — into a ``RecursionError``.
-        """
         if field_name.startswith("_"):
             raise AttributeError(
                 f"{type(self).__name__!r} object has no attribute {field_name!r}"
@@ -357,7 +254,6 @@ class Form:
         return self[field_name]
 
     def __getitem__(self, field_name: str) -> Any:
-        """Return the current value of the given field."""
         field_info = self._view["fields"].get(field_name)
         assert field_info is not None, f"{field_name!r} was not found in the view"
 
@@ -372,11 +268,9 @@ class Form:
         return value
 
     def __setattr__(self, field_name: str, value: Any) -> None:
-        """Set the given field to the given value, and proceed with the expected onchanges."""
         self[field_name] = value
 
     def __setitem__(self, field_name: str, value: Any) -> None:
-        """Set the given field to the given value, and proceed with the expected onchanges."""
         field_info = self._view["fields"].get(field_name)
         assert field_info is not None, f"{field_name!r} was not found in the view"
         assert field_info["type"] != "one2many", (
@@ -427,7 +321,6 @@ class Form:
         return bool(safe_eval(expr, eval_context))
 
     def _get_context(self, field_name: str) -> dict:
-        """Return the context of a given field."""
         context_str = self._view["contexts"].get(field_name)
         if not context_str:
             return {}
@@ -435,7 +328,6 @@ class Form:
         return safe_eval(context_str, eval_context)
 
     def _get_eval_context(self, values: dict | None = None) -> dict:
-        """Return the context dict to eval something."""
         context = {
             "id": self._record.id,
             "active_id": self._record.id,
@@ -453,11 +345,9 @@ class Form:
         }
 
     def _get_all_values(self) -> dict:
-        """Return the values of all fields."""
         return self._get_values("all")
 
-    def __enter__(self) -> Form:
-        """Return the form for use as a context manager."""
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(
@@ -470,17 +360,6 @@ class Form:
             self.save()
 
     def save(self) -> BaseModel:
-        """Save the form (if necessary) and return the current record:
-
-        * does not save ``readonly`` fields;
-        * does not save unmodified fields (during edition) — any assignment
-          or onchange return marks the field as modified, even if set to its
-          current value.
-
-        When nothing must be saved, it simply returns the current record.
-
-        :raises AssertionError: if the form has any unfilled required field
-        """
         values = self._get_save_values()
         if not self._record or values:
             [record_values] = self._record.web_save(values, self._view["fields_spec"])
@@ -499,14 +378,10 @@ class Form:
 
     @property
     def record(self) -> BaseModel:
-        """Return the record being edited by the form. This attribute is
-        readonly and can only be accessed when the form has no pending changes.
-        """
         assert not self._values._changed
         return self._record
 
     def _get_save_values(self) -> dict:
-        """Validate and return field values modified since load/save."""
         return self._get_values("save")
 
     def _get_values(
@@ -517,15 +392,6 @@ class Form:
         modifiers_values: dict | None = None,
         parent_link: str | None = None,
     ) -> dict:
-        """Validate & extract values, recursively in order to handle o2ms properly.
-
-        :param mode: can be ``"save"`` (validate and return non-readonly modified fields),
-            ``"onchange"`` (return modified fields) or ``"all"`` (return all field values)
-        :param UpdateDict values: values of the record to extract
-        :param view: view info
-        :param dict modifiers_values: defaults to ``values``, but o2ms need some additional massaging
-        :param parent_link: optional field representing "parent"
-        """
         assert mode in ("save", "onchange", "all")
 
         if values is None:
@@ -611,7 +477,6 @@ class Form:
         return result
 
     def _perform_onchange(self, field_name: str | None = None) -> dict | None:
-        """Trigger the onchange for the given field (or an initial onchange if None) and apply results."""
         assert field_name is None or isinstance(field_name, str)
 
         if field_name:
@@ -663,17 +528,14 @@ class Form:
         return result
 
     def _get_onchange_values(self) -> dict:
-        """Return modified field values for onchange."""
         return self._get_values("onchange")
 
     def _apply_onchange(self, values: dict) -> None:
-        """Apply onchange result values to the form."""
-        self._apply_onchange_(self._values, self._view["fields"], values)
+        self._apply_onchange_values(self._values, self._view["fields"], values)
 
-    def _apply_onchange_(
+    def _apply_onchange_values(
         self, values: UpdateDict, fields: dict, onchange_values: dict
     ) -> None:
-        """Recursively apply onchange result values, handling x2many commands."""
         assert isinstance(values, UpdateDict)
         for fname, value in onchange_values.items():
             field_info = fields[fname]
@@ -690,11 +552,11 @@ class Form:
                                     dict.fromkeys(subfields, False), subfields
                                 )
                             )
-                            self._apply_onchange_(vals, subfields, cmd[2])
+                            self._apply_onchange_values(vals, subfields, cmd[2])
                             field_value.create(vals)
                         case Command.UPDATE:
                             vals = field_value.get_vals(cmd[1])
-                            self._apply_onchange_(vals, subfields, cmd[2])
+                            self._apply_onchange_values(vals, subfields, cmd[2])
                         case Command.DELETE | Command.UNLINK:
                             field_value.remove(cmd[1])
                         case Command.LINK:
@@ -710,7 +572,6 @@ class Form:
 
 class O2MForm(Form):
     def __init__(self, proxy: O2MProxy, index: int | None = None) -> None:
-        """Initialise an O2MForm from the given proxy, optionally editing an existing record at ``index``."""
         model = proxy._model
         object.__setattr__(self, "_proxy", proxy)
         object.__setattr__(self, "_index", index)
@@ -745,13 +606,11 @@ class O2MForm(Form):
         return super()._get_modifier(field_name, modifier, view=view, vals=vals)
 
     def _get_eval_context(self, values: dict | None = None) -> dict:
-        """Extend eval context with ``parent`` referencing the parent form's values."""
         eval_context = super()._get_eval_context(values)
         eval_context["parent"] = Dotter(self._proxy._form._values)
         return eval_context
 
     def _get_onchange_values(self) -> dict:
-        """Return onchange values, including the parent form's values for relational fields."""
         values = super()._get_onchange_values()
         field_info = self._proxy._field_info
         if "relation_field" in field_info:
@@ -763,7 +622,6 @@ class O2MForm(Form):
         return values
 
     def save(self) -> None:
-        """Save the sub-form into the parent one2many field."""
         proxy = self._proxy
         field_value = proxy._form._values[proxy._field]
         values = self._get_save_values()
@@ -776,7 +634,6 @@ class O2MForm(Form):
         proxy._form._perform_onchange(proxy._field)
 
     def _get_save_values(self) -> UpdateDict:
-        """Validate and return field values modified since load/save."""
         values = UpdateDict(self._values)
 
         for field_name in self._view["fields"]:
@@ -792,19 +649,15 @@ class O2MForm(Form):
 
 
 class UpdateDict(dict):
-    """A dict subclass that tracks which keys have been explicitly modified."""
-
     _changed: set
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Initialise, copying the ``_changed`` set from the source if it is also an ``UpdateDict``."""
         super().__init__(*args, **kwargs)
         self._changed = set()
         if args and isinstance(args[0], UpdateDict):
             self._changed.update(args[0]._changed)
 
     def __repr__(self) -> str:
-        """Return a representation marking modified keys with ``*``."""
         items = [
             f"{key!r}{'*' if key in self._changed else ''}: {val!r}"
             for key, val in self.items()
@@ -812,96 +665,74 @@ class UpdateDict(dict):
         return f"{{{', '.join(items)}}}"
 
     def changed_items(self) -> Generator[tuple]:
-        """Yield ``(key, value)`` pairs for all modified keys."""
         return ((k, v) for k, v in self.items() if k in self._changed)
 
     def update(self, *args: Any, **kw: Any) -> None:
-        """Update the dict, propagating ``_changed`` tracking from ``UpdateDict`` sources."""
         super().update(*args, **kw)
         if args and isinstance(args[0], UpdateDict):
             self._changed.update(args[0]._changed)
 
     def clear(self) -> None:
-        """Clear all items and reset the ``_changed`` tracking set."""
         super().clear()
         self._changed.clear()
 
 
 class X2MValue(collections.abc.Sequence):
-    """The value of a one2many field, with the API of a sequence of record ids."""
-
     _virtual_seq = itertools.count()
 
     __hash__ = None
 
     def __init__(self, iterable_of_vals: Any = ()) -> None:
-        """Initialise from an iterable of value dicts, keyed by their ``id``.
-
-        The initially given ids are recorded in ``_given`` so that
-        :meth:`to_commands` can derive link/unlink/delete commands.
-        """
         self._data: dict[Any, UpdateDict] = {
             vals["id"]: UpdateDict(vals) for vals in iterable_of_vals
         }
         self._given: list = list(self._data)
 
     def __repr__(self) -> str:
-        """Return a string representation of the internal data dict."""
         return repr(self._data)
 
     def __contains__(self, id_: Any) -> bool:
-        """Return True if ``id_`` is present in the value set."""
         return id_ in self._data
 
     def __getitem__(self, index: Any) -> Any:
-        """Return the id at the given index."""
         return list(self._data)[index]
 
     def __iter__(self) -> Iterator[Any]:
-        """Iterate over record ids."""
         return iter(self._data)
 
     def __len__(self) -> int:
-        """Return the number of records."""
         return len(self._data)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return list(self) == other
 
     def get_vals(self, id_: Any) -> UpdateDict:
-        """Return the ``UpdateDict`` of values for the record with the given ``id_``."""
         return self._data[id_]
 
     def add(self, id_: Any, vals: dict) -> None:
-        """Add or merge a record's values into the set."""
         if id_ in self._data:
             self._data[id_].update(vals)
             return
         self._data[id_] = UpdateDict(vals)
 
     def remove(self, id_: Any) -> None:
-        """Remove the record with the given ``id_`` (no-op if absent)."""
         self._data.pop(id_, None)
 
     def clear(self) -> None:
-        """Remove all records from the value set."""
         self._data.clear()
 
     def create(self, vals: dict) -> None:
-        """Add a new virtual (unsaved) record with the given values."""
         id_ = f"virtual_{next(self._virtual_seq)}"
         create_vals = UpdateDict(vals)
         create_vals._changed.update(vals)
         self._data[id_] = create_vals
 
     def update(self, id_: Any, changes: dict, changed: Any = ()) -> None:
-        """Apply ``changes`` to the record with the given ``id_``, marking ``changed`` keys as modified."""
         vals = self._data[id_]
         vals.update(changes)
         vals._changed.update(changed)
 
     def to_list_of_vals(self) -> list[UpdateDict]:
-        """Return all value dicts as a list."""
         return list(self._data.values())
 
     def _to_commands(
@@ -909,12 +740,6 @@ class X2MValue(collections.abc.Sequence):
         convert_values: Callable[[UpdateDict], Any],
         removal_command: Callable[[Any], Any],
     ) -> list:
-        """Derive ORM commands from the current state vs the given ids.
-
-        Virtual (unsaved) records become CREATE, ids added since load become
-        LINK, changed records become UPDATE, and ids removed since load
-        become ``removal_command`` (delete for o2m, unlink for m2m).
-        """
         given = set(self._given)
         result = []
         for id_, vals in self._data.items():
@@ -932,8 +757,6 @@ class X2MValue(collections.abc.Sequence):
 
 
 class O2MValue(X2MValue):
-    """The value of a one2many field, tracking the original set for generating ORM commands."""
-
     def to_commands(
         self, convert_values: Callable[[UpdateDict], Any] = lambda vals: vals
     ) -> list:
@@ -941,11 +764,8 @@ class O2MValue(X2MValue):
 
 
 class M2MValue(X2MValue):
-    """The value of a many2many field, tracking the original set for generating ORM commands."""
-
     @staticmethod
     def _convert_changed(vals: UpdateDict) -> dict:
-        """Serialise a record's changed values, recursing into nested x2m."""
         return {
             key: val.to_commands() if isinstance(val, X2MValue) else val
             for key, val in vals.changed_items()
@@ -956,16 +776,11 @@ class M2MValue(X2MValue):
 
 
 class X2MProxy:
-    """Proxy for an x2many field's value, exposing an API to add, remove or
-    edit its records rather than the value directly.
-    """
-
     _form: Form | None = None
     _field: str | None = None
     _field_info: dict | None = None
 
     def __init__(self, form: Form, field_name: str) -> None:
-        """Initialise the proxy for the given field on the given form."""
         self._form = form
         self._field = field_name
         self._field_info = form._view["fields"][field_name]
@@ -973,7 +788,6 @@ class X2MProxy:
 
     @property
     def ids(self) -> list:
-        """Return the list of record ids currently in the field."""
         return list(self._field_value)
 
     def _assert_editable(self) -> None:
@@ -986,15 +800,11 @@ class X2MProxy:
 
 
 class O2MProxy(X2MProxy):
-    """Proxy object for editing the value of a one2many field."""
-
     def __len__(self) -> int:
-        """Return the number of records in the one2many field."""
         return len(self._field_value)
 
     @property
     def _model(self) -> BaseModel:
-        """Return the co-model for this one2many field, with field context applied."""
         model = self._form._env[self._field_info["relation"]]
         context = self._form._get_context(self._field)
         if context:
@@ -1003,76 +813,41 @@ class O2MProxy(X2MProxy):
 
     @property
     def _records(self) -> list[UpdateDict]:
-        """Return the list of value dicts for all records in the field."""
         return self._field_value.to_list_of_vals()
 
     def new(self) -> O2MForm:
-        """Returns a :class:`Form` for a new
-        :class:`~odoo.fields.One2many` record, properly initialised.
-
-        The form is created from the list view if editable, or the field's
-        form view otherwise.
-
-        :raises AssertionError: if the field is not editable
-        """
         self._assert_editable()
         return O2MForm(self)
 
     def edit(self, index: int) -> O2MForm:
-        """Returns a :class:`Form` to edit the pre-existing
-        :class:`~odoo.fields.One2many` record.
-
-        The form is created from the list view if editable, or the field's
-        form view otherwise.
-
-        :raises AssertionError: if the field is not editable
-        """
         self._assert_editable()
         return O2MForm(self, index)
 
     def remove(self, index: int) -> None:
-        """Removes the record at ``index`` from the parent form.
-
-        :raises AssertionError: if the field is not editable
-        """
         self._assert_editable()
         self._field_value.remove(self._field_value[index])
         self._form._perform_onchange(self._field)
 
 
 class M2MProxy(X2MProxy, collections.abc.Sequence):
-    """Proxy object for editing the value of a many2many field.
-
-    Behaves as a :class:`~collections.abc.Sequence` of recordsets, can be
-    indexed or sliced to get the underlying recordsets.
-    """
-
     def __getitem__(self, index: Any) -> BaseModel:
-        """Return the record at the given index (or slice) as a recordset."""
         comodel_name = self._field_info["relation"]
         return self._form._env[comodel_name].browse(self._field_value[index])
 
     def __len__(self) -> int:
-        """Return the number of records in the many2many field."""
         return len(self._field_value)
 
     def __iter__(self) -> Iterator[BaseModel]:
-        """Iterate over records in the many2many field."""
         comodel_name = self._field_info["relation"]
         records = self._form._env[comodel_name].browse(self._field_value)
         return iter(records)
 
     def __contains__(self, record: Any) -> bool:
-        """Return True if ``record`` is present in the many2many field."""
         comodel_name = self._field_info["relation"]
         assert isinstance(record, BaseModel) and record._name == comodel_name
         return record.id in self._field_value
 
     def add(self, record: BaseModel) -> None:
-        """Adds ``record`` to the field, the record must already exist.
-
-        The addition will only be finalized when the parent record is saved.
-        """
         self._assert_editable()
         parent = self._form
         comodel_name = self._field_info["relation"]
@@ -1085,9 +860,6 @@ class M2MProxy(X2MProxy, collections.abc.Sequence):
             parent._perform_onchange(self._field)
 
     def remove(self, id: Any = None, index: int | None = None) -> None:
-        """Removes a record at a certain index or with a provided id from
-        the field.
-        """
         self._assert_editable()
         assert (id is None) ^ (index is None), "can remove by either id or index"
         if id is None:
@@ -1096,7 +868,6 @@ class M2MProxy(X2MProxy, collections.abc.Sequence):
         self._form._perform_onchange(self._field)
 
     def set(self, records: BaseModel) -> None:
-        """Set the field value to be ``records``."""
         self._assert_editable()
         comodel_name = self._field_info["relation"]
         assert isinstance(records, BaseModel) and records._name == comodel_name, (
@@ -1110,14 +881,12 @@ class M2MProxy(X2MProxy, collections.abc.Sequence):
             self._form._perform_onchange(self._field)
 
     def clear(self) -> None:
-        """Removes all existing records in the m2m"""
         self._assert_editable()
         self._field_value.clear()
         self._form._perform_onchange(self._field)
 
 
 def convert_read_to_form(values: dict, model_fields: dict) -> dict:
-    """Convert ``web_read`` field values to the internal form representation."""
     result = {}
     for fname, value in values.items():
         field_info = {"type": "id"} if fname == "id" else model_fields[fname]
@@ -1140,7 +909,6 @@ def convert_read_to_form(values: dict, model_fields: dict) -> dict:
 
 
 def _cleanup_from_default(type_: str, value: Any) -> Any:
-    """Normalise a default value for a given field type, converting falsy values and datetimes."""
     if not value:
         if type_ == "one2many":
             return O2MValue()
@@ -1160,7 +928,6 @@ def _cleanup_from_default(type_: str, value: Any) -> Any:
 
 
 def get_static_context(context_str: str) -> dict:
-    """Parse the given context string, and return the literal part of it."""
     context_ast = ast.parse(context_str.strip(), mode="eval").body
     assert isinstance(context_ast, ast.Dict)
     result = {}
@@ -1175,15 +942,11 @@ def get_static_context(context_str: str) -> dict:
 
 
 class Dotter:
-    """Simple wrapper for a dict where keys are accessed as readonly attributes."""
-
     __slots__ = ["__values"]
 
     def __init__(self, values: dict) -> None:
-        """Initialise the Dotter with the given dict."""
         self.__values = values
 
     def __getattr__(self, key: str) -> Any:
-        """Return the value for ``key``, wrapping nested dicts in another ``Dotter``."""
         val = self.__values[key]
         return Dotter(val) if isinstance(val, dict) else val

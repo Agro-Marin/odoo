@@ -5,11 +5,8 @@ from odoo.tools import mute_logger
 
 
 class TestORM(TransactionCase):
-    """test special behaviors of ORM CRUD functions"""
-
     @mute_logger("odoo.models")
     def test_access_deleted_records(self):
-        """Verify that accessing deleted records works as expected"""
         c1 = self.env["res.partner.category"].create({"name": "W"})
         c2 = self.env["res.partner.category"].create({"name": "Y"})
         c1.unlink()
@@ -33,7 +30,6 @@ class TestORM(TransactionCase):
 
     @mute_logger("odoo.models")
     def test_access_partial_deletion(self):
-        """Check accessing a record from a recordset where another record has been deleted."""
         Model = self.env["res.country"]
         display_name_field = Model._fields["display_name"]
         self.assertTrue(
@@ -63,7 +59,6 @@ class TestORM(TransactionCase):
 
     @mute_logger("odoo.models", "odoo.addons.base.models.ir_rule")
     def test_access_filtered_records(self):
-        """Verify that accessing filtered records works as expected for non-admin user"""
         p1 = self.env["res.partner"].create({"name": "W"})
         p2 = self.env["res.partner"].create({"name": "Y"})
         user = self.env["res.users"].create(
@@ -225,7 +220,6 @@ class TestORM(TransactionCase):
         self.assertTrue(user.share)
 
     def test_create_multi(self):
-        """create for multiple records"""
         vals_list = [{"name": name} for name in ("Foo", "Bar", "Baz")]
         vals_list[0]["email"] = "foo@example.com"
         for vals in vals_list:
@@ -271,23 +265,18 @@ class TestORM(TransactionCase):
 
 
 class TestInherits(TransactionCase):
-    """test the orm on models that use _inherits, e.g. res.users -> res.partner"""
-
     def test_default(self):
-        """`default_get` cannot return a dictionary or a new id"""
         defaults = self.env["res.users"].default_get(["partner_id"])
         if "partner_id" in defaults:
             self.assertIsInstance(defaults["partner_id"], (bool, int))
 
     def test_create(self):
-        """creating a user should automatically create a new partner"""
         partners_before = self.env["res.partner"].search([])
         user_foo = self.env["res.users"].create({"name": "Foo", "login": "foo"})
 
         self.assertNotIn(user_foo.partner_id, partners_before)
 
     def test_create_with_ancestor(self):
-        """creating a user with a specific 'partner_id' should not create a new partner"""
         partner_foo = self.env["res.partner"].create({"name": "Foo"})
         partners_before = self.env["res.partner"].search([])
         user_foo = self.env["res.users"].create(
@@ -301,7 +290,6 @@ class TestInherits(TransactionCase):
 
     @mute_logger("odoo.models")
     def test_read(self):
-        """inherited fields should be read without any indirection"""
         user_foo = self.env["res.users"].create({"name": "Foo", "login": "foo"})
         (user_values,) = user_foo.read()
         (partner_values,) = user_foo.partner_id.read()
@@ -311,7 +299,6 @@ class TestInherits(TransactionCase):
 
     @mute_logger("odoo.models")
     def test_copy(self):
-        """copying a user should automatically copy its partner, too"""
         user_foo = self.env["res.users"].create(
             {
                 "name": "Foo",
@@ -336,7 +323,6 @@ class TestInherits(TransactionCase):
 
     @mute_logger("odoo.models")
     def test_copy_with_ancestor(self):
-        """copying a user with 'parent_id' in defaults should not duplicate the partner"""
         user_foo = self.env["res.users"].create(
             {"login": "foo", "name": "Foo", "signature": "Foo"}
         )
@@ -371,7 +357,6 @@ class TestInherits(TransactionCase):
 
     @mute_logger("odoo.models")
     def test_write_date(self):
-        """modifying inherited fields must update write_date"""
         user = self.env.user
         write_date_before = user.write_date
 
@@ -387,16 +372,6 @@ class TestInherits(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestCompanyDependent(TransactionCase):
     def test_flush_stale_flat_cache_entry_not_nulled(self):
-        """Regression: a company-dependent field whose value lives only in a
-        stale flat cache entry (``{id: scalar}``, the layout used before
-        ``field_depends_context`` is populated) must not be flushed as SQL
-        ``NULL``, which silently clears the stored value.
-
-        ``Field.get_column_update``'s company-dependent branch skipped flat
-        entries unconditionally and returned ``None``. Mirrors the same defect
-        in the ``translate is True`` branch (see
-        ``test_translate.TestTranslationWrite.test_flush_stale_flat_cache_entry_not_nulled``).
-        """
         partner = self.env["res.partner"].create({"name": "Flat", "barcode": "BC-1"})
         field = partner._fields["barcode"]
         self.assertTrue(field.company_dependent, "barcode must be company_dependent")
@@ -436,21 +411,6 @@ class TestCompanyDependent(TransactionCase):
 
 
 class TestReadFormatPrefetch(TransactionCase):
-    """``_read_format`` must stay batched on a cold recordset.
-
-    Its scalar phase reads straight from the field cache and falls back to a
-    singleton record on a miss. That fallback was written assuming ``fetch()``
-    had already run -- true for :meth:`read`, but ``_read_format`` is also
-    called directly, and it advertises reading from cache "avoiding a query
-    when possible". On a cold recordset every record missed, and because the
-    singleton carried only its own id as prefetch, each one issued its own
-    ``WHERE id IN (<single id>)``: an N+1 growing with the recordset.
-
-    Only scalar fields were affected -- relational/html/translated ones take
-    the record phase, which iterates ``self`` and keeps its prefetch -- so the
-    assertions below deliberately use plain stored scalars.
-    """
-
     SCALARS = {"name", "active", "create_date"}
 
     def _cold(self, records):
@@ -471,7 +431,6 @@ class TestReadFormatPrefetch(TransactionCase):
             self._cold(many)._read_format(self.SCALARS)
 
     def test_read_format_matches_read(self):
-        """Batching must not change what is returned."""
         partners = self.env["res.partner"].create(
             [{"name": f"cmp {i}"} for i in range(5)]
         )
@@ -481,7 +440,6 @@ class TestReadFormatPrefetch(TransactionCase):
         self.assertEqual(from_read_format, from_read)
 
     def test_read_format_missing_record_still_dropped(self):
-        """A deleted record must still be skipped, not raise."""
         partners = self.env["res.partner"].create(
             [{"name": f"gone {i}"} for i in range(3)]
         )
@@ -491,12 +449,6 @@ class TestReadFormatPrefetch(TransactionCase):
         self.assertEqual([vals["id"] for vals in result], (partners - victim).ids)
 
     def test_read_format_on_new_records(self):
-        """In-memory records must still work.
-
-        The fallback's tuple-wrapped ``browse`` exists because
-        ``NewId.__bool__`` is False; widening its prefetch must not disturb
-        that, and a NewId never triggers a fetch anyway.
-        """
         Partner = self.env["res.partner"]
         new_records = Partner.new({"name": "new a"}) | Partner.new({"name": "new b"})
         result = new_records._read_format({"name"})
@@ -504,17 +456,6 @@ class TestReadFormatPrefetch(TransactionCase):
 
 
 class TestReadFormatMany2oneBatch(TransactionCase):
-    """``_read_format`` resolves a many2one column's access check once.
-
-    ``Many2one.convert_to_read`` hides a target the reader may not see, and it
-    used to ask per value. When the comodel's record rules are written on a
-    *search-defined* field the answer cannot come from the cache at all --
-    ``Domain._as_predicate`` falls through to ``_search_defined_predicate``,
-    which queries -- so reading such a many2one over N records cost N queries.
-    ``convert_to_read_multi`` asks once for the whole column; these tests pin
-    that it still answers exactly what the per-value path did.
-    """
-
     def _cold(self, records):
         records.env.flush_all()
         records.env.invalidate_all()
@@ -525,7 +466,6 @@ class TestReadFormatMany2oneBatch(TransactionCase):
         children = self.env["res.partner"].create(
             [{"name": f"batch child {i}", "parent_id": parent.id} for i in range(4)]
         )
-        # One with no parent at all, so the falsy branch is covered too.
         children |= self.env["res.partner"].create({"name": "batch orphan"})
 
         field = self.env["res.partner"]._fields["parent_id"]
@@ -538,7 +478,6 @@ class TestReadFormatMany2oneBatch(TransactionCase):
         )
 
     def test_batched_conversion_without_display_name(self):
-        """``load=None`` must still yield bare ids, and check nothing."""
         parent = self.env["res.partner"].create({"name": "bare parent"})
         children = self.env["res.partner"].create(
             [{"name": f"bare child {i}", "parent_id": parent.id} for i in range(3)]
@@ -547,7 +486,6 @@ class TestReadFormatMany2oneBatch(TransactionCase):
         self.assertEqual([row["parent_id"] for row in rows], [parent.id] * 3)
 
     def test_unreadable_target_is_still_hidden(self):
-        """The point of the check: a target the reader cannot see is `False`."""
         secret = self.env["res.partner"].create({"name": "SECRET BATCH PARENT"})
         visible = self.env["res.partner"].create({"name": "VISIBLE BATCH PARENT"})
         children = self.env["res.partner"].create(
@@ -556,7 +494,6 @@ class TestReadFormatMany2oneBatch(TransactionCase):
                 {"name": "batch visible child", "parent_id": visible.id},
             ]
         )
-        # A global rule (no groups) is ANDed for every non-superuser.
         self.env["ir.rule"].create(
             {
                 "name": "hide the secret batch parent",
@@ -580,12 +517,6 @@ class TestReadFormatMany2oneBatch(TransactionCase):
         self.assertEqual(by_name[children[1].id][0], visible.id)
 
     def test_missing_target_degrades_instead_of_raising(self):
-        """A value pointing at a row that is not there answers False.
-
-        The batch resolves access for the whole column at once, and a rule
-        evaluated in Python raises on a missing row rather than simply not
-        matching it -- so the batch has to fall back to asking per value.
-        """
         Partner = self.env["res.partner"]
         holder = Partner.create({"name": "holder"})
         ghost = Partner.browse(
@@ -600,19 +531,7 @@ class TestReadFormatMany2oneBatch(TransactionCase):
 
 
 class TestOrdinaryTableMemo(TransactionCase):
-    """``Registry.is_an_ordinary_table`` must survive a registry that grew."""
-
     def test_a_table_absent_from_the_memo_is_requeried(self):
-        """The memo used to be the bare result set of one bulk query over
-        ``self.models``, so a table absent from it was indistinguishable from a
-        table the query never covered.
-
-        A first call from a partially-loaded registry (129 of 342 models in a
-        ``--test-tags`` run) therefore froze "not an ordinary table" in for every
-        model set up afterwards, and exporting their ``ID`` column raised
-        ``You can not export the column ID ...``. Only ``init_models`` resets the
-        memo, so nothing recovered until the process restarted.
-        """
         registry = self.env.registry
         saved = registry._ordinary_tables
         try:
@@ -626,5 +545,4 @@ class TestOrdinaryTableMemo(TransactionCase):
             registry._ordinary_tables = saved
 
     def test_a_model_without_a_table_stays_negative(self):
-        """The re-query must not turn every miss into a positive answer."""
         self.assertFalse(self.env["ir.fields.converter"]._is_an_ordinary_table())

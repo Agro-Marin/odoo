@@ -45,7 +45,6 @@ class TestError(common.HttpCase):
             self.rpc("test_rpc.model_a", "filtered", ["id"])
 
     def test_01_create(self):
-        """Create: mandatory field not provided"""
         self.rpc("test_rpc.model_b", "create", {"name": "B1"})
         with (
             self.assertRaises(Fault) as ctx,
@@ -64,7 +63,6 @@ class TestError(common.HttpCase):
         self.assertIn("field 'Name' (name)", e.faultString)
 
     def test_02_delete(self):
-        """Delete: NOT NULL and ON DELETE RESTRICT constraints"""
         b1 = self.rpc("test_rpc.model_b", "create", {"name": "B1"})
         b2 = self.rpc("test_rpc.model_b", "create", {"name": "B2"})
         self.rpc(

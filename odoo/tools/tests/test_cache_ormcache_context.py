@@ -1,10 +1,3 @@
-"""Regression test for ``odoo.tools.cache.ormcache_context``.
-
-Applying the decorator must not crash: ``determine_key`` reads ``self.keys``,
-which ``__init__`` has to store.  This exercises decoration only (no registry),
-so it stays database-free.
-"""
-
 import unittest
 import warnings
 

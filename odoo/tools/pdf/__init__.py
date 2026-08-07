@@ -74,11 +74,12 @@ REGEX_SUBTYPE_UNFORMATED = re.compile(r"^\w+/[\w-]+$")
 REGEX_SUBTYPE_FORMATED = re.compile(r"^/\w+#2F[\w-]+$")
 
 
-PdfImagePlugin.__name__
+# Touching the plugin module forces Pillow to register its PDF handler; the
+# import alone is lazy and the registration would not have happened yet.
+_ = PdfImagePlugin.__name__
 
 
 def _unwrapping_get(self: Any, key: Any, default: Any = None) -> Any:
-    """Get a value from a DictionaryObject, unwrapping indirect references."""
     try:
         return self[key]
     except KeyError:
@@ -99,7 +100,6 @@ if hasattr(NameObject, "renumber_table"):
 
 class BrandedFileWriter(PdfWriter):
     def write_stream(self, *args: Any, **kwargs: Any) -> None:
-        """Write stream with Odoo metadata branding."""
         self.add_metadata(
             {
                 "/Creator": "Odoo",
@@ -113,13 +113,6 @@ PdfFileWriter = BrandedFileWriter
 
 
 def merge_pdf(pdf_data: list[bytes]) -> bytes:
-    """Merge a collection of PDF documents into one.
-
-    Attachments are not merged.
-
-    :param pdf_data: a list of PDF datastrings
-    :return: the merged PDF datastring
-    """
     writer = PdfFileWriter()
     for document in pdf_data:
         reader = PdfFileReader(io.BytesIO(document), strict=False)
@@ -132,11 +125,6 @@ def merge_pdf(pdf_data: list[bytes]) -> bytes:
 
 
 def fill_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> None:
-    """Fill in the form fields of a PDF.
-
-    :param writer: a PdfFileWriter object
-    :param form_fields: a dictionary of form fields to update in the PDF
-    """
 
     writer.set_need_appearances_writer()
 
@@ -146,13 +134,6 @@ def fill_form_fields_pdf(writer: PdfWriter, form_fields: dict[str, Any]) -> None
 
 
 def rotate_pdf(pdf: bytes) -> bytes:
-    """Rotate a PDF 90° clockwise into a new PDF.
-
-    Attachments are not copied.
-
-    :param pdf: a PDF to rotate
-    :return: the rotated PDF
-    """
     writer = PdfFileWriter()
     reader = PdfFileReader(io.BytesIO(pdf), strict=False)
     for page in range(len(reader.pages)):
@@ -165,13 +146,6 @@ def rotate_pdf(pdf: bytes) -> bytes:
 
 
 def to_pdf_stream(attachment) -> io.BytesIO | None:
-    """Get the byte stream of the attachment as a PDF.
-
-    Content is read through ``_unsized()``: under a ``bin_size`` context every
-    binary field of an ``ir.attachment`` reads back as a human size string, so
-    the image leg handed ``b"77.00 bytes"`` to PIL (``UnidentifiedImageError``)
-    and the emptiness guard passed on a row with no content at all.
-    """
     if attachment_raw := attachment._get_pdf_raw():
         return io.BytesIO(attachment_raw)
 
@@ -192,7 +166,6 @@ def to_pdf_stream(attachment) -> io.BytesIO | None:
 
 
 def extract_page(attachment, num_page=0) -> io.BytesIO | None:
-    """Extract a specific page from an attachment PDF."""
     pdf_stream = to_pdf_stream(attachment)
     if not pdf_stream:
         return None
@@ -211,14 +184,6 @@ def add_banner(
     logo: bool = False,
     thickness: float | object = SENTINEL,
 ) -> io.BytesIO:
-    """Add a banner in the upper-right corner of a PDF, optionally with Odoo's logo.
-
-    :param pdf_stream: The PDF stream where the banner will be applied.
-    :param text: The text to be displayed.
-    :param logo: Whether to display Odoo's logo in the banner.
-    :param thickness: The thickness of the banner (default: 2cm).
-    :return: The modified PDF stream.
-    """
     from reportlab.lib import colors
     from reportlab.lib.utils import ImageReader
     from reportlab.pdfgen import canvas
@@ -287,12 +252,6 @@ def add_banner(
 
 
 def reshape_text(text: str) -> str:
-    """Reshape and reverse text when it is entirely right-to-left (e.g. Arabic).
-
-    Direction is detected from Unicode bidirectional classes: the text is treated as
-    right-to-left when its first character is 'R' or 'AL' and no other character is 'L'.
-    See https://www.unicode.org/reports/tr9/#Bidirectional_Character_Types.
-    """
     if not text:
         return ""
     maybe_rtl_letter = text.lstrip()[:1] or " "
@@ -312,11 +271,6 @@ def reshape_text(text: str) -> str:
 
 
 class OdooPdfFileReader(PdfFileReader):
-    """Override of PdfFileReader to add management of multiple embedded files.
-
-    :raises NotImplementedError: if document is encrypted with an unsupported method.
-    """
-
     def get_attachments(self) -> Generator[tuple[str, bytes]]:
         if self.is_encrypted:
             self.decrypt("")
@@ -341,29 +295,20 @@ class OdooPdfFileReader(PdfFileReader):
                 self.trailer["/Root"].get("/Names", {}).get("/EmbeddedFiles", {})
             )
             if not embedded_files:
-                return []
+                return
             visited_nodes = set()
             yield from _traverse_nodes(embedded_files)
         except Exception:
-            return []
+            return
 
 
 class OdooPdfFileWriter(PdfFileWriter):
-    """Extended PdfFileWriter with Odoo-specific attachment and PDF/A support."""
-
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Initialise the writer with Odoo-specific attributes."""
         super().__init__(*args, **kwargs)
         self._reader: PdfReader | None = None
         self.is_pdfa: bool = False
 
     def format_subtype(self, subtype: str | None) -> str | None:
-        """Apply the correct format to the subtype.
-
-        It should take the form of "/xxx#2Fxxx". E.g. for "text/xml": "/text#2Fxml".
-
-        :param subtype: The mime-type of the attachment.
-        """
         if not subtype:
             return subtype
 
@@ -386,14 +331,6 @@ class OdooPdfFileWriter(PdfFileWriter):
         subtype: str | None = None,
         afrelationship: str = "/Data",
     ) -> None:
-        """Add an attachment to the PDF, respecting PDF/A rules.
-
-        :param name: The name of the attachment
-        :param data: The data of the attachment
-        :param subtype: The mime-type of the attachment. Required by PDF/A.
-        :param afrelationship: The relationship between the embedded file and
-            the PDF content. Required by PDF/A.
-        """
         valid_afrelationships = {
             "/Source",
             "/Data",
@@ -453,7 +390,6 @@ class OdooPdfFileWriter(PdfFileWriter):
         subtype: str | None = None,
         afrelationship: str = "/Data",
     ) -> None:
-        """Embed an Odoo ir.attachment record into the PDF."""
         assert attachment, "embed_odoo_attachment cannot be called without attachment."
         self.add_attachment(
             attachment.name,
@@ -463,7 +399,6 @@ class OdooPdfFileWriter(PdfFileWriter):
         )
 
     def clone_reader_document_root(self, reader: PdfReader) -> None:
-        """Clone the document root from a reader, preserving PDF/A headers."""
         super().clone_reader_document_root(reader)
         self._reader = reader
         stream = reader.stream
@@ -478,7 +413,6 @@ class OdooPdfFileWriter(PdfFileWriter):
             self._set_id(reader.trailer.get("/ID", None))
 
     def _set_id(self, pdf_id: Any) -> None:
-        """Set the PDF document ID in the trailer."""
         if not pdf_id:
             return
 
@@ -488,7 +422,6 @@ class OdooPdfFileWriter(PdfFileWriter):
             self._ID = pdf_id
 
     def convert_to_pdfa(self) -> None:
-        """Transform the opened PDF file into a PDF/A compliant file."""
         self._header = b"%PDF-1.7"
 
         pdf_id = ByteStringObject(md5(self._reader.stream.getvalue()).digest())
@@ -582,12 +515,6 @@ class OdooPdfFileWriter(PdfFileWriter):
         self.is_pdfa = True
 
     def add_file_metadata(self, metadata_content: bytes) -> None:
-        """Set the XMP metadata of the PDF, wrapping with necessary XMP header/footer.
-
-        Required for PDF/A compliance. Omitting them results in validation errors.
-
-        :param metadata_content: bytes of the metadata to add to the pdf.
-        """
         header = b'<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
         footer = b'<?xpacket end="w"?>'
         metadata = b"%s%s%s" % (header, metadata_content, footer)
@@ -605,15 +532,6 @@ class OdooPdfFileWriter(PdfFileWriter):
         self._root_object.update({NameObject("/Metadata"): metadata_object})
 
     def _create_attachment_object(self, attachment: dict[str, Any]) -> Any:
-        """Create a pypdf generic object representing an embedded file.
-
-        :param attachment: A dictionary containing:
-            * filename: The name of the file to embed (required)
-            * content:  The bytes of the file to embed (required)
-            * subtype: The mime-type of the file to embed (optional)
-            * afrelationship: The PDF/A AFRelationship of the file (optional, defaults to /Data)
-        :return: a reference to the created filespec object.
-        """
         file_entry = DecodedStreamObject()
         file_entry.set_data(attachment["content"])
         file_entry.update(

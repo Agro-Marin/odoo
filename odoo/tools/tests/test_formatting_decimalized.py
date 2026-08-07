@@ -1,10 +1,3 @@
-"""Regression tests for ``format_decimalized_number``'s unit-boundary rounding.
-
-The unit used to be chosen from the *unrounded* value, so a number that rounds
-up across the 1000 boundary kept the smaller unit: 999_999.9 became "1000k"
-rather than "1M".
-"""
-
 import unittest
 
 from odoo.tools.formatting import format_decimalized_number as fdn

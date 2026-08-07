@@ -19,10 +19,6 @@ def literal_eval(expr: str | bytes | ast.AST) -> object:
                 "ODOO_LIMIT_LITEVAL_BUFFER has to be an integer, defaulting to 100KiB"
             )
 
-    # bytes as well as str: literal_eval accepts both and parses them the same
-    # way, so checking only str left the cap trivially bypassable by passing the
-    # same payload encoded.  An already-parsed ast.AST has no source length to
-    # measure and never went through the parser here, so it is out of scope.
     if isinstance(expr, str | bytes) and len(expr) > buffer_size:
         msg = "expression can't exceed buffer limit"
         raise ValueError(msg)

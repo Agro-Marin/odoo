@@ -1,28 +1,3 @@
-"""ORM Hot Path Contract Tests.
-
-Focused regression tests for the implicit contracts that ORM hot paths
-depend on.  When optimizing Field.__get__, _read_format, mapped/filtered/
-sorted/grouped, write→flush→recompute, or create→cache, run this suite
-FIRST (~5-10s) to catch contract violations before the full 800+ test run.
-
-Each test class isolates one contract family.  Tests are deliberately
-simple — they don't test business logic, they test that the fast path
-produces the same result as the reference path.
-
-Run with::
-
-    ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
-        --test-tags 'hotpath_contracts' -u test_orm --stop-after-init --workers=0
-
-Contract families:
-    1. Field.__get__ — ACL, singleton, recompute, cache, fetch, PENDING
-    2. _read_format — Phase 1 (scalar) vs Phase 2 equivalence
-    3. Traversal — mapped/filtered/sorted/grouped fast path vs standard
-    4. write→flush — dirty tracking, flush correctness, deferred UPDATE
-    5. create→cache — cache population, PENDING for computed, modified()
-    6. Precondition API — ensure_computed, ensure_access, read_cache
-"""
-
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools.misc import PENDING, SENTINEL
@@ -30,17 +5,12 @@ from odoo.tools.misc import PENDING, SENTINEL
 
 @tagged("-standard", "hotpath_contracts")
 class TestFieldGetContracts(TransactionCase):
-    """Contract: Field.__get__ must return identical results whether using
-    the optimized closure path (_make_scalar_get) or the base Field.__get__.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Mixed = cls.env["test_orm.mixed"]
 
     def test_scalar_types_cache_hit(self):
-        """All scalar types return correct values from cache."""
         record = self.Mixed.create(
             {
                 "foo": "hello",
@@ -64,15 +34,6 @@ class TestFieldGetContracts(TransactionCase):
         self.assertEqual(record.lang, "en_US")
 
     def test_scalar_cache_hit_equals_cache_miss(self):
-        """Fast path (cache hit) must agree with the slow path (cache miss).
-
-        The per-type fast-path closure built by ``_make_scalar_get`` (e.g.
-        ``lambda v: v or 0``) and the type's ``convert_to_record`` are
-        hand-maintained in separate files with nothing enforcing they agree. A
-        cache-hit read uses the closure; a cache-miss read goes through
-        ``Field.__get__`` → ``convert_to_record``. This pins them together so a
-        change to one cannot silently diverge from the other.
-        """
         record = self.Mixed.create(
             {
                 "foo": "hello",
@@ -97,7 +58,6 @@ class TestFieldGetContracts(TransactionCase):
             )
 
     def test_scalar_none_to_falsy(self):
-        """None cache values convert to type-appropriate falsy defaults."""
         record = self.Mixed.create({})
         self.env.flush_all()
         record.invalidate_recordset()
@@ -111,7 +71,6 @@ class TestFieldGetContracts(TransactionCase):
         self.assertIs(record.moment, False)
 
     def test_empty_recordset_returns_falsy(self):
-        """__get__ on empty recordset returns type-appropriate falsy value."""
         empty = self.Mixed.browse()
         self.assertIs(empty.foo, False)
         self.assertIs(empty.truth, False)
@@ -119,7 +78,6 @@ class TestFieldGetContracts(TransactionCase):
         self.assertIs(empty.date, False)
 
     def test_multi_record_raises(self):
-        """__get__ on multi-record set raises ValueError (ensure_one)."""
         r1 = self.Mixed.create({"foo": "a"})
         r2 = self.Mixed.create({"foo": "b"})
         multi = r1 | r2
@@ -127,7 +85,6 @@ class TestFieldGetContracts(TransactionCase):
             _ = multi.foo
 
     def test_many2one_returns_recordset(self):
-        """Many2one __get__ returns a recordset, not a raw ID."""
         record = self.Mixed.create({})
         partner = record.currency_id
         if partner:
@@ -137,15 +94,12 @@ class TestFieldGetContracts(TransactionCase):
 
 @tagged("-standard", "hotpath_contracts")
 class TestFieldGetPending(TransactionCase):
-    """Contract: PENDING sentinel must never leak to callers of __get__."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Move = cls.env["test_orm.move"]
 
     def test_stored_computed_after_create(self):
-        """Stored computed fields return computed value, not PENDING."""
         move = self.Move.create({})
         self.env["test_orm.move_line"].create(
             {
@@ -157,7 +111,6 @@ class TestFieldGetPending(TransactionCase):
         self.assertIsNot(move.quantity, PENDING)
 
     def test_pending_evicted_on_read(self):
-        """If PENDING is in cache, __get__ evicts it and fetches real value."""
         move = self.Move.create({})
         self.env.flush_all()
 
@@ -170,14 +123,6 @@ class TestFieldGetPending(TransactionCase):
         self.assertIsInstance(value, int)
 
     def test_plain_m2o_never_caches_pending(self):
-        """Invariant behind the batch-read PENDING-guard (M5).
-
-        _RelationalMulti._get skips the per-record PENDING check unless the
-        field is_stored_computed; this is safe only if a plain (non-computed)
-        relational field never holds PENDING in its cache. Assert that
-        invariant: a plain many2one read through the batch path (mapped) never
-        materialises PENDING, and invalidation yields a clean miss, not PENDING.
-        """
         Line = self.env["test_orm.move_line"]
         field = Line._fields["move_id"]
         self.assertFalse(field.is_stored_computed)
@@ -201,17 +146,12 @@ class TestFieldGetPending(TransactionCase):
 
 @tagged("-standard", "hotpath_contracts")
 class TestReadFormatContracts(TransactionCase):
-    """Contract: _read_format Phase 1 (scalar fast path) must produce
-    identical output to Phase 2 (full singleton path) for the same data.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Mixed = cls.env["test_orm.mixed"]
 
     def _reference_read_format(self, records, fnames):
-        """Simulate Phase 2 (singleton) path for all fields."""
         result = []
         for record in records:
             vals = {"id": record.id}
@@ -222,7 +162,6 @@ class TestReadFormatContracts(TransactionCase):
         return result
 
     def test_scalar_phase1_matches_reference(self):
-        """Phase 1 scalar path matches reference singleton path."""
         records = self.Mixed.browse()
         for i in range(5):
             records |= self.Mixed.create(
@@ -257,7 +196,6 @@ class TestReadFormatContracts(TransactionCase):
                 )
 
     def test_none_values_phase1(self):
-        """Phase 1 correctly converts None to type-appropriate falsy values."""
         record = self.Mixed.create({})
         self.env.flush_all()
         record.invalidate_recordset()
@@ -271,7 +209,6 @@ class TestReadFormatContracts(TransactionCase):
         self.assertEqual(vals["count"], 0)
 
     def test_many2one_with_and_without_display_name(self):
-        """Many2one Phase 1 fast path (load=None) vs Phase 2 (load=_classic_read)."""
         record = self.Mixed.create({})
         self.env.flush_all()
         record.invalidate_recordset()
@@ -292,10 +229,6 @@ class TestReadFormatContracts(TransactionCase):
 
 @tagged("-standard", "hotpath_contracts")
 class TestTraversalContracts(TransactionCase):
-    """Contract: mapped/filtered/sorted/grouped fast paths must produce
-    identical results to the standard (non-fast) code path.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -323,13 +256,11 @@ class TestTraversalContracts(TransactionCase):
         self.env.flush_all()
 
     def test_mapped_scalar_fast_path(self):
-        """mapped('field') fast path matches lambda path for scalars."""
         fast = self.messages.mapped("priority")
         standard = [rec.priority for rec in self.messages]
         self.assertEqual(fast, standard)
 
     def test_mapped_scalar_with_none(self):
-        """mapped('field') handles None/False values correctly."""
         msg = self.Msg.create({"discussion": self.disc.id, "body": False})
         records = self.messages | msg
         fast = records.mapped("body")
@@ -337,19 +268,16 @@ class TestTraversalContracts(TransactionCase):
         self.assertEqual(fast, standard)
 
     def test_mapped_relational(self):
-        """mapped('m2o_field') returns a recordset for relational fields."""
         result = self.messages.mapped("discussion")
         self.assertTrue(hasattr(result, "_ids"))
         self.assertIn(self.disc.id, result.ids)
 
     def test_filtered_scalar_fast_path(self):
-        """filtered('field') fast path matches lambda path."""
         fast = self.messages.filtered("important")
         standard = self.messages.filtered(lambda r: r.important)
         self.assertEqual(fast._ids, standard._ids)
 
     def test_filtered_falsy_field(self):
-        """filtered('field') correctly excludes falsy values."""
         with_body = self.messages.filtered("body")
         self.assertEqual(len(with_body), len(self.messages))
 
@@ -359,26 +287,22 @@ class TestTraversalContracts(TransactionCase):
         self.assertNotIn(no_body.id, filtered.ids)
 
     def test_sorted_single_field(self):
-        """sorted('field') fast path matches standard sorted."""
         fast = self.messages.sorted("priority")
         standard = self.messages.sorted(key=lambda r: r.priority)
         self.assertEqual(fast._ids, standard._ids)
 
     def test_sorted_descending(self):
-        """sorted('field DESC') produces reversed order."""
         asc = self.messages.sorted("priority")
         desc = self.messages.sorted("priority DESC")
         self.assertEqual(asc._ids, tuple(reversed(desc._ids)))
 
     def test_sorted_with_nulls(self):
-        """sorted() handles None values without crashing."""
         msg = self.Msg.create({"discussion": self.disc.id})
         records = self.messages | msg
         result = records.sorted("body")
         self.assertEqual(len(result), len(records))
 
     def test_sorted_multi_field(self):
-        """sorted('field1, field2') produces correct composite order."""
         result = self.messages.sorted("important DESC, priority")
         important_ids = [r.id for r in result if r.important]
         [r.id for r in result if not r.important]
@@ -386,13 +310,12 @@ class TestTraversalContracts(TransactionCase):
         self.assertEqual(all_ids[: len(important_ids)], important_ids)
 
     def test_grouped_scalar(self):
-        """grouped('field') fast path matches standard grouped."""
         fast = self.messages.grouped("important")
         standard = {}
         for record in self.messages:
             key = record.important
             standard.setdefault(key, self.Msg.browse())
-            standard[key] = standard[key] | record
+            standard[key] |= record
 
         self.assertEqual(set(fast.keys()), set(standard.keys()))
         for key in fast:
@@ -405,10 +328,6 @@ class TestTraversalContracts(TransactionCase):
 
 @tagged("-standard", "hotpath_contracts")
 class TestWriteFlushContracts(TransactionCase):
-    """Contract: write() defers SQL, flush() produces correct DB state,
-    and the recompute→flush convergence loop terminates correctly.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -416,7 +335,6 @@ class TestWriteFlushContracts(TransactionCase):
         cls.Line = cls.env["test_orm.move_line"]
 
     def test_write_defers_sql(self):
-        """write() marks fields dirty without executing SQL."""
         move = self.Move.create({})
         self.env.flush_all()
 
@@ -428,7 +346,6 @@ class TestWriteFlushContracts(TransactionCase):
         self.assertTrue(core.has_dirty_field(field))
 
     def test_flush_writes_to_db(self):
-        """flush_all() writes dirty values to database."""
         move = self.Move.create({})
         self.env.flush_all()
         move.tag_repeat = 7
@@ -442,7 +359,6 @@ class TestWriteFlushContracts(TransactionCase):
         self.assertEqual(db_value, 7)
 
     def test_recompute_triggers_on_write(self):
-        """Writing to a dependency triggers recomputation of stored computed."""
         move = self.Move.create({})
         line = self.Line.create({"move_id": move.id, "quantity": 5})
         self.env.flush_all()
@@ -452,7 +368,6 @@ class TestWriteFlushContracts(TransactionCase):
         self.assertEqual(move.quantity, 15)
 
     def test_flush_convergence(self):
-        """Recomputation that dirties more fields converges (no infinite loop)."""
         tag = self.env["test_orm.multi.tag"].create({"name": "X"})
         move = self.Move.create({"tag_id": tag.id, "tag_repeat": 3})
         self.env.flush_all()
@@ -464,7 +379,6 @@ class TestWriteFlushContracts(TransactionCase):
         self.assertEqual(move.tag_string, "XX")
 
     def test_multiple_writes_batched(self):
-        """Multiple writes to same record batch into single flush."""
         move = self.Move.create({})
         self.env.flush_all()
 
@@ -482,10 +396,6 @@ class TestWriteFlushContracts(TransactionCase):
 
 @tagged("-standard", "hotpath_contracts")
 class TestCreateCacheContracts(TransactionCase):
-    """Contract: create() populates cache correctly, schedules recomputation
-    for stored computed fields, and triggers modified() for all fields.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -493,7 +403,6 @@ class TestCreateCacheContracts(TransactionCase):
         cls.Line = cls.env["test_orm.move_line"]
 
     def test_cache_populated_after_create(self):
-        """Stored fields are in cache immediately after create()."""
         move = self.Move.create({"tag_repeat": 5})
         field = self.Move._fields["tag_repeat"]
         field_cache = field._get_cache(self.env)
@@ -501,7 +410,6 @@ class TestCreateCacheContracts(TransactionCase):
         self.assertEqual(field_cache[move.id], 5)
 
     def test_computed_field_available_after_create(self):
-        """Stored computed fields are computable after create()."""
         move = self.Move.create({})
         self.Line.create({"move_id": move.id, "quantity": 7})
         val = move.quantity
@@ -509,7 +417,6 @@ class TestCreateCacheContracts(TransactionCase):
         self.assertIsNot(val, PENDING)
 
     def test_batch_create_cache(self):
-        """Batch create populates cache for all records."""
         moves = self.Move.create([{"tag_repeat": i} for i in range(5)])
         field = self.Move._fields["tag_repeat"]
         field_cache = field._get_cache(self.env)
@@ -517,7 +424,6 @@ class TestCreateCacheContracts(TransactionCase):
             self.assertIn(move.id, field_cache)
 
     def test_create_with_relational(self):
-        """create() with Many2one populates cache correctly."""
         tag = self.env["test_orm.multi.tag"].create({"name": "T"})
         move = self.Move.create({"tag_id": tag.id})
 
@@ -529,10 +435,6 @@ class TestCreateCacheContracts(TransactionCase):
 
 @tagged("-standard", "hotpath_contracts")
 class TestPreconditionAPI(TransactionCase):
-    """Contract: ensure_computed(), ensure_access(), read_cache() behave
-    as documented — these are the named contracts that fast paths rely on.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -541,7 +443,6 @@ class TestPreconditionAPI(TransactionCase):
         cls.Mixed = cls.env["test_orm.mixed"]
 
     def test_ensure_computed_triggers_recompute(self):
-        """ensure_computed() resolves pending recomputations."""
         move = self.Move.create({})
         self.Line.create({"move_id": move.id, "quantity": 12})
 
@@ -553,14 +454,12 @@ class TestPreconditionAPI(TransactionCase):
         self.assertIsNot(field_cache[move.id], PENDING)
 
     def test_ensure_computed_noop_for_non_computed(self):
-        """ensure_computed() is a no-op for plain stored fields."""
         move = self.Move.create({"tag_repeat": 5})
         field = self.Move._fields["tag_repeat"]
         field.ensure_computed(move)
         self.assertEqual(move.tag_repeat, 5)
 
     def test_read_cache_hit(self):
-        """read_cache() returns (True, value) on cache hit."""
         record = self.Mixed.create({"foo": "test"})
         self.env.flush_all()
         record.invalidate_recordset()
@@ -572,7 +471,6 @@ class TestPreconditionAPI(TransactionCase):
         self.assertEqual(value, "test")
 
     def test_read_cache_miss(self):
-        """read_cache() returns (False, SENTINEL) on cache miss."""
         record = self.Mixed.create({"foo": "test"})
         self.env.flush_all()
         record.invalidate_recordset()
@@ -583,7 +481,6 @@ class TestPreconditionAPI(TransactionCase):
         self.assertIs(value, SENTINEL)
 
     def test_read_cache_pending_is_miss(self):
-        """read_cache() treats PENDING as a cache miss."""
         move = self.Move.create({})
         self.env.flush_all()
 
@@ -598,15 +495,12 @@ class TestPreconditionAPI(TransactionCase):
 
 @tagged("-standard", "hotpath_contracts")
 class TestCacheInvariant(TransactionCase):
-    """Contract: cache invariants that all fast paths depend on."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Mixed = cls.env["test_orm.mixed"]
 
     def test_field_cache_memo_consistency(self):
-        """_field_cache_memo and _get_cache return the same dict object."""
         self.Mixed.create({"foo": "test"})
         field = self.Mixed._fields["foo"]
 
@@ -616,7 +510,6 @@ class TestCacheInvariant(TransactionCase):
             self.assertIs(cache_via_method, memo[field])
 
     def test_invalidate_clears_cache(self):
-        """invalidate_recordset removes values from field cache."""
         record = self.Mixed.create({"foo": "test"})
         self.env.flush_all()
         field = self.Mixed._fields["foo"]
@@ -627,7 +520,6 @@ class TestCacheInvariant(TransactionCase):
         self.assertNotIn(record.id, field_cache)
 
     def test_flush_clears_dirty(self):
-        """After flush_all(), no fields remain dirty."""
         record = self.Mixed.create({"foo": "initial"})
         self.env.flush_all()
 
@@ -642,10 +534,6 @@ class TestCacheInvariant(TransactionCase):
 
 @tagged("-standard", "hotpath_contracts")
 class TestModifiedTriggers(TransactionCase):
-    """Contract: modified() correctly schedules recomputation for
-    stored computed fields through the trigger tree.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -653,7 +541,6 @@ class TestModifiedTriggers(TransactionCase):
         cls.Line = cls.env["test_orm.move_line"]
 
     def test_o2m_dependency_triggers_parent(self):
-        """Modifying a One2many child triggers recompute on parent."""
         move = self.Move.create({})
         line = self.Line.create({"move_id": move.id, "quantity": 3})
         self.env.flush_all()
@@ -663,7 +550,6 @@ class TestModifiedTriggers(TransactionCase):
         self.assertEqual(move.quantity, 10)
 
     def test_adding_child_triggers_parent(self):
-        """Adding a new One2many child triggers recompute on parent."""
         move = self.Move.create({})
         self.Line.create({"move_id": move.id, "quantity": 5})
         self.env.flush_all()
@@ -673,7 +559,6 @@ class TestModifiedTriggers(TransactionCase):
         self.assertEqual(move.quantity, 13)
 
     def test_removing_child_triggers_parent(self):
-        """Unlinking a One2many child triggers recompute on parent."""
         move = self.Move.create({})
         self.Line.create({"move_id": move.id, "quantity": 5})
         line2 = self.Line.create({"move_id": move.id, "quantity": 8})
@@ -684,7 +569,6 @@ class TestModifiedTriggers(TransactionCase):
         self.assertEqual(move.quantity, 5)
 
     def test_related_field_propagation(self):
-        """Writing to related field source propagates through triggers."""
         tag = self.env["test_orm.multi.tag"].create({"name": "A"})
         move = self.Move.create({"tag_id": tag.id, "tag_repeat": 2})
         self.env.flush_all()
@@ -697,17 +581,12 @@ class TestModifiedTriggers(TransactionCase):
 
 @tagged("-standard", "hotpath_contracts")
 class TestReadFormatManyRecords(TransactionCase):
-    """Contract: _read_format handles batch reads correctly across
-    multiple records, ensuring no cross-contamination between records.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Mixed = cls.env["test_orm.mixed"]
 
     def test_batch_scalar_identity(self):
-        """Each record in a batch gets its own values, not another record's."""
         records = self.Mixed.create(
             [{"foo": f"name_{i}", "count": i * 10} for i in range(20)]
         )
@@ -725,7 +604,6 @@ class TestReadFormatManyRecords(TransactionCase):
             self.assertEqual(vals["count"], i * 10)
 
     def test_mixed_cache_hit_and_miss(self):
-        """_read_format handles mix of cached and uncached records."""
         records = self.Mixed.create([{"foo": f"name_{i}"} for i in range(5)])
         self.env.flush_all()
 

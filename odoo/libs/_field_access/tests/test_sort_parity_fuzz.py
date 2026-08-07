@@ -1,19 +1,3 @@
-"""Seeded fuzz parity between the Rust sort primitives and their Python oracle.
-
-``crates/odoo_rust/src/sort.rs`` routes each column either through the native
-decorate-sort-undecorate fast path (``Key::Int/Float/Str/Date``) or through the
-object-comparison FFI fallback, and its test-module docstring claims the split
-is "covered by Python-level tests (including a fuzz comparison against the
-pure-Python fallback)".  No such fuzz comparison existed — the handwritten
-cases in ``test_field_access.py`` cover ints and strings only, so the float,
-date and datetime fast paths (and every bailout edge: i64 overflow, NaN, -0.0
-ties, mixed int/float columns, astral-plane strings) had no parity coverage at
-all.  This suite is that fuzz comparison.
-
-Every trial is deterministic (seeded ``random.Random``), so a failure is
-reproducible from the printed trial tag alone.
-"""
-
 import random
 from datetime import UTC, date, datetime, timedelta, timezone
 
@@ -31,9 +15,6 @@ _PENDING = object()
 
 
 def _reference(ids, values, reverse, null_high):
-    """Independent CPython reference: the exact pattern ``_sorted_by_ids``
-    replaced, kept separate from ``_fallback`` so the oracle itself is checked
-    against something it did not copy-paste."""
     if null_high is None:
         pairs = sorted(
             zip(ids, values, strict=True), key=lambda p: p[1], reverse=reverse
@@ -50,8 +31,6 @@ def _reference(ids, values, reverse, null_high):
 
 
 def _int_column(rng, n):
-    # Heavy ties plus i64 boundary values (the boundary itself stays on the
-    # native path; crossing it bails to FFI — both must sort identically).
     pool = [0, 1, -1, 7, 2**63 - 1, -(2**63)]
     return [
         rng.choice(pool) if rng.random() < 0.7 else rng.randrange(-50, 50)
@@ -60,7 +39,6 @@ def _int_column(rng, n):
 
 
 def _bigint_column(rng, n):
-    # > i64 forces the FFI fallback for the whole column.
     return [rng.randrange(-(2**70), 2**70) for _ in range(n)]
 
 
@@ -73,8 +51,6 @@ def _float_column(rng, n):
 
 
 def _mixed_numeric_column(rng, n):
-    # int/float in one column: comparable in Python, kind-mismatch bailout in
-    # Rust — both orders must agree.
     return [rng.choice([0, 1, -3, 0.0, 2.5, -1.5, True]) for _ in range(n)]
 
 
@@ -148,7 +124,6 @@ def test_fuzz_parity_by_kind(kind):
                 assert (
                     sort_ids_by_values_py(ids, values, reverse, null_high) == expected
                 ), tag
-                # Fused cache-read variant must agree with the two-step one.
                 cache = dict(zip(ids, values, strict=True))
                 assert (
                     sort_ids_by_cache(cache, ids, _PENDING, reverse, null_high)
@@ -164,7 +139,7 @@ def test_incomparable_column_raises_like_python():
     ids = (0, 1)
     values = [1, "a"]
     with pytest.raises(TypeError):
-        sorted(values)  # the semantics being mirrored
+        sorted(values)
     with pytest.raises(TypeError):
         sort_ids_by_values(ids, values, False)
     with pytest.raises(TypeError):
@@ -172,8 +147,6 @@ def test_incomparable_column_raises_like_python():
 
 
 def test_none_without_null_handling_raises_like_python():
-    # null_high=None means "no null handling": None must fail comparison
-    # against ints exactly as CPython's sorted() does, not be silently ranked.
     ids = (0, 1, 2)
     values = [3, None, 1]
     with pytest.raises(TypeError):
@@ -192,13 +165,12 @@ def test_cache_miss_and_pending_return_none_in_both():
 
 
 def test_aware_datetimes_sort_by_instant_like_python():
-    # Same instant order, opposite wall-clock order.
-    early = datetime(2024, 1, 1, 23, 0, tzinfo=UTC)  # 23:00 UTC
+    early = datetime(2024, 1, 1, 23, 0, tzinfo=UTC)
     late = datetime(2024, 1, 2, 1, 0, tzinfo=timezone(timedelta(hours=5)))
-    assert late.timestamp() - early.timestamp() == -10800  # late is EARLIER
+    assert late.timestamp() - early.timestamp() == -10800
     ids = (10, 20)
     values = [early, late]
-    expected = _reference(ids, values, False, None)  # (20, 10) by instant
+    expected = _reference(ids, values, False, None)
     assert expected == (20, 10)
     assert sort_ids_by_values(ids, values, False) == expected
 

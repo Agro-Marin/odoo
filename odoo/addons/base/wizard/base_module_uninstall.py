@@ -26,7 +26,6 @@ class BaseModuleUninstall(models.TransientModel):
     )
 
     def _get_modules(self) -> Self:
-        """Return all the modules impacted by self."""
         return self.module_ids.downstream_dependencies(self.module_ids)
 
     @api.depends("module_ids", "show_all")
@@ -44,7 +43,6 @@ class BaseModuleUninstall(models.TransientModel):
         return modules.filtered("application")
 
     def _get_models(self) -> Any:
-        """Return the models (ir.model) to consider for the impact."""
         return self.env["ir.model"].search([("transient", "=", False)])
 
     @api.depends("module_ids")

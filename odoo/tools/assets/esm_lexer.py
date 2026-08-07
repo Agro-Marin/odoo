@@ -1,23 +1,3 @@
-"""Persistent es-module-lexer worker client for the assets pipeline.
-
-The regex export-extractor in ``esm_graph`` is corpus-validated but
-inherently approximate (it scans text, not syntax).  This module offers a
-spec-compliant alternative: a long-lived node subprocess running
-``es-module-lexer`` (``js/esm_lexer_worker.mjs``), spoken to over
-line-delimited JSON in strict request/response ping-pong.
-
-Callers treat it as best-effort: :func:`lex_module` returns ``None``
-whenever node is missing, the package isn't installed, the worker dies,
-times out, or the source doesn't lex — and the caller falls back to the
-regex path.  A worker that fails to *spawn* twice is disabled for the
-process lifetime (one log line, not one per module).
-
-One worker per server process (spawned lazily, guarded by a lock — the
-protocol is stateful ping-pong so requests must serialize).  POSIX-only:
-the read timeout uses ``select`` on the pipe, which Windows does not
-support for pipes; non-POSIX platforms simply use the regex path.
-"""
-
 import atexit
 import contextlib
 import json
@@ -44,23 +24,6 @@ _MAX_CONSECUTIVE_FAILURES = 2
 
 
 class _LexerWorker:
-    """One persistent worker subprocess.
-
-    Respawn-once per request: a worker that dies mid-request (OOM,
-    operator) is respawned and the request retried once.  A *spawn*
-    failure (no ``node`` on PATH, or ``OSError`` launching it) disables
-    the worker for the process immediately — the environment cannot run
-    it.  ``_MAX_CONSECUTIVE_FAILURES`` consecutive request failures
-    (timeout / EOF / desync) also disable it, so a present-but-broken
-    worker degrades the whole process to the regex path fast instead of
-    paying the per-request budget on every module.
-
-    I/O is deadline-bounded (``_write_all`` / ``_read_line``): the pipes
-    are non-blocking and every read/write is gated by ``select`` against
-    the request's wall-clock deadline, so a wedged worker can never block
-    a caller past ``_REQUEST_TIMEOUT_S``.
-    """
-
     def __init__(self) -> None:
         self._proc: subprocess.Popen | None = None
         self._counter = 0
@@ -92,7 +55,6 @@ class _LexerWorker:
         return proc
 
     def close(self) -> None:
-        """Shut down the worker from outside a request."""
         with self._lock:
             self._kill()
 
@@ -106,13 +68,6 @@ class _LexerWorker:
                 proc.wait(timeout=5)
 
     def _write_all(self, proc: subprocess.Popen, data: bytes, deadline: float) -> None:
-        """Write all of ``data`` to the worker's stdin before ``deadline``.
-
-        Non-blocking fd + ``select``: a worker that stopped reading (its
-        own stdout pipe full, or wedged) cannot block us past the budget,
-        unlike a plain ``stdin.write`` on a full pipe (~64 KB) which
-        blocks unbounded before ``select`` is ever reached.
-        """
         fd = proc.stdin.fileno()
         view = memoryview(data)
         while view:
@@ -131,15 +86,6 @@ class _LexerWorker:
             view = view[written:]
 
     def _read_line(self, proc: subprocess.Popen, deadline: float) -> str:
-        """Read one newline-terminated response before ``deadline``.
-
-        ``select`` only signals that SOME bytes are ready, not a whole
-        line, so a worker that emits a partial line then wedges would
-        block a plain ``readline`` forever.  Accumulate bytes until the
-        first ``\\n`` under the same wall-clock budget; bytes past it
-        (there should be none under strict ping-pong) are kept in
-        ``_inbuf`` for the next response.
-        """
         fd = proc.stdout.fileno()
         while True:
             newline = self._inbuf.find(b"\n")
@@ -161,7 +107,6 @@ class _LexerWorker:
             self._inbuf += chunk
 
     def request(self, src: str) -> dict[str, Any] | None:
-        """Lex one module source; ``None`` means "use the regex fallback"."""
         if self._disabled or os.name != "posix":
             return None
         with self._lock:
@@ -225,8 +170,7 @@ _cleanup_registered = False
 
 
 def _register_worker_cleanup() -> None:
-    """Register :func:`close_lexer_worker` for interpreter exit and server stop."""
-    global _cleanup_registered
+    global _cleanup_registered  # noqa: PLW0603  atexit hook must be registered exactly once
     if _cleanup_registered:
         return
     _cleanup_registered = True
@@ -244,26 +188,8 @@ def _register_worker_cleanup() -> None:
 
 
 def close_lexer_worker() -> None:
-    """Shut down the persistent node worker if one is running.
-
-    The worker is deliberately long-lived (spawning node per module would cost
-    more than the lexing), but it is a child of the Odoo process, so anything
-    that audits leftover children sees it. ``BaseCase`` does exactly that at
-    class teardown and logged "A child process was found, terminating it:
-    node-MainThread" once per browser-test class; call this first, like
-    ``close_sass_compiler``, so the worker is stopped by its owner rather than
-    reported as a leak.
-    """
     _worker.close()
 
 
 def lex_module(src: str) -> dict[str, Any] | None:
-    """Lex one ES module source through the persistent worker.
-
-    :param src: JS source text
-    :return: ``{"names": [...], "hasDefault": bool, "starFrom": [...],
-        "imports": [{"n": spec, "kind": "named|default|star|side"}]}``,
-        or ``None`` when unavailable — callers MUST fall back to the
-        regex extractor.
-    """
     return _worker.request(src)

@@ -1,14 +1,3 @@
-"""Regression: ``filtered("m2o_field")`` must not drop new records.
-
-A many2one caches the comodel id — for an unsaved record that is a ``NewId``,
-whose ``__bool__`` is False while the field VALUE is a truthy one-record
-recordset.  The raw-truthiness cache scan therefore disagreed with the
-callable form ``filtered(lambda r: r.parent_id)``.  Relational fields are now
-excluded from the raw scan by the shared eligibility predicate
-(``models/mixins/_cache_scan.can_scan_truthy``) and resolve per record via
-``__get__``.  Tier-2 suite: real ``import odoo``, no database.
-"""
-
 import sys
 
 import pytest

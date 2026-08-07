@@ -11,9 +11,6 @@ from odoo.addons.base.models.res_lang import LangData
 
 
 class TestFormatNumberPure(BaseCase):
-    """format_number is pure (registry-free): all locale conventions come from
-    the LangData argument, so it is DB-free unit-testable. (W2)"""
-
     EN = LangData(
         {"id": 1, "decimal_point": ".", "thousands_sep": ",", "grouping": "[3,0]"}
     )
@@ -99,8 +96,6 @@ class test_res_lang(TransactionCase):
         assert intersperse("abc12", [1], ".") == ("abc1.2", 1)
 
     def test_format_scientific_notation_not_grouped(self):
-        """RL-L2: format() must not inject a thousands separator into the
-        exponent of scientific-notation output when grouping=True."""
         lang = self.env["res.lang"]._activate_lang("en_US")
         self.assertEqual(lang.format("%g", 1e20, grouping=True), "1e+20")
         self.assertEqual(lang.format("%g", 1e7, grouping=True), "1e+07")
@@ -112,7 +107,6 @@ class test_res_lang(TransactionCase):
         self.assertEqual(lang.format("%d", 1234567, grouping=True), "1,234,567")
 
     def test_format_indian_grouping(self):
-        """RL-T1: Indian grouping [3,2,0] groups as 1,23,45,678."""
         lang = self.env["res.lang"]._activate_lang("en_US")
         lang.grouping = "[3,2,0]"
         self.assertEqual(lang.format("%d", 12345678, grouping=True), "1,23,45,678")
@@ -121,13 +115,11 @@ class test_res_lang(TransactionCase):
         )
 
     def test_format_negative_grouping(self):
-        """RL-T1: negative values keep the minus sign and group correctly."""
         lang = self.env["res.lang"]._activate_lang("en_US")
         self.assertEqual(lang.format("%.2f", -1234.5, grouping=True), "-1,234.50")
         self.assertEqual(lang.format("%d", -1234567, grouping=True), "-1,234,567")
 
     def test_format_bad_spec_raises(self):
-        """RL-T1: a spec not starting with '%' raises ValueError."""
         lang = self.env["res.lang"]._activate_lang("en_US")
         with self.assertRaises(ValueError):
             lang.format("d", 1234)
@@ -135,7 +127,6 @@ class test_res_lang(TransactionCase):
             lang.format("", 1234)
 
     def test_create_lang_grouping_normalisation(self):
-        """RL-T2: an out-of-Selection libc grouping coerces to '[3,0]'."""
         ResLang = self.env["res.lang"]
         grouping_options = {v for v, _label in ResLang._fields["grouping"].selection}
         normalised = str([3, 0]).replace(" ", "")
@@ -148,9 +139,6 @@ class test_res_lang(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.res_lang")
     def test_create_lang_resets_process_locale(self):
-        """RL-C1: _create_lang mutates the process-global locale in a serialized
-        window (_LOCALE_LOCK) and must always restore it, even when the requested
-        locale is unavailable on the platform."""
         tools.translate.resetlocale()
         before = locale.setlocale(locale.LC_ALL)
         lang = self.env["res.lang"]._create_lang("xx_XX", "Locale Window Test")
@@ -169,10 +157,6 @@ class test_res_lang(TransactionCase):
         )
 
     def test_copy_lang_codes_are_url_safe_and_unique(self):
-        """RL-B3: copying a language must not push the translated '(copy)' suffix
-        into 'code' (frozen by write()) or 'url_code' (routing-facing, unique):
-        both get an untranslated URL-safe suffix with a counter, while 'name'
-        keeps the translated suffix."""
         lang = self.env["res.lang"]._activate_lang("en_US")
         copy1 = lang.copy()
         self.assertEqual(copy1.name, f"{lang.name} (copy)")
@@ -287,12 +271,6 @@ class test_res_lang(TransactionCase):
 
 
 class TestResLangUnsavedRecord(TransactionCase):
-    """flag_image_url must not assume `code` is set.
-
-    `code` is required, so it is only ever empty on an unsaved record -- but the
-    compute then did `lang.code.lower()` on False and raised AttributeError.
-    """
-
     def test_flag_image_url_on_unsaved_record(self):
         lang = self.env["res.lang"].new({})
         self.assertFalse(lang.flag_image_url)
@@ -303,14 +281,6 @@ class TestResLangUnsavedRecord(TransactionCase):
 
 
 class TestFlagImageUrlDoesNotLoadImages(TransactionCase):
-    """The URL compute asks whether a flag exists, so it must not read one.
-
-    ``flag_image`` is an attachment-backed Image and ``flag_image_url`` is in
-    ``CACHED_FIELDS``, so reading the payload to answer a yes/no fetched and
-    base64-encoded every active language's image on each cold warm-up of the
-    language cache.
-    """
-
     PNG_1X1 = (
         b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
         b"z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="

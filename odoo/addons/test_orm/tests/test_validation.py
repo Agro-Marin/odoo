@@ -1,9 +1,3 @@
-"""Characterization tests for ORM validation functions.
-
-These tests lock down the current behavior of validation.py so that
-refactoring (Phase 2: code quality) doesn't accidentally change semantics.
-"""
-
 from odoo.exceptions import AccessError, ValidationError
 from odoo.orm.validation import (
     check_method_name,
@@ -15,8 +9,6 @@ from odoo.tests.common import TransactionCase
 
 
 class TestCheckObjectName(TransactionCase):
-    """Test model name validation — returns bool (not exception)."""
-
     def test_valid_dotted_name(self):
         self.assertTrue(check_object_name("res.partner"))
 
@@ -39,53 +31,32 @@ class TestCheckObjectName(TransactionCase):
         self.assertFalse(check_object_name(""))
 
     def test_rejects_lone_dot(self):
-        """Regression: previous regex ``[a-z0-9_.]+`` matched a single dot."""
         self.assertFalse(check_object_name("."))
         self.assertFalse(check_object_name(".."))
         self.assertFalse(check_object_name("..."))
 
     def test_rejects_leading_dot(self):
-        """Regression: previously accepted ``'.res.partner'``."""
         self.assertFalse(check_object_name(".res"))
         self.assertFalse(check_object_name(".res.partner"))
 
     def test_rejects_trailing_dot(self):
-        """Regression: previously accepted ``'res.partner.'``."""
         self.assertFalse(check_object_name("res."))
         self.assertFalse(check_object_name("res.partner."))
 
     def test_rejects_consecutive_dots(self):
-        """Regression: previously accepted ``'res..partner'``."""
         self.assertFalse(check_object_name("res..partner"))
         self.assertFalse(check_object_name("a..b..c"))
 
     def test_rejects_leading_digit(self):
-        """The FIRST segment must start with a letter or underscore (it
-        prefixes the generated PostgreSQL table name, an SQL identifier
-        which forbids digit-leading names).  Subsequent segments may
-        start with a digit because they only join into the table name
-        via ``_`` — e.g. ``l10n_us.1099_box`` → table ``l10n_us_1099_box``.
-        """
         self.assertFalse(check_object_name("1invalid"))
         self.assertTrue(check_object_name("res.1invalid"))
 
     def test_accepts_leading_underscore(self):
-        """Underscore is allowed as a segment start (matches PG identifier rules)."""
         self.assertTrue(check_object_name("_internal"))
         self.assertTrue(check_object_name("module._internal"))
 
 
 class TestRegistrationValidatorsSurviveOptO(TransactionCase):
-    """Registration-time validators (``_validate_rec_name``,
-    ``_validate_active_name``, ``_build_table_objects``, ``add_to_registry``,
-    ``_init_model_class_attributes``, ``_prepare_setup``) used to be
-    ``assert`` statements that disappeared under ``python -O``.  They are
-    now ``raise TypeError`` so the contract holds at every optimization level.
-
-    These tests call the helpers with intentionally malformed inputs and
-    expect a ``TypeError`` regardless of ``__debug__``.
-    """
-
     def test_validate_rec_name_rejects_unknown_field(self):
         from odoo.orm.registration import _validate_rec_name
 
@@ -132,20 +103,12 @@ class TestRegistrationValidatorsSurviveOptO(TransactionCase):
             _validate_active_name(cls)
 
     def test_add_to_registry_rejects_non_definition(self):
-        """``add_to_registry`` must reject a non-MetaModel input even under -O."""
         from odoo.orm.registration import add_to_registry
 
         with self.assertRaises(TypeError):
             add_to_registry(self.env.registry, type("NotAModel", (), {}))
 
     def test_setup_detects_circular_inherits(self):
-        """``_setup`` must raise on a circular ``_inherits`` chain rather
-        than recursing until Python's stack overflows.
-
-        Simulates the cycle by calling ``_setup`` on a class whose
-        ``_setup_in_progress__`` marker is already set (the same condition
-        the recursion would create at runtime).
-        """
         from odoo.orm.registration import _setup
 
         cls = self.env.registry["res.partner"]
@@ -162,8 +125,6 @@ class TestRegistrationValidatorsSurviveOptO(TransactionCase):
 
 
 class TestRaiseOnInvalidObjectName(TransactionCase):
-    """Test the exception-raising wrapper."""
-
     def test_valid_name_no_error(self):
         raise_on_invalid_object_name("res.partner")
 
@@ -173,8 +134,6 @@ class TestRaiseOnInvalidObjectName(TransactionCase):
 
 
 class TestCheckPgName(TransactionCase):
-    """Test PostgreSQL identifier validation — raises ValidationError."""
-
     def test_valid_simple(self):
         check_pg_name("my_table")
 
@@ -206,8 +165,6 @@ class TestCheckPgName(TransactionCase):
 
 
 class TestCheckMethodName(TransactionCase):
-    """Test RPC method name validation — raises AccessError for private methods."""
-
     def test_public_method_allowed(self):
         check_method_name("read")
 
@@ -220,7 +177,6 @@ class TestCheckMethodName(TransactionCase):
             check_method_name("__dunder__")
 
     def test_init_blocked(self):
-        """The 'init' method is explicitly blocked for RPC."""
         with self.assertRaises(AccessError):
             check_method_name("init")
 
@@ -228,7 +184,5 @@ class TestCheckMethodName(TransactionCase):
         check_method_name("action_confirm_2")
 
     def test_private_with_embedded_newline_blocked(self):
-        """A private name with an embedded newline must still be rejected
-        (a regex anchored with ``$``/``.`` would let it slip through)."""
         with self.assertRaises(AccessError):
             check_method_name("_secret\nx")

@@ -1,21 +1,3 @@
-"""Prometheus exposition for the process's operational counters.
-
-:func:`odoo.db.pool_health` already produces everything an operator needs about
-the connection pools, and :class:`~odoo.db.stats.PoolStats` already shapes it for
-a scraper (monotonic totals to difference, ``le_`` histogram buckets).  What was
-missing was a way to *reach* it: the numbers were in-process only, so the
-questions they answer — is the budget approaching saturation, are borrows
-queueing, is the idle reaper churning — could only be asked from a shell.
-
-This module adds the two halves that were absent: the server/worker gauges the
-``service`` layer alone knows (which flavor is running, how many workers of each
-type are alive, how saturated the bounded HTTP thread pool is), and a renderer
-that emits both in the Prometheus text format.
-
-Naming follows the exposition conventions: ``odoo_`` prefix, base SI units,
-``_total`` suffix on monotonic counters, ``_bucket``/``le`` for the histogram.
-"""
-
 from __future__ import annotations
 
 import os
@@ -39,13 +21,6 @@ def _labels(pairs: dict[str, str]) -> str:
 
 
 class _Exposition:
-    """Accumulates metric families, emitting each ``HELP``/``TYPE`` header once.
-
-    ``base_labels`` are merged into every sample.  That is what carries the
-    ``pid`` — see :func:`render_prometheus` for why every series in this payload
-    needs one.
-    """
-
     def __init__(self, base_labels: dict[str, str] | None = None) -> None:
         self._lines: list[str] = []
         self._declared: set[str] = set()
@@ -72,18 +47,6 @@ class _Exposition:
 
 
 def service_metrics() -> dict[str, Any]:
-    """Server- and worker-level gauges only the service layer can report.
-
-    Reads the live server through :mod:`odoo.service.lifecycle`; returns
-    ``flavor="none"`` when called before ``start()`` has assigned one (a
-    ``--stop-after-init`` run, or a test importing the module), so a scrape can
-    never be the thing that fails.
-
-    HTTP saturation is counted from ``threading.enumerate()`` rather than the
-    bounded semaphore's private counter: handler threads already carry the
-    ``type`` attribute that ``ThreadedServer.process_limit`` keys on, so the
-    public signal is both available and the one the rest of the package trusts.
-    """
     from . import lifecycle
 
     server = lifecycle.server
@@ -205,11 +168,6 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
         if key in stats:
             exp.add(name, stats[key], help=help_text, labels=label)
 
-    # Top-level (not part of the PoolStats snapshot): the number
-    # max_connections is actually spent on.  Deliberately separate from
-    # budget_maxconn, which bounds concurrent *checkouts* only -- see
-    # ConnectionPool.health.  This is the series to alarm on for a
-    # multi-database process, and nothing exported it before.
     if "backends" in health:
         exp.add(
             "odoo_pool_backends",
@@ -257,27 +215,6 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
 
 
 def render_prometheus() -> str:
-    """Render this process's metrics in the Prometheus text exposition format.
-
-    Every series carries a ``pid`` label because every number here belongs to
-    ONE process.  Under prefork the master closes its pools and the workers
-    accept independently, so a scrape is answered by whichever worker won
-    ``accept(2)`` — without ``pid`` the same series name would carry a different
-    worker's counters on each scrape, and a monotonic counter that jumps
-    backwards reads to Prometheus as a process restart.  Labelled per pid, each
-    worker is its own correctly-monotonic series.
-
-    The consequence is worth stating plainly: this endpoint reports the SERVING
-    process, not the deployment.  A scrape samples one worker, so per-worker
-    series appear and vanish as workers recycle, and instance-wide totals must
-    be aggregated across pids (``sum by (pool) (odoo_pool_borrows_total)``) with
-    the usual caveat that a recycled worker's counter disappears.  A
-    ``workers = 0`` deployment has exactly one pid and none of this applies.
-
-    Never raises: a scrape that fails is a monitoring outage on top of whatever
-    it was meant to observe, so a subsystem that cannot report is simply absent
-    from the output.
-    """
     from odoo import db
 
     exp = _Exposition({"pid": str(os.getpid())})

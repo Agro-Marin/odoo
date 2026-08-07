@@ -1,11 +1,5 @@
-"""Pure-Python tests for UnitOfWork — no Odoo, no database required.
-
-Tests the convergence loop, stall detection, and dirty model ordering.
-Uses mock field objects with model_name/name attributes.
-"""
-
 import unittest
-from collections import namedtuple
+from typing import NamedTuple
 
 from odoo.orm.components.cache import FieldCache
 from odoo.orm.components.compute import ComputeEngine
@@ -16,17 +10,17 @@ from odoo.orm.components.unit_of_work import (
     UnitOfWork,
 )
 
-_MockField = namedtuple("_MockField", ["model_name", "name"])
+
+class _MockField(NamedTuple):
+    model_name: str
+    name: str
 
 
 def _field(model_name: str, name: str) -> _MockField:
-    """Create a mock field key with model_name and name attributes."""
     return _MockField(model_name, name)
 
 
 class TestDirtyModels(unittest.TestCase):
-    """Test dirty model inspection."""
-
     def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
@@ -64,8 +58,6 @@ class TestDirtyModels(unittest.TestCase):
 
 
 class TestRunRecomputeLoop(unittest.TestCase):
-    """Test the fixpoint recompute loop."""
-
     def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
@@ -90,7 +82,6 @@ class TestRunRecomputeLoop(unittest.TestCase):
         self.assertEqual(result.iterations, 1)
 
     def test_cascading_compute(self) -> None:
-        """Field B depends on A — computing A schedules B."""
         f_a = _field("m", "subtotal")
         f_b = _field("m", "total")
         self.engine.schedule(f_a, [1])
@@ -109,7 +100,6 @@ class TestRunRecomputeLoop(unittest.TestCase):
         self.assertEqual(result.iterations, 2)
 
     def test_max_iterations_non_convergent(self) -> None:
-        """Non-convergent compute triggers max iterations."""
         f = _field("m", "cycle")
         self.engine.schedule(f, [1])
         uow = UnitOfWork(self.cache, self.engine, max_iterations=3)
@@ -123,7 +113,6 @@ class TestRunRecomputeLoop(unittest.TestCase):
         self.assertEqual(result.iterations, 3)
 
     def test_only_real_ids_count(self) -> None:
-        """Fields with only falsy (new record) IDs don't count as pending."""
         f = _field("m", "total")
         self.engine.schedule(f, [0])
         result = self.uow.run_recompute_loop(lambda field: None)
@@ -132,8 +121,6 @@ class TestRunRecomputeLoop(unittest.TestCase):
 
 
 class TestRunFlushLoop(unittest.TestCase):
-    """Test the outer flush loop (recompute → flush → repeat)."""
-
     def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
@@ -165,7 +152,6 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertEqual(flushed_models, ["sale.order"])
 
     def test_flush_triggers_recompute(self) -> None:
-        """Flush can trigger new computations (via modified())."""
         f_amount = _field("sale.order", "amount")
         f_tax = _field("sale.order", "tax")
         self.cache.set_value(f_amount, 1, 100)
@@ -193,10 +179,6 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertEqual(flush_count[0], 2)
 
     def test_iterations_count_working_passes_only(self) -> None:
-        """LoopResult.iterations convention: passes that recomputed or flushed
-        count (fully or partially executed); the final nothing-to-do pass does
-        not. A pass whose inner recompute loop runs but that flushes nothing
-        must therefore count as one iteration."""
         f = _field("m", "total")
         self.engine.schedule(f, [1])
 
@@ -220,8 +202,6 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertEqual(result.iterations, 0)
 
     def test_iterations_count_flush_passes(self) -> None:
-        """Two flushing passes -> iterations == 2 (the closing empty pass is
-        not counted)."""
         f1 = _field("m", "a")
         f2 = _field("m", "b")
         self.cache.mark_dirty(f1, [1])
@@ -244,13 +224,6 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertEqual(result.iterations, 2)
 
     def test_converged_result_has_no_stalled_fields(self) -> None:
-        """A loop that stalls transiently then converges must not report stalls.
-
-        Regression: run_flush_loop set stalled_fields on a non-progress
-        iteration but never cleared them when it later converged via the
-        empty-dirty break, returning the inconsistent (converged=True,
-        stalled_fields=[...]) pair.
-        """
         f = _field("m", "a")
         self.cache.mark_dirty(f, [1, 2])
         calls = [0]
@@ -268,7 +241,6 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertEqual(result.stalled_fields, [])
 
     def test_recompute_non_convergence_propagates(self) -> None:
-        """If recompute loop doesn't converge, flush loop breaks early."""
         f = _field("m", "cycle")
         self.engine.schedule(f, [1])
         uow = UnitOfWork(self.cache, self.engine, max_iterations=3)
@@ -293,14 +265,7 @@ class TestRunFlushLoop(unittest.TestCase):
 
 
 class TestLoopExhaustionConsistency(unittest.TestCase):
-    """Loop exhaustion must report a consistent LoopResult."""
-
     def test_flush_exhaustion_with_pending_recompute_is_not_converged(self) -> None:
-        """A final flush that schedules a recompute must not report converged.
-
-        Otherwise ``flush_all`` returns success while the scheduled computation
-        was never run or persisted — silent data loss instead of RuntimeError.
-        """
         cache = FieldCache()
         engine = ComputeEngine()
         uow = UnitOfWork(cache, engine, max_iterations=3)
@@ -327,7 +292,6 @@ class TestLoopExhaustionConsistency(unittest.TestCase):
         self.assertIn("m.b", result.stalled_fields)
 
     def test_recompute_convergence_on_last_iteration_clears_stalled(self) -> None:
-        """Converging exactly on the final iteration must not keep stalled_fields."""
         cache = FieldCache()
         engine = ComputeEngine()
         uow = UnitOfWork(cache, engine, max_iterations=3)
@@ -347,8 +311,6 @@ class TestLoopExhaustionConsistency(unittest.TestCase):
 
 
 class TestStallDetection(unittest.TestCase):
-    """A cycle must fail after ``STALL_REPEATS`` passes, not ``max_iterations``."""
-
     def test_recompute_cycle_stops_long_before_the_cap(self) -> None:
         cache = FieldCache()
         engine = ComputeEngine()
@@ -369,7 +331,6 @@ class TestStallDetection(unittest.TestCase):
         self.assertEqual(result.iterations, SNAPSHOT_AFTER + STALL_REPEATS)
 
     def test_changing_pending_set_is_not_a_stall(self) -> None:
-        """A cascade whose pending map keeps changing runs to the cap."""
         cache = FieldCache()
         engine = ComputeEngine()
         uow = UnitOfWork(
@@ -421,8 +382,6 @@ class TestStallDetection(unittest.TestCase):
 
 
 class TestLoopResult(unittest.TestCase):
-    """Test LoopResult dataclass."""
-
     def test_defaults(self) -> None:
         r = LoopResult()
         self.assertEqual(r.iterations, 0)

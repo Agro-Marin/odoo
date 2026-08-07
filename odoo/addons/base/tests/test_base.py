@@ -93,16 +93,6 @@ class TestSafeEval(BaseCase):
         self.assertEqual(safe_eval("max(1, 2)", ctx), 2)
 
     def test_safe_eval_nested_lambda_not_cache_poisonable(self):
-        """A validated benign expression must not let a same-shaped malicious
-        one bypass the nested-lambda dunder check via the bytecode cache.
-
-        Regression: the validation cache was keyed on the parent
-        ``(co_code, co_names)`` only, which does not capture nested code
-        objects. Priming with ``[(lambda v: v.real)(x) for x in xs]`` then let
-        ``[(lambda v: v.__class__)(x) for x in xs]`` — byte-identical parent —
-        reuse the "validated" verdict and skip the nested ``__class__`` check,
-        reaching ``object`` (a sandbox escape).
-        """
         benign = "[(lambda v: v.real)(x) for x in [5]]"
         malicious = "[(lambda v: v.__class__)(x) for x in [5]]"
         escape = "[(lambda v: v.__class__.__bases__)(x) for x in [()]]"
@@ -124,7 +114,6 @@ class TestSafeEval(BaseCase):
         )
 
     def test_01_safe_eval(self):
-        """Try a few common expressions to verify they work with safe_eval"""
         expected = (1, {"a": 9 * 2}, (True, False, None))
         actual = safe_eval('(1, {"a": 9 * 2}, (True, False, None))')
         self.assertEqual(
@@ -134,7 +123,6 @@ class TestSafeEval(BaseCase):
         )
 
     def test_02_literal_eval(self):
-        """Try simple literal definition to verify it works with literal_eval"""
         expected = (1, {"a": 9}, (True, False, None))
         actual = ast.literal_eval('(1, {"a": 9}, (True, False, None))')
         self.assertEqual(
@@ -144,18 +132,15 @@ class TestSafeEval(BaseCase):
         )
 
     def test_03_literal_eval_arithmetic(self):
-        """Try arithmetic expression in literal_eval to verify it does not work"""
         with self.assertRaises(ValueError):
             ast.literal_eval('(1, {"a": 2*9}, (True, False, None))')
 
     def test_04_literal_eval_forbidden(self):
-        """Try forbidden expressions in literal_eval to verify they are not allowed"""
         with self.assertRaises(ValueError):
             ast.literal_eval('{"a": True.__class__}')
 
     @mute_logger("odoo.tools.safe_eval")
     def test_05_safe_eval_forbiddon(self):
-        """Try forbidden expressions in safe_eval to verify they are not allowed"""
         with self.assertRaises(ValueError):
             safe_eval('open("/etc/passwd","r")')
 
@@ -167,8 +152,6 @@ class TestSafeEval(BaseCase):
 
 
 class TestParentStore(TransactionCase):
-    """Verify that parent_store computation is done right"""
-
     def setUp(self):
         super().setUp()
 
@@ -184,7 +167,6 @@ class TestParentStore(TransactionCase):
         self.cat21 = category.create({"name": "Child 2-1", "parent_id": self.cat2.id})
 
     def test_duplicate_parent(self):
-        """Duplicate the parent category and verify that the children have been duplicated too"""
         new_cat0 = self.cat0.copy()
         new_struct = new_cat0.search([("parent_id", "child_of", new_cat0.id)])
         self.assertEqual(
@@ -204,7 +186,6 @@ class TestParentStore(TransactionCase):
         )
 
     def test_missing_parent(self):
-        """Missing parent id should not raise an error."""
         new_cat0 = self.cat0.copy()
         records = new_cat0.search([("parent_id", "parent_of", 999999999)])
         self.assertEqual(len(records), 0)
@@ -215,7 +196,6 @@ class TestParentStore(TransactionCase):
         self.assertEqual(len(records), 0)
 
     def test_missing_child(self):
-        """Missing child id should not raise an error."""
         new_cat0 = self.cat0.copy()
         records = new_cat0.search([("parent_id", "child_of", 999999999)])
         self.assertEqual(len(records), 0)
@@ -226,7 +206,6 @@ class TestParentStore(TransactionCase):
         self.assertEqual(len(records), 0)
 
     def test_duplicate_children_01(self):
-        """Duplicate the children then reassign them to the new parent (1st method)."""
         new_cat1 = self.cat1.copy()
         new_cat2 = self.cat2.copy()
         new_cat0 = self.cat0.copy({"child_ids": []})
@@ -249,7 +228,6 @@ class TestParentStore(TransactionCase):
         )
 
     def test_duplicate_children_02(self):
-        """Duplicate the children then reassign them to the new parent (2nd method)."""
         new_cat1 = self.cat1.copy()
         new_cat2 = self.cat2.copy()
         new_cat0 = self.cat0.copy(
@@ -273,7 +251,6 @@ class TestParentStore(TransactionCase):
         )
 
     def test_duplicate_children_03(self):
-        """Duplicate the children then reassign them to the new parent (3rd method)."""
         new_cat1 = self.cat1.copy()
         new_cat2 = self.cat2.copy()
         new_cat0 = self.cat0.copy({"child_ids": []})

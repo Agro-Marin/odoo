@@ -1,18 +1,3 @@
-"""esbuild subprocess layer for the assets pipeline (H2 split, Phase B).
-
-``EsbuildCompiler`` owns everything that talks to the esbuild binary:
-binary discovery, the per-process addon-path scan (``--alias`` /
-``--external`` flags), entry-point generation, option resolution, the
-subprocess invocation and output post-processing. It is env-free — the
-bundle taxonomy decisions (which bundles are ESM, which skip esbuild)
-stay in ``AssetsBundle``, which passes them in as booleans and exposes a
-thin ``esbuild_native_bundle`` wrapper for backward compatibility.
-
-Extracted verbatim from ``odoo.addons.base.models.assetsbundle``
-(2026-06-10); the only intentional changes are the seam parameters and
-the ``EsbuildResult`` return value documented on ``compile``.
-"""
-
 import contextlib
 import functools
 import glob
@@ -55,8 +40,6 @@ EXTERNAL_BARE_SPECIFIERS = frozenset(
 
 
 class EsbuildResult(NamedTuple):
-    """Outcome of one esbuild compilation."""
-
     code: str
     metafile: str | None
     sourcemap: str | None
@@ -64,7 +47,6 @@ class EsbuildResult(NamedTuple):
 
 @functools.cache
 def _find_esbuild() -> str | None:
-    """Locate the esbuild binary once per process (PATH, then node_modules)."""
     odoo_root = Path(odoo.__path__[0]).parent
     return shutil.which("esbuild") or shutil.which(
         "esbuild",
@@ -76,39 +58,6 @@ _TEMPLATE_LITERAL_TOKENS = re.compile(r"\\.|`|\$\{|\}", re.DOTALL)
 
 
 def has_nested_template_literal(source: str) -> bool:
-    """Whether *source* nests a template literal inside a ``${…}`` substitution.
-
-    This is the one JS construct rjsmin 1.2.5 mangles: it tracks the outer
-    literal but re-enters whitespace-collapsing mode inside the substitution,
-    so ```A${`B  ${1}  C`}D``` loses the inner literal's spaces. A plain
-    template literal — interpolated or not, multi-line or not — survives
-    rjsmin intact.
-
-    Deliberately conservative rather than a JS parser: a backtick inside a
-    string, a comment or a regex literal can desynchronise the depth stack, and
-    every such desync errs toward returning ``True``. A false positive costs
-    one esbuild subprocess; a false negative would ship corrupted JS.
-
-    Validated against acorn over every ``.js`` under all five addons roots
-    **as of 2026-07** (2158 files then held both a backtick and a ``${`` — the
-    condition this replaced; 35 MB; 2232 by 2026-08, so treat the absolute
-    counts as a dated sample, not a live invariant). Comparing the parsed
-    template-literal chunks of the
-    source against those of ``rjsmin(source)``: 49 flagged here, 11 of which
-    rjsmin genuinely alters (one, ``ol.js``, it renders unparseable),
-    **0 missed**. So 97.7% of those files keep the in-process minifier instead
-    of paying ~5 ms of subprocess each.
-
-    Do NOT re-validate by diffing ``esbuild --minify`` of both sides: that
-    reports differences which are not corruption at all — rjsmin drops
-    ``/** @license`` blocks that esbuild keeps, and its whitespace removal
-    changes esbuild's ``var`` statement-merging. Both produced false
-    "corrupted" verdicts on ``prism.js`` and ``three.module.js``. Compare
-    parsed template-literal chunks, which is the actual question.
-
-    :param source: JS source text
-    :return: whether rjsmin must be bypassed for this source
-    """
     if "`" not in source or "${" not in source:
         return False
     stack: list[str] = []
@@ -134,21 +83,6 @@ def has_nested_template_literal(source: str) -> bool:
 def minify_js(
     source: str, *, label: str = "<asset>", timeout_s: int = 60
 ) -> str | None:
-    """Minify one classic (non-module) JS source through esbuild.
-
-    Used by ``JavascriptAsset.minify`` for legacy concatenation members
-    that rjsmin cannot safely handle (rjsmin 1.2.5 corrupts NESTED
-    template literals). ``--loader=js`` with no format conversion keeps
-    classic-script/IIFE semantics; ``--legal-comments=inline`` mirrors
-    rjsmin's ``keep_bang_comments``.
-
-    :param source: JS source text
-    :param label: asset identifier, for logging only
-    :param timeout_s: subprocess budget; a hung binary must not pin a worker
-    :return: minified JS, or ``None`` when esbuild is unavailable, fails or
-        times out — the caller ships the source unminified (never an error)
-    :rtype: str | None
-    """
     esbuild_bin = _find_esbuild()
     if not esbuild_bin:
         log_event(_esbuild_log, logging.WARNING, "minify_no_binary", asset=label)
@@ -205,28 +139,6 @@ def minify_js(
 
 
 class EsbuildCompiler:
-    """Compile a bundle's native ES modules through the esbuild binary.
-
-    Stateless apart from the per-call ``_last_metafile`` /
-    ``_last_sourcemap`` captures folded into the ``EsbuildResult``; build
-    one instance per compilation (``AssetsBundle._make_esbuild_compiler``).
-
-    :param name: bundle name (logging + entry generation)
-    :param native_modules: assets exposing ``module_path`` / ``_filename``
-        / ``url`` / ``parsed_header`` (duck-typed ``JavascriptAsset``)
-    :param javascripts: legacy assets scanned for ``@odoo/*`` header
-        aliases
-    :param import_map_included: bundle rides a parent's import map —
-        skip esbuild entirely
-    :param skip_legacy_test_imports: bundle is an ``esm.import_map_includes``
-        parent — its ``static/tests`` files load lazily, not via esbuild
-    :param addon_flags_provider: ``f(odoo_root) -> (alias, externals)``
-        override; defaults to the class-level cached scan. Injection
-        point for tests (and the seam ``AssetsBundle`` routes through so
-        ``patch.object(AssetsBundle, "_get_esbuild_addon_flags", …)``
-        keeps working).
-    """
-
     def __init__(
         self,
         name: str,
@@ -239,7 +151,6 @@ class EsbuildCompiler:
         addon_flags_provider: Callable[[Path], tuple[list[str], list[str]]]
         | None = None,
     ) -> None:
-        """Capture the bundle state one compilation needs (see class doc)."""
         self.name = name
         self.native_modules = list(native_modules)
         self.javascripts = list(javascripts)
@@ -256,28 +167,10 @@ class EsbuildCompiler:
 
     @classmethod
     def invalidate_addon_scan_cache(cls) -> None:
-        """Clear the per-process esbuild addon-flag scan cache.
-
-        Call this when the filesystem layout under ``addons_path`` may
-        have changed since process start (new addon directory appearing
-        in an existing path entry).  The next call to
-        ``_get_esbuild_addon_flags`` will re-scan and rebuild the alias
-        and external flag lists.
-        """
         cls._esbuild_addon_scan_cache = None
 
     @classmethod
     def resolves_specifier(cls, spec: str) -> bool:
-        """Whether a production build resolves the bare specifier *spec*.
-
-        True when the specifier is covered by the pattern-level ``@odoo/*``
-        external flag, listed in :data:`EXTERNAL_BARE_SPECIFIERS` (left
-        verbatim for the browser's import map), or has a per-lib alias in
-        :attr:`_LIB_CANDIDATES` (inlined at build time).
-
-        :param spec: bare import specifier (e.g. ``@odoo/owl``)
-        :rtype: bool
-        """
         return (
             spec.startswith(EXTERNAL_SPECIFIER_PREFIX)
             or spec in EXTERNAL_BARE_SPECIFIERS
@@ -317,12 +210,6 @@ class EsbuildCompiler:
             "hoot-dom",
             "hoot_dom_utils.js",
         ),
-        # Bootstrap is Popper's only importer and uses a single entry point,
-        # which `popper_compat` reimplements over the in-house position
-        # engine. Bundles alias the SOURCE module so esbuild inlines it and
-        # follows its `@web/...` imports normally; the self-contained build
-        # under static/lib exists only for import-map pages (see
-        # ODOO_EXTERNAL_LIBS).
         "@popperjs/core": (
             "web",
             "static",
@@ -341,12 +228,6 @@ class EsbuildCompiler:
 
     @classmethod
     def _get_esbuild_addon_flags(cls, odoo_root: Path) -> tuple[list[str], list[str]]:
-        """Return ``(alias_flags, test_external_flags)`` for esbuild.
-
-        Derived from ``odoo.addons.__path__``; cached per process.  The
-        cache is keyed by the tuple of addon paths so that a test that
-        monkey-patches ``__path__`` still sees the fresh scan.
-        """
         from odoo.addons import __path__ as _addon_paths
 
         cache_key = tuple(_addon_paths)
@@ -417,56 +298,6 @@ class EsbuildCompiler:
         dynamic_child_specs: frozenset[str] | None = None,
         secondary_parent_stubs: dict[str, str] | None = None,
     ) -> EsbuildResult:
-        """Bundle native ESM modules into a single minified file using esbuild.
-
-        Generates an entry point that re-exports all native modules as
-        namespaces, runs esbuild to bundle + minify, and returns an
-        :class:`EsbuildResult` carrying the output JS plus the metafile
-        and sourcemap captures (``None`` when not produced). The bundled
-        file is a self-contained ES module that calls
-        ``registerNativeModules()`` to populate the module Map.
-
-        :param timeout_s: subprocess timeout (seconds).  Defaults to
-            ``_ESBUILD_TIMEOUT_S``; callers should pass the value from
-            ``ir.qweb._get_esbuild_setting("timeout_s", ...)``.
-        :param target: esbuild ``--target=<value>``.  Defaults to
-            ``_ESBUILD_TARGET``.  Allows admins to tighten or relax the
-            browser-support floor without a code change.
-        :param source_maps: ``"linked"`` to emit a sidecar ``.js.map``
-            plus a ``//# sourceMappingURL=`` comment in the bundle
-            pointing at it; ``"external"`` to emit the same sidecar
-            without that comment.  Both persist the map bytes to
-            ``self._last_sourcemap`` for the caller to write as a
-            sibling attachment.  ``"inline"`` embeds the source map as a
-            base64 data URL at the end of the bundle (no sidecar but
-            ~2x bundle size); ``""`` (default) skips source maps
-            entirely.  Unknown modes silently fall back to ``""`` — the
-            wrong mode would crash esbuild and we'd rather lose
-            debugging info than lose the bundle.
-        :param dynamic_child_specs: bare specifiers that ship with a
-            dynamic child bundle (e.g. lazy ``@web/views/...`` modules
-            loaded by an import-map bridge).  Each is added as a
-            ``--external:<spec>`` flag so esbuild does not inline them
-            into the parent bundle — at runtime they resolve against
-            the page's import map to the child bundle's registration.
-            ``None`` (default) skips this entirely.  Computed by
-            ``ir.qweb`` from the manifest-declared ``esm.dynamic_children``.
-        :param secondary_parent_stubs: ``{specifier: shim_js}`` for the
-            specifiers this bundle shares with its parent app bundle (only set
-            for ``secondary_import_map_includes`` bundles like
-            ``web.assets_tests``).  Each shim is written to a temp file and
-            wired as a MODULE-EXACT ``--alias`` (which beats the ``@addon``
-            package alias, so esbuild inlines the tiny shim instead of a SECOND
-            copy of ``@web/core/browser/browser`` / ``@web/core/registry`` / …).
-            The shim reads ``odoo.loader.modules.get(spec)`` at eval time —
-            the instance the parent app bundle registered — so the test bundle
-            and the running app share one object (the identity
-            ``patchWithCleanup(browser, …)`` and RPC's ``browser.fetch``
-            depend on).  Relies on the parent bundle evaluating FIRST
-            (app-before-tests document order).  ``None`` (default) skips it.
-
-        Requires esbuild (``npm install`` in the Odoo root).
-        """
         timeout_s, target, source_maps = self._esbuild_resolve_opts(
             timeout_s, target, source_maps
         )
@@ -586,13 +417,6 @@ class EsbuildCompiler:
         target: str | None,
         source_maps: str | None,
     ) -> tuple[int, str, str]:
-        """Resolve esbuild call options to concrete values.
-
-        Applies the class-constant defaults and validates ``source_maps``
-        (against ``_ESBUILD_SOURCE_MAP_MODES``) and ``target`` (against the
-        syntactic ``_ESBUILD_TARGET_TOKEN_RE``); an invalid value falls back
-        to the default rather than crashing esbuild on every build.
-        """
         if timeout_s is None:
             timeout_s = self._ESBUILD_TIMEOUT_S
         if target is None:
@@ -625,16 +449,6 @@ class EsbuildCompiler:
         return timeout_s, target, source_maps
 
     def _esbuild_entry_lines(self, odoo_root: Path) -> list[str]:
-        """Build the esbuild entry-point lines for this bundle's native modules.
-
-        Emits the ``@odoo/owl`` import, one namespace import per native module,
-        the ``registerNativeModules({...})`` call, and the
-        ``odoo.loader.modules.set(...)`` aliases for the hoot family.  The
-        caller joins these with newlines into the temp entry file.
-
-        Standalone bundles skip all of that page-context glue: the entry
-        imports each module purely for its side effects.
-        """
         if self._standalone:
             entry_lines = []
             for asset in self.native_modules:
@@ -687,14 +501,6 @@ class EsbuildCompiler:
         odoo_root: Path,
         dynamic_child_specs: frozenset[str] | None,
     ) -> tuple[list[str], list[str]]:
-        """Return ``(alias_flags, external_flags)`` for the esbuild invocation.
-
-        ``alias_flags`` = the process-cached addon/library aliases plus any
-        per-bundle ``@odoo/*`` aliases declared in this bundle's file headers.
-        ``external_flags`` = the cached test externals (minus this bundle's OWN
-        test files) followed by the per-call dynamic-child externals, in that
-        order.
-        """
         alias_flags, test_external_flags = self._addon_flags_provider(odoo_root)
         bundle_test_addons: set[str] = set()
         for asset in self.native_modules:
@@ -730,11 +536,6 @@ class EsbuildCompiler:
 
     @staticmethod
     def _purge_stale_fail_dumps(name: str) -> None:
-        """Remove this bundle's earlier ``esbuild_fail_<name>_*.js`` post-mortem
-        dumps from the temp dir. Without this, a persistently-broken bundle
-        writes a fresh ``delete=False`` dump on every retry and they accumulate
-        unbounded on long-lived servers; keeping only the newest per bundle
-        preserves the debugging value while bounding the footprint."""
         pattern = "esbuild_fail_" + glob.escape(name) + "_*.js"
         with contextlib.suppress(OSError):
             for stale in Path(tempfile.gettempdir()).glob(pattern):
@@ -748,12 +549,6 @@ class EsbuildCompiler:
         entry_text: str,
         _t0: float,
     ) -> None:
-        """Run esbuild with the entry piped on stdin; raise ``RuntimeError`` on failure.
-
-        On a non-zero exit, writes the entry to ``/tmp`` for post-mortem and
-        logs the failure (full stderr on its own line).  On timeout, logs and
-        raises.  Output is left in the ``--outfile`` for the caller to read.
-        """
         try:
             result = subprocess.run(
                 argv,
@@ -815,12 +610,6 @@ class EsbuildCompiler:
         entry_bytes: int,
         _t0: float,
     ) -> str:
-        """Read esbuild output, capture metafile/sourcemap, return bundle JS.
-
-        Sets ``self._last_metafile`` / ``self._last_sourcemap`` (best-effort),
-        rewrites the ``//# sourceMappingURL=`` directive to the final
-        attachment name in ``linked`` mode, and logs the ``bundled`` event.
-        """
         try:
             bundle_text = Path(out_path).read_text(encoding="utf-8")
         except OSError as out_err:

@@ -1,9 +1,8 @@
-"""Models registries."""
-
 import inspect
 import logging
 import threading
 import time
+import types
 import typing
 from collections import defaultdict, deque
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
@@ -96,11 +95,6 @@ per-database, same one failing test."""
 
 
 def _get_assertion_report(db_name: str) -> typing.Any:
-    """Return the per-database test report, or ``None`` outside test mode.
-
-    The single owner of the report's lifetime; see :data:`_ASSERTION_REPORTS`
-    for why it is not per-:class:`Registry`.
-    """
     if not config["test_enable"]:
         return None
     from odoo.tests.result import OdooTestResult
@@ -112,18 +106,6 @@ def _get_assertion_report(db_name: str) -> typing.Any:
 
 
 class _RegistryCaches:
-    """Owns a registry's ormcache LRU stores and their bulk-clear logic.
-
-    A :class:`Registry` holds one of these as ``registry._caches`` (composition,
-    not inheritance). It encapsulates the ``{cache_name: LRU}`` storage and the
-    composite-key clearing (``clear_group`` / ``clear_all``); the thread-local
-    dirty flags, inter-process sequences and signaling stay on ``Registry``.
-
-    The ormcache decorator (:mod:`odoo.tools.cache`) reads the backing LRU for a
-    cache name; ``Registry`` exposes it through its public
-    :attr:`~Registry.ormcache_lrus` property (a thin bridge over ``self.lrus``).
-    """
-
     __slots__ = ("lrus",)
 
     def __init__(self) -> None:
@@ -133,12 +115,10 @@ class _RegistryCaches:
         }
 
     def clear_group(self, cache_name: str) -> None:
-        """Clear every LRU backing the composite cache key ``cache_name``."""
         for cache in _CACHES_BY_KEY[cache_name]:
             self.lrus[cache].clear()
 
     def clear_all(self) -> None:
-        """Clear every LRU store (used on registry reload / model setup)."""
         for lru in self.lrus.values():
             lru.clear()
 
@@ -157,30 +137,10 @@ _UNACCENT_PROBE_RANGES = ((0x80, 0x3000), (0xFB00, 0xFB50), (0xFF00, 0xFF70))
 
 
 class _UnaccentTables:
-    """Per-database ``str.translate`` tables mirroring PostgreSQL's ``unaccent()``.
-
-    The Python half of the ``ilike`` fold used to be ``remove_accents``, an NFKD
-    strip.  ``unaccent()`` applies ``unaccent.rules``, which transliterates well
-    beyond NFKD, so the two disagreed on 895 of 9978 characters -- ``o/``, ``ae``,
-    ``ss``, ``l/``, ``d/``, ``oe``, thorn, rupee -- and
-    ``search([(f, 'ilike', v)])`` returned a different set from
-    ``records.filtered_domain([(f, 'ilike', v)])`` for ordinary Danish, German,
-    Polish and French text.  Deriving the table from the server keeps one
-    implementation instead of two that drift, and is 4-17x faster than the NFKD
-    strip it replaces (``str.translate`` short-circuits ASCII input).
-
-    Keyed by database rather than by process: the rules usually come from the
-    installation's ``unaccent.rules``, but ``ALTER TEXT SEARCH DICTIONARY
-    unaccent (RULES = ...)`` is per-database, so a process-wide table would be
-    an unstated assumption.  One ~30 ms probe per registry load, which happens
-    once per database per process.
-    """
-
     by_db: dict[str, dict[int, str]] = {}
 
 
 def _get_unaccent_table(cr: BaseCursor, db_name: str) -> dict[int, str]:
-    """Return (building once per database) the ``unaccent()`` translation table."""
     table = _UnaccentTables.by_db.get(db_name)
     if table is None:
         chars = [chr(c) for lo, hi in _UNACCENT_PROBE_RANGES for c in range(lo, hi)]
@@ -198,12 +158,10 @@ def _get_unaccent_table(cr: BaseCursor, db_name: str) -> dict[int, str]:
 
 
 def _identity(x: typing.Any) -> typing.Any:
-    """Return *x* unchanged (used when ``unaccent`` is not installed)."""
     return x
 
 
 def _unaccent_python(x: str, table: dict[int, str]) -> str:
-    """Apply the derived ``unaccent()`` mapping to *x*."""
     return x.translate(table)
 
 
@@ -212,18 +170,12 @@ class Registry(
     _RegistrySchemaMixin,
     Mapping[str, type["BaseModel"]],
 ):
-    """Model registry for a database: a mapping of model names to model classes.
-
-    One registry instance per database.
-    """
-
     _lock: threading.RLock | DummyRLock = threading.RLock()
 
     registries = LRU[str, "Registry"](42)
     """A mapping from database names to registries."""
 
     def __new__(cls, db_name: str):
-        """Return the registry for the given database name."""
         if not db_name:
             raise ValueError("Missing database name")
         reg = cls.registries.get(db_name)
@@ -253,28 +205,6 @@ class Registry(
         new_db_demo: bool | None = None,
         models_to_check: set[str] | None = None,
     ) -> Registry:
-        """Create and return a new registry for the given database name.
-
-        :param db_name: The name of the database to associate with the Registry instance.
-        :param update_module: If ``True``, update modules while loading the registry. Defaults to ``False``.
-        :param install_modules: Names of modules to install.
-
-          * If a specified module is **not installed**, it and all of its direct and indirect
-            dependencies will be installed.
-
-          Defaults to an empty tuple.
-
-        :param upgrade_modules: Names of modules to upgrade. Their direct or indirect dependent
-          modules will also be upgraded. Defaults to an empty tuple.
-        :param reinit_modules: Names of modules to reinitialize.
-
-          * If a specified module is **already installed**, it and all of its installed direct and
-            indirect dependents will be re-initialized. Re-initialization means the module will be
-            upgraded without running upgrade scripts, but with data loaded in ``'init'`` mode.
-
-        :param new_db_demo: Whether to install demo data for the new database. If set to ``None``, the value will be
-          determined by the ``config['with_demo']``. Defaults to ``None``
-        """
         from odoo.service._db_helpers import SYSTEM_DBS
 
         if db_name in SYSTEM_DBS or db_name == config["db_template"]:
@@ -418,7 +348,6 @@ class Registry(
     @classmethod
     @locked
     def delete(cls, db_name: str) -> None:
-        """Delete the registry linked to a given database."""
         if db_name in cls.registries:
             del cls.registries[db_name]
         from odoo.tools.cache import prune_counters
@@ -428,7 +357,6 @@ class Registry(
     @classmethod
     @locked
     def delete_all(cls):
-        """Delete all the registries."""
         cls.registries.clear()
 
     __eq__ = object.__eq__
@@ -436,23 +364,18 @@ class Registry(
     __hash__ = object.__hash__
 
     def __len__(self) -> int:
-        """Return the size of the registry."""
         return len(self.models)
 
     def __iter__(self) -> Iterator[str]:
-        """Return an iterator over all model names."""
         return iter(self.models)
 
     def __getitem__(self, model_name: str) -> type[BaseModel]:
-        """Return the model with the given name or raise KeyError if it doesn't exist."""
         return self.models[model_name]
 
     def __setitem__(self, model_name: str, model: type[BaseModel]) -> None:
-        """Add or replace a model in the registry."""
         self.models[model_name] = model
 
     def __delitem__(self, model_name: str) -> None:
-        """Remove a (custom) model from the registry."""
         del self.models[model_name]
         for Model in self.models.values():
             Model._inherit_children.discard(model_name)
@@ -462,9 +385,6 @@ class Registry(
         model_names: Iterable[str],
         *kinds: typing.Literal["_inherit", "_inherits"],
     ) -> OrderedSet[str]:
-        """Return the models corresponding to ``model_names`` and all those
-        that inherit/inherits from them.
-        """
         if not all(kind in ("_inherit", "_inherits") for kind in kinds):
             raise ValueError(
                 f"descendants: kinds must be '_inherit'/'_inherits', got {kinds!r}"
@@ -483,17 +403,6 @@ class Registry(
         return models
 
     def load(self, module: module_graph.ModuleNode) -> list[str]:
-        """Load a given module in the registry, and return the names of the
-        directly modified models.
-
-        At the Python level, the modules are already loaded, but not yet on a
-        per-registry level. This method populates a registry with the given
-        modules, i.e. it instantiates all the classes of a the given module
-        and registers them in the registry.
-
-        In order to determine all the impacted models, one should invoke method
-        :meth:`descendants` with `'_inherit'` and `'_inherits'`.
-        """
         from .. import models
 
         model_defs = models.MetaModel._module_to_models__.get(module.name, [])
@@ -520,21 +429,6 @@ class Registry(
         *,
         skip_if_clean: bool = False,
     ) -> None:
-        """Perform the setup of models.
-        This must be called after loading modules and before using the ORM.
-
-        When given ``model_names``, it performs an incremental setup: only the
-        models impacted by the given ``model_names`` and all the already-marked
-        models will be set up. Otherwise, all models are set up.
-
-        ``skip_if_clean`` lets a caller declare that this call is a
-        synchronization point only: if every model is already set up (and no
-        custom model exists), the call returns without touching the registry.
-        Do not pass it when the database definition of manual models/fields may
-        have changed since the last setup — ``ir.model.create`` relies on an
-        incremental call with an empty ``model_names`` to (re)load custom
-        models, and the fast path would skip exactly that reload.
-        """
         from .environment import Environment
 
         if (
@@ -558,9 +452,6 @@ class Registry(
         self._caches.clear_all()
 
         self.model_graph.begin_invalidation()
-        # try/finally: setup_model_classes() and get_depends() below both
-        # raise on a malformed model, and an unclosed window makes the
-        # graph refuse every later publication with nothing logged.
         try:
             reset_cached_properties(self)
             self.model_graph.clear_caches()
@@ -624,7 +515,10 @@ class Registry(
                     self.field_depends_context.pop(field, None)
 
                     done.add(field)
-                    todo.extend(self.field_setup_dependents.pop(field, ()))
+                    # `todo` is a deliberate worklist: list iteration re-reads
+                    # len() each step, so dependents queued here are picked up by
+                    # this same loop, and `done` stops a field being processed twice.
+                    todo.extend(self.field_setup_dependents.pop(field, ()))  # noqa: B909  see comment above
 
             self.many2one_company_dependents.clear()
 
@@ -652,7 +546,6 @@ class Registry(
             env.flush_all()
 
     def post_init(self, func: Callable, *args, **kwargs) -> None:
-        """Register a function to call at the end of :meth:`~.init_models`."""
         self._post_init_queue.append(partial(func, *args, **kwargs))
 
     def init_models(
@@ -662,14 +555,6 @@ class Registry(
         context: dict[str, typing.Any],
         install: bool = True,
     ):
-        """Initialize a list of models (given by their name). Call methods
-        ``_auto_init`` and ``init`` on each model to create or update the
-        database tables supporting the models.
-
-        The ``context`` may contain the following items:
-         - ``module``: the name of the module being installed/updated, if any;
-         - ``update_custom_fields``: whether custom fields should be updated.
-        """
         if not model_names:
             return
 
@@ -678,7 +563,7 @@ class Registry(
                 "module %s: creating or updating database tables",
                 context["module"],
             )
-        elif context.get("models_to_check", False):
+        elif context.get("models_to_check"):
             _logger.info("verifying fields for every extended model")
 
         from .environment import Environment
@@ -725,38 +610,13 @@ class Registry(
             del self._is_install
 
     def _clear_cache_group(self, cache_name: str) -> None:
-        """Clear every ormcache grouped under the composite ``cache_name``.
-
-        The single place that maps a composite key to its underlying caches and
-        clears them; callers layer their own invalidation bookkeeping on top.
-        ``check_signaling`` does not use this — it must skip caches it already
-        cleared this pass (see there).
-        """
         self._caches.clear_group(cache_name)
 
     @property
     def ormcache_lrus(self) -> dict[str, LRU]:
-        """The ``{cache_name: LRU}`` stores backing :mod:`odoo.tools.cache`.
-
-        This is the **public contract between the registry and the ormcache
-        decorator**, and the only registry attribute that decorator needs.  It
-        used to be reachable only as the name-mangled ``_Registry__caches``,
-        which made a cross-package protocol look like a private attribute and
-        forced every participant to spell out the mangling: ``odoo.tools.cache``
-        on its hottest path, ``odoo.tests.common.get_cache_info``, and four
-        duck-typed stand-ins (``ModelRegistry``, ``ir_qweb._MockRegistry``, two
-        test fakes) that had to *define* ``_Registry__caches`` on themselves --
-        a construct that means "private to class Registry" and is nothing of the
-        sort.  A name that says what it is keeps the storage encapsulated in
-        :class:`_RegistryCaches` while making the protocol greppable and
-        implementable.
-
-        Anything used as ``model.pool`` must provide it.
-        """
         return self._caches.lrus
 
     def clear_cache(self, *cache_names: str) -> None:
-        """Clear the ``tools.ormcache`` caches in the given ``cache_names`` subset."""
         cache_names = cache_names or ("default",)
         for cache_name in cache_names:
             if cache_name not in _CACHES_BY_KEY:
@@ -779,7 +639,6 @@ class Registry(
             )
 
     def clear_all_caches(self) -> None:
-        """Clear all caches associated to ``tools.ormcache``-decorated methods."""
         for cache_name in _CACHES_BY_KEY:
             self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)
@@ -790,7 +649,6 @@ class Registry(
 
     @property
     def registry_invalidated(self) -> bool:
-        """Determine whether the current thread has modified the registry."""
         return getattr(self._invalidation_flags, "registry", False)
 
     @registry_invalidated.setter
@@ -799,7 +657,6 @@ class Registry(
 
     @property
     def cache_invalidated(self) -> set[str]:
-        """Determine whether the current thread has modified the cache."""
         try:
             return self._invalidation_flags.cache
         except AttributeError:
@@ -807,7 +664,6 @@ class Registry(
             return names
 
     def setup_signaling(self) -> None:
-        """Setup the inter-process signaling on this registry."""
         with self.cursor() as cr:
             existing_sig_tables = tuple(sql.existing_tables(cr, _SIGNALING_TABLES))
             for table_name in _SIGNALING_TABLES:
@@ -851,9 +707,6 @@ class Registry(
         return registry_sequence, cache_sequences
 
     def check_signaling(self, cr: BaseCursor | None = None) -> Registry:
-        """Check whether the registry has changed, and performs all necessary
-        operations to update the registry. Return an up-to-date registry.
-        """
         own_cursor = cr is None
         try:
             with (
@@ -931,7 +784,6 @@ class Registry(
         return self
 
     def signal_changes(self) -> None:
-        """Notifies other processes if registry or cache has been invalidated."""
         if not self.ready:
             _logger.warning(
                 "Calling signal_changes when registry is not ready is not supported"
@@ -944,12 +796,6 @@ class Registry(
                 cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES")
                 self.registry_sequence += 1
 
-        # `if`, not `elif`: a transaction can invalidate both, and the two are
-        # signalled on different sequences that peers track independently.  A
-        # peer whose registry sequence is already current takes the adoption
-        # branch in check_signaling and never rebuilds -- so a cache
-        # invalidation swallowed here is never applied anywhere, while the
-        # unconditional clear() below still discards it.
         if self.cache_invalidated:
             _logger.info(
                 "Caches invalidated, signaling through the database: %s",
@@ -969,7 +815,6 @@ class Registry(
         self.cache_invalidated.clear()
 
     def reset_changes(self) -> None:
-        """Reset the registry and cancel all invalidations."""
         if self.registry_invalidated:
             with closing(self.cursor()) as cr:
                 self._setup_models__(cr)
@@ -980,14 +825,6 @@ class Registry(
             self.cache_invalidated.clear()
 
     def _sample_replica_lag(self, cr: BaseCursor) -> None:
-        """Measure the replica's apply lag on *cr* and update the gate.
-
-        Runs on a cursor already borrowed for the request, so an enabled ceiling
-        costs one extra query per sample interval rather than a connection.  A
-        measurement that raises is recorded as healthy: refusing reads because
-        the *question* failed would demote on no evidence, and a replica that
-        cannot answer is one whose failure the breaker sees on the next borrow.
-        """
         try:
             cr.execute(LAG_SQL)
             measured = cr.fetchone()[0]
@@ -1010,13 +847,6 @@ class Registry(
             )
 
     def cursor(self, /, readonly: bool = False) -> BaseCursor:
-        """Return a new cursor for the database. The cursor itself may be used
-        as a context manager to commit/rollback and close automatically.
-
-        :param readonly: Attempt to acquire a cursor on a replica database.
-            Acquire a read/write cursor on the primary database in case no
-            replica exists or that no readonly cursor could be acquired.
-        """
         if readonly and self._db_readonly is not None:
             thread = current_worker_thread()
             in_request = hasattr(thread, "cursor_mode")
@@ -1053,8 +883,6 @@ class Registry(
 
 
 class DummyRLock:
-    """Dummy reentrant lock, to be used while running rpc and js tests"""
-
     def acquire(self) -> None:
         pass
 
@@ -1068,6 +896,6 @@ class DummyRLock:
         self,
         type: type[BaseException] | None,
         value: BaseException | None,
-        traceback: typing.Any,
+        traceback: types.TracebackType | None,
     ) -> None:
         self.release()

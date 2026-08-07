@@ -1,11 +1,3 @@
-"""
-Patch xlsxwriter for Odoo-specific defaults:
-
-- Sanitize Excel sheet names (remove invalid characters, enforce 31-char limit)
-- Disable formula interpretation of strings to prevent formula injection attacks
-  (e.g. a partner named '=HYPERLINK("http://evil.com","Click")' in an export)
-"""
-
 from typing import Any
 
 import xlsxwriter

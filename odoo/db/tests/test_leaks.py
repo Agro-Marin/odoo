@@ -1,15 +1,3 @@
-"""Tier-1 (database-free) tests for :mod:`odoo.db.leaks`.
-
-The tracker's job is to make a saturated pool explain itself, so what matters is
-that the bookkeeping is exact (nothing lingers after a return, nothing is lost
-before one) and that the description an operator reads names the right holders.
-Pure dict work — no pool, socket or server.
-
-That it is actually wired to every borrow and every return is pinned in
-``test_invariants.py``; behaviour against a live pool is in
-``odoo/addons/base/tests/test_db_cursor.py``.
-"""
-
 import threading
 import unittest
 from time import monotonic
@@ -18,7 +6,7 @@ from odoo.db.leaks import Checkout, CheckoutTracker
 
 
 class _Conn:
-    """Stands in for a psycopg connection: identity is all the tracker uses."""
+    pass
 
 
 def _aged(seconds, thread="Thread-1", caller=None):
@@ -58,7 +46,6 @@ class TestTracking(unittest.TestCase):
         self.assertEqual(len(self.tracker), 1)
 
     def test_re_tracking_the_same_connection_replaces_the_entry(self):
-        """A pooled connection is borrowed many times; each must start fresh."""
         conn = _Conn()
         self.tracker.track(conn)
         self.tracker._out[conn] = _aged(500)
@@ -114,7 +101,6 @@ class TestDescribe(unittest.TestCase):
         self.assertEqual(self.tracker.describe(), "")
 
     def test_nothing_past_the_threshold_describes_as_empty(self):
-        """So a caller can append it unconditionally without trailing noise."""
         self._put(1)
         self.assertEqual(self.tracker.describe(older_than=60), "")
 
@@ -154,7 +140,6 @@ class TestReportThrottle(unittest.TestCase):
         self.assertEqual(sum(1 for _ in range(50) if tracker.due_for_report(60)), 1)
 
     def test_the_throttle_is_independent_of_the_reaper(self):
-        """Sharing the reaper's slot would let a leak warning silence a sweep."""
         from odoo.db.reaper import IdlePoolReaper
 
         tracker, reaper = CheckoutTracker(), IdlePoolReaper(10)

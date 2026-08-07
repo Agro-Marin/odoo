@@ -1,10 +1,3 @@
-"""Regression tests for the ``odoo.libs.sql.SQL`` composition primitive.
-
-Focus: tuple expansion.  An empty tuple must not render the invalid ``()``
-(a PostgreSQL syntax error) — it renders ``(NULL)`` so ``x IN (NULL)`` parses
-and matches nothing.
-"""
-
 import unittest
 
 from odoo.libs.sql import SQL
@@ -51,9 +44,6 @@ class TestSqlIdentifierValidation(unittest.TestCase):
 
 
 class TestColumnIndexExistsReturnBool(unittest.TestCase):
-    """``column_exists``/``index_exists`` are annotated ``-> bool``; they must
-    return an actual bool, not the ``int`` ``cr.rowcount``."""
-
     class _Cursor:
         def __init__(self, rowcount):
             self.rowcount = rowcount
@@ -77,8 +67,6 @@ class TestColumnIndexExistsReturnBool(unittest.TestCase):
 
 
 class TestSqlInlined(unittest.TestCase):
-    """``SQL.inlined()`` embeds bound params as literals."""
-
     class _Cursor:
         _cnx = None
 

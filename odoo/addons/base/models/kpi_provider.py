@@ -9,14 +9,4 @@ class KpiProvider(models.AbstractModel):
 
     @api.model
     def get_kpi_summary(self) -> list[dict[str, Any]]:
-        """Return KPI summaries for the databases dashboard; override to add KPIs.
-
-        Each entry is a dict with keys:
-
-        - id: unique identifier
-        - type: ``'integer'`` or ``'return_status'``
-        - name: translated display name
-        - value: number (``type=integer``) or one of ``late``, ``longterm``,
-          ``to_do``, ``to_submit``, ``done``
-        """
         return []

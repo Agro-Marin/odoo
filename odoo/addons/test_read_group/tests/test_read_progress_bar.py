@@ -4,14 +4,11 @@ from odoo.tools import mute_logger
 
 @common.tagged("post_install", "-at_install")
 class TestReadProgressBar(common.TransactionCase):
-    """Test for read_progress_bar"""
-
     def setUp(self):
         super().setUp()
         self.Model = self.env["res.partner"]
 
     def test_read_progress_bar_m2m(self):
-        """Test that read_progress_bar works with m2m field grouping"""
         progressbar = {
             "field": "type",
             "colors": {
@@ -27,9 +24,6 @@ class TestReadProgressBar(common.TransactionCase):
         self.assertIn("False", result)
 
     def test_week_grouping(self):
-        """The labels associated to each record in read_progress_bar should match
-        the ones from formatted_read_group, even in edge cases like en_US locale on sundays
-        """
         context = {"lang": "en_US"}
         groupby = "date:week"
         self.Model.create({"date": "2021-05-02", "name": "testWeekGrouping_first"})

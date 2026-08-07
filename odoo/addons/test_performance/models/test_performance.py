@@ -109,8 +109,6 @@ class Test_PerformanceSimpleMinded(models.Model):
 
 
 class Test_PerformanceAllTypes(models.Model):
-    """Model with every field type for field conversion benchmarks."""
-
     _name = "test_performance.all_types"
     _description = "Test Performance All Field Types"
 

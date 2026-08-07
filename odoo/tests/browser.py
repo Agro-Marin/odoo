@@ -1,12 +1,3 @@
-"""Chrome DevTools Protocol client for browser-based tests.
-
-Extracted from :mod:`odoo.tests.common`: drives a headless Chrome through the
-CDP websocket (page navigation, console/error capture, screenshots and
-screencasts) for :class:`odoo.tests.common.HttpCase` tours and JS suites.
-``ChromeBrowser`` and ``ChromeBrowserException`` remain re-exported from
-``odoo.tests.common`` for compatibility (including as mock/patch targets).
-"""
-
 import binascii
 import concurrent.futures
 import contextlib
@@ -128,8 +119,6 @@ else:
 
 
 class ChromeBrowser:
-    """Helper object to control a Chrome headless process."""
-
     remote_debugging_port = 0
 
     def __init__(
@@ -178,15 +167,6 @@ class ChromeBrowser:
             raise
 
     def _connect(self) -> None:
-        """Open the CDP session and put the page in its test configuration.
-
-        Split out of ``__init__`` so a failure here is not a leak: Chrome is
-        already running by this point, but ``browser_js`` only registers
-        ``stop`` as a cleanup *after* the constructor returns.  A CDP command
-        timing out — or the deliberate ``SkipTest`` below when the websocket
-        handshake is refused — used to strand the browser process tree and its
-        ~100 MB profile directory for the rest of the session.
-        """
         self.ws = self._open_websocket()
         self._handlers = {
             "Fetch.requestPaused": self._handle_request_paused,
@@ -239,7 +219,6 @@ class ChromeBrowser:
         )
 
     def signal_handler(self, sig: int, frame: Any) -> None:
-        """Handle SIGXCPU by stopping Chrome and exiting."""
         if sig == signal.SIGXCPU:
             _logger.info("CPU time limit reached, stopping Chrome and shutting down")
             self.stop()
@@ -256,12 +235,6 @@ class ChromeBrowser:
         )
 
     def stop(self) -> None:
-        """Stop the Chrome browser process and clean up resources.
-
-        Idempotent: ``browser_js`` registers it both as an early safety-net
-        cleanup (covering failures during page/session setup) and at its
-        ordering-sensitive happy-path position; the second call is a no-op.
-        """
         if getattr(self, "_stopped", False):
             return
         self._stopped = True
@@ -331,13 +304,16 @@ class ChromeBrowser:
             raise
 
     def _spawn_chrome(self, cmd: list[str]) -> tuple[subprocess.Popen, int]:
-        """Spawn a Chrome subprocess and wait for it to expose the DevTools port."""
         log_path = pathlib.Path(self.user_data_dir, "err.log")
         with log_path.open("wb") as log_file:
             proc = subprocess.Popen(
                 cmd,
                 stderr=log_file,
-                preexec_fn=_preexec,
+                # PLW1509: setrlimit has to happen between fork and exec, and
+                # preexec_fn is the only hook for that. The child makes one
+                # async-signal-safe call and then execs, so the usual
+                # fork-with-live-threads hazard does not apply here.
+                preexec_fn=_preexec,  # noqa: PLW1509  see comment above
                 env={**os.environ, "TMPDIR": self.user_data_dir},
             )
 
@@ -426,25 +402,6 @@ class ChromeBrowser:
         return proc, devtools_port
 
     def _json_command(self, command: str, timeout: int = 3) -> Any:
-        """Queries browser state using JSON
-
-        Available commands:
-
-        ``''``
-            return list of tabs with their id
-        ``list`` (or ``json/``)
-            list tabs
-        ``new``
-            open a new tab
-        :samp:`activate/{id}`
-            activate a tab
-        :samp:`close/{id}`
-            close a tab
-        ``version``
-            get chrome and dev tools version
-        ``protocol``
-            get the full protocol
-        """
         url = f"http://{HOST}:{self.devtools_port}/json/{command}".rstrip("/")
         self._logger.info("Issuing json command %s", url)
         delay = 0.1
@@ -472,7 +429,7 @@ class ChromeBrowser:
                 break
 
             time.sleep(delay)
-            delay = delay * 1.5
+            delay *= 1.5
             tries += 1
         self._logger.error("%s after %s tries", message, tries)
         if failure_info:
@@ -481,7 +438,6 @@ class ChromeBrowser:
         raise unittest.SkipTest("Error during Chrome headless connection")
 
     def _open_websocket(self) -> Any:
-        """Connect to Chrome's DevTools WebSocket endpoint."""
         version = self._json_command("version")
         self._logger.info("Browser version: %s", version["Browser"])
 
@@ -516,7 +472,6 @@ class ChromeBrowser:
         return ws
 
     def _receive(self, dbname: str) -> None:
-        """Receive and dispatch WebSocket messages from Chrome DevTools."""
         threading.current_thread().dbname = dbname
         while True:
             try:
@@ -567,15 +522,6 @@ class ChromeBrowser:
     def _websocket_request(
         self, method: str, *, params: dict | None = None, timeout: float | None = None
     ) -> Any:
-        """Send a CDP command and wait for its response.
-
-        ``timeout`` is **wall-clock** seconds; the default (None -> 10s) is
-        scaled by the CPU-throttling factor.  Callers converting a logical
-        budget to wall-clock time must apply ``throttling_factor`` themselves,
-        exactly once — the old signature scaled every value passed in, so
-        pre-scaled budgets from ``_wait_ready``/``_wait_code_ok`` were
-        multiplied by the factor *squared*.
-        """
         assert threading.get_ident() != self._receiver.ident, (
             "_websocket_request must not be called from the consumer thread"
         )
@@ -593,10 +539,6 @@ class ChromeBrowser:
     def _websocket_send(
         self, method: str, *, params: dict | None = None, with_future: bool = False
     ) -> Future | None:
-        """Send Chrome DevTools Protocol commands through the WebSocket.
-
-        If ``with_future`` is set, returns a ``Future`` for the operation.
-        """
         if not hasattr(self, "ws"):
             return None
 
@@ -612,7 +554,6 @@ class ChromeBrowser:
         return result
 
     def _handle_request_paused(self, **params: Any) -> None:
-        """Handle a Fetch.requestPaused event by continuing or blocking the request."""
         url = params["request"]["url"]
         if url.startswith(f"http://{HOST}"):
             cmd = "Fetch.continueRequest"
@@ -724,7 +665,6 @@ which leads to stray network requests and inconsistencies."""
                     _logger.error("Tried to make the tour successful twice.")
 
     def _handle_exception(self, exceptionDetails: dict, timestamp: float) -> None:
-        """Handle a Runtime.exceptionThrown event."""
         message = exceptionDetails["text"]
         exception = exceptionDetails.get("exception")
         if exception:
@@ -754,7 +694,6 @@ which leads to stray network requests and inconsistencies."""
             )
 
     def _handle_frame_stopped_loading(self, frameId: str) -> None:
-        """Handle a Page.frameStoppedLoading event."""
         wait = self._frames.pop(frameId, None)
         if wait:
             wait()
@@ -804,21 +743,12 @@ which leads to stray network requests and inconsistencies."""
         *,
         http_only: bool = False,
     ) -> None:
-        """Set a cookie in the Chrome browser via DevTools.
-
-        :param http_only: when True, the cookie is hidden from
-            ``document.cookie`` reads (HTML spec). Use this for cookies
-            that exist purely for server-side correlation and would
-            otherwise leak into JS-visible state — notably the
-            ``test_request_key`` cookie used by the test-cursor lock.
-        """
         params = {"name": name, "value": value, "path": path, "domain": domain}
         if http_only:
             params["httpOnly"] = True
         self._websocket_request("Network.setCookie", params=params)
 
     def delete_cookie(self, name: str, **kwargs: str) -> None:
-        """Delete a cookie in the Chrome browser via DevTools."""
         params = {k: v for k, v in kwargs.items() if k in ["url", "domain", "path"]}
         params["name"] = name
         self._websocket_request("Network.deleteCookies", params=params)
@@ -922,7 +852,6 @@ which leads to stray network requests and inconsistencies."""
         raise ChromeBrowserException("Unknown error") from err
 
     def navigate_to(self, url: str, wait_stop: bool = False) -> None:
-        """Navigate the browser to the given URL."""
         self._logger.info('Navigating to: "%s"', url)
         nav_result = self._websocket_request(
             "Page.navigate",
@@ -938,7 +867,6 @@ which leads to stray network requests and inconsistencies."""
             e.wait(10)
 
     def _from_remoteobject(self, arg: dict) -> Any:
-        """Attempt to make a CDT RemoteObject comprehensible."""
         objtype = arg["type"]
         subtype = arg.get("subtype")
         if objtype == "undefined":
@@ -967,7 +895,6 @@ which leads to stray network requests and inconsistencies."""
     LINE_PATTERN = "\tat %(functionName)s (%(url)s:%(lineNumber)d:%(columnNumber)d)\n"
 
     def _format_stack(self, logrecord: dict) -> Generator[str]:
-        """Yield formatted stack frame lines from a CDT log record."""
         if logrecord["type"] != "trace":
             return
 
@@ -978,15 +905,6 @@ which leads to stray network requests and inconsistencies."""
             trace = trace.get("parent")
 
     def console_formatter(self, args: list) -> Callable:
-        """Formats similarly to the console API:
-
-        * if there are no args, don't format (return string as-is)
-        * %% -> %
-        * %c -> replace by styling directives (ignore for us)
-        * other known formatters -> replace by corresponding argument
-        * leftover known formatters (args exhausted) -> replace by empty string
-        * unknown formatters -> return as-is
-        """
         if not args:
             return lambda m: m[0]
 
@@ -1007,19 +925,17 @@ which leads to stray network requests and inconsistencies."""
 
 
 class NoScreencast:
-    """No-op screencast implementation used when screencasting is disabled."""
-
     def start(self) -> None:
-        """Start screencast (no-op)."""
+        pass
 
     def stop(self) -> None:
-        """Stop screencast (no-op)."""
+        pass
 
     def save(self) -> None:
-        """Save screencast (no-op)."""
+        pass
 
     def __call__(self, sessionId: str, data: str, metadata: dict) -> None:
-        """Handle a screencast frame (no-op)."""
+        pass
 
 
 class Screencaster:
@@ -1033,13 +949,11 @@ class Screencaster:
         self.frames = []
 
     def start(self) -> None:
-        """Start the Chrome screencast."""
         self._logger.info("Starting screencast")
         self.frames_dir.mkdir(parents=True, exist_ok=True)
         self.browser._websocket_send("Page.startScreencast")
 
     def __call__(self, sessionId: str, data: str, metadata: dict) -> None:
-        """Handle a Page.screencastFrame event by saving the frame."""
         self.browser._websocket_send(
             "Page.screencastFrameAck", params={"sessionId": sessionId}
         )
@@ -1055,14 +969,12 @@ class Screencaster:
         )
 
     def stop(self) -> None:
-        """Stop the Chrome screencast and discard captured frames."""
         self.browser._websocket_send("Page.stopScreencast")
         self.stopped = True
         if self.frames_dir.is_dir():
             shutil.rmtree(self.frames_dir, ignore_errors=True)
 
     def save(self) -> None:
-        """Stop the screencast and encode captured frames to an MP4."""
         if self.stopped:
             return
         self.browser._websocket_send("Page.stopScreencast")

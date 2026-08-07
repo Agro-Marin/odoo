@@ -1,10 +1,3 @@
-"""Regression tests for small ``odoo.libs`` API contracts that used to be broken.
-
-Each class pins a defect found by audit: an argument silently ignored, a
-context manager that could not be re-entered, an input shape that crashed
-instead of returning a value.
-"""
-
 import inspect
 import io
 import logging
@@ -36,8 +29,6 @@ from odoo.libs.text.html import html_sanitize
 
 
 class TestGuessMimetypeDefault:
-    """``default`` used to be accepted and dropped on the floor."""
-
     def test_default_returned_for_unidentifiable_content(self):
         assert guess_mimetype(b"\0" * 32, default="image/png") == "image/png"
 
@@ -49,8 +40,6 @@ class TestGuessMimetypeDefault:
 
 
 class TestCheckBarcodeEncoding:
-    """An empty value must be False, not an IndexError."""
-
     @pytest.mark.parametrize("encoding", ["ean8", "ean13", "gtin14", "upca", "sscc"])
     def test_empty_barcode(self, encoding):
         assert check_barcode_encoding("", encoding) is False
@@ -64,8 +53,6 @@ class TestCheckBarcodeEncoding:
 
 
 class TestLowerLoggingReentrancy:
-    """Re-entering one instance must not strand the root logger."""
-
     def test_nested_reuse_restores_handlers(self):
         root = logging.getLogger()
         original = root.handlers[:]
@@ -110,8 +97,6 @@ class TestLowerLoggingReentrancy:
 
 
 class TestLastOrderedSet:
-    """``update`` must agree with ``add`` and ``|=`` on last-insertion order."""
-
     def test_update_moves_existing_element_last(self):
         s = LastOrderedSet([1, 2, 3])
         s.update([1])
@@ -172,8 +157,6 @@ class TestStreetSplit:
 
 
 class TestGetWebpSizeRobustness:
-    """A truncated WebP header must return None, not crash a size lookup."""
-
     @staticmethod
     def _webp(subtype: bytes, tail: bytes) -> bytes:
         return b"RIFF" + b"\x00\x00\x00\x00" + b"WEBPVP8" + subtype + tail
@@ -207,13 +190,15 @@ class TestGetWebpSizeRobustness:
 
 
 class TestUserAgentParseCache:
-    """The memoized parse must be identical to a fresh, uncached parse."""
-
     UAS = [
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/131.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
-        "(KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+        (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        ),
+        (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+            "(KHTML, like Gecko) Version/17.4 Safari/605.1.15"
+        ),
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
         "curl/8.5.0",
         "",
@@ -235,8 +220,6 @@ class TestUserAgentParseCache:
 
 
 class TestOrjsonDumpsIntrospectable:
-    """inspect.signature(dumps) used to raise NameError under Py3.14 deferred annotations."""
-
     def test_signature_is_introspectable(self):
         params = list(inspect.signature(orjson_dumps).parameters)
         assert params == ["obj", "default", "ensure_ascii", "option"]
@@ -247,8 +230,6 @@ class TestOrjsonDumpsIntrospectable:
 
 
 class TestFloatSplitSign:
-    """Pin the documented sign behavior of the int vs str split."""
-
     def test_str_form_keeps_sign_for_subunit_negative(self):
         from odoo.libs.numbers.float_utils import float_split_str
 
@@ -264,11 +245,6 @@ class TestFloatSplitSign:
 
 
 class TestImageProcessWebpResolution:
-    """A crafted WEBP header must not smuggle an oversized image past
-    ``verify_resolution`` — the refactor once folded WEBP into the empty/SVG
-    short-circuit and dropped the cap that upstream enforced.
-    """
-
     @staticmethod
     def _webp_vp8x(width: int, height: int) -> bytes:
         def u24(n: int) -> bytes:
@@ -302,10 +278,6 @@ class TestImageProcessWebpResolution:
 
 
 class TestLruCountSetterConcurrencyGuard:
-    """Shrinking via the ``count`` setter must tolerate a concurrent
-    lock-free read mutating ``_ordering`` mid-iteration, like ``__setitem__``.
-    """
-
     def test_shrink_evicts_down_to_new_count(self):
         lru = LRU(10, [(i, i) for i in range(10)])
         lru.count = 3
@@ -331,13 +303,6 @@ class TestLruCountSetterConcurrencyGuard:
 
 
 class TestHtmlSanitizeRecovery:
-    """A cleaner crash must not discard the whole field.
-
-    ``<style>`` nested in ``<select>`` makes lxml_html_clean's ``drop_tree()``
-    assert; the sanitizer now recovers and keeps surrounding content instead of
-    replacing everything with a placeholder.
-    """
-
     def test_crash_input_does_not_yield_placeholder(self):
         out = str(html_sanitize("<select><style>x</style></select>"))
         assert "Unknown error when sanitizing" not in out
@@ -364,10 +329,6 @@ class TestHtmlSanitizeRecovery:
 
 
 class TestTimezoneContract:
-    """Empty / path-like names must raise the documented ZoneInfoNotFoundError,
-    not a bare ValueError leaking from ZoneInfo's path validation.
-    """
-
     @pytest.mark.parametrize("name", ["", "../etc/passwd", "Foo/Bar", "not a tz"])
     def test_bad_names_raise_zoneinfonotfound(self, name):
         with pytest.raises(ZoneInfoNotFoundError):
@@ -383,8 +344,6 @@ class TestTimezoneContract:
 
 
 class TestFormataddrHeaderInjection:
-    """A CR/LF in the display name must not survive to smuggle a header line."""
-
     def test_newline_is_stripped_from_name(self):
         out = formataddr(("Bad\r\nBcc: victim@x.com", "user@example.com"))
         assert "\n" not in out
@@ -402,8 +361,6 @@ class TestFormataddrHeaderInjection:
 
 
 class TestReverseOrderCommas:
-    """Commas inside function calls / quoted identifiers must not split items."""
-
     def test_function_call_arglist_not_split(self):
         assert reverse_order("coalesce(a, b) desc") == "coalesce(a, b) asc"
 
@@ -423,8 +380,6 @@ class TestReverseOrderCommas:
 
 
 class TestZipDirRelativePath:
-    """A bare relative dir name must not chop leading chars off member names."""
-
     def _tree(self, tmp_path):
         (tmp_path / "pkg").mkdir()
         (tmp_path / "pkg" / "a.txt").write_text("a")
@@ -452,8 +407,6 @@ class TestZipDirRelativePath:
 
 
 class TestOrderedSetIntersectionAliasing:
-    """intersection() with no args must return a fresh set, not self."""
-
     def test_no_args_returns_copy(self):
         s = OrderedSet([1, 2, 3])
         result = s.intersection()
@@ -468,8 +421,6 @@ class TestOrderedSetIntersectionAliasing:
 
 
 class TestGetSaturationType:
-    """The achromatic path must return a float, matching the declared type."""
-
     def test_gray_returns_float_zero(self):
         result = get_saturation((128, 128, 128))
         assert result == 0.0

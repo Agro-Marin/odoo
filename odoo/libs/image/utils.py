@@ -1,9 +1,3 @@
-"""Image utilities.
-
-Pure Python image helpers with no Odoo dependencies.
-Uses PIL/Pillow for image processing.
-"""
-
 import base64
 import binascii
 import io
@@ -11,7 +5,8 @@ from random import randrange
 from typing import Self
 
 from PIL import (
-    IcoImagePlugin,
+    # Imported so Pillow registers the ICO codec; nothing here calls it.
+    IcoImagePlugin,  # noqa: F401  plugin registration, see comment above
     Image,
     ImageOps,
 )
@@ -20,19 +15,19 @@ from PIL.Image import Palette, Resampling
 
 
 class ImageError(ValueError):
-    """Base class for image-processing errors."""
+    pass
 
 
 class ImageDecodeError(ImageError):
-    """The source bytes could not be decoded as an image."""
+    pass
 
 
 class ImageTooLargeError(ImageError):
-    """The image exceeds :data:`IMAGE_MAX_RESOLUTION`."""
+    pass
 
 
 class NotWebpError(ImageError):
-    """The source is not a WebP file."""
+    pass
 
 
 FILETYPE_BASE64_MAGICWORD = {
@@ -53,25 +48,10 @@ Image._initialized = 2
 
 
 def image_fix_orientation(image: PILImage) -> PILImage:
-    """Fix the orientation of the image if it has an EXIF orientation tag.
-
-    Delegates to Pillow's ``ImageOps.exif_transpose()`` which handles all
-    8 EXIF orientation values and clears the tag after transposing.
-
-    :param image: the source image
-    :return: the resulting image with orientation fixed
-    """
     return ImageOps.exif_transpose(image)
 
 
 def image_apply_opt(image: PILImage, output_format: str, **params) -> bytes:
-    """Return the serialization of the provided `image` to `output_format` using `params`.
-
-    :param image: the image to encode
-    :param output_format: PIL Image.save() format parameter (e.g., 'JPEG', 'PNG')
-    :param params: params to expand when calling Image.save()
-    :return: the image formatted as bytes
-    """
     if output_format == "JPEG" and image.mode not in ["1", "L", "RGB"]:
         image = image.convert("RGB")
     stream = io.BytesIO()
@@ -80,61 +60,19 @@ def image_apply_opt(image: PILImage, output_format: str, **params) -> bytes:
 
 
 def image_to_base64(image: PILImage, output_format: str, **params) -> bytes:
-    """Return a base64-encoded image from the given PIL `image`.
-
-    :param image: the PIL Image object
-    :param output_format: PIL Image.save() format parameter (e.g., 'JPEG', 'PNG')
-    :param params: params to expand when calling Image.save()
-    :return: the image base64 encoded
-    """
     stream = image_apply_opt(image, output_format, **params)
     return base64.b64encode(stream)
 
 
 def image_data_uri(base64_source: bytes) -> str:
-    """Return a data URL scheme according to RFC 2397.
-
-    See: https://tools.ietf.org/html/rfc2397
-
-    Supports PNG, GIF, JPG and SVG images, defaulting to PNG type
-    if no mimetype is detected.
-
-    :param base64_source: base64 encoded image data
-    :return: data URI string
-
-    Example::
-
-        >>> image_data_uri(b'iVBORw0KGgo=')
-        'data:image/png;base64,iVBORw0KGgo='
-    """
     filetype = FILETYPE_BASE64_MAGICWORD.get(base64_source[:1], "png")
     return f"data:image/{filetype};base64,{base64_source.decode()}"
 
 
 class ImageProcess:
-    """Process images with various operations like resize, crop, colorize.
-
-    This is an agnostic version that raises ValueError for invalid images.
-    For Odoo-specific usage with UserError, use odoo.tools.image.ImageProcess.
-    """
-
     def __init__(
         self, source: bytes | bool | None, verify_resolution: bool = True
     ) -> None:
-        """Initialize the ``source`` image for processing.
-
-        :param bytes source: the original image binary
-
-            No processing will be done if the `source` is falsy or if
-            the image is SVG.
-        :param verify_resolution: if True, make sure the original image size is not
-            excessive before starting to process it. The max allowed resolution is
-            defined by `IMAGE_MAX_RESOLUTION`.
-        :type verify_resolution: bool
-
-        :raise: ValueError if `verify_resolution` is True and the image is too large
-        :raise: ValueError if the image can't be identified by PIL
-        """
         self.source = source or False
         self.operationsCount = 0
         self.original_format = ""
@@ -167,26 +105,6 @@ class ImageProcess:
             self.image = image_fix_orientation(self.image)
 
     def image_quality(self, quality: int = 0, output_format: str = "") -> bytes | bool:
-        """Return the image resulting from all processing operations applied so far.
-
-        The source is returned as-is if it's an SVG, or if no operations have
-        been applied, the `output_format` is the same as the original format,
-        and the quality is not specified.
-
-        :param int quality: quality setting to apply. Default to 0.
-
-            - for JPEG: 1 is worse, 95 is best. Values above 95 should be
-              avoided. Falsy values will fallback to 95, but only if the image
-              was changed, otherwise the original image is returned.
-            - for PNG: set falsy to prevent conversion to a WEB palette.
-            - for other formats: no effect.
-
-        :param str output_format: Can be PNG, JPEG, GIF, or ICO.
-            Default to the format of the original image if a valid output format,
-            otherwise BMP is converted to PNG and the rest are converted to JPEG.
-        :return: the final image, or ``False`` if the original ``source`` was falsy.
-        :rtype: bytes | False
-        """
         if not self.image:
             return self.source
 
@@ -238,26 +156,6 @@ class ImageProcess:
     def resize(
         self, max_width: int = 0, max_height: int = 0, expand: bool = False
     ) -> Self:
-        """Resize the image.
-
-        The image is not resized above the current image size, unless the expand
-        parameter is True. This method is used by default to create smaller versions
-        of the image.
-
-        The current ratio is preserved. To change the ratio, see `crop_resize`.
-
-        If `max_width` or `max_height` is falsy, it will be computed from the
-        other to keep the current ratio. If both are falsy, no resize is done.
-
-        It is currently not supported for GIF because we do not handle all the
-        frames properly.
-
-        :param int max_width: max width
-        :param int max_height: max height
-        :param bool expand: whether or not the image size can be increased
-        :return: self to allow chaining
-        :rtype: ImageProcess
-        """
         if self.image and self.original_format != "GIF" and (max_width or max_height):
             w, h = self.image.size
             asked_width = max_width or (w * max_height) // h
@@ -279,33 +177,6 @@ class ImageProcess:
         center_x: float = 0.5,
         center_y: float = 0.5,
     ) -> Self:
-        """Crop and resize the image.
-
-        The image is never resized above the current image size. This method is
-        only to create smaller versions of the image.
-
-        Instead of preserving the ratio of the original image like `resize`,
-        this method will force the output to take the ratio of the given
-        `max_width` and `max_height`, so both have to be defined.
-
-        The crop is done before the resize in order to preserve as much of the
-        original image as possible. The goal of this method is primarily to
-        resize to a given ratio, and it is not to crop unwanted parts of the
-        original image. If the latter is what you want to do, you should create
-        another method, or directly use the `crop` method from PIL.
-
-        It is currently not supported for GIF because we do not handle all the
-        frames properly.
-
-        :param int max_width: max width
-        :param int max_height: max height
-        :param float center_x: the center of the crop between 0 (left) and 1
-            (right). Defaults to 0.5 (center).
-        :param float center_y: the center of the crop between 0 (top) and 1
-            (bottom). Defaults to 0.5 (center).
-        :return: self to allow chaining
-        :rtype: ImageProcess
-        """
         if self.image and self.original_format != "GIF" and max_width and max_height:
             w, h = self.image.size
             if w / max_width > h / max_height:
@@ -333,12 +204,6 @@ class ImageProcess:
         return self.resize(max_width, max_height)
 
     def colorize(self, color: tuple[int, int, int] | None = None) -> Self:
-        """Replace the transparent background by a given color, or by a random one.
-
-        :param tuple color: RGB values for the color to use
-        :return: self to allow chaining
-        :rtype: ImageProcess
-        """
         if color is None:
             color = (
                 randrange(32, 224, 24),
@@ -354,12 +219,6 @@ class ImageProcess:
         return self
 
     def add_padding(self, padding: int) -> Self:
-        """Expand the image size by adding padding around the image.
-
-        :param int padding: thickness of the padding
-        :return: self to allow chaining
-        :rtype: ImageProcess
-        """
         if self.image:
             img_width, img_height = self.image.size
             if 2 * padding >= min(img_width, img_height):
@@ -386,27 +245,6 @@ def image_process(
     output_format: str = "",
     padding: int | bool = False,
 ) -> bytes | bool | None:
-    """Process the `source` image with the given operations and return the result.
-
-    .. warning::
-        ``verify_resolution`` defaults to ``False`` here, unlike
-        :class:`ImageProcess`, where it defaults to ``True``. With it off,
-        nothing bounds the *decoded* size: a 450 KB PNG of 12000×12000 pixels
-        (3× ``IMAGE_MAX_RESOLUTION``) processed through
-        ``image_process(bomb, size=(100, 100))`` was measured at **+555 MB
-        RSS**, and it raises ``ImageTooLargeError`` immediately with the flag on.
-
-        Pass ``verify_resolution=True`` for anything whose bytes came from
-        outside the system. The framework's own upload path already does —
-        :class:`odoo.fields.Image` sets ``verify_resolution = True`` and forwards
-        it — so this warning is about direct callers, which mostly do not pass
-        the flag at all.
-
-        The default is left as-is rather than flipped because ~36 in-tree
-        callers rely on it and a false ``ImageTooLargeError`` on a legitimate
-        large internal image is its own regression; choosing per call site is
-        the safe direction.
-    """
     if not source or (
         (not size or (not size[0] and not size[1]))
         and not verify_resolution
@@ -447,34 +285,6 @@ def average_dominant_color(
     mitigate: int = 175,
     max_margin: int = 140,
 ) -> tuple[tuple[int, int, int], list[tuple[int, tuple[int, int, int, int]]]]:
-    """Calculate the dominant colors from the given list of colors.
-
-    There are 5 steps:
-
-    1) Select dominant colors (highest count), isolate its values and remove
-       it from the current color set.
-    2) Set margins according to the prevalence of the dominant color.
-    3) Evaluate the colors. Similar colors are grouped in the dominant set
-       while others are put in the "remaining" list.
-    4) Calculate the average color for the dominant set. This is done by
-       averaging each band and joining them into a tuple.
-    5) Mitigate final average and convert it to hex
-
-    :param colors: list of tuples having:
-
-        0. color count in the image
-        1. actual color: tuple(R, G, B, A)
-
-        -> these can be extracted from a PIL image using
-        :meth:`~PIL.Image.Image.getcolors`
-    :param mitigate: maximum value a band can reach
-    :param max_margin: maximum difference from one of the dominant values
-    :returns: a tuple with two items:
-
-        0. the average color of the dominant set as: tuple(R, G, B)
-        1. list of remaining colors, used to evaluate subsequent dominant colors
-    :raises ValueError: if ``colors`` is empty, or if every entry has a zero count
-    """
     if not colors:
         msg = "colors must be a non-empty list of (count, (r, g, b, a)) tuples"
         raise ValueError(msg)
@@ -528,12 +338,6 @@ def average_dominant_color(
 
 
 def binary_to_image(source: bytes) -> PILImage:
-    """Convert binary data to a PIL Image.
-
-    :param source: binary image data
-    :return: PIL Image object
-    :raise: ValueError if the source can't be decoded as an image
-    """
     try:
         return Image.open(io.BytesIO(source))
     except OSError, binascii.Error:
@@ -542,12 +346,6 @@ def binary_to_image(source: bytes) -> PILImage:
 
 
 def base64_to_image(base64_source: str | bytes) -> Image:
-    """Return a PIL image from the given `base64_source`.
-
-    :param base64_source: the image base64 encoded
-    :return: PIL Image object
-    :raise: ValueError if the base64 is incorrect or the image can't be identified by PIL
-    """
     try:
         return Image.open(io.BytesIO(base64.b64decode(base64_source)))
     except OSError, binascii.Error:
@@ -556,16 +354,6 @@ def base64_to_image(base64_source: str | bytes) -> Image:
 
 
 def get_webp_size(source: bytes) -> tuple[int, int] | None:
-    """Return the size of the provided webp binary source.
-
-    Supports VP8, VP8X and VP8L, otherwise returns None.
-    See https://developers.google.com/speed/webp/docs/riff_container.
-
-    :param source: binary source
-    :return: (width, height) tuple, or None if the WebP variant is unsupported
-        or the header is truncated before the dimensions
-    :raise NotWebpError: if source is not a webp file
-    """
     if len(source) < 16 or not (source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8"):
         msg = "This file is not a webp file."
         raise NotWebpError(msg)
@@ -599,15 +387,12 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
 def is_image_size_above(
     base64_source_1: bytes | str | None, base64_source_2: bytes | str | None
 ) -> bool:
-    """Return whether the size of image `base64_source_1` is above that of `base64_source_2`."""
     if not base64_source_1 or not base64_source_2:
         return False
     if base64_source_1[:1] in (b"P", "P") or base64_source_2[:1] in (b"P", "P"):
         return False
 
     class _SimpleSize:
-        """Simple object with width/height attributes."""
-
         def __init__(self, width: int, height: int) -> None:
             self.width: int = width
             self.height: int = height
@@ -634,13 +419,6 @@ def is_image_size_above(
 
 
 def image_guess_size_from_field_name(field_name: str) -> tuple[int, int]:
-    """Attempt to guess the image size based on `field_name`.
-
-    If it can't be guessed or if it is a custom field: return (0, 0) instead.
-
-    :param field_name: the name of a field
-    :return: the guessed size
-    """
     if field_name == "image":
         return (1024, 1024)
     if field_name.startswith("x_"):

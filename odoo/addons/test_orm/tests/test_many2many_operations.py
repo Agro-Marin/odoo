@@ -1,23 +1,8 @@
-"""Comprehensive tests for Many2many field operations.
-
-Many2many had only 4 tests — the weakest coverage for any relational field type.
-For comparison, One2many has 57 tests. This file covers the full Command API,
-cache invalidation, bidirectional updates, search operators, and query counting.
-
-Models reused:
-    - test_orm.discussion ↔ test_orm.category (explicit junction table)
-    - test_orm.user ↔ test_orm.group (bidirectional M2M)
-    - test_orm.ship ↔ test_orm.pirate (shared junction table with prisoner)
-    - test_orm.multi (M2M with domain: tags field)
-"""
-
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase
 
 
 class TestMany2manyCommands(TransactionCase):
-    """Test all Command types on Many2many fields."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -32,7 +17,6 @@ class TestMany2manyCommands(TransactionCase):
         return self.env["test_orm.discussion"].create(vals)
 
     def test_link_command(self):
-        """Command.link() adds a relation without removing existing ones."""
         disc = self._make_discussion(categories=[Command.link(self.cat_a.id)])
         self.assertEqual(disc.categories, self.cat_a)
 
@@ -40,14 +24,12 @@ class TestMany2manyCommands(TransactionCase):
         self.assertEqual(disc.categories, self.cat_a | self.cat_b)
 
     def test_link_duplicate(self):
-        """Linking the same record twice is idempotent."""
         disc = self._make_discussion(categories=[Command.link(self.cat_a.id)])
         disc.write({"categories": [Command.link(self.cat_a.id)]})
         self.assertEqual(len(disc.categories), 1)
         self.assertEqual(disc.categories, self.cat_a)
 
     def test_link_multiple(self):
-        """Multiple link commands in one write."""
         disc = self._make_discussion(
             categories=[
                 Command.link(self.cat_a.id),
@@ -58,7 +40,6 @@ class TestMany2manyCommands(TransactionCase):
         self.assertEqual(len(disc.categories), 3)
 
     def test_unlink_command(self):
-        """Command.unlink() removes a specific relation."""
         disc = self._make_discussion(
             categories=[
                 Command.link(self.cat_a.id),
@@ -69,13 +50,11 @@ class TestMany2manyCommands(TransactionCase):
         self.assertEqual(disc.categories, self.cat_b)
 
     def test_unlink_nonexistent(self):
-        """Unlinking a non-linked record is a no-op."""
         disc = self._make_discussion(categories=[Command.link(self.cat_a.id)])
         disc.write({"categories": [Command.unlink(self.cat_c.id)]})
         self.assertEqual(disc.categories, self.cat_a)
 
     def test_clear_command(self):
-        """Command.clear() removes all relations."""
         disc = self._make_discussion(
             categories=[
                 Command.link(self.cat_a.id),
@@ -87,20 +66,17 @@ class TestMany2manyCommands(TransactionCase):
         self.assertFalse(disc.categories)
 
     def test_clear_empty(self):
-        """Clearing already empty M2M is a no-op."""
         disc = self._make_discussion()
         disc.write({"categories": [Command.clear()]})
         self.assertFalse(disc.categories)
 
     def test_set_command(self):
-        """Command.set() replaces all relations with the given ids."""
         disc = self._make_discussion(categories=[Command.link(self.cat_a.id)])
         disc.write({"categories": [Command.set([self.cat_b.id, self.cat_c.id])]})
         self.assertEqual(disc.categories, self.cat_b | self.cat_c)
         self.assertNotIn(self.cat_a, disc.categories)
 
     def test_set_empty(self):
-        """Command.set([]) clears all relations (equivalent to clear)."""
         disc = self._make_discussion(
             categories=[
                 Command.link(self.cat_a.id),
@@ -111,7 +87,6 @@ class TestMany2manyCommands(TransactionCase):
         self.assertFalse(disc.categories)
 
     def test_set_idempotent(self):
-        """Setting the same ids is idempotent."""
         disc = self._make_discussion(
             categories=[
                 Command.link(self.cat_a.id),
@@ -122,7 +97,6 @@ class TestMany2manyCommands(TransactionCase):
         self.assertEqual(disc.categories, self.cat_a | self.cat_b)
 
     def test_create_command(self):
-        """Command.create() creates a new related record and links it."""
         disc = self._make_discussion(
             categories=[
                 Command.create({"name": "Created Cat"}),
@@ -132,7 +106,6 @@ class TestMany2manyCommands(TransactionCase):
         self.assertEqual(disc.categories.name, "Created Cat")
 
     def test_create_multiple(self):
-        """Multiple create commands in single write."""
         disc = self._make_discussion(
             categories=[
                 Command.create({"name": "Cat X"}),
@@ -143,7 +116,6 @@ class TestMany2manyCommands(TransactionCase):
         self.assertEqual(set(disc.categories.mapped("name")), {"Cat X", "Cat Y"})
 
     def test_delete_command(self):
-        """Command.delete() unlinks and deletes the related record."""
         cat_temp = self.env["test_orm.category"].create({"name": "Temporary"})
         disc = self._make_discussion(categories=[Command.link(cat_temp.id)])
         disc.write({"categories": [Command.delete(cat_temp.id)]})
@@ -151,7 +123,6 @@ class TestMany2manyCommands(TransactionCase):
         self.assertFalse(cat_temp.exists())
 
     def test_combined_commands(self):
-        """Multiple command types in a single write."""
         disc = self._make_discussion(
             categories=[
                 Command.link(self.cat_a.id),
@@ -169,7 +140,6 @@ class TestMany2manyCommands(TransactionCase):
         self.assertEqual(disc.categories, self.cat_b | self.cat_c)
 
     def test_create_with_m2m(self):
-        """Creating a record with M2M values."""
         disc = self.env["test_orm.discussion"].create(
             {
                 "name": "Created with M2M",
@@ -179,7 +149,6 @@ class TestMany2manyCommands(TransactionCase):
         self.assertEqual(len(disc.categories), 2)
 
     def test_create_multiple_with_m2m(self):
-        """Batch create records with M2M values."""
         records = self.env["test_orm.discussion"].create(
             [
                 {
@@ -198,8 +167,6 @@ class TestMany2manyCommands(TransactionCase):
 
 
 class TestMany2manySearch(TransactionCase):
-    """Test search operators on Many2many fields."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -229,7 +196,6 @@ class TestMany2manySearch(TransactionCase):
         cls.disc_empty = Discussion.create({"name": "Has None"})
 
     def test_search_in(self):
-        """('m2m_field', 'in', ids) finds records linked to any of the ids."""
         result = self.env["test_orm.discussion"].search(
             [
                 ("categories", "in", self.cat_a.ids),
@@ -241,7 +207,6 @@ class TestMany2manySearch(TransactionCase):
         self.assertNotIn(self.disc_empty, result)
 
     def test_search_not_in(self):
-        """('m2m_field', 'not in', ids) finds records NOT linked to any of the ids."""
         result = self.env["test_orm.discussion"].search(
             [
                 ("categories", "not in", self.cat_a.ids),
@@ -251,7 +216,6 @@ class TestMany2manySearch(TransactionCase):
         self.assertNotIn(self.disc_with_both, result)
 
     def test_search_equal_false(self):
-        """('m2m_field', '=', False) finds records with no relations."""
         result = self.env["test_orm.discussion"].search(
             [
                 ("categories", "=", False),
@@ -261,7 +225,6 @@ class TestMany2manySearch(TransactionCase):
         self.assertNotIn(self.disc_with_a, result)
 
     def test_search_not_equal_false(self):
-        """('m2m_field', '!=', False) finds records with at least one relation."""
         result = self.env["test_orm.discussion"].search(
             [
                 ("categories", "!=", False),
@@ -274,8 +237,6 @@ class TestMany2manySearch(TransactionCase):
 
 
 class TestMany2manyCache(TransactionCase):
-    """Test cache behavior for Many2many fields."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -285,7 +246,6 @@ class TestMany2manyCache(TransactionCase):
         cls.cat_c = Category.create({"name": "Cache C"})
 
     def test_cache_after_link(self):
-        """Cache reflects new link immediately after write."""
         disc = self.env["test_orm.discussion"].create({"name": "Cache Test"})
         self.assertFalse(disc.categories)
 
@@ -293,7 +253,6 @@ class TestMany2manyCache(TransactionCase):
         self.assertEqual(disc.categories, self.cat_a)
 
     def test_cache_after_clear(self):
-        """Cache reflects clear immediately after write."""
         disc = self.env["test_orm.discussion"].create(
             {
                 "name": "Cache Clear",
@@ -306,7 +265,6 @@ class TestMany2manyCache(TransactionCase):
         self.assertFalse(disc.categories)
 
     def test_cache_after_set(self):
-        """Cache reflects set command immediately."""
         disc = self.env["test_orm.discussion"].create(
             {
                 "name": "Cache Set",
@@ -317,7 +275,6 @@ class TestMany2manyCache(TransactionCase):
         self.assertEqual(disc.categories, self.cat_b | self.cat_c)
 
     def test_cache_invalidation_after_flush(self):
-        """After flush, reading from DB matches cache."""
         disc = self.env["test_orm.discussion"].create(
             {
                 "name": "Flush Test",
@@ -329,7 +286,6 @@ class TestMany2manyCache(TransactionCase):
         self.assertEqual(disc.categories, self.cat_a)
 
     def test_cache_consistency_multiple_writes(self):
-        """Cache stays consistent through multiple sequential writes."""
         disc = self.env["test_orm.discussion"].create({"name": "Multi Write"})
 
         disc.write({"categories": [Command.link(self.cat_a.id)]})
@@ -346,8 +302,6 @@ class TestMany2manyCache(TransactionCase):
 
 
 class TestMany2manyBidirectional(TransactionCase):
-    """Test bidirectional M2M fields (user ↔ group)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -357,17 +311,14 @@ class TestMany2manyBidirectional(TransactionCase):
         cls.group2 = cls.env["test_orm.group"].create({"name": "Group 2"})
 
     def test_link_from_one_side(self):
-        """Linking from user side updates group side."""
         self.user1.write({"group_ids": [Command.link(self.group1.id)]})
         self.assertIn(self.user1, self.group1.user_ids)
 
     def test_link_from_other_side(self):
-        """Linking from group side updates user side."""
         self.group1.write({"user_ids": [Command.link(self.user1.id)]})
         self.assertIn(self.group1, self.user1.group_ids)
 
     def test_bidirectional_consistency(self):
-        """Both sides stay consistent through multiple operations."""
         self.user1.write({"group_ids": [Command.set([self.group1.id, self.group2.id])]})
         self.assertIn(self.user1, self.group1.user_ids)
         self.assertIn(self.user1, self.group2.user_ids)
@@ -377,7 +328,6 @@ class TestMany2manyBidirectional(TransactionCase):
         self.assertIn(self.user1, self.group2.user_ids)
 
     def test_bidirectional_clear(self):
-        """Clearing from one side clears the other."""
         self.user1.write({"group_ids": [Command.set([self.group1.id, self.group2.id])]})
         self.user1.write({"group_ids": [Command.clear()]})
         self.assertFalse(self.user1.group_ids)
@@ -385,7 +335,6 @@ class TestMany2manyBidirectional(TransactionCase):
         self.assertNotIn(self.user1, self.group2.user_ids)
 
     def test_computed_from_m2m(self):
-        """Computed field based on M2M recomputes correctly."""
         self.assertEqual(self.user1.group_count, 0)
         self.user1.write({"group_ids": [Command.set([self.group1.id, self.group2.id])]})
         self.assertEqual(self.user1.group_count, 2)
@@ -394,10 +343,7 @@ class TestMany2manyBidirectional(TransactionCase):
 
 
 class TestMany2manyRelated(TransactionCase):
-    """Test M2M with special configurations."""
-
     def test_shared_relation_table(self):
-        """Ship/pirate/prisoner share the 'test_orm_crew' relation table."""
         ship = self.env["test_orm.ship"].create({"name": "Black Pearl"})
         pirate = self.env["test_orm.pirate"].create(
             {
@@ -418,7 +364,6 @@ class TestMany2manyRelated(TransactionCase):
         self.assertIn(ship, prisoner.ship_ids)
 
     def test_m2m_with_domain(self):
-        """M2M field with domain attribute (test_orm.multi.tags has domain)."""
         tag_a = self.env["test_orm.multi.tag"].create({"name": "alpha"})
         tag_b = self.env["test_orm.multi.tag"].create({"name": "xyz"})
         multi = self.env["test_orm.multi"].create(
@@ -430,7 +375,6 @@ class TestMany2manyRelated(TransactionCase):
         self.assertTrue(multi.tags)
 
     def test_copy_m2m(self):
-        """copy() duplicates M2M relations."""
         cat = self.env["test_orm.category"].create({"name": "Copy Cat"})
         disc = self.env["test_orm.discussion"].create(
             {
@@ -443,7 +387,6 @@ class TestMany2manyRelated(TransactionCase):
         self.assertNotEqual(disc_copy.id, disc.id)
 
     def test_unlink_cleans_junction(self):
-        """Deleting a record cleans up the junction table."""
         cat = self.env["test_orm.category"].create({"name": "Delete Me"})
         disc = self.env["test_orm.discussion"].create(
             {
@@ -458,7 +401,6 @@ class TestMany2manyRelated(TransactionCase):
         self.assertFalse(disc.categories)
 
     def test_m2m_read(self):
-        """read() returns M2M ids correctly."""
         disc = self.env["test_orm.discussion"].create(
             {
                 "name": "Read M2M",
@@ -477,7 +419,6 @@ class TestMany2manyRelated(TransactionCase):
         self.assertEqual(len(data["categories"]), 3)
 
     def test_m2m_mapped(self):
-        """mapped('m2m_field') returns union of all M2M records."""
         cat1 = self.env["test_orm.category"].create({"name": "Map1"})
         cat2 = self.env["test_orm.category"].create({"name": "Map2"})
         disc1 = self.env["test_orm.discussion"].create(
@@ -497,7 +438,6 @@ class TestMany2manyRelated(TransactionCase):
         self.assertEqual(all_cats, cat1 | cat2)
 
     def test_m2m_empty_recordset(self):
-        """Operations on empty M2M field."""
         disc = self.env["test_orm.discussion"].create({"name": "Empty M2M"})
         self.assertFalse(disc.categories)
         self.assertEqual(len(disc.categories), 0)
@@ -506,8 +446,6 @@ class TestMany2manyRelated(TransactionCase):
 
 
 class TestMany2manyQueryCount(TransactionCase):
-    """Verify query efficiency of M2M operations."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -515,7 +453,6 @@ class TestMany2manyQueryCount(TransactionCase):
         cls.cats = Category.create([{"name": f"QC{i}"} for i in range(5)])
 
     def test_read_m2m_prefetch(self):
-        """Reading M2M from multiple records in a shared prefetch group works."""
         discussions = self.env["test_orm.discussion"].create(
             [
                 {"name": f"PF{i}", "categories": [Command.set(self.cats.ids)]}

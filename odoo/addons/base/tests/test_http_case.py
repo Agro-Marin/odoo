@@ -89,16 +89,6 @@ class TestHttpCase(HttpCase):
 @tagged("-at_install", "post_install")
 class TestRunbotLog(HttpCase):
     def test_runbot_js_log(self):
-        """Test that a ChromeBrowser console.dir is handled server side as a log of level RUNBOT.
-
-        Capture on ``self._logger`` at ``RUNBOT`` rather than the root logger at
-        its default: ``assertLogs()`` sets a level on the logger it captures, but
-        the record is filtered at the logger that *emits* it, and the browser
-        logger is a child of this one.  ``RUNBOT`` is 25, so under
-        ``--log-level=warn`` (30) the message never left ``ChromeBrowser``, root
-        saw nothing, and the test failed for a reason that had nothing to do with
-        what it asserts.
-        """
         log_message = "this is a small test"
         with self.assertLogs(self._logger, level=logging.RUNBOT) as log_catcher:
             self.browser_js(
@@ -117,23 +107,17 @@ class TestRunbotLog(HttpCase):
 @tagged("-at_install", "post_install")
 class TestAllowRequests(HttpCase):
     def test_allow_all_requests_flag_scoped(self):
-        """all_requests=True must not outlive its context: a leaked flag
-        silently disables the stale-request cookie protection for the rest
-        of the test."""
         self.assertFalse(self.http_request_allow_all)
         with self.allow_requests(all_requests=True):
             self.assertTrue(self.http_request_allow_all)
         self.assertFalse(self.http_request_allow_all)
 
     def test_allow_all_requests_flag_restored_after_xmlrpc(self):
-        """Transport passes all_requests=True; the flag used to leak."""
         self.assertFalse(self.http_request_allow_all)
         self.xmlrpc_common.version()
         self.assertFalse(self.http_request_allow_all)
 
     def test_cookieless_request_refused_after_xmlrpc(self):
-        """End to end: a request without the test-cursor cookie must still be
-        refused (400) after an XML-RPC call earlier in the same test."""
         self.xmlrpc_common.version()
         with self.allow_requests():
             response = requests.get(
@@ -144,8 +128,6 @@ class TestAllowRequests(HttpCase):
         self.assertEqual(response.status_code, 400)
 
     def test_cookie_guard_unit(self):
-        """assertCanOpenTestCursor: cookie-less request -> BadRequest, unless
-        the allow-all flag is up."""
         fake_request = Mock(cookies={}, httprequest=Mock(path="/probe"))
         with patch.object(odoo.http, "request", fake_request):
             with self.assertRaises(BadRequest):
@@ -178,9 +160,6 @@ class TestChromeBrowser(HttpCase):
         self.browser.screencaster.save()
 
     def test_wait_ready_pending_promise_returns_false(self):
-        """A never-resolving ready promise must yield False within the
-        budget — the evaluate-phase TimeoutError must not escape (bool
-        contract)."""
         self.browser.navigate_to("about:blank")
         self.browser._wait_ready()
         start = time.monotonic()
@@ -190,8 +169,6 @@ class TestChromeBrowser(HttpCase):
         self.assertLess(time.monotonic() - start, 10)
 
     def test_wait_ready_throttling_applied_once(self):
-        """The wall-clock budget is timeout*factor — the factor used to be
-        applied a second time inside _websocket_request (factor squared)."""
         self.browser.navigate_to("about:blank")
         self.browser._wait_ready()
         self.browser.throttling_factor = 3
@@ -207,9 +184,6 @@ class TestChromeBrowser(HttpCase):
         self.assertLess(elapsed, 7)
 
     def test_wait_code_ok_wraps_evaluate_timeout(self):
-        """Code whose promise outlives the budget must raise
-        ChromeBrowserException (screenshot taken), not a bare TimeoutError
-        that bypasses browser_js's error handling."""
         self.browser.navigate_to("about:blank")
         self.browser._wait_ready()
         with patch.object(ChromeBrowser, "take_screenshot", return_value=None):
@@ -217,9 +191,6 @@ class TestChromeBrowser(HttpCase):
                 self.browser._wait_code_ok("new Promise(() => {})", timeout=1)
 
     def test_wait_code_ok_budget_not_extended(self):
-        """The post-evaluate wait consumes the *remaining* budget: evaluate
-        eats ~2s of a 3s budget, so the call must fail ~3s in — the flipped
-        formula used to grant elapsed+timeout more (~7s total)."""
         self.browser.navigate_to("about:blank")
         self.browser._wait_ready()
         start = time.monotonic()
@@ -342,15 +313,6 @@ class TestRequestRemainingStartDuringNext(TestRequestRemainingCommon):
 
 
 class TestRequestRemainingAfterFirstCheck(TestRequestRemainingCommon):
-    """Implementation-specific: the lock is acquired after the next thread.
-
-    - test_requests_a closes browser js, acquires the lock
-    - a ghost request opens a test cursor, makes the first check
-      (assertCanOpenTestCursor)
-    - the next test enables requests (url_open), releasing the lock
-    - the pending request runs but detects the test change
-    """
-
     def test_requests_a(self, cookie=False):
         self.http_request_key = self.canonical_tag
 
@@ -390,20 +352,6 @@ class TestRequestRemainingAfterFirstCheck(TestRequestRemainingCommon):
 
 @tagged("-at_install", "post_install")
 class TestChromeBrowserConstructionFailure(HttpCase):
-    """A constructor that fails after spawning Chrome must not leak it.
-
-    ``browser_js`` only registers ``browser.stop`` once the constructor has
-    returned, so anything raising between ``_chrome_start`` and the end of
-    ``_connect`` — a CDP command timing out, or the ``SkipTest`` raised when
-    the websocket handshake is refused — used to strand the whole browser
-    process tree and its profile directory.
-
-    The assertions target the instance that failed, captured on its way
-    through ``_chrome_start``.  Comparing before/after snapshots of the
-    machine's Chrome processes instead made the test race with any other
-    browser test running in the same session.
-    """
-
     def _assert_failed_construction_cleans_up(self, break_it, expected_exception):
         spawned = []
         real_chrome_start = ChromeBrowser._chrome_start
@@ -460,12 +408,6 @@ class TestChromeBrowserConstructionFailure(HttpCase):
 @tagged("-at_install", "post_install")
 class TestWaitReadyNavigation(TestChromeBrowser):
     def test_navigation_during_polling_is_retried(self):
-        """A page navigating under an in-flight evaluate must not fail the wait.
-
-        ``_wait_ready`` polls while the page is still loading, so Chrome
-        answering "Inspected target navigated or closed" is the expected race,
-        not an error: it used to escape and abort the tour.
-        """
         self.browser.navigate_to("about:blank")
         real_request = ChromeBrowser._websocket_request
         raised = []
@@ -481,7 +423,6 @@ class TestWaitReadyNavigation(TestChromeBrowser):
         self.assertTrue(raised, "the race was never injected")
 
     def test_other_cdp_errors_still_propagate(self):
-        """Only the navigation race is retried; real CDP errors must surface."""
         self.browser.navigate_to("about:blank")
 
         def broken(browser, method, **kwargs):
