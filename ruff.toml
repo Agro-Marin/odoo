@@ -30,6 +30,31 @@
 target-version = "py314"
 line-length = 88
 
+# Enforce the version floor in the config itself instead of trusting five files to
+# stay in lockstep by convention. Without this, a too-old ruff fails obscurely —
+# an unknown selector names a rule, but an unknown config KEY is a TOML parse error
+# blamed on line 1 (see the header). With it:
+#   Cause: Required version `>=0.16.2` does not match the running version `0.16.0`
+# `>=`, not `==`, and the distinction is the point. Two different requirements are
+# in play and only one of them belongs here:
+#   - Can this config be READ at all? A hard minimum. That is this key.
+#   - Is the ratchet COUNT reproducible? Needs one exact build, which is what
+#     `pip install "ruff==0.16.2"` in .github/workflows/ruff.yml pins.
+# Pinning `==` here would collapse the two and break every editor that ships its
+# own bundled ruff (the VS Code extension does) the moment it runs one patch ahead.
+required-version = ">=0.16.2"
+
+# Honour `exclude` even when ruff is handed explicit file paths. This is not a
+# refinement — it is the difference between the exclusions below working and not,
+# because pre-commit invokes ruff as `ruff check <staged file> <staged file> …`,
+# never as `ruff check .`, and by default an explicitly-named path is linted no
+# matter what `exclude` says. The `_vendor` carve-out is currently defended FIVE
+# times over (three `exclude` globs, two per-file-ignores `ALL` entries) precisely
+# because nobody could get one of them to hold; this is the mechanism the rest
+# were compensating for. Keep them for now — `ALL` also silences the parse-level
+# diagnostics that survive exclusion — but new carve-outs need only one entry.
+force-exclude = true
+
 # Print `F401`, not `unused-import`. New in 0.16.2, and it repairs a regression
 # this config walked into the moment it set `preview = true`: under preview, ruff
 # switched its human-readable output formats from rule CODES to rule NAMES, so
@@ -126,6 +151,15 @@ select = [
     #             # introspection, and @route handler signature checks. The runtime-evaluated-*
     #             # settings cannot cover all cases (cross-file limitation, function decorators).
     #             # See: https://github.com/astral-sh/ruff/issues/15100
+
+    # Tests (pytest — the Tier-1 suites in odoo/pytest.ini are pytest-run)
+    "PT",         # flake8-pytest-style. 23 of its rules are live and cost ZERO today:
+                  # PT015 assert-always-false, PT017 assert-in-except, PT014 duplicate
+                  # parametrize cases, PT010 raises-without-exception, PT025 erroneous
+                  # usefixtures-on-fixture, and the fixture/parametrize/mark hygiene set.
+                  # The eight that would fire are turned off individually in `ignore`
+                  # with their counts — the family is selected so a NEW pytest rule
+                  # arrives enabled, the same bargain every other family here makes.
 
     # String & logging
     "G",          # flake8-logging-format
@@ -250,6 +284,11 @@ select = [
     "TID254",     # lazy-import-mismatch (0)
     "TID255",     # lazy-import-immediately-resolved (0)
     "PT029",      # pytest-warns-without-warning (0)
+    "COM818",     # trailing-comma-on-bare-tuple (0/0/0) — `x = 1,` silently builds a
+                  # 1-tuple. The rest of flake8-commas is formatter territory and stays
+                  # off (COM812 alone is 8794 findings and fights `ruff format`); this
+                  # one rule is not about commas as style, it is about a typo that
+                  # changes a value's type without changing how the line reads.
     "RUF029",     # unused-async (0/0/0) — `async def` that never awaits: the caller
                   # gets a coroutine object, and forgetting to await it is silent
 
@@ -295,12 +334,17 @@ select = [
     # -- Modernization / clarity --
     "UP051",      # deprecated-abc-decorator (0/0/0) — @abstractproperty and friends,
                   # deprecated since 3.3; stack @property over @abstractmethod
-    "TC008",      # quoted-type-alias (0/0/1) — the ONE flake8-type-checking rule that
-                  # is safe here. The TC family is disabled above because TC rules move
-                  # imports behind `if TYPE_CHECKING`, which PEP 649 + Odoo's runtime
-                  # introspection cannot survive. TC008 moves nothing: it unquotes a
-                  # string inside an explicit `type X = ...` alias, where the quotes were
-                  # never needed. The disabled-TC rationale simply does not reach it.
+    # The flake8-type-checking rules that do NOT move imports into `if TYPE_CHECKING`.
+    # The family is disabled above because TC001/TC002/TC003 push imports behind that
+    # guard, which PEP 649 and Odoo's runtime introspection cannot survive. Every rule
+    # below either moves nothing or pushes in the opposite, safe direction — so the
+    # blanket disable was over-broad, and these five are free (0/0/0 unless noted).
+    "TC005",      # empty-type-checking-block — a guard left behind with nothing in it
+    "TC006",      # runtime-cast-value — quote the type in `cast()` so it is not evaluated
+    "TC007",      # unquoted-type-alias — the counterpart to TC008 below
+    "TC008",      # quoted-type-alias (0/0/1) — unquotes a string inside an explicit
+                  # `type X = ...` alias, where the quotes were never needed
+    "TC010",      # runtime-string-union — `x: "int" | None` is a TypeError when evaluated
     "RUF039",     # unraw-re-pattern (regex missing r"" prefix)
     "RUF069",     # float-equality-comparison (precision bugs in financial code)
     "RUF065",     # f-string-in-logging (performance — use lazy %s formatting)
@@ -454,6 +498,26 @@ ignore = [
     # too, taking the pair from 9 findings to 163 — mostly deliberate
     # "this optional lookup may legitimately miss" code. Measured and declined
     # 2026-07-26; the default already catches the swallow-everything cases that matter.
+
+    # --- flake8-pytest-style: the eight rules of a selected family that would fire ---
+    # Counts are odoo/. The family is selected above for its 23 zero-cost correctness
+    # rules; these eight are the price of that, itemised rather than waved away.
+    "PT009",      # pytest-unittest-assertion (15553) — self.assertEqual -> assert. Odoo's
+                  # integration tests ARE unittest.TestCase, run by the Odoo test runner,
+                  # not pytest; only the Tier-1 suites are pytest-run. This is not a
+                  # migration anyone has agreed to, and ruff cannot tell the two apart
+    "PT027",      # pytest-unittest-raises-assertion (1236) — same rewrite, same reason
+    "PT018",      # pytest-composite-assertion (22) — splitting `assert a and b` gives a
+                  # better failure message, but the fix deletes comments in the assertion
+    "PT008",      # pytest-patch-with-lambda (11) — reads like a bug rule and is not one:
+                  # patch(t, lambda: 3) and patch(t, return_value=3) behave identically
+    "PT011",      # pytest-raises-too-broad (7) — consistent with B017, already exempted
+                  # for tests/**; requiring `match=` on every broad raises is a bigger
+                  # decision than a lint bump, and it is the same decision either way
+    "PT028",      # pytest-parameter-with-default-argument (6)
+    "PT012",      # pytest-raises-with-multiple-statements (1)
+    "PT022",      # pytest-useless-yield-fixture (1) — fix is always unsafe: dropping the
+                  # yield changes when the fixture's value becomes collectable
 
     # --- CLI style ---
     "PLR1722",    # sys-exit-alias (sys.exit() is idiomatic in CLI commands)
