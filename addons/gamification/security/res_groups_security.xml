@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_groups_privilege_gamification" model="res.groups.privilege">
+        <field name="name">Gamification</field>
+        <field name="sequence">10</field>
+        <field name="category_id" ref="base.module_category_productivity"/>
+    </record>
+
+    <!-- Non-regression: gamification used to hang off base.group_user and
+         base.group_erp_manager directly, so both audiences keep the exact same
+         reach through these two implications. Without the second one the seven
+         base.group_erp_manager holders would silently lose their CRUD.
+
+         The link is declared here, on our own records, through implied_by_ids
+         (the reverse of implied_ids, same res_groups_implied_rel table) instead
+         of extending base.group_user from this module. Measured reason: the
+         ir.model.data row of base.group_user carries noupdate=True (one of only
+         two base groups that do), and load.py:545 skips writes to a noupdate
+         xmlid whenever the module is being upgraded. Extending base.group_user
+         from here would therefore work on -i and silently do nothing on -u.
+         Same idiom as product/security/product_security.xml:22 and
+         account/security/account_security.xml:115.
+
+         No implied_ids towards base.group_user either: the implication runs this
+         way round only, and declaring both directions would build a cycle. -->
+    <record id="group_gamification_user" model="res.groups">
+        <field name="name">User</field>
+        <field name="sequence">10</field>
+        <field name="privilege_id" ref="res_groups_privilege_gamification"/>
+        <field name="implied_by_ids" eval="[Command.link(ref('base.group_user'))]"/>
+        <field name="comment">Can take part in gamification: see the dashboard, own goals, streaks, kudos and mentorships.</field>
+    </record>
+
+    <record id="group_gamification_manager" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="sequence">20</field>
+        <field name="privilege_id" ref="res_groups_privilege_gamification"/>
+        <field name="implied_ids" eval="[Command.link(ref('group_gamification_user'))]"/>
+        <field name="implied_by_ids" eval="[Command.link(ref('base.group_erp_manager'))]"/>
+        <field name="comment">Configures badges, challenges, goal definitions and karma ranks, and reads the gamification analytics.</field>
+    </record>
+
+</odoo>

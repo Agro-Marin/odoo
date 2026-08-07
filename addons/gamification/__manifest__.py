@@ -1,9 +1,10 @@
 {
     "name": "Gamification",
-    "version": "1.0",
+    "version": "1.1",
     "sequence": 160,
-    "category": "Human Resources",
+    "category": "Productivity",
     "depends": ["mail"],
+    "application": True,
     "description": """
 Gamification process
 ====================
@@ -17,6 +18,8 @@ For non-numerical achievements, **badges** can be granted to users. From a simpl
 Both goals and badges are flexible and can be adapted to a large range of modules and actions. When installed, this module creates easy goals to help new users to discover Odoo and configure their user profile.
 """,
     "data": [
+        # First: menus and ACLs below reference the groups it declares.
+        "security/res_groups_security.xml",
         "wizard/update_goal.xml",
         "wizard/grant_badge.xml",
         "views/res_users_views.xml",

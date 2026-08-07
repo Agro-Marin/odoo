@@ -24,7 +24,7 @@
         <field name="priority">50</field>
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
-                <page string="Gamification" name="gamification" groups="base.group_no_one">
+                <page string="Gamification" name="gamification" groups="gamification.group_gamification_manager">
                     <group>
                         <group string="Level Progress">
                             <field name="rank_id" readonly="1"/>
