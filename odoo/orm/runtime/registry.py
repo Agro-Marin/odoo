@@ -41,7 +41,7 @@ _logger = logging.getLogger("odoo.registry")
 _schema = logging.getLogger("odoo.schema")
 
 
-_REGISTRY_CACHES = {
+REGISTRY_CACHES = {
     "default": 8192,
     "assets": 512,
     "assets.links": 8192,
@@ -53,7 +53,7 @@ _REGISTRY_CACHES = {
     "groups": 64,
 }
 
-_CACHES_BY_KEY = {
+CACHES_BY_KEY = {
     "default": ("default", "templates.cached_values"),
     "assets": ("assets", "assets.links", "templates.cached_values"),
     "stable": ("stable", "default", "templates.cached_values"),
@@ -77,7 +77,7 @@ while a blip recovers in about a second.
 """
 
 _SIGNALING_TABLES = tuple(
-    f"orm_signaling_{cache_name}" for cache_name in ["registry", *_CACHES_BY_KEY]
+    f"orm_signaling_{cache_name}" for cache_name in ["registry", *CACHES_BY_KEY]
 )
 
 _ASSERTION_REPORTS: dict[str, typing.Any] = {}
@@ -111,11 +111,11 @@ class _RegistryCaches:
     def __init__(self) -> None:
         self.lrus: dict[str, LRU] = {
             cache_name: LRU(cache_size)
-            for cache_name, cache_size in _REGISTRY_CACHES.items()
+            for cache_name, cache_size in REGISTRY_CACHES.items()
         }
 
     def clear_group(self, cache_name: str) -> None:
-        for cache in _CACHES_BY_KEY[cache_name]:
+        for cache in CACHES_BY_KEY[cache_name]:
             self.lrus[cache].clear()
 
     def clear_all(self) -> None:
@@ -619,12 +619,12 @@ class Registry(
     def clear_cache(self, *cache_names: str) -> None:
         cache_names = cache_names or ("default",)
         for cache_name in cache_names:
-            if cache_name not in _CACHES_BY_KEY:
+            if cache_name not in CACHES_BY_KEY:
                 raise ValueError(
                     f"clear_cache: invalid cache name {cache_name!r} — only "
                     f"composite group names can be cleared (sub-cache names "
                     f"like 'templates.cached_values' cannot); valid names: "
-                    f"{', '.join(sorted(_CACHES_BY_KEY))}"
+                    f"{', '.join(sorted(CACHES_BY_KEY))}"
                 )
         for cache_name in cache_names:
             self._clear_cache_group(cache_name)
@@ -639,7 +639,7 @@ class Registry(
             )
 
     def clear_all_caches(self) -> None:
-        for cache_name in _CACHES_BY_KEY:
+        for cache_name in CACHES_BY_KEY:
             self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)
 
@@ -694,7 +694,22 @@ class Registry(
     def get_sequences(self, cr: BaseCursor) -> tuple[int, dict[str, int]]:
         signaling_selects = SQL(", ").join(
             [
-                SQL("( SELECT max(id) FROM %s)", SQL.identifier(signaling_table))
+                # coalesce, because max() over an EMPTY table is NULL, not 0, and
+                # this method is annotated -> tuple[int, dict[str, int]]. Without
+                # it setup_signaling stores None into registry_sequence (an int)
+                # and the next check_signaling raises
+                #   TypeError: '>' not supported between 'NoneType' and 'int'
+                # -- for every registry in the cluster, until a row reappears.
+                # An empty-but-present table is reachable: setup_signaling only
+                # seeds a row when it CREATEs the table, so a truncate/restore,
+                # or an interrupted setup, leaves exactly this state.
+                # 0 is the right zero value: registry_sequence starts at -1, and
+                # check_signaling already treats a db value BELOW the local one
+                # as stale rather than an error.
+                SQL(
+                    "( SELECT coalesce(max(id), 0) FROM %s)",
+                    SQL.identifier(signaling_table),
+                )
                 for signaling_table in _SIGNALING_TABLES
             ]
         )
@@ -703,7 +718,7 @@ class Registry(
         if row is None:
             raise RuntimeError("No result when reading signaling sequences")
         registry_sequence, *cache_sequences_values = row
-        cache_sequences = dict(zip(_CACHES_BY_KEY, cache_sequences_values, strict=True))
+        cache_sequences = dict(zip(CACHES_BY_KEY, cache_sequences_values, strict=True))
         return registry_sequence, cache_sequences
 
     def check_signaling(self, cr: BaseCursor | None = None) -> Registry:
@@ -753,7 +768,7 @@ class Registry(
                 ) in self.cache_sequences.items():
                     expected_sequence = db_cache_sequences[cache_name]
                     if expected_sequence > cache_sequence:
-                        for cache in _CACHES_BY_KEY[cache_name]:
+                        for cache in CACHES_BY_KEY[cache_name]:
                             if cache not in invalidated:
                                 invalidated.append(cache)
                                 self._caches.lrus[cache].clear()
@@ -783,6 +798,20 @@ class Registry(
             raise
         return self
 
+    @staticmethod
+    def _signalled_id(cr: BaseCursor, previous: int) -> int:
+        """The id the INSERT above actually produced, or ``previous + 1``.
+
+        The fallback keeps the old behaviour for any cursor that does not return
+        a row (a test double, a driver that drops RETURNING), so this cannot
+        turn a working signal into a crash -- it only removes the guess when the
+        database is there to answer.
+        """
+        row = cr.fetchone()
+        if row and isinstance(row[0], int):
+            return row[0]
+        return previous + 1
+
     def signal_changes(self) -> None:
         if not self.ready:
             _logger.warning(
@@ -790,11 +819,22 @@ class Registry(
             )
             return
 
+        # RETURNING id, rather than assuming the row we just inserted got
+        # `local + 1`. These tables exist to coordinate SEVERAL processes, so
+        # concurrent inserts are the normal case, not the edge one: two workers
+        # signalling together take ids N+1 and N+2 while both record `+= 1`
+        # locally. The one that lost the race then reads db_seq > local_seq on
+        # its next check_signaling and performs a full `Registry.new()` reload
+        # -- the most expensive operation in the system -- to learn about a
+        # change it already made. The sequence is generated by the database; ask
+        # it what it generated.
         if self.registry_invalidated:
             _logger.info("Registry changed, signaling through the database")
             with self.cursor() as cr:
-                cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES")
-                self.registry_sequence += 1
+                cr.execute(
+                    "INSERT INTO orm_signaling_registry DEFAULT VALUES RETURNING id"
+                )
+                self.registry_sequence = self._signalled_id(cr, self.registry_sequence)
 
         if self.cache_invalidated:
             _logger.info(
@@ -805,11 +845,13 @@ class Registry(
                 for cache_name in self.cache_invalidated:
                     cr.execute(
                         SQL(
-                            "INSERT INTO %s DEFAULT VALUES",
+                            "INSERT INTO %s DEFAULT VALUES RETURNING id",
                             SQL.identifier(f"orm_signaling_{cache_name}"),
                         )
                     )
-                    self.cache_sequences[cache_name] += 1
+                    self.cache_sequences[cache_name] = self._signalled_id(
+                        cr, self.cache_sequences[cache_name]
+                    )
 
         self.registry_invalidated = False
         self.cache_invalidated.clear()

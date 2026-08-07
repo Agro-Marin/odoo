@@ -278,6 +278,140 @@ def test_core_source_covers_every_core_package():
     )
 
 
+def test_core_source_covers_every_core_module():
+    """The same completeness rule, for the top-level *modules*.
+
+    ``test_core_source_covers_every_core_package`` filters ``p.is_dir()``, so it
+    only ever asserted the packages were complete. The six top-level modules --
+    ``init.py`` (the bootstrap), ``logutils.py`` (imported by Layer 1),
+    ``exceptions.py``, ``release.py``, ``_testing_bootstrap.py``, ``__main__.py``
+    -- were therefore in no contract, and because ``iter_source_files`` derives
+    its roots from ``source``, **zero** of them were read: any of them could
+    import an addon and the gate would stay green forever.
+
+    A directory-only completeness test is the same shape of hole as a
+    directory-only scan; both are fixed here.
+    """
+    pkg_root = lc.ROOT / "odoo"
+    on_disk = {p.stem for p in pkg_root.glob("*.py") if p.name != "__init__.py"}
+    covered = {
+        s.split(".", 1)[1] for s in _core_contract().source if s.startswith("odoo.")
+    }
+    uncovered = on_disk - covered
+    assert uncovered == set(), (
+        f"top-level core modules not covered by core-does-not-depend-on-addons: "
+        f"{sorted(uncovered)}"
+    )
+
+
+def test_top_level_core_modules_are_actually_scanned():
+    """Coverage in ``source`` is worthless if the walk still skips the file.
+
+    ``iter_source_files`` maps a dotted source to a directory and falls back to
+    ``root.with_suffix('.py')`` for module-shaped roots -- so naming them is
+    enough, but only this assertion proves the walk reaches them.
+    """
+    scanned = {p.name for p in lc.iter_source_files() if p.parent == lc.ROOT / "odoo"}
+    for name in ("init.py", "logutils.py", "exceptions.py", "release.py"):
+        assert name in scanned, f"odoo/{name} is still not scanned by layer_check"
+
+
+#: Top-level ``odoo/orm/*.py`` deliberately outside every *layering* contract.
+#: ``model_test_env`` is the DB-free test harness and constructs
+#: ``Environment``/``Transaction``/``Registry`` by design; ``__init__`` is the
+#: package's own re-export surface. Everything else must be placed in a layer.
+_ORM_MODULES_EXEMPT_FROM_LAYERING = frozenset({"model_test_env", "__init__"})
+
+
+def test_every_top_level_orm_module_sits_in_a_layering_contract():
+    """``core-does-not-depend-on-addons`` is not a layering contract.
+
+    Four of the eleven top-level ``odoo/orm/*.py`` -- ``helpers``,
+    ``registration``, ``model_test_env``, ``__init__``, together 1296 of 1987
+    lines (~65%) -- were in no layering contract at all. They *looked* governed,
+    because that addon contract names ``odoo.orm`` and so matches them, but it
+    only forbids ``odoo.addons`` and constrains no layer.
+
+    ``helpers.py`` is why this matters: 11 Layer-2 mixins import it, so whatever
+    it imports becomes reachable from Layer 2 without Layer 2 importing it --
+    the same conduit shape that `tools-does-not-reach-the-orm-runtime` closes
+    one level up. Asserting "some contract matches" would have passed while the
+    hole was open, so this asserts a *layering* contract matches.
+    """
+    layering = {
+        c.name
+        for c in lc.CONTRACTS
+        if "layer" in c.name or "seam" in c.name or "below-runtime" in c.name
+    }
+    uncovered = []
+    for path in sorted((lc.ROOT / "odoo" / "orm").glob("*.py")):
+        if path.stem in _ORM_MODULES_EXEMPT_FROM_LAYERING:
+            continue
+        module = f"odoo.orm.{path.stem}"
+        if not any(
+            lc._matches(module, tuple(c.source))
+            for c in lc.CONTRACTS
+            if c.name in layering
+        ):
+            uncovered.append(path.name)
+    assert uncovered == [], (
+        "top-level orm modules in no layering contract (add them to one, or to "
+        f"_ORM_MODULES_EXEMPT_FROM_LAYERING with a reason): {uncovered}"
+    )
+
+
+def test_the_orm_layering_exemptions_are_real_modules():
+    for stem in _ORM_MODULES_EXEMPT_FROM_LAYERING:
+        assert (lc.ROOT / "odoo" / "orm" / f"{stem}.py").is_file(), stem
+
+
+def test_facades_do_not_reexport_private_framework_names():
+    """A facade must not launder a private ORM symbol to addon code.
+
+    ``facade-boundary`` forbids addons importing ``odoo.orm.*``, and it is a
+    name-prefix rule -- so re-exporting a private ORM symbol from a facade that
+    is *not* under ``odoo.orm`` hands addons the same internal past the gate.
+    Verified with the checker's own matcher:
+    ``_matches("odoo.orm.runtime.registry._CACHES_BY_KEY", forbidden)`` is True
+    while ``_matches("odoo.modules.registry._CACHES_BY_KEY", forbidden)`` is
+    False -- same symbol, one path banned, the other allowed. Two production
+    addons (``ir_autovacuum``, ``ir_qweb``) were using the allowed one.
+
+    Those two constants are now public (``CACHES_BY_KEY`` / ``REGISTRY_CACHES``)
+    because addons genuinely need them: the honest fix for "an addon depends on
+    this" is stable API, not a private name with a side door. This keeps the
+    door shut generally, rather than pinning the two names that went through it.
+    """
+    facades = (
+        ("odoo", "api"),
+        ("odoo", "fields"),
+        ("odoo", "models"),
+        ("odoo", "modules", "registry"),
+    )
+    offenders: list[str] = []
+    for parts in facades:
+        init = lc.ROOT.joinpath(*parts, "__init__.py")
+        if not init.is_file():
+            continue
+        tree = ast.parse(init.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(getattr(t, "id", "") == "__all__" for t in node.targets):
+                continue
+            if not isinstance(node.value, (ast.List, ast.Tuple)):
+                continue
+            for element in node.value.elts:
+                if isinstance(element, ast.Constant) and isinstance(element.value, str):
+                    if element.value.startswith("_"):
+                        offenders.append(f"{'.'.join(parts)}.{element.value}")
+
+    assert offenders == [], (
+        "facades re-export private names, which addon code can then import "
+        f"without tripping facade-boundary: {sorted(offenders)}"
+    )
+
+
 def test_the_addon_contract_exemptions_are_real_packages():
     """A stale exemption would silently un-cover a package that got renamed."""
     pkg_root = lc.ROOT / "odoo"
@@ -470,11 +604,15 @@ def test_db_foundation_is_importable_from_both_tiers():
 
 def test_http_features_importing_serving_is_a_violation():
     assert _violates("odoo.http.openapi", "from .routing import Route\n")
-    assert _violates("odoo.http._params", "from odoo.http.request_class import Request\n")
+    assert _violates(
+        "odoo.http._params", "from odoo.http.request_class import Request\n"
+    )
 
 
 def test_http_serving_importing_features_is_clean():
-    assert not _violates("odoo.http._serve", "from .constants import SESSION_LIFETIME\n")
+    assert not _violates(
+        "odoo.http._serve", "from .constants import SESSION_LIFETIME\n"
+    )
     assert not _violates("odoo.http.helpers", "from .core import request\n")
 
 

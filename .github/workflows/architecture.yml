@@ -23,44 +23,33 @@ on:
   pull_request:
     branches: ['*']
     paths:
-      # The checker's contract source roots: the framework layers it inspects
-      # AND both addon trees governed by the facade-boundary contract (ADR-0008).
-      - 'odoo/orm/**/*.py'
-      - 'odoo/db/**/*.py'
-      - 'odoo/libs/**/*.py'
-      - 'odoo/addons/**/*.py'
-      - 'addons/**/*.py'
-      # The subsystem-map gate compares odoo/ARCHITECTURE.md against the tree,
-      # so BOTH sides must retrigger it. Adding a module to odoo/tools/ or
-      # odoo/http/ is exactly the drift it catches, and those packages were not
-      # otherwise in this filter; a map-only edit matched no path at all.
-      - 'odoo/ARCHITECTURE.md'
-      # package_index_check compares odoo/db/README.md and
-      # odoo/_monkeypatches/README.md against their packages; an edit to either
-      # side must retrigger it.
-      - 'odoo/**/README.md'
+      # WHOLE-TREE, NOT PER-PACKAGE, and deliberately so.
+      #
+      # This filter used to enumerate the core packages one by one. Enumeration
+      # is the wrong shape for it: the list is a second, hand-maintained copy of
+      # every checker's scope, and it silently rots as packages are added. It
+      # had: `odoo/api/**`, `odoo/fields/**`, `odoo/models/**` and `odoo/tests/**`
+      # were all real packages inside the checkers' scope (they appear in
+      # layer_check's core source tuple, libs_facade_check.SCANNED_TREES and
+      # env_model_surface_check.SCOPE_PACKAGES) and NONE of them was listed
+      # here — so a PR touching only those ran no gate at all and was caught,
+      # if at all, by the post-merge `push:` trigger, i.e. after the
+      # merge-blocking check had already reported nothing. That is the same
+      # failure ADR-0009 recorded and fixed once already.
+      #
+      # `odoo/**` + `addons/**` costs a few over-triggers (the job is ~1 min)
+      # and makes the whole class unrepresentable. test_ci_path_filter_covers_
+      # every_scanned_tree (tooling/architecture/) pins it.
+      - 'odoo/**'
+      - 'addons/**'
       # test_adr_coherence.py fact-checks doc/adr/ (index ↔ files, cross-refs,
       # referenced repo paths) — an ADR edit must retrigger it.
       - 'doc/adr/**'
-      - 'odoo/http/**/*.py'
-      - 'odoo/tools/**/*.py'
-      - 'odoo/service/**/*.py'
-      - 'odoo/modules/**/*.py'
-      - 'odoo/cli/**/*.py'
-      # Top-level framework modules (e.g. odoo/logutils.py, a WorkerThread
-      # reader): worker_thread_surface_check scans all of core, including these,
-      # and they sit under no package filter above.
-      - 'odoo/*.py'
-      - 'odoo/_monkeypatches/**/*.py'
-      - 'odoo/upgrade_code/**/*.py'
-      # The JS Feature-Sliced layering gate (js_layer_check.py) governs the
-      # web addon's client source; re-run it when that source changes.
-      - 'addons/web/static/src/**/*.js'
-      # The named-export gate reads EVERY addon's client source: a rename in
-      # one module breaks importers anywhere, so scoping this to `web` would
-      # miss the consumer half of the very drift it exists to catch.
-      - 'addons/**/static/src/**/*.js'
-      - 'odoo/addons/**/static/src/**/*.js'
+      # The JS gates (js_layer_check, js_cycle_check, named_export_coherence)
+      # read client source under both addon trees; `odoo/**` and `addons/**`
+      # above already cover every `static/src/**` path they scan, so the three
+      # former per-tree JS globs here were redundant.
+      # These two are the only scanned paths outside those trees:
       - 'tooling/architecture/**'
       - '.github/workflows/architecture.yml'
 
@@ -203,6 +192,30 @@ jobs:
           set +e
           python tooling/architecture/env_surface_check.py --check \
             | tee /tmp/env_surface.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
+      - name: Run Layer → Registry (pool) surface check
+        id: pool_surface
+        # The sibling of env_surface_check, for the channel that argument
+        # missed. `self.pool` IS the Registry, so every `model.pool.<member>` is
+        # a Layer-N -> Layer-3 access that produces no import edge and moves no
+        # other gate. Measured, it shows the same inversion more sharply than
+        # `env` does: orm/fields (Layer 1) reaches the Registry at 30 sites
+        # against orm/models' 17, including a private member and 5
+        # pool[<model>] subscripts that Layer 2 never uses.
+        #
+        # Ratchets three things: no unsanctioned pool._private from Layers 0-2,
+        # every referenced member must EXIST on Registry, and components/ must
+        # not touch pool at all -- the runtime half of the purity claim
+        # orm-components-are-pure-python makes about imports. Public-surface
+        # width is reported, not ratcheted, for the same reason as the env gate.
+        run: |
+          set +e
+          python tooling/architecture/pool_surface_check.py --check \
+            | tee /tmp/pool_surface.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
@@ -384,6 +397,16 @@ jobs:
             cat /tmp/env_surface.log 2>/dev/null || echo "(gate did not run)"
             echo '```'
             echo ""
+            echo "### Python (Layer -> runtime pool seam)"
+            echo '```'
+            cat /tmp/pool_surface.log 2>/dev/null || echo "(gate did not run)"
+            echo '```'
+            echo ""
+            echo "### Python (framework -> addon model surface)"
+            echo '```'
+            cat /tmp/env_model_surface.log 2>/dev/null || echo "(gate did not run)"
+            echo '```'
+            echo ""
             echo "### Python (worker-thread bookkeeping surface)"
             echo '```'
             cat /tmp/worker_thread_surface.log 2>/dev/null || echo "(gate did not run)"
@@ -418,7 +441,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Annotate PR on failure
-        if: always() && (steps.layers.outputs.exit_code != '0' || steps.mixin_coupling.outputs.exit_code != '0' || steps.subsystem_map.outputs.exit_code != '0' || steps.package_index.outputs.exit_code != '0' || steps.env_surface.outputs.exit_code != '0' || steps.env_model_surface.outputs.exit_code != '0' || steps.worker_thread_surface.outputs.exit_code != '0' || steps.libs_facade.outputs.exit_code != '0' || steps.py_cycles.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0')
+        if: always() && (steps.layers.outputs.exit_code != '0' || steps.mixin_coupling.outputs.exit_code != '0' || steps.subsystem_map.outputs.exit_code != '0' || steps.package_index.outputs.exit_code != '0' || steps.env_surface.outputs.exit_code != '0' || steps.pool_surface.outputs.exit_code != '0' || steps.env_model_surface.outputs.exit_code != '0' || steps.worker_thread_surface.outputs.exit_code != '0' || steps.libs_facade.outputs.exit_code != '0' || steps.py_cycles.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0')
         uses: actions/github-script@v7
         with:
           script: |

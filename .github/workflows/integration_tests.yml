@@ -59,6 +59,32 @@ env:
   #     should run once the runner has Chrome). Re-include after the first green run.
   TEST_TAGS: /base,-:TestReportsRendering,-:TestIrModelFieldsTranslation
 
+  # test_http runs as a SECOND suite against its OWN database, not alongside
+  # base in one. That is not tidiness -- the suites interfere. test_http depends
+  # on mail, and mail/views/res_partner_views.xml inherits
+  # base.view_res_partner_filter with `<filter name="inactive" position="after">`.
+  # base's TestViewArchRecovery.test_hard_reset_from_file_still_works overwrites
+  # that very view with a minimal `<search>`, and the write re-validates the
+  # children, so mail's spec can no longer find the filter it anchors to:
+  #
+  #   -i base                 -> 5/5 green
+  #   -i base,test_http       -> ValidationError, running ONLY that test class
+  #
+  # The base test is fragile by construction (it mutates a shared core view, so
+  # it passes only while nothing inherits it), and a shared database makes every
+  # future addon added here a chance to trip it. Separate databases make the
+  # suites independent instead of making one of them someone else's problem.
+  #
+  # test_http itself ran in NO workflow until 2026-08, and the cost was three
+  # defects: test05_session_save_logs_on_failure committed red two months
+  # earlier; MemorySessionStore missing the `_delete_sid` that the `rotate` it
+  # borrows from FilesystemSessionStore calls, so /web/session/logout 500'd in
+  # five tests; and 4ffeacacd8c stripping `_http_handler`'s docstring, which
+  # `openapi._summary()` reads as fixture data. All three are the same failure:
+  # a suite nothing ran. When you add a test addon, give it a lane here.
+  HTTP_INSTALL: test_http
+  HTTP_TEST_TAGS: /test_http
+
 jobs:
   base-smoke:
     name: base suite (PostgreSQL 18)
@@ -124,6 +150,22 @@ jobs:
             --db-template=template0 \
             -i "${INSTALL}" \
             --test-enable --test-tags "${TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout
+
+      - name: Run test_http suite
+        # Its own database (ci_http), for the view-inheritance reason recorded
+        # in the env block above. Same interpreter and dependencies as the step
+        # before it -- only the database and the module set differ.
+        run: |
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_http \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${HTTP_INSTALL}" \
+            --test-enable --test-tags "${HTTP_TEST_TAGS}" \
             --stop-after-init \
             --max-cron-threads=0 --no-http \
             --log-level=test --logfile=/dev/stdout

@@ -157,20 +157,41 @@ class LiveRepositoryTest(unittest.TestCase):
             self.assertEqual(pkg.missing, [], f"{pkg.package}: modules not indexed")
             self.assertEqual(pkg.phantom, [], f"{pkg.package}: indexed but absent")
 
-    def test_both_packages_are_actually_covered(self):
+    def test_every_registered_package_is_actually_covered(self):
         """If the parse silently broke, `listed` would shrink and every
-        assertion above would pass vacuously."""
+        assertion above would pass vacuously.
+
+        Derived from ``PACKAGE_INDEXES`` rather than hardcoded: this used to
+        assert the set was exactly ``{db, _monkeypatches}`` and named a minimum
+        row count per package, so registering a third package (``http``) turned
+        a *correct* extension of the gate's coverage into a red build. A
+        coverage test that fails when coverage grows is pushing the wrong way.
+
+        The vacuity guard it existed for is kept, and made general: every
+        registered package must be reported, and every reported package must
+        have parsed a non-trivial inventory rather than an empty one.
+        """
         report = pic.check()
         by_name = {p.package: p for p in report.packages}
-        self.assertEqual(set(by_name), {"db", "_monkeypatches"})
-        self.assertGreaterEqual(len(by_name["db"].listed), 18)
-        self.assertGreaterEqual(len(by_name["_monkeypatches"].listed), 15)
+        self.assertEqual(
+            set(by_name),
+            set(pic.PACKAGE_INDEXES),
+            "check() did not report every package registered in PACKAGE_INDEXES",
+        )
+        for name, pkg in by_name.items():
+            self.assertGreater(
+                len(pkg.listed),
+                1,
+                f"{name}: parsed {len(pkg.listed)} inventory rows -- the section "
+                "heading probably stopped matching, which would make the "
+                "missing/phantom assertions vacuous",
+            )
 
     def test_every_core_readme_is_classified(self):
         """A new package README must be gated or explicitly excused.
 
-        ``test_both_packages_are_actually_covered`` pins the set to exactly
-        ``{db, _monkeypatches}``, which guards against the parse silently
+        ``test_every_registered_package_is_actually_covered`` pins the reported set
+        to ``PACKAGE_INDEXES``, which guards against the parse silently
         breaking — but it is not a *completeness* guard: it passes just as
         happily when a third README appears carrying an un-gated module
         inventory, because ``PACKAGE_INDEXES`` is an inclusion list and a
@@ -188,9 +209,7 @@ class LiveRepositoryTest(unittest.TestCase):
             for readme in pic.CORE_ROOT.rglob("README.md")
             if "addons" not in readme.parts and "_vendor" not in readme.parts
         }
-        unclassified = (
-            on_disk - set(pic.PACKAGE_INDEXES) - pic.READMES_WITHOUT_AN_INDEX
-        )
+        unclassified = on_disk - set(pic.PACKAGE_INDEXES) - pic.READMES_WITHOUT_AN_INDEX
         self.assertEqual(
             unclassified,
             set(),
