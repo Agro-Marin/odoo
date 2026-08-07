@@ -14,7 +14,6 @@ from odoo.exceptions import AccessError, UserError
 from odoo.http import Response, request
 from odoo.libs.constants import ANY_UNIQUE
 from odoo.libs.filesystem import guess_mimetype
-from odoo.libs.json import dumps as json_dumps
 from odoo.tools import file_open, file_path, replace_exceptions, str2bool
 from odoo.tools.image import image_guess_size_from_field_name
 from odoo.tools.misc import verify_limited_field_access_token
@@ -415,7 +414,7 @@ class Binary(http.Controller):
         model: str,
         id: int | str,
         ufile: Any,
-    ) -> str:
+    ) -> Response:
         """Upload one or more files and create ir.attachment records.
 
         Returns a JSON list of dicts, each containing ``filename``,
@@ -458,7 +457,10 @@ class Binary(http.Controller):
                         "size": attachment.file_size,
                     }
                 )
-        return json_dumps(results)
+        # make_json_response, not a bare str: a str body from an http route
+        # defaults to text/html, which the uploader (rejectHtml) reads as the
+        # login page and turns into a spurious session-expired dialog.
+        return request.make_json_response(results)
 
     @http.route(
         [
