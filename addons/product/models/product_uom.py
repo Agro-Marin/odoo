@@ -7,11 +7,20 @@ class ProductUom(models.Model):
     _name = "product.uom"
     _description = "Link between products and their UoMs"
     _rec_name = "barcode"
+    # A packaging carries its own `company_id`, so the product it names must
+    # belong to that same company -- as `product.combo.item` (same shape: own
+    # company, own multi-company record rule) already requires of its own
+    # `product_id`. It is what makes the barcode guarantee hold: both sides of
+    # the product/packaging barcode check scope by company, so a packaging
+    # filed under company A for a product of company B is invisible to B's
+    # check, and B may then hand the same barcode to one of its products.
+    _check_company_auto = True
 
     product_id = fields.Many2one(
         comodel_name="product.product",
         string="Product",
         required=True,
+        check_company=True,
         ondelete="cascade",
         index=True,
     )

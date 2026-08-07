@@ -130,6 +130,20 @@
             <field name="model_id" ref="model_product_label_layout" />
             <field name="domain_force">[('create_uid', '=', user.id)]</field>
         </record>
+        <!--
+            Same reasoning for the attribute-value wizard: a TransientModel has
+            no implicit per-user isolation, so without this any product manager
+            reads and overwrites another one's in-flight wizard by id. Its
+            `action_confirm` rewrites the extra price of every product carrying
+            the value, across every allowed company, so whose wizard is whose
+            is not a detail. Narrower blast radius than the label layout only
+            because the ACL is manager-only rather than every employee.
+        -->
+        <record id="update_product_attribute_value_own_rule" model="ir.rule">
+            <field name="name">Update product attribute value: own wizards only</field>
+            <field name="model_id" ref="model_update_product_attribute_value" />
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+        </record>
     </data>
 
 </odoo>

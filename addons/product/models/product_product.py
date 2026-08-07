@@ -955,6 +955,24 @@ class ProductProduct(models.Model):
         if not (order_id and order_model and line_field):
             return []
 
+        # `order_model` and `line_field` reach us straight from the client (the
+        # catalog kanban forwards its search context, see
+        # `product_catalog/kanban_model.js`), so they get the same validation
+        # `product.catalog` controller applies to its own payload: an unknown
+        # model or field name would otherwise leave the ORM raising a bare
+        # KeyError out of a plain `search()` -- an HTTP 500 on user input.
+        if order_model not in self.env.registry or not isinstance(
+            self.env[order_model], self.env.registry["product.catalog.mixin"]
+        ):
+            raise UserError(
+                self.env._("The product catalog cannot be used on this model."),
+            )
+        field = self.env[order_model]._fields.get(line_field)
+        if field is None or field.type != "one2many":
+            raise UserError(
+                self.env._("%s is not a line field of the order.", line_field),
+            )
+
         product_ids = (
             self.env[order_model]
             .browse(order_id)[line_field]

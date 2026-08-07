@@ -148,8 +148,20 @@ class ProductCatalogMixin(models.AbstractModel):
         return order_line_info
 
     def _get_action_add_from_catalog_extra_context(self):
+        # `order_id` alongside `product_catalog_order_id`: the two name the same
+        # record, and the client reads both -- `kanban_record.js` takes
+        # `product_catalog_order_id`, while `kanban_model.js` (which fetches the
+        # line info for the whole page) and `kanban_controller.js` (the "Back to
+        # Order" button) take `order_id`. Nothing here used to provide the
+        # latter: every caller had to remember `context="{'order_id': parent.id}"`
+        # on its own button, and a caller that followed this mixin's docstring
+        # instead got its RPCs rejected outright ("missing 1 required positional
+        # argument: 'order_id'"). Existing callers are unaffected: the button is
+        # rendered inside the order's own form, so the `parent.id` they pass is
+        # this very record.
         return {
             "display_uom": self.env.user.has_group("uom.group_uom"),
+            "order_id": self.id,
             "product_catalog_order_id": self.id,
             "product_catalog_order_model": self._name,
         }

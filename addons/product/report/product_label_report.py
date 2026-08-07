@@ -36,7 +36,12 @@ def _prepare_data(env, docids, data):
         )
 
     if not layout_wizard:
-        return {}
+        raise UserError(
+            _(
+                "This label layout is no longer available. Please reopen the"
+                " print dialog and try again."
+            )
+        )
 
     total = 0
     # Normalize the keys to ints: they are ints when the data dict comes

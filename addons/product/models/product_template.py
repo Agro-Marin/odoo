@@ -508,6 +508,15 @@ class ProductTemplate(models.Model):
         # uom_id is required: force the default unit both when it is simply
         # missing and when a caller explicitly passed `default_uom_id=False`
         # (which would otherwise clear the field default and break the NOT NULL).
+        #
+        # The second branch deliberately answers outside `fields`: creating a
+        # `product.product` resolves the delegated (`_inherits`) template
+        # defaults through here with a field list that, under
+        # `default_uom_id=False`, no longer mentions `uom_id` at all. Narrowing
+        # this to `"uom_id" in fields` -- tidier as a `default_get` contract --
+        # puts the NOT NULL back (see
+        # `test_variants.test_open_product_form_with_default_uom_id_is_false`).
+        # The cost is that `default_get(["name"])` also answers `uom_id`.
         if ("uom_id" in fields and not res.get("uom_id")) or self.env.context.get(
             "default_uom_id"
         ) is False:
