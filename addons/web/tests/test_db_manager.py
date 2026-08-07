@@ -2,6 +2,7 @@ import logging
 import operator
 import re
 import secrets
+import zipfile
 from io import BytesIO
 from unittest.mock import patch
 
@@ -259,6 +260,41 @@ class TestDatabaseOperations(BaseCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn("error", res.text.lower())
         self.assertDbs([])
+
+    def test_backup_declares_its_length(self):
+        """A backup must announce Content-Length and really be an archive.
+
+        Without a declared length the body is delimited by nothing but the
+        connection closing, so a transfer cut short mid-download — a flaky link,
+        a proxy giving up on a multi-GB response — reaches the browser as a
+        *successful* download of a truncated archive.  Nothing surfaces until
+        someone tries to restore it.
+
+        The archive check guards the sibling failure: the controller reports
+        dump errors by rendering an HTML page with status 200, which the browser
+        saves under the .zip name as though it were the backup.
+        """
+        res = self.session.post(
+            self.url("/web/database/backup"),
+            data={"master_pwd": self.password, "name": self.db_name},
+            allow_redirects=False,
+            stream=True,
+        )
+        res.raise_for_status()
+        declared = res.headers.get("Content-Length")
+        self.assertIsNotNone(
+            declared, "the backup response must declare its Content-Length"
+        )
+        body = res.content
+        self.assertEqual(
+            int(declared),
+            len(body),
+            "declared length must match the bytes actually delivered",
+        )
+        self.assertTrue(
+            zipfile.is_zipfile(BytesIO(body)),
+            "the backup must be a zip, not an HTML error page served as one",
+        )
 
     def test_backup_invalid_format_rejected(self):
         """An unrecognised backup_format must return an error page, not crash or
