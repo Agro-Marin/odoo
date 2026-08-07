@@ -90,8 +90,10 @@ def has_nested_template_literal(source: str) -> bool:
     one esbuild subprocess; a false negative would ship corrupted JS.
 
     Validated against acorn over every ``.js`` under all five addons roots
-    (2158 files hold both a backtick and a ``${`` — the condition this
-    replaced; 35 MB). Comparing the parsed template-literal chunks of the
+    **as of 2026-07** (2158 files then held both a backtick and a ``${`` — the
+    condition this replaced; 35 MB; 2232 by 2026-08, so treat the absolute
+    counts as a dated sample, not a live invariant). Comparing the parsed
+    template-literal chunks of the
     source against those of ``rjsmin(source)``: 49 flagged here, 11 of which
     rjsmin genuinely alters (one, ``ol.js``, it renders unparseable),
     **0 missed**. So 97.7% of those files keep the in-process minifier instead
