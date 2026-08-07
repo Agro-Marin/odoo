@@ -24,9 +24,7 @@ class ProductPricelistItem(models.Model):
         # Standard flows do not handle rules without pricelists (but some custom modules do)!
         index=True,
     )
-
     is_pricelist_required = fields.Boolean(compute="_compute_is_pricelist_required")
-
     company_id = fields.Many2one(
         comodel_name="res.company",
         compute="_compute_company_id",
@@ -37,7 +35,6 @@ class ProductPricelistItem(models.Model):
         compute="_compute_currency_id",
         store=True,
     )
-
     date_start = fields.Datetime(
         string="Start Date",
         help="Starting datetime for the pricelist item validation\n"
@@ -48,7 +45,6 @@ class ProductPricelistItem(models.Model):
         help="Ending datetime for the pricelist item validation\n"
         "The displayed value depends on the timezone set in your preferences.",
     )
-
     min_quantity = fields.Float(
         string="Min. Quantity",
         digits="Product Unit",
@@ -95,6 +91,12 @@ class ProductPricelistItem(models.Model):
         index="btree_not_null",
         help="Specify a template if this rule only applies to one product template. Keep empty otherwise.",
     )
+    product_uom_name = fields.Char(
+        related="product_tmpl_id.uom_name",
+    )
+    product_variant_count = fields.Integer(
+        related="product_tmpl_id.product_variant_count",
+    )
     product_id = fields.Many2one(
         comodel_name="product.product",
         string="Variant",
@@ -103,12 +105,6 @@ class ProductPricelistItem(models.Model):
         ondelete="cascade",
         index="btree_not_null",
         help="Specify a product if this rule only applies to one product. Keep empty otherwise.",
-    )
-    product_uom_name = fields.Char(
-        related="product_tmpl_id.uom_name",
-    )
-    product_variant_count = fields.Integer(
-        related="product_tmpl_id.product_variant_count",
     )
 
     base = fields.Selection(

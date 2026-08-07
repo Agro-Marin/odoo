@@ -7,15 +7,13 @@ class ProductUom(models.Model):
     _name = "product.uom"
     _description = "Link between products and their UoMs"
     _rec_name = "barcode"
-    # A packaging carries its own `company_id`, so the product it names must
-    # belong to that same company -- as `product.combo.item` (same shape: own
-    # company, own multi-company record rule) already requires of its own
-    # `product_id`. It is what makes the barcode guarantee hold: both sides of
-    # the product/packaging barcode check scope by company, so a packaging
-    # filed under company A for a product of company B is invisible to B's
-    # check, and B may then hand the same barcode to one of its products.
     _check_company_auto = True
 
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        string="Company",
+        default=lambda self: self.env.company,
+    )
     product_id = fields.Many2one(
         comodel_name="product.product",
         string="Product",
@@ -31,19 +29,12 @@ class ProductUom(models.Model):
         ondelete="cascade",
         index=True,
     )
-    company_id = fields.Many2one(
-        comodel_name="res.company",
-        string="Company",
-        default=lambda self: self.env.company,
+    barcode = fields.Char(
+        required=True,
+        copy=False,
+        index="btree_not_null",
     )
-    barcode = fields.Char(required=True, copy=False, index="btree_not_null")
 
-    # Uniqueness is per company, mirroring `product.product`: its barcode check
-    # (`_check_duplicated_product_barcodes`) scopes to `company_id in (False,
-    # company)` and `test_barcode` asserts that two companies may reuse a
-    # barcode. A global `unique(barcode)` contradicted that -- company B could
-    # not use a barcode company A had taken -- while still missing the
-    # collisions it was meant to catch (see `_check_barcode_uniqueness`).
     _barcode_company_uniq = models.UniqueIndex(
         "(barcode, company_id) NULLS NOT DISTINCT",
         "A barcode can only be assigned to one packaging within a company.",

@@ -75,13 +75,6 @@ class ProductTag(models.Model):
                 )
             seen.add(tag.name)
 
-    @api.depends("product_template_ids.product_variant_ids", "product_product_ids")
-    def _compute_product_ids(self):
-        for tag in self:
-            tag.product_ids = (
-                tag.product_template_ids.product_variant_ids | tag.product_product_ids
-            )
-
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
         # A None entry marks a record already copied in this operation (the
@@ -100,6 +93,13 @@ class ProductTag(models.Model):
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)
         )
+
+    @api.depends("product_template_ids.product_variant_ids", "product_product_ids")
+    def _compute_product_ids(self):
+        for tag in self:
+            tag.product_ids = (
+                tag.product_template_ids.product_variant_ids | tag.product_product_ids
+            )
 
     def _search_product_ids(self, operator, operand):
         if operator in Domain.NEGATIVE_OPERATORS:
