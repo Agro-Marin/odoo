@@ -1369,6 +1369,14 @@ class IrActionsClient(models.Model):
             if not stored:
                 record.params = stored
                 continue
+            if isinstance(stored, bytes):
+                # `params_store` is a non-attachment Binary, so it reads back as
+                # bytes even though `_inverse_params` wrote `repr(dict)`, a str.
+                # `safe_eval` then raised TypeError and the `except` below turned
+                # every well-formed params dict into False -- the round-trip was
+                # broken for years behind a guard meant for *corrupt* input.
+                # Decoding here keeps that guard for what it is actually for.
+                stored = stored.decode()
             try:
                 record.params = safe_eval(stored, {"uid": self.env.uid})
             except Exception:
