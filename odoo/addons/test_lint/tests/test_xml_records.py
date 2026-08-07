@@ -3,7 +3,7 @@ import logging
 from lxml import etree
 
 from . import _sort_xml_records
-from .lint_case import LintCase, is_core_path
+from .lint_case import LintCase, core_xml_files
 
 _logger = logging.getLogger(__name__)
 
@@ -36,9 +36,7 @@ class XmlRecordLinter(LintCase):
         cls.field_order_violations = []
         cls.attrib_order_violations = []
         cls.checked = 0
-        for xml_file in cls().iter_module_files("*.xml"):
-            if not is_core_path(xml_file):
-                continue
+        for xml_file in core_xml_files():
             tree = cls._parse(xml_file)
             if tree is None:
                 continue

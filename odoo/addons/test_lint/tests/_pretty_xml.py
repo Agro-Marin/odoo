@@ -7,7 +7,6 @@ from pathlib import Path
 from lxml import etree
 
 _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
-_XML_DECL = b'<?xml version="1.0" encoding="utf-8"?>'
 
 _INDENT = "    "
 
@@ -68,11 +67,86 @@ def _has_mixed_content(elem: etree._Element) -> bool:
 
 
 def _esc_attr(value: str) -> str:
-    return value.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+    """Escape a string for use inside double-quoted XML attribute values.
+
+    The whitespace characters are written as character references, not emitted
+    raw. A parser applies attribute-value normalisation, turning any literal
+    newline or tab in an attribute into a single space -- so writing one back
+    verbatim silently rewrites the value. ``eval="{&#10;'k': 1&#10;}"`` came
+    back out of a formatting pass as ``{ 'k': 1 }``: a different string, on a
+    round trip that is supposed to be meaning-preserving.
+    """
+    return (
+        value.replace("&", "&amp;")
+        .replace('"', "&quot;")
+        .replace("<", "&lt;")
+        .replace("\r", "&#13;")
+        .replace("\n", "&#10;")
+        .replace("\t", "&#9;")
+    )
 
 
 def _esc_text(value: str) -> str:
     return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+class UnrenderableName(Exception):
+    """A qualified name this formatter cannot write back faithfully."""
+
+
+def _qname(name: str, nsmap: dict, *, attribute: bool = False) -> str:
+    """Render a possibly namespaced *name* as source, given the in-scope *nsmap*.
+
+    lxml stores a namespaced name in Clark notation -- ``{uri}local`` -- and
+    this formatter used to write that straight into the output:
+
+        <{urn:un:unece:uncefact:...:100}CrossIndustryInvoice>
+
+    which is not well-formed XML. 268 files in this repository parsed before a
+    formatting pass and did not parse after it, three of them shipped data
+    (``l10n_hu_edi``'s two templates, ``l10n_tr_nilvera_edispatch``'s). The
+    namespace *declarations* were lost as well, since lxml keeps them in
+    ``nsmap`` rather than in ``attrib``, so even a correctly spelled prefix
+    would have had nothing to bind it.
+
+    An attribute in the default namespace has no faithful spelling -- an
+    unprefixed attribute name is in *no* namespace, not in the default one --
+    so that case refuses rather than guesses.
+    """
+    if not name.startswith("{"):
+        return name
+    uri, _, local = name[1:].partition("}")
+    for prefix, candidate in nsmap.items():
+        if candidate != uri:
+            continue
+        if prefix is None:
+            if attribute:
+                continue
+            return local
+        return f"{prefix}:{local}"
+    raise UnrenderableName(name)
+
+
+def _tag_and_attrs(elem: etree._Element) -> tuple[str, list[str]]:
+    """The rendered tag name and attribute strings of *elem*.
+
+    Namespace declarations come first, and only the ones *this* element
+    introduces: ``nsmap`` reports every prefix in scope, so emitting all of them
+    on every element would restate the root's declarations at every depth.
+    """
+    nsmap = elem.nsmap
+    parent = elem.getparent()
+    inherited = parent.nsmap if parent is not None else {}
+
+    parts: list[str] = []
+    for prefix, uri in nsmap.items():
+        if inherited.get(prefix) == uri:
+            continue
+        name = f"xmlns:{prefix}" if prefix else "xmlns"
+        parts.append(f'{name}="{_esc_attr(uri)}"')
+    for key, value in elem.attrib.items():
+        parts.append(f'{_qname(key, nsmap, attribute=True)}="{_esc_attr(value)}"')
+    return _qname(elem.tag, nsmap), parts
 
 
 _SELF_CLOSE_RE = re.compile(r"(?<! )/>")
@@ -82,50 +156,62 @@ def _normalize_self_close(s: str) -> str:
     return _SELF_CLOSE_RE.sub(" />", s)
 
 
-def _orig_depth_from_text(text: str | None) -> int:
-    if not text:
-        return 0
-    parts = text.split("\n")
-    return len(parts[-1]) if len(parts) > 1 else 0
+def _orig_depth_from_text(text: str | None, inner: str = "") -> int:
+    """The indentation the inner content of an opaque element is written at.
+
+    Normally that is what follows the last newline of ``elem.text`` -- the
+    whitespace between the open tag and the first child.
+
+    When the content *starts on the open tag's line* there is no such
+    whitespace, and answering 0 puts the first line a level above everything
+    after it, shifting the whole block down by one. The file then needed a
+    second pass to settle, which the tree-wide fixed-point test rejects:
+    ``l10n_es_edi_tbai``'s LROE template opens
+    ``<template id="…"> <!-- To be used for both 140 and 240 -->``. The
+    remaining lines say where the content really sits, so the base is read off
+    the shallowest of them.
+    """
+    if text and "\n" in text:
+        return len(text.split("\n")[-1])
+    widths = [_indent_width(line) for line in inner.split("\n")[1:] if line.strip()]
+    return min(widths) if widths else 0
 
 
 def _convert_arch_indent(content: str, orig_base: int, new_base: int) -> str:
-    """Convert arch content from its original indentation step to 4-space.
+    """Re-indent arch content to the canonical 4-space step.
 
-    The *orig_base* is the absolute number of leading spaces before the arch
-    root element (e.g. ``<form>``); *new_base* is the target.  The original
-    indentation step size (typically 4) is auto-detected from the content.
+    Nesting is read off the *shape* of the original indentation rather than
+    computed from it: a stack of enclosing widths, one level per entry. A line
+    indented further than the line above opens a level, a line indented less
+    closes as many as it has to, and a line at the same width stays put.
 
-    Algorithm:
-    - Detect *step* = smallest indentation above *orig_base*.
-    - For each line: ``level = (spaces - orig_base) // step``.
-    - New spaces: ``new_base + level * len(_INDENT)``.
+    That replaces a ``level = (spaces - orig_base) // step`` arithmetic, whose
+    ``step`` was the *smallest* indent above the base. One line sitting a single
+    column deeper than its parent -- a wrapped attribute, a continuation --
+    made ``step`` 1, and then every real level of nesting multiplied by four.
+    ``l10n_es_edi_tbai``'s LROE template grew its indentation without bound,
+    one pass to the next, so the gate built on this formatter could not go
+    green on that file however often it was run.
 
-    This converts arch content to the canonical 4-space step while adjusting
-    the absolute position to the correct depth in the formatted file.
+    Reading the shape is also what makes the conversion idempotent by
+    construction: run over its own output the widths are ``new_base + 4k``, and
+    a stack yields exactly the levels that produced them.
     """
     lines = content.split("\n")
-
-    above = sorted(
-        _indent_width(line)
-        for line in lines
-        if line.strip() and _indent_width(line) > orig_base
-    )
-    step = above[0] - orig_base if above else 0
-
     result: list[str] = []
+    stack: list[int] = [orig_base]
+
     for line in lines:
         if not line.strip():
             result.append("")
             continue
-        spaces = _indent_width(line)
-        if step > 0:
-            rel = spaces - orig_base
-            level, remainder = divmod(rel, step)
-            new_spaces = new_base + level * len(_INDENT) + remainder
-        else:
-            new_spaces = new_base + (spaces - orig_base)
-        result.append(" " * max(0, new_spaces) + line.lstrip(" \t"))
+        width = _indent_width(line)
+        while len(stack) > 1 and stack[-1] >= width:
+            stack.pop()
+        if width > stack[-1]:
+            stack.append(width)
+        level = len(stack) - 1
+        result.append(" " * (new_base + level * len(_INDENT)) + line.lstrip(" \t"))
     return "\n".join(result)
 
 
@@ -146,19 +232,57 @@ def _indent_width(line: str) -> int:
 
 
 def _inner_content(elem: etree._Element) -> str:
+    """Return the raw inner content of *elem* (between its opening and closing tags).
+
+    Uses lxml's serialisation (``pretty_print=False``, ``with_tail=False``) which
+    preserves the original ``.text`` / ``.tail`` whitespace stored during parsing
+    — safe for mixed-text content.  ``with_tail=False`` prevents the element's
+    own ``.tail`` (sibling-separator whitespace) from being included and
+    corrupting the slice.
+
+    The closing tag is located by the string lxml actually wrote, not by
+    ``elem.tag``: those differ for a namespaced element, where ``elem.tag`` is
+    Clark notation and the serialisation carries a prefix.
+    """
     s = etree.tostring(elem, pretty_print=False, encoding="unicode", with_tail=False)
+    # `>` inside an attribute value is escaped by lxml, so the first one always
+    # ends the open tag.
     start = s.index(">") + 1
-    end = len(s) - len(f"</{elem.tag}>")
-    return s[start:end]
+    close = f"</{_qname(elem.tag, elem.nsmap)}>"
+    end = len(s) - len(close) if s.endswith(close) else s.rindex("</")
+    return s[start:end] if end >= start else ""
 
 
-def _open_tag_lines(tag: str, attrib: dict, pad: str, suffix: str) -> list[str]:
-    attr_parts = [f'{k}="{_esc_attr(v)}"' for k, v in attrib.items()]
+def _open_tag_lines(
+    tag: str, attr_parts: list[str], pad: str, suffix: str
+) -> list[str]:
+    """Return lines for a tag opening (or self-closing tag).
+
+    *suffix* is appended after the last attribute (or after the tag name when
+    there are no attributes).  Typical values: ``">"``, ``" />"``,
+    ``">text</tag>"``.
+
+    If the single-line form fits within ``_MAX_LINE`` characters, one line is
+    returned.  Otherwise each attribute is placed on its own line indented by
+    one extra level, with *suffix* on the last attribute line.
+
+    **An element with no attributes is never split.** The wrapping loop is
+    driven by the attribute list, so with an empty one it ran zero times and
+    the suffix -- which for a text-only element carries *the content and the
+    closing tag* -- was never emitted at all:
+
+        >>> _open_tag_lines("path", [], " " * 8, ">web/static/…/file.scss</path>")
+        ['        <path']
+
+    Three shipped data files lost the ``<path>`` of an ``<asset>`` record that
+    way and stopped being well-formed XML. There is nothing to wrap in a tag
+    with no attributes, so the long line is simply kept.
+    """
     if attr_parts:
         single = f"{pad}<{tag} {' '.join(attr_parts)}{suffix}"
     else:
         single = f"{pad}<{tag}{suffix}"
-    if len(single) <= _MAX_LINE:
+    if len(single) <= _MAX_LINE or not attr_parts:
         return [single]
     attr_pad = pad + _INDENT
     lines = [f"{pad}<{tag}"]
@@ -208,10 +332,32 @@ def _wrap_serialized_tag(line: str) -> list[str]:
     return out
 
 
-def _wrap_opaque_lines(lines: list[str]) -> list[str]:
+def _rewrite_opaque_lines(lines: list[str]) -> list[str]:
+    """Normalise and wrap the tags of opaque content, leaving comments alone.
+
+    Both rewrites here -- a space before ``/>``, and one attribute per line --
+    are style rules about *markup*. A commented-out ``<field .../>`` is not
+    markup, it is text that happens to look like it, and rewriting it edits
+    what the file says. Ten files in this repository carry one, including a
+    conditional-comment block in ``mass_mailing``'s templates
+    (``<!--[if mso]> … <o:AllowPNG/> …``), where the payload is markup for a
+    *different* consumer and none of this formatter's business.
+
+    Any line from ``<!--`` to ``-->`` is therefore passed through untouched,
+    which is conservative: a line that merely mentions a comment opener keeps
+    its own formatting too.
+    """
     out: list[str] = []
+    in_comment = False
     for line in lines:
-        out.extend(_wrap_serialized_tag(line))
+        opens, closes = "<!--" in line, "-->" in line
+        if in_comment or opens:
+            out.append(line)
+            in_comment = (in_comment or opens) and not (
+                closes and line.rfind("-->") > line.rfind("<!--")
+            )
+            continue
+        out.extend(_wrap_serialized_tag(_normalize_self_close(line)))
     return out
 
 
@@ -234,9 +380,10 @@ def _format_comment(node: etree._Comment, depth: int) -> list[str]:
 
 def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
     pad = _INDENT * depth
+    tag, attrs = _tag_and_attrs(elem)
 
     if len(elem) == 0 and not (elem.text and elem.text.strip()):
-        return _open_tag_lines(elem.tag, elem.attrib, pad, " />")
+        return _open_tag_lines(tag, attrs, pad, " />")
 
     inner = _inner_content(elem)
 
@@ -247,17 +394,11 @@ def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
         while inner_lines and not inner_lines[-1].strip():
             inner_lines.pop()
         if not inner_lines:
-            return _open_tag_lines(elem.tag, elem.attrib, pad, " />")
-        inner_lines = _wrap_opaque_lines(
-            [_normalize_self_close(line) for line in inner_lines]
-        )
-        return (
-            _open_tag_lines(elem.tag, elem.attrib, pad, ">")
-            + inner_lines
-            + [f"{pad}</{elem.tag}>"]
-        )
+            return _open_tag_lines(tag, attrs, pad, " />")
+        inner_lines = _rewrite_opaque_lines(inner_lines)
+        return _open_tag_lines(tag, attrs, pad, ">") + inner_lines + [f"{pad}</{tag}>"]
 
-    orig_depth = _orig_depth_from_text(elem.text)
+    orig_depth = _orig_depth_from_text(elem.text, inner)
     target_depth = (depth + 1) * len(_INDENT)
 
     shifted = _convert_arch_indent(inner, orig_depth, target_depth)
@@ -269,17 +410,11 @@ def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
         shifted_lines.pop()
 
     if not shifted_lines:
-        return _open_tag_lines(elem.tag, elem.attrib, pad, " />")
+        return _open_tag_lines(tag, attrs, pad, " />")
 
-    shifted_lines = _wrap_opaque_lines(
-        [_normalize_self_close(line) for line in shifted_lines]
-    )
+    shifted_lines = _rewrite_opaque_lines(shifted_lines)
 
-    return (
-        _open_tag_lines(elem.tag, elem.attrib, pad, ">")
-        + shifted_lines
-        + [f"{pad}</{elem.tag}>"]
-    )
+    return _open_tag_lines(tag, attrs, pad, ">") + shifted_lines + [f"{pad}</{tag}>"]
 
 
 def _format_mixed(elem: etree._Element, depth: int) -> list[str]:
@@ -296,8 +431,9 @@ def _format_mixed(elem: etree._Element, depth: int) -> list[str]:
     line break available that is guaranteed not to change the rendering.
     """
     pad = _INDENT * depth
-    lines = _open_tag_lines(elem.tag, elem.attrib, pad, ">")
-    lines[-1] += f"{_inner_content(elem)}</{elem.tag}>"
+    tag, attrs = _tag_and_attrs(elem)
+    lines = _open_tag_lines(tag, attrs, pad, ">")
+    lines[-1] += f"{_inner_content(elem)}</{tag}>"
     return lines
 
 
@@ -314,17 +450,18 @@ def _format_element(elem: etree._Element, depth: int) -> list[str]:
     pad = _INDENT * depth
     text = (elem.text or "").strip()
     children = list(elem)
+    tag, attrs = _tag_and_attrs(elem)
 
     if elem.tag in _BLANK_SEP_CONTAINERS:
         inner = _format_children(children, depth + 1, blank_sep=True)
-        lines = _open_tag_lines(elem.tag, elem.attrib, pad, ">")
+        lines = _open_tag_lines(tag, attrs, pad, ">")
         lines.append("")
         lines.extend(inner)
-        lines.extend(["", f"{pad}</{elem.tag}>"])
+        lines.extend(["", f"{pad}</{tag}>"])
         return lines
 
     if not children and not text:
-        return _open_tag_lines(elem.tag, elem.attrib, pad, " />")
+        return _open_tag_lines(tag, attrs, pad, " />")
 
     if not children:
         # A single-line value is emitted exactly as written, trailing space
@@ -335,14 +472,12 @@ def _format_element(elem: etree._Element, depth: int) -> list[str]:
         # would have changed the string stored in `account.report.line.name`.
         raw = elem.text or ""
         value = text if "\n" in raw else raw
-        return _open_tag_lines(
-            elem.tag, elem.attrib, pad, f">{_esc_text(value)}</{elem.tag}>"
-        )
+        return _open_tag_lines(tag, attrs, pad, f">{_esc_text(value)}</{tag}>")
 
-    lines = _open_tag_lines(elem.tag, elem.attrib, pad, ">")
+    lines = _open_tag_lines(tag, attrs, pad, ">")
     for child in children:
         lines.extend(_format_element(child, depth + 1))
-    lines.append(f"{pad}</{elem.tag}>")
+    lines.append(f"{pad}</{tag}>")
     return lines
 
 
@@ -385,6 +520,69 @@ def _format_children(
     return lines
 
 
+def _comparable(source: bytes) -> list:
+    """A form of *source* that ignores everything this formatter may change.
+
+    Indentation, the position of a line break and the amount of whitespace
+    inside a text run are the formatter's to decide; a tag, an attribute, a
+    comment and a *word* are not. So whitespace runs collapse to a single
+    space and everything else is compared exactly, attributes sorted because
+    their order carries no meaning.
+
+    Built by hand rather than through ``etree.tostring(method="c14n")``:
+    canonicalisation refuses some perfectly valid documents in this tree
+    outright (``C14NError``), and a self-check that raises on the files it
+    cannot judge is worse than no self-check at all.
+    """
+
+    def squeeze(value: str | None) -> str:
+        return " ".join((value or "").split())
+
+    out: list = []
+
+    def walk(element, depth: int) -> None:
+        if callable(element.tag):  # comment or processing instruction
+            out.append((depth, "#text-node", squeeze(element.text)))
+        else:
+            out.append(
+                (
+                    depth,
+                    element.tag,
+                    tuple(sorted((k, squeeze(v)) for k, v in element.attrib.items())),
+                    tuple(sorted(element.nsmap.items(), key=lambda kv: kv[0] or "")),
+                    squeeze(element.text),
+                )
+            )
+        for child in element:
+            walk(child, depth + 1)
+        out.append((depth, "#tail", squeeze(element.tail)))
+
+    walk(etree.fromstring(source), 0)
+    return out
+
+
+def _is_faithful(source: bytes, formatted: bytes) -> bool:
+    """Whether *formatted* still says what *source* said.
+
+    The formatter rewrites every data file in the repository from a tree it
+    reassembles by hand, and a hand-written serialiser has a long tail of ways
+    to be wrong about one: a namespaced tag, an element with no attributes and
+    a long text, a character reference in an attribute. Each of those was a
+    real defect here, each one silent, and each one found only by comparing a
+    before and an after -- never by the formatter itself, which reported
+    success every time.
+
+    So it now checks its own work, and a file it cannot reproduce faithfully is
+    skipped rather than written. That turns the whole class of defect from
+    "corrupts the tree" into "declines the file", which is a failure mode a
+    ratcheted gate can carry safely.
+    """
+    try:
+        return _comparable(source) == _comparable(formatted)
+    except etree.LxmlError:
+        return False
+
+
 def format_xml_file(
     path: Path,
     *,
@@ -410,15 +608,30 @@ def format_xml_file(
     out: list[str] = []
     if had_decl:
         out.append('<?xml version="1.0" encoding="utf-8"?>')
+    # A doctype is neither an attribute nor a node lxml puts in the tree, so
+    # rebuilding the document from the root alone dropped it silently.
+    if tree.docinfo.doctype:
+        out.append(tree.docinfo.doctype)
     out.extend(pre_root)
 
-    out.extend(_format_element(root, depth=0))
+    try:
+        out.extend(_format_element(root, depth=0))
+    except UnrenderableName as exc:
+        print(f"  SKIP  {path}: cannot render the name {exc}", file=sys.stderr)
+        return None
 
     new_content = "\n".join(out) + "\n"
     new_bytes = new_content.encode("utf-8")
 
     if new_bytes == source:
         return False
+
+    if not _is_faithful(source, new_bytes):
+        print(
+            f"  SKIP  {path}: the formatted output would not say the same thing",
+            file=sys.stderr,
+        )
+        return None
 
     if not dry_run:
         path.write_bytes(new_bytes)
