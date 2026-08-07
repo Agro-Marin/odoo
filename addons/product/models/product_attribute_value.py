@@ -11,9 +11,15 @@ class ProductAttributeValue(models.Model):
     _order = "attribute_id, sequence, id"
     _description = "Attribute Value"
 
-    def _get_default_color(self):
-        return randint(1, 11)
-
+    attribute_id = fields.Many2one(
+        comodel_name="product.attribute",
+        string="Attribute",
+        required=True,
+        ondelete="cascade",
+        index=True,
+        help="The attribute cannot be changed once the value is used on at least one product.",
+    )
+    display_type = fields.Selection(related="attribute_id.display_type")
     name = fields.Char(
         string="Value",
         required=True,
@@ -25,15 +31,15 @@ class ProductAttributeValue(models.Model):
         index=True,
         help="Determine the display order",
     )
-    attribute_id = fields.Many2one(
-        comodel_name="product.attribute",
-        string="Attribute",
-        required=True,
-        ondelete="cascade",
-        index=True,
-        help="The attribute cannot be changed once the value is used on at least one product.",
+    color = fields.Integer(
+        string="Color Index",
+        default=lambda self: self._get_default_color(),
     )
-
+    html_color = fields.Char(
+        string="Color",
+        help="Here you can set a specific HTML color index (e.g. #ff0000)"
+        " to display the color if the attribute type is 'Color'.",
+    )
     pav_attribute_line_ids = fields.Many2many(
         comodel_name="product.template.attribute.line",
         relation="product_attribute_value_product_template_attribute_line_rel",
@@ -42,17 +48,6 @@ class ProductAttributeValue(models.Model):
     )
 
     default_extra_price = fields.Float()
-    is_custom = fields.Boolean(
-        string="Free text",
-        help="Allow customers to set their own value",
-    )
-    html_color = fields.Char(
-        string="Color",
-        help="Here you can set a specific HTML color index (e.g. #ff0000)"
-        " to display the color if the attribute type is 'Color'.",
-    )
-    display_type = fields.Selection(related="attribute_id.display_type")
-    color = fields.Integer(string="Color Index", default=_get_default_color)
     image = fields.Image(
         string="Image",
         max_width=70,
@@ -60,6 +55,10 @@ class ProductAttributeValue(models.Model):
         help="You can upload an image that will be used as the color of the attribute value.",
     )
 
+    is_custom = fields.Boolean(
+        string="Free text",
+        help="Allow customers to set their own value",
+    )
     is_used_on_products = fields.Boolean(
         string="Used on Products",
         compute="_compute_is_used_on_products",
@@ -150,6 +149,9 @@ class ProductAttributeValue(models.Model):
     def _unlink_except_used_on_product(self):
         if is_used_on_products := self.check_is_used_on_products():
             raise UserError(is_used_on_products)
+
+    def _get_default_color(self):
+        return randint(1, 11)
 
     # === COMPUTE METHODS === #
 

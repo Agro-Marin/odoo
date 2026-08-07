@@ -19,6 +19,12 @@ class ProductAttribute(models.Model):
         default=True,
         help="If unchecked, it will allow you to hide the attribute without removing it.",
     )
+    sequence = fields.Integer(
+        string="Sequence",
+        default=20,
+        index=True,
+        help="Determine the display order",
+    )
     create_variant = fields.Selection(
         selection=[
             ("always", "Instantly"),
@@ -46,12 +52,6 @@ class ProductAttribute(models.Model):
         default="radio",
         help="The display type used in the Product Configurator.",
     )
-    sequence = fields.Integer(
-        string="Sequence",
-        default=20,
-        index=True,
-        help="Determine the display order",
-    )
 
     value_ids = fields.One2many(
         comodel_name="product.attribute.value",
@@ -75,51 +75,9 @@ class ProductAttribute(models.Model):
         compute="_compute_products",
         store=True,
     )
-    number_related_products = fields.Integer(compute="_compute_number_related_products")
-
-    # === COMPUTE METHODS === #
-
-    @api.depends("product_tmpl_ids")
-    def _compute_number_related_products(self):
-        res = {
-            attribute.id: count
-            for attribute, count in self.env[
-                "product.template.attribute.line"
-            ]._read_group(
-                domain=[
-                    ("attribute_id", "in", self.ids),
-                    ("product_tmpl_id.active", "=", True),
-                ],
-                groupby=["attribute_id"],
-                aggregates=["__count"],
-            )
-        }
-        for pa in self:
-            pa.number_related_products = res.get(pa.id, 0)
-
-    @api.depends("attribute_line_ids.active", "attribute_line_ids.product_tmpl_id")
-    def _compute_products(self):
-        templates_by_attribute = {
-            attribute.id: templates
-            for attribute, templates in self.env[
-                "product.template.attribute.line"
-            ]._read_group(
-                domain=[("attribute_id", "in", self.ids)],
-                groupby=["attribute_id"],
-                aggregates=["product_tmpl_id:recordset"],
-            )
-        }
-        for pa in self:
-            pa.with_context(
-                active_test=False
-            ).product_tmpl_ids = templates_by_attribute.get(pa.id, False)
-
-    # === ONCHANGE METHODS === #
-
-    @api.onchange("display_type")
-    def _onchange_display_type(self):
-        if self.display_type == "multi" and self.number_related_products == 0:
-            self.create_variant = "no_variant"
+    count_product_tmpl = fields.Integer(
+        compute="_compute_count_product_tmpl",
+    )
 
     # === CRUD METHODS === #
 
@@ -135,7 +93,7 @@ class ProductAttribute(models.Model):
             for pa in self:
                 if (
                     vals["create_variant"] != pa.create_variant
-                    and pa.number_related_products
+                    and pa.count_product_tmpl
                 ):
                     raise UserError(
                         _(
@@ -161,7 +119,7 @@ class ProductAttribute(models.Model):
     @api.ondelete(at_uninstall=False)
     def _unlink_except_used_on_product(self):
         for pa in self:
-            if pa.number_related_products:
+            if pa.count_product_tmpl:
                 raise UserError(
                     _(
                         "You cannot delete the attribute %(attribute)s because it is used on the"
@@ -171,11 +129,55 @@ class ProductAttribute(models.Model):
                     )
                 )
 
+    # === COMPUTE METHODS === #
+
+    @api.depends("product_tmpl_ids")
+    def _compute_count_product_tmpl(self):
+        res = {
+            attribute.id: count
+            for attribute, count in self.env[
+                "product.template.attribute.line"
+            ]._read_group(
+                domain=[
+                    ("attribute_id", "in", self.ids),
+                    ("product_tmpl_id.active", "=", True),
+                ],
+                groupby=["attribute_id"],
+                aggregates=["__count"],
+            )
+        }
+        for pa in self:
+            pa.count_product_tmpl = res.get(pa.id, 0)
+
+    @api.depends("attribute_line_ids.active", "attribute_line_ids.product_tmpl_id")
+    def _compute_products(self):
+        templates_by_attribute = {
+            attribute.id: templates
+            for attribute, templates in self.env[
+                "product.template.attribute.line"
+            ]._read_group(
+                domain=[("attribute_id", "in", self.ids)],
+                groupby=["attribute_id"],
+                aggregates=["product_tmpl_id:recordset"],
+            )
+        }
+        for pa in self:
+            pa.with_context(
+                active_test=False
+            ).product_tmpl_ids = templates_by_attribute.get(pa.id, False)
+
+    # === ONCHANGE METHODS === #
+
+    @api.onchange("display_type")
+    def _onchange_display_type(self):
+        if self.display_type == "multi" and self.count_product_tmpl == 0:
+            self.create_variant = "no_variant"
+
     # === ACTION METHODS === #
 
     def action_archive(self):
         for attribute in self:
-            if attribute.number_related_products:
+            if attribute.count_product_tmpl:
                 raise UserError(
                     _(
                         "You cannot archive this attribute as there are still products linked to it",

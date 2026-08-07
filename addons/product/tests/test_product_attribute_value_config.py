@@ -1203,7 +1203,7 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
             }
         )
         self.assertEqual(
-            product_attribut.number_related_products,
+            product_attribut.count_product_tmpl,
             1,
             "The product attribute must have an associated product",
         )
@@ -1213,7 +1213,7 @@ class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
         product.action_unarchive()
         self.assertTrue(product.active, "The product should be unarchived.")
         self.assertEqual(
-            product_attribut.number_related_products,
+            product_attribut.count_product_tmpl,
             0,
             "The product attribute must not have an associated product",
         )

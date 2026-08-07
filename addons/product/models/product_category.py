@@ -12,12 +12,6 @@ class ProductCategory(models.Model):
     _order = "complete_name"
 
     name = fields.Char(string="Name", required=True, index="trigram")
-    complete_name = fields.Char(
-        string="Complete Name",
-        compute="_compute_complete_name",
-        store=True,
-        recursive=True,
-    )
     parent_id = fields.Many2one(
         comodel_name="product.category",
         string="Parent Category",
@@ -26,6 +20,12 @@ class ProductCategory(models.Model):
         # cleanup) and detach every product under them.
         ondelete="restrict",
         index=True,
+    )
+    complete_name = fields.Char(
+        string="Complete Name",
+        compute="_compute_complete_name",
+        store=True,
+        recursive=True,
     )
     parent_path = fields.Char(index=True)
     child_id = fields.One2many(

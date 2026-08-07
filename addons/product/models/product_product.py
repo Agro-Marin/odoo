@@ -29,10 +29,18 @@ class ProductProduct(models.Model):
         ondelete="cascade",
         index=True,
     )
+    is_favorite = fields.Boolean(
+        related="product_tmpl_id.is_favorite",
+        store=True,
+        readonly=False,
+    )
     active = fields.Boolean(
         string="Active",
         default=True,
         help="If unchecked, it will allow you to hide the product without removing it.",
+    )
+    is_product_variant = fields.Boolean(
+        compute="_compute_is_product_variant",
     )
     default_code = fields.Char(
         string="Internal Reference",
@@ -53,6 +61,12 @@ class ProductProduct(models.Model):
         compute="_compute_partner_ref",
     )
 
+    product_uom_ids = fields.One2many(
+        comodel_name="product.uom",
+        inverse_name="product_id",
+        string="Unit Barcode",
+    )
+
     # price_extra: catalog extra value only, sum of variant extra attributes
     price_extra = fields.Float(
         string="Variant Price Extra",
@@ -69,11 +83,24 @@ class ProductProduct(models.Model):
         help="The sale price is managed from the product template. Click on the 'Configure Variants' button to set the extra attribute prices.",
     )
 
-    product_uom_ids = fields.One2many(
-        comodel_name="product.uom",
-        inverse_name="product_id",
-        string="Unit Barcode",
+    standard_price = fields.Float(
+        string="Cost",
+        min_display_digits="Product Price",
+        company_dependent=True,
+        groups="base.group_user",
+        help="""Value of the product (automatically computed in AVCO).
+        Used to value the product when the purchase cost is not known (e.g. inventory adjustment).
+        Used to compute margins on sale orders.""",
     )
+    volume = fields.Float(
+        string="Volume",
+        digits="Volume",
+    )
+    weight = fields.Float(
+        string="Weight",
+        digits="Stock Weight",
+    )
+
     product_template_attribute_value_ids = fields.Many2many(
         comodel_name="product.template.attribute.value",
         relation="product_variant_combination",
@@ -109,27 +136,6 @@ class ProductProduct(models.Model):
         store=True,
         index=True,
     )
-    is_product_variant = fields.Boolean(
-        compute="_compute_is_product_variant",
-    )
-
-    standard_price = fields.Float(
-        string="Cost",
-        min_display_digits="Product Price",
-        company_dependent=True,
-        groups="base.group_user",
-        help="""Value of the product (automatically computed in AVCO).
-        Used to value the product when the purchase cost is not known (e.g. inventory adjustment).
-        Used to compute margins on sale orders.""",
-    )
-    volume = fields.Float(
-        string="Volume",
-        digits="Volume",
-    )
-    weight = fields.Float(
-        string="Weight",
-        digits="Stock Weight",
-    )
 
     pricelist_rule_ids = fields.One2many(
         comodel_name="product.pricelist.item",
@@ -161,6 +167,14 @@ class ProductProduct(models.Model):
         comodel_name="product.tag",
         compute="_compute_all_product_tag_ids",
         search="_search_all_product_tag_ids",
+    )
+    write_date = fields.Datetime(
+        compute="_compute_write_date",
+        store=True,
+    )
+
+    is_in_selected_section_of_order = fields.Boolean(
+        search="_search_is_in_selected_section_of_order",
     )
 
     # all image fields are base64 encoded and PIL-supported
@@ -221,19 +235,6 @@ class ProductProduct(models.Model):
     can_image_1024_be_zoomed = fields.Boolean(
         string="Can Image 1024 be zoomed",
         compute="_compute_can_image_1024_be_zoomed",
-    )
-    write_date = fields.Datetime(
-        compute="_compute_write_date",
-        store=True,
-    )
-
-    is_favorite = fields.Boolean(
-        related="product_tmpl_id.is_favorite",
-        store=True,
-        readonly=False,
-    )
-    is_in_selected_section_of_order = fields.Boolean(
-        search="_search_is_in_selected_section_of_order",
     )
 
     _is_favorite_index = models.Index("(is_favorite) WHERE is_favorite IS TRUE")

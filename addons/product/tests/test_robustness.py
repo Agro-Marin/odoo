@@ -80,7 +80,7 @@ class TestBugFixes(ProductCommon):
     def test_b3_attribute_domain_boolean(self):
         """B3: Domain filter for product_tmpl_id.active must use boolean True, not string.
 
-        The _compute_number_related_products and _compute_product_tmpl_ids methods
+        The _compute_count_product_tmpl and _compute_product_tmpl_ids methods
         must use boolean True in domain filters for the active field.
         """
         attribute = self.env["product.attribute"].create(
@@ -103,20 +103,20 @@ class TestBugFixes(ProductCommon):
             }
         )
         # The attribute should show it has related products
-        attribute.invalidate_recordset(["number_related_products"])
+        attribute.invalidate_recordset(["count_product_tmpl"])
         self.assertGreater(
-            attribute.number_related_products,
+            attribute.count_product_tmpl,
             0,
             "Domain filter with boolean True should count active templates",
         )
 
         # Archive the template - count should drop
         template.active = False
-        attribute.invalidate_recordset(["number_related_products"])
+        attribute.invalidate_recordset(["count_product_tmpl"])
         self.assertEqual(
-            attribute.number_related_products,
+            attribute.count_product_tmpl,
             0,
-            "Archived templates should not be counted in number_related_products",
+            "Archived templates should not be counted in count_product_tmpl",
         )
 
 
