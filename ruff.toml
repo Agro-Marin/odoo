@@ -1,11 +1,23 @@
 # Strict ruff configuration for Odoo 19.0 fork
-# Python 3.14+ (preparing for 3.15 / PEP 703 free-threading) | ruff >= 0.15.19
+# Python 3.14+ (preparing for 3.15 / PEP 703 free-threading) | ruff >= 0.16.2
 #
 # The ruff floor is exact, not aspirational: `explicit-preview-rules` means preview
 # rules are named individually below, and a ruff that predates any of them aborts with
 # "Unknown rule selector" rather than skipping it. Keep these five in lockstep:
 #   requirements-dev.txt · .pre-commit-config.yaml · .github/workflows/ruff.yml
 #   ../enterprise/.pre-commit-config.yaml · ../agromarin/.pre-commit-config.yaml
+#
+# Pinned at 0.16.2. Being precise about what that pin does and does not buy: the
+# 0.16.0 -> 0.16.2 bump introduced NO new rule and NO preview stabilization —
+# verified by diffing `ruff rule --all --output-format json` between the two
+# binaries, not by reading release notes — so every selector below already
+# resolved on 0.16.0 and the hard "Unknown rule selector" floor did not move.
+# The pin is still exact, for the other reason it exists: the ratchet in
+# .github/workflows/ruff.yml runs in EXACT mode against a single committed
+# integer, so the count has to be reproducible, and any ruff whose bug fixes
+# shift a finding by one breaks the build in both directions. Measured both
+# ways here: 539 on 0.16.0 and 539 on 0.16.2, against a clean `git archive` of
+# HEAD (a dirty tree is what mis-recorded the floor twice — see ruff.json).
 
 target-version = "py314"
 line-length = 88
@@ -156,11 +168,23 @@ select = [
     # rule is OFF unless named individually here, so a ruff upgrade can never
     # silently add findings).
     #
-    # Selection criterion: every rule below was measured against `odoo/` with
-    # ruff 0.15.19 before being added. Counts in comments are `odoo/` hits at
-    # the time of selection — they document that each rule is affordable, not
-    # a contract. Rules costing hundreds of findings for a style opinion were
-    # rejected and are listed under "Rejected preview rules" at the end.
+    # Selection criterion: every rule below was measured before being added.
+    # Counts in comments are hits at the time of selection — they document that
+    # each rule is affordable, not a contract. Rules costing hundreds of findings
+    # for a style opinion were rejected and are listed under "Rejected preview
+    # rules" at the end.
+    #
+    # Rules added up to the ruff 0.15.19 pass carry a single number: `odoo/` hits.
+    # Rules added from the 0.16.2 pass carry a THREE-repo triple `(a/b/c)` =
+    # odoo / enterprise / agromarin, because this file is the root of an `extend`
+    # chain — enterprise/ruff.toml and agromarin/ruff.toml inherit every selector
+    # here, so an `odoo/`-only measurement says nothing about what a rule costs
+    # the ~750 enterprise modules or the ~128 custom ones. That blind spot was
+    # real and not theoretical: enterprise's `extend` pointed at a nonexistent
+    # path from t24449 until this pass, so ruff aborted there instead of linting, and
+    # any "measured it, costs nothing" claim about enterprise in that window was
+    # measuring an abort. Measure all three; only `odoo/` is ratcheted, but the
+    # other two are where a careless selector actually lands on people.
     # ---------------------------------------------------------------------
 
     # -- Correctness: real bug classes --
@@ -200,8 +224,57 @@ select = [
     "TID254",     # lazy-import-mismatch (0)
     "TID255",     # lazy-import-immediately-resolved (0)
     "PT029",      # pytest-warns-without-warning (0)
+    "RUF029",     # unused-async (0/0/0) — `async def` that never awaits: the caller
+                  # gets a coroutine object, and forgetting to await it is silent
+
+    # -- Docstring/signature drift (pydoclint, "extraneous" half only) --
+    # These fire when a docstring documents something the signature does NOT have:
+    # a parameter, a return, a yield, an exception. That is always a defect —
+    # either the docstring is stale or the code lost something by accident — and
+    # it is exactly the failure mode this fork manufactures at scale, since the
+    # project.task / stock-qty renames (.claude/rules/) change signatures and
+    # field names out from under prose that nothing else checks.
+    #
+    # Note these are pydoclint (DOC), NOT pydocstyle (D). The strict-package glob
+    # in per-file-ignores scopes `D` to odoo/libs + odoo/orm/components; it does
+    # not match DOC, and that is deliberate — a docstring lying about its own
+    # signature is wrong everywhere, and it costs 3 findings fork-wide to say so.
+    #
+    # The MISSING half (DOC201/DOC402/DOC501) is rejected below: same linter,
+    # completely different price, because "undocumented" describes most of Odoo.
+    "DOC102",     # docstring-extraneous-parameter (0/3/0)
+    "DOC202",     # docstring-extraneous-returns (0/0/0)
+    "DOC403",     # docstring-extraneous-yields (0/0/0)
+    "DOC502",     # docstring-extraneous-exception (0/2/6)
+
+    # -- Security: imports of modules that should never enter this codebase --
+    # All zero across all three repos today, so these are GUARDS, not cleanups —
+    # they cost nothing now and refuse the import the day someone reaches for it.
+    # Worth having precisely because the `extend` chain pushes them out to ~900
+    # addons whose authors are not reading this file.
+    #
+    # The three suspicious-import rules with live call sites are NOT here — see
+    # the rejected list. Banning what the framework is built on teaches people to
+    # write `# noqa`, which is worse than not asking.
+    "S401",       # suspicious-telnetlib-import (0/0/0) — removed from the stdlib in 3.13
+    "S402",       # suspicious-ftplib-import (0/0/0) — cleartext credentials
+    "S406",       # suspicious-xml-sax-import (0/0/0)
+    "S407",       # suspicious-xml-expat-import (0/0/0)
+    "S408",       # suspicious-xml-minidom-import (0/0/0)
+    "S409",       # suspicious-xml-pulldom-import (0/0/0)
+    "S412",       # suspicious-httpoxy-import (0/0/0)
+    "S413",       # suspicious-pycrypto-import (0/0/0) — unmaintained since 2013; use cryptography
+    "S415",       # suspicious-pyghmi-import (0/0/0)
 
     # -- Modernization / clarity --
+    "UP051",      # deprecated-abc-decorator (0/0/0) — @abstractproperty and friends,
+                  # deprecated since 3.3; stack @property over @abstractmethod
+    "TC008",      # quoted-type-alias (0/0/1) — the ONE flake8-type-checking rule that
+                  # is safe here. The TC family is disabled above because TC rules move
+                  # imports behind `if TYPE_CHECKING`, which PEP 649 + Odoo's runtime
+                  # introspection cannot survive. TC008 moves nothing: it unquotes a
+                  # string inside an explicit `type X = ...` alias, where the quotes were
+                  # never needed. The disabled-TC rationale simply does not reach it.
     "RUF039",     # unraw-re-pattern (regex missing r"" prefix)
     "RUF069",     # float-equality-comparison (precision bugs in financial code)
     "RUF065",     # f-string-in-logging (performance — use lazy %s formatting)
@@ -255,6 +328,36 @@ select = [
     # "RUF031",   # parenthesized-tuple-in-subscript (66) — pure formatting churn
     # "RUF052",   # used-dummy-variable (166) — `_x` reuse is idiomatic in unpacking here
     # "PLC1901",  # compare-to-empty-string — already in `ignore` below
+    #
+    # -- Rejected in the 0.16.2 pass (triples are odoo/enterprise/agromarin) --
+    # "DOC201",   # docstring-missing-returns (2666/…) — the "missing" half of pydoclint.
+    # "DOC402",   # docstring-missing-yields (82/…)      Describes most of Odoo, not a defect
+    # "DOC501",   # docstring-missing-exception (609/…)  in it. The extraneous half is selected.
+    # "S403",     # suspicious-pickle-import (2/0/0) — redundant: S301 (already active, not
+    #             # preview) flags the pickle.load* CALL, which is the actual hazard
+    # "S405",     # suspicious-xml-etree-import (1/9/2) — ElementTree IS Odoo's XML parser
+    # "S411",     # suspicious-xmlrpc-import (1/1/0) — Odoo SERVES XML-RPC; banning it is absurd
+    # "FURB156",  # hardcoded-string-charset (2/37/0) — "0123456789" -> string.digits; an
+    #             # auto-fix that rewrites 37 upstream enterprise files for no reader's benefit
+    # "PT008",    # pytest-patch-with-lambda (11/3/0) — reads like a bug rule, is not one:
+    #             # patch(t, lambda: 3) and patch(t, return_value=3) behave identically
+    # "RUF105",   # noqa-comments (17/…) — wants `# ruff: ignore[X]` instead of `# noqa: X`.
+    #             # Ruff's own docs call it opinionated, and `noqa` is what the OTHER gates
+    #             # in this repo parse (test_lint's E85xx checkers, the `external` list above)
+    # "RUF106",   # rule-codes-in-suppression-comments (0) — same stylistic axis as RUF105
+    # "RUF201",   # rule-codes-in-selectors (0) — would flag this very file: it wants rule
+    #             # NAMES in `select`, and every selector here is a code, on purpose
+    # "B903",     # class-as-data-structure (3/…) — "use a dataclass"; a design opinion
+    # "E1xx/E2xx/E3xx",  # pycodestyle whitespace — formatter territory, same reasoning as the
+    #             # E111/E114/E117/W191 entries in `ignore` below
+    # "PT" (family)      # 16794 in odoo/, 15510 of them PT009 (self.assertEqual -> assert).
+    #             # Odoo's integration tests ARE unittest.TestCase; pytest runs the Tier-1
+    #             # suites only. PT029 is selected individually above.
+    # "SLF001",   # private-member-access (6170) — `rec._name`, `rec._fields`, `env._cr` are
+    #             # the ORM's public surface in all but the leading underscore
+    # "COM" (family)     # 8773 — trailing commas are the formatter's job (and COM812 fights it)
+    # "CPY001",   # missing-copyright-notice (1040) — Odoo ships LICENSE files, not per-file headers
+    # "INP001",   # implicit-namespace-package (212) — Odoo's addon loader is not import-based
 ]
 
 unfixable = [
@@ -601,6 +704,23 @@ known-local-folder = ["odoo.addons"]
 "locale.getdefaultlocale".msg = "Removed in 3.15 — use locale.getlocale() / locale.getencoding()"
 "ctypes.SetPointerType".msg = "Removed in 3.15 — use pointer.set_type(cls)"
 "sysconfig.expand_makefile_vars".msg = "Removed in 3.15 — no public replacement; inline the expansion"
+"glob.glob0".msg = "Removed in 3.15 — undocumented helper; use glob.glob() / glob.iglob()"
+"glob.glob1".msg = "Removed in 3.15 — undocumented helper; use glob.glob() / glob.iglob()"
+"platform.java_ver".msg = "Removed in 3.15 — Jython-only, meaningless on CPython"
+
+# --- Scheduled for removal in Python 3.16 ---
+# Same method as the 3.15 block: each was read out of this venv's 3.14 stdlib
+# (`warnings._deprecated(..., remove=(3, 16))`), not recalled. Also zero call
+# sites today. Only names TID251 can actually resolve are listed — the module
+# __getattr__ hooks (asyncio.AbstractEventLoopPolicy, shutil.ExecError) resolve
+# fine because they are module-level attributes; deprecated *methods* on
+# instances (pathlib.PurePath.is_reserved, Wave_read.getmark) cannot be matched
+# by a qualified-name rule at all and stay review-only.
+"asyncio.AbstractEventLoopPolicy".msg = "Removed in 3.16 — event loop policies are gone; use asyncio.run() / Runner"
+"asyncio.DefaultEventLoopPolicy".msg = "Removed in 3.16 — event loop policies are gone; use asyncio.run() / Runner"
+"asyncio.get_event_loop_policy".msg = "Removed in 3.16 — use asyncio.run() / asyncio.Runner"
+"asyncio.set_event_loop_policy".msg = "Removed in 3.16 — use asyncio.run() / asyncio.Runner"
+"shutil.ExecError".msg = "Removed in 3.16 — it is an alias of RuntimeError and no shutil function raises it"
 
 # --- Free-threading (PEP 703) readiness ---
 # fork() in a process that already has threads is undefined behaviour the child can
