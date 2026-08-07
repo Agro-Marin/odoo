@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, api, exceptions, fields, models
+from odoo.fields import NEGATIVE_CONDITION_OPERATORS, Domain
 
 
 class CrmTeamMember(models.Model):
@@ -122,6 +123,75 @@ class CrmTeamMember(models.Model):
                     "Sales Team '%(team)s' is archived and cannot take new members.",
                     team=membership.crm_team_id.name))
 
+    # ------------------------------------------------------------
+    # SEARCH HELPERS
+    # ------------------------------------------------------------
+
+    @api.model
+    def _search_live_projection(self, membership_field, target_field, operator, value):
+        """Domain behind a computed many2many that projects live memberships.
+
+        ``crm.team.member_ids`` (memberships seen through ``user_id``) and
+        ``res.users.crm_team_ids`` (through ``crm_team_id``) are the two ends of
+        one join, and both must search like the stored many2many they present to
+        the user. They are built here together because they were not: the
+        negative-operator and ``= False`` defects were repaired on the res.users
+        side while the crm.team side kept its own copy of the domain -- and its
+        own copy of the bugs.
+
+        :param membership_field: name of the one2many to ``crm.team.member`` on
+            the model being searched (``crm_team_member_ids`` on both res.users
+            and crm.team);
+        :param target_field: the membership field the many2many projects.
+        """
+        if operator in NEGATIVE_CONDITION_OPERATORS:
+            # Hand the negation back to the ORM, which negates the whole positive
+            # domain. Pushing the operator inside the 'any' instead asks "has SOME
+            # live membership whose target is not X", where the field means "has
+            # NO live membership whose target is X" -- so a salesperson on teams
+            # A and B matched `crm_team_ids not in [A]`, and a team keeping any
+            # other member matched `member_ids not in [one of its members]`.
+            return NotImplemented
+
+        # The active leaf is explicit rather than left to the caller's
+        # active_test: these domains end up inside record rules, so they have to
+        # mean the same thing in every context.
+        #
+        # 'any!' rather than 'any', for the same reason `crm_team_ids` is
+        # compute_sudo: the membership graph is what the record rules are
+        # computed from, so reading it and searching it must both answer with
+        # the real graph rather than the reader's filtered view of it. With a
+        # plain 'any', crm_team_member_rule_personal would make these searches
+        # reader-dependent -- and a negated one (handed back to the ORM above)
+        # negates a rule-shrunk set, which *widens* what it matches. The ORM asks
+        # for 'any!' by itself on a compute_sudo field and logs "should implement
+        # any! operator" when a search method cannot supply it.
+        #
+        # Domain objects, not domain lists: 'any!' is an internal operator that
+        # the list parser rejects outright, and only the condition constructor
+        # accepts it.
+        live = Domain('active', '=', True)
+        empty = Domain(membership_field, 'not any!', live)
+
+        if value is False:
+            # "no team" / "no member" is the absence of any live membership;
+            # asking for a membership whose (required) target is False matched
+            # nobody, ever -- so teams without members were unfindable.
+            return empty
+
+        if operator == 'in':
+            targets = [target for target in value if target is not False and target is not None]
+            if not targets:
+                return empty
+            some = Domain(membership_field, 'any!', live & Domain(target_field, 'in', targets))
+            if len(targets) == len(value):
+                return some
+            # a list mixing False with real ids reads as "empty OR one of these"
+            # on a stored many2many, and must read the same here
+            return empty | some
+
+        return Domain(membership_field, 'any!', live & Domain(target_field, operator, value))
+
     @api.depends('crm_team_id')
     def _compute_user_company_ids(self):
         all_companies = self.env['res.company'].search([])
@@ -205,7 +275,14 @@ class CrmTeamMember(models.Model):
         modifying user_id or team_id is advanced and does not benefit from our
         support. """
         res = super().write(vals)
-        if vals.get('active'):
+        # 'user_id' and 'crm_team_id' belong here alongside 'active': mono mode is
+        # a statement about the (team, salesperson) pairs that are live, and
+        # repointing a live membership at another salesperson mints a new pair
+        # just as surely as activating one does. Without them, handing an existing
+        # membership to someone who already had a team left that salesperson
+        # sitting on two -- the state mono mode exists to prevent, reachable from
+        # the Members form, an import or a server action.
+        if vals.get('active') or 'user_id' in vals or 'crm_team_id' in vals:
             self._enforce_mono_membership()
         return res
 

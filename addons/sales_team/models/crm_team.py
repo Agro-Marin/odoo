@@ -38,9 +38,25 @@ class CrmTeam(models.Model):
             user = self.env.user
         else:
             user = self.env['res.users'].sudo().browse(user_id)
-        default_team = self.env['crm.team'].browse(
-            self.env.context['default_team_id']
-        ) if self.env.context.get('default_team_id') else self.env['crm.team']
+        default_team = self.env['crm.team']
+        if context_team_id := self.env.context.get('default_team_id'):
+            # Existence and `active` are checked, nothing else: a bare browse
+            # accepted a stale action context or saved filter naming a team that
+            # has since been archived or deleted, and handed it back as the
+            # default for a brand new sales document. crm.team.member already
+            # refuses to point a live row at an archived team; a fresh document
+            # has no more business doing so.
+            #
+            # sudo, and the active leaf spelled out, both deliberately. The
+            # record rules must NOT filter this: a context default is an explicit
+            # server-side instruction (sale_crm carries the lead's team over to
+            # its quotation, website_sale names the website's team) and the actor
+            # is not always allowed to read the team they are legitimately being
+            # put on. Rule-filtering it here would silently swap those teams for
+            # the reader's own -- a behaviour change, not a fix.
+            default_team = self.browse(self.env['crm.team'].sudo().search([
+                ('id', '=', context_team_id), ('active', '=', True),
+            ]).ids)
         valid_cids = [False] + [c for c in user.company_ids.ids if c in self.env.companies.ids]
 
         # 1- find in user memberships - note that if current user in C1 searches
@@ -69,16 +85,23 @@ class CrmTeam(models.Model):
             team = default_team
 
         if not team:
+            # 4/5- default: based on company rule, the first team matching the
+            # domain if one is given, else simply the first. _order already ranks
+            # them, so both are one row from the database.
+            #
+            # `domain` is AND-ed into the search instead of being applied in
+            # memory afterwards: filtered_domain had to load every team of the
+            # company to pick a single row, and this step is reached exactly for
+            # the users who have no team of their own -- so it runs per
+            # salesperson over a mass import, table scan and all. The trade is
+            # that `domain` must now be a searchable domain; every caller in the
+            # workspace passes one over stored fields (crm's use_leads /
+            # use_opportunities, sale's _check_company_domain).
+            company_domain = [('company_id', 'in', valid_cids)]
             if domain:
-                # 4- default: based on company rule, first one matching domain
-                #    (the whole set is needed: filtered_domain runs in memory)
-                teams = self.search([('company_id', 'in', valid_cids)])
-                team = teams.filtered_domain(domain)[:1] or teams[:1]
-            else:
-                # 5- default: based on company rule, first one. _order already
-                #    ranks them, so ask the database for one row instead of the
-                #    whole table.
-                team = self.search([('company_id', 'in', valid_cids)], limit=1)
+                team = self.search(company_domain + list(domain), limit=1)
+            if not team:
+                team = self.search(company_domain, limit=1)
 
         return team
 
@@ -230,7 +253,15 @@ class CrmTeam(models.Model):
                                   )
 
     def _search_member_ids(self, operator, value):
-        return [('crm_team_member_ids.user_id', operator, value)]
+        # Mirror of res.users._search_crm_team_ids, built from the same helper.
+        # The dotted path this replaces expanded to an 'any' carrying the raw
+        # operator, so 'not in' asked "has SOME member who is not X" instead of
+        # "has NO member X" -- a team keeping one other salesperson matched --
+        # and '= False' asked for a membership whose required user_id was False,
+        # which no row can satisfy, so teams with no member were unfindable.
+        # Both spellings are reachable from the team search view's 'member_ids'.
+        return self.env['crm.team.member']._search_live_projection(
+            'crm_team_member_ids', 'user_id', operator, value)
 
     # 'name' should not be in the trigger, but as 'company_id' is possibly not present in the view
     # because it depends on the multi-company group, we use it as fake trigger to force computation
