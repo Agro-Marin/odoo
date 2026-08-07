@@ -523,8 +523,14 @@ GROUP BY fol.id%s%s""" % (
                             sudo_self.create(vals).flush_recordset()
                     except IntegrityError:
                         self.env["mail.followers"].invalidate_model()
+        # one write per distinct payload instead of one per follower: the values
+        # are built from a small set of subtype combinations, so updating dozens
+        # of followers collapses to a couple of statements
+        by_payload = defaultdict(list)
         for fol_id, values in upd.items():
-            sudo_self.browse(fol_id).write(values)
+            by_payload[repr(sorted(values.items()))].append(fol_id)
+        for fol_ids in by_payload.values():
+            sudo_self.browse(fol_ids).write(upd[fol_ids[0]])
 
     def _add_default_followers(
         self,
