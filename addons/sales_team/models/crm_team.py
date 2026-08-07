@@ -1,7 +1,8 @@
 import random
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tools.misc import str2bool
 
 
 class CrmTeam(models.Model):
@@ -68,13 +69,16 @@ class CrmTeam(models.Model):
             team = default_team
 
         if not team:
-            teams = self.env['crm.team'].search([('company_id', 'in', valid_cids)])
-            # 4- default: based on company rule, first one matching domain
-            if teams and domain:
-                team = teams.filtered_domain(domain)[:1]
-            # 5- default: based on company rule, first one
-            if not team:
-                team = teams[:1]
+            if domain:
+                # 4- default: based on company rule, first one matching domain
+                #    (the whole set is needed: filtered_domain runs in memory)
+                teams = self.search([('company_id', 'in', valid_cids)])
+                team = teams.filtered_domain(domain)[:1] or teams[:1]
+            else:
+                # 5- default: based on company rule, first one. _order already
+                #    ranks them, so ask the database for one row instead of the
+                #    whole table.
+                team = self.search([('company_id', 'in', valid_cids)], limit=1)
 
         return team
 
@@ -121,6 +125,22 @@ class CrmTeam(models.Model):
         help="Favorite teams to display them in the dashboard and access them easily.")
     dashboard_button_name = fields.Char(string="Dashboard Button", compute='_compute_dashboard_button_name')
 
+    @api.model
+    def _is_membership_multi(self):
+        """Whether a salesperson may belong to several sales teams.
+
+        ``ir.config_parameter`` stores strings, so the raw parameter must never
+        be used as a boolean: unticking "Multi Teams" in the settings writes the
+        literal ``'False'`` (``res.config.settings.set_values`` calls
+        ``str(bool(value))``), which is truthy in Python. Reading it raw made the
+        toggle one-way -- the settings page reported "off" while every mono-mode
+        code path stayed disabled.
+        """
+        return str2bool(
+            self.env['ir.config_parameter'].sudo().get_param('sales_team.membership_multi', ''),
+            default=False,
+        )
+
     @api.constrains('company_id')
     def _constrains_company_members(self):
         for team in self.filtered('company_id'):
@@ -128,7 +148,9 @@ class CrmTeam(models.Model):
                 lambda m, team=team: team.company_id not in m.user_id.company_ids
             )
             if invalid_members:
-                raise UserError(_("The following team members are not allowed in company '%(company)s' of the Sales Team '%(team)s': %(users)s",
+                # ValidationError, like every other @api.constrains here; it
+                # subclasses UserError, so callers catching that still catch this
+                raise ValidationError(_("The following team members are not allowed in company '%(company)s' of the Sales Team '%(team)s': %(users)s",
                     company=team.company_id.display_name,
                     team=team.name,
                     users=", ".join(invalid_members.mapped('user_id.name'))
@@ -136,28 +158,37 @@ class CrmTeam(models.Model):
 
     @api.depends('sequence')  # TDE FIXME: force compute in new mode
     def _compute_is_membership_multi(self):
-        multi_enabled = self.env['ir.config_parameter'].sudo().get_param('sales_team.membership_multi', False)
-        self.is_membership_multi = multi_enabled
+        self.is_membership_multi = self._is_membership_multi()
 
-    @api.depends('crm_team_member_ids.active')
+    # 'user_id' belongs in the trigger: reassigning a membership to another
+    # salesperson changes who is on the team, and without it member_ids stayed
+    # stale until something unrelated invalidated the cache
+    @api.depends('crm_team_member_ids.active', 'crm_team_member_ids.user_id')
     def _compute_member_ids(self):
         for team in self:
             team.member_ids = team.crm_team_member_ids.user_id
 
     def _inverse_member_ids(self):
+        to_create, to_archive = [], self.env['crm.team.member']
         for team in self:
             # pre-save value to avoid having _compute_member_ids interfering
             # while building membership status
-            memberships = team.crm_team_member_ids
+            memberships = team.crm_team_member_ids  # active only, see field context
             users_current = team.member_ids
-            users_new = users_current - memberships.user_id
 
-            # add missing memberships
-            self.env['crm.team.member'].create([{'crm_team_id': team.id, 'user_id': user.id} for user in users_new])
+            to_create += [
+                {'crm_team_id': team.id, 'user_id': user.id}
+                for user in users_current - memberships.user_id
+            ]
+            to_archive += memberships.filtered(
+                lambda m, users_current=users_current: m.user_id not in users_current)
 
-            # activate or deactivate other memberships depending on members
-            for membership in memberships:
-                membership.active = membership.user_id in users_current
+        # batched: one create and one archive for the whole recordset, instead of
+        # a create per team and a write per membership
+        if to_create:
+            self.env['crm.team.member'].create(to_create)
+        if to_archive:
+            to_archive.action_archive()
 
     @api.depends('is_membership_multi', 'member_ids')
     def _compute_member_warning(self):
@@ -166,18 +197,36 @@ class CrmTeam(models.Model):
         account only active memberships as we may keep several archived
         memberships. """
         self.member_warning = False
-        if all(team.is_membership_multi for team in self):
+        teams = self.filtered(lambda team: not team.is_membership_multi and team.member_ids)
+        if not teams:
             return
-        # done in a loop, but to be used in form view only -> not optimized
-        for team in self:
-            other_memberships = self.env['crm.team.member'].search([
-                ('crm_team_id', '!=', team._origin.id if team.ids else False),
-                ('user_id', 'in', team.member_ids.ids)
-            ])
-            if other_memberships:
+
+        # One query for the whole recordset; the active leaf is explicit so the
+        # warning does not silently count archived history under active_test=False.
+        # No sudo: crm_team_member_comp_rule already scopes memberships to the
+        # reader's companies. Reading them as superuser and then naming their teams
+        # raised AccessError on the crm.team read for anyone outside that company,
+        # and named a hidden team to whoever could get past it.
+        memberships = self.env['crm.team.member'].search([
+            ('active', '=', True),
+            ('user_id', 'in', teams.member_ids.ids),
+        ])
+        teams_by_user = {}
+        for membership in memberships:
+            teams_by_user.setdefault(membership.user_id.id, self.env['crm.team'])
+            teams_by_user[membership.user_id.id] |= membership.crm_team_id
+
+        for team in teams:
+            user_names, other_teams = [], self.env['crm.team']
+            for user in team.member_ids:
+                elsewhere = teams_by_user.get(user.id, self.env['crm.team']) - team._origin
+                if elsewhere:
+                    user_names.append(user.name)
+                    other_teams |= elsewhere
+            if user_names:
                 team.member_warning = _("%(user_names)s already in other teams (%(team_names)s).",
-                                   user_names=", ".join(other_memberships.mapped('user_id.name')),
-                                   team_names=", ".join(other_memberships.mapped('crm_team_id.name'))
+                                   user_names=", ".join(user_names),
+                                   team_names=", ".join(other_teams.mapped('name'))
                                   )
 
     def _search_member_ids(self, operator, value):
@@ -193,7 +242,11 @@ class CrmTeam(models.Model):
         for team in self:
             team.member_company_ids = team.company_id or all_companies
 
+    @api.depends('favorite_user_ids')
+    @api.depends_context('uid')
     def _compute_is_favorite(self):
+        # depends_context('uid'): the value is per-reader, and without it the
+        # first reader's answer is cached and served to everyone else
         for team in self:
             team.is_favorite = self.env.user in team.favorite_user_ids
 
@@ -207,8 +260,7 @@ class CrmTeam(models.Model):
     def _compute_dashboard_button_name(self):
         """ Sets the adequate dashboard button name depending on the Sales Team's options
         """
-        for team in self:
-            team.dashboard_button_name = _("Big Pretty Button :)") # placeholder
+        self.dashboard_button_name = _("Dashboard")
 
     # ------------------------------------------------------------
     # CRUD
@@ -217,40 +269,49 @@ class CrmTeam(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         teams = super(CrmTeam, self.with_context(mail_create_nosubscribe=True)).create(vals_list)
-        teams.filtered(lambda t: t.member_ids)._add_members_to_favorites()
+        # crm.team.member.create already grants the favourite, but when a team is
+        # created together with its memberships the default for 'favorite_user_ids'
+        # is applied after the one2many and replaces what the memberships added.
+        # Re-granting here, once creation is over, is the only point that cannot
+        # be overwritten.
+        teams.crm_team_member_ids._add_to_team_favorites()
         return teams
 
     def write(self, vals):
-        res = super().write(vals)
+        """Archiving a team cascades the archive to its memberships.
 
-        if vals.get('company_id'):  # Force re-check of memberships constraint for this team
-            self.crm_team_member_ids._constrains_membership()
+        Team-side mirror of :meth:`res.users.write`: a live membership pointing
+        at an archived team is the state ``crm_team_ids`` reads and searches
+        disagree about, and the one that pins the stored ``sale_team_id`` to a
+        dead team. Archiving frees both to settle on live teams only.
 
-        if vals.get('member_ids'):
-            self._add_members_to_favorites()
-        return res
-
-    def action_archive(self):
-        """Archive the teams and cascade the archive to their memberships.
-
-        Team-side mirror of :meth:`res.users.action_archive`: a membership
-        pointing to an archived team is dangling residue, so it is archived
-        too. This frees the members' ``crm_team_ids`` / ``sale_team_id`` to
-        recompute against live teams only. Restoring the team does not
-        resurrect the memberships, exactly like the user-side counterpart.
+        In ``write`` rather than ``action_archive``: the action is only the UI
+        path, so ``team.write({'active': False})`` used to leave the memberships
+        live. Restoring the team does not resurrect them, exactly like the
+        user-side counterpart.
         """
-        self.crm_team_member_ids.action_archive()
-        return super().action_archive()
+        res = super().write(vals)
+        if vals.get('active') is False:
+            self.crm_team_member_ids.action_archive()
+        return res
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_default(self):
-        default_teams = [
-            self.env.ref('sales_team.salesteam_website_sales'),
-            self.env.ref('sales_team.pos_sales_team'),
-        ]
-        for team in self:
-            if team in default_teams:
-                raise UserError(_('Cannot delete default team "%s"', team.name))
+        """Protect the teams other modules reference by XML id.
+
+        ``env.ref`` is tolerant here: a database where one of these records was
+        removed must still be able to delete *any* team, and the main Sales team
+        is protected alongside the Website and POS ones because sale, crm and
+        their dependants resolve it by XML id.
+        """
+        default_teams = self.browse()
+        for xmlid in ('sales_team.team_sales_department',
+                      'sales_team.salesteam_website_sales',
+                      'sales_team.pos_sales_team'):
+            default_teams |= self.env.ref(xmlid, raise_if_not_found=False) or self.browse()
+
+        if protected := (self & default_teams):
+            raise UserError(_('Cannot delete default team "%(name)s"', name=protected[0].name))
 
     # ------------------------------------------------------------
     # ACTIONS
@@ -261,10 +322,17 @@ class CrmTeam(models.Model):
         depending on the Sales Team's options. """
         return False
 
-    # ------------------------------------------------------------
-    # TOOLS
-    # ------------------------------------------------------------
+    @api.model
+    def action_activate_multi_membership(self):
+        """Allow salespersons to belong to several teams, from the warning banner.
 
-    def _add_members_to_favorites(self):
-        for team in self:
-            team.favorite_user_ids = [(4, member.id) for member in team.member_ids]
+        Multi-membership is a Sales setting, but it lives in an
+        ``ir.config_parameter``, which only Settings administrators may write.
+        Calling ``set_param`` straight from the client therefore failed for the
+        Sales Administrators the banner is addressed to, and succeeded only for
+        Settings administrators. The permission check belongs here, server-side,
+        where it is authoritative and can grant exactly the intended group.
+        """
+        if not self.env.user.has_group('sales_team.group_sale_manager'):
+            raise AccessError(_("Only a Sales Administrator can allow multiple sales team memberships."))
+        self.env['ir.config_parameter'].sudo().set_param('sales_team.membership_multi', True)

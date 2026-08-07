@@ -27,7 +27,8 @@
                     invisible="is_membership_multi or not member_warning">
                     <field name="member_warning" class="w-auto"/>
                     Working in multiple teams?
-                    <button name="crm_team_activate_multi_membership" type="button" class="btn btn-link p-0 lh-1">
+                    <button name="crm_team_activate_multi_membership" type="button" class="btn btn-link p-0 lh-1"
+                        groups="sales_team.group_sale_manager">
                         Activate "Multi-team"
                     </button>
                 </div>
@@ -57,7 +58,8 @@
                     <notebook>
                         <page string="Members" name="members_users">
                             <field name="member_ids" mode="kanban"
-                                class="w-100">
+                                class="w-100"
+                                invisible="is_membership_multi">
                                 <kanban>
                                     <templates>
                                         <t t-name="card" class="flex-row">
@@ -76,7 +78,7 @@
                             </field>
                             <field name="crm_team_member_ids" mode="kanban"
                                 class="w-100"
-                                invisible="is_membership_multi or not is_membership_multi"
+                                invisible="not is_membership_multi"
                                 context="{
                                     'kanban_view_ref': 'sales_team.crm_team_member_view_kanban_from_team',
                                     'form_view_ref': 'sales_team.crm_team_member_view_form_from_team',
