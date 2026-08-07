@@ -12,7 +12,6 @@ import { registry } from "@web/core/registry";
  * multiple teams but the multi-team option is deactivated.
  */
 class CrmTeamFormController extends FormController {
-
     async beforeExecuteActionButton(clickParams) {
         if (clickParams.name !== "crm_team_activate_multi_membership") {
             return super.beforeExecuteActionButton(...arguments);

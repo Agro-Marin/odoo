@@ -1,4 +1,4 @@
 {
-  "count": 24124,
-  "note": "U5 proposal 5 stage 2: migrating the section_and_note / combo / alt-PO row templates onto the explicit row api re-indented their renderers' touched regions; per-file A/B: sale_management order-line -1, purchase_requisition alternatives widget -3, all other touched files unchanged (account & sale stay at 0). Measured per file against the pre-change tree because concurrent sessions hold unrelated working-tree drift."
+  "count": 24111,
+  "note": "sales_team prettier cleanup: eslint --fix on the module's 4 JS files (crm_team_form.js, crm_team_form.test.js, crm_team_test_helpers.js, mock_server/mock_models/crm_team.js) cleared all 8 of its errors, 8 -> 0. Measured against a clean 'git archive' of HEAD 2b77756f451 (24119) plus the working tree (24111); the module A/B is exact. Note this ALSO corrects a pre-existing 5-error overcount: the previous floor of 24124 did not match clean HEAD, which measures 24119 -- the dirty-tree mis-record that ruff.json documents twice. 24119 - 8 = 24111."
 }

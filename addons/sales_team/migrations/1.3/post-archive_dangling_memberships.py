@@ -75,5 +75,7 @@ def migrate(cr, version):
     _logger.info(
         "sales_team: archived %s membership(s) pointing at an archived team or "
         "salesperson; re-pointed %s and cleared %s res_users.sale_team_id",
-        archived, repointed, cleared,
+        archived,
+        repointed,
+        cleared,
     )
