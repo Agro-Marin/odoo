@@ -885,16 +885,32 @@ class TestMembershipVisibility(TestSalesCommon):
         self.assertIn(self.mates, visible, "a teammate's row on my own team stays visible")
         self.assertIn(self.led, visible, "so does the roster of a team I lead")
 
-    def test_visibility_matches_the_team_rule_exactly(self):
-        """The invariant, asserted rather than assumed."""
-        as_salesman = self.env['crm.team.member'].with_user(self.salesman)
-        readable_teams = self.env['crm.team'].with_user(self.salesman).search([])
-        for membership in self.env['crm.team.member'].search([]):
-            expected = membership.crm_team_id in readable_teams
-            found = bool(as_salesman.search_count([('id', '=', membership.id)]))
-            self.assertEqual(
-                found, expected,
-                f"membership {membership.id}: visible={found} but team readable={expected}")
+    def test_visibility_matches_the_team_rule_for_every_profile(self):
+        """The invariant, asserted across the whole ladder rather than assumed.
+
+        The plain internal user is in here deliberately: they see every team,
+        because crm.team carries no restrictive rule for them, so they must go
+        on seeing every membership too. Tightening only one side of the join is
+        what produced the mismatch this rule fixes -- in the other direction.
+        """
+        profiles = {
+            'plain internal': 'base.group_user',
+            'salesman own': 'sales_team.group_sale_salesman',
+            'salesman team': 'sales_team.group_sale_salesman_team',
+            'salesman all': 'sales_team.group_sale_salesman_all_leads',
+            'sales manager': 'sales_team.group_sale_manager',
+        }
+        all_memberships = self.env['crm.team.member'].search([])
+        for label, group in profiles.items():
+            reader = mail_new_test_user(
+                self.env, login=f'vis_{group.rsplit(".", 1)[-1]}',
+                name=label, groups=group)
+            readable_teams = self.env['crm.team'].with_user(reader).search([])
+            visible = self.env['crm.team.member'].with_user(reader).search([])
+            for membership in all_memberships:
+                self.assertEqual(
+                    membership in visible, membership.crm_team_id in readable_teams,
+                    f"{label}: membership {membership.id} visibility disagrees with its team")
 
     def test_the_team_roster_still_renders(self):
         """Guard against locking a salesperson out of their own team's members."""
