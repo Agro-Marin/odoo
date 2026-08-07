@@ -29,6 +29,7 @@ class TestConfigManager(TransactionCase):
 
     def parse_reset(self, args=None):
         with (
+            patch.dict(self.config._override_options, {}),
             patch.dict(self.config._runtime_options, {}),
             patch.dict(self.config._cli_options, {}),
             patch.dict(self.config._env_options, {}),

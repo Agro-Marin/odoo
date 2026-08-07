@@ -6,8 +6,8 @@ import pytest
 import odoo.db
 from odoo.orm.runtime import registry as registry_module
 from odoo.orm.runtime.registry import (
-    _CACHES_BY_KEY,
     _SIGNALING_TABLES,
+    CACHES_BY_KEY,
     Registry,
     _RegistryCaches,
 )
@@ -18,7 +18,7 @@ def _make_registry(db_name, registry_sequence, cache_sequence, *, ready=True):
     reg.db_name = db_name
     reg.ready = ready
     reg.registry_sequence = registry_sequence
-    reg.cache_sequences = dict.fromkeys(_CACHES_BY_KEY, cache_sequence)
+    reg.cache_sequences = dict.fromkeys(CACHES_BY_KEY, cache_sequence)
     reg._caches = _RegistryCaches()
     reg._invalidation_flags = threading.local()
     return reg
@@ -28,7 +28,7 @@ class _SeqCursor:
     def __init__(self, registry_sequence, cache_sequences):
         self._row = (
             registry_sequence,
-            *(cache_sequences[name] for name in _CACHES_BY_KEY),
+            *(cache_sequences[name] for name in CACHES_BY_KEY),
         )
         self.plans_discarded = 0
 
@@ -50,7 +50,7 @@ def _fail(what):
 
 
 def _db_caches(value, **overrides):
-    caches = dict.fromkeys(_CACHES_BY_KEY, value)
+    caches = dict.fromkeys(CACHES_BY_KEY, value)
     caches.update(overrides)
     return caches
 
@@ -88,7 +88,7 @@ def test_no_reload_when_db_registry_sequence_behind(monkeypatch):
 
     assert result is reg
     assert reg.registry_sequence == 7
-    assert reg.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 5)
+    assert reg.cache_sequences == dict.fromkeys(CACHES_BY_KEY, 5)
     assert reg._caches.lrus["default"]["k"] == "v"
     assert cur.plans_discarded == 0
 
@@ -160,7 +160,7 @@ def test_cache_kept_when_db_cache_sequence_behind():
     result = reg.check_signaling(_SeqCursor(5, _db_caches(4)))
 
     assert result is reg
-    assert reg.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 6)
+    assert reg.cache_sequences == dict.fromkeys(CACHES_BY_KEY, 6)
     assert reg._caches.lrus["assets"]["a"] == 1
 
 
@@ -179,7 +179,7 @@ def test_adopted_registry_with_lagging_cache_sequences_is_invalidated(monkeypatc
 
         assert result is published
         assert "stale_key" not in published._caches.lrus["assets"]
-        assert published.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 5)
+        assert published.cache_sequences == dict.fromkeys(CACHES_BY_KEY, 5)
         assert cur.plans_discarded == 1
     finally:
         Registry.registries.pop(name, None)
@@ -196,7 +196,7 @@ def test_cache_check_is_noop_on_freshly_rebuilt_registry(monkeypatch):
 
     assert result is rebuilt
     assert rebuilt._caches.lrus["assets"]["fresh"] == 1
-    assert rebuilt.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 4)
+    assert rebuilt.cache_sequences == dict.fromkeys(CACHES_BY_KEY, 4)
 
 
 class _DyingCursor:
@@ -264,17 +264,127 @@ def test_get_sequences_rejects_row_length_drift():
             pass
 
         def fetchone(self):
-            return (1, *([1] * (len(_CACHES_BY_KEY) - 1)))
+            return (1, *([1] * (len(CACHES_BY_KEY) - 1)))
 
     reg = _make_registry("_seq_strict_db", 1, 1)
     with pytest.raises(ValueError):
         reg.get_sequences(_ShortRowCursor())
 
 
+def test_signal_changes_records_the_id_the_database_generated(monkeypatch):
+    """``RETURNING id``, not ``local + 1``.
+
+    These tables coordinate several processes, so concurrent inserts are the
+    normal case. Two workers signalling together take ids N+1 and N+2 while both
+    record ``+= 1`` locally; the loser then reads ``db_seq > local_seq`` on its
+    next ``check_signaling`` and performs a full ``Registry.new()`` -- the most
+    expensive operation in the system -- to learn about a change it made itself.
+
+    Demonstrated on a live database before the fix. With a competing writer
+    taking one id, the old code recorded ``local=10`` against ``dbmax=11`` (a
+    spurious reload); with ``RETURNING id`` the two agree.
+
+    Here the cursor reports ids that skip ahead, which is exactly what a
+    competing writer looks like from this process.
+    """
+
+    class _ReturningCursor:
+        """Reports ids 40 then 41, i.e. someone else consumed the ones between."""
+
+        def __init__(self):
+            self.queries = []
+            self._next = 40
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, query, params=None, **kwargs):
+            self.queries.append(query.code if hasattr(query, "code") else str(query))
+
+        def fetchone(self):
+            value = self._next
+            self._next += 1
+            return (value,)
+
+    cur = _ReturningCursor()
+    reg = _make_registry("_signal_returning_db", 1, 1)
+    monkeypatch.setattr(Registry, "cursor", lambda self, readonly=False: cur)
+    reg.registry_invalidated = True
+    reg.cache_invalidated.add("default")  # read-only property over a threading.local
+
+    reg.signal_changes()
+
+    assert all("RETURNING id" in q for q in cur.queries), (
+        f"signal_changes stopped asking the database for the id it generated: "
+        f"{cur.queries}"
+    )
+    # 40 and 41 -- NOT 2 and 2, which is what `+= 1` from a baseline of 1 gives.
+    assert reg.registry_sequence == 40
+    assert reg.cache_sequences["default"] == 41
+
+
+def test_signalled_id_falls_back_when_no_row_comes_back():
+    """A cursor that returns nothing must not crash the signal path."""
+
+    class _NoRowCursor:
+        def fetchone(self):
+            return None
+
+    assert Registry._signalled_id(_NoRowCursor(), 7) == 8
+
+
+def test_get_sequences_coalesces_an_empty_signalling_table():
+    """``max(id)`` over an empty table is NULL, and the caller compares with ``>``.
+
+    Reproduced against a live database before the fix: after
+    ``DELETE FROM orm_signaling_registry``, ``get_sequences`` returned
+    ``(None, ...)``, ``setup_signaling`` stored that ``None`` into
+    ``registry_sequence`` (annotated ``int``), and the next ``check_signaling``
+    raised ``TypeError: '>' not supported between instances of 'NoneType' and
+    'int'`` -- for every registry in the cluster, until a row reappeared.
+
+    An empty-but-present table is reachable in practice: ``setup_signaling``
+    seeds a row only when it *creates* the table, so a truncate/restore or an
+    interrupted setup leaves exactly this state. The SQL now coalesces to 0,
+    which ``check_signaling`` already handles (a db value below the local one is
+    treated as stale, not as an error).
+    """
+
+    class _EmptyTableCursor:
+        """Stands in for PostgreSQL returning NULL from ``max()``."""
+
+        def __init__(self):
+            self.sql = ""
+
+        def execute(self, query, params=None, **kwargs):
+            self.sql = query.code if hasattr(query, "code") else str(query)
+
+        def fetchone(self):
+            # What the *coalesced* query returns for an empty table.
+            return (0, *([0] * len(CACHES_BY_KEY)))
+
+    cur = _EmptyTableCursor()
+    reg = _make_registry("_seq_empty_db", -1, -1)
+    registry_sequence, cache_sequences = reg.get_sequences(cur)
+
+    assert "coalesce(max(id), 0)" in cur.sql, (
+        "the empty-table guard is gone from the signalling query; a truncated "
+        "signalling table will return NULL and brick check_signaling"
+    )
+    assert registry_sequence == 0
+    assert cache_sequences == dict.fromkeys(CACHES_BY_KEY, 0)
+
+    # The comparison that used to raise must now simply evaluate.
+    assert (registry_sequence > reg.registry_sequence) is True
+
+
 class _SetupCursor:
     def __init__(self):
         self.queries = []
-        self._row = (1, *([1] * len(_CACHES_BY_KEY)))
+        self._row = (1, *([1] * len(CACHES_BY_KEY)))
 
     def __enter__(self):
         return self
@@ -309,7 +419,7 @@ def test_setup_signaling_creates_tables_if_not_exists(monkeypatch):
     assert all(q.startswith("CREATE TABLE IF NOT EXISTS") for q in creates)
     assert len(inserts) == len(_SIGNALING_TABLES)
     assert reg.registry_sequence == 1
-    assert reg.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 1)
+    assert reg.cache_sequences == dict.fromkeys(CACHES_BY_KEY, 1)
 
 
 def test_setup_signaling_does_not_reseed_existing_tables(monkeypatch):
@@ -343,7 +453,7 @@ def test_clear_cache_unknown_name_raises_listing_valid_names():
 
     message = str(excinfo.value)
     assert "bogus" in message
-    for known in _CACHES_BY_KEY:
+    for known in CACHES_BY_KEY:
         assert known in message
     assert reg._caches.lrus["assets"]["a"] == 1
     assert not reg.cache_invalidated

@@ -55,7 +55,7 @@ DEFAULT_OLG_ENDPOINT = "https://olg.api.odoo.com"
 # and the third-party cookie barrier get frozen into the compiled template.
 # Writing one of these therefore needs an explicit ``clear_cache("templates")``:
 # a bare ``clear_cache()`` resolves to the "default" group, which does **not**
-# contain "templates" (see ``_CACHES_BY_KEY`` in odoo/orm/runtime/registry.py).
+# contain "templates" (see ``CACHES_BY_KEY`` in odoo/orm/runtime/registry.py).
 TEMPLATE_AFFECTING_FIELDS = frozenset(
     {
         "cdn_activated",

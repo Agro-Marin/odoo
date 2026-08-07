@@ -3,7 +3,7 @@
 # Deliberately MINIMAL for an upstream-code repo:
 #
 # - ruff-check --fix, pinned to the SAME ruff the CI ratchet measures with
-#   (0.16.0 — requirements-dev.txt / .github/workflows/ruff.yml). NO
+#   (0.16.2 — requirements-dev.txt / .github/workflows/ruff.yml). NO
 #   ruff-format: formatting is whole-file and would rewrite upstream files
 #   on touch. Note: --fix repairs every fixable finding in a STAGED file,
 #   so touching one of the ~632 baseline-carrying files may shrink the
@@ -29,7 +29,7 @@ default_language_version:
 repos:
   # === Ruff (lint only — never format upstream code) ===
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.0 # keep in lockstep with requirements-dev.txt + ruff.yml ratchet
+    rev: v0.16.2 # keep in lockstep with requirements-dev.txt + ruff.yml ratchet
     hooks:
       - id: ruff-check
         args: [--fix]

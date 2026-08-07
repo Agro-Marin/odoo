@@ -30,6 +30,7 @@ from .ast import (
 from .constants import (
     CONDITION_OPERATORS,
     INVERSE_OPERATOR,
+    LIKE_CONDITION_OPERATORS,
     NEGATIVE_CONDITION_OPERATORS,
 )
 
@@ -280,7 +281,7 @@ for _level in OptimizationLevel:
 del _level
 
 
-@operator_optimization([op for op in CONDITION_OPERATORS if op.endswith("like")])
+@operator_optimization(LIKE_CONDITION_OPERATORS)
 def _optimize_like_str(condition, model):
     value = condition.value
     if not value:

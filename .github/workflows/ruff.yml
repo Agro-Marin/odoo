@@ -9,7 +9,7 @@ name: Python Lint (ruff)
 #   N=$(ruff check odoo/ --no-cache --statistics | awk '{s+=$1} END {print s}')
 #   python tooling/ratchet/ratchet.py ruff --count "$N" --update
 #
-# ruff is pinned in requirements-dev.txt (0.16.0); the floor must be measured
+# ruff is pinned in requirements-dev.txt (0.16.2); the floor must be measured
 # with that pin so local and CI agree.
 #
 # The pin is now a HARD floor, not just a reproducibility aid: ruff.toml runs with
@@ -61,7 +61,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install ruff (pinned)
-        run: pip install "ruff==0.16.0"
+        run: pip install "ruff==0.16.2"
 
       - name: Self-test the ratchet
         run: python tooling/ratchet/test_ratchet.py

@@ -376,7 +376,7 @@ class IrHttp(models.AbstractModel):
         # the URL-building hot path (once per generated link). Both dependencies
         # invalidate the ``default`` container: ``ir.default`` writes call
         # ``registry.clear_cache()`` and ``res.lang`` writes call
-        # ``clear_cache("stable")``, which covers "default" per ``_CACHES_BY_KEY``.
+        # ``clear_cache("stable")``, which covers "default" per ``CACHES_BY_KEY``.
         return self.env["ir.default"].sudo()._get("res.partner", "lang")
 
     @api.model

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import annotationlib
 import inspect
 import logging
 import math
@@ -50,7 +51,16 @@ def _resolve(annotation: Any) -> tuple[type | None, type | None, bool]:
 
 def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
     specs: dict[str, ParamSpec] = {}
-    params = list(inspect.signature(endpoint).parameters.values())
+    # FORWARDREF: an unresolvable annotation (a TYPE_CHECKING-only name) must
+    # leave its parameter uncoerced, which is what this function already does
+    # for an annotation it cannot resolve -- not abort route registration with
+    # NameError, which is what the default VALUE format does under PEP 649.
+    # Concrete types (int, str, list[int], ...) are unaffected.
+    params = list(
+        inspect.signature(
+            endpoint, annotation_format=annotationlib.Format.FORWARDREF
+        ).parameters.values()
+    )
     for param in params[1:]:
         if param.kind not in (
             inspect.Parameter.POSITIONAL_OR_KEYWORD,

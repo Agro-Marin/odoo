@@ -6,7 +6,7 @@ import time
 
 from odoo import api, models
 from odoo.exceptions import AccessDenied
-from odoo.modules.registry import _CACHES_BY_KEY
+from odoo.modules.registry import CACHES_BY_KEY
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ class IrAutovacuum(models.AbstractModel):
 
     @api.autovacuum
     def _gc_orm_signaling(self) -> None:
-        for signal in ["registry", *_CACHES_BY_KEY]:
+        for signal in ["registry", *CACHES_BY_KEY]:
             table = f"orm_signaling_{signal}"
             self.env.cr.execute(
                 SQL(

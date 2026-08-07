@@ -98,6 +98,42 @@ SCOPE_EXEMPT_PACKAGES: frozenset[str] = frozenset(
 #: (``res.users``, ``ir.model.data``) or the special root model ``base``.
 _MODEL_RE = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$|^base$")
 
+#: Subtrees that must reach **no** addon-owned model at all.
+#:
+#: ``KNOWN_MODEL_SURFACE`` below ratchets *which* models the framework reaches;
+#: it cannot express *who* reaches them, because it is one flat set for the whole
+#: scope. That gap is demonstrable, not theoretical: appending
+#: ``env["ir.model"].search([])`` to ``odoo/orm/components/model_graph.py`` -- a
+#: package whose whole contract is that it is pure Python -- passes this gate
+#: (``ir.model`` is already in the set, so nothing is *added*), and also passes
+#: ``layer_check`` (a subscript is not an import), ``env_surface_check`` and
+#: ``pool_surface_check``. All four green, on the one package that is supposed to
+#: be free of the ORM entirely.
+#:
+#: These seven are pinned at zero because each already claims the property for an
+#: independent reason, so a first reach is a contradiction rather than a cost:
+#:
+#:   orm/components   `orm-components-are-pure-python`; no odoo import at all
+#:   libs             the dependency-free layer (`libs-is-dependency-free`)
+#:   db               `db-is-orm-agnostic`; talks to the ORM only via injection
+#:   api/fields/models  thin re-export shims -- a facade that reaches a model is
+#:                      no longer a facade
+#:   _monkeypatches   third-party patching, applied before a registry exists
+#:
+#: Measured at zero when this landed. Deliberately *not* the full (package,
+#: model) cross-product: that would be ~54 pairs and would fire on every ordinary
+#: new reach inside a package that already reaches models, which is noise. The
+#: invariant worth gating is the categorical one -- these subtrees reach nothing.
+SUBTREES_WITH_NO_MODEL_REACH: tuple[str, ...] = (
+    "odoo/orm/components",
+    "odoo/libs",
+    "odoo/db",
+    "odoo/api",
+    "odoo/fields",
+    "odoo/models",
+    "odoo/_monkeypatches",
+)
+
 #: The framework's *acknowledged* model dependency surface. Ratcheted exact:
 #: adding a model here without a reason, or leaving a stale one, both defeat the
 #: point. Regenerate with ``--print-baseline`` after an intentional change.
@@ -152,6 +188,11 @@ class Report:
     added: set[str] = field(default_factory=set)
     #: models in the baseline no longer referenced (locked-in decoupling)
     removed: set[str] = field(default_factory=set)
+    #: reaches from a subtree that must reach nothing (see
+    #: :data:`SUBTREES_WITH_NO_MODEL_REACH`). Separate from ``added`` because the
+    #: model itself may be perfectly well known -- it is the *reacher* that is
+    #: the violation, which the flat model set cannot express.
+    forbidden: list[Reach] = field(default_factory=list)
 
     @property
     def models(self) -> set[str]:
@@ -159,7 +200,7 @@ class Report:
 
     @property
     def ok(self) -> bool:
-        return not self.added and not self.removed
+        return not self.added and not self.removed and not self.forbidden
 
 
 class _EnvModelCollector(ast.NodeVisitor):
@@ -211,6 +252,11 @@ def check(files: list[Path] | None = None) -> Report:
             report.reaches.append(Reach(model, rel, lineno))
     report.added = report.models - KNOWN_MODEL_SURFACE
     report.removed = KNOWN_MODEL_SURFACE - report.models
+    report.forbidden = [
+        r
+        for r in report.reaches
+        if r.path.startswith(tuple(f"{s}/" for s in SUBTREES_WITH_NO_MODEL_REACH))
+    ]
     return report
 
 
@@ -238,9 +284,20 @@ def _render(report: Report) -> str:
             "Models in the baseline no longer referenced (commit the removal):"
         )
         lines.extend(f"  - {m}" for m in sorted(report.removed))
+    if report.forbidden:
+        lines.append("")
+        lines.append(
+            "Subtrees that must reach NO model, but do "
+            "(the model may be known -- the reacher is the violation):"
+        )
+        lines.extend(
+            f"  ! {r.path}:{r.lineno}  env[{r.model!r}]" for r in report.forbidden
+        )
     lines.append("-" * 64)
     if report.ok:
         lines.append("Framework model surface matches the acknowledged set. ✓")
+    elif report.forbidden and not (report.added or report.removed):
+        lines.append("FAILED: a subtree pinned at zero model reaches now reaches one.")
     else:
         lines.append("FAILED: framework model surface drifted from the baseline.")
     return "\n".join(lines)

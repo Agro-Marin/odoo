@@ -378,7 +378,7 @@ class TestCompanyDependent(TransactionCase):
         core = self.env._core
 
         core.get_field_data(field).clear()
-        core.cache.set_value(field, partner.id, "BC-1")
+        core.set_value(field, partner.id, "BC-1")
 
         col_val = field.get_column_update(partner)
         self.assertIsNotNone(

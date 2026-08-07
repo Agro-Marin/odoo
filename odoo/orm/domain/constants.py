@@ -62,6 +62,20 @@ Non-standard operators are reduced to standard ones by the optimization
 functions (see each for details).
 """
 
+LIKE_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
+    op for op in STANDARD_CONDITION_OPERATORS if op.endswith("like")
+)
+"""The ``like`` family, derived from the frozen standard set.
+
+Declared here rather than recomputed from :data:`CONDITION_OPERATORS` at the
+point of use. ``optimizations.py`` used to register ``_optimize_like_str`` with
+``[op for op in CONDITION_OPERATORS if op.endswith("like")]`` -- a comprehension
+over the mutable set that ``operator_optimization()`` itself updates, evaluated
+at import time, so its result depended on how many decorators had already run
+above it in the file. It happened to be correct only because none of them
+registers a ``like`` operator today.
+"""
+
 INTERNAL_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(("any!", "not any!"))
 
 SUBDOMAIN_OPERATORS: Final[frozenset[str]] = frozenset(
@@ -111,6 +125,7 @@ __all__ = [
     "INTERNAL_CONDITION_OPERATORS",
     "INVERSE_INEQUALITY",
     "INVERSE_OPERATOR",
+    "LIKE_CONDITION_OPERATORS",
     "NEGATIVE_CONDITION_OPERATORS",
     "STANDARD_CONDITION_OPERATORS",
     "SUBDOMAIN_OPERATORS",

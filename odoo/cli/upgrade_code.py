@@ -27,6 +27,42 @@ The command line offers a way to select and run those scripts.
 
 All scripts are best-effort: they do the heavy lifting of migrating the
 source code, but they are not silver bullets.
+
+**Read this before running any of them.** "Best-effort" undersells the risk:
+these scripts rewrite source **in place**, in whatever checkout you point them
+at, and until 2026-08 not one of them had a single test. Two of the three that
+have since been audited were found to corrupt the tree they were run on:
+
+* ``18.1-00-sql-constraint.py`` caught only ``SyntaxError`` from
+  ``ast.literal_eval``, which raises **ValueError** for a non-literal node — and
+  the commonest real ``_sql_constraints`` entry carries a translated message,
+  ``_('...')``, which is a Call. The escaping ValueError aborted the whole run
+  partway through the file list, leaving everything already processed rewritten.
+  It also emitted ``_{name} = models.Constraint(...)`` unconditionally, so a
+  constraint named ``name`` silently redefined the model's ``_name`` and
+  destroyed its identity (19 ``BaseModel`` attributes were reachable that way).
+* ``18.5-00-deprecated-properties.py`` was a bare regex, so it rewrote inside
+  string literals and comments, turned ``self.env._cr`` into
+  ``self.env.env.cr``, and turned ``self._cr = cr`` in a non-recordset
+  ``__init__`` into ``self.env.cr = cr``. Run against this repository it would
+  have broken ``db/savepoint.py``, ``tools/translate.py`` and
+  ``web/controllers/json_helpers.py``.
+
+Both are fixed and now have tests (``odoo/tools/tests/
+test_upgrade_code_sql_constraint.py`` and
+``…_deprecated_properties.py``). The remaining seven scripts are **still
+untested**, and the two audited ones were not unusual — they are text
+substitutions standing in for code transformations.
+
+So, in order:
+
+1. ``--dry-run`` first, and read the file list.
+2. ``--glob`` to scope the run; do not rewrite a whole checkout in one pass.
+3. Diff and read every change before committing. One limitation is inherent:
+   whether ``x`` in ``x._context`` is a recordset cannot be decided statically,
+   so a rewrite on a non-recordset is possible by construction, not by defect.
+4. Work on a clean tree so ``git diff`` is the review, and ``git checkout`` the
+   undo.
 """
 
 import argparse

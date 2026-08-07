@@ -3473,6 +3473,89 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
         assert killed == []
 
 
+class TestPreforkPhoenixStopRunsOnStopHooks:
+    """A reload must still run ``CommonServer.on_stop`` hooks.
+
+    ``PreforkServer.stop()``'s phoenix branch returned on both of its exit paths
+    *before* reaching ``super().stop()``, which is the only thing that runs
+    ``_ON_STOP_FUNCS``. So under ``--workers>0`` a SIGHUP reload skipped every
+    registered shutdown hook, while a threaded server (``ThreadedServer.stop``)
+    ran them unconditionally — a silent, mode-dependent divergence.
+
+    What the hooks actually do makes this a resource leak rather than a
+    cosmetic gap: every registered one closes a **process-local** resource --
+    ``close_sass_compiler`` and ``close_lexer_worker`` terminate spawned
+    subprocesses, and ``bus`` stops its dispatcher thread and closes its
+    PostgreSQL notify connection. The outgoing master is exiting either way; not
+    running them orphans whatever it had spawned, once per reload.
+
+    Both exit paths are covered, because the failed-reload path also ends with
+    "this (old) master is exiting".
+    """
+
+    @pytest.fixture()
+    def hooked(self, srv, monkeypatch):
+        """Register a sentinel hook, isolated from the process-wide list."""
+        from odoo.service import _base_server
+
+        calls = []
+        monkeypatch.setattr(_base_server, "_ON_STOP_FUNCS", [lambda: calls.append(1)])
+        return calls
+
+    def _phoenix(self, prefork_server):
+        prefork_server.socket = None
+        prefork_server.workers = {}
+        prefork_server._drain_procs = {}
+        return prefork_server
+
+    def test_successful_reload_runs_the_hooks(
+        self, srv, prefork_server, hooked, monkeypatch
+    ):
+        from odoo.service import lifecycle
+
+        monkeypatch.setattr(lifecycle, "server_phoenix", True)
+        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
+        monkeypatch.setattr(
+            srv.PreforkServer, "stop_workers_gracefully", lambda self: None
+        )
+
+        self._phoenix(prefork_server).stop()
+
+        assert hooked == [1], (
+            "on_stop hooks did not run on a prefork reload; the outgoing master "
+            "exits leaving its subprocesses and bus connection behind"
+        )
+
+    def test_failed_reload_also_runs_the_hooks(
+        self, srv, prefork_server, hooked, monkeypatch
+    ):
+        """The old master says it is exiting on this path too."""
+        from odoo.service import lifecycle
+
+        monkeypatch.setattr(lifecycle, "server_phoenix", True)
+        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: False)
+
+        self._phoenix(prefork_server).stop()
+
+        assert hooked == [1]
+
+    def test_plain_shutdown_still_runs_them_once(
+        self, srv, prefork_server, hooked, monkeypatch
+    ):
+        """The non-phoenix path already worked; it must not now run them twice."""
+        from odoo.service import lifecycle
+
+        monkeypatch.setattr(lifecycle, "server_phoenix", False)
+        monkeypatch.setattr(
+            srv.PreforkServer, "stop_workers_gracefully", lambda self: None
+        )
+        prefork_server.socket = None
+
+        prefork_server.stop()
+
+        assert hooked == [1]
+
+
 class TestListenThreadFirstPassIsImmediate:
     """The first cron pass must not wait out a full ``SLEEP_INTERVAL``.
 

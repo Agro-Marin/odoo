@@ -134,7 +134,22 @@ class Transaction:
             from ..primitives import SUPERUSER_ID
             from .environment import Environment
 
-            Environment(env.cr, SUPERUSER_ID, {}).flush_all()
+            # Environment.__new__ installs itself as `transaction.default_env`
+            # when there is none and `uid` is a truthy int -- and SUPERUSER_ID
+            # is 1. So building this fallback used to make it the default_env,
+            # which meant the warning above fired EXACTLY ONCE per transaction
+            # and every later flush silently took the branch above, still as
+            # superuser, with no log at all.
+            #
+            # Restore default_env afterwards so the fallback stays a fallback:
+            # the warning then fires on every flush that needs it, which is the
+            # only way anyone finds out this is happening.
+            previous_default = self.default_env
+            try:
+                Environment(env.cr, SUPERUSER_ID, {}).flush_all()
+            finally:
+                if previous_default is None:
+                    self.default_env = None
         if self._n1_tracker is not None:
             self._n1_tracker.report()
             self._n1_tracker.clear()
