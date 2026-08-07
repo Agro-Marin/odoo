@@ -6,6 +6,7 @@ from . import test_purchase_order_line_compute
 from . import test_purchase_order_product_catalog
 from . import test_purchase_order_report
 from . import test_purchase_invoice
+from . import test_purchase_portal
 from . import test_access_rights
 from . import test_accrued_purchase_orders
 from . import test_purchase_dashboard
