@@ -7,17 +7,6 @@ class ProductComboItem(models.Model):
     _description = "Product Combo Item"
     _check_company_auto = True
 
-    company_id = fields.Many2one(
-        related="combo_id.company_id",
-        store=True,
-        precompute=True,
-    )
-    combo_id = fields.Many2one(
-        comodel_name="product.combo",
-        required=True,
-        ondelete="cascade",
-        index=True,
-    )
     product_id = fields.Many2one(
         comodel_name="product.product",
         string="Options",
@@ -34,6 +23,17 @@ class ProductComboItem(models.Model):
         related="product_id.lst_price",
         string="Original Price",
         min_display_digits="Product Price",
+    )
+    combo_id = fields.Many2one(
+        comodel_name="product.combo",
+        required=True,
+        ondelete="cascade",
+        index=True,
+    )
+    company_id = fields.Many2one(
+        related="combo_id.company_id",
+        store=True,
+        precompute=True,
     )
     extra_price = fields.Float(
         string="Extra Price",

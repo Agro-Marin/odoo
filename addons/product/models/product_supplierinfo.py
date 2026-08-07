@@ -203,21 +203,23 @@ class ProductSupplierinfo(models.Model):
         ]
 
     def _sanitize_vals(self, vals):
-        """Sanitize vals to sync product variant & template on read/write."""
-        # add product's product_tmpl_id if none present in vals
+        """Return ``vals`` with the template deduced from the variant.
+
+        Returns a new dict rather than mutating: ``vals`` belongs to the caller,
+        and silently adding `product_tmpl_id` to it leaked into any later reuse
+        of the same dict -- pinning unrelated rows to the first row's template.
+        """
         if vals.get("product_id") and not vals.get("product_tmpl_id"):
             product = self.env["product.product"].browse(vals["product_id"])
-            vals["product_tmpl_id"] = product.product_tmpl_id.id
+            return {**vals, "product_tmpl_id": product.product_tmpl_id.id}
+        return vals
 
     @api.model_create_multi
     def create(self, vals_list):
-        for vals in vals_list:
-            self._sanitize_vals(vals)
-        return super().create(vals_list)
+        return super().create([self._sanitize_vals(vals) for vals in vals_list])
 
     def write(self, vals):
-        self._sanitize_vals(vals)
-        return super().write(vals)
+        return super().write(self._sanitize_vals(vals))
 
     def _get_filtered_supplier(self, company_id, product_id, params=False):
         return self.filtered(

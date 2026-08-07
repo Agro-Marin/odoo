@@ -11,7 +11,16 @@ class ProductCategory(models.Model):
     _rec_name = "complete_name"
     _order = "complete_name"
 
-    name = fields.Char(string="Name", required=True, index="trigram")
+    name = fields.Char(
+        string="Name",
+        required=True,
+        index="trigram",
+    )
+    active = fields.Boolean(
+        string="Active",
+        default=True,
+        help="If unchecked, it will allow you to hide the category without removing it.",
+    )
     parent_id = fields.Many2one(
         comodel_name="product.category",
         string="Parent Category",
@@ -49,6 +58,24 @@ class ProductCategory(models.Model):
         help="The number of products under this category and its children.",
     )
     product_properties_definition = fields.PropertiesDefinition("Product Properties")
+
+    @api.constrains("parent_id")
+    def _check_category_recursion(self):
+        if self._has_cycle():
+            raise ValidationError(_("You cannot create recursive categories."))
+
+    def copy_data(self, default=None):
+        default = dict(default or {})
+        vals_list = super().copy_data(default=default)
+        if "name" not in default:
+            for category, vals in zip(self, vals_list, strict=True):
+                # `vals` is None for a record already copied in this operation
+                # (the same record twice in `self`, or a cycle through a
+                # relation); `copy()` drops those entries.
+                if vals is None:
+                    continue
+                vals["name"] = _("%s (copy)", category.name)
+        return vals_list
 
     @api.depends("name", "parent_id.complete_name")
     def _compute_complete_name(self):
@@ -89,16 +116,6 @@ class ProductCategory(models.Model):
         for categ in self:
             categ.product_count = count_by_categ.get(categ.id, 0)
 
-    @api.constrains("parent_id")
-    def _check_category_recursion(self):
-        if self._has_cycle():
-            raise ValidationError(_("You cannot create recursive categories."))
-
-    @api.model
-    def name_create(self, name):
-        category = self.create({"name": name})
-        return category.id, category.display_name
-
     @api.depends_context("hierarchical_naming")
     def _compute_display_name(self):
         if self.env.context.get("hierarchical_naming", True):
@@ -107,15 +124,7 @@ class ProductCategory(models.Model):
             record.display_name = record.name
         return None
 
-    def copy_data(self, default=None):
-        default = dict(default or {})
-        vals_list = super().copy_data(default=default)
-        if "name" not in default:
-            for category, vals in zip(self, vals_list, strict=True):
-                # `vals` is None for a record already copied in this operation
-                # (the same record twice in `self`, or a cycle through a
-                # relation); `copy()` drops those entries.
-                if vals is None:
-                    continue
-                vals["name"] = _("%s (copy)", category.name)
-        return vals_list
+    @api.model
+    def name_create(self, name):
+        category = self.create({"name": name})
+        return category.id, category.display_name

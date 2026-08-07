@@ -10,7 +10,7 @@
                 <field name="sequence" widget="handle" />
                 <field name="name" />
                 <field name="base_price" widget="monetary" options="{'field_digits': True}" />
-                <field name="combo_item_count" />
+                <field name="count_combo_item_ids" />
             </list>
         </field>
     </record>

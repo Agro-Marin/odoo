@@ -55,15 +55,25 @@ class ProductTag(models.Model):
     # on the value the user actually sees.
     @api.constrains("name")
     def _check_name_uniq(self):
+        names = [tag.name for tag in self if tag.name]
+        if not names:
+            return
+        # One query for the whole batch instead of one per record: importing or
+        # creating tags in bulk ran a `search_count` per row. The duplicate may
+        # be another record in `self` (two new tags sharing a name), so compare
+        # against both the stored rows and the batch itself.
+        taken = self.search(
+            [("name", "in", names), ("id", "not in", self.ids)]
+        ).grouped("name")
+        seen = set()
         for tag in self:
             if not tag.name:
                 continue
-            if self.search_count(
-                [("name", "=", tag.name), ("id", "!=", tag.id)], limit=1
-            ):
+            if tag.name in taken or tag.name in seen:
                 raise ValidationError(
                     self.env._("The tag name %(name)s already exists.", name=tag.name)
                 )
+            seen.add(tag.name)
 
     @api.depends("product_template_ids.product_variant_ids", "product_product_ids")
     def _compute_product_ids(self):

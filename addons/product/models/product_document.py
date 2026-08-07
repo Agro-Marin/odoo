@@ -16,14 +16,8 @@ class ProductDocument(models.Model):
         required=True,
         ondelete="cascade",
     )
-
     active = fields.Boolean(default=True)
     sequence = fields.Integer(default=10)
-
-    @api.onchange("url")
-    def _onchange_url(self):
-        # Early UX feedback in the form; the real guarantee is the constraint.
-        self._check_url_scheme()
 
     @api.constrains("url", "type")
     def _check_url_scheme(self):
@@ -89,3 +83,8 @@ class ProductDocument(models.Model):
         attachments = self.ir_attachment_id
         res = super().unlink()
         return res and attachments.unlink()
+
+    @api.onchange("url")
+    def _onchange_url(self):
+        # Early UX feedback in the form; the real guarantee is the constraint.
+        self._check_url_scheme()

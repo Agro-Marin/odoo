@@ -16,19 +16,19 @@
         <!--
              Precisions
         -->
-        <record forcecreate="True" id="decimal_price" model="decimal.precision">
+        <record id="decimal_price" model="decimal.precision" forcecreate="True">
             <field name="name">Product Price</field>
             <field name="digits">2</field>
         </record>
-        <record forcecreate="True" id="decimal_discount" model="decimal.precision">
+        <record id="decimal_discount" model="decimal.precision" forcecreate="True">
             <field name="name">Discount</field>
             <field name="digits">2</field>
         </record>
-        <record forcecreate="True" id="decimal_stock_weight" model="decimal.precision">
+        <record id="decimal_stock_weight" model="decimal.precision" forcecreate="True">
             <field name="name">Stock Weight</field>
             <field name="digits">2</field>
         </record>
-        <record forcecreate="True" id="decimal_volume" model="decimal.precision">
+        <record id="decimal_volume" model="decimal.precision" forcecreate="True">
             <field name="name">Volume</field>
             <field name="digits">2</field>
         </record>

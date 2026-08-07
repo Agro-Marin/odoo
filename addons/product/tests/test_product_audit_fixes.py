@@ -18,6 +18,74 @@ class TestProductAuditFixes(ProductCommon):
     intent survives if the implementation changes.
     """
 
+    # -- create/write overrides must not mutate the caller's vals -------------
+
+    def test_attribute_line_write_does_not_mutate_caller_vals(self):
+        """Archiving a line injects `value_ids: [Command.clear()]`. That was
+        written into the caller's own dict, so a dict reused for a second write
+        silently wiped the values of records the caller never meant to touch.
+        """
+        attribute = self.env["product.attribute"].create(
+            {
+                "name": "MutAttr",
+                "value_ids": [
+                    Command.create({"name": "a"}),
+                    Command.create({"name": "b"}),
+                ],
+            }
+        )
+        template = self.env["product.template"].create(
+            {
+                "name": "MutProbe",
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": attribute.id,
+                            "value_ids": [Command.set(attribute.value_ids.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        vals = {"active": False}
+        template.attribute_line_ids.write(vals)
+        self.assertEqual(vals, {"active": False})
+
+    def test_supplierinfo_create_does_not_mutate_caller_vals(self):
+        """`_sanitize_vals` deduced `product_tmpl_id` straight into the caller's
+        dict, so a dict reused for a second row carried the first row's template.
+        """
+        vendor = self.env["res.partner"].create({"name": "MutVendor"})
+        vals = {
+            "partner_id": vendor.id,
+            "product_id": self.product.id,
+            "price": 1.0,
+        }
+        self.env["product.supplierinfo"].create([vals])
+        self.assertNotIn("product_tmpl_id", vals)
+
+    def test_pricelist_item_create_and_write_do_not_mutate_caller_vals(self):
+        """`create` deduces `applied_on`/`product_tmpl_id` and `write` nulls out
+        the targeting fields; both did it in the caller's dict.
+        """
+        vals = {
+            "pricelist_id": self.pricelist.id,
+            "product_id": self.product.id,
+            "compute_price": "fixed",
+            "fixed_price": 1.0,
+        }
+        expected = dict(vals)
+        item = self.env["product.pricelist.item"].create([vals])
+        self.assertEqual(vals, expected)
+        # ... and the deduction still happened on the record itself.
+        self.assertEqual(item.applied_on, "0_product_variant")
+        self.assertEqual(item.product_tmpl_id, self.product.product_tmpl_id)
+
+        write_vals = {"applied_on": "3_global"}
+        item.write(write_vals)
+        self.assertEqual(write_vals, {"applied_on": "3_global"})
+        self.assertFalse(item.product_id)
+
     # -- pricelist feature toggle --------------------------------------------
 
     def test_settings_save_does_not_archive_pricelists_when_already_disabled(self):
@@ -620,6 +688,289 @@ class TestProductAuditFixes(ProductCommon):
                     places=6,
                 )
 
+    def test_attribute_config_not_visible_across_companies(self):
+        """`product.template.attribute.{line,value,exclusion}` carry a stored
+        `product_tmpl_id` and are readable by every employee, but -- unlike
+        `product.product` -- they do not delegate to the rule-protected template
+        through `_inherits`. A user who could not see the template at all still
+        read which attributes it used and the `price_extra` of each value.
+        """
+        company_a = self.env["res.company"].create({"name": "AttrCo A"})
+        company_b = self.env["res.company"].create({"name": "AttrCo B"})
+        attribute = self.env["product.attribute"].create(
+            {
+                "name": "LeakAttr",
+                "value_ids": [
+                    Command.create({"name": "Secret"}),
+                    Command.create({"name": "Other"}),
+                ],
+            }
+        )
+        template = (
+            self.env["product.template"]
+            .with_company(company_a)
+            .create(
+                {
+                    "name": "AttrCo A Product",
+                    "company_id": company_a.id,
+                    "attribute_line_ids": [
+                        Command.create(
+                            {
+                                "attribute_id": attribute.id,
+                                "value_ids": [Command.set(attribute.value_ids.ids)],
+                            }
+                        )
+                    ],
+                }
+            )
+        )
+        values = template.attribute_line_ids.product_template_value_ids
+        values[0].price_extra = 123.45
+        self.env.flush_all()
+
+        user_b = new_test_user(
+            self.env,
+            login="attrco_b",
+            groups="base.group_user",
+            company_id=company_b.id,
+            company_ids=[Command.set([company_b.id])],
+        )
+        env_b = self.env(user=user_b, su=False)
+
+        self.assertFalse(
+            env_b["product.template"].search([("id", "=", template.id)]),
+            "sanity: the template itself is already hidden",
+        )
+        self.assertFalse(
+            env_b["product.template.attribute.line"].search(
+                [("product_tmpl_id", "=", template.id)]
+            ),
+            "its attribute lines must be hidden too",
+        )
+        self.assertFalse(
+            env_b["product.template.attribute.value"].search(
+                [("id", "in", values.ids)]
+            ),
+            "its attribute values (and their price_extra) must be hidden too",
+        )
+
+    # -- batching / wasted work ----------------------------------------------
+
+    def test_tag_name_uniqueness_still_holds_when_batched(self):
+        """The check ran one `search_count` per record (37 queries for 30 tags,
+        now 8). Batching must not lose either duplicate case: against a stored
+        tag, and against another tag of the same batch.
+        """
+        Tag = self.env["product.tag"]
+        Tag.create({"name": "BatchTagA"})
+
+        with self.assertRaises(ValidationError):
+            Tag.create({"name": "BatchTagA"})
+
+        with self.assertRaises(ValidationError):
+            Tag.create([{"name": "BatchTagB"}, {"name": "BatchTagB"}])
+
+        # Distinct names in one batch stay legal, and a no-op rewrite of a
+        # record's own name must not collide with itself.
+        tags = Tag.create([{"name": "BatchTagC"}, {"name": "BatchTagD"}])
+        tags[0].name = "BatchTagC"
+
+    def test_chained_fixed_rule_does_not_evaluate_its_base_pricelist(self):
+        """A `fixed` rule returns its own amount before `_compute_base_price` is
+        reached, so batching its base pricelist ran a whole extra rule search and
+        price computation whose result was discarded.
+        """
+        self._enable_pricelists()
+        base_pricelist = self.env["product.pricelist"].create(
+            {
+                "name": "ChainBase",
+                "item_ids": [
+                    Command.create(
+                        {"compute_price": "percentage", "percent_price": 50.0}
+                    )
+                ],
+            }
+        )
+        top_pricelist = self.env["product.pricelist"].create(
+            {
+                "name": "ChainTop",
+                "item_ids": [
+                    Command.create(
+                        {
+                            "compute_price": "fixed",
+                            "fixed_price": 7.0,
+                            "base": "pricelist",
+                            "base_pricelist_id": base_pricelist.id,
+                        }
+                    )
+                ],
+            }
+        )
+
+        from unittest.mock import patch
+
+        Pricelist = type(self.env["product.pricelist"])
+        real = Pricelist._get_applicable_rules
+        touched = []
+
+        def spy(self, *args, **kwargs):
+            touched.extend(self.ids)
+            return real(self, *args, **kwargs)
+
+        with patch.object(Pricelist, "_get_applicable_rules", spy):
+            price = top_pricelist._get_product_price(self.product, 1.0)
+
+        self.assertEqual(price, 7.0, "the fixed amount still wins")
+        self.assertNotIn(
+            base_pricelist.id,
+            touched,
+            "the base pricelist must not be evaluated for a fixed rule",
+        )
+
+    def test_chained_formula_rule_still_evaluates_its_base_pricelist(self):
+        """The counterpart: a rule that *does* read the base price must keep
+        getting it, so the skip above cannot be over-eager.
+        """
+        self._enable_pricelists()
+        base_pricelist = self.env["product.pricelist"].create(
+            {
+                "name": "ChainBase2",
+                "item_ids": [
+                    Command.create(
+                        {"compute_price": "percentage", "percent_price": 50.0}
+                    )
+                ],
+            }
+        )
+        top_pricelist = self.env["product.pricelist"].create(
+            {
+                "name": "ChainTop2",
+                "item_ids": [
+                    Command.create(
+                        {
+                            "compute_price": "formula",
+                            "base": "pricelist",
+                            "base_pricelist_id": base_pricelist.id,
+                            "price_discount": 10.0,
+                        }
+                    )
+                ],
+            }
+        )
+        # 20.00 list price -> 50% off in the base -> 10.00 -> 10% off -> 9.00
+        self.assertAlmostEqual(
+            top_pricelist._get_product_price(self.product, 1.0), 9.0, places=6
+        )
+
+    def test_value_archived_by_one_line_is_revived_by_a_later_one(self):
+        """`_update_product_template_attribute_values` resolves re-usable
+        archived values in one query for the whole recordset instead of one
+        `_read_group` per line. The pool it builds has to stay in step with the
+        loop: a value archived while processing one line must still be
+        available to a later line of the same call, which is the only reason
+        the query used to sit inside the loop.
+
+        Without that bookkeeping the later line silently creates a *new*
+        `product.template.attribute.value` instead of reviving the existing one
+        -- a different record, so its `price_extra` is lost and anything holding
+        the old one (a variant, through the restrict FK of
+        `product_variant_combination`) is left pointing at a deleted row.
+        """
+        attribute = self.env["product.attribute"].create(
+            {
+                "name": "PoolAttr",
+                "create_variant": "no_variant",
+                "value_ids": [
+                    Command.create({"name": "X"}),
+                    Command.create({"name": "Y"}),
+                    Command.create({"name": "Z"}),
+                ],
+            }
+        )
+        value_x, value_y, value_z = attribute.value_ids
+        # Two lines carrying the *same* attribute is supported (see the note on
+        # the model), and is what puts both lines in one sync call's scope.
+        template = self.env["product.template"].create(
+            {
+                "name": "PoolProbe",
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": attribute.id,
+                            "value_ids": [Command.set((value_x + value_y).ids)],
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "attribute_id": attribute.id,
+                            "value_ids": [Command.set(value_z.ids)],
+                        }
+                    ),
+                ],
+            }
+        )
+        first_line, second_line = template.attribute_line_ids
+        value_for_x = first_line.product_template_value_ids.filtered(
+            lambda ptav: ptav.product_attribute_value_id == value_x
+        )
+        value_for_x.price_extra = 42.0
+        original_id = value_for_x.id
+
+        # Move X from the first line to the second, in a single sync call.
+        no_sync = {"update_product_template_attribute_values": False}
+        first_line.with_context(**no_sync).write(
+            {"value_ids": [Command.set(value_y.ids)]}
+        )
+        second_line.with_context(**no_sync).write(
+            {"value_ids": [Command.set((value_z + value_x).ids)]}
+        )
+        self.env.flush_all()
+        (first_line + second_line)._update_product_template_attribute_values()
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        values_for_x = self.env["product.template.attribute.value"].search(
+            [
+                ("product_tmpl_id", "=", template.id),
+                ("product_attribute_value_id", "=", value_x.id),
+            ]
+        )
+        self.assertEqual(len(values_for_x), 1, "no duplicate value may be created")
+        self.assertEqual(
+            values_for_x.id, original_id, "the existing record must be revived"
+        )
+        self.assertEqual(values_for_x.attribute_line_id, second_line)
+        self.assertTrue(values_for_x.ptav_active)
+        self.assertEqual(values_for_x.price_extra, 42.0, "its configuration survives")
+
+    # -- variant generation opt-out -------------------------------------------
+
+    def test_reactivation_respects_the_variant_generation_opt_out(self):
+        """`create_product_product=False` means "this caller manages variants
+        itself" (the import path). The reactivation branch of `write` ignored it
+        and generated variants behind such a caller's back.
+        """
+        template = self.env["product.template"].create({"name": "OptOutProbe"})
+        variant = template.product_variant_id
+        template.action_archive()
+        self.env.flush_all()
+        self.assertFalse(variant.active, "sanity: archiving the template archived it")
+        self.assertFalse(
+            template.product_variant_ids, "sanity: no *active* variant is left"
+        )
+
+        template.with_context(create_product_product=False).write({"active": True})
+        self.env.flush_all()
+        self.assertFalse(
+            variant.active,
+            "the opt-out must be honoured on reactivation too",
+        )
+
+        # Without the opt-out, reactivation still regenerates as before.
+        template.write({"active": True})
+        self.env.flush_all()
+        self.assertTrue(variant.active)
+
     # -- attribute value deletion --------------------------------------------
 
     def test_deleting_value_used_on_archived_template_archives_it(self):
@@ -661,6 +1012,129 @@ class TestProductAuditFixes(ProductCommon):
         # Archived rather than deleted, and above all: no database error.
         self.assertTrue(value.exists(), "the value must survive as archived")
         self.assertFalse(value.active)
+
+    def test_deleting_value_left_on_an_archived_variant_archives_it(self):
+        """The sibling of the case above, for the *variant* relation.
+
+        `unlink` grouped the linked template values with ``|=`` starting from a
+        recordset built on the bare environment, which discarded the
+        ``active_test=False`` the search had been given: unions take the left
+        operand's environment, and the ORM applies the active filter when the
+        m2m is read, from the reading record's context. `linked_products` was
+        therefore always active-only, so `not active_linked and linked` could
+        never be true and a value whose only remaining trace was an archived
+        variant fell through to `super().unlink()` -- where the RESTRICT foreign
+        key of `product_variant_combination` turned it into a raw
+        RestrictViolation traceback.
+        """
+        attribute = self.env["product.attribute"].create(
+            {
+                "name": "ArchVariantAttr",
+                "create_variant": "always",
+                "value_ids": [
+                    Command.create({"name": "Red"}),
+                    Command.create({"name": "Blue"}),
+                ],
+            }
+        )
+        red, blue = attribute.value_ids
+        template = self.env["product.template"].create(
+            {
+                "name": "ArchVariantProbe",
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": attribute.id,
+                            "value_ids": [Command.set(attribute.value_ids.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        line = template.attribute_line_ids
+        red_ptav = line.product_template_value_ids.filtered(
+            lambda ptav: ptav.product_attribute_value_id == red
+        )
+        red_variant = red_ptav.ptav_product_variant_ids
+        red_variant.action_archive()
+
+        # Detach the value from the line *without* running the value/variant
+        # sync, so the archived template value keeps pointing at the archived
+        # variant. That is exactly the state the sync itself leaves behind when
+        # something (a stock move, an order line, a combo item...) blocks the
+        # deletion of that variant -- reproduced here without depending on a
+        # module that provides such a reference.
+        line.with_context(update_product_template_attribute_values=False).write(
+            {"value_ids": [Command.set(blue.ids)]}
+        )
+        red_ptav.ptav_active = False
+        self.env.flush_all()
+
+        self.assertFalse(red.is_used_on_products, "sanity: no active line uses it")
+        self.assertEqual(
+            red_ptav.with_context(active_test=False).ptav_product_variant_ids,
+            red_variant,
+            "sanity: the archived variant still carries the value",
+        )
+
+        red.unlink()
+        self.env.flush_all()
+
+        self.assertTrue(red.exists(), "the value must survive as archived")
+        self.assertFalse(red.active)
+
+    def test_deleting_value_an_active_product_still_offers_raises(self):
+        """The archive fallback must stop at values an active product still uses,
+        even when every variant carrying them is archived.
+
+        Upstream archives here (and so did the first cut of the fix above), which
+        is worse than the error it replaces: the line's `value_ids` stops listing
+        the archived value while the stored `value_count` and the *active*
+        `product.template.attribute.value` keep counting it, and the next
+        `_create_variant_ids` resurrects the variant the user had archived. The
+        explanatory UserError has to win instead.
+        """
+        attribute = self.env["product.attribute"].create(
+            {
+                "name": "LiveLineAttr",
+                "create_variant": "always",
+                "value_ids": [
+                    Command.create({"name": "Red"}),
+                    Command.create({"name": "Blue"}),
+                ],
+            }
+        )
+        red = attribute.value_ids[0]
+        template = self.env["product.template"].create(
+            {
+                "name": "LiveLineProbe",
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": attribute.id,
+                            "value_ids": [Command.set(attribute.value_ids.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        line = template.attribute_line_ids
+        red_ptav = line.product_template_value_ids.filtered(
+            lambda ptav: ptav.product_attribute_value_id == red
+        )
+        red_variant = red_ptav.ptav_product_variant_ids
+        red_variant.action_archive()
+        self.env.flush_all()
+
+        self.assertTrue(red.is_used_on_products, "sanity: an active line offers it")
+        with self.assertRaises(UserError):
+            red.unlink()
+
+        # And nothing was archived on the way to the error.
+        self.env.invalidate_all()
+        self.assertTrue(red.active)
+        self.assertEqual(line.value_ids, attribute.value_ids)
+        self.assertEqual(line.value_count, 2)
 
     def test_deleting_unused_value_still_deletes(self):
         """The archive fallback must not swallow ordinary deletions."""

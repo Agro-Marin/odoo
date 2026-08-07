@@ -4,8 +4,8 @@
     <record id="view_product_product_search" model="ir.ui.view">
         <field name="name">product.product.search</field>
         <field name="model">product.product</field>
-        <field name="mode">primary</field>
         <field name="inherit_id" ref="product.view_product_template_search" />
+        <field name="mode">primary</field>
         <field name="arch" type="xml">
             <field name="product_tag_ids" position="replace">
                 <field name="all_product_tag_ids" string="Tags" />
@@ -32,40 +32,28 @@
         <field name="arch" type="xml">
             <search string="Product">
                 <!-- Search field -->
-                <field name="name"
-                    string="Product"
+                <field name="name" string="Product"
                     filter_domain="['|', '|', ('default_code', 'ilike', self), ('name', 'ilike', self), ('barcode', 'ilike', self)]" />
                 <field name="categ_id" filter_domain="[('categ_id', 'child_of', raw_value)]" />
                 <field name="product_template_attribute_value_ids"
                     groups="product.group_product_variant" />
                 <field name="product_tmpl_id" string="Product Template" />
                 <!-- Filter -->
-                <filter string="Favorites" name="favorites"
-                    domain="[('is_favorite', '=', True)]" />
+                <filter string="Favorites" name="favorites" domain="[('is_favorite', '=', True)]" />
                 <separator />
-                <filter string="Services" name="services"
-                    domain="[('type', '=', 'service')]" />
-                <filter string="Goods"
-                    name="goods"
-                    domain="[('type', '=', 'consu')]" />
+                <filter string="Services" name="services" domain="[('type', '=', 'service')]" />
+                <filter string="Goods" name="goods" domain="[('type', '=', 'consu')]" />
                 <!-- Group By -->
                 <group>
-                    <filter string="Product Type" name="type"
-                        context="{'group_by':'type'}" />
-                    <filter string="Product Category"
-                        name="categ_id"
+                    <filter string="Product Type" name="type" context="{'group_by':'type'}" />
+                    <filter string="Product Category" name="categ_id"
                         context="{'group_by':'categ_id'}" />
                 </group>
                 <!-- searchpanel -->
                 <searchpanel>
-                    <field name="categ_id"
-                        string="Categories"
-                        icon="fa-th-list" />
-                    <field name="product_tag_ids"
-                        string="Tags"
-                        icon="fa-th-list"
-                        enable_counters="1"
-                        select="multi" />
+                    <field name="categ_id" string="Categories" icon="fa-th-list" />
+                    <field name="product_tag_ids" string="Tags" icon="fa-th-list"
+                        enable_counters="1" select="multi" />
                 </searchpanel>
             </search>
         </field>
@@ -74,7 +62,7 @@
     <record id="view_product_product_list" model="ir.ui.view">
         <field name="name">product.product.list</field>
         <field name="model">product.product</field>
-        <field eval="7" name="priority" />
+        <field name="priority" eval="7" />
         <field name="arch" type="xml">
             <list string="Product Variants" multi_edit="1" duplicate="false" sample="1"
                 default_order="is_favorite desc, default_code, name, id">
@@ -107,11 +95,8 @@
                 default_order="is_favorite desc, default_code, name, id">
                 <field name="name" readonly="1" />
                 <field name="default_code" readonly="1" optional="show" />
-                <field name="product_template_variant_value_ids"
-                    widget="many2many_tags"
-                    groups="product.group_product_variant"
-                    readonly="1"
-                />
+                <field name="product_template_variant_value_ids" widget="many2many_tags"
+                    groups="product.group_product_variant" readonly="1" />
                 <field name="description" readonly="1" optional="show" />
             </list>
         </field>
@@ -125,7 +110,7 @@
                 <field name="activity_state" />
                 <field name="color" />
                 <progressbar field="activity_state"
-                    colors='{"planned": "success", "today": "warning", "overdue": "danger"}' />
+                    colors="{&quot;planned&quot;: &quot;success&quot;, &quot;today&quot;: &quot;warning&quot;, &quot;overdue&quot;: &quot;danger&quot;}" />
                 <templates>
                     <t t-name="card" class="row g-0">
                         <main class="col-10 pe-2">
@@ -138,7 +123,7 @@
                             <field name="product_template_variant_value_ids"
                                 groups="product.group_product_variant" widget="many2many_tags"
                                 options="{'color_field': 'color'}" />
-                            <span> Price: <field name="lst_price"></field>
+                            <span> Price: <field name="lst_price" />
                             </span>
                         </main>
                         <aside class="col-2">
@@ -174,32 +159,24 @@
                                 t-attf-id="product-{{record.id.raw_value}}">
                                 <div class="d-flex">
                                     <field name="name" class="fw-bold fs-4 text-reset mb-1 me-2" />
-                                    <field class="mt-1 me-1"
-                                        name="is_favorite"
-                                        widget="boolean_favorite"
-                                        invisible="not is_favorite"
-                                        nolabel="1"
-                                        readonly="1" />
+                                    <field class="mt-1 me-1" name="is_favorite"
+                                        widget="boolean_favorite" invisible="not is_favorite"
+                                        nolabel="1" readonly="1" />
                                 </div>
                                 <!-- Used by @web/product/js/product_catalog/order_line to
                                         show the price using a t-portal. -->
                                 <div name="o_kanban_price"
                                     t-attf-id="product-{{record.id.raw_value}}-price" />
                                 <field name="product_template_attribute_value_ids"
-                                    widget="many2many_tags"
-                                    domain="[('id', 'in', parent.ids)]"
+                                    widget="many2many_tags" domain="[('id', 'in', parent.ids)]"
                                     groups="product.group_product_variant"
                                     options="{'color_field': 'color'}"
                                     invisible="not product_template_attribute_value_ids" />
                             </div>
-                            <field
-                                name="image_128"
-                                class="ms-auto"
-                                invisible="not image_128"
+                            <field name="image_128" class="ms-auto" invisible="not image_128"
                                 widget="image"
                                 options="{'size': [55, 55], 'img_class': 'object-fit-contain'}"
-                                alt="Product"
-                            />
+                                alt="Product" />
                         </div>
                     </t>
                 </templates>
@@ -247,18 +224,16 @@
                             <field name="product_variant_count" invisible="1" />
                             <label for="lst_price" string="Sales Price" />
                             <div class="o_row">
-                                <field name="lst_price" class="oe_inline" widget='monetary'
+                                <field name="lst_price" class="oe_inline" widget="monetary"
                                     options="{'currency_field': 'currency_id', 'field_digits': True}"
                                     readonly="product_variant_count &gt; 1" />
                             </div>
                             <label for="standard_price" />
                             <div class="o_row">
-                                <field name="standard_price"
-                                    class="oe_inline"
-                                    widget="monetary"
+                                <field name="standard_price" class="oe_inline" widget="monetary"
                                     options="{'currency_field': 'cost_currency_id', 'field_digits': True}" />
                             </div>
-                            <field name="currency_id" invisible='1' />
+                            <field name="currency_id" invisible="1" />
                             <field name="cost_currency_id" invisible="1" />
                         </group>
                     </group>
@@ -276,13 +251,9 @@
                             </div>
                         </group>
                         <group name="sales" string="Sales">
-                            <field
-                                name="uom_ids"
-                                widget="many2many_uom_tags"
+                            <field name="uom_ids" widget="many2many_uom_tags"
                                 options="{'no_quick_create': True, 'edit_tags': True}"
-                                groups="uom.group_uom"
-                                force_save="1"
-                                context="{'product_id': id}" />
+                                groups="uom.group_uom" force_save="1" context="{'product_id': id}" />
                             <field name="product_tag_ids" widget="many2many_tags" readonly="1" />
                             <field name="additional_product_tag_ids" widget="many2many_tags"
                                 context="{'product_variant_id': id}" />
@@ -296,16 +267,16 @@
     <record id="view_product_product_form_normal" model="ir.ui.view">
         <field name="name">product.product.form</field>
         <field name="model">product.product</field>
-        <field name="mode">primary</field>
-        <field eval="7" name="priority" />
         <field name="inherit_id" ref="product.view_product_template_form" />
+        <field name="mode">primary</field>
+        <field name="priority" eval="7" />
         <field name="arch" type="xml">
             <xpath expr="//page[@name='sales_price']/field[@name='pricelist_rule_ids']"
                 position="attributes">
                 <attribute name="context">{
                     'default_product_id': id,
                     'form_view_ref': 'product.view_product_pricelist_item_form_3'
-                }</attribute>
+                    }</attribute>
             </xpath>
             <form position="attributes">
                 <attribute name="string">Product Variant</attribute>
@@ -326,7 +297,7 @@
                 <label for="lst_price" />
             </label>
             <field name="list_price" position="after">
-                <field name="lst_price" class="oe_inline" widget='monetary'
+                <field name="lst_price" class="oe_inline" widget="monetary"
                     options="{'currency_field': 'currency_id', 'field_digits': True}" />
             </field>
             <field name="name" position="after">
@@ -424,20 +395,16 @@
     <record id="product_variant_action" model="ir.actions.act_window">
         <field name="search_view_id" ref="view_product_product_search" />
         <field name="view_ids"
-            eval="[
-                (5, 0, 0),
-                (0, 0, {'view_mode': 'list'}),
-                (0, 0, {'view_mode': 'form', 'view_id': ref('view_product_product_form_easy_edit')}),
-                (0, 0, {'view_mode': 'kanban'})]" />
+            eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'list'}),                 (0, 0, {'view_mode': 'form', 'view_id': ref('view_product_product_form_easy_edit')}),                 (0, 0, {'view_mode': 'kanban'})]" />
     </record>
 
     <record id="product_normal_action_sell" model="ir.actions.act_window">
         <field name="name">Product Variants</field>
         <field name="res_model">product.product</field>
         <field name="view_mode">kanban,list,form,activity</field>
-        <field name="context">{"search_default_filter_to_sell":1}</field>
         <field name="view_id" ref="view_product_product_list" />
         <field name="search_view_id" ref="view_product_product_search" />
+        <field name="context">{"search_default_filter_to_sell":1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create a new product variant
@@ -454,18 +421,17 @@
     <record id="action_product_print_labels" model="ir.actions.server">
         <field name="name">Print Labels</field>
         <field name="model_id" ref="product.model_product_product" />
-        <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
         <field name="binding_model_id" ref="product.model_product_product" />
         <field name="state">code</field>
         <field name="code">
 if records:
     action = records.action_view_label_layout()
         </field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
     </record>
 
     <record id="action_product_price_list_report" model="ir.actions.server">
         <field name="name">Pricelist Report</field>
-        <field name="group_ids" eval="[(4, ref('group_product_pricelist'))]" />
         <field name="model_id" ref="product.model_product_product" />
         <field name="binding_model_id" ref="product.model_product_product" />
         <field name="state">code</field>
@@ -477,6 +443,7 @@ action = {
     'context': env.context,
 }
         </field>
+        <field name="group_ids" eval="[(4, ref('group_product_pricelist'))]" />
     </record>
 
 </odoo>
