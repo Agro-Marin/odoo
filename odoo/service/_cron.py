@@ -20,6 +20,7 @@ either would have meant workers that simply never wake.
 from __future__ import annotations
 
 import typing
+from collections.abc import Iterator
 
 from odoo.libs.constants import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 from odoo.tools import OrderedSet
@@ -95,7 +96,18 @@ def order_notified_first(notified: Iterable[str], all_dbs: Iterable[str]) -> lis
     whether in ``notified`` or ``all_dbs`` — is still processed only once per
     cron pass.  Today's callers pass de-duplicated ``OrderedSet`` instances, so
     this is a correct-by-construction guard, not a behavior change for them.
+
+    ``notified`` is consumed twice (once to build the membership set, once to
+    emit in notified order), so a one-shot iterator is materialized first.
+    Without that, ``set(notified)`` would exhaust a generator and the ordering
+    loop below would see nothing — and because the second loop skips anything in
+    ``notified_set``, every notified database would be dropped from the result
+    entirely rather than merely losing its priority: a cron that never wakes for
+    the database that asked. Same guard, and the same reasoning, as
+    ``OrmCore.find_pending_write``.
     """
+    if isinstance(notified, Iterator):
+        notified = list(notified)
     all_list = list(all_dbs)
     all_set = set(all_list)
     notified_set = set(notified)

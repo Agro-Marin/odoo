@@ -5,7 +5,7 @@ from datetime import timedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.libs.numbers import float_compare
 
 
 class StockLocation(models.Model):

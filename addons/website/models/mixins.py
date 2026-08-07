@@ -8,7 +8,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.libs.web.urls import urljoin as url_join
+from odoo.libs.web import urljoin as url_join
 from odoo.tools import escape_psql
 from odoo.tools.json import scriptsafe as json_safe
 

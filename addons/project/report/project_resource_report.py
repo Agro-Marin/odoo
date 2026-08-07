@@ -6,6 +6,7 @@ is the norm). This report makes invisible overallocation visible.
 """
 
 from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 
 class ProjectResourceReport(models.Model):
@@ -55,7 +56,7 @@ class ProjectResourceReport(models.Model):
         model: this report measures actual resource commitment, so the
         per-resource reservation row is canonical.
         """
-        tools.drop_view_if_exists(self.env.cr, self._table)
+        drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
                 WITH reservations AS (

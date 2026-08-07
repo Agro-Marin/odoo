@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.libs.numbers import float_compare
 
 
 class StockPicking(models.Model):

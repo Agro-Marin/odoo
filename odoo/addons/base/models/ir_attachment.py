@@ -24,11 +24,18 @@ from odoo.exceptions import (
 from odoo.fields import COLLECTION_TYPES, Domain
 from odoo.http import Stream, request, root
 from odoo.libs.constants import PREFETCH_MAX
-from odoo.libs.filesystem.mimetypes import (
+from odoo.libs.filesystem import (
     MIMETYPE_HEAD_SIZE,
     _olecf_mimetypes,
     fix_filename_extension,
     guess_mimetype,
+)
+from odoo.libs.hashing import (
+    ALGO_TAG,
+    CONTENT_DIGEST_LEN,
+    CONTENT_DIGEST_MAX_LEN,
+    content_hash,
+    content_hasher,
 )
 from odoo.tools import (
     OrderedSet,
@@ -38,13 +45,6 @@ from odoo.tools import (
     image,
     ormcache,
     str2bool,
-)
-from odoo.tools.hashing import (
-    ALGO_TAG,
-    CONTENT_DIGEST_LEN,
-    CONTENT_DIGEST_MAX_LEN,
-    content_hash,
-    content_hasher,
 )
 from odoo.tools.misc import limited_field_access_token
 
@@ -674,7 +674,7 @@ class IrAttachment(models.Model):
     def _content_checksum(self, bin_data: bytes) -> str:
         """Return the content digest of *bin_data* (for content-addressed storage).
 
-        The algorithm is :mod:`odoo.tools.hashing`'s content family (BLAKE3,
+        The algorithm is :mod:`odoo.libs.hashing`'s content family (BLAKE3,
         sha1 without the extension); :meth:`_file_store_path` tags the store key
         with it, so digests of different vintages coexist in one filestore.
         """

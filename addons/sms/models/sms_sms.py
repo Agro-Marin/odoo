@@ -5,7 +5,7 @@ from itertools import batched
 from uuid import uuid4
 
 from odoo import _, api, fields, models, tools
-from odoo.libs.web.urls import urljoin as url_join
+from odoo.libs.web import urljoin as url_join
 
 from odoo.addons.sms.tools.sms_api import SmsApi
 

@@ -2,11 +2,12 @@ import locale
 
 from odoo import tools
 from odoo.exceptions import UserError
+from odoo.libs.locale import format_number, intersperse
 from odoo.orm.fields.binary import Binary
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import mute_logger
 
-from odoo.addons.base.models.res_lang import LangData, format_number, intersperse
+from odoo.addons.base.models.res_lang import LangData
 
 
 class TestFormatNumberPure(BaseCase):

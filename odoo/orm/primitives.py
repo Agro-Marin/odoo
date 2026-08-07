@@ -296,6 +296,17 @@ MAGIC_COLUMNS = ["id"] + LOG_ACCESS_COLUMNS
 
 NO_ACCESS = "."
 
+MODULE_UNINSTALL_FLAG = "_force_unlink"
+"""Context key that suppresses ``@api.ondelete`` guards during uninstallation.
+
+``UnlinkMixin.unlink`` reads it to decide whether a model's ``@api.ondelete``
+methods run, so it governs *ORM* behaviour and belongs to the ORM. It lived in
+``odoo.addons.base.models.ir_model_common`` until 19.0-marin, which inverted the
+dependency: the framework had to reach into an addon to learn the name of a flag
+its own delete path branches on. ``addons/base`` re-exports it for the
+``ir_model*`` / ``ir_module`` consumers that set it.
+"""
+
 
 INSERT_BATCH_SIZE = 100
 UPDATE_BATCH_SIZE = 100
@@ -306,6 +317,7 @@ __all__ = [
     "INSERT_BATCH_SIZE",
     "LOG_ACCESS_COLUMNS",
     "MAGIC_COLUMNS",
+    "MODULE_UNINSTALL_FLAG",
     "NO_ACCESS",
     "SQL_DEFAULT",
     "SQL_OPERATORS",

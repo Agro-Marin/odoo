@@ -5,15 +5,10 @@ from typing import Any, Self, override
 
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
+from odoo.db import schema as sql
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
-from odoo.tools import (
-    SQL,
-    OrderedSet,
-    remove_accents,
-    sql,
-    unique,
-)
+from odoo.tools import SQL, OrderedSet, remove_accents, unique
 from odoo.tools.translate import _
 
 from .ir_model_common import (

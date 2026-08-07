@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
+from odoo.libs.sql import SQL
 from odoo.tests.common import TransactionCase
-from odoo.tools.sql import SQL
 
 # ---------------------------------------------------------------------------
 # Test fixtures — tiny reports defined in-process (NOT registered in a module)

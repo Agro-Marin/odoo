@@ -11,6 +11,24 @@ from odoo.tools import safe_eval
 INLINE_TEMPLATE_REGEX = re.compile(r"\{\{(.+?)(\|\|\|\s*(.*?))?\}\}", re.DOTALL)
 
 
+def _template_hasattr(obj: object, name: str) -> bool:
+    """``hasattr`` that refuses dunder names, matching safe_eval's policy.
+
+    ``safe_eval`` withholds ``getattr`` and rejects dunder names appearing in
+    the expression source (``assert_no_dunder_name``), but a *constant* passed
+    to ``hasattr`` is not source-level name access, so
+    ``hasattr(x, "__globals__")`` answered — a one-bit probe of exactly the
+    attributes the surrounding policy exists to hide. It cannot retrieve a
+    value, so this closes an inconsistency rather than an escalation.
+
+    Ordinary field probes, which is what templates actually use
+    (``hasattr(object, 'website_id')``), are unaffected.
+    """
+    if name.startswith("__") and name.endswith("__"):
+        return False
+    return hasattr(obj, name)
+
+
 template_env_globals = {
     "str": str,
     "quote": lambda s, safe="/:": quote(str(s), safe=safe),
@@ -26,7 +44,7 @@ template_env_globals = {
     "map": map,
     "relativedelta": relativedelta.relativedelta,
     "round": round,
-    "hasattr": hasattr,
+    "hasattr": _template_hasattr,
 }
 
 

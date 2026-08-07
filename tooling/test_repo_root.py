@@ -47,21 +47,58 @@ class TestCheckoutShape:
     def test_workspace_and_in_workspace_agree(self):
         assert (find_workspace(ODOO_ROOT) is not None) == in_workspace(ODOO_ROOT)
 
-    def test_workspace_is_two_levels_above_when_nested(self):
-        if in_workspace(ODOO_ROOT):
-            assert find_workspace(ODOO_ROOT) == ODOO_ROOT.parents[1]
-        else:
-            assert find_workspace(ODOO_ROOT) is None
+    def test_workspace_depth_matches_the_layout(self):
+        """Two levels up when nested as ``<ws>/addons/odoo``, one when flat.
 
-    def test_sibling_repos_root_is_distinct_from_workspace(self):
+        This asserted ``parents[1]`` unconditionally, which pinned the nested
+        layout as the only one. Flattening the workspace to ``<ws>/odoo`` then
+        made every tool resolve the workspace to ``None`` and behave as though
+        it were a repo-alone CI checkout.
+        """
+        workspace = find_workspace(ODOO_ROOT)
+        if not in_workspace(ODOO_ROOT):
+            assert workspace is None
+        elif ODOO_ROOT.parent.name == "addons":
+            assert workspace == ODOO_ROOT.parents[1]
+        else:
+            assert workspace == ODOO_ROOT.parent
+
+    def test_sibling_repos_root_is_the_checkouts_parent(self):
         # The two used to share the name WORKSPACE across modules while naming
         # different directories, which is how the consumer repos ended up
-        # configured at paths that never existed.
+        # configured at paths that never existed. They are still distinct
+        # *concepts*; they merely coincide in the flat layout, where the sibling
+        # checkouts sit directly under the workspace root.
         siblings = sibling_repos_root(ODOO_ROOT)
         assert siblings == ODOO_ROOT.parent
-        if in_workspace(ODOO_ROOT):
-            assert siblings != find_workspace(ODOO_ROOT)
-            assert siblings.parent == find_workspace(ODOO_ROOT)
+        workspace = find_workspace(ODOO_ROOT)
+        if in_workspace(ODOO_ROOT) and ODOO_ROOT.parent.name == "addons":
+            assert siblings != workspace
+            assert siblings.parent == workspace
+
+    def test_workspace_detection_survives_both_layouts(self, tmp_path):
+        """Synthetic trees, so this holds wherever the suite itself runs."""
+        # flat: <ws>/odoo, with the venv and conf at <ws>
+        flat_ws = tmp_path / "flat"
+        (flat_ws / "odoo").mkdir(parents=True)
+        (flat_ws / "odoo" / "odoo-bin").touch()
+        (flat_ws / "p314.conf").touch()
+        assert in_workspace(flat_ws / "odoo")
+        assert find_workspace(flat_ws / "odoo") == flat_ws
+
+        # nested: <ws>/addons/odoo
+        nested_ws = tmp_path / "nested"
+        (nested_ws / "addons" / "odoo").mkdir(parents=True)
+        (nested_ws / "addons" / "odoo" / "odoo-bin").touch()
+        assert in_workspace(nested_ws / "addons" / "odoo")
+        assert find_workspace(nested_ws / "addons" / "odoo") == nested_ws
+
+        # repo-alone (CI): nothing above supplies a venv or a conf
+        alone = tmp_path / "work" / "odoo"
+        alone.mkdir(parents=True)
+        (alone / "odoo-bin").touch()
+        assert not in_workspace(alone)
+        assert find_workspace(alone) is None
 
 
 class TestEveryToolAgrees:

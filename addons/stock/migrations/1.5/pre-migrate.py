@@ -46,7 +46,7 @@ Model filters use ``= ANY(%s)`` with a list — under this fork's psycopg3 a
 tuple bound to ``IN %s`` collapses into a single parameter and errors out.
 """
 
-from odoo.tools.sql import column_exists
+from odoo.db.schema import column_exists
 
 # (table, old column, new column) — stored computes renamed by the fork.
 _COLUMN_RENAMES = (

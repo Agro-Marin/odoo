@@ -2,7 +2,7 @@ import logging
 
 from odoo import Command
 from odoo.tests.common import TransactionCase, tagged, users, warmup
-from odoo.tools import mute_logger, sql
+from odoo.tools import mute_logger
 
 from odoo.addons.base.tests.common import SavepointCaseWithUserDemo
 
@@ -792,7 +792,7 @@ class TestIncrementFieldsSkipLock(TransactionCase):
         codebase when updating this test class.
         """
         with self.assertQueryCount(1):
-            did_update = sql.increment_fields_skiplock(self.record, "value")
+            did_update = self.record._increment_fields_skiplock("value")
             _logger.info(
                 "increment_fields_skiplock did %supdate the field",
                 "" if did_update else "not ",
@@ -834,8 +834,8 @@ class TestIncrementFieldsSkipLock(TransactionCase):
     def test_increment_fields_skiplock_multiple_fields(self):
         """Test that we can update several fields on the same rows with one request."""
         with self.assertQueryCount(1):
-            did_update = sql.increment_fields_skiplock(
-                self.record, "value", "value_plus_one"
+            did_update = self.record._increment_fields_skiplock(
+                "value", "value_plus_one"
             )
             _logger.info(
                 "increment_fields_skiplock did %supdate the fields",
@@ -892,6 +892,6 @@ class TestIncrementFieldsSkipLock(TransactionCase):
         self.assertIsNone(value)
         self.assertEqual(self.record.value_null_by_default, 0)
         with self.assertQueryCount(1):
-            sql.increment_fields_skiplock(self.record, "value_null_by_default")
+            self.record._increment_fields_skiplock("value_null_by_default")
         self.record.invalidate_recordset(["value_null_by_default"])
         self.assertEqual(self.record.value_null_by_default, 1)

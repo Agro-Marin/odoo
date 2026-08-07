@@ -1,4 +1,5 @@
 from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 from odoo.addons.stock_account.models.avco import AvcoAccumulator
 
@@ -61,7 +62,7 @@ class StockAverageCostReport(models.AbstractModel):
     )
 
     def init(self):
-        tools.drop_view_if_exists(self.env.cr, "stock_avco_report")
+        drop_view_if_exists(self.env.cr, "stock_avco_report")
         query = """
 CREATE OR REPLACE VIEW stock_avco_report AS (
 SELECT

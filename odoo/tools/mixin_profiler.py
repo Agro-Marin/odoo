@@ -15,8 +15,8 @@ Usage:
 
 See Also
 --------
-- ``odoo.tools.orm_profiler`` — Aggregate per-model/operation stats per transaction
-- ``odoo.tools.nplusone`` — N+1 CRUD detection (repeated single-record calls)
+- ``odoo.libs.profiling.orm_profiler`` — Aggregate per-model/operation stats per transaction
+- ``odoo.libs.profiling.nplusone`` — N+1 CRUD detection (repeated single-record calls)
 - ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
 - ``odoo.tests.benchmark`` — Micro-benchmark statistical utilities
 - ``doc/coding_guidelines.rst`` §11 (Performance) — when to reach for which tool
@@ -28,6 +28,8 @@ import threading
 import time
 from collections import defaultdict
 from contextlib import contextmanager
+
+from odoo.libs.worker_thread import current_worker_thread
 
 _logger = logging.getLogger(__name__)
 
@@ -115,7 +117,7 @@ def profile_methods(model_name, method_names, registry=None):
     if registry is None:
         from odoo.modules.registry import Registry
 
-        registry = Registry.registries.get(threading.current_thread().dbname)
+        registry = Registry.registries.get(current_worker_thread().dbname)
 
     if registry is None:
         _logger.warning("No registry found, cannot profile methods")
@@ -205,7 +207,7 @@ def unprofile_methods(model_name, method_names, registry=None):
     if registry is None:
         from odoo.modules.registry import Registry
 
-        registry = Registry.registries.get(threading.current_thread().dbname)
+        registry = Registry.registries.get(current_worker_thread().dbname)
 
     if registry is None:
         return

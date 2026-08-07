@@ -17,14 +17,11 @@ from collections.abc import (
 )
 from operator import attrgetter
 
+from odoo.db import schema as sql
 from odoo.exceptions import AccessError, MissingError
 from odoo.libs._field_access import to_prefetch_ids as _to_prefetch_ids
 from odoo.libs.constants import PREFETCH_MAX
-from odoo.tools import (
-    SQL,
-    reset_cached_properties,
-    sql,
-)
+from odoo.tools import SQL, reset_cached_properties
 from odoo.tools.misc import PENDING, SENTINEL, ReadonlyDict, Sentinel, unique
 
 from .._recordset import base_model, is_model_class, is_recordset

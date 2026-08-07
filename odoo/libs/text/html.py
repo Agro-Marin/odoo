@@ -154,6 +154,23 @@ safe_attrs = defs.safe_attrs | frozenset(
     ]
 )
 
+#: Teach lxml that SVG's ``xlink:href`` is a link attribute.
+#:
+#: **This is a security control, and a process-wide mutation of a third party.**
+#: ``Cleaner``'s ``javascript=True`` strips ``javascript:`` URLs only from
+#: attributes it considers links, and lxml's ``defs.link_attrs`` does not list
+#: ``xlink:href``. Measured against stock lxml::
+#:
+#:     <svg><a xlink:href="javascript:alert(1)">x</a></svg>
+#:       stock lxml     -> xlink:href="javascript:alert(1)"   (survives)
+#:       with this line -> xlink:href=""                      (stripped)
+#:
+#: It is stated here rather than left as a bare statement among the constants
+#: because every importer of ``odoo.libs.text`` inherits it, and because a
+#: one-line ``|=`` reads like configuration rather than the XSS fix it is —
+#: deleting it as tidy-up would silently reopen the vector. The same argument
+#: ``odoo/libs/xml/parsers.py`` makes for keeping global lxml policy visible and
+#: next to the layer it applies to.
 defs.link_attrs |= {"xlink:href"}
 
 SANITIZE_TAGS = {
@@ -595,6 +612,16 @@ def html_sanitize(
         if prestrip and sanitize_tags:
             etree.strip_elements(doc, *SANITIZE_TAGS["kill_tags"], with_tail=False)
         kwargs = {
+            # Stated, not inherited. These two are the load-bearing half of the
+            # sanitizer -- ``scripts`` removes <script>, ``javascript`` removes
+            # on* handlers and javascript: URLs -- and they were the only
+            # security-relevant options left to lxml's defaults while nine less
+            # important ones were spelled out. Both default to True today (and
+            # the behaviour is unchanged by naming them), but a sanitizer whose
+            # core guarantee depends on a third-party default not moving is one
+            # library upgrade away from silently passing <script> through.
+            "scripts": True,
+            "javascript": True,
             "page_structure": True,
             "style": strip_style,
             "sanitize_style": sanitize_style,

@@ -21,10 +21,10 @@ from odoo import api, fields, models, release, tools
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.sql import escape_psql
 from odoo.modules.module import get_manifest
 from odoo.tools import SQL, Query
 from odoo.tools.image import image_process
-from odoo.tools.sql import escape_psql
 from odoo.tools.translate import _
 
 from odoo.addons.iap.tools import iap_tools

@@ -1,5 +1,5 @@
+from odoo.db import schema as sql
 from odoo.tests.common import TransactionCase, tagged
-from odoo.tools import sql
 
 _IR_LOGGING_LOGGER = "odoo.addons.base.models.ir_logging"
 

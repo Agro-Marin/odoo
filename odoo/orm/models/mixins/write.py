@@ -10,9 +10,8 @@ from itertools import batched
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
-from odoo.tools import SQL
-from odoo.tools.nplusone import _n1_enabled
-from odoo.tools.orm_profiler import _OrmProfile
+from odoo.libs.profiling import _n1_enabled, _OrmProfile
+from odoo.libs.sql import SQL
 from odoo.tools.translate import _
 
 from ..._typing import ValuesType
@@ -28,6 +27,53 @@ class WriteMixin(_ModelStubs):
     """Record update: ``write`` and its SQL-supporting helpers."""
 
     __slots__ = ()
+
+    def _increment_fields_skiplock(self, *fields: str) -> bool:
+        """Increment integer ``fields`` on ``self``, skipping locked rows.
+
+        A raw ``UPDATE ... FOR UPDATE SKIP LOCKED`` on ``self``'s table: it does
+        not go through the ORM write path and does not invalidate the cache,
+        since the counter update is not critical (view/visit counters and the
+        like). Relocated here from the former ``tools/sql.py`` as a recordset
+        method (ADR-0004 / C.2): it operates on records, so addons reach it as
+        ``records._increment_fields_skiplock(...)`` rather than importing an
+        ``odoo.orm`` internal, which the façade boundary forbids.
+
+        :param fields: integer fields to increment
+        :returns: whether the fields were incremented on any record.
+        """
+        if not self:
+            return False
+
+        for field in fields:
+            if self._fields[field].type != "integer":
+                raise ValueError(
+                    f"_increment_fields_skiplock: field {field!r} is not an integer"
+                )
+
+        cr = self.env.cr
+        tablename = self._table
+        cr.execute(
+            SQL(
+                """
+            UPDATE %s
+               SET %s
+             WHERE id IN (SELECT id FROM %s WHERE id = ANY(%s) FOR UPDATE SKIP LOCKED)
+            """,
+                SQL.identifier(tablename),
+                SQL(", ").join(
+                    SQL(
+                        "%s = COALESCE(%s, 0) + 1",
+                        SQL.identifier(field),
+                        SQL.identifier(field),
+                    )
+                    for field in fields
+                ),
+                SQL.identifier(tablename),
+                self.ids,
+            )
+        )
+        return bool(cr.rowcount)
 
     def write(self, vals: ValuesType) -> typing.Literal[True]:
         """Update all records in ``self`` with the provided values.

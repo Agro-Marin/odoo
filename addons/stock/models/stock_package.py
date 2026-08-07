@@ -7,7 +7,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.barcode import check_barcode_encoding
-from odoo.libs.numbers.float_utils import float_is_zero
+from odoo.libs.numbers import float_is_zero
 from odoo.tools import format_list, groupby
 
 

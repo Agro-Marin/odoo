@@ -10,10 +10,9 @@ from itertools import batched
 from operator import attrgetter
 from typing import Self
 
+from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.tools import SQL, OrderedSet, clean_context
 from odoo.tools.misc import PENDING
-from odoo.tools.nplusone import _n1_enabled
-from odoo.tools.orm_profiler import _OrmProfile
 
 from ... import decorators as api
 from ..._typing import ValuesType

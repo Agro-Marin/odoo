@@ -20,7 +20,6 @@ from psycopg import IntegrityError, OperationalError, errors
 from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_RETRY_SQLSTATES
 from odoo.exceptions import ConcurrencyError, ValidationError
 
-
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -65,8 +64,17 @@ def _refresh_request_session(request: typing.Any) -> None:
     failing write), and the http layer persists a modified session even on an
     error response — so without this re-fetch those mutations outlive the
     rollback.
+
+    Keyed on the session's *current* sid rather than the request cookie's.  The
+    handler runs to completion before ``env.cr.flush()`` issues its buffered
+    writes, so a login/MFA/logout has already rotated and persisted the session
+    by the time a serialization failure lands here — and a hard rotation unlinks
+    the file the cookie still names.  Re-reading by the cookie would find
+    nothing, mint a fresh anonymous session, and log out a user who had just
+    authenticated successfully.
     """
-    request.session = request._get_session_and_dbname()[0]
+    current_sid = getattr(request.session, "sid", None)
+    request.session = request._get_session_and_dbname(sid=current_sid)[0]
 
 
 def _rewind_request_files_for_retry(request: typing.Any, exc: BaseException) -> None:
@@ -205,17 +213,43 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
         _reset_env_state(env)
         raise
 
+    if env.cr.closed:
+        # Nothing to commit — the connection is already back in the pool, so
+        # skipping is right and committing would raise. Saying so is the point:
+        # the handler ran, whatever it wrote is gone, and this returns its
+        # result normally, so without this line the caller sees an ordinary
+        # success and an uncommitted transaction with nothing to distinguish it.
+        _logger.warning(
+            "retrying(): the cursor was closed before commit; %s's work was "
+            "NOT committed and no registry signal was sent. The handler closed "
+            "its own cursor, or something else did.",
+            getattr(func, "__qualname__", func),
+        )
+        return result
+
+    commits_before = env.cr.commit_count
     try:
-        if not env.cr.closed:
-            env.cr.commit()
+        env.cr.commit()
     except Exception as exc:
-        _reset_env_state(env)
-        if not env.cr.closed and isinstance(exc, IntegrityError):
-            translated = None
+        # Distinguish "the COMMIT failed" from "the COMMIT succeeded and a
+        # post-commit hook raised": Cursor.commit does both behind one call.
+        # Treating the second as the first rolls the local registry back to a
+        # pre-change state the database has already accepted, AND skips
+        # signal_changes() — so every *other* worker keeps serving a stale
+        # registry and ormcache for a committed change, with nothing recording
+        # that it happened.
+        durable = env.cr.commit_count > commits_before
+        if durable:
             with suppress(Exception):
-                translated = _integrity_error_to_validation(env, exc)
-            if translated is not None:
-                raise translated from exc
+                env.registry.signal_changes()
+        else:
+            _reset_env_state(env)
+            if not env.cr.closed and isinstance(exc, IntegrityError):
+                translated = None
+                with suppress(Exception):
+                    translated = _integrity_error_to_validation(env, exc)
+                if translated is not None:
+                    raise translated from exc
         raise
     if not env.cr.closed:
         env.registry.signal_changes()

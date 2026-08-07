@@ -1,6 +1,6 @@
 """Contract tests for ``named_to_positional_printf``.
 
-Its only caller is ``odoo.tools.sql.SQL``, so a placeholder that is recognised
+Its only caller is ``odoo.libs.sql.SQL``, so a placeholder that is recognised
 wrongly does not fail loudly -- it silently rewrites a query. The cases below
 pin both halves: what must convert, and what must be left alone.
 """

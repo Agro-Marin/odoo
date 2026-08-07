@@ -5,8 +5,8 @@ import logging
 import typing
 from typing import Literal
 
+from odoo.db.schema import column_exists
 from odoo.tools import OrderedSet, reset_cached_properties
-from odoo.tools.sql import column_exists
 
 from .module import Manifest
 

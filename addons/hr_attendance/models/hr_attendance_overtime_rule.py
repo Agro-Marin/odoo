@@ -10,7 +10,7 @@ from pytz import timezone, utc
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.intervals import Intervals, _boundaries, invert_intervals
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.libs.numbers import float_compare
 from odoo.tools.date_utils import float_to_time, sum_intervals
 
 

@@ -1,6 +1,6 @@
 import base64
 
-from odoo.libs.filesystem.mimetypes import (
+from odoo.libs.filesystem import (
     fix_filename_extension,
     get_extension,
     guess_mimetype,

@@ -5,6 +5,7 @@ from datetime import timedelta
 from pytz import UTC, timezone
 
 from odoo import api, fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 from odoo.tools import format_time
 
 
@@ -287,7 +288,7 @@ class HrEmployeePublic(models.Model):
         )
 
     def init(self):
-        tools.drop_view_if_exists(self.env.cr, self._table)
+        drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             """CREATE or REPLACE VIEW %s as (
             SELECT

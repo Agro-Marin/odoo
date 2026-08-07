@@ -28,7 +28,7 @@ from itertools import batched
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Domain
-from odoo.libs.numbers.float_utils import (
+from odoo.libs.numbers import (
     float_compare,
     float_is_zero,
     float_repr,

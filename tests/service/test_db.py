@@ -43,6 +43,7 @@ from .conftest import fake_pg_connection
 @pytest.fixture(scope="module")
 def db_mod():
     """Import ``odoo.service.db`` once per session."""
+    import odoo.db.schema
     import odoo.service.db as mod
 
     return mod
@@ -2950,7 +2951,7 @@ class TestListDbIncompatiblePoolSideEffects:
                 ),
                 patch.object(odoo.db, "close_db", side_effect=closed.append),
                 patch.object(
-                    odoo.tools.sql, "table_exists", side_effect=fake_table_exists
+                    odoo.db.schema, "table_exists", side_effect=fake_table_exists
                 ),
                 patch.object(db_mod, "version_info", (19, 0, 0, "final", 0, "")),
             ):

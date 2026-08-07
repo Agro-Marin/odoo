@@ -12,9 +12,9 @@ from markupsafe import Markup, escape
 from PIL import Image
 
 from odoo import api, fields, models, tools
-from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.libs.filesystem import guess_mimetype
 from odoo.libs.numbers import float_utils
-from odoo.libs.text.html import nl2br
+from odoo.libs.text import nl2br
 from odoo.tools import (
     float_is_zero,
     format_date,

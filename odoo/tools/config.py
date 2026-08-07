@@ -1912,11 +1912,19 @@ class configmanager:
         return normcase(str(Path(expandvars(path.strip())).expanduser().resolve()))
 
     def _get_sources(self, name: str) -> dict[str, Any]:
-        """Return the option's value from each source, keyed by source name."""
+        """Return the option's value from each source, keyed by source name.
+
+        The five named sources below are the ``ChainMap``'s own maps; the
+        ``source#N`` entries are any *extra* maps a caller pushed with
+        ``new_child()``. Hence ``[:-5]``, not ``[:-4]`` — the latter left the
+        runtime map in the slice, so every call reported it twice, once as
+        ``source#0`` and once as ``runtime``, on a diagnostic whose whole job is
+        to tell the operator which source a deprecated alias came from.
+        """
         return {
             **{
                 f"source#{no}": source.get(name, EMPTY)
-                for no, source in enumerate(self.options.maps[:-4])
+                for no, source in enumerate(self.options.maps[:-5])
             },
             "runtime": self._runtime_options.get(name, EMPTY),
             "command line": self._cli_options.get(name, EMPTY),

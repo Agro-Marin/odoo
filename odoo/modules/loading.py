@@ -9,13 +9,13 @@ import traceback
 import typing
 
 import odoo.db
-import odoo.tools.sql
 from odoo import api, tools
 from odoo.api import Environment
+from odoo.db import schema
+from odoo.libs.hashing import cache_hash
 from odoo.tools import OrderedSet
 from odoo.tools.convert import ConvertMode as LoadMode
 from odoo.tools.convert import IdRef, convert_file
-from odoo.tools.hashing import cache_hash
 
 from . import db as modules_db
 from .migration import MigrationManager
@@ -52,7 +52,7 @@ _DYNAMIC_XML_MARKERS = (b"<function", b"<delete")
 def _scan_data_file(filename: str, content: bytes) -> tuple[str, bool]:
     """Return ``(hexdigest, dynamic)`` for a data file's raw content.
 
-    The digest algorithm is the one :mod:`odoo.tools.hashing` selected; stored
+    The digest algorithm is the one :mod:`odoo.libs.hashing` selected; stored
     values are invalidated wholesale by ``_DATA_FILE_CHECKSUM_VERSION``, so
     they never need to be self-describing.
     """
@@ -92,9 +92,7 @@ def load_data(
         kind == "data"
         and mode == "update"
         and tools.config["skip_unchanged_data_files"]
-        and odoo.tools.sql.column_exists(
-            env.cr, "ir_module_module", "data_file_checksums"
-        )
+        and schema.column_exists(env.cr, "ir_module_module", "data_file_checksums")
     )
     stored_files: dict = {}
     new_files: dict = {}
@@ -417,9 +415,7 @@ def load_module_graph(
 
                 ver = adapt_version(package.manifest["version"])
                 values = {"state": "installed", "db_version": ver}
-                if odoo.tools.sql.column_exists(
-                    env.cr, "ir_module_module", "content_checksum"
-                ):
+                if schema.column_exists(env.cr, "ir_module_module", "content_checksum"):
                     values["content_checksum"] = module_content_checksum(module_name)
                 module.write(values)
 
@@ -521,162 +517,250 @@ def _check_module_names(cr: BaseCursor, module_names: Iterable[str]) -> None:
             )
 
 
-def load_modules(
-    registry: Registry,
-    *,
-    update_module: bool = False,
-    upgrade_modules: Collection[str] = (),
-    install_modules: Collection[str] = (),
-    reinit_modules: Collection[str] = (),
-    new_db_demo: bool = False,
-    models_to_check: OrderedSet[str] | None = None,
-) -> None:
-    """Load the modules for a registry object that has just been created.  This
-    function is part of Registry.new() and should not be used anywhere else.
+class _UninstallRequiresReload(Exception):
+    """The uninstall phase removed modules; the registry must be rebuilt.
 
-    :param registry: The new inited registry object used to load modules.
-    :param update_module: Whether to update (install, upgrade, or uninstall) modules. Defaults to ``False``
-    :param upgrade_modules: A collection of module names to upgrade.
-    :param install_modules: A collection of module names to install.
-    :param reinit_modules: A collection of module names to reinitialize.
-    :param new_db_demo: Whether to install demo data for new database. Defaults to ``False``
-    :param models_to_check: accumulator of model names to re-check afterwards;
-        updated in place
+    Replaces a bare ``return`` that used to sit in the middle of
+    ``load_modules``, after that branch had already called ``Registry.new()``
+    itself. Two things were wrong with that shape: the recursion was invisible
+    from the top of the function, and the ~45 lines of tail phases after it were
+    skipped by an accident of statement order rather than by a decision.
+
+    Raising instead puts both facts where a reader meets them --
+    ``load_modules`` catches this, rebuilds, and returns -- and makes "the tail
+    does not run in the *outer* call" an explicit branch. It stays true that the
+    tail runs exactly once overall, because the *inner* build runs it; that is
+    pinned by ``tests/loading/test_load_modules_uninstall.py``.
     """
-    if models_to_check is None:
-        models_to_check = OrderedSet()
 
-    initialize_sys_path()
 
-    with registry.cursor() as cr:
+class _ModuleLoader:
+    """The state ``load_modules`` threads through its phases.
+
+    ``load_modules`` was a single 332-line procedure with 70 branches -- the
+    densest function in the core -- operating on five names held in one long
+    scope. The phases were real but anonymous: nine separate ``if
+    update_module:`` blocks interleaved the "install/upgrade" program into the
+    "load an existing database" one, and the reader had to hold the whole body
+    to know whether a given line ran.
+
+    Each phase is now a method named for what it does, and ``load_modules`` is
+    the composition root that lists them in order. Behaviour is unchanged --
+    ``tests/loading/`` characterizes the phase sequence for both programs and
+    the uninstall branch, and was written before this refactor for that purpose.
+
+    Note the two programs are *not* split into separate methods. They interleave
+    at nine points, so a clean split would have to duplicate the shared spine at
+    each one; keeping one sequence with its guards visible in the composition
+    root says the same thing without the duplication.
+    """
+
+    __slots__ = (
+        "cr",
+        "env",
+        "graph",
+        "install_modules",
+        "models_to_check",
+        "new_db_demo",
+        "registry",
+        "reinit_modules",
+        "report",
+        "update_module",
+        "upgrade_modules",
+    )
+
+    def __init__(
+        self,
+        registry: Registry,
+        cr: BaseCursor,
+        *,
+        update_module: bool,
+        upgrade_modules: Collection[str],
+        install_modules: Collection[str],
+        reinit_modules: Collection[str],
+        new_db_demo: bool,
+        models_to_check: OrderedSet[str],
+    ) -> None:
+        self.registry = registry
+        self.cr = cr
+        self.update_module = update_module
+        self.upgrade_modules = upgrade_modules
+        self.install_modules = install_modules
+        self.reinit_modules = reinit_modules
+        self.new_db_demo = new_db_demo
+        #: Accumulator, mutated in place -- the caller reads it back.
+        self.models_to_check = models_to_check
+        self.graph: ModuleGraph = None  # type: ignore[assignment]
+        self.env = None  # type: ignore[assignment]
+        self.report = None
+
+    # -- phase 1 ----------------------------------------------------------
+    def bootstrap(self) -> bool:
+        """Initialise the database if needed and seed the graph with ``base``.
+
+        :return: whether loading should continue. ``False`` means an
+            uninitialised database and no ``update_module`` to initialise it --
+            the one early exit that is not an error.
+        """
+        cr = self.cr
         cr.execute("SET SESSION lock_timeout = '15s'")
         if not modules_db.is_initialized(cr):
-            if not update_module:
+            if not self.update_module:
                 _logger.info(
                     "Database %s not initialized, skipping (use `-i base` to bootstrap).",
                     cr.dbname,
                 )
-                return
+                return False
             _logger.info("Initializing database %s", cr.dbname)
             modules_db.initialize(cr)
-        elif "base" in reinit_modules:
-            registry._reinit_modules.add("base")
+        elif "base" in self.reinit_modules:
+            self.registry._reinit_modules.add("base")
 
-        if "base" in upgrade_modules:
+        if "base" in self.upgrade_modules:
             cr.execute(
                 "update ir_module_module set state=%s where name=%s and state=%s",
                 ("to upgrade", "base", "installed"),
             )
 
-        graph = ModuleGraph(cr, mode="update" if update_module else "load")
-        graph.extend(["base"])
-        if not graph:
+        self.graph = ModuleGraph(cr, mode="update" if self.update_module else "load")
+        self.graph.extend(["base"])
+        if not self.graph:
             _logger.critical("module base cannot be loaded! (hint: verify addons-path)")
             msg = "Module `base` cannot be loaded! (hint: verify addons-path)"
             raise ImportError(msg)
-        if update_module and upgrade_modules:
-            for pyfile in tools.config["pre_upgrade_scripts"]:
-                odoo.modules.migration.exec_script(
-                    cr, graph["base"].db_version, pyfile, "base", "pre"
-                )
+        return True
 
-        if update_module and tools.sql.table_exists(cr, "ir_model_fields"):
-            cr.execute(
-                "SELECT model || '.' || name, translate FROM ir_model_fields WHERE translate IS NOT NULL"
+    # -- phase 2 [update] -------------------------------------------------
+    def run_pre_upgrade_scripts(self) -> None:
+        for pyfile in tools.config["pre_upgrade_scripts"]:
+            odoo.modules.migration.exec_script(
+                self.cr, self.graph["base"].db_version, pyfile, "base", "pre"
             )
-            registry._database_translated_fields = dict(cr.fetchall())
 
-            if odoo.tools.sql.column_exists(cr, "ir_model_fields", "company_dependent"):
-                cr.execute(
-                    "SELECT model || '.' || name FROM ir_model_fields WHERE company_dependent IS TRUE"
-                )
-                registry._database_company_dependent_fields = {
-                    row[0] for row in cr.fetchall()
-                }
+    # -- phase 3 [update] -------------------------------------------------
+    def capture_database_field_metadata(self) -> None:
+        """Record which fields the *database* thinks are translated / company-dependent.
 
-        report = registry._assertion_report
-        env = api.Environment(cr, api.SUPERUSER_ID, {})
+        Read before the modules are loaded, because loading is what may change
+        them; ``untranslate_dropped_fields`` below compares against this.
+        """
+        cr = self.cr
+        cr.execute(
+            "SELECT model || '.' || name, translate FROM ir_model_fields WHERE translate IS NOT NULL"
+        )
+        self.registry._database_translated_fields = dict(cr.fetchall())
+
+        if schema.column_exists(cr, "ir_model_fields", "company_dependent"):
+            cr.execute(
+                "SELECT model || '.' || name FROM ir_model_fields WHERE company_dependent IS TRUE"
+            )
+            self.registry._database_company_dependent_fields = {
+                row[0] for row in cr.fetchall()
+            }
+
+    # -- phase 4 ----------------------------------------------------------
+    def open_environment_and_load_base(self) -> None:
+        self.report = self.registry._assertion_report
+        self.env = api.Environment(self.cr, api.SUPERUSER_ID, {})
         load_module_graph(
-            env,
-            graph,
-            update_module=update_module,
-            report=report,
-            models_to_check=models_to_check,
-            install_demo=new_db_demo,
+            self.env,
+            self.graph,
+            update_module=self.update_module,
+            report=self.report,
+            models_to_check=self.models_to_check,
+            install_demo=self.new_db_demo,
         )
 
+    # -- phase 5 ----------------------------------------------------------
+    def load_languages(self) -> None:
         load_lang = tools.config.get("load_language")
         lang_pending = bool(load_lang) and not getattr(
-            registry, "_load_language_done", False
+            self.registry, "_load_language_done", False
         )
-        if lang_pending or update_module:
-            registry._setup_models__(cr, [], skip_if_clean=True)
+        if lang_pending or self.update_module:
+            self.registry._setup_models__(self.cr, [], skip_if_clean=True)
 
         if lang_pending:
             for lang in load_lang.split(","):
-                tools.translate.load_language(cr, lang)
-            registry._load_language_done = True
+                tools.translate.load_language(self.cr, lang)
+            self.registry._load_language_done = True
 
-        if update_module:
-            Module = env["ir.module.module"]
-            _logger.info("updating modules list")
-            Module.update_list()
+    # -- phase 6 [update] -------------------------------------------------
+    def process_module_requests(self) -> None:
+        """Turn the requested install / upgrade / reinit sets into module states."""
+        env = self.env
+        cr = self.cr
+        Module = env["ir.module.module"]
+        _logger.info("updating modules list")
+        Module.update_list()
 
-            _check_module_names(cr, itertools.chain(install_modules, upgrade_modules))
+        _check_module_names(
+            cr, itertools.chain(self.install_modules, self.upgrade_modules)
+        )
 
-            if install_modules:
-                modules = Module.search(
-                    [
-                        ("state", "=", "uninstalled"),
-                        ("name", "in", tuple(install_modules)),
-                    ]
-                )
-                if modules:
-                    modules.button_install()
-
-            if upgrade_modules:
-                modules = Module.search(
-                    [
-                        ("state", "in", ("installed", "to upgrade")),
-                        ("name", "in", tuple(upgrade_modules)),
-                    ]
-                )
-                if modules:
-                    modules.button_upgrade()
-
-            if reinit_modules:
-                modules = Module.search(
-                    [
-                        ("state", "in", ("installed", "to upgrade")),
-                        ("name", "in", tuple(reinit_modules)),
-                    ]
-                )
-                reinit_records = (
-                    modules.downstream_dependencies(
-                        exclude_states=(
-                            "uninstalled",
-                            "uninstallable",
-                            "to remove",
-                            "to install",
-                        )
-                    )
-                    + modules
-                )
-                registry._reinit_modules.update(
-                    m
-                    for m in reinit_records.mapped("name")
-                    if m not in graph._imported_modules
-                )
-
-            env.flush_all()
-            cr.execute(
-                "update ir_module_module set state=%s where name=%s",
-                ("installed", "base"),
+        if self.install_modules:
+            modules = Module.search(
+                [
+                    ("state", "=", "uninstalled"),
+                    ("name", "in", tuple(self.install_modules)),
+                ]
             )
-            Module.invalidate_model(["state"])
+            if modules:
+                modules.button_install()
 
+        if self.upgrade_modules:
+            modules = Module.search(
+                [
+                    ("state", "in", ("installed", "to upgrade")),
+                    ("name", "in", tuple(self.upgrade_modules)),
+                ]
+            )
+            if modules:
+                modules.button_upgrade()
+
+        if self.reinit_modules:
+            modules = Module.search(
+                [
+                    ("state", "in", ("installed", "to upgrade")),
+                    ("name", "in", tuple(self.reinit_modules)),
+                ]
+            )
+            reinit_records = (
+                modules.downstream_dependencies(
+                    exclude_states=(
+                        "uninstalled",
+                        "uninstallable",
+                        "to remove",
+                        "to install",
+                    )
+                )
+                + modules
+            )
+            self.registry._reinit_modules.update(
+                m
+                for m in reinit_records.mapped("name")
+                if m not in self.graph._imported_modules
+            )
+
+        env.flush_all()
+        cr.execute(
+            "update ir_module_module set state=%s where name=%s",
+            ("installed", "base"),
+        )
+        Module.invalidate_model(["state"])
+
+    # -- phase 7 ----------------------------------------------------------
+    def converge_module_graph(self) -> None:
+        """Extend the graph and reload until no further module is loaded.
+
+        Each round can make more modules reachable (a newly installed module's
+        dependents), so this runs to a fixpoint rather than a fixed number of
+        passes. It terminates on either no new module names or no new
+        ``updated_modules``.
+        """
+        env = self.env
         while True:
-            if update_module:
+            if self.update_module:
                 states = ("installed", "to upgrade", "to remove", "to install")
             else:
                 states = ("installed", "to upgrade", "to remove")
@@ -684,62 +768,75 @@ def load_modules(
                 "SELECT name from ir_module_module WHERE state = ANY(%s)",
                 [list(states)],
             )
-            module_list = [name for (name,) in env.cr.fetchall() if name not in graph]
+            module_list = [
+                name for (name,) in env.cr.fetchall() if name not in self.graph
+            ]
             if not module_list:
                 break
-            graph.extend(module_list)
+            self.graph.extend(module_list)
             _logger.debug("Updating graph with %d more modules", len(module_list))
-            updated_modules_count = len(registry.updated_modules)
+            updated_modules_count = len(self.registry.updated_modules)
             load_module_graph(
                 env,
-                graph,
-                update_module=update_module,
-                report=report,
-                models_to_check=models_to_check,
+                self.graph,
+                update_module=self.update_module,
+                report=self.report,
+                models_to_check=self.models_to_check,
             )
-            if len(registry.updated_modules) == updated_modules_count:
+            if len(self.registry.updated_modules) == updated_modules_count:
                 break
 
-        if update_module:
-            database_translated_fields = registry._database_translated_fields
-            registry._database_translated_fields = {}
-            registry._setup_models__(cr, [], skip_if_clean=True)
-            models_to_untranslate = set()
-            for full_name in database_translated_fields:
-                model_name, field_name = full_name.rsplit(".", 1)
-                if model_name in registry:
-                    field = registry[model_name]._fields.get(field_name)
-                    if field and not field.translate:
-                        _logger.debug("Making field %s non-translated", field)
-                        models_to_untranslate.add(model_name)
-            registry.init_models(
-                cr, list(models_to_untranslate), {"models_to_check": True}
-            )
+    # -- phase 8 [update] -------------------------------------------------
+    def untranslate_dropped_fields(self) -> None:
+        """Re-initialise models whose fields stopped being ``translate=True``."""
+        registry = self.registry
+        database_translated_fields = registry._database_translated_fields
+        registry._database_translated_fields = {}
+        registry._setup_models__(self.cr, [], skip_if_clean=True)
+        models_to_untranslate = set()
+        for full_name in database_translated_fields:
+            model_name, field_name = full_name.rsplit(".", 1)
+            if model_name in registry:
+                field = registry[model_name]._fields.get(field_name)
+                if field and not field.translate:
+                    _logger.debug("Making field %s non-translated", field)
+                    models_to_untranslate.add(model_name)
+        registry.init_models(
+            self.cr, list(models_to_untranslate), {"models_to_check": True}
+        )
 
-        registry.loaded = True
-        registry._setup_models__(cr)
+    # -- phase 9 ----------------------------------------------------------
+    def finish_registry_setup(self) -> None:
+        self.registry.loaded = True
+        self.registry._setup_models__(self.cr)
 
-        Module = env["ir.module.module"]
+    # -- phase 10 ---------------------------------------------------------
+    def report_modules_that_never_loaded(self) -> None:
+        Module = self.env["ir.module.module"]
         modules = Module.search_fetch(
             Module._get_modules_to_load_domain(), ["name"], order="name"
         )
-        missing = [name for name in modules.mapped("name") if name not in graph]
+        missing = [name for name in modules.mapped("name") if name not in self.graph]
         if missing:
             _logger.error(
                 "Some modules are not loaded, some dependencies or manifest may be missing: %s",
                 missing,
             )
 
-        if update_module:
-            migrations = MigrationManager(cr, graph)
-            for package in graph:
-                migrations.migrate_module(package, "end")
+    # -- phase 11 [update] ------------------------------------------------
+    def run_end_migrations(self) -> None:
+        migrations = MigrationManager(self.cr, self.graph)
+        for package in self.graph:
+            migrations.migrate_module(package, "end")
 
+    # -- phase 12 ---------------------------------------------------------
+    def report_pending_module_states(self) -> None:
+        cr = self.cr
         cr.execute(
             "SELECT name, state FROM ir_module_module WHERE state IN ('to install', 'to upgrade')"
         )
         pending = cr.fetchall()
-        if pending and update_module:
+        if pending and self.update_module:
             _logger.error(
                 "Some modules have inconsistent states after upgrade, "
                 "some dependencies may be missing: %s",
@@ -763,103 +860,237 @@ def load_modules(
                     to_install,
                 )
 
-        registry.finalize_constraints(cr)
+    # -- phase 13 ---------------------------------------------------------
+    def finalize_constraints(self) -> None:
+        self.registry.finalize_constraints(self.cr)
 
-        if registry.updated_modules:
-            cr.execute("SELECT model from ir_model")
-            for (model,) in cr.fetchall():
-                if model in registry:
-                    env[model]._check_removed_columns(log=True)
-                elif _logger.isEnabledFor(logging.INFO):
-                    _logger.runbot(
-                        "Model %s is declared but cannot be loaded! (Perhaps a module was partially removed or renamed)",
-                        model,
-                    )
-
-            env["ir.model.data"]._process_end(registry.updated_modules)
-            vacuum_cron = env.ref("base.autovacuum_job", raise_if_not_found=False)
-            if vacuum_cron:
-                trigger_at = datetime.datetime.now(datetime.UTC).replace(
-                    tzinfo=None
-                ) + datetime.timedelta(minutes=1)
-                vacuum_cron._trigger(at=trigger_at)
-
-            env.flush_all()
-
-        if update_module:
-            cr.execute(
-                "SELECT name, id FROM ir_module_module WHERE state=%s",
-                ("to remove",),
-            )
-            modules_to_remove = dict(cr.fetchall())
-            if modules_to_remove:
-                pkgs = reversed([p for p in graph if p.name in modules_to_remove])
-                for pkg in pkgs:
-                    uninstall_hook = pkg.manifest.get("uninstall_hook")
-                    if uninstall_hook:
-                        py_module = sys.modules[f"odoo.addons.{pkg.name}"]
-                        getattr(py_module, uninstall_hook)(env)
-                        env.flush_all()
-
-                Module = env["ir.module.module"]
-                Module.browse(modules_to_remove.values()).module_uninstall()
-                cr.commit()
-                _logger.info("Reloading registry once more after uninstalling modules")
-                Registry.new(
-                    cr.dbname,
-                    update_module=update_module,
-                    models_to_check=models_to_check,
+    # -- phase 14 ---------------------------------------------------------
+    def run_post_update_model_checks(self) -> None:
+        """Only meaningful when something was actually updated."""
+        if not self.registry.updated_modules:
+            return
+        env = self.env
+        cr = self.cr
+        cr.execute("SELECT model from ir_model")
+        for (model,) in cr.fetchall():
+            if model in self.registry:
+                env[model]._check_removed_columns(log=True)
+            elif _logger.isEnabledFor(logging.INFO):
+                _logger.runbot(
+                    "Model %s is declared but cannot be loaded! (Perhaps a module was partially removed or renamed)",
+                    model,
                 )
-                return
 
-        if update_module:
-            cr.execute(
-                """SELECT DISTINCT model FROM ir_model_fields WHERE state = 'manual'"""
-            )
-            models_to_check.update(
-                model_name for (model_name,) in cr.fetchall() if model_name in registry
-            )
-        if models_to_check:
-            models_to_check = [model for model in models_to_check if model in registry]
-            registry.init_models(
-                cr,
-                models_to_check,
-                {"models_to_check": True, "update_custom_fields": True},
-            )
+        env["ir.model.data"]._process_end(self.registry.updated_modules)
+        vacuum_cron = env.ref("base.autovacuum_job", raise_if_not_found=False)
+        if vacuum_cron:
+            trigger_at = datetime.datetime.now(datetime.UTC).replace(
+                tzinfo=None
+            ) + datetime.timedelta(minutes=1)
+            vacuum_cron._trigger(at=trigger_at)
 
-        if update_module:
-            View = env["ir.ui.view"]
-            for model in registry:
-                try:
-                    View._validate_custom_views(model)
-                except Exception as e:
-                    _logger.warning("invalid custom view(s) for model %s: %s", model, e)
+        env.flush_all()
 
-        if not registry._assertion_report or registry._assertion_report.wasSuccessful():
+    # -- phase 15 [update] ------------------------------------------------
+    def uninstall_removed_modules(self) -> None:
+        """Uninstall modules in state ``to remove``.
+
+        :raises _UninstallRequiresReload: when anything was uninstalled. The
+            registry now describes models that no longer exist, so the caller
+            must rebuild it rather than continue with the remaining phases.
+        """
+        env = self.env
+        cr = self.cr
+        cr.execute(
+            "SELECT name, id FROM ir_module_module WHERE state=%s",
+            ("to remove",),
+        )
+        modules_to_remove = dict(cr.fetchall())
+        if not modules_to_remove:
+            return
+
+        pkgs = reversed([p for p in self.graph if p.name in modules_to_remove])
+        for pkg in pkgs:
+            uninstall_hook = pkg.manifest.get("uninstall_hook")
+            if uninstall_hook:
+                py_module = sys.modules[f"odoo.addons.{pkg.name}"]
+                getattr(py_module, uninstall_hook)(env)
+                env.flush_all()
+
+        Module = env["ir.module.module"]
+        Module.browse(modules_to_remove.values()).module_uninstall()
+        cr.commit()
+        raise _UninstallRequiresReload
+
+    # -- phase 16 [update] ------------------------------------------------
+    def collect_models_with_manual_fields(self) -> None:
+        self.cr.execute(
+            """SELECT DISTINCT model FROM ir_model_fields WHERE state = 'manual'"""
+        )
+        self.models_to_check.update(
+            model_name
+            for (model_name,) in self.cr.fetchall()
+            if model_name in self.registry
+        )
+
+    # -- phase 17 ---------------------------------------------------------
+    def reinit_models_to_check(self) -> None:
+        if not self.models_to_check:
+            return
+        models = [model for model in self.models_to_check if model in self.registry]
+        self.registry.init_models(
+            self.cr,
+            models,
+            {"models_to_check": True, "update_custom_fields": True},
+        )
+
+    # -- phase 18 [update] ------------------------------------------------
+    def validate_custom_views(self) -> None:
+        View = self.env["ir.ui.view"]
+        for model in self.registry:
+            try:
+                View._validate_custom_views(model)
+            except Exception as e:
+                _logger.warning("invalid custom view(s) for model %s: %s", model, e)
+
+    # -- phase 19 ---------------------------------------------------------
+    def log_assertion_report(self) -> None:
+        report = self.registry._assertion_report
+        if not report or report.wasSuccessful():
             _logger.info("Modules loaded.")
         else:
             _logger.error("At least one test failed when loading the modules.")
 
-        for model in env.values():
+    # -- phase 20 ---------------------------------------------------------
+    def register_model_hooks(self) -> None:
+        for model in self.env.values():
             model._register_hook()
-        env.flush_all()
+        self.env.flush_all()
 
-        registry.check_null_constraints(cr)
+    # -- phase 21 ---------------------------------------------------------
+    def check_null_constraints(self) -> None:
+        self.registry.check_null_constraints(self.cr)
+
+    # -- phase 22 [update] ------------------------------------------------
+    def flag_partially_updated_database(self) -> None:
+        self.cr.execute("""
+            INSERT INTO ir_config_parameter(key, value)
+            SELECT 'base.partially_updated_database', '1'
+            WHERE EXISTS(SELECT FROM ir_module_module WHERE state IN ('to upgrade', 'to install', 'to remove'))
+            ON CONFLICT DO NOTHING
+            """)
+
+
+def load_modules(
+    registry: Registry,
+    *,
+    update_module: bool = False,
+    upgrade_modules: Collection[str] = (),
+    install_modules: Collection[str] = (),
+    reinit_modules: Collection[str] = (),
+    new_db_demo: bool = False,
+    models_to_check: OrderedSet[str] | None = None,
+) -> None:
+    """Load the modules for a registry object that has just been created.  This
+    function is part of Registry.new() and should not be used anywhere else.
+
+    The body is a composition root over :class:`_ModuleLoader`'s phases, listed
+    in execution order. Phases guarded by ``if update_module:`` are the
+    install/upgrade program; the rest run on every load. The phase sequence for
+    both programs is characterized by ``tests/loading/``.
+
+    :param registry: The new inited registry object used to load modules.
+    :param update_module: Whether to update (install, upgrade, or uninstall) modules. Defaults to ``False``
+    :param upgrade_modules: A collection of module names to upgrade.
+    :param install_modules: A collection of module names to install.
+    :param reinit_modules: A collection of module names to reinitialize.
+    :param new_db_demo: Whether to install demo data for new database. Defaults to ``False``
+    :param models_to_check: accumulator of model names to re-check afterwards;
+        updated in place
+    """
+    if models_to_check is None:
+        models_to_check = OrderedSet()
+
+    initialize_sys_path()
+
+    with registry.cursor() as cr:
+        loader = _ModuleLoader(
+            registry,
+            cr,
+            update_module=update_module,
+            upgrade_modules=upgrade_modules,
+            install_modules=install_modules,
+            reinit_modules=reinit_modules,
+            new_db_demo=new_db_demo,
+            models_to_check=models_to_check,
+        )
+
+        if not loader.bootstrap():
+            return
+
+        if update_module and upgrade_modules:
+            loader.run_pre_upgrade_scripts()
+        if update_module and schema.table_exists(cr, "ir_model_fields"):
+            loader.capture_database_field_metadata()
+
+        loader.open_environment_and_load_base()
+        loader.load_languages()
 
         if update_module:
-            cr.execute("""
-                INSERT INTO ir_config_parameter(key, value)
-                SELECT 'base.partially_updated_database', '1'
-                WHERE EXISTS(SELECT FROM ir_module_module WHERE state IN ('to upgrade', 'to install', 'to remove'))
-                ON CONFLICT DO NOTHING
-                """)
+            loader.process_module_requests()
+
+        loader.converge_module_graph()
+
+        if update_module:
+            loader.untranslate_dropped_fields()
+
+        loader.finish_registry_setup()
+        loader.report_modules_that_never_loaded()
+
+        if update_module:
+            loader.run_end_migrations()
+
+        loader.report_pending_module_states()
+        loader.finalize_constraints()
+        loader.run_post_update_model_checks()
+
+        try:
+            if update_module:
+                loader.uninstall_removed_modules()
+        except _UninstallRequiresReload:
+            # The uninstalled models are still in this registry, so it cannot be
+            # trusted for the remaining phases: rebuild instead. The rebuild
+            # runs those phases itself, which is why the tail below is skipped
+            # here and still happens exactly once overall
+            # (tests/loading/test_load_modules_uninstall.py).
+            _logger.info("Reloading registry once more after uninstalling modules")
+            Registry.new(
+                cr.dbname,
+                update_module=update_module,
+                models_to_check=models_to_check,
+            )
+            return
+
+        if update_module:
+            loader.collect_models_with_manual_fields()
+        loader.reinit_models_to_check()
+
+        if update_module:
+            loader.validate_custom_views()
+
+        loader.log_assertion_report()
+        loader.register_model_hooks()
+        loader.check_null_constraints()
+
+        if update_module:
+            loader.flag_partially_updated_database()
 
 
 def reset_modules_state(db_name: str) -> None:
     """Resets modules flagged as "to x" to their original state"""
     db = odoo.db.db_connect(db_name)
     with db.cursor() as cr:
-        if not odoo.tools.sql.table_exists(cr, "ir_module_module"):
+        if not schema.table_exists(cr, "ir_module_module"):
             _logger.info(
                 "skipping reset_modules_state, ir_module_module table does not exist"
             )

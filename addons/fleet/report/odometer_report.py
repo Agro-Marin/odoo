@@ -1,23 +1,23 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from psycopg import sql
 
-from odoo import tools
-from odoo import fields, models
+from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 
 class OdometerReport(models.Model):
-    _name = 'fleet.vehicle.odometer.report'
+    _name = "fleet.vehicle.odometer.report"
     _description = "Fleet Odometer Analysis Report"
     _auto = False
-    _order = 'recorded_date desc'
+    _order = "recorded_date desc"
 
-    vehicle_id = fields.Many2one('fleet.vehicle', "Vehicle", readonly=True)
-    category_id = fields.Many2one(related='vehicle_id.category_id')
-    model_id = fields.Many2one(related='vehicle_id.model_id')
-    fuel_type = fields.Selection(related='vehicle_id.fuel_type')
+    vehicle_id = fields.Many2one("fleet.vehicle", "Vehicle", readonly=True)
+    category_id = fields.Many2one(related="vehicle_id.category_id")
+    model_id = fields.Many2one(related="vehicle_id.model_id")
+    fuel_type = fields.Selection(related="vehicle_id.fuel_type")
     mileage_delta = fields.Float("Mileage Delta", readonly=True)
     odometer_value = fields.Float("Odometer Value", readonly=True)
-    recorded_date = fields.Date('Date', readonly=True)
+    recorded_date = fields.Date("Date", readonly=True)
 
     def init(self):
         query = """
@@ -226,8 +226,9 @@ class OdometerReport(models.Model):
         """
 
         self.env.cr.execute(query)
-        tools.drop_view_if_exists(self.env.cr, self._table)
+        drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             sql.SQL("CREATE or REPLACE VIEW {} as ({})").format(
-                sql.Identifier(self._table),
-                sql.SQL(query)))
+                sql.Identifier(self._table), sql.SQL(query)
+            )
+        )

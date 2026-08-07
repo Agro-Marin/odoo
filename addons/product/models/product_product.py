@@ -4,10 +4,10 @@ from collections import defaultdict
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.sql import SQL
 from odoo.tools import OrderedSet, float_compare, groupby
 from odoo.tools.image import is_image_size_above
 from odoo.tools.misc import unique
-from odoo.tools.sql import SQL
 
 # Resolutions (px) for which resized image / image_variant fields exist.
 IMAGE_SIZES = (1920, 1024, 512, 256, 128)

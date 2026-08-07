@@ -21,6 +21,7 @@ carry the detailed invariants — this file is the map.
 | `bulk.py` | `_BulkAccessMixin`: `copy_from` (COPY, optional binary + pre-generated ids), `execute_values` | no |
 | `savepoint.py` | `Savepoint` / `_FlushingSavepoint` (ORM state restore is injected by `odoo.orm.runtime.savepoint`) | yes |
 | `ddl.py` | DDL keyword detection + client-side param inlining (`$N` is rejected in DDL positions) | yes |
+| `schema.py` | Schema DDL operations executed against a `cr`: create/alter tables, columns, constraints, foreign keys, indexes, views; `TableKind`, `SQL_ORDER_BY_TYPE` (relocated from the former `tools/sql.py`, ADR-0004) | no |
 | `dsn.py` | DSN expansion/normalization (pool keys, password fingerprint), connect-error classification | yes |
 | `errors.py` | `CURSOR_LOGGER_NAME`, retry taxonomy (`PG_RETRY_*`), user-fault taxonomy (`PG_USER_FAULT_*`), `_log_sql_error`'s three log tiers | yes |
 | `lifecycle.py` | psycopg_pool `configure`/`reset`/`check` callbacks (adapters, prepare tuning, session reset, grace-windowed health check sized by `db_healthcheck_grace`) | no |
@@ -31,7 +32,19 @@ carry the detailed invariants — this file is the map.
 “Pure” = importable and testable without a database or the framework
 (`yes*`: pure logic, but pulls `odoo.tools` on import).
 
+> **This table is enforced.** `tooling/architecture/package_index_check.py`
+> fails CI if a module in `odoo/db/` is missing from it, or if it names a module
+> that no longer exists. Add the row in the same commit as the module.
+
 ## Load-bearing invariants (cross-module)
+
+- **The budget bounds checked-out connections, not the server footprint.**
+  Each per-DSN pool separately retains up to `maxconn` *idle* connections for
+  `db_conn_max_idle`, so one process holds up to `maxconn × n_databases`
+  backends — measured: four databases under `db_maxconn = 2` hold four
+  backends, with never more than one checked out at a time. Size PostgreSQL's
+  `max_connections` against that product, not against `db_maxconn`. Everything
+  below is about how the *budget* is keyed and is orthogonal to this.
 
 - **One budget per PostgreSQL server**: `db_maxconn` is the cap for a *server*,
   because that is what an operator sizes `max_connections` against, so

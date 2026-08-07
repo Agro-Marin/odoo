@@ -14,7 +14,7 @@ from odoo.libs.constants import (
     STYLE_EXTENSIONS,
     TEMPLATE_EXTENSIONS,
 )
-from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
+from odoo.libs.profiling import SourceMapGenerator
 from odoo.tools.assets.esbuild import (
     EXTERNAL_BARE_SPECIFIERS,
     EsbuildCompiler,

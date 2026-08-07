@@ -3,8 +3,8 @@ from collections import defaultdict
 from operator import attrgetter
 from typing import override
 
+from odoo.libs.sql import pg_varchar
 from odoo.tools import SQL, OrderedSet, unique
-from odoo.tools.sql import pg_varchar
 
 from .._recordset import is_recordset
 from .base import Field

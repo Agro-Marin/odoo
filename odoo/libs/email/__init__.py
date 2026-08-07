@@ -5,6 +5,7 @@ Uses standard library email utilities, idna, and regex.
 """
 
 from .parsing import (
+    getaddresses,
     email_re,
     single_email_re,
     mail_header_msgid_re,
@@ -47,6 +48,7 @@ __all__ = [
     "encapsulate_email",
     "extract_rfc2822_addresses",
     "formataddr",
+    "getaddresses",
     "mail_header_msgid_re",
     "parse_contact_from_email",
     "single_email_re",

@@ -233,7 +233,11 @@ class _RequestServeMixin(RequestState):
                     )
                     current_worker_thread().cursor_mode = "ro->rw"
                     self._rewind_input_files(exc)
-                    self.session = self._get_session_and_dbname()[0]
+                    # By the session's current sid, not the cookie's: the first
+                    # attempt may have rotated it (see _get_session_and_dbname).
+                    self.session = self._get_session_and_dbname(
+                        sid=getattr(self.session, "sid", None)
+                    )[0]
                     promoted = True
                 except Exception as exc:
                     self._update_served_exception(exc)

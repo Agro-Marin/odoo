@@ -5,8 +5,8 @@ consistent statistics from timing data.
 
 See Also
 --------
-- ``odoo.tools.orm_profiler`` — Aggregate per-model/operation stats per transaction
-- ``odoo.tools.nplusone`` — N+1 CRUD detection (repeated single-record calls)
+- ``odoo.libs.profiling.orm_profiler`` — Aggregate per-model/operation stats per transaction
+- ``odoo.libs.profiling.nplusone`` — N+1 CRUD detection (repeated single-record calls)
 - ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
 - ``.claude/rules/profiling.md`` — Decision tree: which tool to use when
 """
@@ -433,7 +433,7 @@ class BenchmarkTimer:
         self.start_time = real_time()
         return self
 
-    def __exit__(self, *args: Any) -> None:
+    def __exit__(self, *args: object) -> None:
         self.end_time = real_time()
         thread = threading.current_thread()
         self.end_query_count = thread.query_count

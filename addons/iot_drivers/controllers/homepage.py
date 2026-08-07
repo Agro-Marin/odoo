@@ -15,7 +15,7 @@ from odoo.addons.iot_drivers.tools import certificate, helpers, route, upgrade, 
 from odoo.addons.iot_drivers.tools.system import IOT_SYSTEM, IS_RPI
 from odoo.addons.iot_drivers.main import iot_devices, unsupported_devices
 from odoo.addons.iot_drivers.connection_manager import connection_manager
-from odoo.libs.web.import_map import import_map_for
+from odoo.libs.web import import_map_for
 from odoo.tools.misc import file_open, file_path
 from odoo.addons.iot_drivers.server_logger import (
     check_and_update_odoo_config_log_to_server_option,

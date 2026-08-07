@@ -1,4 +1,4 @@
-from odoo.tools import sql
+from odoo.db import schema as sql
 
 
 def migrate(cr, version):

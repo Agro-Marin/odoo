@@ -7,7 +7,7 @@ from markupsafe import Markup
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.libs.numbers.float_utils import float_is_zero, float_round
+from odoo.libs.numbers import float_is_zero, float_round
 from odoo.tools import SQL, frozendict, groupby
 
 

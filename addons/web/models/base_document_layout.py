@@ -7,7 +7,7 @@ from PIL.Image import Resampling
 
 from odoo import api, fields, models
 from odoo.libs.colors import get_lightness, get_saturation, rgb_to_hex
-from odoo.libs.text.html import nl2br
+from odoo.libs.text import nl2br
 from odoo.tools import html2plaintext, is_html_empty
 from odoo.tools import image as tools
 

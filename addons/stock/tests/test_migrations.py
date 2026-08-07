@@ -13,7 +13,7 @@ class MigrationScriptMixin:
     against real data.
 
     Concrete classes set :attr:`script_version` (the migrations subdirectory)
-    and must patch the ``odoo.tools.sql`` helpers the script imports
+    and must patch the ``odoo.db.schema`` helpers the script imports
     (``column_exists`` / ``table_columns``) before calling ``migrate`` with a
     truthy version, so the mocked cursor never reaches those helpers' SQL.
     """

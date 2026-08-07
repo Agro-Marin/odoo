@@ -62,12 +62,20 @@ def _find_conf() -> Path | None:
         return Path(override)
     if WORKSPACE is None:
         return None
+    # Two layouts: confs used to live in <ws>/config/, and now sit directly at
+    # <ws>/ beside the venv. Prefer the one named after the active venv, which
+    # is how a workspace pairs an interpreter with its addons_path/data_dir.
     venv_name = VENV_PY.parent.parent.name
-    candidate = WORKSPACE / "config" / f"{venv_name}.conf"
-    if candidate.exists():
-        return candidate
-    confs = sorted((WORKSPACE / "config").glob("*.conf"))
-    return confs[0] if len(confs) == 1 else None
+    search_dirs = [WORKSPACE / "config", WORKSPACE]
+    for directory in search_dirs:
+        candidate = directory / f"{venv_name}.conf"
+        if candidate.exists():
+            return candidate
+    for directory in search_dirs:
+        confs = sorted(directory.glob("*.conf"))
+        if len(confs) == 1:
+            return confs[0]
+    return None
 
 
 CONF = _find_conf()
@@ -77,9 +85,9 @@ def require_conf() -> Path:
     """The odoo config, failing loudly at the point one is actually needed."""
     if CONF is None:
         where = (
-            f"under {WORKSPACE / 'config'}"
+            f"under {WORKSPACE} or {WORKSPACE / 'config'}"
             if WORKSPACE
-            else "(repo-alone checkout: no workspace config directory)"
+            else "(repo-alone checkout: no workspace supplying a config)"
         )
         raise SystemExit(f"hoot: no odoo config found {where}; set $ODOO_CONF")
     return CONF

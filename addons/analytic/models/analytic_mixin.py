@@ -2,11 +2,11 @@
 from collections import defaultdict
 
 from odoo import _, api, fields, models
+from odoo.db.schema import table_exists
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.numbers.float_utils import float_compare, float_round
+from odoo.libs.numbers import float_compare, float_round
 from odoo.tools import SQL, Query
-from odoo.tools.sql import table_exists
 
 
 class AnalyticMixin(models.AbstractModel):

@@ -1,38 +1,48 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 
 class HrLeaveReport(models.Model):
-    _name = 'hr.leave.report'
-    _description = 'Time Off Summary / Report'
+    _name = "hr.leave.report"
+    _description = "Time Off Summary / Report"
     _inherit = ["hr.manager.department.report"]
     _auto = False
     _order = "date_from DESC, employee_id"
 
-    leave_id = fields.Many2one('hr.leave', string="Time Off Request", readonly=True)
-    allocation_id = fields.Many2one('hr.leave.allocation', string="Allocation Request", readonly=True)
-    name = fields.Char('Description', readonly=True)
-    number_of_days = fields.Float('Number of Days', readonly=True)
-    number_of_hours = fields.Float('Number of Hours', readonly=True)
-    leave_type = fields.Selection([
-        ('allocation', 'Allocation'),
-        ('request', 'Time Off')
-        ], string='Request Type', readonly=True)
-    department_id = fields.Many2one('hr.department', string='Department', readonly=True)
-    holiday_status_id = fields.Many2one("hr.leave.type", string="Time Off Type", readonly=True)
-    state = fields.Selection([
-        ('cancel', 'Cancelled'),
-        ('confirm', 'To Approve'),
-        ('refuse', 'Refused'),
-        ('validate1', 'Second Approval'),
-        ('validate', 'Approved')
-        ], string='Status', readonly=True)
-    date_from = fields.Datetime('Start Date', readonly=True)
-    date_to = fields.Datetime('End Date', readonly=True)
-    company_id = fields.Many2one('res.company', string="Company", readonly=True)
+    leave_id = fields.Many2one("hr.leave", string="Time Off Request", readonly=True)
+    allocation_id = fields.Many2one(
+        "hr.leave.allocation", string="Allocation Request", readonly=True
+    )
+    name = fields.Char("Description", readonly=True)
+    number_of_days = fields.Float("Number of Days", readonly=True)
+    number_of_hours = fields.Float("Number of Hours", readonly=True)
+    leave_type = fields.Selection(
+        [("allocation", "Allocation"), ("request", "Time Off")],
+        string="Request Type",
+        readonly=True,
+    )
+    department_id = fields.Many2one("hr.department", string="Department", readonly=True)
+    holiday_status_id = fields.Many2one(
+        "hr.leave.type", string="Time Off Type", readonly=True
+    )
+    state = fields.Selection(
+        [
+            ("cancel", "Cancelled"),
+            ("confirm", "To Approve"),
+            ("refuse", "Refused"),
+            ("validate1", "Second Approval"),
+            ("validate", "Approved"),
+        ],
+        string="Status",
+        readonly=True,
+    )
+    date_from = fields.Datetime("Start Date", readonly=True)
+    date_to = fields.Datetime("End Date", readonly=True)
+    company_id = fields.Many2one("res.company", string="Company", readonly=True)
 
     def init(self):
-        tools.drop_view_if_exists(self.env.cr, 'hr_leave_report')
+        drop_view_if_exists(self.env.cr, "hr_leave_report")
 
         self.env.cr.execute("""
             CREATE or REPLACE view hr_leave_report as (
@@ -90,8 +100,8 @@ class HrLeaveReport(models.Model):
         self.ensure_one()
 
         return {
-            'type': 'ir.actions.act_window',
-            'view_mode': 'form',
-            'res_id': self.leave_id.id if self.leave_id else self.allocation_id.id,
-            'res_model': 'hr.leave' if self.leave_id else 'hr.leave.allocation',
+            "type": "ir.actions.act_window",
+            "view_mode": "form",
+            "res_id": self.leave_id.id if self.leave_id else self.allocation_id.id,
+            "res_model": "hr.leave" if self.leave_id else "hr.leave.allocation",
         }

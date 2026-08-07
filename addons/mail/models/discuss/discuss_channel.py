@@ -10,9 +10,9 @@ from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.colors import hsl_from_seed
+from odoo.libs.sql import SQL
 from odoo.tools import email_normalize, format_list, html_escape
 from odoo.tools.misc import OrderedSet, hash_sign
-from odoo.tools.sql import SQL
 
 from odoo.addons.base.models.ir_mail_server import MailDeliveryException
 from odoo.addons.mail.tools.discuss import Store

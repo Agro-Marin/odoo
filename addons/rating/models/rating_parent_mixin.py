@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from odoo import api, fields, models
 from odoo.fields import Domain
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.libs.numbers import float_compare
 
 from odoo.addons.rating.models import rating_data
 

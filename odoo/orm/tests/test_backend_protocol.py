@@ -18,6 +18,8 @@ import pathlib
 import re
 import typing
 
+import pytest
+
 from odoo.orm.runtime.backend import InMemoryBackend, StorageBackend
 
 _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -64,6 +66,14 @@ def test_supports_parent_store_is_consulted():
         for path in _MIXINS_DIR.rglob("*.py")
     )
     assert consulted, "supports_parent_store attribute is no longer consulted"
+
+
+def test_supports_record_rules_is_consulted():
+    consulted = any(
+        "backend.supports_record_rules" in path.read_text()
+        for path in _MIXINS_DIR.rglob("*.py")
+    )
+    assert consulted, "supports_record_rules attribute is never consulted"
 
 
 if __name__ == "__main__":

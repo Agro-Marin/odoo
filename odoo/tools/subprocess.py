@@ -14,7 +14,7 @@ import sys
 import threading
 import traceback
 
-from odoo.libs.filesystem.which import which
+from odoo.libs.filesystem import which
 
 from .config import config
 

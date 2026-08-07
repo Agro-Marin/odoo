@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers import float_round
 
 from odoo.addons.resource.models.utils import HOURS_PER_DAY
 

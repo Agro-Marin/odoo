@@ -1,4 +1,4 @@
 {
-  "count": 539,
-  "note": "541 -> 539 (-2). NOT drift from any later change: the count measures 539 at EVERY commit from ac0ff8af450 (the commit that recorded 541) through HEAD, verified by re-measuring each one from a clean 'git archive' of odoo/ + ruff.toml. So the floor was simply recorded 2 too high at the moment it was written -- the same dirty-working-tree mis-measurement this file's previous note records for the 546 -> 541 correction, repeated. Exact-mode therefore failed every build since, on an improvement that never happened. Re-measured on the pinned ruff 0.16.0 with the documented command against a tree whose only odoo/ modification is committed. Command: ruff check odoo/ --no-cache --statistics | awk '{s+=$1} END {print s+0}'"
+  "count": 529,
+  "note": "libs/tools relocation (ADR-0004): moved hashing->libs/, orm_profiler+nplusone->libs/profiling/; libs/'s stricter docstring rules required documenting the moved code, net -3."
 }

@@ -4,7 +4,7 @@ from itertools import groupby
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Command, Domain
-from odoo.libs.numbers.float_utils import float_compare, float_is_zero
+from odoo.libs.numbers import float_compare, float_is_zero
 from odoo.tools import SQL
 
 INVOICE_STATE = [

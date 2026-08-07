@@ -8,11 +8,8 @@ from datetime import date, datetime
 
 from psycopg.types.json import Json as PsycopgJson
 
-from odoo.tools import (
-    DEFAULT_SERVER_DATE_FORMAT,
-    DEFAULT_SERVER_DATETIME_FORMAT,
-    sql,
-)
+from odoo.db import schema as sql
+from odoo.tools import DEFAULT_SERVER_DATE_FORMAT, DEFAULT_SERVER_DATETIME_FORMAT
 from odoo.tools.misc import PENDING, SENTINEL
 
 if typing.TYPE_CHECKING:

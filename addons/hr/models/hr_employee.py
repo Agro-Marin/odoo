@@ -14,7 +14,7 @@ from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.intervals import Intervals
-from odoo.libs.numbers.float_utils import float_is_zero
+from odoo.libs.numbers import float_is_zero
 from odoo.tools import SQL, Query, convert, email_normalize, format_time
 
 from odoo.addons.hr.models.hr_version import format_date_abbr

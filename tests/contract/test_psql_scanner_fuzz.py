@@ -27,9 +27,16 @@ that loop for inputs nobody thought of.
 
 Seeds are fixed and the case count is bounded, so a failure names a seed that
 reproduces it exactly and the suite stays inside its time budget.  Run the same
-generator over a wider range while investigating::
+generator over a wider range while investigating, **from the repo root**::
 
-    python tests/contract/test_psql_scanner_fuzz.py <scratch-db> 3000
+    python -m tests.contract.test_psql_scanner_fuzz <scratch-db> 3000
+
+It must be ``-m``: this module imports ``odoo.service._dump_scanner`` (so the
+repo root has to be on ``sys.path``) and ``.conftest`` (a relative import, so
+the module has to be loaded as part of a package). Running the file as a path —
+``python tests/contract/test_psql_scanner_fuzz.py`` — satisfies neither and dies
+before ``__main__``, which is why the entry point below had never actually been
+run as it was previously documented.
 """
 
 import random

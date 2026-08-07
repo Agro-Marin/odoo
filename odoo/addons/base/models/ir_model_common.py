@@ -15,6 +15,12 @@ from typing import TYPE_CHECKING, Any
 from psycopg.types.json import Jsonb
 
 from odoo import api, models
+
+# Re-exported, not defined here: the flag gates ``@api.ondelete`` inside
+# ``UnlinkMixin.unlink``, so the ORM owns it (``odoo.orm.primitives``, reached
+# through the ``odoo.api`` facade). It stays importable from this module because
+# the ir_model* / ir_module code that *sets* it already imports it from here.
+from odoo.api import MODULE_UNINSTALL_FLAG  # noqa: F401
 from odoo.tools import SQL
 from odoo.tools.safe_eval import datetime, dateutil, safe_eval, time
 from odoo.tools.translate import LazyTranslate
@@ -67,8 +73,6 @@ ACCESS_ERROR_NOGROUP = _lt("No group currently allows this operation.")
 ACCESS_ERROR_RESOLUTION = _lt(
     "Contact your administrator to request access if necessary."
 )
-
-MODULE_UNINSTALL_FLAG = "_force_unlink"
 
 SAFE_EVAL_BASE = {
     "datetime": datetime,

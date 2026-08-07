@@ -21,7 +21,7 @@ from PIL import Image
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
-from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import (
     DEFAULT_SERVER_DATE_FORMAT,
     DEFAULT_SERVER_DATETIME_FORMAT,

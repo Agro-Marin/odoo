@@ -7,7 +7,7 @@ from werkzeug.test import EnvironBuilder
 
 import odoo.http
 from odoo.fields import Command
-from odoo.libs.web.urls import urljoin as url_join
+from odoo.libs.web import urljoin as url_join
 from odoo.tests import HOST, HttpCase
 from odoo.tools import DotDict, config, frozendict
 

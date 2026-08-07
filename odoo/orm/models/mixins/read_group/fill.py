@@ -12,10 +12,10 @@ from ...._typing import (
 )
 from ....constants import READ_GROUP_TIME_GRANULARITY
 from ....fields.temporal import Date, Datetime
-from .._model_stubs import _ModelStubs
+from ._empty import _ReadGroupEmptyMixin
 
 
-class _ReadGroupFillMixin(_ModelStubs):
+class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
     """Fill empty groups, expand groups, and fill temporal gaps."""
 
     __slots__ = ()

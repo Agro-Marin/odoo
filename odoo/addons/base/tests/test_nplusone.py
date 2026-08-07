@@ -1,10 +1,10 @@
-"""Tests for the N+1 CRUD detection system (odoo.tools.nplusone)."""
+"""Tests for the N+1 CRUD detection system (odoo.libs.profiling.nplusone)."""
 
+from odoo.libs.profiling import nplusone
 from odoo.orm.models.mixins import create as _create_mod
 from odoo.orm.models.mixins import unlink as _unlink_mod
 from odoo.orm.models.mixins import write as _write_mod
 from odoo.tests.common import TransactionCase, tagged
-from odoo.tools import nplusone
 
 _CRUD_MODS = (_create_mod, _write_mod, _unlink_mod)
 

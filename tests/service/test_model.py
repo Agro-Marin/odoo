@@ -92,6 +92,9 @@ def mock_env():
     e.cr.flush = MagicMock()
     e.cr.rollback = MagicMock()
     e.cr.commit = MagicMock()
+    # Real cursors carry this from BaseCursor.__init__; retrying() reads it to
+    # tell a failed COMMIT from a committed one whose post-commit hook raised.
+    e.cr.commit_count = 0
     e.transaction.reset = MagicMock()
     e.registry.reset_changes = MagicMock()
     e.registry.signal_changes = MagicMock()

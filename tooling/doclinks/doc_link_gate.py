@@ -126,6 +126,44 @@ REF_PATTERNS = [
     re.compile(r"`([^`\s]+\.md)`"),
 ]
 
+# --- ADR citations -----------------------------------------------------------
+#
+# The patterns above only understand a `.md` PATH, which is not how this repo
+# cites its architecture decisions. ``ARCHITECTURE.md`` names the *directory*
+# ``doc/adr/`` (no `.md` suffix) and everything else writes the bare
+# ``ADR-NNNN`` form — a citation, not a path. (Spelled with letters here on
+# purpose: a real number in this file would be a live citation by this gate's
+# own grammar, so illustrating the rule would create work for it.)
+#
+# So the most-cited doc artifact in the tree sat entirely outside this gate's
+# grammar, and when ``doc/adr/`` was deleted it reported clean while 39
+# citations dangled. (One test,
+# ``test_architecture_doc.py::test_adrs_exist``, did catch it — but only for
+# ``odoo/ARCHITECTURE.md``; the other 25 citations, including the 12 in
+# ``layer_check.py`` that justify each enforced contract, were checked by
+# nothing.)
+#
+# Scanned SEPARATELY from the `.md` refs, with a wider file set, and
+# deliberately so: broadening DEFAULT_SCAN_GLOBS to `.py`/`.rst` would also
+# subject those files to the `.md` patterns above, which surfaces 28 unrelated
+# broken references — real rot worth fixing, but a different job, and one that
+# would either turn this gate red or need a 28-entry baseline it has never had.
+RE_ADR = re.compile(r"\bADR[-‑](\d{4})\b")
+
+#: Where ADR citations actually live: the docs, the gates that cite them as
+#: rationale, and the coding guidelines.
+ADR_SCAN_GLOBS = [
+    "doc/**/*.md",
+    "doc/*.rst",
+    "odoo/*.md",
+    "odoo/**/*.py",
+    "tooling/**/*.py",
+    "tooling/**/*.md",
+    ".github/workflows/*.yml",
+]
+
+ADR_DIR = REPO_ROOT / "doc" / "adr"
+
 
 PLACEHOLDER_MARKERS = (
     "~",
@@ -149,7 +187,9 @@ def _repo_top_level_dirs() -> frozenset[str]:
     """
     try:
         return frozenset(
-            p.name for p in REPO_ROOT.iterdir() if p.is_dir() and not p.name.startswith(".")
+            p.name
+            for p in REPO_ROOT.iterdir()
+            if p.is_dir() and not p.name.startswith(".")
         )
     except OSError:  # pragma: no cover
         return frozenset()
@@ -301,6 +341,49 @@ def _glob_match(path: str, pattern: str) -> bool:
     return fnmatch.fnmatch(path, pattern)
 
 
+def adr_exists(number: str) -> bool:
+    """Whether ``doc/adr/`` holds an accepted ADR with this number.
+
+    Globbed rather than joined: the filename carries a slug
+    (``0001-layered-orm.md``) that no citation repeats, and requiring citations
+    to spell it would make every ADR rename a tree-wide edit.
+    """
+    return bool(list(ADR_DIR.glob(f"{number}-*.md")))
+
+
+def scan_adr_citations(
+    globs: list[str] | None = None,
+    excludes: list[str] | None = None,
+) -> list[Violation]:
+    """Every ``ADR-NNNN`` citation that resolves to no ADR."""
+    files = _glob_files(globs or ADR_SCAN_GLOBS, excludes or DEFAULT_EXCLUDES)
+    violations: list[Violation] = []
+    for source_file in files:
+        try:
+            content = source_file.read_text(encoding="utf-8")
+        except OSError, UnicodeDecodeError:
+            continue
+        if "ADR" not in content:  # cheap reject; most files never cite one
+            continue
+        line_starts = [0]
+        for i, ch in enumerate(content):
+            if ch == "\n":
+                line_starts.append(i + 1)
+        for match in RE_ADR.finditer(content):
+            number = match.group(1)
+            if adr_exists(number):
+                continue
+            violations.append(
+                Violation(
+                    source_file=str(source_file.relative_to(REPO_ROOT)),
+                    line=bisect_right(line_starts, match.start()),
+                    raw_path=f"ADR-{number}",
+                    resolved_path=str(ADR_DIR / f"{number}-*.md"),
+                )
+            )
+    return violations
+
+
 def scan(
     globs: list[str] | None = None,
     excludes: list[str] | None = None,
@@ -336,8 +419,6 @@ def scan(
                     )
                 )
     return violations
-
-
 
 
 def load_baseline(path: Path) -> set[tuple[str, str]]:
@@ -416,7 +497,10 @@ def _main() -> int:
     )
     args = parser.parse_args()
 
-    violations = scan()
+    # Both classes of dangling reference, in one baseline: a citation that
+    # resolves to nothing is the same defect whether it was spelled as a path
+    # or as an ADR number.
+    violations = scan() + scan_adr_citations()
 
     if args.update_baseline:
         data = write_baseline(args.baseline, violations)

@@ -24,6 +24,7 @@ enforces is therefore on *apply* lag, which is the part a standby can know.
 
 from __future__ import annotations
 
+import threading
 from time import monotonic
 
 LAG_SQL = """
@@ -56,7 +57,14 @@ class ReplicaLagGate:
     sample, so the query is never issued at all.
     """
 
-    __slots__ = ("_lagging", "_last_sample", "last_lag", "max_lag", "sample_interval")
+    __slots__ = (
+        "_lagging",
+        "_last_sample",
+        "_lock",
+        "last_lag",
+        "max_lag",
+        "sample_interval",
+    )
 
     def __init__(self, max_lag: float, sample_interval: float | None = None):
         if max_lag < 0:
@@ -65,6 +73,7 @@ class ReplicaLagGate:
         self.sample_interval = (
             sample_interval if sample_interval is not None else max(1.0, max_lag / 4)
         )
+        self._lock = threading.Lock()
         self._last_sample = 0.0
         self._lagging = False
         self.last_lag = 0.0
@@ -84,14 +93,50 @@ class ReplicaLagGate:
         measurement between them, not one each.  While demoted this is also the
         only thing that reopens a replica cursor, so it is what lets the gate
         notice recovery.
+
+        Nothing above this serialises: the gate hangs off the per-database
+        :class:`~odoo.orm.runtime.Registry` singleton and
+        ``Registry.cursor(readonly=True)`` calls it from every worker thread
+        holding no lock.  So the read-and-stamp here is the only thing that can
+        keep the claim, and it takes a lock -- as
+        :meth:`~odoo.db.breaker.CircuitBreaker.allow` does for the same
+        claim-the-probe pattern, and as :mod:`odoo.db.reaper` requires of its
+        caller ("the read-and-stamp has to be atomic or two returning threads
+        both sweep").
+
+        **On a GIL build the lock is not what makes this correct today**, and
+        that was measured rather than assumed: between the ``monotonic()`` call
+        and the ``STORE_ATTR`` the compiled body contains no call and no
+        backward jump, which are the only points CPython honours a GIL drop
+        request, so the sequence cannot be preempted.  Racing the unlocked
+        version -- 16 threads, 400 rounds, at switch intervals from 5 ms down to
+        1 ns -- produced a duplicate claim exactly zero times, and against a real
+        PostgreSQL 18 primary 16 concurrent readers issued one ``LAG_SQL``
+        round-trip with or without it.
+
+        It is here for the free-threaded build, where that bytecode-atomicity
+        argument evaporates and the duplicate claim becomes a real data race
+        costing one ``LAG_SQL`` round-trip per concurrent reader -- and, on the
+        recovery path where a demoted gate lets a sampler through precisely
+        because it claimed the slot, one replica cursor each.  Compare
+        :mod:`odoo.db.stats`, which makes the opposite call for the same reason
+        stated explicitly: its counters are only metrics, so it documents them as
+        approximate under free-threading instead of paying for a lock.  The cost
+        here is ~57 ns on an enabled gate and *nothing* on a disabled one
+        (``db_replica_max_lag`` defaults to 0, so the early return above runs
+        first and the lock is never reached).
+
+        Single-sampling is also what lets :meth:`record` stay unlocked: with one
+        claimant there is only ever one writer of ``last_lag``/``_lagging``.
         """
         if not self.enabled:
             return False
-        now = monotonic()
-        if self._last_sample and now - self._last_sample < self.sample_interval:
-            return False
-        self._last_sample = now
-        return True
+        with self._lock:
+            now = monotonic()
+            if self._last_sample and now - self._last_sample < self.sample_interval:
+                return False
+            self._last_sample = now
+            return True
 
     def record(self, lag_seconds: float | None) -> None:
         """Store a measurement.  ``None`` (unmeasurable) is treated as healthy.

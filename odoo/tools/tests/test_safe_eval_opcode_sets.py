@@ -59,6 +59,59 @@ class TestOpcodeSetsAreFrozen(unittest.TestCase):
             self.assertFalse(opcodes & _BLACKLIST)
 
 
+class TestBlacklistCannotSilentlyShrink(unittest.TestCase):
+    """A forbidden opcode that stops existing must fail loudly, not vanish.
+
+    ``to_opcodes`` skips names absent from this interpreter's ``opmap``, which is
+    right for the *allow* lists (a stale entry allows nothing) and wrong for the
+    blacklist, where a dropped entry silently removes a prohibition. It had
+    already happened: ``IMPORT_STAR`` was listed for years after CPython 3.12
+    replaced it with ``CALL_INTRINSIC_1``, so the list read as seven entries and
+    was six. Nothing became permitted -- ``from x import *`` still emits the
+    blacklisted ``IMPORT_NAME`` -- but nothing said so either.
+    """
+
+    def test_every_blacklisted_name_exists_on_this_interpreter(self):
+        from odoo.tools.safe_eval import to_required_opcodes
+
+        # It resolved at import; assert it stays resolvable rather than trusting
+        # that the module imported.
+        self.assertEqual(len(_BLACKLIST), len(list(to_required_opcodes(_NAMES))))
+
+    def test_a_missing_blacklist_name_raises_instead_of_being_dropped(self):
+        from odoo.tools.safe_eval import to_opcodes, to_required_opcodes
+
+        bogus = ["IMPORT_NAME", "OPCODE_THAT_DOES_NOT_EXIST"]
+        # The permissive helper drops it, which is why the blacklist stopped
+        # using it...
+        self.assertEqual(len(list(to_opcodes(bogus))), 1)
+        # ... and the strict one refuses.
+        with self.assertRaises(RuntimeError) as caught:
+            list(to_required_opcodes(bogus))
+        self.assertIn("OPCODE_THAT_DOES_NOT_EXIST", str(caught.exception))
+
+    def test_import_star_is_still_blocked_by_import_name(self):
+        """The prohibition survives the opcode's removal, by another route."""
+        import dis
+        from opcode import opmap
+
+        code = compile("from os import *", "<t>", "exec")
+        emitted = {i.opname for i in dis.get_instructions(code)}
+        self.assertIn("IMPORT_NAME", emitted)
+        self.assertIn(opmap["IMPORT_NAME"], _BLACKLIST)
+
+
+#: The blacklist as source-level names, kept beside the module's own list.
+_NAMES = [
+    "IMPORT_NAME",
+    "IMPORT_FROM",
+    "STORE_ATTR",
+    "DELETE_ATTR",
+    "STORE_GLOBAL",
+    "DELETE_GLOBAL",
+]
+
+
 class TestNestedCodeIsNeverCached(unittest.TestCase):
     def test_the_parent_of_a_lambda_is_never_cached(self):
         """Only the *parent* is uncacheable.

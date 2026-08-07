@@ -20,6 +20,7 @@ from odoo.tools import (
     unique,
 )
 
+from ...._recordset import is_recordset
 from ....constants import (
     READ_GROUP_DISPLAY_FORMAT,
     READ_GROUP_NUMBER_GRANULARITY,
@@ -27,13 +28,13 @@ from ....constants import (
 )
 from ....domain import Domain
 from ....parsing import parse_read_group_spec
-from .._model_stubs import _ModelStubs
+from ._empty import _ReadGroupEmptyMixin
 
 if typing.TYPE_CHECKING:
     from collections.abc import Generator
 
 
-class _ReadGroupFormatMixin(_ModelStubs):
+class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
     """Post-processing and formatting for read_group results."""
 
     __slots__ = ()
@@ -123,8 +124,6 @@ class _ReadGroupFormatMixin(_ModelStubs):
     ) -> None:
         """Refine each row's ``__domain`` and format date/datetime values
         (adding ``__range`` for date/datetime groups) in *rows_dict*."""
-        from .mixin import ReadGroupMixin
-
         for group in lazy_groupby:
             field_name = group.split(":")[0].split(".")[0]
             field = self._fields[field_name]
@@ -146,7 +145,7 @@ class _ReadGroupFormatMixin(_ModelStubs):
             for row in rows_dict:
                 value = row[group]
 
-                if isinstance(value, ReadGroupMixin):
+                if is_recordset(value):
                     row[group] = (
                         (value.id, value.sudo().display_name) if value else False
                     )

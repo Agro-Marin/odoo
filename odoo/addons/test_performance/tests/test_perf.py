@@ -1275,35 +1275,35 @@ class TestAccelClone(TransactionCase):
         self.results.append(stats)
 
     def test_01_clone_flat_small(self):
-        from odoo.libs.json.fast_clone import fast_clone
+        from odoo.libs.json import fast_clone
 
         data = self.flat_small
         timer = _bench(lambda: fast_clone(data))
         self._log(timer.stats("fast_clone(flat_4keys)", warmup=0))
 
     def test_02_clone_flat_large(self):
-        from odoo.libs.json.fast_clone import fast_clone
+        from odoo.libs.json import fast_clone
 
         data = self.flat_large
         timer = _bench(lambda: fast_clone(data))
         self._log(timer.stats("fast_clone(flat_50keys)", warmup=0))
 
     def test_03_clone_nested(self):
-        from odoo.libs.json.fast_clone import fast_clone
+        from odoo.libs.json import fast_clone
 
         data = self.nested
         timer = _bench(lambda: fast_clone(data))
         self._log(timer.stats("fast_clone(nested_3lvl)", warmup=0))
 
     def test_04_clone_list_of_dicts(self):
-        from odoo.libs.json.fast_clone import fast_clone
+        from odoo.libs.json import fast_clone
 
         data = self.list_of_dicts
         timer = _bench(lambda: fast_clone(data))
         self._log(timer.stats("fast_clone(100_dicts)", warmup=0))
 
     def test_05_clone_properties(self):
-        from odoo.libs.json.fast_clone import fast_clone
+        from odoo.libs.json import fast_clone
 
         data = self.properties_blob
         timer = _bench(lambda: fast_clone(data))

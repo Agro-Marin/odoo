@@ -2,14 +2,15 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 
 class HrTimesheetAttendanceReport(models.Model):
-    _name = 'hr.timesheet.attendance.report'
+    _name = "hr.timesheet.attendance.report"
     _auto = False
-    _description = 'Timesheet Attendance Report'
+    _description = "Timesheet Attendance Report"
 
-    employee_id = fields.Many2one('hr.employee', readonly=True)
+    employee_id = fields.Many2one("hr.employee", readonly=True)
     date = fields.Date(readonly=True)
     total_timesheet = fields.Float("Timesheets Time", readonly=True)
     total_attendance = fields.Float("Attendance Time", readonly=True)
@@ -17,11 +18,12 @@ class HrTimesheetAttendanceReport(models.Model):
     timesheets_cost = fields.Float("Timesheet Cost", readonly=True)
     attendance_cost = fields.Float("Attendance Cost", readonly=True)
     cost_difference = fields.Float("Cost Difference", readonly=True)
-    company_id = fields.Many2one('res.company', string='Company', readonly=True)
+    company_id = fields.Many2one("res.company", string="Company", readonly=True)
 
     def init(self):
-        tools.drop_view_if_exists(self.env.cr, self._table)
-        self.env.cr.execute("""CREATE OR REPLACE VIEW %s AS (
+        drop_view_if_exists(self.env.cr, self._table)
+        self.env.cr.execute(
+            """CREATE OR REPLACE VIEW %s AS (
             SELECT
                 max(id) AS id,
                 t.employee_id,
@@ -69,10 +71,31 @@ class HrTimesheetAttendanceReport(models.Model):
             GROUP BY t.employee_id, t.date, t.company_id, t.emp_cost
             ORDER BY t.date
         )
-        """ % self._table)
+        """
+            % self._table
+        )
 
     @api.model
-    def formatted_read_group(self, domain, groupby=(), aggregates=(), having=(), offset=0, limit=None, order=None) -> list[dict]:
+    def formatted_read_group(
+        self,
+        domain,
+        groupby=(),
+        aggregates=(),
+        having=(),
+        offset=0,
+        limit=None,
+        order=None,
+    ) -> list[dict]:
         if not order and groupby:
-            order = ', '.join(f"{spec} DESC" if spec.startswith('date:') else spec for spec in groupby)
-        return super().formatted_read_group(domain, groupby, aggregates, having=having, offset=offset, limit=limit, order=order)
+            order = ", ".join(
+                f"{spec} DESC" if spec.startswith("date:") else spec for spec in groupby
+            )
+        return super().formatted_read_group(
+            domain,
+            groupby,
+            aggregates,
+            having=having,
+            offset=offset,
+            limit=limit,
+            order=order,
+        )

@@ -9,7 +9,7 @@ import werkzeug.http
 from odoo import models
 from odoo.exceptions import MissingError, UserError
 from odoo.http import Stream, request
-from odoo.libs.filesystem.mimetypes import (
+from odoo.libs.filesystem import (
     MIMETYPE_HEAD_SIZE,
     get_extension,
     guess_mimetype,

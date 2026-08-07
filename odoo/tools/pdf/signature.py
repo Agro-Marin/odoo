@@ -50,6 +50,26 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
+#: Characters that terminate or nest a PDF literal string (PDF 32000-1 §7.3.4.2).
+_PDF_LITERAL_ESCAPES = str.maketrans({"\\": r"\\", "(": r"\(", ")": r"\)"})
+
+
+def _escape_pdf_literal(text: str) -> str:
+    r"""Escape *text* for inclusion in a PDF literal string ``(...)``.
+
+    ``(``, ``)`` and ``\`` are the delimiters of a literal string, so text
+    interpolated into one without escaping does not stay text: an unescaped
+    ``)`` ends the string and everything after it is parsed as content-stream
+    operators.  Since the only values interpolated here are a signer's name and
+    email — which end users control — that turns a display field into control
+    over what the visible signature draws.
+
+    Escaping is enough on its own; nothing else in the appearance stream comes
+    from user input.  Non-printables are left alone: a PDF literal may contain
+    arbitrary bytes, and mangling them would silently corrupt legitimate names.
+    """
+    return text.translate(_PDF_LITERAL_ESCAPES)
+
 
 class _SignatureAlgorithm(NamedTuple):
     """CMS algorithm identifiers (asn1crypto names) and signer for one key type."""
@@ -214,13 +234,16 @@ class PdfSigner:
             )
 
             content = "Digitally signed"
-            content = (
-                create_string_object(f"{content} by {signer.name} <{signer.email}>")
-                if signer is not None
-                else create_string_object(content)
-            )
+            if signer is not None:
+                content = f"{content} by {signer.name} <{signer.email}>"
 
-            stream._data = f"q 0.5 0 0 0.5 0 0 cm BT /F1 12 Tf 0 TL 0 10 Td ({content}) Tj ET Q".encode()
+            # The text goes into a PDF literal string, so it must be escaped
+            # here: create_string_object returns a str subclass and would
+            # interpolate the signer's name verbatim.  See _escape_pdf_literal.
+            stream._data = (
+                f"q 0.5 0 0 0.5 0 0 cm BT /F1 12 Tf 0 TL 0 10 Td "
+                f"({_escape_pdf_literal(content)}) Tj ET Q"
+            ).encode()
             signature_appearence = DictionaryObject()
             signature_appearence.update({NameObject("/N"): stream})
             signature_field.update(

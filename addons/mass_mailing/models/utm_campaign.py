@@ -5,7 +5,7 @@ from collections import defaultdict
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers import float_round
 
 
 class UtmCampaign(models.Model):

@@ -835,15 +835,21 @@ def convert_xml_import(
 ) -> None:
     doc = etree.parse(xmlfile)
     schema, relaxng = _get_import_relaxng()
+    # Resolved before the try, not after it: the success path below already
+    # accepted a plain path (the signature admits ``str``), while this handler
+    # reached for ``xmlfile.name`` unconditionally — so a schema-invalid file
+    # passed by name would raise AttributeError from inside the error handler
+    # and destroy the RelaxNG diagnostic it exists to print.
+    xml_filename = xmlfile if isinstance(xmlfile, str) else xmlfile.name
     try:
         relaxng.assert_(doc)
     except Exception:
         _logger.exception(
-            "The XML file '%s' does not fit the required schema!", xmlfile.name
+            "The XML file '%s' does not fit the required schema!", xml_filename
         )
         if jingtrang:
             p = subprocess.run(
-                ["pyjing", schema, xmlfile.name], stdout=subprocess.PIPE, check=False
+                ["pyjing", schema, xml_filename], stdout=subprocess.PIPE, check=False
             )
             _logger.warning(p.stdout.decode())
         else:
@@ -854,10 +860,6 @@ def convert_xml_import(
             )
         raise
 
-    if isinstance(xmlfile, str):
-        xml_filename = xmlfile
-    else:
-        xml_filename = xmlfile.name
     obj = xml_import(
         env, module, idref, mode, noupdate=noupdate, xml_filename=xml_filename
     )

@@ -1,7 +1,7 @@
 import itertools
 from typing import TYPE_CHECKING
 
-from .sql import SQL, make_identifier
+from odoo.libs.sql import SQL, make_identifier
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator

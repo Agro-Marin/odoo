@@ -1,4 +1,5 @@
 from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 from odoo.fields import Domain
 from odoo.tools import SQL
 
@@ -29,7 +30,7 @@ class VendorDelayReport(models.Model):
     on_time_rate = fields.Float(string="On-Time Delivery Rate", readonly=True)
 
     def init(self):
-        tools.drop_view_if_exists(self.env.cr, "vendor_delay_report")
+        drop_view_if_exists(self.env.cr, "vendor_delay_report")
         self.env.cr.execute(
             """
             CREATE OR replace VIEW vendor_delay_report AS(

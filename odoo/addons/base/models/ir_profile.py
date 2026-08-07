@@ -10,7 +10,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.libs.constants import GC_UNLINK_LIMIT
-from odoo.libs.profiling.speedscope import Speedscope
+from odoo.libs.profiling import Speedscope
 from odoo.tools.misc import str2bool
 from odoo.tools.profiler import make_session
 

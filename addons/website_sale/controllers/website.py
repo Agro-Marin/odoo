@@ -4,7 +4,7 @@ import json
 
 from odoo.exceptions import ValidationError
 from odoo.http import request, route
-from odoo.libs.text.html import nl2br_enclose
+from odoo.libs.text import nl2br_enclose
 
 from odoo.addons.website.controllers import main
 from odoo.addons.website.controllers.form import WebsiteForm

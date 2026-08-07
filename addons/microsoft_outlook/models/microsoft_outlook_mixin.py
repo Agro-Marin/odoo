@@ -9,7 +9,7 @@ import requests
 
 from odoo import _, api, fields, models, release
 from odoo.exceptions import AccessError, UserError
-from odoo.libs.web.urls import urljoin as url_join
+from odoo.libs.web import urljoin as url_join
 from odoo.tools import email_normalize, hmac
 
 from odoo.addons.google_gmail.tools import get_iap_error_message

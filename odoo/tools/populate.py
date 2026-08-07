@@ -22,7 +22,7 @@ from dateutil.relativedelta import relativedelta
 from psycopg.errors import InsufficientPrivilege
 
 from odoo.fields import Field, Many2one
-from odoo.tools.sql import SQL
+from odoo.libs.sql import SQL
 
 if TYPE_CHECKING:
     from collections.abc import Generator

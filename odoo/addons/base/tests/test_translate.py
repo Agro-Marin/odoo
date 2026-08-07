@@ -8,8 +8,8 @@ from unittest.mock import patch
 from psycopg.types.json import Json
 
 from odoo.exceptions import UserError
+from odoo.libs import sql
 from odoo.tests.common import BaseCase, TransactionCase, tagged
-from odoo.tools import sql
 from odoo.tools.translate import (
     PoFileReader,
     TranslationImporter,

@@ -5259,3 +5259,59 @@ class TestInsertOrExisting(BaseCase):
             cr_b.rollback()
             _row, created = self._insert(cr_b, "raced", "loser")
             self.assertFalse(created)
+
+
+class TestCloseRunsHooksOnALiveCursor(BaseCase):
+    """``close()`` must run ``prerollback`` hooks before the cursor is gone.
+
+    ``Cursor.rollback`` documents the invariant — *"prerollback runs BEFORE the
+    SQL ROLLBACK so hooks can still read uncommitted transaction state"* — and
+    ``_close`` used to invert it: the rollback sat in a ``finally`` that ran
+    after ``self._obj.close()`` and ``del self._obj``, so a hook touching the
+    cursor got ``InterfaceError: Cursor already closed``, swallowed at DEBUG.
+
+    Measured before the fix, with one hook doing ``cr.execute("SELECT 1")``::
+
+        via rollback() -> ('read ok', (1,))
+        via close()    -> ('FAILED', 'InterfaceError')
+
+    ``close()`` is how a request-scoped cursor normally ends, so that was the
+    path most hooks actually took.
+    """
+
+    def test_prerollback_hook_can_still_read_on_close(self):
+        cr = registry().cursor()
+        seen = []
+
+        def hook():
+            cr.execute("SELECT 1")
+            seen.append(cr.fetchone())
+
+        cr.prerollback.add(hook)
+        cr.close()
+        self.assertEqual(seen, [(1,)], "the hook ran against a dead cursor")
+
+    def test_postrollback_hook_still_runs_on_close(self):
+        cr = registry().cursor()
+        seen = []
+        cr.postrollback.add(partial(seen.append, "postR"))
+        cr.execute("SELECT 1")
+        cr.close()
+        self.assertEqual(seen, ["postR"])
+
+    def test_rollback_runs_even_if_logging_raises(self):
+        """The old placement guaranteed this; the reorder must keep it."""
+        cr = registry().cursor()
+        seen = []
+        cr.prerollback.add(partial(seen.append, "preR"))
+        cr.print_log = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+        with self.assertRaises(RuntimeError):
+            cr.close()
+        self.assertEqual(seen, ["preR"], "a logging failure skipped the rollback")
+        self.assertTrue(cr._closed)
+
+    def test_a_failing_hook_does_not_escape_close(self):
+        cr = registry().cursor()
+        cr.prerollback.add(lambda: (_ for _ in ()).throw(RuntimeError("hook boom")))
+        cr.close()  # must not raise
+        self.assertTrue(cr._closed)

@@ -30,6 +30,29 @@ on:
       - 'odoo/libs/**/*.py'
       - 'odoo/addons/**/*.py'
       - 'addons/**/*.py'
+      # The subsystem-map gate compares odoo/ARCHITECTURE.md against the tree,
+      # so BOTH sides must retrigger it. Adding a module to odoo/tools/ or
+      # odoo/http/ is exactly the drift it catches, and those packages were not
+      # otherwise in this filter; a map-only edit matched no path at all.
+      - 'odoo/ARCHITECTURE.md'
+      # package_index_check compares odoo/db/README.md and
+      # odoo/_monkeypatches/README.md against their packages; an edit to either
+      # side must retrigger it.
+      - 'odoo/**/README.md'
+      # test_adr_coherence.py fact-checks doc/adr/ (index ↔ files, cross-refs,
+      # referenced repo paths) — an ADR edit must retrigger it.
+      - 'doc/adr/**'
+      - 'odoo/http/**/*.py'
+      - 'odoo/tools/**/*.py'
+      - 'odoo/service/**/*.py'
+      - 'odoo/modules/**/*.py'
+      - 'odoo/cli/**/*.py'
+      # Top-level framework modules (e.g. odoo/logutils.py, a WorkerThread
+      # reader): worker_thread_surface_check scans all of core, including these,
+      # and they sit under no package filter above.
+      - 'odoo/*.py'
+      - 'odoo/_monkeypatches/**/*.py'
+      - 'odoo/upgrade_code/**/*.py'
       # The JS Feature-Sliced layering gate (js_layer_check.py) governs the
       # web addon's client source; re-run it when that source changes.
       - 'addons/web/static/src/**/*.js'
@@ -85,6 +108,191 @@ jobs:
         run: |
           set +e
           python tooling/architecture/layer_check.py --check | tee /tmp/layers.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
+      - name: Run mixin coupling check
+        id: mixin_coupling
+        # Complements layer_check, which reasons about IMPORT edges and is
+        # structurally blind here: BaseModel's 23 mixins are composed by
+        # multiple inheritance and collaborate through `self`, which produces no
+        # import at all. So the framework's most intricate coupling surface --
+        # the one place a decomposition can quietly rot back into a god object
+        # -- moved no gate. This ratchets the self-call graph: largest cycle,
+        # total inter-unit edges, and the largest cycle excluding base.py (which
+        # is 2, not 9 -- the mixins are nearly a DAG, and base.py is in the cycle
+        # only because it is both composition root and metadata holder).
+        #
+        # Exact-mode, like tooling/ratchet/: an improvement that does not lower
+        # BASELINE also fails, so a cleanup is locked in rather than re-spent.
+        run: |
+          set +e
+          python tooling/architecture/mixin_coupling_check.py --check \
+            | tee /tmp/mixin_coupling.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
+      - name: Run subsystem-map check
+        id: subsystem_map
+        # Gates the DESCRIPTIVE half of odoo/ARCHITECTURE.md, which every other
+        # gate here ignores: layer_check enforces who may import whom, and
+        # doc_link_gate proves a referenced .md exists, but nothing proved the
+        # subsystem map still matches the tree. It had drifted into depicting
+        # db/connectivity, db/resilience, http/serving and http/features as
+        # subdirectories -- none of which exist -- and the invented `core` node
+        # masked the real, undocumented http/core.py. A map that describes a
+        # layout the reader cannot find is worse than no map.
+        #
+        # Blocking, and at zero: the two rules are "no fictional paths" and "an
+        # enumeration that starts must finish", both mechanical.
+        run: |
+          set +e
+          python tooling/architecture/subsystem_map_check.py --check \
+            | tee /tmp/subsystem_map.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
+      - name: Run package-index check
+        id: package_index
+        # The per-package companion to subsystem_map_check: odoo/db/README.md
+        # ("Module map") and odoo/_monkeypatches/README.md ("Patch Index") are
+        # the best documentation in the tree and had the least protection. db's
+        # README even invites additions -- "Add the check here when you add an
+        # invariant above" -- with nothing enforcing it.
+        #
+        # Symmetric rule: every module in the package is in the index, and every
+        # module in the index exists. Scoped to the inventory SECTION, because
+        # both READMEs carry other tables naming .py files -- _monkeypatches'
+        # "Recently Removed" correctly names six modules that are gone, and an
+        # unscoped scan reports all six as failures against a correct document.
+        run: |
+          set +e
+          python tooling/architecture/package_index_check.py --check \
+            | tee /tmp/package_index.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
+      - name: Run env-surface check
+        id: env_surface
+        # The second gate aimed at coupling the IMPORT graph cannot see, and the
+        # same argument as mixin_coupling_check one level up. layer_check's
+        # orm-layer1-below-models-and-runtime and orm-models-below-runtime are
+        # clean and always will be -- because Layers 1 and 2 do not reach the
+        # runtime by importing it, they reach it through `self.env` on every
+        # call, which produces no import edge. Measured, Layer 1 (orm/fields) is
+        # the HEAVIEST consumer of Environment's private internals, wider than
+        # Layer 2: the layering story is true of the import graph and false of
+        # the runtime graph.
+        #
+        # It also validates that every reached member EXISTS on Environment,
+        # including the four `env.__dict__["_field_cache_memo"]` string-key hot
+        # paths. Renaming that member is caught by nothing else: ruff is blind,
+        # mypy sees only the 2 plain-attribute sites (and only as an anonymous
+        # +2 in a count-ratcheted pool), and the four __dict__ sites are
+        # try/except KeyError guarded -- so the fast path would silently degrade
+        # to a permanent slow path with no test failing.
+        run: |
+          set +e
+          python tooling/architecture/env_surface_check.py --check \
+            | tee /tmp/env_surface.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
+      - name: Run framework → addon-model surface check
+        id: env_model_surface
+        # The string-keyed sibling of core-does-not-depend-on-addons. That
+        # import-based contract is blind to the framework's largest real coupling
+        # to its own consumer: ~30 addon-owned models reached through
+        # env["res.users"] / self.env["ir.attachment"] subscripts, which compile
+        # to no import at all. This ratchets the SET of models exact-mode, so new
+        # coupling from core (and genuine decoupling) both surface instead of
+        # creeping. It does not forbid the coupling -- several of these models are
+        # framework-essential despite living in base -- it bounds and reveals it.
+        run: |
+          set +e
+          python tooling/architecture/env_model_surface_check.py --check \
+            | tee /tmp/env_model_surface.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
+      - name: Run worker-thread surface check
+        id: worker_thread_surface
+        # The third gate aimed at coupling the import graph cannot see (siblings:
+        # env_surface and env_model_surface). Odoo stashes per-request identity
+        # -- dbname, uid, the SQL counters, cursor_mode -- as attributes on the
+        # threading.Thread object; framework infrastructure reads them back. The
+        # WorkerThread Protocol (odoo/libs/worker_thread.py) types that contract,
+        # but the bare `threading.current_thread().dbname` idiom it replaces is
+        # invisible to mypy (undeclared on Thread) and to layer_check (no import,
+        # no env access). This ratchets the inline-access set exact-mode; core is
+        # fully converted, so the baseline is EMPTY and any new raw access fails.
+        run: |
+          set +e
+          python tooling/architecture/worker_thread_surface_check.py --check \
+            | tee /tmp/worker_thread_surface.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
+      - name: Run odoo.libs façade check
+        id: libs_facade
+        # The mirror of ADR-0008's facade-boundary, for the dependency-free
+        # utility layer. That contract stops addons importing odoo.orm.*;
+        # nothing stopped them importing odoo.libs internals, and 124 leaf-module
+        # paths had accumulated -- which made libs/'s FILE LAYOUT public API
+        # (renaming libs/web/urls.py broke 51 call sites).
+        #
+        # Not a layer_check contract, and the reason is structural: its
+        # _ImportCollector emits a synthetic <base>.<name> for every
+        # `from <base> import <name>`, so `from odoo.libs.numbers import
+        # float_round` yields odoo.libs.numbers.float_round -- indistinguishable
+        # BY NAME from the module odoo.libs.numbers.float_utils. Contract.allow
+        # is prefix-matched, so allowing the area would allow every leaf under
+        # it. The discriminator is on disk (does a module of that path exist?),
+        # which the Contract model cannot ask.
+        run: |
+          set +e
+          python tooling/architecture/libs_facade_check.py --check \
+            | tee /tmp/libs_facade.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
+      - name: Run Python import-cycle check
+        id: py_cycles
+        # The Python half of what js_cycle_check.py does for the client. Both
+        # layer gates lock import DIRECTION and are blind to cycles: every edge
+        # of a cycle can sit inside one layer and cross no boundary, so
+        # layer_check would report a tangle of mutually-importing modules as
+        # perfectly clean.
+        #
+        # Python hides this better than ESM, which is what makes it accumulate:
+        # a partially-initialised module is a live object, so a cycle usually
+        # *works* -- until someone imports the package by a different entry
+        # point, or moves a statement above the one that happened to break the
+        # knot, and it becomes an ImportError or an AttributeError on a
+        # half-built module, far from the change that caused it.
+        #
+        # Function-local imports are deliberately NOT edges: a deferred import
+        # is the sanctioned way to break a cycle, and counting it would flag
+        # every seam that already fixes the problem.
+        run: |
+          set +e
+          python tooling/architecture/py_cycle_check.py --check | tee /tmp/py_cycles.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
           echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
@@ -156,6 +364,41 @@ jobs:
             cat /tmp/layers.log 2>/dev/null || echo "(gate did not run)"
             echo '```'
             echo ""
+            echo "### Python (BaseModel mixin coupling)"
+            echo '```'
+            cat /tmp/mixin_coupling.log 2>/dev/null || echo "(gate did not run)"
+            echo '```'
+            echo ""
+            echo "### Documentation (subsystem map vs tree)"
+            echo '```'
+            cat /tmp/subsystem_map.log 2>/dev/null || echo "(gate did not run)"
+            echo '```'
+            echo ""
+            echo "### Documentation (package README indexes)"
+            echo '```'
+            cat /tmp/package_index.log 2>/dev/null || echo "(gate did not run)"
+            echo '```'
+            echo ""
+            echo "### Python (Layer -> runtime env seam)"
+            echo '```'
+            cat /tmp/env_surface.log 2>/dev/null || echo "(gate did not run)"
+            echo '```'
+            echo ""
+            echo "### Python (worker-thread bookkeeping surface)"
+            echo '```'
+            cat /tmp/worker_thread_surface.log 2>/dev/null || echo "(gate did not run)"
+            echo '```'
+            echo ""
+            echo "### Python (odoo.libs façade boundary)"
+            echo '```'
+            cat /tmp/libs_facade.log 2>/dev/null || echo "(gate did not run)"
+            echo '```'
+            echo ""
+            echo "### Python (import cycles)"
+            echo '```'
+            cat /tmp/py_cycles.log 2>/dev/null || echo "(gate did not run)"
+            echo '```'
+            echo ""
             echo "### JavaScript (web addon, Feature-Sliced Design)"
             echo '```'
             cat /tmp/js_layers.log 2>/dev/null || echo "(gate did not run)"
@@ -175,7 +418,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Annotate PR on failure
-        if: always() && (steps.layers.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0')
+        if: always() && (steps.layers.outputs.exit_code != '0' || steps.mixin_coupling.outputs.exit_code != '0' || steps.subsystem_map.outputs.exit_code != '0' || steps.package_index.outputs.exit_code != '0' || steps.env_surface.outputs.exit_code != '0' || steps.env_model_surface.outputs.exit_code != '0' || steps.worker_thread_surface.outputs.exit_code != '0' || steps.libs_facade.outputs.exit_code != '0' || steps.py_cycles.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0')
         uses: actions/github-script@v7
         with:
           script: |

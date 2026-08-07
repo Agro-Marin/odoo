@@ -1,29 +1,31 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 
 class HrEmployeeSkillReport(models.BaseModel):
-    _name = 'hr.employee.skill.report'
+    _name = "hr.employee.skill.report"
     _auto = False
     _inherit = ["hr.manager.department.report"]
-    _description = 'Employee Skills Report'
-    _order = 'employee_id, level_progress desc'
+    _description = "Employee Skills Report"
+    _order = "employee_id, level_progress desc"
 
-    company_id = fields.Many2one('res.company', readonly=True)
-    department_id = fields.Many2one('hr.department', readonly=True)
-    job_id = fields.Many2one('hr.job', readonly=True)
+    company_id = fields.Many2one("res.company", readonly=True)
+    department_id = fields.Many2one("hr.department", readonly=True)
+    job_id = fields.Many2one("hr.job", readonly=True)
 
-    skill_id = fields.Many2one('hr.skill', readonly=True)
-    skill_type_id = fields.Many2one('hr.skill.type', readonly=True)
+    skill_id = fields.Many2one("hr.skill", readonly=True)
+    skill_type_id = fields.Many2one("hr.skill.type", readonly=True)
     skill_level = fields.Char(readonly=True)
-    level_progress = fields.Float(readonly=True, aggregator='avg')
-    active = fields.Boolean(related='employee_id.active')
+    level_progress = fields.Float(readonly=True, aggregator="avg")
+    active = fields.Boolean(related="employee_id.active")
 
     def init(self):
-        tools.drop_view_if_exists(self.env.cr, self._table)
+        drop_view_if_exists(self.env.cr, self._table)
 
-        self.env.cr.execute("""
+        self.env.cr.execute(
+            """
         CREATE OR REPLACE VIEW %s AS (
             SELECT
                 row_number() OVER () AS id,
@@ -42,12 +44,21 @@ class HrEmployeeSkillReport(models.BaseModel):
             LEFT OUTER JOIN hr_skill_type st ON st.id = sl.skill_type_id
             WHERE st.active IS True AND st.is_certification IS NOT TRUE AND s.valid_to IS NULL
         )
-        """ % (self._table, ))
+        """
+            % (self._table,)
+        )
 
     @api.model
-    def formatted_read_grouping_sets(self, domain, grouping_sets, aggregates=(), *, order=None):
+    def formatted_read_grouping_sets(
+        self, domain, grouping_sets, aggregates=(), *, order=None
+    ):
         # In the pivot view, we don't want the hierarchical naming of department_id (hr.department)
         self_contexted = self.with_context(hierarchical_naming=False)
-        return super(HrEmployeeSkillReport, self_contexted).formatted_read_grouping_sets(
-            domain, grouping_sets, aggregates, order=order,
+        return super(
+            HrEmployeeSkillReport, self_contexted
+        ).formatted_read_grouping_sets(
+            domain,
+            grouping_sets,
+            aggregates,
+            order=order,
         )

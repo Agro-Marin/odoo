@@ -947,20 +947,33 @@ class ConnectionPool:
         Shape: ``mode``/``databases`` identify the pool, ``pool`` carries the
         counters and gauges, ``per_database`` is :meth:`get_stats`.  Totals are
         monotonic, so a scraper differences them for rates.
+
+        ``backends`` is the number of server connections this pool is actually
+        holding, checked out *and* idle, summed across its per-DSN pools.  It is
+        reported because it is the number PostgreSQL's ``max_connections`` is
+        spent on, and it is NOT bounded by ``db_maxconn`` — the budget bounds
+        concurrent checkouts, while each per-DSN pool independently retains up
+        to that many idle connections for ``db_conn_max_idle``.  A process
+        serving several databases therefore holds up to ``maxconn ×
+        n_databases``, which nothing here caps and which no other counter
+        exposed.
         """
+        per_database = self.get_stats()
         with self._lock:
             n_pools = len(self._pools)
             direct_out = self._direct_out
         return {
             "mode": "read-only" if self._readonly else "read/write",
             "databases": n_pools,
+            "backends": sum(s.get("pool_size", 0) for s in per_database.values())
+            + direct_out,
             "pool": self.stats.snapshot(
                 budget=self._budget,
                 direct_out=direct_out,
                 pools=n_pools,
                 checkouts=self._checkouts,
             ),
-            "per_database": self.get_stats(),
+            "per_database": per_database,
         }
 
 

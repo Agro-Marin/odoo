@@ -15,7 +15,7 @@ PostgreSQL), so fragments with no ``%`` emit byte-identical DDL.
 
 import unittest
 
-from odoo.tools.sql import create_index
+from odoo.db.schema import create_index
 
 
 class _RecordingCursor:
@@ -33,7 +33,7 @@ class _RecordingCursor:
 class TestCreateIndexPercentEscaping(unittest.TestCase):
     def _create(self, **kwargs):
         cr = _RecordingCursor()
-        create_index(cr, "idx", "tbl", **kwargs)
+        create_index(cr, "idx", "tbl", **kwargs)  # type: ignore[arg-type]
         return cr.statements[-1]
 
     def test_percent_in_where_clause(self):

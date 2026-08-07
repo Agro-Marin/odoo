@@ -1,4 +1,4 @@
-"""Regression tests for the ``odoo.tools.sql.SQL`` composition primitive.
+"""Regression tests for the ``odoo.libs.sql.SQL`` composition primitive.
 
 Focus: tuple expansion.  An empty tuple must not render the invalid ``()``
 (a PostgreSQL syntax error) — it renders ``(NULL)`` so ``x IN (NULL)`` parses
@@ -7,7 +7,7 @@ and matches nothing.
 
 import unittest
 
-from odoo.tools.sql import SQL
+from odoo.libs.sql import SQL
 
 
 class TestSqlTupleExpansion(unittest.TestCase):
@@ -29,7 +29,7 @@ class TestSqlTupleExpansion(unittest.TestCase):
 
     def test_sql_element_in_tuple_carries_params_and_flush(self):
         field = object()
-        inner = SQL("col = %s", 7, to_flush=field)
+        inner = SQL("col = %s", 7, to_flush=field)  # type: ignore[arg-type]
         sql = SQL("(%s)", (inner, 8))
         self.assertEqual(sql.code, "((col = %s, %s))")
         self.assertEqual(tuple(sql.params), (7, 8))
@@ -62,18 +62,18 @@ class TestColumnIndexExistsReturnBool(unittest.TestCase):
             pass
 
     def test_true_is_bool(self):
-        from odoo.tools.sql import column_exists, index_exists
+        from odoo.db.schema import column_exists, index_exists
 
         cr = self._Cursor(1)
-        self.assertIs(column_exists(cr, "t", "c"), True)
-        self.assertIs(index_exists(cr, "i"), True)
+        self.assertIs(column_exists(cr, "t", "c"), True)  # type: ignore[arg-type]
+        self.assertIs(index_exists(cr, "i"), True)  # type: ignore[arg-type]
 
     def test_false_is_bool(self):
-        from odoo.tools.sql import column_exists, index_exists
+        from odoo.db.schema import column_exists, index_exists
 
         cr = self._Cursor(0)
-        self.assertIs(column_exists(cr, "t", "c"), False)
-        self.assertIs(index_exists(cr, "i"), False)
+        self.assertIs(column_exists(cr, "t", "c"), False)  # type: ignore[arg-type]
+        self.assertIs(index_exists(cr, "i"), False)  # type: ignore[arg-type]
 
 
 class TestSqlInlined(unittest.TestCase):
@@ -84,30 +84,30 @@ class TestSqlInlined(unittest.TestCase):
 
     def test_preserves_to_flush(self):
         field = object()
-        sql = SQL('"t"."name"->>%s', "fr_FR", to_flush=field)
-        inlined = sql.inlined(self._Cursor())
+        sql = SQL('"t"."name"->>%s', "fr_FR", to_flush=field)  # type: ignore[arg-type]
+        inlined = sql.inlined(self._Cursor())  # type: ignore[arg-type]
         self.assertEqual(inlined.code, '"t"."name"->>\'fr_FR\'')
         self.assertEqual(inlined.params, ())
         self.assertEqual(tuple(inlined.to_flush), (field,))
 
     def test_percent_escape_survives(self):
         sql = SQL("x LIKE 'a%%' AND y = %s", 5)
-        inlined = sql.inlined(self._Cursor())
+        inlined = sql.inlined(self._Cursor())  # type: ignore[arg-type]
         self.assertEqual(inlined.code, "x LIKE 'a%%' AND y = 5")
         self.assertEqual(inlined.params, ())
 
     def test_literal_containing_percent_is_reescaped(self):
         sql = SQL("y = %s", "50% 'off'")
-        inlined = sql.inlined(self._Cursor())
+        inlined = sql.inlined(self._Cursor())  # type: ignore[arg-type]
         self.assertEqual(inlined.code, "y = '50%% ''off'''")
         self.assertEqual(inlined.params, ())
 
     def test_no_params_returns_self(self):
         sql = SQL("x LIKE 'a%%'")
-        self.assertIs(sql.inlined(self._Cursor()), sql)
+        self.assertIs(sql.inlined(self._Cursor()), sql)  # type: ignore[arg-type]
 
     def test_composes_as_sql(self):
-        inner = SQL("a = %s", 1).inlined(self._Cursor())
+        inner = SQL("a = %s", 1).inlined(self._Cursor())  # type: ignore[arg-type]
         outer = SQL("%s AND b = %s", inner, 2)
         self.assertEqual(outer.code, "a = 1 AND b = %s")
         self.assertEqual(outer.params, (2,))

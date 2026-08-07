@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 
 from odoo import Command
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.libs.numbers import float_compare
 from odoo.tests import tagged
 from odoo.tools import float_round
 

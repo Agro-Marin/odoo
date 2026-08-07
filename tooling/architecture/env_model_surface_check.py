@@ -46,9 +46,10 @@ from _repo_root import find_odoo_root
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="env_model_surface_check")
 CORE = REPO_ROOT / "odoo"
 
-#: Framework packages scanned. ``addons`` is deliberately absent: an addon
-#: referencing another model is ordinary application coupling; the framework
-#: reaching into an addon-owned model is the surface this gate bounds.
+#: Framework packages scanned. Every package under ``odoo/`` is either here or
+#: in :data:`SCOPE_EXEMPT_PACKAGES` with a reason, asserted by
+#: ``test_every_core_package_is_scoped_or_exempt`` — the scope of a gate is a
+#: hand-maintained list, and an unlisted package cannot fail it.
 SCOPE_PACKAGES: tuple[str, ...] = (
     "orm",
     "http",
@@ -58,6 +59,39 @@ SCOPE_PACKAGES: tuple[str, ...] = (
     "cli",
     "tools",
     "libs",
+    # Added 2026-08 when the scope was first tested for completeness. The three
+    # public shims held 0 model literals, and ``_monkeypatches`` 0; they are in
+    # scope so that a *future* one is seen rather than silently unmeasured.
+    "api",
+    "fields",
+    "models",
+    "_monkeypatches",
+    # ``tests`` (the shipped test *framework*) holds 12 literals reaching 5
+    # models — res.users, ir.module.module, ir.attachment, ir.config_parameter,
+    # ir.ui.view — every one of them ALREADY in KNOWN_MODEL_SURFACE, so bringing
+    # it in scope changed the ratchet by nothing and only widened what is
+    # watched. Note this deliberately diverges from ``layer_check``'s
+    # ``CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT``, which excuses ``tests``:
+    # there the question is whether the framework may *import* an addon, and a
+    # test framework driving application code is the job. Here the question is
+    # what the framework's string-keyed model surface *is*, and
+    # ``module_operations.py`` driving ``ir.module.module`` is a real part of it.
+    "tests",
+)
+
+#: Packages deliberately outside the scan, each with the reason it is out.
+SCOPE_EXEMPT_PACKAGES: frozenset[str] = frozenset(
+    {
+        # An addon referencing another model is ordinary application coupling;
+        # the framework reaching into an addon-owned model is the surface this
+        # gate bounds. Scanning addons would measure the wrong thing entirely.
+        "addons",
+        # Dated one-shot source-rewrite scripts run by ``odoo-bin
+        # upgrade_code``. They manipulate *source text* of other repos' addons,
+        # so any model name in them is data being rewritten, not a dependency
+        # this framework carries.
+        "upgrade_code",
+    }
 )
 
 #: A string literal is treated as a model name when it is dotted lowercase

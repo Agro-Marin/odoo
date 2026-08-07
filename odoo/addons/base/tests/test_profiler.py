@@ -3,7 +3,7 @@ import time
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError
-from odoo.libs.profiling.speedscope import Speedscope
+from odoo.libs.profiling import Speedscope
 from odoo.tests.common import (
     BaseCase,
     HttpCase,

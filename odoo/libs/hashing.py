@@ -41,6 +41,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
+_blake3: Any  # the class when the optional extension is present, else None
 try:
     from blake3 import blake3 as _blake3
 except ImportError:

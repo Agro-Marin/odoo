@@ -11,8 +11,8 @@ from markupsafe import Markup
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
-from odoo.libs.numbers.float_utils import float_round
-from odoo.libs.web.urls import urljoin as url_join
+from odoo.libs.numbers import float_round
+from odoo.libs.web import urljoin as url_join
 
 from odoo.addons.base.models.ir_mail_server import MailDeliveryException
 

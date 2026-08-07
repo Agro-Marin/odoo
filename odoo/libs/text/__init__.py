@@ -5,7 +5,14 @@ Pure Python text helpers with no Odoo dependencies.
 
 from .strings import remove_accents, human_size, str2bool, mod10r, get_flag
 from .address import street_split, ADDRESS_REGEX
+from .arabic_reshaper import reshape
 from .html import (
+    HTML_NEWLINES_REGEX,
+    HTML_TAG_URL_REGEX,
+    HTML_TAGS_REGEX,
+    TEXT_URL_REGEX,
+    URL_REGEX,
+    URL_SKIP_PROTOCOL_REGEX,
     html_sanitize,
     html_normalize,
     html2plaintext,
@@ -29,7 +36,13 @@ from .html import (
 
 __all__ = [
     "ADDRESS_REGEX",
+    "HTML_NEWLINES_REGEX",
+    "HTML_TAGS_REGEX",
+    "HTML_TAG_URL_REGEX",
     "SANITIZE_TAGS",
+    "TEXT_URL_REGEX",
+    "URL_REGEX",
+    "URL_SKIP_PROTOCOL_REGEX",
     "VOID_ELEMENTS",
     "append_content_to_html",
     "create_link",
@@ -49,6 +62,7 @@ __all__ = [
     "plaintext2html",
     "prepend_html_content",
     "remove_accents",
+    "reshape",
     "safe_attrs",
     "str2bool",
     "street_split",

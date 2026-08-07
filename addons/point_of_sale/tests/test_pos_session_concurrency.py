@@ -10,7 +10,7 @@
 import psycopg
 
 import odoo
-from odoo.tools.sql import index_exists
+from odoo.db.schema import index_exists
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 

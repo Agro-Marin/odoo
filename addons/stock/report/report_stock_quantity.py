@@ -1,4 +1,5 @@
 from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 
 class ReportStockQuantity(models.Model):
@@ -68,7 +69,7 @@ class ReportStockQuantity(models.Model):
         ``parent_path LIKE`` match is sargable and avoids double-counting nested
         warehouses.
         """
-        tools.drop_view_if_exists(self.env.cr, "report_stock_quantity")
+        drop_view_if_exists(self.env.cr, "report_stock_quantity")
         query = f"""
 CREATE or REPLACE VIEW report_stock_quantity AS (
 WITH

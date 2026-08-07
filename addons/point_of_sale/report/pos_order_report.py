@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 
 class ReportPosOrder(models.Model):
@@ -132,7 +133,7 @@ class ReportPosOrder(models.Model):
         """
 
     def init(self):
-        tools.drop_view_if_exists(self.env.cr, self._table)
+        drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             """
             CREATE OR REPLACE VIEW %s AS (

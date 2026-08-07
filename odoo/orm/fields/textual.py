@@ -10,20 +10,16 @@ from typing import override
 from markupsafe import Markup
 from markupsafe import escape as markup_escape
 
+from odoo.db import schema as sql
 from odoo.exceptions import AccessError, UserError
-from odoo.logutils import COLOR_PATTERN, DEFAULT, GREEN, RED, ColoredFormatter
-from odoo.tools import (
-    SQL,
-    html_normalize,
-    html_sanitize,
-    sql,
-)
-from odoo.tools.misc import PENDING, SENTINEL, OrderedSet, Sentinel
-from odoo.tools.sql import (
+from odoo.libs.sql import (
     pattern_to_translated_trigram_pattern,
     pg_varchar,
     value_to_translated_trigram_pattern,
 )
+from odoo.logutils import COLOR_PATTERN, DEFAULT, GREEN, RED, ColoredFormatter
+from odoo.tools import SQL, html_normalize, html_sanitize
+from odoo.tools.misc import PENDING, SENTINEL, OrderedSet, Sentinel
 from odoo.tools.translate import html_translate
 
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
@@ -1016,52 +1012,74 @@ class Html(BaseString):
             if record.env.user.has_group("base.group_sanitize_override"):
                 return value
 
-            original_value = record[self.name]
-            if original_value:
-                original_value_sanitized = html_sanitize(
-                    original_value, **sanitize_vals
-                )
-                original_value_normalized = html_normalize(original_value)
-
-                if (
-                    not original_value_sanitized
-                    or original_value_normalized != original_value_sanitized
-                ):
-                    diff = unified_diff(
-                        original_value_sanitized.splitlines(),
-                        original_value_normalized.splitlines(),
-                    )
-
-                    root_handlers = logging.getLogger().handlers
-                    with_colors = bool(root_handlers) and isinstance(
-                        root_handlers[0].formatter,
-                        ColoredFormatter,
-                    )
-                    diff_str = f"The field ({record._description}, {self.string}) will not be editable:\n"
-                    for line in list(diff)[2:]:
-                        if with_colors:
-                            color = {"-": RED, "+": GREEN}.get(line[:1], DEFAULT)
-                            diff_str += COLOR_PATTERN % (
-                                30 + color,
-                                40 + DEFAULT,
-                                line.rstrip() + "\n",
-                            )
-                        else:
-                            diff_str += line.rstrip() + "\n"
-                    _logger.info(diff_str)
-
-                    raise UserError(
-                        record.env._(
-                            "The field value you're saving (%(model)s %(field)s) includes content that is "
-                            "restricted for security reasons. It is possible that someone "
-                            "with higher privileges previously modified it, and you are therefore "
-                            "not able to modify it yourself while preserving the content.",
-                            model=record._description,
-                            field=self.string,
-                        )
-                    )
+            # Per record, not per value: the check compares each record's
+            # *existing* content against what sanitizing it would produce, so
+            # it has to look at every record being written.  `convert_to_cache`
+            # is handed the whole recordset (see Field._mark_dirty_prologue),
+            # and reading `record[self.name]` off it raised "Expected
+            # singleton" on every multi-record write by a user without the
+            # override group — a hard 500 on an ordinary batch update.
+            for rec in record:
+                self._check_overridable_content(rec, sanitize_vals)
 
         return html_sanitize(value, **sanitize_vals)
+
+    def _check_overridable_content(
+        self, record: ModelLike, sanitize_vals: dict
+    ) -> None:
+        """Refuse the write if *record*'s current content would not survive sanitizing.
+
+        ``sanitize_overridable`` lets a privileged user store markup that this
+        field would otherwise strip.  A user *without* that privilege must not
+        be able to save over such content, because saving would silently
+        sanitize away what the privileged user put there.  Detect it by
+        sanitizing the stored value: if that changes it, the stored value is
+        privileged content and this write is refused.
+
+        Takes a single record; :meth:`_convert` loops.
+        """
+        original_value = record[self.name]
+        if original_value:
+            original_value_sanitized = html_sanitize(original_value, **sanitize_vals)
+            original_value_normalized = html_normalize(original_value)
+
+            if (
+                not original_value_sanitized
+                or original_value_normalized != original_value_sanitized
+            ):
+                diff = unified_diff(
+                    original_value_sanitized.splitlines(),
+                    original_value_normalized.splitlines(),
+                )
+
+                root_handlers = logging.getLogger().handlers
+                with_colors = bool(root_handlers) and isinstance(
+                    root_handlers[0].formatter,
+                    ColoredFormatter,
+                )
+                diff_str = f"The field ({record._description}, {self.string}) will not be editable:\n"
+                for line in list(diff)[2:]:
+                    if with_colors:
+                        color = {"-": RED, "+": GREEN}.get(line[:1], DEFAULT)
+                        diff_str += COLOR_PATTERN % (
+                            30 + color,
+                            40 + DEFAULT,
+                            line.rstrip() + "\n",
+                        )
+                    else:
+                        diff_str += line.rstrip() + "\n"
+                _logger.info(diff_str)
+
+                raise UserError(
+                    record.env._(
+                        "The field value you're saving (%(model)s %(field)s) includes content that is "
+                        "restricted for security reasons. It is possible that someone "
+                        "with higher privileges previously modified it, and you are therefore "
+                        "not able to modify it yourself while preserving the content.",
+                        model=record._description,
+                        field=self.string,
+                    )
+                )
 
     @override
     def convert_to_record(

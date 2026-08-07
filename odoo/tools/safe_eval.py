@@ -72,15 +72,54 @@ _UNSAFE_ATTRIBUTES = [
 
 
 def to_opcodes(opnames: list[str], _opmap: dict[str, int] = opmap) -> Iterator[int]:
+    """Map opcode *names* to numbers, silently dropping ones this Python lacks.
+
+    Dropping is right for the *allow* lists: an entry naming an opcode that no
+    longer exists simply allows nothing, and CPython renames opcodes freely
+    between versions. It is wrong for :data:`_BLACKLIST`, which is why that one
+    goes through :func:`to_required_opcodes` instead.
+    """
     for x in opnames:
         if x in _opmap:
             yield _opmap[x]
 
 
+def to_required_opcodes(
+    opnames: list[str], _opmap: dict[str, int] = opmap
+) -> Iterator[int]:
+    """Map opcode names to numbers, raising if any does not exist.
+
+    For lists where a missing name silently *weakens* the check. ``_BLACKLIST``
+    is the whole of the "these operations are forbidden" contract, and
+    :func:`to_opcodes` would drop a renamed entry without a word — the guard
+    would keep passing while no longer guarding. A CPython upgrade that renames
+    ``IMPORT_NAME`` should fail at import, loudly, not quietly stop rejecting
+    imports.
+    """
+    for x in opnames:
+        if x not in _opmap:
+            msg = (
+                f"safe_eval blacklists opcode {x!r}, which does not exist on "
+                f"Python {sys.version_info.major}.{sys.version_info.minor}. "
+                f"Re-derive the blacklist against this interpreter: silently "
+                f"dropping it would weaken the sandbox."
+            )
+            raise RuntimeError(msg)
+        yield _opmap[x]
+
+
+#: Operations no restricted expression may perform, whatever the mode.
+#:
+#: ``IMPORT_STAR`` used to head this list and was removed when it stopped
+#: existing: CPython 3.12 replaced the dedicated opcode with
+#: ``CALL_INTRINSIC_1(INTRINSIC_IMPORT_STAR)``. ``to_opcodes`` had been dropping
+#: it silently ever since, so the list *read* as seven entries and *was* six.
+#: Nothing was actually permitted by that — ``from x import *`` still emits
+#: ``IMPORT_NAME`` first, and that is blocked — but the discrepancy was
+#: invisible, which is what :func:`to_required_opcodes` now prevents.
 _BLACKLIST = frozenset(
-    to_opcodes(
+    to_required_opcodes(
         [
-            "IMPORT_STAR",
             "IMPORT_NAME",
             "IMPORT_FROM",
             "STORE_ATTR",

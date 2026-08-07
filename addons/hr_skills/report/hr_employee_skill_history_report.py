@@ -1,23 +1,25 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 
 class HrEmployeeSkillReport(models.BaseModel):
-    _name = 'hr.employee.skill.history.report'
+    _name = "hr.employee.skill.history.report"
     _auto = False
-    _description = 'Employee Skills Report'
+    _description = "Employee Skills Report"
 
-    employee_id = fields.Many2one('hr.employee', readonly=True)
+    employee_id = fields.Many2one("hr.employee", readonly=True)
     date = fields.Date()
-    skill_id = fields.Many2one('hr.skill', readonly=True)
-    skill_type_id = fields.Many2one('hr.skill.type', readonly=True)
+    skill_id = fields.Many2one("hr.skill", readonly=True)
+    skill_type_id = fields.Many2one("hr.skill.type", readonly=True)
     level_progress = fields.Float(readonly=True)
 
     def init(self):
-        tools.drop_view_if_exists(self.env.cr, self._table)
+        drop_view_if_exists(self.env.cr, self._table)
 
-        self.env.cr.execute("""
+        self.env.cr.execute(
+            """
         CREATE OR REPLACE VIEW %s AS (
             WITH
                 individual_skill AS (
@@ -65,4 +67,6 @@ class HrEmployeeSkillReport(models.BaseModel):
             WHERE date_table.date >= emp_skill_level.valid_from AND date_table.employee_id = emp_skill_level.employee_id AND (emp_skill_level.valid_to IS NULL OR date_table.date <= emp_skill_level.valid_to)
             ORDER BY date_table.date, emp_skill_level.employee_id, emp_skill_level.skill_id, emp_skill_level.valid_from DESC
         )
-        """ % (self._table, ))
+        """
+            % (self._table,)
+        )

@@ -264,12 +264,18 @@ class Cache:
         if spec is None:
             self.transaction.invalidate_field_data()
             return
+        # Materialize up front: the guard pass and the work pass below both
+        # walk `spec`, so a one-shot iterable would be exhausted by the guard
+        # and invalidate nothing — succeeding silently.  Same reasoning as
+        # OrmCore.invalidate and FieldCache.invalidate, which do this too.
+        # Doing it here also lets the skip message report a real count.
+        spec = list(spec)
         env = next(iter(self.transaction.envs), None)
         if env is None:
             _logger.debug(
                 "Cache.invalidate: skipped %d entries — no environments left "
                 "in transaction (all GC'd)",
-                len(spec) if hasattr(spec, "__len__") else -1,
+                len(spec),
             )
             return
         core = self.transaction.core

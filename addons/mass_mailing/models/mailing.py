@@ -20,7 +20,7 @@ from PIL import Image, UnidentifiedImageError
 from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Datetime, Domain
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers import float_round
 from odoo.tools.image import ImageProcess
 
 from odoo.addons.base_import.models.base_import import ImportValidationError

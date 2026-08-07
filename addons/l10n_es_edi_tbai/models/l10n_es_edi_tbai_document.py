@@ -17,10 +17,10 @@ from odoo.addons.l10n_es_edi_tbai.models.xml_utils import (
     NS_MAP,
     cleanup_xml_signature,
 )
-from odoo.libs.xml.dsig import canonicalize_signed_info, fill_reference_digests
+from odoo.libs.xml import canonicalize_signed_info, fill_reference_digests
 from odoo.exceptions import UserError
 from odoo.tools import get_lang
-from odoo.libs.numbers.float_utils import float_repr, float_round
+from odoo.libs.numbers import float_repr, float_round
 from odoo.tools.xml_utils import cleanup_xml_node
 
 CRC8_TABLE = [

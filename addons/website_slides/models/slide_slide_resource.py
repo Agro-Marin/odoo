@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.libs.filesystem.mimetypes import get_extension
+from odoo.libs.filesystem import get_extension
 
 
 class SlideSlideResource(models.Model):

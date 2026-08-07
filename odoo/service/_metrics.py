@@ -205,6 +205,23 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
         if key in stats:
             exp.add(name, stats[key], help=help_text, labels=label)
 
+    # Top-level (not part of the PoolStats snapshot): the number
+    # max_connections is actually spent on.  Deliberately separate from
+    # budget_maxconn, which bounds concurrent *checkouts* only -- see
+    # ConnectionPool.health.  This is the series to alarm on for a
+    # multi-database process, and nothing exported it before.
+    if "backends" in health:
+        exp.add(
+            "odoo_pool_backends",
+            health["backends"],
+            help=(
+                "Server connections held (checked out + idle). NOT bounded by "
+                "db_maxconn: each per-DSN pool retains up to that many idle, "
+                "so this can reach maxconn x databases."
+            ),
+            labels=label,
+        )
+
     exp.add(
         "odoo_pool_borrow_wait_seconds_sum",
         stats.get("borrow_wait_seconds_total", 0.0),

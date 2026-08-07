@@ -4,7 +4,7 @@ import uuid
 
 from odoo import api, fields, models
 from odoo.fields import Domain
-from odoo.libs.web.urls import urljoin as url_join
+from odoo.libs.web import urljoin as url_join
 
 
 class ResCompany(models.Model):

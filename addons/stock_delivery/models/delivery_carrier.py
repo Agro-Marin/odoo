@@ -2,7 +2,7 @@
 
 from odoo import _, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.libs.numbers.float_utils import float_is_zero, float_round
+from odoo.libs.numbers import float_is_zero, float_round
 from odoo.tools.misc import groupby
 
 from .delivery_request_objects import DeliveryCommodity, DeliveryPackage

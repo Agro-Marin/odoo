@@ -8,11 +8,11 @@ from markupsafe import Markup
 from psycopg.errors import LockNotAvailable
 
 from odoo import _, api, fields, models
+from odoo.db.schema import create_index
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import float_compare, float_is_zero, frozendict, plaintext2html
-from odoo.tools.sql import create_index
 
 _logger = logging.getLogger(__name__)
 
@@ -510,7 +510,8 @@ class PosSession(models.Model):
                 "already have several. Close the extra sessions, then upgrade "
                 "point_of_sale again to install the index. %s",
                 ", ".join(
-                    f"config {config_id}: sessions {ids}" for config_id, ids in duplicates
+                    f"config {config_id}: sessions {ids}"
+                    for config_id, ids in duplicates
                 ),
             )
             return

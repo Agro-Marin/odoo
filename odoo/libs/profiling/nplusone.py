@@ -1,13 +1,12 @@
-"""
-N+1 CRUD detection for Odoo ORM.
+"""N+1 CRUD detection for Odoo ORM.
 
 Detects repeated single-record create/write/unlink calls from the same call
 site within a transaction — a pattern that is 5-15x slower than batching.
 
 Activation: set ``ODOO_NPLUSONE=1`` in the environment (dev-only, opt-in). The
 flag is read once at import (mirroring ``ODOO_ORM_PROFILE`` in
-:mod:`odoo.tools.orm_profiler`): consumers freeze it via
-``from odoo.tools.nplusone import _n1_enabled``, so a rebind after those imports
+:mod:`odoo.libs.profiling.orm_profiler`): consumers freeze it via
+``from odoo.libs.profiling import _n1_enabled``, so a rebind after those imports
 would not reach their copies — activation must be settled at import time, not by
 a later ``setup()`` call.
 
@@ -19,6 +18,7 @@ When disabled, overhead is a single boolean check per CRUD call
 import logging
 import os
 import sys
+import types
 from pathlib import Path
 
 _logger = logging.getLogger("odoo.orm.nplusone")
@@ -32,7 +32,12 @@ _n1_enabled: bool = os.environ.get("ODOO_NPLUSONE", "").lower() in (
 if _n1_enabled:
     _logger.info("N+1 CRUD detection enabled (ODOO_NPLUSONE=1)")
 
-_ODOO_DIR = Path(__file__).resolve().parent.parent
+# The odoo package root, which holds the orm/ and api/ trees whose frames are
+# skipped when locating the caller. This file lives at
+# odoo/libs/profiling/nplusone.py, so the root is three parents up (profiling ->
+# libs -> odoo). It MUST track this file's depth: the previous odoo/tools/ home
+# was one level shallower.
+_ODOO_DIR = Path(__file__).resolve().parents[2]
 _ORM_PREFIX: str = str(_ODOO_DIR / "orm") + os.sep
 
 _SKIP_PREFIXES: tuple[str, ...] = (
@@ -63,6 +68,7 @@ class NplusOneTracker:
     THRESHOLD = 3
 
     def __init__(self) -> None:
+        """Start with an empty per-callsite N+1 accumulator."""
         self._data: dict[_Key, _NplusOneEntry] = {}
 
     def record(
@@ -73,7 +79,7 @@ class NplusOneTracker:
         field_fingerprint: frozenset[str],
     ) -> None:
         """Record a CRUD call from the create/write/unlink ORM mixins."""
-        frame = sys._getframe(2)
+        frame: types.FrameType | None = sys._getframe(2)
         while frame is not None:
             code = frame.f_code
             if (
@@ -131,4 +137,5 @@ class NplusOneTracker:
         _logger.warning("\n".join(lines))
 
     def clear(self) -> None:
+        """Drop all accumulated call-site records (called after :meth:`report`)."""
         self._data.clear()

@@ -8,7 +8,7 @@ from odoo import api, fields, models
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.libs.numbers.float_utils import float_compare, float_is_zero, float_round
+from odoo.libs.numbers import float_compare, float_is_zero, float_round
 from odoo.tools.misc import OrderedSet, clean_context, groupby
 from odoo.tools.translate import _
 

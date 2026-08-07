@@ -5,7 +5,7 @@ import psycopg
 
 from odoo import _, models
 from odoo.exceptions import UserError
-from odoo.tools.sql import SQL
+from odoo.libs.sql import SQL
 
 _logger = logging.getLogger(__name__)
 

@@ -1,5 +1,6 @@
+from odoo.db import schema as sql
+from odoo.libs.sql import make_index_name
 from odoo.tests import TransactionCase, tagged
-from odoo.tools import sql
 
 
 @tagged("post_install", "-at_install")
@@ -28,7 +29,7 @@ class TestIndexMethodMigration(TransactionCase):
 
         cr = self.cr
         field = registry["res.partner"]._fields["ref"]
-        indexname = sql.make_index_name("res_partner", "ref")
+        indexname = make_index_name("res_partner", "ref")
 
         sql.drop_index(cr, indexname, "res_partner")
         sql.create_index(cr, indexname, "res_partner", ['"ref"'], "btree")

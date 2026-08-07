@@ -12,7 +12,7 @@ from pytz import timezone
 from odoo import _, api, exceptions, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.libs.intervals import Intervals
-from odoo.libs.numbers.float_utils import float_compare, float_is_zero, float_round
+from odoo.libs.numbers import float_compare, float_is_zero, float_round
 from odoo.tools.date_utils import end_of, localized, start_of, to_timezone
 from odoo.tools.misc import get_lang
 

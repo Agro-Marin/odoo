@@ -1,7 +1,7 @@
-"""Tests for the aggregate ORM profiler (odoo.tools.orm_profiler)."""
+"""Tests for the aggregate ORM profiler (odoo.libs.profiling.orm_profiler)."""
 
+from odoo.libs.profiling import orm_profiler
 from odoo.tests.common import TransactionCase, tagged
-from odoo.tools import orm_profiler
 
 
 @tagged("-standard", "profiler")

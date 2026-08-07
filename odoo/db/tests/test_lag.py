@@ -14,6 +14,8 @@ the lag query is one whose failure the breaker sees, and refusing reads because
 the question failed would demote on no evidence.
 """
 
+import contextlib
+import threading
 import unittest
 
 from odoo.db.lag import LAG_SQL, ReplicaLagGate
@@ -94,7 +96,14 @@ class TestSampling(unittest.TestCase):
         self.assertTrue(gate.due_for_sample())
         self.assertFalse(gate.due_for_sample())
 
-    def test_only_one_of_many_racing_readers_samples(self):
+    def test_repeated_sequential_calls_are_throttled(self):
+        """Sequential, single-threaded throttling only.
+
+        This deliberately does *not* claim anything about concurrency: fifty
+        calls on one thread cannot race, so the assertion holds with or without
+        the lock that makes the claim exclusive. The concurrent guarantee is
+        pinned by :class:`TestSampleClaimIsExclusive`.
+        """
         gate = ReplicaLagGate(30.0)
         self.assertEqual(sum(1 for _ in range(50) if gate.due_for_sample()), 1)
 
@@ -106,6 +115,83 @@ class TestSampling(unittest.TestCase):
         gate.record(90.0)
         self.assertFalse(gate.allows())
         self.assertTrue(gate.due_for_sample())
+
+
+class TestSampleClaimIsExclusive(unittest.TestCase):
+    """The lock -- not bytecode luck -- is what keeps the one-sampler claim.
+
+    **This is fault injection, not a reproduction.** Read that before trusting
+    the assertion, because the distinction is the whole point.
+
+    On a GIL build the unlocked version was never wrong: between the
+    ``monotonic()`` call and the stamp, ``due_for_sample``'s bytecode contains
+    no call and no backward jump, and those are the only points CPython honours
+    a GIL drop request, so the read-and-stamp cannot be preempted. Racing the
+    unlocked version with plain floats -- 16 threads, 400 rounds, switch
+    intervals from 5 ms to 1 ns -- produced a duplicate claim zero times.
+
+    So a test that merely started threads would pass against the *broken* code
+    and prove nothing, which is exactly the trap the previous version of this
+    suite fell into (see ``test_repeated_sequential_calls_are_throttled``).
+
+    What this does instead is remove the accidental protection and check the
+    deliberate one. ``sample_interval`` is a plain attribute, so it can hold an
+    object whose ``__gt__`` blocks: ``float.__lt__`` returns ``NotImplemented``
+    against it, Python calls the reflected ``__gt__``, and every thread parks
+    *inside* the ``if`` test -- after the timestamp read, before the stamp. That
+    models a build where the compare can yield, which is precisely the
+    free-threaded case the lock exists for.
+
+    With the lock, one thread holds it, the barrier times out, and the rest are
+    serialised behind it -- so the timeout is not slack in the test, it *is* the
+    evidence of mutual exclusion. Without it, all of them claim.
+    """
+
+    THREADS = 8
+    BARRIER_TIMEOUT = 0.5
+
+    class _BlockingInterval:
+        """Stands in for ``sample_interval``, parking threads in the compare."""
+
+        def __init__(self, value, barrier):
+            self.value = value
+            self.barrier = barrier
+
+        def __gt__(self, other):
+            with contextlib.suppress(threading.BrokenBarrierError):
+                self.barrier.wait(timeout=TestSampleClaimIsExclusive.BARRIER_TIMEOUT)
+            return self.value > other
+
+    def test_only_one_of_many_racing_readers_samples(self):
+        gate = ReplicaLagGate(30.0)
+        self.assertTrue(gate.due_for_sample(), "the first call claims the slot")
+        gate._last_sample -= 1000.0
+
+        barrier = threading.Barrier(self.THREADS)
+        gate.sample_interval = self._BlockingInterval(30.0, barrier)
+
+        granted = []
+        append_lock = threading.Lock()
+
+        def sample():
+            claimed = gate.due_for_sample()
+            with append_lock:
+                granted.append(claimed)
+
+        threads = [threading.Thread(target=sample) for _ in range(self.THREADS)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+            self.assertFalse(thread.is_alive(), "due_for_sample deadlocked")
+
+        self.assertEqual(
+            sum(granted),
+            1,
+            f"{sum(granted)} of {self.THREADS} readers claimed the sample slot "
+            f"once the compare was made to yield; exactly one may. Removing the "
+            f"lock from due_for_sample reproduces this at {self.THREADS}",
+        )
 
 
 class TestLagSql(unittest.TestCase):

@@ -16,7 +16,7 @@ from lxml import etree, html
 from odoo import SUPERUSER_ID, _, http, tools
 from odoo.exceptions import AccessError, MissingError, UserError
 from odoo.http import request
-from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.libs.filesystem import guess_mimetype
 from odoo.tools.image import (
     binary_to_image,
     get_webp_size,

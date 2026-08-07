@@ -6,7 +6,7 @@ from typing import Literal, Self
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.libs.numbers.float_utils import RoundingMethod
+from odoo.libs.numbers import RoundingMethod
 from odoo.tools import float_compare, float_is_zero, float_round
 
 

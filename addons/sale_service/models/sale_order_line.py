@@ -3,17 +3,25 @@
 from itertools import groupby
 
 from odoo import api, fields, models
+from odoo.db.schema import column_exists, create_column
 from odoo.tools import format_amount
-from odoo.tools.sql import column_exists, create_column
 
 
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
-    _name_search_services_index = models.Index("(order_id DESC, sequence, id) WHERE is_service IS TRUE")
+    _name_search_services_index = models.Index(
+        "(order_id DESC, sequence, id) WHERE is_service IS TRUE"
+    )
 
     # used to know if generate a task and/or a project, depending on the product settings
-    is_service = fields.Boolean("Is a Service", compute='_compute_is_service', store=True, compute_sudo=True, export_string_translation=False)
+    is_service = fields.Boolean(
+        "Is a Service",
+        compute="_compute_is_service",
+        store=True,
+        compute_sudo=True,
+        export_string_translation=False,
+    )
 
     def _domain_sale_line_service(self, **kwargs):
         """
@@ -24,26 +32,26 @@ class SaleOrderLine(models.Model):
         :param kwargs: boolean kwargs of the form 'check_<leaf_field>=False'
         :return: a valid domain
         """
-        domain = [('is_service', '=', True)]
+        domain = [("is_service", "=", True)]
         if kwargs.get("check_is_expense", True):
-            domain.append(('is_expense', '=', False))
+            domain.append(("is_expense", "=", False))
         if kwargs.get("check_state", True):
-            domain.append(('state', '=', 'done'))
+            domain.append(("state", "=", "done"))
         return domain
 
-    @api.depends('product_id.type')
+    @api.depends("product_id.type")
     def _compute_is_service(self):
-        self.fetch(['is_service', 'product_id'])
-        self.product_id.fetch(['type'])
+        self.fetch(["is_service", "product_id"])
+        self.product_id.fetch(["type"])
         for so_line in self:
-            so_line.is_service = so_line.product_id.type == 'service'
+            so_line.is_service = so_line.product_id.type == "service"
 
     def _auto_init(self):
         """
         Create column to stop ORM from computing it himself (too slow)
         """
-        if not column_exists(self.env.cr, 'sale_order_line', 'is_service'):
-            create_column(self.env.cr, 'sale_order_line', 'is_service', 'bool')
+        if not column_exists(self.env.cr, "sale_order_line", "is_service"):
+            create_column(self.env.cr, "sale_order_line", "is_service", "bool")
             self.env.cr.execute("""
                 UPDATE sale_order_line line
                 SET is_service = (pt.type = 'service')
@@ -54,11 +62,18 @@ class SaleOrderLine(models.Model):
         return super()._auto_init()
 
     def _additional_name_per_id(self):
-        name_per_id = super()._additional_name_per_id() if not self.env.context.get('hide_partner_ref') else {}
-        if not self.env.context.get('with_price_unit'):
+        name_per_id = (
+            super()._additional_name_per_id()
+            if not self.env.context.get("hide_partner_ref")
+            else {}
+        )
+        if not self.env.context.get("with_price_unit"):
             return name_per_id
 
-        sols_list = [list(sols) for dummy, sols in groupby(self, lambda sol: (sol.order_id, sol.product_id))]
+        sols_list = [
+            list(sols)
+            for dummy, sols in groupby(self, lambda sol: (sol.order_id, sol.product_id))
+        ]
         for sols in sols_list:
             if len(sols) <= 1 or not all(sol.is_service for sol in sols):
                 continue
@@ -66,18 +81,26 @@ class SaleOrderLine(models.Model):
                 additional_name = name_per_id.get(line.id)
                 name = format_amount(self.env, line.price_unit, line.currency_id)
                 if additional_name:
-                    name += f' {additional_name}'
-                name_per_id[line.id] = f'- {name}'
+                    name += f" {additional_name}"
+                name_per_id[line.id] = f"- {name}"
 
         return name_per_id
 
     @api.model
-    def name_search(self, name='', domain=None, operator='ilike', limit=100):
+    def name_search(self, name="", domain=None, operator="ilike", limit=100):
         domain = domain or []
         # optimization for a SOL services name_search, to avoid joining on sale_order with too many lines
-        if domain and ('is_service', '=', True) in domain and operator in ('like', 'ilike') and limit is not None:
+        if (
+            domain
+            and ("is_service", "=", True) in domain
+            and operator in ("like", "ilike")
+            and limit is not None
+        ):
             sols = self.search_fetch(
-                domain, ['display_name'], limit=limit, order='order_id.id DESC, sequence, id',
+                domain,
+                ["display_name"],
+                limit=limit,
+                order="order_id.id DESC, sequence, id",
             )
             return [(sol.id, sol.display_name) for sol in sols]
         return super().name_search(name, domain, operator, limit)

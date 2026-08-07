@@ -32,9 +32,13 @@ from odoo.libs.email import (
     url_domain_extract,
 )
 
-from odoo.libs.email.parsing import _normalize_email, getaddresses
+from odoo.libs.email import getaddresses
 
-from odoo.libs.text.html import (
+# Private, so the area deliberately does not export it; see
+# KNOWN_VIOLATIONS in tooling/architecture/libs_facade_check.py.
+from odoo.libs.email.parsing import _normalize_email
+
+from odoo.libs.text import (
     HTML_NEWLINES_REGEX,
     HTML_TAG_URL_REGEX,
     HTML_TAGS_REGEX,

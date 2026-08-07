@@ -16,7 +16,7 @@ from pathlib import Path
 
 import odoo.upgrade
 from odoo import release, tools
-from odoo.tools.hashing import ALGO_TAG, cache_hasher, update_from_file
+from odoo.libs.hashing import ALGO_TAG, cache_hasher, update_from_file
 
 import odoo.addons
 

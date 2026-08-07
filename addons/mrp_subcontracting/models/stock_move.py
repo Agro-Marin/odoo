@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from odoo import fields, models, api, _
 from odoo.exceptions import AccessError
-from odoo.libs.numbers.float_utils import float_compare, float_is_zero, float_round
+from odoo.libs.numbers import float_compare, float_is_zero, float_round
 from odoo.tools.misc import OrderedSet
 
 

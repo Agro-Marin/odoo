@@ -15,7 +15,8 @@ on model definitions to declare SQL constraints and indexes::
 
 import typing
 
-from odoo.tools import sql
+from odoo.db import schema as sql
+from odoo.libs.sql import make_identifier
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -64,7 +65,7 @@ class TableObject:
     def full_name(self, model: BaseModel) -> str:
         assert self.name, "The table object is not named"
         name = f"{model._table}_{self.name}"
-        return sql.make_identifier(name)
+        return make_identifier(name)
 
     def get_error_message(
         self, model: BaseModel, diagnostics: Diagnostic | None = None

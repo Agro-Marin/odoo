@@ -12,7 +12,6 @@ import logging.handlers
 import os
 import platform
 import sys
-import threading
 import traceback
 import warnings
 from pathlib import Path
@@ -22,6 +21,7 @@ import werkzeug.serving
 
 from . import db, release, tools
 from .libs.json import dumps as json_dumps
+from .libs.worker_thread import current_worker_thread
 
 if TYPE_CHECKING:
     import types
@@ -60,8 +60,7 @@ class PostgreSQLHandler(logging.Handler):
                 )
 
     def emit(self, record: logging.LogRecord) -> None:
-        ct = threading.current_thread()
-        ct_db = getattr(ct, "dbname", None)
+        ct_db = getattr(current_worker_thread(), "dbname", None)
         dbname = (
             tools.config["log_db"]
             if tools.config["log_db"] and tools.config["log_db"] != "%d"
@@ -151,20 +150,21 @@ class PerfFilter(logging.Filter):
         return cursor_mode or "-"
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if hasattr(threading.current_thread(), "query_count"):
-            query_count = threading.current_thread().query_count
-            query_time = threading.current_thread().query_time
-            perf_t0 = threading.current_thread().perf_t0
+        worker = current_worker_thread()
+        if hasattr(worker, "query_count"):
+            query_count = worker.query_count
+            query_time = worker.query_time
+            perf_t0 = worker.perf_t0
             remaining_time = tools.real_time() - perf_t0 - query_time
             record.perf_info = "%s %s %s" % self.format_perf(
                 query_count, query_time, remaining_time
             )
             if tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
-                cursor_mode = threading.current_thread().cursor_mode
+                cursor_mode = worker.cursor_mode
                 record.perf_info = (
                     f"{record.perf_info} {self.format_cursor_mode(cursor_mode)}"
                 )
-            delattr(threading.current_thread(), "query_count")
+            delattr(worker, "query_count")
         elif tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
             record.perf_info = "- - - -"
         else:
@@ -309,8 +309,9 @@ class LogRecord(logging.LogRecord):
         )
         self.perf_info = ""
         self.pid = os.getpid()
-        self.dbname = getattr(threading.current_thread(), "dbname", "?")
-        uid = getattr(threading.current_thread(), "uid", None)
+        worker = current_worker_thread()
+        self.dbname = getattr(worker, "dbname", "?")
+        uid = getattr(worker, "uid", None)
         self.uid = uid if uid is not None else "-"
 
 
@@ -512,7 +513,13 @@ def showwarning_with_traceback(
 
     filtered = []
     for frame in traceback.extract_stack():
-        if frame.name == "__call__" and frame.filename.endswith("/odoo/http.py"):
+        # The WSGI entry point, i.e. the start of the request. Everything above
+        # it is server plumbing and only pushes the interesting frames off the
+        # top of the warning.  This lived on "/odoo/http.py" until http.py
+        # became the http/ package, after which it matched nothing.
+        if frame.name == "__call__" and frame.filename.endswith(
+            "/odoo/http/application.py"
+        ):
             filtered.clear()
         if "importlib" not in frame.filename:
             filtered.append(frame)

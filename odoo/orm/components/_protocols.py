@@ -57,7 +57,15 @@ class FieldLike(SchedulableField, Protocol):
 
     A superset of :class:`SchedulableField`. The real
     :class:`odoo.fields.Field` satisfies this structurally; it types the
-    ``field`` keys/params flowing through the cache and model-graph components.
+    ``field`` params flowing through :mod:`.model_graph`.
+
+    **Not** the cache's key type, deliberately. :class:`~.cache.FieldCache`
+    documents its keys as opaque -- "any hashable will do" -- with exactly one
+    exception (``pop_dirty_for_model`` reads ``key.model_name``), and its unit
+    tests rely on that by keying the cache with plain strings. Typing its
+    parameters ``FieldLike`` would narrow a contract the component chose to keep
+    wide, so those stay ``Any``. Extend a protocol only when the engine starts
+    reading a new attribute -- and only in the component that reads it.
     """
 
     @property
