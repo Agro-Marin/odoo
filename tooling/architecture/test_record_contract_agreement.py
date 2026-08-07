@@ -19,11 +19,14 @@ it is a test, not a gate, and it asserts an equality rather than scanning a tree
 """
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_record_contract_agreement")
 WEB_SRC = ROOT / "addons/web/static/src"
 
 # (file, exported array, typedef name, floor). The floor is a guard, not a

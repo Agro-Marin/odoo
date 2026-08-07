@@ -1,4 +1,4 @@
 {
-  "count": 2151,
-  "note": "2152 -> 2151 (-1). The AutoComplete keyboard-navigation port (audit U12 proposal 6 pilot) deleted selectablePositions, whose positions.push(...) carried the file's TS2322 (any[][] vs [number, number][]). The replacement navigator-derived cursor and the data-level _firstSelectableOption type cleanly. Command: npx tsc --project tsconfig.json --noEmit 2>&1 | grep -c 'error TS'"
+  "count": 2150,
+  "note": "2151 -> 2150 (-1), re-measured after the rebase. Measured as CI does: npx tsc --project tsconfig.json --noEmit, grep -c 'error TS'."
 }

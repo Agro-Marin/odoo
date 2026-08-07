@@ -59,7 +59,9 @@ from pathlib import Path
 
 from js_imports import collect_imports, collect_type_imports  # sys.path: conftest
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_face_boundary")
 WEB = ROOT / "addons" / "web"
 WEB_SRC = WEB / "static" / "src"
 

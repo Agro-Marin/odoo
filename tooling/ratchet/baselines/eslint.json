@@ -1,4 +1,4 @@
 {
-  "count": 24111,
-  "note": "sales_team prettier cleanup: eslint --fix on the module's 4 JS files (crm_team_form.js, crm_team_form.test.js, crm_team_test_helpers.js, mock_server/mock_models/crm_team.js) cleared all 8 of its errors, 8 -> 0. Measured against a clean 'git archive' of HEAD 2b77756f451 (24119) plus the working tree (24111); the module A/B is exact. Note this ALSO corrects a pre-existing 5-error overcount: the previous floor of 24124 did not match clean HEAD, which measures 24119 -- the dirty-tree mis-record that ruff.json documents twice. 24119 - 8 = 24111."
+  "count": 24050,
+  "note": "24278 (origin) / 24111 (replayed) -> 24050, re-measured after the rebase. Neither committed number was measured against this tree: the remote's predated the web architecture wave, the branch's predated the remote's 187 commits. Measured as CI does: npx eslint . --format=json, summed errorCount, with the committed toolchain. warningCount is 2, unchanged and ungated."
 }

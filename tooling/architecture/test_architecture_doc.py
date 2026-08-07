@@ -771,7 +771,7 @@ class TestReferencedArtifacts(unittest.TestCase):
         tabled = set(re.findall(r"^\| `(\w+\.py)` \|", section, re.MULTILINE))
         self.assertEqual(tabled, run_in_ci)
 
-        stated = re.search(r"workflow runs \*\*(\w+)\*\* blocking checkers", DOC)
+        stated = re.search(r"workflow runs \*\*([\w-]+)\*\* blocking checkers", DOC)
         self.assertIsNotNone(stated, "the gate count is no longer stated")
         words = {
             "four": 4,
@@ -784,6 +784,11 @@ class TestReferencedArtifacts(unittest.TestCase):
             "eleven": 11,
             "twelve": 12,
             "thirteen": 13,
+            "twenty-two": 22,
+            "twenty-three": 23,
+            "twenty-four": 24,
+            "twenty-five": 25,
+            "twenty-six": 26,
         }
         self.assertEqual(words[stated.group(1)], len(run_in_ci))
 
@@ -893,12 +898,20 @@ class TestReferencedArtifacts(unittest.TestCase):
             )
 
     def test_ratchet_baselines_match_documented_gates(self) -> None:
-        match = re.search(r"\*\*mypy, ruff, eslint and tsc\*\*", DOC)
+        match = re.search(
+            r"\*\*mypy, ruff, eslint, tsc, jsfunclen, jsprivate, "
+            r"jsserviceshape and naming\*\*",
+            DOC,
+        )
         self.assertIsNotNone(match, "the ratchet gate list is no longer stated")
         on_disk = {
             p.stem for p in (ROOT / "tooling" / "ratchet" / "baselines").glob("*.json")
         }
-        self.assertEqual({"mypy", "ruff", "eslint", "tsc"}, on_disk)
+        self.assertEqual(
+            {"mypy", "ruff", "eslint", "tsc",
+             "jsfunclen", "jsprivate", "jsserviceshape", "naming"},
+            on_disk,
+        )
 
     def test_named_source_paths_exist(self) -> None:
         """Backticked ``odoo/...`` and ``tooling/...`` paths must resolve.
@@ -1441,13 +1454,21 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         return re.findall(r"^\| `([\w.]+\.py)` \|", section, re.MULTILINE)
 
     def _workflow_gates(self) -> list[str]:
-        return re.findall(r"python tooling/architecture/([\w.]+\.py)", self.yaml)
+        # DISTINCT checkers, not invocations. Eleven of them are run twice (once
+        # to report, once for the JSON the summary step reads), so counting raw
+        # matches said 35 where the workflow runs 24 gates.
+        found = re.findall(r"python tooling/architecture/([\w.]+\.py)", self.yaml)
+        return sorted(set(found))
 
     def test_table_matches_the_workflow(self) -> None:
         self.assertEqual(set(self._table_gates()), set(self._workflow_gates()))
 
     def test_stated_count_matches_both(self) -> None:
-        words = {12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen"}
+        words = {
+            12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen",
+            22: "twenty-two", 23: "twenty-three", 24: "twenty-four",
+            25: "twenty-five", 26: "twenty-six",
+        }
         count = len(self._workflow_gates())
         self.assertIn(
             f"runs **{words[count]}** blocking checkers", DOC_FLAT, f"{count} gates run"
@@ -1455,9 +1476,12 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
 
     def test_every_gate_step_is_blocking(self) -> None:
         """A step that does not re-raise its exit code is a gate that cannot fail."""
-        self.assertEqual(
-            self.yaml.count('exit "${GATE_EXIT}"'), len(self._workflow_gates())
-        )
+        # Two idioms re-raise a gate's status: the original
+        # `exit "${GATE_EXIT}"` and the `exit $rc` used by the steps that pipe a
+        # count into tooling/ratchet. Both are blocking; counting only the first
+        # read eleven live gates as unwired.
+        reraised = self.yaml.count('exit "${GATE_EXIT}"') + self.yaml.count("exit $rc")
+        self.assertEqual(reraised, len(self._workflow_gates()))
 
     def test_annotate_condition_covers_every_step(self) -> None:
         ids = set(re.findall(r"^\s+id: (\w+)$", self.yaml, re.MULTILINE))
@@ -1474,7 +1498,11 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
 
     def test_the_outside_checker_is_counted_from_the_inside_ones(self) -> None:
         """``cross_repo_coherence.py`` is "an Nth checker" — N must track the table."""
-        words = {12: "twelfth", 13: "thirteenth", 14: "fourteenth", 15: "fifteenth"}
+        words = {
+            12: "twelfth", 13: "thirteenth", 14: "fourteenth", 15: "fifteenth",
+            23: "twenty-third", 24: "twenty-fourth", 25: "twenty-fifth",
+            26: "twenty-sixth", 27: "twenty-seventh",
+        }
         expected = words[len(self._workflow_gates()) + 1]
         self.assertIn(f"is a {expected} checker and the only one outside CI", DOC_FLAT)
 

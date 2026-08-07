@@ -2,7 +2,7 @@
 
 Nearly every unit of the composition reads these. Counted in the units
 ``mixin_coupling_check.py`` builds — 28 of them, this module plus 27 others —
-``self._fields`` is read by 25, ``self._name`` by 24, ``self._table`` by 13 and
+``self._fields`` is read by 25, ``self._name`` by 25, ``self._table`` by 13 and
 ``self.pool`` by 9, then a long tail of ``_order`` / ``_rec_name`` /
 ``_inherits`` / ``_parent_name`` (2 to 4 each).
 While they were declared in ``BaseModel``'s own class body, every mixin had a
@@ -27,7 +27,7 @@ attributes reached as ``self._name`` / ``self._fields``; only the class that
 *declares* them moves, and attribute lookup crosses that hop through the MRO for
 free. That matters: counting ``self.``-qualified reads in this repo's two addon
 trees (``odoo/addons/`` and ``addons/``), ``self._name`` has 359 sites and
-``self._fields`` 323 — a change in how they are *reached* would be a breaking
+``self._fields`` 325 — a change in how they are *reached* would be a breaking
 change to the most widely used surface in the framework, for no structural gain
 the MRO does not already give. The sibling repos (``enterprise``,
 ``agromarin``, ``design-themes``) add several hundred more; they are left

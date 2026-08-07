@@ -1,4 +1,4 @@
 {
-  "count": 527,
-  "note": "539 -> 527 (-12), all in odoo/addons/test_lint, which is now ruff-clean. Measured the documented way and NOT from the working tree, which carries other branches' work: a clean 'git archive HEAD' measures 539, the same tree with only the test_lint change applied measures 527. Of the 12: 4 I001/1 RUF050/1 SIM114 disappeared with the four superseded test modules (test_ruff, test_onchange_domains, test_orm_import, test_noqa_rationale) and the rewrites that replaced them; 2 PERF401 and 1 ISC004 were rewritten in place; 1 SIM103 in test_index and 1 E731 introduced during the pass were fixed; the 4 docutils F401 that surfaced once test_docstring imported docutils.core explicitly now carry a rationale. Command: ruff check odoo/ --no-cache --statistics | awk '{s+=$1} END {print s+0}'"
+  "count": 761,
+  "note": "761. Re-measured after rebasing this branch onto origin/19.0-marin. The replayed 527 was measured against the pre-rebase tree and never applied to this one. Measured as CI does: ruff check odoo/ --no-cache --statistics, summed, ruff 0.16.2, scope odoo/ only. Every finding is a D rule (undocumented-*): 224 D102, 185 D105, 175 D103, 64 D100, 60 D101, 35 D107, 18 D104. The count is identical to origin/19.0-marin's floor, i.e. the replayed commits moved no D-scored surface in odoo/."
 }
