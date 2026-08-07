@@ -425,10 +425,12 @@ class CrmTeam(models.Model):
 
             leads = self.env["crm.lead"].search(lead_domain)
             # Fill duplicate cache: search for duplicate lead before the assignment
-            # avoid to flush during the search at every assignment
-            for lead in leads:
-                if lead not in duplicates_lead_cache:
-                    duplicates_lead_cache[lead] = lead._get_lead_duplicates(email=lead.email_from)
+            # avoid to flush during the search at every assignment. One batched
+            # search for the whole population, not one per lead.
+            missing = leads.filtered(lambda lead: lead not in duplicates_lead_cache)
+            if missing:
+                duplicates_lead_cache.update(
+                    self.env['crm.lead']._get_lead_duplicates_by_lead(missing))
 
             teams_data[team] = {
                 "team": team,
@@ -512,12 +514,16 @@ class CrmTeam(models.Model):
         leads_assigned = self.env['crm.lead']  # direct team assign
         leads_done_ids, leads_merged_ids, leads_dup_ids = set(), set(), set()  # classification
         leads_dups_dict = dict()  # lead -> its duplicate
+        # fill cache for the whole batch in one search rather than lead by lead;
+        # duplicates are resolved up front anyway (see _action_assign_leads), and
+        # the .exists() below already covers records merged away meanwhile
+        missing = leads.filtered(lambda lead: lead not in duplicates_cache)
+        if missing:
+            duplicates_cache.update(
+                self.env['crm.lead']._get_lead_duplicates_by_lead(missing))
+
         for lead in leads:
             if lead.id not in leads_done_ids:
-
-                # fill cache if not already done
-                if lead not in duplicates_cache:
-                    duplicates_cache[lead] = lead._get_lead_duplicates(email=lead.email_from)
                 lead_duplicates = duplicates_cache[lead].exists()
 
                 if len(lead_duplicates) > 1:
