@@ -1,4 +1,5 @@
 import ast
+import logging
 import os
 import pathlib
 import unittest.mock
@@ -7,6 +8,8 @@ from collections import Counter
 from odoo.modules import Manifest
 
 from odoo.addons.test_lint.tests.lint_case import LintCase
+
+_logger = logging.getLogger(__name__)
 
 
 class InitChecker(ast.NodeVisitor):
@@ -48,6 +51,7 @@ class TestTestHoles(LintCase):
         checker = InitChecker()
 
         errors = []
+        checked = 0
         for manifest in Manifest.all_addon_manifests():
             checker.names.clear()
             p = checker.path = pathlib.Path(manifest.path, "tests")
@@ -55,11 +59,23 @@ class TestTestHoles(LintCase):
                 continue
 
             init = p / "__init__.py"
-            assert init.exists(), (
-                f"Python test directories must have an init, none found in {p}"
-            )
+            if not init.exists():
+                # Collected, not raised. A bare `assert` here aborted the whole
+                # scan on the first offender: it fired on `cloud_storage`, the
+                # 119th of 986 modules with a tests directory, so the remaining
+                # 866 were never examined at all -- and only two modules in the
+                # tree actually have this problem.
+                errors.append(f"Python test directory without an __init__: {p}")
+                continue
 
-            checker.visit(ast.parse(init.read_bytes(), init))
+            checked += 1
+            try:
+                checker.visit(ast.parse(init.read_bytes(), init))
+            except (AssertionError, SyntaxError, OSError) as exc:
+                # Likewise: one unparseable or non-trivial init must not hide
+                # every module after it.
+                errors.append(f"{init}: {exc}")
+                continue
 
             for f in p.rglob("test_*.py"):
                 if f.match("odoo/addons/base/tests/test_uninstall.py"):
@@ -77,7 +93,10 @@ class TestTestHoles(LintCase):
                             f"Test file {test_path} imported multiple times in {init}"
                         )
 
+        _logger.info("checked the test init of %s modules", checked)
+        self.assertTrue(checked, "the scan reached no test directories at all")
         if errors:
             raise AssertionError(
-                "Found test errors:" + "".join(f"\n- {e}" for e in errors)
+                f"Found {len(errors)} test error(s):"
+                + "".join(f"\n- {e}" for e in sorted(errors))
             )

@@ -3,14 +3,21 @@ import inspect
 import io
 import logging
 
-import docutils.nodes
+# `docutils.core.publish_doctree` is called below. It used to resolve only
+# because `odoo/addons/base/models/ir_module.py` imports `docutils.core` at
+# server start: none of the imports this module makes for itself binds it, so
+# outside a running server -- a standalone or pytest run -- this file raised
+# NameError rather than linting anything.
+import docutils.core
 
-# Imported for their REGISTRATION side effect: these modules populate docutils'
-# directive/role registries, and without them the parser this test drives
-# reports every `.. note::` and `:ref:` in a docstring as an unknown directive.
-import docutils.parsers.rst.directives  # noqa: F401  see comment above
-import docutils.parsers.rst.directives.admonitions  # noqa: F401  see comment above
-import docutils.parsers.rst.roles  # noqa: F401  see comment above
+# Imported for their import-time side effects: each one registers nodes,
+# directives and roles into docutils' global tables, which `publish_doctree`
+# then resolves against. Nothing here references them by name, and ruff can only
+# see that now that `docutils.core` binds the package on its own.
+import docutils.nodes  # noqa: F401  registers node classes with docutils
+import docutils.parsers.rst.directives  # noqa: F401  registers rst directives
+import docutils.parsers.rst.directives.admonitions  # noqa: F401  registers admonitions
+import docutils.parsers.rst.roles  # noqa: F401  registers rst roles
 
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, get_db_name, no_retry, tagged

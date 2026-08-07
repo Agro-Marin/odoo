@@ -1,3 +1,4 @@
+import functools
 import logging
 import re
 from pathlib import Path
@@ -23,12 +24,20 @@ DYNAMIC_IMPORT_RE = re.compile(r"""\bimport\(\s*["']([^"']+)["']\s*\)""")
 COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 
 
+@functools.cache
 def _addon_js_sources():
-    """Yield ``(path, source)`` for every non-vendored JS file under an addon.
+    """``(path, source)`` for every non-vendored JS file under an addon.
 
     Vendored libraries are third-party sources shipped verbatim; they do not
     use the ``@addon`` convention and must not be edited to satisfy it.
+
+    Cached: both tests below need the same 9 174 files, and reading them is the
+    larger half of what either one costs.
     """
+    return tuple(_read_addon_js())
+
+
+def _read_addon_js():
     for manifest in Manifest.all_addon_manifests():
         static_root = Path(manifest.path) / "static"
         if not static_root.is_dir():

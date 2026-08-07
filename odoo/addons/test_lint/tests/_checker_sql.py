@@ -64,6 +64,24 @@ class SqlInjectionChecker:
     )
     _root_call: ast.Call | None = field(default=None, init=False)
     _const_def_cache: dict = field(default_factory=dict, init=False)
+    #: ``id(scope) -> {name: [assigning statements]}``. See
+    #: :meth:`_assignments_in`.
+    _assign_cache: dict[int, dict[str, list[ast.AST]]] = field(
+        default_factory=dict, init=False
+    )
+    #: ``id(scope) -> {names referenced inside an assert}``. See
+    #: :meth:`_is_asserted`.
+    _assert_cache: dict[int, set[str]] = field(default_factory=dict, init=False)
+    #: ``id(module) -> {name: value}`` for top-level assignments. See
+    #: :meth:`_module_constant`.
+    _module_const_cache: dict[int, dict[str, ast.expr]] = field(
+        default_factory=dict, init=False
+    )
+    _is_test_file: bool = field(default=False, init=False)
+
+    def __post_init__(self) -> None:
+        # Answered once instead of rebuilding a `Path` for every call node.
+        self._is_test_file = Path(self.filepath).name.startswith("test_")
 
     def check(self, tree: ast.Module) -> Iterator[Violation]:
         yield from self._walk(tree)
@@ -82,7 +100,8 @@ class SqlInjectionChecker:
             yield Violation(node.lineno, node.col_offset)
 
     def _visit_functiondef(self, node: ast.FunctionDef) -> Iterator[Violation]:
-        if Path(self.filepath).name.startswith("test_"):
+        """Record function definitions and re-evaluate earlier call sites."""
+        if self._is_test_file:
             return
 
         self._function_defs[node.name].append(node)
@@ -96,7 +115,8 @@ class SqlInjectionChecker:
                 )
 
     def _check_sql_injection_risky(self, node: ast.Call) -> bool:
-        if Path(self.filepath).name.startswith("test_"):
+        """Return True if *node* is a risky SQL call."""
+        if self._is_test_file:
             return False
 
         if not node.args:
@@ -333,12 +353,51 @@ class SqlInjectionChecker:
                         self._is_constexpr(iter_node, args_allowed=args_allowed)
                     )
 
-                case ast.Module():
-                    return True
+        if not assigned_results and (value := self._module_constant(node, name)):
+            return self._is_constexpr(value, args_allowed=args_allowed)
 
         if assigned_results and all(assigned_results):
             return True
         return self._is_asserted(scope, name)
+
+    def _module_constant(self, node: ast.AST, name: str) -> ast.expr | None:
+        """The value of a module-level ``NAME = ...``, if *name* is one.
+
+        A function body that reads a query constant defined at module scope --
+        ``cr.execute(_AUTO_INSTALL_CANDIDATES_QUERY)`` in ``odoo/modules/db.py``
+        is the canonical shape -- resolved to nothing before this: the search
+        only ever looked inside the enclosing function, found no assignment, and
+        the name was therefore not constant. Every such call read as an
+        injection. It went unnoticed only because the framework was outside the
+        scanned corpus entirely.
+
+        Deliberately restricted to statements directly in the module body.
+        Consulting every assignment anywhere in the module -- which is what the
+        Module scope's own lookup does -- would let a name assigned unsafely
+        inside some *other* function answer for this one, turning a false
+        positive into a false negative.
+        """
+        module = getattr(node, "_parent", None)
+        while module is not None and not isinstance(module, ast.Module):
+            module = getattr(module, "_parent", None)
+        if module is None:
+            return None
+
+        cached = self._module_const_cache.get(id(module))
+        if cached is None:
+            cached = {}
+            for stmt in module.body:
+                if isinstance(stmt, ast.Assign):
+                    for target in stmt.targets:
+                        if isinstance(target, ast.Name):
+                            cached[target.id] = stmt.value
+                elif isinstance(stmt, ast.AnnAssign) and isinstance(
+                    stmt.target, ast.Name
+                ):
+                    if stmt.value is not None:
+                        cached[stmt.target.id] = stmt.value
+            self._module_const_cache[id(module)] = cached
+        return cached.get(name)
 
     def _find_tuple_position(self, targets: list[ast.expr], name: str) -> int | None:
         for target in targets:
@@ -471,57 +530,94 @@ class SqlInjectionChecker:
             current = getattr(current, "_parent", None)
         return None
 
-    @staticmethod
-    def _find_assignments(scope: ast.AST, name: str) -> Iterator[ast.AST]:
+    def _assignments_in(self, scope: ast.AST) -> dict[str, list[ast.AST]]:
+        """Every name assigned in *scope*, mapped to the statements assigning it.
+
+        Built once per scope. It used to be a fresh ``ast.walk(scope)`` for
+        every single name resolution, which made the checker quadratic in the
+        size of the enclosing scope: 100/200/400/800 statements took
+        0.21/0.81/2.80/11.03 s -- a clean n². Real files kept it survivable only
+        because their functions are small.
+
+        A parameter name shadows everything else in the scope, so it maps to the
+        function alone; that is what the old early ``return`` expressed.
+        """
+        cached = self._assign_cache.get(id(scope))
+        if cached is not None:
+            return cached
+
+        mapping: dict[str, list[ast.AST]] = defaultdict(list)
+        params: set[str] = set()
         if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            for arg in scope.args.args + scope.args.kwonlyargs:
-                if arg.arg == name:
-                    yield scope
-                    return
-            if scope.args.vararg and scope.args.vararg.arg == name:
-                yield scope
-                return
-            if scope.args.kwarg and scope.args.kwarg.arg == name:
-                yield scope
-                return
+            # `posonlyargs` is deliberately absent, as it was before: adding it
+            # here would change which expressions count as constant.
+            params = {arg.arg for arg in scope.args.args + scope.args.kwonlyargs}
+            if scope.args.vararg:
+                params.add(scope.args.vararg.arg)
+            if scope.args.kwarg:
+                params.add(scope.args.kwarg.arg)
+            for name in params:
+                mapping[name] = [scope]
+
+        def record(name: str, node: ast.AST) -> None:
+            if name not in params:
+                mapping[name].append(node)
 
         for node in ast.walk(scope):
             match node:
                 case ast.Assign(targets=targets):
                     for target in targets:
-                        if isinstance(target, ast.Name) and target.id == name:
-                            yield node
+                        if isinstance(target, ast.Name):
+                            record(target.id, node)
                         elif isinstance(target, ast.Tuple):
                             for elt in target.elts:
-                                if isinstance(elt, ast.Name) and elt.id == name:
-                                    yield node
-                case ast.AugAssign(target=ast.Name(id=target_name)) if (
-                    target_name == name
-                ):
-                    yield node
+                                if isinstance(elt, ast.Name):
+                                    record(elt.id, node)
+                case ast.AugAssign(target=ast.Name(id=target_name)):
+                    record(target_name, node)
                 case ast.For(target=target):
-                    if isinstance(target, ast.Name) and target.id == name:
-                        yield node
+                    if isinstance(target, ast.Name):
+                        record(target.id, node)
                     elif isinstance(target, ast.Tuple):
                         for elt in target.elts:
-                            if isinstance(elt, ast.Name) and elt.id == name:
-                                yield node
+                            if isinstance(elt, ast.Name):
+                                record(elt.id, node)
                 case ast.comprehension(target=target):
-                    if isinstance(target, ast.Name) and target.id == name:
-                        yield node
+                    if isinstance(target, ast.Name):
+                        record(target.id, node)
+
+        self._assign_cache[id(scope)] = mapping
+        return mapping
+
+    def _find_assignments(self, scope: ast.AST, name: str) -> Iterator[ast.AST]:
+        """Nodes in *scope* that assign to *name*, in source order."""
+        yield from self._assignments_in(scope).get(name, ())
 
     @staticmethod
     def _find_return_nodes(node: ast.AST) -> list[ast.Return]:
         return [child for child in ast.walk(node) if isinstance(child, ast.Return)]
 
-    @staticmethod
-    def _is_asserted(scope: ast.AST, name: str) -> bool:
-        for node in ast.walk(scope):
-            if isinstance(node, ast.Assert) and node.test is not None:
-                for child in ast.walk(node.test):
-                    if isinstance(child, ast.Name) and child.id == name:
-                        return True
-        return False
+    def _is_asserted(self, scope: ast.AST, name: str) -> bool:
+        """Whether *name* is referenced in any ``assert`` within *scope*.
+
+        The names are collected once per scope. This is the query that actually
+        made the checker quadratic: it is reached for every name the scope does
+        *not* assign -- the common case -- and each miss used to re-walk the
+        whole scope looking for asserts. Caching the assignment map alone left
+        the n² intact (0.09/0.35/1.47/5.62 s for 100/200/400/800 statements);
+        caching this too is what flattens it.
+        """
+        cached = self._assert_cache.get(id(scope))
+        if cached is None:
+            cached = {
+                child.id
+                for node in ast.walk(scope)
+                if isinstance(node, ast.Assert) and node.test is not None
+                for child in ast.walk(node.test)
+                if isinstance(child, ast.Name)
+            }
+            self._assert_cache[id(scope)] = cached
+        return name in cached
 
     @staticmethod
     def _looks_like_psycopg(node: ast.expr) -> bool:

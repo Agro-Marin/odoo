@@ -5,7 +5,12 @@ from dataclasses import dataclass
 
 PLACEHOLDER_REGEXP = re.compile(
     r"""
-    (?<!%)             # avoid matching escaped %
+    # Step over any run of escaped `%%` first, so the `%` that follows one is
+    # still seen. A bare `(?<!%)` could only reject the second half of a `%%`
+    # pair, which also rejected a real placeholder immediately after one:
+    # `"%%%s"` -- an escaped percent then a substitution -- read as zero
+    # placeholders. The lookbehind stays, to anchor the run at its true start.
+    (?<!%)(?:%%)*
     %
     [#0\- +]*          # conversion flag
     (?:\d+|\*)?        # minimum field width
@@ -58,11 +63,19 @@ def _is_whitelisted_argument(arg: ast.expr) -> bool:
     return False
 
 
-def check(tree: ast.Module, filepath: str = "") -> Iterator[Violation]:
+def check(tree: ast.Module, filepath: str = "", nodes=None) -> Iterator[Violation]:
+    """Walk *tree* and yield gettext violations.
+
+    Files whose path contains ``/test_`` or ``/tests/`` are skipped
+    (same as the original pylint checker).
+
+    *nodes* is an already-materialised ``ast.walk(tree)``, shared by the scan
+    so the tree is traversed once for every checker rather than once each.
+    """
     if "/test_" in filepath or "/tests/" in filepath:
         return
 
-    for node in ast.walk(tree):
+    for node in nodes if nodes is not None else ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
 

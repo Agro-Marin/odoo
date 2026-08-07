@@ -31,8 +31,14 @@ def _looks_like_model_class(node: ast.ClassDef) -> bool:
     return False
 
 
-def check(tree: ast.Module) -> Iterator[Violation]:
-    for node in ast.walk(tree):
+def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
+    """Walk *tree* and yield unlink-override violations.
+
+    *nodes* is an already-materialised ``ast.walk(tree)``. Traversing the tree
+    is most of what this checker costs -- 4.2 s over the corpus, against two
+    findings -- so the scan walks once and every checker reads that one list.
+    """
+    for node in nodes if nodes is not None else ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue
         if not _looks_like_model_class(node):
