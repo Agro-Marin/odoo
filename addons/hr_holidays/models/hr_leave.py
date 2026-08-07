@@ -11,7 +11,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Date, Domain
 from odoo.libs.intervals import Intervals
-from odoo.libs.numbers.float_utils import float_compare, float_round
+from odoo.libs.numbers import float_compare, float_round
 from odoo.tools.date_utils import float_to_time
 from odoo.tools.misc import clean_context, format_date
 from odoo.tools.translate import _

@@ -8,7 +8,7 @@ from markupsafe import Markup
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError, RedirectWarning, UserError
-from odoo.libs.numbers.float_utils import json_float_round
+from odoo.libs.numbers import json_float_round
 from odoo.tools.image import image_data_uri
 from odoo.tools import float_compare, SQL
 from odoo.tools.date_utils import get_month

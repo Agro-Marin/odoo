@@ -11,9 +11,13 @@ from contextlib import suppress
 from weakref import WeakSet, WeakValueDictionary
 from weakref import ref as weakref_ref
 
+from odoo.libs.profiling import (
+    NplusOneTracker,
+    OrmProfiler,
+    _n1_enabled,
+    _orm_profiling_enabled,
+)
 from odoo.tools import OrderedSet, reset_cached_properties
-from odoo.tools.nplusone import NplusOneTracker, _n1_enabled
-from odoo.tools.orm_profiler import OrmProfiler, _orm_profiling_enabled
 
 from ..components.cache import FieldCache
 from ..components.compute import ComputeEngine

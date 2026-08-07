@@ -5,7 +5,7 @@ from odoo import api, fields, models
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
-from odoo.libs.numbers.float_utils import float_repr
+from odoo.libs.numbers import float_repr
 from odoo.tools.misc import OrderedSet
 from odoo.tools.translate import _
 

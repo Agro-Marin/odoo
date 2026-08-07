@@ -19,6 +19,7 @@ from markupsafe import Markup
 
 from odoo import _, api, fields, models, modules, tools
 from odoo.api import ValuesType
+from odoo.db.schema import column_exists
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
@@ -30,7 +31,6 @@ from odoo.modules.module import (
 )
 from odoo.tools import SQL, config
 from odoo.tools.misc import get_flag, topological_sort
-from odoo.tools.sql import column_exists
 from odoo.tools.translate import (
     TranslationImporter,
     code_translations,

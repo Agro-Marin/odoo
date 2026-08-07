@@ -43,6 +43,10 @@ on:
       - 'odoo/db/**'
       - 'tests/contract/**'
       - 'tests/process/**'
+      - 'tests/loading/**'
+      # The loading suite characterizes this package; a change to it that
+      # reordered a phase would otherwise not trigger the suite that notices.
+      - 'odoo/modules/**'
       - 'requirements*.txt'
       - '.github/workflows/service_suites.yml'
 
@@ -134,3 +138,15 @@ jobs:
         # Separate step so a failure is attributable: the contract suite
         # compares programs, this one supervises processes.
         run: python -m pytest tests/process -q
+
+      - name: Loading suite (module loader against a real database)
+        # The third real-dependency suite: characterization of
+        # odoo/modules/loading.py::load_modules — the densest function in the
+        # core (332 lines, 70 branches) and the one the monolith decomposition
+        # never reached. It installs `base` into a disposable database and
+        # asserts the ORDER of the phases, plus the uninstall branch, which no
+        # other suite drives at all.
+        #
+        # Separate step for the same reason as above, and because it is the
+        # slowest of the three (a real `-i base` per session).
+        run: python -m pytest tests/loading -q

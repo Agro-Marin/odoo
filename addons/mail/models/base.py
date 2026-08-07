@@ -6,9 +6,9 @@ from lxml.builder import E
 from markupsafe import Markup
 
 from odoo import _, api, exceptions, models, tools
+from odoo.db.schema import column_exists
 from odoo.tools import parse_contact_from_email
 from odoo.tools.mail import email_normalize, email_split_and_format
-from odoo.tools.sql import column_exists
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 from odoo.addons.mail.tools.alias_error import AliasError

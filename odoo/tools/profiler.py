@@ -15,6 +15,7 @@ from psycopg import OperationalError
 
 from odoo import tools
 from odoo.libs.gc import disabling_gc
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools import SQL
 
 if TYPE_CHECKING:
@@ -669,7 +670,7 @@ class Profiler:
         self.counter: int = 0
 
         if db is ...:
-            db = getattr(threading.current_thread(), "dbname", None)
+            db = getattr(current_worker_thread(), "dbname", None)
             if not db:
                 msg = "Database name cannot be defined automaticaly. \n Please provide a valid/falsy dbname or path parameter"
                 raise ValueError(msg)

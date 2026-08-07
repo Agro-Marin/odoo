@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`odoo.tools.hashing`.
+"""Unit tests for :mod:`odoo.libs.hashing`.
 
 Two properties matter and are tested separately:
 
@@ -19,7 +19,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from odoo.tools import hashing
+from odoo.libs import hashing
 
 _VECTORS = {
     0: "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",

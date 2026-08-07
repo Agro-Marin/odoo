@@ -5,7 +5,7 @@ import logging
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers import float_round
 from odoo.tools import SQL
 from odoo.tools.translate import html_translate
 

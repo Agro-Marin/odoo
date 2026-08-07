@@ -12,7 +12,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.intervals import Intervals
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers import float_round
 from odoo.models import ValuesType
 from odoo.tools import SQL, date_utils, float_compare
 from odoo.tools.date_utils import float_to_time, localized, to_timezone

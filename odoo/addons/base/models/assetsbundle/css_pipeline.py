@@ -19,7 +19,7 @@ from odoo.tools.misc import file_path
 from odoo.tools.sass_embedded import SassCompileError
 
 if TYPE_CHECKING:
-    from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
+    from odoo.libs.profiling import SourceMapGenerator
 
     from .bundle import AssetsBundle
 from .assets import PreprocessedCSS, StylesheetAsset

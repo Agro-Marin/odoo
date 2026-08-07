@@ -16,7 +16,7 @@ untouched. ``arch_db`` is jsonb (a per-language dict); the field name is never
 translated and never a JSON key, so the value-level regexp is safe.
 """
 
-from odoo.tools.sql import column_exists
+from odoo.db.schema import column_exists
 
 
 def migrate(cr, version):

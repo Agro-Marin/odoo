@@ -3,7 +3,7 @@ import zipfile
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.libs.filesystem import guess_mimetype
 from odoo.tools.misc import format_date
 
 

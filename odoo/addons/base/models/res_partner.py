@@ -11,8 +11,8 @@ from urllib.parse import urlsplit, urlunsplit
 from odoo import Command, _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
-from odoo.libs.datetime.tz import all_timezones
-from odoo.libs.datetime.tz import timezone as get_timezone
+from odoo.libs.datetime import all_timezones
+from odoo.libs.datetime import timezone as get_timezone
 
 if typing.TYPE_CHECKING:
     from .res_partner_category import ResPartnerCategory

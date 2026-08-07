@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
-from odoo.libs.web.urls import urljoin as url_join
+from odoo.libs.web import urljoin as url_join
 from odoo.modules import module
 from odoo.tools import get_lang
 

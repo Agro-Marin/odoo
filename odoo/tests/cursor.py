@@ -172,6 +172,12 @@ class TestCursor(BaseCursor):
         """
         self.flush()
         self._close_savepoint(rollback=self.readonly)
+        # Mirrors Cursor.commit: bumped once the simulated commit has taken
+        # effect, so retrying() classifies a failure the same way here as in
+        # production (a post-commit failure after this point is "durable", not
+        # "the commit failed").  Without it the test tier would silently take
+        # the other branch.
+        self.commit_count += 1
         self.clear()
         self._now = None
         self.prerollback.clear()

@@ -23,19 +23,27 @@ if [ ! -f "$root/odoo-bin" ]; then
     echo "$(basename "$0"): no odoo-bin above $here; cannot locate the checkout" >&2
     exit 1
 fi
-ws="$(cd "$root/../.." && pwd)"
+# Two workspace layouts: the checkout used to sit at <ws>/addons/odoo with the
+# venvs under <ws>/venv/, and now sits at <ws>/odoo with them directly under
+# <ws>/. Derive <ws> from the checkout's own position rather than a fixed depth,
+# and search both venv locations, so neither layout needs $ODOO_VENV_PYTHON.
+if [ "$(basename "$(dirname "$root")")" = "addons" ]; then
+    ws="$(cd "$root/../.." && pwd)"
+else
+    ws="$(cd "$root/.." && pwd)"
+fi
 py="${ODOO_VENV_PYTHON:-}"
 if [ -z "$py" ]; then
-    for cand in "$ws"/venv/*/bin/python; do
+    for cand in "$ws"/venv/*/bin/python "$ws"/*/bin/python; do
         [ -x "$cand" ] || continue
-        if [ -n "$py" ]; then
-            echo "$(basename "$0"): several venvs under $ws/venv; set ODOO_VENV_PYTHON" >&2
+        if [ -n "$py" ] && [ "$py" != "$cand" ]; then
+            echo "$(basename "$0"): several venvs under $ws; set ODOO_VENV_PYTHON" >&2
             exit 1
         fi
         py="$cand"
     done
     if [ -z "$py" ]; then
-        echo "$(basename "$0"): no venv python under $ws/venv; set ODOO_VENV_PYTHON" >&2
+        echo "$(basename "$0"): no venv python under $ws or $ws/venv; set ODOO_VENV_PYTHON" >&2
         exit 1
     fi
 fi

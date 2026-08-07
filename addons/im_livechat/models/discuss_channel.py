@@ -3,7 +3,7 @@
 from odoo import api, fields, models, _, tools
 from odoo.addons.mail.tools.discuss import Store
 from odoo.tools import email_normalize, email_split, html2plaintext, plaintext2html
-from odoo.libs.filesystem.mimetypes import get_extension
+from odoo.libs.filesystem import get_extension
 
 import json
 from markupsafe import Markup

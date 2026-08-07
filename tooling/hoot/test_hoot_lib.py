@@ -38,13 +38,26 @@ class TestRootResolution:
         assert "odoo-bin" in str(excinfo.value)
 
     @needs_workspace
-    def test_workspace_is_the_directory_above_addons(self):
-        assert H.ODOO_ROOT.parents[1] == H.WORKSPACE
-        assert (H.WORKSPACE / "addons" / "odoo") == H.ODOO_ROOT
+    def test_workspace_contains_this_checkout(self):
+        # Two layouts: the checkout sits at <ws>/addons/odoo historically and at
+        # <ws>/odoo since the workspace was flattened. Asserting `parents[1]`
+        # unconditionally pinned the first one, and the flattening then made
+        # every tool resolve WORKSPACE to None and behave as a repo-alone CI
+        # checkout -- hoot refused to start, "no odoo config found", in a
+        # workspace that had one.
+        assert H.ODOO_ROOT.is_relative_to(H.WORKSPACE)
+        if H.ODOO_ROOT.parent.name == "addons":
+            assert H.ODOO_ROOT.parents[1] == H.WORKSPACE
+        else:
+            assert H.ODOO_ROOT.parent == H.WORKSPACE
 
     def test_repo_alone_checkout_has_no_workspace(self):
         # The other half of the contract: `None`, not a guess one level up.
-        assert (H.WORKSPACE is None) == (H.ODOO_ROOT.parent.name != "addons")
+        # A workspace is recognised by what it supplies (a venv and/or a .conf),
+        # which is what the tools actually climb to it for.
+        from _repo_root import in_workspace
+
+        assert (H.WORKSPACE is None) == (not in_workspace(H.ODOO_ROOT))
 
     @needs_workspace
     def test_config_resolves_to_a_real_file(self):

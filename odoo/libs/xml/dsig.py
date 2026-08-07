@@ -79,6 +79,52 @@ def _c14n_params_from_transforms(reference: etree._Element) -> tuple[bool, list[
     return True, prefix_list
 
 
+def _enveloping_signatures(
+    reference: etree._Element, copied_root: etree._Element
+) -> list[etree._Element]:
+    """Return the ``ds:Signature`` elements to strip for *reference*.
+
+    They are located inside *copied_root*, the deep copy being canonicalized.
+
+    xmldsig-core §6.6.4 defines the enveloped-signature transform as removing
+    "the ``Signature`` element **containing** the ``Reference``" — its own, not
+    every signature in the document. Removing all of them is indistinguishable
+    on a singly-signed document and wrong on a co-signed one: each signer would
+    digest a document with the *other* signatures stripped, while a verifier
+    removes only the signature it is checking, so the digests never match and
+    every signature after the first fails to verify.
+
+    The signature is located in the caller's tree and re-found in
+    ``copied_root`` by its **index in document order**, because the copy is a
+    different object graph and identity does not survive ``deepcopy``. Index
+    rather than ``getpath()``: that returns prefixed steps (``/doc/ds:Signature``)
+    which the copy's evaluator cannot resolve without the original's prefix map,
+    whereas a structural copy preserves document order exactly.
+
+    Falls back to every signature when the reference has no ``Signature``
+    ancestor (a detached signature, where there is nothing enveloping to
+    remove): that keeps the previous behaviour for the shape it was correct for.
+    """
+    tag = f"{{{DS_NS}}}Signature"
+    own = next(reference.iterancestors(tag), None)
+    if own is None:
+        return list(copied_root.iter(tag))
+
+    originals = list(reference.getroottree().getroot().iter(tag))
+    index = next((i for i, sig in enumerate(originals) if sig is own), None)
+    if index is None:
+        msg = "the reference's enveloping signature is not in its own document"
+        raise XmlSigError(msg)
+
+    copies = list(copied_root.iter(tag))
+    if index >= len(copies):
+        # Refusing beats digesting the wrong octets, which would produce a
+        # signature nothing can verify.
+        msg = f"signature {index} is missing from the copied document"
+        raise XmlSigError(msg)
+    return [copies[index]]
+
+
 def resolve_reference(uri: str, reference: etree._Element, base_uri: str = "") -> bytes:
     """Return the canonicalized octet stream that ``uri`` identifies.
 
@@ -98,7 +144,7 @@ def resolve_reference(uri: str, reference: etree._Element, base_uri: str = "") -
     node = deepcopy(reference.getroottree().getroot())
 
     if uri == base_uri:
-        for signature in node.findall(f".//{{{DS_NS}}}Signature"):
+        for signature in _enveloping_signatures(reference, node):
             if signature.tail:
                 if (previous := signature.getprevious()) is not None:
                     previous.tail = (previous.tail or "") + signature.tail

@@ -76,7 +76,7 @@ class TestExcludeMatching:
     @pytest.mark.parametrize(
         "path",
         [
-            "node_modules/ajv/README.md",          # top level — the broken case
+            "node_modules/ajv/README.md",  # top level — the broken case
             "addons/web/node_modules/x/README.md",  # nested — the case that worked
         ],
     )
@@ -84,7 +84,9 @@ class TestExcludeMatching:
         assert gate._glob_match(path, "**/node_modules/**")
 
     def test_a_similarly_named_directory_is_not_excluded(self):
-        assert not gate._glob_match("addons/node_modules_notes/x.md", "**/node_modules/**")
+        assert not gate._glob_match(
+            "addons/node_modules_notes/x.md", "**/node_modules/**"
+        )
 
     def test_a_file_named_like_the_directory_is_not_excluded(self):
         assert not gate._glob_match("doc/node_modules.md", "**/node_modules/**")
@@ -117,7 +119,9 @@ class TestBaseline:
 class TestReferenceResolution:
     """The documented order must FALL THROUGH, not first-match-wins."""
 
-    def test_rooted_looking_but_source_relative_ref_resolves(self, tmp_path, monkeypatch):
+    def test_rooted_looking_but_source_relative_ref_resolves(
+        self, tmp_path, monkeypatch
+    ):
         # `addons/odoo/CLAUDE.md` cites `addons/web/machine_doc_v1/TEST_TAGS.md`.
         # It starts with a rooted-looking segment but is relative to the citing
         # file. Step 2 used to `return None` on failure, so the gate reported a
@@ -131,14 +135,19 @@ class TestReferenceResolution:
         source.write_text("see `addons/web/doc.md`\n", encoding="utf-8")
         assert gate._resolve_ref(source, "addons/web/doc.md") == target.resolve()
 
-    def test_genuinely_rooted_ref_still_resolves_at_repo_root(self, tmp_path, monkeypatch):
+    def test_genuinely_rooted_ref_still_resolves_at_repo_root(
+        self, tmp_path, monkeypatch
+    ):
         monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
         target = tmp_path / "addons" / "web" / "doc.md"
         target.parent.mkdir(parents=True)
         target.write_text("x", encoding="utf-8")
         source = tmp_path / "deep" / "nested" / "CLAUDE.md"
         source.parent.mkdir(parents=True)
-        assert gate._resolve_ref(source, "addons/web/doc.md") == tmp_path / "addons/web/doc.md"
+        assert (
+            gate._resolve_ref(source, "addons/web/doc.md")
+            == tmp_path / "addons/web/doc.md"
+        )
 
     def test_a_ref_resolving_nowhere_is_still_a_violation(self, tmp_path, monkeypatch):
         monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
@@ -146,7 +155,9 @@ class TestReferenceResolution:
         source.parent.mkdir(parents=True)
         assert gate._resolve_ref(source, "addons/web/absent.md") is None
 
-    def test_absolute_ref_does_not_fall_through_to_relative(self, tmp_path, monkeypatch):
+    def test_absolute_ref_does_not_fall_through_to_relative(
+        self, tmp_path, monkeypatch
+    ):
         # A leading `/` means repo-root-anchored and nothing else; resolving it
         # relative to the source would silently accept the wrong file.
         monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
@@ -183,3 +194,76 @@ class TestReferenceExtraction:
 
     def test_anchors_are_stripped(self):
         assert gate._strip_anchor("guide.md#section") == "guide.md"
+
+
+class TestAdrCitations:
+    """The citation form the repo actually uses, which the `.md` patterns miss.
+
+    ``ARCHITECTURE.md`` names the *directory* ``doc/adr/`` and everything else
+    writes a bare ADR number, so neither is a `.md` path and neither was
+    checked. When ``doc/adr/`` was deleted this gate reported clean while 39
+    citations dangled — only ``test_architecture_doc.py::test_adrs_exist``
+    noticed, and only for one file.
+    """
+
+    def test_the_citation_form_is_recognised(self):
+        assert gate.RE_ADR.findall("see ADR-0001 and ADR-0013") == ["0001", "0013"]
+
+    def test_a_bare_number_is_not_a_citation(self):
+        assert gate.RE_ADR.findall("0001 is not a citation") == []
+
+    def test_a_partial_number_is_not_a_citation(self):
+        # Four digits exactly: `ADR-1` and `ADR-00011` are not ADR numbers.
+        assert gate.RE_ADR.findall("ADR-1 ADR-00011") == []
+
+    def test_the_letters_placeholder_is_not_a_citation(self):
+        """Docs describe the *form* as ADR-NNNN; that must not become work."""
+        assert gate.RE_ADR.findall("write it as ADR-NNNN") == []
+
+    def test_existing_adrs_resolve(self):
+        numbers = sorted(
+            p.name[:4] for p in gate.ADR_DIR.glob("[0-9][0-9][0-9][0-9]-*.md")
+        )
+        assert numbers, "no ADRs on disk — the fixture this rests on is gone"
+        for number in numbers:
+            assert gate.adr_exists(number), number
+
+    def test_a_missing_adr_does_not_resolve(self):
+        assert not gate.adr_exists("9999")
+
+    def test_resolution_does_not_depend_on_the_slug(self):
+        """Citations carry a number only; requiring the slug would make every
+        ADR rename a tree-wide edit."""
+        first = min(gate.ADR_DIR.glob("[0-9][0-9][0-9][0-9]-*.md"))
+        assert gate.adr_exists(first.name[:4])
+
+    def test_the_tree_has_no_dangling_citations(self):
+        assert [
+            (v.source_file, v.line, v.raw_path) for v in gate.scan_adr_citations()
+        ] == []
+
+    def test_it_actually_scans_something(self):
+        """A glob typo would make an empty scan look like a clean tree."""
+        files = gate._glob_files(gate.ADR_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
+        assert len(files) > 500
+        cited = sum(
+            len(gate.RE_ADR.findall(f.read_text(encoding="utf-8", errors="ignore")))
+            for f in files
+        )
+        assert cited > 50, f"only {cited} citations found; the scan set has shrunk"
+
+    def test_the_gates_that_cite_adrs_as_rationale_are_in_scope(self):
+        """`layer_check.py` justifies each enforced contract with an ADR; those
+        12 citations were checked by nothing before."""
+        scanned = {
+            str(f.relative_to(gate.REPO_ROOT))
+            for f in gate._glob_files(gate.ADR_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
+        }
+        assert "tooling/architecture/layer_check.py" in scanned
+        assert "odoo/ARCHITECTURE.md" in scanned
+
+    def test_this_gate_plants_no_live_citation_of_its_own(self):
+        """Its own prose must illustrate the form without citing a real ADR —
+        otherwise documenting the rule creates work for the rule."""
+        source = Path(gate.__file__).read_text(encoding="utf-8")
+        assert gate.RE_ADR.findall(source) == []

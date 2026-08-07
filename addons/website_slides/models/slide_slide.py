@@ -15,7 +15,7 @@ from markupsafe import Markup
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, RedirectWarning, UserError
 from odoo.http import request
-from odoo.tools import html2plaintext, sql
+from odoo.tools import html2plaintext
 from odoo.tools.pdf import PdfFileReader
 
 _logger = logging.getLogger(__name__)
@@ -1280,7 +1280,7 @@ class SlideSlide(models.Model):
             [("slide_id", "in", self.ids), ("partner_id", "=", target_partner.id)]
         )
         if quiz_attempts_inc and existing_sudo:
-            sql.increment_fields_skiplock(existing_sudo, "quiz_attempts_count")
+            existing_sudo._increment_fields_skiplock("quiz_attempts_count")
             existing_sudo.invalidate_recordset(["quiz_attempts_count"])
 
         new_slides = self_sudo - existing_sudo.mapped("slide_id")

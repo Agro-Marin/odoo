@@ -386,7 +386,27 @@ def image_process(
     output_format: str = "",
     padding: int | bool = False,
 ) -> bytes | bool | None:
-    """Process the `source` image with the given operations and return the result."""
+    """Process the `source` image with the given operations and return the result.
+
+    .. warning::
+        ``verify_resolution`` defaults to ``False`` here, unlike
+        :class:`ImageProcess`, where it defaults to ``True``. With it off,
+        nothing bounds the *decoded* size: a 450 KB PNG of 12000×12000 pixels
+        (3× ``IMAGE_MAX_RESOLUTION``) processed through
+        ``image_process(bomb, size=(100, 100))`` was measured at **+555 MB
+        RSS**, and it raises ``ImageTooLargeError`` immediately with the flag on.
+
+        Pass ``verify_resolution=True`` for anything whose bytes came from
+        outside the system. The framework's own upload path already does —
+        :class:`odoo.fields.Image` sets ``verify_resolution = True`` and forwards
+        it — so this warning is about direct callers, which mostly do not pass
+        the flag at all.
+
+        The default is left as-is rather than flipped because ~36 in-tree
+        callers rely on it and a false ``ImageTooLargeError`` on a legitimate
+        large internal image is its own regression; choosing per call site is
+        the safe direction.
+    """
     if not source or (
         (not size or (not size[0] and not size[1]))
         and not verify_resolution

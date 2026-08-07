@@ -11,11 +11,11 @@ from typing import Self
 from odoo.exceptions import UserError
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
+from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.tools import SQL
-from odoo.tools.nplusone import _n1_enabled
-from odoo.tools.orm_profiler import _OrmProfile
 from odoo.tools.translate import _
 
+from ...primitives import MODULE_UNINSTALL_FLAG
 from ._crud_common import (
     _orm_crud,
     _unlink,
@@ -48,12 +48,16 @@ class UnlinkMixin(_ModelStubs):
         self.check_access("unlink")
         prof.mark("acl")
 
-        from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
-
         for func in self._ondelete_methods:
             if func._ondelete or not self.env.context.get(MODULE_UNINSTALL_FLAG):
                 func(self)
         prof.mark("ondelete")
+
+        # Flush BEFORE dropping the pending recomputes, not after: a field that
+        # is both dirty and PENDING can only be written once its recompute has
+        # run, and mark_done() first makes _flush raise "the cached value is
+        # PENDING ... but the field is not scheduled for recomputation".
+        self.env.flush_all()
 
         core = self.env._core
         if core.has_pending():
@@ -62,8 +66,6 @@ class UnlinkMixin(_ModelStubs):
             for field in list(core.pending_fields()):
                 if field.model_name == model_name:
                     core.mark_done(field, deleted_ids)
-
-        self.env.flush_all()
 
         prof.mark("flush")
 
@@ -163,8 +165,6 @@ class UnlinkMixin(_ModelStubs):
         """
         if (backend := self.env.backend) is not None:
             return backend.delete(self, sub_ids, Data, Attachment)
-
-        from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
         cr = self.env.cr
         records = self.browse(sub_ids)

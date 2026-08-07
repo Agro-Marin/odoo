@@ -648,6 +648,23 @@ class ModelGraph:
         self._computed = computed
 
     @property
+    def published_triggers(self) -> defaultdict:
+        """The currently published trigger map (read-only by contract).
+
+        The read counterpart of :meth:`set_triggers`. The registry needs the
+        live map after a publication attempt — including a *refused* one, where
+        the authoritative snapshot is whatever is already published — and
+        reaching for ``_triggers`` from outside would contradict the hand-off
+        rule :meth:`set_inverses` states: go through a method, so the coupling
+        stays greppable instead of being an attribute poke.
+
+        Note this returns the snapshot *live*: :meth:`set_triggers` swaps in a
+        new ``_TriggerState``, so a caller that stores the result holds a map
+        that no longer updates. Re-read it rather than caching it.
+        """
+        return self._state.triggers
+
+    @property
     def field_inverses(self) -> _Collector:
         """Direct access to the inverses mapping."""
         return self._inverses

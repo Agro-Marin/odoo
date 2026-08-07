@@ -10,10 +10,9 @@ from collections.abc import Callable, Iterable
 
 import psycopg
 
-from odoo.tools import (
-    OrderedSet,
-    sql,
-)
+from odoo.db import schema as sql
+from odoo.libs.sql import make_index_name
+from odoo.tools import OrderedSet
 
 from ..primitives import SUPERUSER_ID
 from ._registry_stubs import _RegistryStubs
@@ -88,7 +87,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
         """Create or drop column indexes for the given models."""
 
         expected = [
-            (sql.make_index_name(Model._table, field.name), Model._table, field)
+            (make_index_name(Model._table, field.name), Model._table, field)
             for model_name in model_names
             for Model in [self.models[model_name]]
             if Model._auto and not Model._abstract

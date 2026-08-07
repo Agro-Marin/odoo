@@ -8,7 +8,8 @@ import logging
 import psycopg
 import psycopg.errors
 
-from odoo.tools import SQL, format_list, ormcache, sql
+from odoo.db import schema as sql
+from odoo.tools import SQL, format_list, ormcache
 
 from ... import decorators as api
 from ...helpers import get_columns_from_sql_diagnostics

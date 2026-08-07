@@ -22,6 +22,47 @@ from types import ModuleType, SimpleNamespace
 from typing import Any
 
 
+class _PatchingLoader:
+    """Wrap a loader so the module is patched after exec, keeping the rest.
+
+    Delegates every attribute it does not define, because a loader is more than
+    ``create_module``/``exec_module``: ``get_source`` backs ``inspect.getsource``
+    for non-file loaders, ``get_data`` backs :func:`pkgutil.get_data`, and
+    ``get_resource_reader`` backs :mod:`importlib.resources`.
+
+    This replaced a ``SimpleNamespace`` carrying only the two exec hooks, which
+    dropped the others silently. Measured against the unhooked control
+    ``psycopg``, on hooked packages that actually went through ``find_spec``::
+
+        pkgutil.get_data("docutils", "writers/html4css1/html4css1.css")
+            -> None          (not an error -- a caller reading a resource got
+                              nothing back and had to notice on its own)
+        importlib.resources.files("docutils").joinpath(...).read_text()
+            -> FileNotFoundError: Can't open orphan path
+
+    Note that ``inspect.getsource`` kept working throughout: it falls back to
+    ``__spec__.origin``, which is why this went unnoticed.
+    """
+
+    def __init__(self, loader: Any) -> None:
+        self._loader = loader
+
+    def create_module(self, spec: Any) -> ModuleType | None:
+        return self._loader.create_module(spec)
+
+    def exec_module(self, module: ModuleType) -> None:
+        self._loader.exec_module(module)
+        patch_module(module.__name__)
+
+    def __getattr__(self, name: str) -> Any:
+        # Only reached for names not defined above, so the two exec hooks stay
+        # ours and everything else is the real loader's.
+        return getattr(self._loader, name)
+
+    def __repr__(self) -> str:
+        return f"<_PatchingLoader wrapping {self._loader!r}>"
+
+
 class PatchImportHook:
     """Register hooks that are run on import."""
 
@@ -41,21 +82,23 @@ class PatchImportHook:
         if fullname not in self.hooks:
             return None
 
-        idx = sys.meta_path.index(self)
-        for finder in sys.meta_path[idx + 1 :]:
+        # Not sys.meta_path.index(self): that raises ValueError out of an
+        # import if this hook has been removed (a test resetting meta_path, a
+        # tool rebuilding it), turning "no patch" into "no imports at all".
+        # Skipping past ourselves by identity degrades to scanning the whole
+        # list, which is the same answer minus the crash.
+        finders = sys.meta_path
+        try:
+            start = finders.index(self) + 1
+        except ValueError:
+            start = 0
+        for finder in finders[start:]:
+            if finder is self:
+                continue
             spec = finder.find_spec(fullname, path, target)
             if spec is not None:
-
-                def exec_module(
-                    module: ModuleType, exec_module=spec.loader.exec_module
-                ) -> None:
-                    exec_module(module)
-                    patch_module(module.__name__)
-
-                spec.loader = SimpleNamespace(
-                    create_module=spec.loader.create_module,
-                    exec_module=exec_module,
-                )
+                if spec.loader is not None:
+                    spec.loader = _PatchingLoader(spec.loader)
                 return spec
         return None
 
@@ -75,15 +118,33 @@ def patch_init() -> None:
         HOOK_IMPORT.add_hook(submodule.name)
 
 
+#: Patches already applied in this process, so a second call is a no-op.
+#:
+#: Most patches here rebind a name to a wrapper built over whatever that name
+#: held at call time, so applying one twice wraps the wrapper. Measured on
+#: ``werkzeug``'s ``MultiDict.deepcopy``: nesting depth went 1, 2, 3, 4 with
+#: repeated calls. Behaviour survives (each layer just delegates) but every
+#: layer is a permanent extra frame on a hot path, and ``patch_module`` is
+#: reachable more than once per module — ``add_hook`` calls it for an
+#: already-imported module, and ``importlib.reload`` re-runs ``exec_module``.
+_APPLIED: set[str] = set()
+
+
 def patch_module(name: str) -> None:
+    if name in _APPLIED:
+        return
     module = importlib.import_module(f".{name}", __name__)
     patch = getattr(module, "patch_module", None)
     if not callable(patch):
         spec = getattr(module, "__spec__", None)
         if spec is not None and getattr(spec, "_initializing", False):
+            # Circular import: the patch module is still executing, so its
+            # patch_module() is not bound yet. Do NOT mark it applied — the
+            # import that is in flight will come back through here.
             return
         raise TypeError(
             f"odoo._monkeypatches.{name} must define a callable patch_module() "
             f"(see odoo/_monkeypatches/README.md); found {patch!r}."
         )
     patch()
+    _APPLIED.add(name)

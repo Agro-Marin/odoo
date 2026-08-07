@@ -327,6 +327,37 @@ class TestCloseAndDrainMatching(unittest.TestCase):
         cp._pools = {_key(database="db"): _FakePool(size=4, available=2)}
         self.assertEqual(cp.get_stats(), {"db": {"pool_size": 4, "pool_available": 2}})
 
+    def test_health_reports_backends_summed_across_databases(self):
+        """The server footprint, which ``db_maxconn`` does not bound.
+
+        The budget caps concurrent *checkouts*; each per-DSN pool separately
+        retains up to that many idle connections, so a process serving several
+        databases holds up to ``maxconn x databases`` backends.  Measured
+        against a live server before this gauge existed: four databases under
+        ``db_maxconn = 2`` held four backends with never more than one checked
+        out.  Nothing else in ``health()`` exposes that number.
+        """
+        cp = ConnectionPool(maxconn=2)
+        cp._pools = {
+            _key(database="a"): _FakePool(size=3, available=3),
+            _key(database="b"): _FakePool(size=2, available=2),
+        }
+        health = cp.health()
+        self.assertEqual(health["databases"], 2)
+        self.assertEqual(health["backends"], 5)
+        self.assertGreater(
+            health["backends"],
+            health["pool"]["budget_maxconn"],
+            "the whole point: backends is not bounded by the budget",
+        )
+
+    def test_health_backends_includes_direct_connections(self):
+        """Maintenance-DB borrows bypass the per-DSN pools but hold a backend."""
+        cp = ConnectionPool(maxconn=4)
+        cp._pools = {_key(database="a"): _FakePool(size=1, available=1)}
+        cp._direct_out = 2
+        self.assertEqual(cp.health()["backends"], 3)
+
     def test_safe_close_and_drain_swallow_one_pools_failure(self):
         """One pool's teardown must not abort its siblings' — ``close()`` joins
         worker threads and can raise (e.g. at interpreter shutdown)."""

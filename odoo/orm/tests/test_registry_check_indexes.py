@@ -15,8 +15,8 @@ from contextlib import contextmanager
 
 import pytest
 
+from odoo.libs import sql
 from odoo.orm.runtime.registry import Registry
-from odoo.tools import sql
 
 
 class _Field:

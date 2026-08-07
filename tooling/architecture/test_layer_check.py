@@ -81,9 +81,7 @@ def test_function_local_import_is_captured():
 
 def test_from_relative_pkg_import_submodule_is_resolved():
     # `from .. import models` inside orm/fields/base.py binds odoo.orm.models.
-    targets = _collect(
-        "from .. import models as _m\n", module="odoo.orm.fields.base"
-    )
+    targets = _collect("from .. import models as _m\n", module="odoo.orm.fields.base")
     assert "odoo.orm.models" in targets
 
 
@@ -113,6 +111,7 @@ def _violates(module: str, src: str) -> bool:
             if (
                 lc._matches(target, c.forbidden)
                 and not lc._matches(target, c.allow)
+                and target not in c.allow_exact
                 and not lc._matches(target, c.source)
             ):
                 return True
@@ -191,6 +190,112 @@ def test_addon_type_checking_import_of_orm_is_exempt():
     assert "odoo.orm.fields" not in [t for t, _ in col.found]
 
 
+# --- core-does-not-depend-on-addons (the mirror of facade-boundary) ---
+
+
+def _core_contract():
+    return next(c for c in lc.CONTRACTS if c.name == "core-does-not-depend-on-addons")
+
+
+def test_core_importing_an_addon_module_is_a_violation():
+    # The two inversions this contract was written for, before they were fixed.
+    assert _violates(
+        "odoo.orm.models.mixins.unlink",
+        "from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG\n",
+    )
+    assert _violates(
+        "odoo.tools.formatting",
+        "from odoo.addons.base.models.res_lang import format_number\n",
+    )
+
+
+def test_importing_the_addons_namespace_is_allowed():
+    """``__path__`` discovery imports the namespace package, never addon code."""
+    for src in (
+        "import odoo.addons\n",
+        "from odoo.addons import __path__ as p\n",
+    ):
+        assert not _violates("odoo.modules.module", src), src
+
+
+def test_core_importing_the_relocated_definitions_is_clean():
+    for src in (
+        "from odoo.orm.primitives import MODULE_UNINSTALL_FLAG\n",
+        "from odoo.libs.locale import format_number\n",
+    ):
+        assert not _violates("odoo.tools.formatting", src), src
+
+
+def test_addon_code_is_not_subject_to_this_contract():
+    """An addon importing another addon is normal and must stay unflagged."""
+    assert not _violates(
+        "odoo.addons.base.models.ir_model_data",
+        "from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG\n",
+    )
+
+
+def test_core_type_checking_import_of_an_addon_is_exempt():
+    """Consistent with every other contract: TYPE_CHECKING never executes.
+
+    ``tools/locale_utils.py`` types ``get_lang`` as returning ``LangData``, which
+    is a real addon class. Narrowing that to a protocol would misdescribe the
+    return, and the import costs nothing at runtime.
+    """
+    col = lc._ImportCollector(module="odoo.tools.locale_utils", is_init=False)
+    col.visit(
+        ast.parse(
+            "from typing import TYPE_CHECKING\n"
+            "if TYPE_CHECKING:\n"
+            "    from odoo.addons.base.models.res_lang import LangData\n"
+        )
+    )
+    assert "odoo.addons.base.models.res_lang" not in [t for t, _ in col.found]
+
+
+def test_core_source_covers_every_core_package():
+    """The source list is explicit, so it must not silently fall behind the tree.
+
+    ``source`` cannot just be ``("odoo",)``: that matches ``odoo.addons`` too,
+    and ``check()``'s own-subtree rule would then exempt every import. Naming the
+    packages instead means a *new* top-level core package would escape the
+    contract unnoticed -- unless something asserts the list is complete.
+    """
+    pkg_root = lc.ROOT / "odoo"
+    on_disk = {
+        p.name
+        for p in pkg_root.iterdir()
+        if p.is_dir()
+        and (p / "__init__.py").exists()
+        and p.name not in {"addons", "__pycache__"}
+    }
+    covered = {
+        s.split(".", 1)[1] for s in _core_contract().source if s.startswith("odoo.")
+    }
+    uncovered = on_disk - covered - lc.CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT
+    assert uncovered == set(), (
+        f"core packages neither covered by core-does-not-depend-on-addons nor "
+        f"listed in CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT: {sorted(uncovered)}"
+    )
+
+
+def test_the_addon_contract_exemptions_are_real_packages():
+    """A stale exemption would silently un-cover a package that got renamed."""
+    pkg_root = lc.ROOT / "odoo"
+    for name in lc.CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT:
+        assert (pkg_root / name / "__init__.py").exists(), (
+            f"{name} is exempted but is not a core package"
+        )
+
+
+def test_the_cron_exception_is_pinned_not_silent():
+    """The deliberate service -> ir_cron/ir_job dependency stays visible."""
+    pinned = {k.imports for k in lc.KNOWN_VIOLATIONS}
+    assert "odoo.addons.base.models.ir_cron" in pinned
+    assert "odoo.addons.base.models.ir_job" in pinned
+    for k in lc.KNOWN_VIOLATIONS:
+        assert len(k.reason) > 80, f"{k.imports} pinned without a real rationale"
+
+
 def test_facade_boundary_scans_the_addon_tree():
     # iter_source_files derives its roots from contract sources; the contract is
     # worthless if the addon tree is never walked (the bug ADR-0008 fixes).
@@ -202,22 +307,22 @@ def test_facade_boundary_scans_the_addon_tree():
 
 def test_importlib_import_module_literal_is_collected():
     targets = _collect(
-        "import importlib\n"
-        "m = importlib.import_module('odoo.orm.runtime')\n",
+        "import importlib\nm = importlib.import_module('odoo.orm.runtime')\n",
         module="odoo.orm.fields.base",
     )
     assert "odoo.orm.runtime" in targets
 
 
 def test_dunder_import_literal_is_collected():
-    targets = _collect("m = __import__('odoo.orm.models')\n", module="odoo.orm.fields.base")
+    targets = _collect(
+        "m = __import__('odoo.orm.models')\n", module="odoo.orm.fields.base"
+    )
     assert "odoo.orm.models" in targets
 
 
 def test_bare_import_module_literal_is_collected():
     targets = _collect(
-        "from importlib import import_module\n"
-        "m = import_module('odoo.orm.runtime')\n",
+        "from importlib import import_module\nm = import_module('odoo.orm.runtime')\n",
         module="odoo.orm.fields.base",
     )
     assert "odoo.orm.runtime" in targets
@@ -275,14 +380,139 @@ def test_is_test_file():
 def test_framework_core_has_no_new_violations():
     new, _known = lc.check()
     assert new == [], "new layering violations:\n" + "\n".join(
-        f"  {v.path}:{v.lineno}  {v.module} -> {v.imports}  [{v.contract}]"
-        for v in new
+        f"  {v.path}:{v.lineno}  {v.module} -> {v.imports}  [{v.contract}]" for v in new
     )
 
 
 def test_core_has_no_tolerated_exceptions():
-    # The whole point of the paydown work: zero known exceptions remain.
-    assert lc.KNOWN_VIOLATIONS == ()
+    """The eight original contracts stay clean at zero — that paydown holds.
+
+    ``core-does-not-depend-on-addons`` (added 2026-08) is the one contract with
+    pinned entries, and they are *intentional* rather than debt: the cron/job
+    runner threads call ``IrCron._process_jobs`` before a registry exists, so
+    there is no env to route through. They are pinned rather than allow-listed
+    so they stay scoped to ``odoo.service`` and stay visible in every report.
+    """
+    unexpected = [
+        k
+        for k in lc.KNOWN_VIOLATIONS
+        if not k.imports.startswith("odoo.addons.base.models.ir_")
+    ]
+    assert unexpected == [], (
+        f"a contract other than core-does-not-depend-on-addons acquired a "
+        f"tolerated exception: {unexpected}"
+    )
+
+
+#: The eight boundaries that shipped with ADR-0005, named rather than derived
+#: as "everything except the addon contract". That subtraction stopped
+#: identifying them once later contracts landed
+#: (``db-resilience-below-connectivity`` / ``http-features-below-serving``,
+#: 2026-08), and a bare count would also accept a substitution — one original
+#: dropped, one new added — while still reading as 8.
+ORIGINAL_EIGHT = frozenset(
+    {
+        "libs-is-dependency-free",
+        "db-is-orm-agnostic",
+        "orm-components-are-pure-python",
+        "orm-layer0-is-foundational",
+        "orm-layer1-below-models-and-runtime",
+        "orm-models-below-runtime",
+        "orm-seams-stay-below-models-and-runtime",
+        "facade-boundary",
+    }
+)
+
+
+def test_the_eight_original_contracts_are_clean_at_zero():
+    """No pinned entry may attach to any of the pre-existing contracts."""
+    assert len(ORIGINAL_EIGHT) == 8
+    defined = {c.name for c in lc.CONTRACTS}
+    assert ORIGINAL_EIGHT <= defined, (
+        f"original contract removed: {ORIGINAL_EIGHT - defined}"
+    )
+    core_sources = {
+        s
+        for c in lc.CONTRACTS
+        if c.name == "core-does-not-depend-on-addons"
+        for s in c.source
+    }
+    for k in lc.KNOWN_VIOLATIONS:
+        assert any(k.module.startswith(s) for s in core_sources), (
+            f"{k.module} is pinned but is not a source of the addon contract"
+        )
+
+
+# --- the intra-package tier contracts (db/, http/) ---------------------------
+#
+# Both packages are flat, so these contracts enumerate module paths rather than
+# a package prefix. That makes them the two contracts most likely to rot by
+# omission: a NEW module added to either package joins no tier and is silently
+# unenforced. `test_every_db_and_http_module_is_in_a_tier` below is the guard.
+
+
+def test_db_resilience_importing_connectivity_is_a_violation():
+    assert _violates("odoo.db.breaker", "from .pool import ConnectionPool\n")
+    assert _violates("odoo.db.metrics", "from odoo.db.cursor import Cursor\n")
+
+
+def test_db_connectivity_importing_resilience_is_clean():
+    """The sanctioned direction: pool -> budget/leaks/reaper/stats."""
+    assert not _violates("odoo.db.pool", "from .budget import ConnectionBudget\n")
+    assert not _violates("odoo.db.cursor", "from .metrics import CursorMetrics\n")
+
+
+def test_db_foundation_is_importable_from_both_tiers():
+    """`metrics -> errors` was the lone back-edge; foundation makes it legal."""
+    assert not _violates("odoo.db.metrics", "from .errors import CURSOR_LOGGER_NAME\n")
+    assert not _violates("odoo.db.cursor", "from .errors import CURSOR_LOGGER_NAME\n")
+
+
+def test_http_features_importing_serving_is_a_violation():
+    assert _violates("odoo.http.openapi", "from .routing import Route\n")
+    assert _violates("odoo.http._params", "from odoo.http.request_class import Request\n")
+
+
+def test_http_serving_importing_features_is_clean():
+    assert not _violates("odoo.http._serve", "from .constants import SESSION_LIFETIME\n")
+    assert not _violates("odoo.http.helpers", "from .core import request\n")
+
+
+def test_http_features_type_checking_import_of_serving_is_exempt():
+    """`_protocols.py` really does this, and it must stay legal."""
+    src = "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from .session import Session\n"
+    assert not _violates("odoo.http._protocols", src)
+
+
+def test_every_db_and_http_module_is_in_a_tier():
+    """A new flat-package module must be assigned a tier, not silently skipped.
+
+    These two contracts enumerate modules, so an unlisted module is enforced by
+    nothing while the gate still reports the package clean — the exact failure
+    mode `subsystem_map_check.py` exists to prevent for the *map*, reproduced
+    here for the *contracts*.
+    """
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    for pkg, contract_name in (
+        ("db", "db-resilience-below-connectivity"),
+        ("http", "http-features-below-serving"),
+    ):
+        contract = next(c for c in lc.CONTRACTS if c.name == contract_name)
+        tiered = {
+            name.rsplit(".", 1)[1] for name in (*contract.source, *contract.forbidden)
+        }
+        if pkg == "db":
+            tiered |= {"errors", "dsn", "utils"}  # the [foundation] tier
+        on_disk = {
+            p.stem
+            for p in (repo_root / "odoo" / pkg).glob("*.py")
+            if p.stem != "__init__"
+        }
+        assert on_disk == tiered, (
+            f"odoo/{pkg}/ modules not assigned to a tier of {contract_name}: "
+            f"{sorted(on_disk - tiered)}; listed but absent from disk: "
+            f"{sorted(tiered - on_disk)}"
+        )
 
 
 def test_every_contract_has_a_source_and_rationale():
@@ -290,3 +520,76 @@ def test_every_contract_has_a_source_and_rationale():
         assert c.source, f"{c.name} has no source"
         assert c.forbidden, f"{c.name} forbids nothing"
         assert c.rationale.strip(), f"{c.name} has no rationale"
+
+
+# --- odoo/tests/ is the shipped test FRAMEWORK, not tests ---------------------
+#
+# The exemption of ``odoo.tests`` from ``core-does-not-depend-on-addons`` is
+# meant to be revocable: drop ``tests`` from
+# ``CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT``, watch
+# ``test_core_source_covers_every_core_package`` fail, add ``odoo.tests`` to the
+# contract's ``source``. Before the ``_is_test_file`` fix, following that
+# workflow correctly enforced NOTHING — the files were dropped one step earlier
+# by a directory-name rule, so the contract reported green over 7,145 lines of
+# shipped framework it had never read. These pin the fix.
+
+
+def test_core_test_framework_modules_are_not_test_files():
+    """``odoo/tests/common.py`` is framework source, not a test."""
+    for name in ("common.py", "http.py", "case.py", "loader.py", "browser.py"):
+        path = lc.ROOT / "odoo" / "tests" / name
+        assert not lc._is_test_file(path), f"odoo/tests/{name} is framework source"
+
+
+def test_the_test_frameworks_own_tests_are_still_test_files():
+    for name in ("test_cursor.py", "test_module_operations.py"):
+        path = lc.ROOT / "odoo" / "tests" / name
+        assert lc._is_test_file(path), f"odoo/tests/{name} IS a test"
+
+
+def test_ordinary_test_packages_are_still_dropped():
+    for rel in (
+        ("odoo", "orm", "tests", "test_fields.py"),
+        ("odoo", "libs", "tests", "test_misc.py"),
+        ("odoo", "orm", "tests", "conftest.py"),
+    ):
+        path = lc.ROOT.joinpath(*rel)
+        assert lc._is_test_file(path), f"{'/'.join(rel)} is a test file"
+
+
+def test_revoking_the_tests_exemption_actually_enforces():
+    """The property that was silently false: revocation must have teeth.
+
+    Simulates the documented workflow — add ``odoo.tests`` to the addon
+    contract's ``source`` — and asserts the guarded ``odoo.addons.bus`` reaches
+    in ``tests/common.py`` and ``tests/http.py`` are then found. With the old
+    directory-name rule this returned zero, i.e. a false green.
+    """
+    contracts = tuple(
+        lc.Contract(**{**c.__dict__, "source": c.source + ("odoo.tests",)})
+        if c.name == "core-does-not-depend-on-addons"
+        else c
+        for c in lc.CONTRACTS
+    )
+    original = lc.CONTRACTS
+    try:
+        lc.CONTRACTS = contracts
+        new, known = lc.check()
+    finally:
+        lc.CONTRACTS = original
+    found = {
+        (v.path, v.imports) for v in new + known if v.module.startswith("odoo.tests")
+    }
+    assert found, "revoking the exemption detected nothing — the fix has regressed"
+    files = {path for path, _ in found}
+    assert files == {"odoo/tests/common.py", "odoo/tests/http.py"}, files
+
+
+def test_tests_exemption_is_recorded_and_documented():
+    """It stays a deliberate, single-mechanism decision."""
+    assert frozenset({"tests"}) == lc.CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT
+    core = next(c for c in lc.CONTRACTS if c.name == "core-does-not-depend-on-addons")
+    assert "odoo.tests" not in core.source, (
+        "odoo.tests is exempt via CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT; "
+        "listing it in source too would make the exemption ambiguous"
+    )

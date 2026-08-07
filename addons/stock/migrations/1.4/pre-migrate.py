@@ -19,7 +19,7 @@ deploy-time SQL script, not a migration: a bare whole-word sweep of
 token in arbitrary user code), unlike the two renames here.
 """
 
-from odoo.tools.sql import column_exists
+from odoo.db.schema import column_exists
 
 _TOKEN_PAIRS = (
     ("packaging_uom_qty", "quantity_packaging_uom"),

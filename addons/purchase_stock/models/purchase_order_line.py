@@ -4,7 +4,7 @@ from odoo import api, fields, models
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.libs.numbers.float_utils import float_compare, float_round
+from odoo.libs.numbers import float_compare, float_round
 from odoo.tools.translate import _
 
 

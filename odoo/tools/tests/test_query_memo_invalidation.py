@@ -15,8 +15,8 @@ is handed.
 
 import unittest
 
+from odoo.libs.sql import SQL
 from odoo.tools.query import Query
-from odoo.tools.sql import SQL
 
 
 class _StubEnv:

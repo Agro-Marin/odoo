@@ -11,7 +11,7 @@ from markupsafe import Markup
 
 from odoo import api, models, modules, tools
 from odoo.exceptions import RedirectWarning
-from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import groupby
 from odoo.tools.pdf import OdooPdfFileReader, PdfReadError
 

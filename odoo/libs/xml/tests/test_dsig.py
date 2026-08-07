@@ -76,6 +76,45 @@ class TestEnvelopedStripping:
         octets = resolve_reference("", reference, "")
         assert b"Signature" not in octets
 
+    def test_only_the_references_own_signature_is_removed(self):
+        """xmldsig-core §6.6.4: the transform removes *the* enveloping Signature.
+
+        Stripping every ``ds:Signature`` is indistinguishable on a singly-signed
+        document and wrong on a co-signed one: each signer would digest a
+        document with the *other* signatures removed, while a verifier removes
+        only the one it is checking. The two byte streams differ, so every
+        signature after the first fails to verify — silently, and only on
+        documents that have been counter-signed.
+        """
+        doc = (
+            f'<Invoice xmlns:ds="{DS_NS}"><Amount>100</Amount>'
+            f"<ds:Signature><ds:SignedInfo><ds:Reference URI=\"\"/></ds:SignedInfo>"
+            f"<ds:SignatureValue>FIRST</ds:SignatureValue></ds:Signature>"
+            f"<ds:Signature><ds:SignedInfo><ds:Reference URI=\"\"/></ds:SignedInfo>"
+            f"<ds:SignatureValue>SECOND</ds:SignatureValue></ds:Signature>"
+            f"</Invoice>"
+        )
+        root = etree.fromstring(doc.encode())
+        references = root.findall(f".//{{{DS_NS}}}Reference")
+        assert len(references) == 2
+
+        first, second = (resolve_reference("", ref, "") for ref in references)
+
+        # Each signer's octets keep the *other* signature and drop its own.
+        assert b"SECOND" in first and b"FIRST" not in first
+        assert b"FIRST" in second and b"SECOND" not in second
+        # ... so the two digests differ, which is the property that makes a
+        # counter-signature verifiable at all.
+        assert first != second
+        assert b"<Amount>100</Amount>" in first
+
+    def test_detached_reference_still_strips_every_signature(self):
+        """No enveloping Signature to single out, so the old behaviour stands."""
+        doc = f'<Invoice xmlns:ds="{DS_NS}"><A/><ds:Signature Id="s"/></Invoice>'
+        root = etree.fromstring(doc.encode())
+        reference = etree.SubElement(root, f"{{{DS_NS}}}Reference")
+        assert b"Signature" not in resolve_reference("", reference, "")
+
     def test_signature_tail_is_preserved(self):
         doc = f'<Invoice xmlns:ds="{DS_NS}"><A/><ds:Signature/>TAIL</Invoice>'
         root = etree.fromstring(doc.encode())

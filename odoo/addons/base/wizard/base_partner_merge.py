@@ -8,10 +8,10 @@ from typing import Any
 import psycopg
 
 from odoo import api, fields, models
+from odoo.db import schema as sql_tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tools import SQL, mute_logger
-from odoo.tools import sql as sql_tools
 
 _logger = logging.getLogger("odoo.addons.base.partner.merge")
 

@@ -1,5 +1,5 @@
 from odoo import models
-from odoo.tools.sql import SQL
+from odoo.libs.sql import SQL
 
 
 class SqlReportMixin(models.AbstractModel):

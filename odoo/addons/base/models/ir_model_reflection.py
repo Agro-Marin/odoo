@@ -14,8 +14,10 @@ from psycopg.types.json import Json, Jsonb
 
 from odoo import fields, models
 from odoo.api import ValuesType
+from odoo.db import schema as sql
 from odoo.exceptions import AccessError
-from odoo.tools import SQL, OrderedSet, sql
+from odoo.libs.sql import make_identifier
+from odoo.tools import SQL, OrderedSet
 from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
@@ -86,7 +88,7 @@ class IrModelConstraint(models.Model):
             if owners.get(name, set()) - ids_set:
                 continue
 
-            hname = sql.make_identifier(name)
+            hname = make_identifier(name)
             typ = data.type
             if typ in ("f", "u"):
                 # ask PostgreSQL which table carries the constraint instead of

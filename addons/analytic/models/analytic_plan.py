@@ -2,8 +2,9 @@ import re
 from random import randint
 
 from odoo import _, api, fields, models
+from odoo.db.schema import create_index
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools import create_index, frozendict, make_index_name, ormcache
+from odoo.tools import frozendict, make_index_name, ormcache
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 

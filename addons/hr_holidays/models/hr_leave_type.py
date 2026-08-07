@@ -13,7 +13,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers import float_round
 from odoo.tools import format_date
 from odoo.tools.translate import _
 

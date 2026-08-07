@@ -16,7 +16,7 @@ import requests
 from lxml import etree
 
 from odoo import Command, fields
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers import float_round
 from odoo.models import BaseModel
 from odoo.tests import Form, HttpCase, new_test_user, save_test_file, tagged
 from odoo.tools import config, file_open, file_path

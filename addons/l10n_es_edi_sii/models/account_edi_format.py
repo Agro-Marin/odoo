@@ -6,7 +6,7 @@ import requests
 
 from odoo import _, fields, models
 from odoo.tools import html_escape, zeep
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers import float_round
 
 from odoo.addons.certificate.tools import CertificateAdapter
 

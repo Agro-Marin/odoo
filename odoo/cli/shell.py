@@ -4,12 +4,12 @@ import logging
 import os
 import signal
 import sys
-import threading
 from pathlib import Path
 from typing import Any
 
 import odoo
 from odoo import api
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.service import server
 from odoo.tools import config
@@ -188,7 +188,7 @@ class Shell(Command):
             "odoo": odoo,
         }
         if dbname:
-            threading.current_thread().dbname = dbname
+            current_worker_thread().dbname = dbname
             registry = Registry(dbname)
             with registry.cursor() as cr:
                 uid = api.SUPERUSER_ID

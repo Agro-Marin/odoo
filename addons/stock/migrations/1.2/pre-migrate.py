@@ -20,7 +20,7 @@ never translated and never appear as JSON keys, so a whole-value text replace is
 safe and preserves the translation structure.
 """
 
-from odoo.tools.sql import table_columns
+from odoo.db.schema import table_columns
 
 # (old, new) — button/compute method names referenced by stored view buttons
 # (type="object") and by ir.actions.server code.

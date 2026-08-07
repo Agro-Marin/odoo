@@ -50,7 +50,7 @@ use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::types::{
     PyDate, PyDateAccess, PyDateTime, PyDict, PyFloat, PyInt, PyList, PyString, PyTimeAccess,
-    PyTuple,
+    PyTuple, PyTzInfoAccess,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -340,6 +340,16 @@ fn build_entries<'a>(
         } else if let Ok(dt) = v.cast::<PyDateTime>() {
             // Check datetime before date: datetime is a subclass of date, so a
             // `PyDate` cast would also succeed and drop the time components.
+            //
+            // Aware datetimes leave the native path: Python compares them by
+            // UTC instant, and refuses to compare an aware one against a naive
+            // one at all (TypeError). The component packing below reproduces
+            // neither -- it would order by wall clock, and would silently sort
+            // a mixed column instead of raising. The FFI fallback has the
+            // exact semantics, so defer to it.
+            if dt.get_tzinfo().is_some() {
+                return None;
+            }
             (
                 4,
                 Key::Date([

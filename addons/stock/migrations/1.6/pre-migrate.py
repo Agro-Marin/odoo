@@ -38,7 +38,7 @@ is ``NULL``). Verified against the ``marin190_prod`` restore: 261 moves
 (all done/cancelled, no open moves), 0 orderpoints.
 """
 
-from odoo.tools.sql import column_exists
+from odoo.db.schema import column_exists
 
 
 def migrate(cr, version):

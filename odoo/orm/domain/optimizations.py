@@ -1088,19 +1088,39 @@ def _optimize_properties_date_datetime(condition, model):
 
 @field_type_optimization(["binary"])
 def _optimize_type_binary_attachment(condition, model):
+    """Reject a binary condition the storage cannot answer.
+
+    An ``attachment=True`` binary keeps its bytes in ``ir.attachment``, so the
+    model's own table has no column to compare against and only "is there a
+    value" can be answered — spelled ``('f', 'in', [False])`` or its negation.
+
+    Anything else is refused.  This used to log the error and return
+    ``TRUE_DOMAIN`` instead, which turned a malformed leaf into *no filter at
+    all*: ``search([('image_1920', 'like', 'x')])`` returned every record the
+    caller could read rather than reporting the mistake.  Record rules still
+    applied, so it was not a privilege escalation — but a filter that silently
+    matches everything is the worst failure direction available to a domain
+    optimizer, and it hides the bug from the developer who wrote the leaf.  An
+    ``ir.rule`` whose own domain contained such a leaf stopped restricting
+    entirely.  Failing closed makes both cases loud.
+    """
     field = condition._field(model)
     operator = condition.operator
     value = condition.value
-    if field.attachment and not (
-        operator in ("in", "not in") and set(value) == {False}
-    ):
-        try:
+    if field.attachment:
+        is_existence_check = (
+            operator in ("in", "not in")
+            and isinstance(value, COLLECTION_TYPES)
+            and set(value) == {False}
+        )
+        if not is_existence_check:
+            # Not caught: the caller must see the malformed leaf.  Note this
+            # also covers `like` for attachment fields, so the check below is
+            # reached only by binaries stored in a real column.
             condition._raise(
-                "Binary field stored in attachment, accepts only existence check; skipping domain"
+                "Binary field stored in attachment, accepts only existence "
+                "check (('field', 'in', [False]) or its negation)"
             )
-        except ValueError:
-            _logger.exception("Invalid operator for a binary field")
-        return _TRUE_DOMAIN
     if operator.endswith("like"):
         condition._raise(
             "Cannot use like operators with binary fields",

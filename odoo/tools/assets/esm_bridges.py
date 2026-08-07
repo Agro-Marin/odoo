@@ -24,6 +24,7 @@ from odoo import modules
 from odoo.api import SUPERUSER_ID, Environment
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.constants import ODOO_EXTERNAL_LIBS
+from odoo.libs.hashing import cache_hash
 from odoo.tools import config
 from odoo.tools.assets.esbuild import EsbuildCompiler
 from odoo.tools.assets.esm_graph import (
@@ -33,7 +34,6 @@ from odoo.tools.assets.esm_graph import (
     _extract_esm_exports,
 )
 from odoo.tools.assets.esm_lexer import lex_module
-from odoo.tools.hashing import cache_hash
 
 __all__ = ["BridgeShimManager", "NativeModuleLike"]
 

@@ -7,10 +7,12 @@ from typing import Any, Self
 
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
+from odoo.db import schema as sql
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import NO_ACCESS
+from odoo.libs.sql import make_index_name
 from odoo.models import pop_field
-from odoo.tools import SQL, OrderedSet, frozendict, sql, unique
+from odoo.tools import SQL, OrderedSet, frozendict, unique
 from odoo.tools.safe_eval import safe_eval
 from odoo.tools.translate import FIELD_TRANSLATE, _
 
@@ -950,8 +952,8 @@ class IrModelFields(models.Model):
                     self.env.cr.execute(
                         SQL(
                             "ALTER INDEX IF EXISTS %s RENAME TO %s",
-                            SQL.identifier(sql.make_index_name(table, oldname)),
-                            SQL.identifier(sql.make_index_name(table, newname)),
+                            SQL.identifier(make_index_name(table, oldname)),
+                            SQL.identifier(make_index_name(table, newname)),
                         )
                     )
 

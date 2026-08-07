@@ -36,7 +36,6 @@ CLEAN_MODULES = (
     "odoo.tools.config",
     "odoo.tools.files",
     "odoo.tools.locale_utils",
-    "odoo.tools.sql",
 )
 
 

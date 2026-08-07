@@ -34,6 +34,7 @@ from typing import Any
 import werkzeug.serving
 from werkzeug.urls import uri_to_iri
 
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools import config
 
 from ._env import env_float, env_int
@@ -169,7 +170,7 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
         raw_path = getattr(self, "path", "")
         try:
             path = uri_to_iri(raw_path) if raw_path else self.requestline
-            fragment = getattr(threading.current_thread(), "rpc_model_method", "")
+            fragment = getattr(current_worker_thread(), "rpc_model_method", "")
             if fragment:
                 path += "#" + fragment
             msg = f"{self.command} {path} {self.request_version}"

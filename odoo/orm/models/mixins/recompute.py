@@ -20,9 +20,9 @@ from itertools import batched
 from typing import Self
 
 from odoo.exceptions import MissingError
+from odoo.libs.profiling import _OrmProfile
 from odoo.tools import OrderedSet
 from odoo.tools.misc import PENDING
-from odoo.tools.orm_profiler import _OrmProfile
 
 from ... import decorators as api
 from ...components.recompute import RecomputeScheduler
@@ -136,7 +136,15 @@ class RecomputeMixin(_ModelStubs):
             _mark_count = 0
             _invalidate_count = 0
 
-        _field_triggers = self.pool._field_triggers
+        # Through the barrier, never the bare attribute: `_field_triggers` is a
+        # cached_property, so a build that lost the publication race to a
+        # concurrent teardown is memoized holding the *pre-teardown* snapshot
+        # (publication swaps a fresh _TriggerState rather than mutating), and
+        # nothing but `_ensure_field_triggers()` ever pops it.  Reading the
+        # attribute here would let the early-exit below consult a permanently
+        # stale map and skip recompute/invalidate for triggers added since.
+        # See orm/tests/test_trigger_publication_staleness.py.
+        _field_triggers = self.pool._ensure_field_triggers()
         _fields = self._fields
         fields = [_fields[fname] for fname in fnames]
         if not any(f in _field_triggers for f in fields):

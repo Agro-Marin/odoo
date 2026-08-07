@@ -9,7 +9,7 @@ from operator import itemgetter
 
 from odoo_rust import origin_ids as _origin_ids_rust
 
-from odoo.tools import SQL
+from odoo.libs.sql import SQL
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable

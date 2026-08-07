@@ -9,7 +9,7 @@ import werkzeug.utils
 
 from odoo import _, http, modules
 from odoo.http import request
-from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.libs.filesystem import guess_mimetype
 from odoo.tools.image import image_process
 
 from odoo.addons.html_editor.controllers.main import HTML_Editor

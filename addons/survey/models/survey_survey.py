@@ -9,7 +9,7 @@ from urllib.parse import urlencode, urlparse
 from odoo import Command, _, api, exceptions, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.web.urls import urljoin as url_join
+from odoo.libs.web import urljoin as url_join
 from odoo.tools import is_html_empty
 
 _logger = logging.getLogger(__name__)

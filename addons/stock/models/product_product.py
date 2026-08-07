@@ -10,7 +10,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.libs.barcode import check_barcode_encoding
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.libs.numbers import float_compare
 from odoo.tools import SQL, Query
 from odoo.tools.mail import html2plaintext, is_html_empty
 

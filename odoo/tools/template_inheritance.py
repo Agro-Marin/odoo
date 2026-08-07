@@ -12,17 +12,17 @@ from typing import TYPE_CHECKING
 from lxml import etree
 
 from odoo.exceptions import ValidationError
-
-from odoo.libs.xml.template_inheritance import (
-    XPathExpressionError,
-    _compile_xpath,
-)
-from odoo.libs.xml.template_inheritance import (
+from odoo.libs.xml import XPathExpressionError
+from odoo.libs.xml import (
     apply_inheritance_specs as _apply_inheritance_specs_base,
 )
-from odoo.libs.xml.template_inheritance import (
+from odoo.libs.xml import (
     locate_node as _locate_node_base,
 )
+
+# Private, so the area deliberately does not export it; see KNOWN_VIOLATIONS in
+# tooling/architecture/libs_facade_check.py.
+from odoo.libs.xml.template_inheritance import _compile_xpath
 from odoo.tools.translate import LazyTranslate
 
 if TYPE_CHECKING:

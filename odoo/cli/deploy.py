@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import sys
@@ -200,8 +201,23 @@ class Deploy(Command):
             default="admin",
             help="Password (default=admin)",
         )
+        # Verification is the default: this command POSTs --login/--password in
+        # the request body, so an unverified TLS session hands the credentials
+        # to whoever answered.  --verify-ssl is kept as an accepted no-op so
+        # existing invocations that pass it explicitly keep working.
         parser.add_argument(
-            "--verify-ssl", action="store_true", help="Verify SSL certificate"
+            "--no-verify-ssl",
+            dest="verify_ssl",
+            action="store_false",
+            default=True,
+            help="Do NOT verify the server's SSL certificate (insecure: "
+            "credentials are sent in the request body)",
+        )
+        parser.add_argument(
+            "--verify-ssl",
+            dest="verify_ssl",
+            action="store_true",
+            help=argparse.SUPPRESS,
         )
         parser.add_argument(
             "--force",
@@ -222,8 +238,10 @@ class Deploy(Command):
                 self.session.verify = False
                 if args.url.lower().startswith("https://"):
                     print(
-                        f"WARNING: SSL verification is OFF for {args.url}. "
-                        "Pass --verify-ssl to verify the server certificate.",
+                        f"WARNING: SSL verification is OFF for {args.url}; "
+                        "the login and password below are sent to an "
+                        "unauthenticated server. Drop --no-verify-ssl to "
+                        "verify the certificate.",
                         file=sys.stderr,
                     )
                     import urllib3

@@ -19,6 +19,12 @@ This directory contains runtime patches for Python standard library and third-pa
 
 ## Patch Index
 
+> **This index is enforced.** `tooling/architecture/package_index_check.py`
+> fails CI if a module in this directory is missing from the tables below, or if
+> they name a module that no longer exists. The check reads only this section,
+> so *Removal Criteria* and *Recently Removed* below stay free to name modules
+> that are gone.
+
 ### Standard Library Patches
 
 | File | Purpose | Type |
@@ -113,12 +119,15 @@ Patches should be removed when:
 | `lxml.py` | 2026-02 | Fixed in lxml >= 5.2.0 (current: 6.0.2) |
 | `xlrd.py` | 2026-02 | xlrd 2.x removed xlsx support; defusedxml not installed |
 | `zeep.py` | 2026-02 | Fixed in zeep >= 4.3.1 (notation visitor bug #1185) |
-| `email.py` | 2026-02 | Python 3.12+ natively validates attributes in `_PolicyBase.clone()` |
+| `email.py` (policy-clone validation) | 2026-02 | Python 3.12+ natively validates attributes in `_PolicyBase.clone()`. **Not** the current `email.py`, which is a later, unrelated patch for header folding — see the Patch Index. |
 | `pytz.py` | 2026-02 | Migrated to zoneinfo (stdlib); see `odoo/libs/datetime/tz.py` |
 | `xlwt.py` | 2026-02 | xlwt is abandoned (last release 2017); migrated to xlsxwriter |
 
 ## Statistics
 
-- **Total**: 13 files (12 patches + 1 utility)
-- **By category**: stdlib (5), web (2), spreadsheet (1 + 1 util), text (2), core (1), third-party (1)
-- **By type**: COMPAT (8), PERF (2), SECURITY (1), FEATURE (1)
+- **Total**: 15 files (14 patches + 1 utility)
+- **By type**: COMPAT (10), PERF (2), SECURITY (1), FEATURE (1)
+
+These are re-derived from the directory and the Patch Index by
+`tooling/architecture/package_index_check.py`, so they cannot drift again — the
+previous figures said 12 patches against a directory holding 14.

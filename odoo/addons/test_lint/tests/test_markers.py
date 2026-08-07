@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from odoo.libs.lint.scan import scan_byte_patterns
+from odoo.libs.lint import scan_byte_patterns
 
 from . import lint_case
 

@@ -4,11 +4,7 @@ import fnmatch
 import urllib.parse
 
 from odoo.http import request
-
-from odoo.libs.web.urls import *
-from odoo.libs.web.urls import (
-    _contains_dot_segments,
-)
+from odoo.libs.web import *
 
 
 def keep_query(*keep_params: str, **additional_params: object) -> str:

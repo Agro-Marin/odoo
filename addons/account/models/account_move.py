@@ -12,6 +12,7 @@ from markupsafe import Markup
 
 from odoo import SUPERUSER_ID, _, api, fields, models, modules
 from odoo.db.errors import PG_RETRY_EXCEPTIONS
+from odoo.db.schema import column_exists, create_column
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import (
@@ -37,7 +38,6 @@ from odoo.tools.mail import (
 )
 from odoo.tools.misc import StackMap
 from odoo.tools.safe_eval import safe_eval
-from odoo.tools.sql import column_exists, create_column
 
 from odoo.addons.account.tools import format_structured_reference_iso
 

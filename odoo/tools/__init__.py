@@ -6,7 +6,7 @@ from odoo.libs.func import (
     lazy_classproperty,
     reset_cached_properties,
 )
-from odoo.libs.numbers.float_utils import (
+from odoo.libs.numbers import (
     float_compare,
     float_is_zero,
     float_repr,
@@ -92,12 +92,15 @@ from .misc import (
     verify_hash_signed,
 )
 from .query import Query
-from .sql import (
+
+# The SQL builder and string/trigram helpers moved to odoo.libs.sql (ADR-0004 /
+# C.2); re-exported here so `from odoo.tools import SQL` keeps working. The
+# cursor-DDL helpers (create_index, index_exists, drop_view_if_exists) moved to
+# odoo.db.schema and are NOT re-exported: odoo.tools cannot import odoo.db
+# (db imports tools -> cycle), so their few consumers import odoo.db.schema.
+from odoo.libs.sql import (
     SQL,
-    create_index,
-    drop_view_if_exists,
     escape_psql,
-    index_exists,
     make_identifier,
     make_index_name,
     pattern_to_translated_trigram_pattern,
@@ -111,3 +114,116 @@ from .xml_utils import (
     load_xsd_files_from_url,
     validate_xml_from_attachment,
 )
+
+#: The public surface of ``odoo.tools`` -- the framework's largest utility
+#: façade (101 symbols re-exported from 5 ``odoo.libs`` areas and 20 local
+#: modules). Declared for the same reason ``odoo.api`` / ``odoo.fields`` /
+#: ``odoo.models`` declare theirs: addon code imports from here, so what is
+#: re-exported is API and should be stated rather than inferred from whatever
+#: happens to be bound at module level. ``_`` is the gettext helper -- private
+#: spelling, public intent (``from odoo.tools import _, config`` is used by
+#: addon code), so it is listed explicitly; ``import *`` would otherwise skip
+#: it. Pinned by ``base/tests/test_public_surfaces.py``.
+__all__ = [
+    "DEFAULT_SERVER_DATETIME_FORMAT",
+    "DEFAULT_SERVER_DATE_FORMAT",
+    "DEFAULT_SERVER_TIME_FORMAT",
+    "NON_BREAKING_SPACE",
+    "SKIPPED_ELEMENT_TYPES",
+    "SQL",
+    "DotDict",
+    "LastOrderedSet",
+    "LazyTranslate",
+    "OrderedSet",
+    "Query",
+    "SetDefinitions",
+    "SetExpressionError",
+    "_",
+    "babel_locale_parse",
+    "classproperty",
+    "clean_context",
+    "cleanup_xml_node",
+    "conditional",
+    "config",
+    "constants",
+    "consteq",
+    "convert_csv_import",
+    "convert_file",
+    "convert_sql_import",
+    "convert_xml_import",
+    "discardattr",
+    "email_domain_extract",
+    "email_domain_normalize",
+    "email_normalize",
+    "email_normalize_all",
+    "email_split",
+    "encapsulate_email",
+    "escape_psql",
+    "file_open",
+    "file_open_temporary_directory",
+    "file_path",
+    "find_in_path",
+    "float_compare",
+    "float_is_zero",
+    "float_repr",
+    "float_round",
+    "float_split",
+    "float_split_str",
+    "formatLang",
+    "format_amount",
+    "format_date",
+    "format_datetime",
+    "format_duration",
+    "format_list",
+    "format_time",
+    "formataddr",
+    "frozendict",
+    "get_iso_codes",
+    "get_lang",
+    "groupby",
+    "hash_sign",
+    "hmac",
+    "html2plaintext",
+    "html_escape",
+    "html_normalize",
+    "html_sanitize",
+    "html_translate",
+    "human_size",
+    "is_html_empty",
+    "is_list_of",
+    "json_default",
+    "lazy",
+    "lazy_classproperty",
+    "load_xsd_files_from_url",
+    "make_identifier",
+    "make_index_name",
+    "merge_sequences",
+    "mod10r",
+    "mute_logger",
+    "ormcache",
+    "ormcache_context",
+    "parse_contact_from_email",
+    "parse_date",
+    "parse_version",
+    "partition",
+    "pattern_to_translated_trigram_pattern",
+    "pg_varchar",
+    "plaintext2html",
+    "posix_to_ldml",
+    "py_to_js_locale",
+    "real_time",
+    "remove_accents",
+    "replace_exceptions",
+    "reset_cached_properties",
+    "reverse_order",
+    "single_email_re",
+    "split_every",
+    "str2bool",
+    "street_split",
+    "topological_sort",
+    "unique",
+    "validate_xml_from_attachment",
+    "value_to_translated_trigram_pattern",
+    "verify_hash_signed",
+    "xml_translate",
+]

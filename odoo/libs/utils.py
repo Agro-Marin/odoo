@@ -101,7 +101,7 @@ def named_to_positional_printf(string: str, args: Mapping[str, Any]) -> _PrintfA
     """Convert a named printf-style format string with its arguments to positional format.
 
     Every conversion becomes ``%s`` regardless of its original type and
-    formatting spec: the caller (notably :class:`odoo.tools.sql.SQL`) needs
+    formatting spec: the caller (notably :class:`odoo.libs.sql.SQL`) needs
     uniform positional placeholders, not preserved printf formatting.
 
     :param string: A printf-style format string with named arguments (e.g., "%(name)s")

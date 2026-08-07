@@ -5990,7 +5990,7 @@ class TestUpdateDbNotNull(TransactionCase):
         return self.env.cr.fetchone()
 
     def _apply_notnull(self, default):
-        from odoo.tools import sql as tools_sql
+        from odoo.db import schema as tools_sql
 
         model = self.env["test_orm.category"]
         field = model._fields["color"]

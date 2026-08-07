@@ -8,8 +8,8 @@ from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
-from odoo.libs.datetime.tz import timezone
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.libs.datetime import timezone
+from odoo.libs.numbers import float_compare
 from odoo.tools import SQL, _, frozendict
 from odoo.tools.safe_eval import safe_eval
 

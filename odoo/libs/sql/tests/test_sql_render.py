@@ -1,4 +1,4 @@
-"""Regression tests for ``odoo.tools.sql.SQL.render``.
+"""Regression tests for ``odoo.libs.sql.SQL.render``.
 
 ``render()`` produces a ``%``-format *template*, not a finished query: literal
 ``%`` stays escaped as ``%%`` so the result round-trips through ``SQL(...)``.
@@ -7,7 +7,7 @@ The parameter-less and parameterised branches used to disagree about this.
 
 import unittest
 
-from odoo.tools.sql import SQL
+from odoo.libs.sql import SQL
 
 
 class TestSqlRenderPercentEscaping(unittest.TestCase):

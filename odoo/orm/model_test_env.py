@@ -326,6 +326,10 @@ class InMemoryCursor(BaseCursor):
                 "This would corrupt the savepoint's rollback state."
             )
         self.flush()
+        # Mirrors Cursor.commit: bumped before the post-commit hooks run, so a
+        # hook that raises is classified as "committed, hook failed" here too
+        # (see retrying()).  Storage writes are already durable at this point.
+        self.commit_count += 1
         self.clear()
         self._now = None
         self.prerollback.clear()

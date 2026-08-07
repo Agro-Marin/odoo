@@ -14,7 +14,7 @@ No Odoo ORM / database dependency — runs under the standalone pytest suite.
 
 import unittest
 
-from odoo.tools.sql import SQL
+from odoo.libs.sql import SQL
 
 
 class TestSqlMembership(unittest.TestCase):

@@ -3,14 +3,9 @@ import typing
 from collections import defaultdict
 from types import MappingProxyType
 
+from odoo.db import schema as sql
 from odoo.exceptions import ValidationError
-from odoo.tools import (
-    LastOrderedSet,
-    OrderedSet,
-    discardattr,
-    frozendict,
-    sql,
-)
+from odoo.tools import LastOrderedSet, OrderedSet, discardattr, frozendict
 from odoo.tools.translate import FIELD_TRANSLATE, _
 
 from . import (

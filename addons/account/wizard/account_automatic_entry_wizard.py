@@ -5,7 +5,7 @@ from markupsafe import Markup, escape
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.libs.numbers.float_utils import float_repr
+from odoo.libs.numbers import float_repr
 from odoo.tools import frozendict, groupby
 from odoo.tools.misc import format_date, formatLang
 

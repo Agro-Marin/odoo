@@ -25,8 +25,8 @@ import json
 import math
 import unittest
 
+from odoo.libs.hashing import cache_hash
 from odoo.tools.cache_version import _canonical_bytes, _canonical_digest
-from odoo.tools.hashing import cache_hash
 
 
 def _stdlib_canonical(value):
@@ -47,7 +47,7 @@ BYTE_IDENTICAL_PAYLOADS = [
     1.0,
     1.5,
     -0.0,
-    3.14159,
+    math.pi,
     100.0,
     12.34,
     0.1,
@@ -105,7 +105,7 @@ class TestByteIdentity(unittest.TestCase):
         """The digest of the orjson bytes equals the digest of the stdlib bytes.
 
         This pins the *serialization* swap, not the hash: it must hold for
-        whichever algorithm ``tools.hashing`` selected, so it compares two
+        whichever algorithm ``libs.hashing`` selected, so it compares two
         digests of the same family rather than a hardcoded sha256.
         """
         for value in BYTE_IDENTICAL_PAYLOADS:

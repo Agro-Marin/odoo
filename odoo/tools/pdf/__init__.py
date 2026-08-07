@@ -11,7 +11,7 @@ from zlib import compress, decompress, decompressobj
 from PIL import Image, PdfImagePlugin
 
 from odoo import modules
-from odoo.libs.text.arabic_reshaper import reshape
+from odoo.libs.text import reshape
 from odoo.libs.parse_version import parse_version
 from odoo.libs.iteration import SENTINEL
 from odoo.tools.files import file_open

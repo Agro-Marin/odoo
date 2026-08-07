@@ -8,7 +8,7 @@ import requests
 
 import odoo
 from odoo.db import PoolError, close_db, db_connect
-from odoo.libs.web.urls import urljoin
+from odoo.libs.web import urljoin
 from odoo.modules.registry import Registry
 from odoo.tests import HOST, BaseCase, Like, get_db_name, tagged
 from odoo.tools import SQL, config, mute_logger, reset_cached_properties

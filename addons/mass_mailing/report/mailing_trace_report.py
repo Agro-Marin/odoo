@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 
 class MailingTraceReport(models.Model):
@@ -40,7 +41,7 @@ class MailingTraceReport(models.Model):
         """Mass Mail Statistical Report: based on mailing.trace that models the various
         statistics collected for each mailing, and mailing.mailing model that models the
         various mailing performed."""
-        tools.drop_view_if_exists(self.env.cr, "mailing_trace_report")
+        drop_view_if_exists(self.env.cr, "mailing_trace_report")
         self.env.cr.execute(self._report_get_request())
 
     def _report_get_request(self):

@@ -285,8 +285,19 @@ class WorkerHTTP(Worker):
         flags = fcntl.fcntl(client, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
         fcntl.fcntl(client, fcntl.F_SETFD, flags)
         self.server.socket = client
-        with contextlib.suppress(BrokenPipeError):
-            self.server.process_request(client, addr)
+        try:
+            with contextlib.suppress(BrokenPipeError):
+                self.server.finish_request(client, addr)
+        finally:
+            # Split out of socketserver's process_request, which is
+            # `finish_request(...)` then `shutdown_request(...)` with NO
+            # try/finally: any exception escaping the handler skips the close
+            # and leaks the accepted socket for the rest of the worker's life.
+            # BrokenPipeError -- suppressed right above, so routine here -- is
+            # exactly such an exception. Repeated, it ends at EMFILE, where
+            # accept() starts raising and the worker dies and respawns in a
+            # loop.
+            self.server.shutdown_request(client)
         self.request_count += 1
 
     def process_work(self) -> None:

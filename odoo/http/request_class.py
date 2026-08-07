@@ -140,10 +140,23 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self.session, self.db = self._get_session_and_dbname()
         self._post_init_done = True
 
-    def _get_session_and_dbname(self) -> tuple[Session, str | None]:
+    def _get_session_and_dbname(
+        self, sid: str | None = None
+    ) -> tuple[Session, str | None]:
+        """Load the session (and resolve the database) for this request.
+
+        :param sid: session id to load instead of the one in the request
+            cookie.  Callers that re-read the session *after* the handler has
+            run must pass ``self.session.sid``: a handler that rotated the
+            session (login, MFA, logout) left the cookie naming a sid whose
+            file no longer exists, and re-reading it would silently mint a new
+            anonymous session — logging the user out on the strength of an
+            unrelated failure.  See :func:`odoo.service.transaction.retrying`.
+        """
         root = self.app
 
-        sid = self.httprequest.session_id
+        if sid is None:
+            sid = self.httprequest.session_id
         if not sid or not root.session_store.is_valid_key(sid):
             session = root.session_store.new()
         else:

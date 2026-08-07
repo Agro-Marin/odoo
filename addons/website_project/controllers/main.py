@@ -2,7 +2,7 @@
 
 from odoo import _
 from odoo.http import request
-from odoo.libs.text.html import nl2br, nl2br_enclose
+from odoo.libs.text import nl2br, nl2br_enclose
 from odoo.tools import html2plaintext
 
 from odoo.addons.website.controllers import form

@@ -1,6 +1,6 @@
 from odoo import Command, api, fields, models
+from odoo.db.schema import column_exists, create_column
 from odoo.fields import Domain
-from odoo.tools.sql import column_exists, create_column
 
 
 class StockPicking(models.Model):

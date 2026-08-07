@@ -350,7 +350,7 @@ class Callbacks:
         return len(self._funcs)
 
 
-from odoo.libs.text.html import html_escape
+from odoo.libs.text import html_escape
 
 
 def get_diff(

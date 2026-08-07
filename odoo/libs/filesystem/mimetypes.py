@@ -10,12 +10,14 @@ import logging
 import mimetypes
 import re
 import zipfile
+from typing import Protocol
 
 _utf8_incremental_decoder = codecs.getincrementaldecoder("utf-8")
 
 __all__ = [
     "MIMETYPE_HEAD_SIZE",
     "UNKNOWN_MIMETYPE",
+    "SystemUser",
     "_olecf_mimetypes",
     "fix_filename_extension",
     "get_extension",
@@ -263,8 +265,35 @@ def guess_mimetype(bin_data: bytes | bytearray, default: str = UNKNOWN_MIMETYPE)
     return mimetype
 
 
-def neuter_mimetype(mimetype: str, user: object) -> str:
-    """Downgrade risky markup mimetypes to ``text/plain`` for non-system users."""
+class SystemUser(Protocol):
+    """The one thing this module needs to know about a user.
+
+    ``odoo.addons.base.models.res_users.ResUsers`` satisfies this structurally,
+    which is what keeps ``odoo/libs`` dependency-free: the parameter used to be
+    typed ``object`` and the function called ``user._is_system()`` on it, so the
+    coupling was real but invisible to ``libs-is-dependency-free`` (which
+    reasons about imports, and there was no import). Same treatment as
+    ``LocaleConventions`` in :mod:`odoo.libs.locale.number_format`, and the same
+    reason: a Protocol states the requirement without importing the model.
+    """
+
+    def _is_system(self) -> bool:
+        """Whether the user belongs to the system/administration group."""
+        ...
+
+
+def neuter_mimetype(mimetype: str, user: SystemUser) -> str:
+    """Downgrade risky markup mimetypes to ``text/plain`` for non-system users.
+
+    .. note::
+        No production caller as of 2026-08. ``ir.attachment`` performs the same
+        downgrade inline (``_check_contents``) against a *different* predicate —
+        write access on ``ir.ui.view`` plus the ``attachments_mime_plainxml``
+        context flag — rather than the system-group test here. Two rules for one
+        security decision, and the one with the narrower predicate is the one
+        that runs. Worth reconciling; until then, do not assume this function
+        reflects what the framework actually does.
+    """
     wrong_type = "ht" in mimetype or "xml" in mimetype or "svg" in mimetype
     if wrong_type and not user._is_system():
         return "text/plain"

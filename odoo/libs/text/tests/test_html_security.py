@@ -130,3 +130,38 @@ class TestHtml2Plaintext(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSanitizeRemovesActiveContent(unittest.TestCase):
+    """``html_sanitize`` strips scripts and event handlers.
+
+    These are the sanitizer's core guarantee and, until recently, the only two
+    ``Cleaner`` options it did *not* state: ``scripts`` and ``javascript`` were
+    left to lxml's defaults while nine less important options were spelled out.
+    Both default to ``True``, so the behaviour was correct — but a security
+    function whose central promise rests on a third-party default not moving is
+    one library upgrade away from silently passing ``<script>`` through, and
+    nothing would have failed.
+
+    Pinned here so the guarantee is asserted rather than inherited.
+    """
+
+    def test_script_element_is_removed(self):
+        out = html_sanitize("<p>keep</p><script>alert(1)</script>")
+        self.assertNotIn("script", out)
+        self.assertIn("keep", out)
+
+    def test_event_handler_attribute_is_removed(self):
+        out = html_sanitize('<p onclick="alert(1)">keep</p>')
+        self.assertNotIn("onclick", out)
+        self.assertIn("keep", out)
+
+    def test_javascript_url_in_href_is_stripped(self):
+        out = html_sanitize('<a href="javascript:alert(1)">x</a>')
+        self.assertNotIn("javascript:", out)
+
+    def test_ordinary_markup_survives(self):
+        """The guarantee must not be met by stripping everything."""
+        out = html_sanitize("<p><b>bold</b> and <i>italic</i></p>")
+        self.assertIn("<b>bold</b>", out)
+        self.assertIn("<i>italic</i>", out)

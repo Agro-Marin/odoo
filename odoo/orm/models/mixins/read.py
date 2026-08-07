@@ -10,9 +10,9 @@ from odoo_rust import (
 )
 
 from odoo.exceptions import MissingError
+from odoo.libs.profiling import _OrmProfile
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
-from odoo.tools.orm_profiler import _OrmProfile
 
 from ... import decorators as api
 from ..._typing import ValuesType

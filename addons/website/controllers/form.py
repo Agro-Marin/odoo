@@ -12,7 +12,7 @@ from werkzeug.exceptions import BadRequest
 from odoo import SUPERUSER_ID, http
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.http import request
-from odoo.libs.text.html import nl2br, nl2br_enclose
+from odoo.libs.text import nl2br, nl2br_enclose
 from odoo.tools import plaintext2html
 from odoo.tools.misc import consteq, hmac
 from odoo.tools.translate import LazyTranslate, _

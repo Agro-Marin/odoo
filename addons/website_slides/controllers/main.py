@@ -89,9 +89,7 @@ class WebsiteSlides(WebsiteProfile):
             # Convert `slide.id` to string is necessary because of the JSON format of the session
             slide_id = str(slide.id)
             if slide_id not in viewed_slides:
-                if tools.sql.increment_fields_skiplock(
-                    slide, "public_views", "total_views"
-                ):
+                if slide._increment_fields_skiplock("public_views", "total_views"):
                     viewed_slides[slide_id] = 1
                     request.session.touch()
         else:

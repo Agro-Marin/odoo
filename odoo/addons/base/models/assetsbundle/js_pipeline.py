@@ -2,7 +2,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from odoo.libs.asset_log import log_event
-from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
+from odoo.libs.profiling import SourceMapGenerator
 from odoo.tools.assets.esm_graph import (
     has_module_syntax,
 )

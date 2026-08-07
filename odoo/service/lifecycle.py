@@ -30,6 +30,7 @@ from pathlib import Path
 from odoo import api, db
 from odoo.libs import gc
 from odoo.libs.filesystem import osutil
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.module import load_odoo_module
 from odoo.modules.registry import Registry
 from odoo.release import nt_service_name
@@ -195,7 +196,7 @@ def preload_registries(dbnames: list[str] | None) -> int:
             preload_profiler = profiler.Profiler(db=dbname, collectors=collectors)
         try:
             with preload_profiler:
-                threading.current_thread().dbname = dbname
+                current_worker_thread().dbname = dbname
                 update_module = config["init"] or config["update"] or config["reinit"]
 
                 registry = Registry.new(

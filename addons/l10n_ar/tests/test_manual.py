@@ -2,7 +2,7 @@
 from . import common
 from odoo import Command
 from odoo.tests import Form, tagged
-from odoo.libs.numbers.float_utils import float_split_str
+from odoo.libs.numbers import float_split_str
 from odoo.exceptions import ValidationError
 
 

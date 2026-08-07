@@ -14,6 +14,10 @@ from base64 import b64decode, b64encode
 __all__ = ["CryptContext", "pbkdf2_sha512_hash"]
 
 _DEFAULT_ROUNDS = 600_000
+#: Ceiling on the cost parameter read out of a stored hash.  ~16x the default,
+#: so a deliberate future increase still verifies, while a hostile or corrupt
+#: value cannot turn one login attempt into an unbounded CPU burn.
+_MAX_ROUNDS = 10_000_000
 _SALT_SIZE = 16
 _HASH_SIZE = 64
 _MCF_RE = re.compile(r"^\$pbkdf2-sha512\$(\d+)\$([^$]+)\$([^$]+)$")
@@ -67,7 +71,18 @@ def _parse_hash(hash_str: str) -> tuple[int, bytes, bytes] | None:
     if not m:
         return None
     try:
-        return int(m.group(1)), _ab64_decode(m.group(2)), _ab64_decode(m.group(3))
+        rounds = int(m.group(1))
+        if not 0 < rounds <= _MAX_ROUNDS:
+            # The cost parameter comes from the stored hash, so it is only as
+            # trustworthy as the row it was read from.  Unbounded, a single
+            # doctored or corrupt value ($pbkdf2-sha512$99999999999$...) makes
+            # every verify against that account occupy a worker inside
+            # pbkdf2_hmac for as long as the attacker cares to specify -- and
+            # the same CryptContext backs config.verify_admin_password, whose
+            # hash comes from a file.  Treat it as unparseable, which routes it
+            # to the same "does not verify" outcome as any other bad hash.
+            return None
+        return rounds, _ab64_decode(m.group(2)), _ab64_decode(m.group(3))
     except binascii.Error, ValueError:
         return None
 

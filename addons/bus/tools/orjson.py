@@ -6,5 +6,5 @@ should import from :mod:`odoo.libs.json` directly (note that ``dumps`` here is
 ``dumps_bytes``, i.e. it returns ``bytes``, unlike ``odoo.libs.json.dumps``).
 """
 
-from odoo.libs.json.orjson_wrapper import dumps_bytes as dumps
-from odoo.libs.json.orjson_wrapper import loads
+from odoo.libs.json import dumps_bytes as dumps
+from odoo.libs.json import loads

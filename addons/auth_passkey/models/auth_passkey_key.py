@@ -4,9 +4,10 @@ import logging
 from urllib.parse import urlsplit, urlunsplit
 
 from odoo import Command, _, api, fields, models
+from odoo.db import schema as sql
 from odoo.exceptions import AccessDenied
 from odoo.http import request
-from odoo.tools import SQL, sql
+from odoo.tools import SQL
 
 from .._vendor.webauthn import (
     base64url_to_bytes,
@@ -28,38 +29,46 @@ _logger = logging.getLogger(__name__)
 
 
 class AuthPasskeyKey(models.Model):
-    _name = 'auth.passkey.key'
-    _description = 'Passkey'
-    _order = 'id desc'
+    _name = "auth.passkey.key"
+    _description = "Passkey"
+    _order = "id desc"
 
     name = fields.Char(required=True)
-    credential_identifier = fields.Char(required=True, groups='base.group_system')
-    public_key = fields.Char(required=True, groups='base.group_system', compute='_compute_public_key', inverse='_inverse_public_key')
-    sign_count = fields.Integer(default=0, groups='base.group_system')
-    create_uid = fields.Many2one('res.users', index=True)
+    credential_identifier = fields.Char(required=True, groups="base.group_system")
+    public_key = fields.Char(
+        required=True,
+        groups="base.group_system",
+        compute="_compute_public_key",
+        inverse="_inverse_public_key",
+    )
+    sign_count = fields.Integer(default=0, groups="base.group_system")
+    create_uid = fields.Many2one("res.users", index=True)
 
     _unique_identifier = models.Constraint(
-        'UNIQUE(credential_identifier)',
-        'The credential identifier should be unique.',
+        "UNIQUE(credential_identifier)",
+        "The credential identifier should be unique.",
     )
 
     def init(self):
         super().init()
-        if not sql.column_exists(self.env.cr, 'auth_passkey_key', 'public_key'):
-            self.env.cr.execute(SQL('ALTER TABLE auth_passkey_key ADD COLUMN public_key varchar'))
+        if not sql.column_exists(self.env.cr, "auth_passkey_key", "public_key"):
+            self.env.cr.execute(
+                SQL("ALTER TABLE auth_passkey_key ADD COLUMN public_key varchar")
+            )
 
     def unlink(self):
         for passkey in self:
             _logger.info(
                 "Passkey (#%d) deleted by %s (#%d) from %s",
                 passkey.id,
-                self.env.user.login, self.env.user.id,
-                request.httprequest.environ['REMOTE_ADDR'] if request else 'n/a'
+                self.env.user.login,
+                self.env.user.id,
+                request.httprequest.environ["REMOTE_ADDR"] if request else "n/a",
             )
         return super().unlink()
 
     def _compute_public_key(self):
-        query = 'SELECT public_key FROM auth_passkey_key WHERE id = %s'
+        query = "SELECT public_key FROM auth_passkey_key WHERE id = %s"
         for passkey in self:
             self.env.cr.execute(SQL(query, passkey.id))
             public_key = self.env.cr.fetchone()[0]
@@ -78,19 +87,23 @@ class AuthPasskeyKey(models.Model):
 
     @api.model
     def _get_session_challenge(self):
-        challenge = request.session.pop('webauthn_challenge', None)
+        challenge = request.session.pop("webauthn_challenge", None)
         if not challenge:
-            raise AccessDenied('Cannot find a challenge for this session')  # pylint: disable=missing-gettext
+            raise AccessDenied("Cannot find a challenge for this session")  # pylint: disable=missing-gettext
         return challenge
 
     @api.model
     def _start_auth(self):
         assert request
-        authentication_options = json.loads(options_to_json(generate_authentication_options(
-            rp_id=urlsplit(self.get_base_url()).hostname,
-            user_verification=UserVerificationRequirement.REQUIRED,
-        )))
-        request.session['webauthn_challenge'] = authentication_options['challenge']
+        authentication_options = json.loads(
+            options_to_json(
+                generate_authentication_options(
+                    rp_id=urlsplit(self.get_base_url()).hostname,
+                    user_verification=UserVerificationRequirement.REQUIRED,
+                )
+            )
+        )
+        request.session["webauthn_challenge"] = authentication_options["challenge"]
         return authentication_options
 
     @api.model
@@ -99,7 +112,7 @@ class AuthPasskeyKey(models.Model):
         auth_verification = verify_authentication_response(
             credential=auth,
             expected_challenge=base64url_to_bytes(self._get_session_challenge()),
-            expected_origin=urlunsplit(parsed_url._replace(path='')),
+            expected_origin=urlunsplit(parsed_url._replace(path="")),
             expected_rp_id=parsed_url.hostname,
             credential_public_key=base64url_to_bytes(public_key),
             credential_current_sign_count=sign_count,
@@ -110,17 +123,21 @@ class AuthPasskeyKey(models.Model):
     @api.model
     def _start_registration(self):
         assert request
-        registration_options = json.loads(options_to_json(generate_registration_options(
-            rp_id=urlsplit(self.get_base_url()).hostname,
-            rp_name='Odoo',
-            user_id=str(self.env.user.id).encode(),
-            user_name=self.env.user.login,
-            authenticator_selection=AuthenticatorSelectionCriteria(
-                resident_key=ResidentKeyRequirement.REQUIRED,
-                user_verification=UserVerificationRequirement.REQUIRED
+        registration_options = json.loads(
+            options_to_json(
+                generate_registration_options(
+                    rp_id=urlsplit(self.get_base_url()).hostname,
+                    rp_name="Odoo",
+                    user_id=str(self.env.user.id).encode(),
+                    user_name=self.env.user.login,
+                    authenticator_selection=AuthenticatorSelectionCriteria(
+                        resident_key=ResidentKeyRequirement.REQUIRED,
+                        user_verification=UserVerificationRequirement.REQUIRED,
+                    ),
+                )
             )
-        )))
-        request.session['webauthn_challenge'] = registration_options['challenge']
+        )
+        request.session["webauthn_challenge"] = registration_options["challenge"]
         return registration_options
 
     @api.model
@@ -129,13 +146,13 @@ class AuthPasskeyKey(models.Model):
         verification = verify_registration_response(
             credential=registration,
             expected_challenge=base64url_to_bytes(self._get_session_challenge()),
-            expected_origin=urlunsplit(parsed_url._replace(path='')),
+            expected_origin=urlunsplit(parsed_url._replace(path="")),
             expected_rp_id=parsed_url.hostname,
             require_user_verification=True,
         )
         return {
-            'credential_id': verification.credential_id,
-            'credential_public_key': verification.credential_public_key,
+            "credential_id": verification.credential_id,
+            "credential_public_key": verification.credential_public_key,
         }
 
     @check_identity
@@ -145,64 +162,83 @@ class AuthPasskeyKey(models.Model):
                 # Force to go through `res.users.auth_passkey_key_ids` to trigger the session token cache invalidation
                 # See `res.users.write` and `_get_invalidation_fields`
                 # `self.env.user` is already sudo, so no need to re-apply `sudo` to get delete access right.
-                self.env.user.write({'auth_passkey_key_ids': [Command.delete(key.id)]})
+                self.env.user.write({"auth_passkey_key_ids": [Command.delete(key.id)]})
                 new_token = self.env.user._compute_session_token(request.session.sid)
                 request.session.session_token = new_token
             else:
                 _logger.info(
                     "%s (#%d) attempted to delete passkey (#%d) belonging to %s (#%d) from %s but was denied.",
-                    self.env.user.login, self.env.user.id,
+                    self.env.user.login,
+                    self.env.user.id,
                     key.id,
-                    key.create_uid.login, key.create_uid.id,
-                    request.httprequest.environ['REMOTE_ADDR'] if request else 'n/a'
+                    key.create_uid.login,
+                    key.create_uid.id,
+                    request.httprequest.environ["REMOTE_ADDR"] if request else "n/a",
                 )
 
     def action_rename_passkey(self):
         return {
-            'name': _('Rename Passkey'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'auth.passkey.key',
-            'view_id': self.env.ref('auth_passkey.auth_passkey_key_rename').id,
-            'view_mode': 'form',
-            'target': 'new',
-            'res_id': self.id,
-            'context': {
-                'dialog_size': 'medium',
-            }
+            "name": _("Rename Passkey"),
+            "type": "ir.actions.act_window",
+            "res_model": "auth.passkey.key",
+            "view_id": self.env.ref("auth_passkey.auth_passkey_key_rename").id,
+            "view_mode": "form",
+            "target": "new",
+            "res_id": self.id,
+            "context": {
+                "dialog_size": "medium",
+            },
         }
 
 
 class AuthPasskeyKeyCreate(models.TransientModel):
-    _name = 'auth.passkey.key.create'
-    _description = 'Create a Passkey'
+    _name = "auth.passkey.key.create"
+    _description = "Create a Passkey"
 
-    name = fields.Char('Name', required=True)
+    name = fields.Char("Name", required=True)
 
     @check_identity
     def make_key(self, registration=None):
         # We add in these fields with JS, if we didn't give them default values we would get a XML validation warning.
         assert registration, "registration can not be empty"
         self.ensure_one()
-        verification = request.env['auth.passkey.key']._verify_registration_options(registration)
+        verification = request.env["auth.passkey.key"]._verify_registration_options(
+            registration
+        )
         # Force to go through `res.users.auth_passkey_key_ids` to trigger the session token cache invalidation
         # See `res.users.write` and `_get_invalidation_fields`
         # `self.env.user` is already sudo, so no need to re-apply `sudo` to get create access right.
-        self.env.user.write({'auth_passkey_key_ids': [Command.create({
-            'name': self.name,
-            'credential_identifier': bytes_to_base64url(verification['credential_id']),
-        })]})
+        self.env.user.write(
+            {
+                "auth_passkey_key_ids": [
+                    Command.create(
+                        {
+                            "name": self.name,
+                            "credential_identifier": bytes_to_base64url(
+                                verification["credential_id"]
+                            ),
+                        }
+                    )
+                ]
+            }
+        )
         passkey = self.env.user.auth_passkey_key_ids[0]
-        self.env.cr.execute(SQL(
-            "UPDATE auth_passkey_key SET public_key = %s WHERE id = %s",
-            base64.urlsafe_b64encode(verification['credential_public_key']).decode(),
-            passkey.id,
-        ))
-        ip = request.httprequest.environ['REMOTE_ADDR'] if request else 'n/a'
+        self.env.cr.execute(
+            SQL(
+                "UPDATE auth_passkey_key SET public_key = %s WHERE id = %s",
+                base64.urlsafe_b64encode(
+                    verification["credential_public_key"]
+                ).decode(),
+                passkey.id,
+            )
+        )
+        ip = request.httprequest.environ["REMOTE_ADDR"] if request else "n/a"
         _logger.info(
             "Passkey (#%d) created by %s (#%d) from %s",
             passkey.id,
-            self.env.user.login, self.env.user.id,
-            ip
+            self.env.user.login,
+            self.env.user.id,
+            ip,
         )
         new_token = self.env.user._compute_session_token(request.session.sid)
         request.session.session_token = new_token

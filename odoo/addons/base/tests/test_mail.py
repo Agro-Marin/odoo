@@ -3,7 +3,7 @@ import re
 from markupsafe import Markup
 
 from odoo.libs.email import extract_rfc2822_addresses
-from odoo.libs.text.html import nl2br_enclose
+from odoo.libs.text import nl2br_enclose
 from odoo.tests import tagged
 from odoo.tests.common import BaseCase
 from odoo.tools import misc

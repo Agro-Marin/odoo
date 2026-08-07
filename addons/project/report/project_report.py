@@ -1,6 +1,7 @@
 """Tasks analysis report (SQL view)."""
 
 from odoo import fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 
 from odoo.addons.rating.models.rating_data import RATING_LIMIT_MIN
 
@@ -194,7 +195,7 @@ class ReportProjectTaskUser(models.Model):
         """
 
     def init(self) -> None:
-        tools.drop_view_if_exists(self.env.cr, self._table)
+        drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             """
     CREATE view %s as

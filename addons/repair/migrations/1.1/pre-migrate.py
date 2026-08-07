@@ -12,7 +12,7 @@ revalidation against the new model passes. ``\y`` (Postgres word boundary) leave
 lookalikes such as ``product_uom_qty`` untouched.
 """
 
-from odoo.tools.sql import column_exists
+from odoo.db.schema import column_exists
 
 
 def migrate(cr, version):

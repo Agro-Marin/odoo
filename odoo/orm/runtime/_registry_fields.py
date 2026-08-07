@@ -43,18 +43,30 @@ class _RegistryFieldsMixin(_RegistryStubs):
         reading it discard the result; naming the barrier keeps that intent
         readable, where the bare ``self._field_triggers`` it replaces looked
         like dead code.
+
+        Also the retry point for a build that lost the publication race.  The
+        marker is compared against the *current* epoch rather than merely being
+        present, so the rebuild happens once the teardown that refused us has
+        ended (``end_invalidation`` bumps the epoch) instead of on every call
+        while it is still open -- a full rebuild walks every field of every
+        model, so retrying inside the window would turn a teardown into a
+        rebuild storm.
         """
+        refused_at = self.__dict__.get("_field_triggers_refused_at")
+        if refused_at is not None and refused_at != self.model_graph.trigger_epoch:
+            self.__dict__.pop("_field_triggers", None)
+            self.__dict__.pop("_field_triggers_refused_at", None)
         return self._field_triggers
 
     @property
     def field_depends(self) -> typing.Any:
         """Field dependencies — delegates to model_graph (single source of truth)."""
-        return self.model_graph._depends
+        return self.model_graph.field_depends
 
     @property
     def field_depends_context(self) -> typing.Any:
         """Context dependencies — delegates to model_graph (single source of truth)."""
-        return self.model_graph._depends_context
+        return self.model_graph.field_depends_context
 
     @functools.cached_property
     def field_inverses(self) -> Collector[Field, Field]:
@@ -145,19 +157,23 @@ class _RegistryFieldsMixin(_RegistryStubs):
         rebuild that started before or during the discard lose the publication
         race: its map may still contain the discarded fields.
         """
+        # try/finally: the window must close even if the discard raises, else
+        # the graph refuses every later epoch-validated publication with
+        # nothing logged.  See Registry._setup_models__ for the same bracket.
         self.model_graph.begin_invalidation()
+        try:
+            for f in fields:
+                self.field_depends.pop(f, None)
 
-        for f in fields:
-            self.field_depends.pop(f, None)
+            self.field_setup_dependents.discard_keys_and_values(fields)
 
-        self.field_setup_dependents.discard_keys_and_values(fields)
+            for _prop in ("_field_triggers", "field_inverses", "field_computed"):
+                self.__dict__.pop(_prop, None)
 
-        for _prop in ("_field_triggers", "field_inverses", "field_computed"):
-            self.__dict__.pop(_prop, None)
+            self.model_graph.discard_fields(fields)
+        finally:
+            self.model_graph.end_invalidation()
 
-        self.model_graph.discard_fields(fields)
-
-        self.model_graph.end_invalidation()
         self.__dict__.pop("_field_triggers", None)
         self._ensure_field_triggers()
 
@@ -206,13 +222,25 @@ class _RegistryFieldsMixin(_RegistryStubs):
                             bucket.append(field)
 
         if not graph.set_triggers(new_triggers, epoch=start_epoch):
-            return graph._triggers
+            # Lost the publication race: a teardown began while we were
+            # building, so this map may describe half-set-up models and the
+            # teardown's own rebuild is authoritative.  Record the epoch we
+            # lost at so `_ensure_field_triggers` can retry once the teardown
+            # ends -- `_field_triggers` is a cached_property, so without that
+            # marker this refused build would be memoized permanently, and
+            # `_publish_field_metadata()` and `graph.freeze()` below would stay
+            # un-run with nothing left to trigger a retry.  (Popping the memo
+            # here cannot work: cached_property writes it *after* this returns.)
+            self.__dict__["_field_triggers_refused_at"] = graph.trigger_epoch
+            return graph.published_triggers
+
+        self.__dict__.pop("_field_triggers_refused_at", None)
 
         self._publish_field_metadata()
 
         graph.freeze()
 
-        return graph._triggers
+        return graph.published_triggers
 
     def is_modifying_relations(self, field: Field) -> bool:
         """Return whether ``field`` has dependent fields on some records, and

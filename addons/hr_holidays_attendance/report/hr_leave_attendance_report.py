@@ -3,7 +3,8 @@
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
-from odoo.tools.sql import SQL, drop_view_if_exists
+from odoo.db.schema import drop_view_if_exists
+from odoo.libs.sql import SQL
 
 
 class HrLeaveAttendanceReport(models.Model):
@@ -18,54 +19,76 @@ class HrLeaveAttendanceReport(models.Model):
     date = fields.Date("Date")
     employee_id = fields.Many2one("hr.employee", string="Employee")
     active = fields.Boolean(related="employee_id.active")
-    department_id = fields.Many2one(related="employee_id.department_id", string="Department")
+    department_id = fields.Many2one(
+        related="employee_id.department_id", string="Department"
+    )
     job_id = fields.Many2one(related="employee_id.job_id", string="Job Position")
     schedule_id = fields.Many2one("resource.calendar", string="Working Schedule")
     expected_hours = fields.Float("Expected Hours")
     worked_hours = fields.Float("Worked Hours")
     leave_hours = fields.Float("Approved Time Off")
-    difference_hours = fields.Float("Difference", help="Worked Hours - Expected Hours + Approved Time Off")
+    difference_hours = fields.Float(
+        "Difference", help="Worked Hours - Expected Hours + Approved Time Off"
+    )
 
-    leave_type_names = fields.Char("Time Off Types", compute="_compute_leave_attendance_fields")
-    leave_ids = fields.Many2many("hr.leave", string="Time Offs", compute="_compute_leave_attendance_fields")
-    attendance_ids = fields.Many2many("hr.attendance", string="Attendances", compute="_compute_leave_attendance_fields")
+    leave_type_names = fields.Char(
+        "Time Off Types", compute="_compute_leave_attendance_fields"
+    )
+    leave_ids = fields.Many2many(
+        "hr.leave", string="Time Offs", compute="_compute_leave_attendance_fields"
+    )
+    attendance_ids = fields.Many2many(
+        "hr.attendance",
+        string="Attendances",
+        compute="_compute_leave_attendance_fields",
+    )
 
-    @api.depends('employee_id', 'date')
+    @api.depends("employee_id", "date")
     def _compute_leave_attendance_fields(self):
         today = fields.Date.today()
         min_date = today - relativedelta(years=1)
         max_date = today - relativedelta(days=1)
 
-        leaves_by_employees = dict(self.env['hr.leave']._read_group(
-            domain=[
-                ('employee_id', 'in', self.employee_id.ids),
-                ('state', '=', 'validate'),
-                ('date_from', '<=', max_date),
-                ('date_to', '>=', min_date),
-            ],
-            groupby=['employee_id'],
-            aggregates=['id:recordset'],
-        ))
-        attendances_by_employees = dict(self.env['hr.attendance']._read_group(
-            domain=[
-                ('employee_id', 'in', self.employee_id.ids),
-                ('check_in', '>=', min_date),
-                ('check_in', '<=', max_date),
-            ],
-            groupby=['employee_id'],
-            aggregates=['id:recordset'],
-        ))
+        leaves_by_employees = dict(
+            self.env["hr.leave"]._read_group(
+                domain=[
+                    ("employee_id", "in", self.employee_id.ids),
+                    ("state", "=", "validate"),
+                    ("date_from", "<=", max_date),
+                    ("date_to", ">=", min_date),
+                ],
+                groupby=["employee_id"],
+                aggregates=["id:recordset"],
+            )
+        )
+        attendances_by_employees = dict(
+            self.env["hr.attendance"]._read_group(
+                domain=[
+                    ("employee_id", "in", self.employee_id.ids),
+                    ("check_in", ">=", min_date),
+                    ("check_in", "<=", max_date),
+                ],
+                groupby=["employee_id"],
+                aggregates=["id:recordset"],
+            )
+        )
 
         for rec in self:
-            leaves = leaves_by_employees.get(rec.employee_id, self.env['hr.leave'])
+            leaves = leaves_by_employees.get(rec.employee_id, self.env["hr.leave"])
             rec_date_leaves = leaves.filtered(
-                lambda lv, rec=rec: self._timestamped(lv.date_from) <= rec.date <= self._timestamped(lv.date_to),
+                lambda lv, rec=rec: (
+                    self._timestamped(lv.date_from)
+                    <= rec.date
+                    <= self._timestamped(lv.date_to)
+                ),
             )
             rec.leave_ids = rec_date_leaves.ids
-            leave_type_ids = rec_date_leaves.mapped('holiday_status_id')
-            rec.leave_type_names = ', '.join(leave_type_ids.mapped('name'))
+            leave_type_ids = rec_date_leaves.mapped("holiday_status_id")
+            rec.leave_type_names = ", ".join(leave_type_ids.mapped("name"))
 
-            attendances = attendances_by_employees.get(rec.employee_id, self.env['hr.attendance'])
+            attendances = attendances_by_employees.get(
+                rec.employee_id, self.env["hr.attendance"]
+            )
             rec.attendance_ids = attendances.filtered(
                 lambda att, rec=rec: self._timestamped(att.check_in) == rec.date,
             ).ids
@@ -160,11 +183,11 @@ class HrLeaveAttendanceReport(models.Model):
         """
 
     def _join_daily_leave_hours(self):
-        """ Generates a SQL join clause to calculate the total `leave_hours` taken for a specific day:
-            - Sums up `number_of_hours` for all validated time offs within the day.
-            - Excludes non-working days based on the employee's resource calendar and calendar leaves.
-            - Handles leaves spanning multiple days, ensuring only working days are counted.
-            - Converts all date fields to UTC to maintain consistency with Odoo's date storage.
+        """Generates a SQL join clause to calculate the total `leave_hours` taken for a specific day:
+        - Sums up `number_of_hours` for all validated time offs within the day.
+        - Excludes non-working days based on the employee's resource calendar and calendar leaves.
+        - Handles leaves spanning multiple days, ensuring only working days are counted.
+        - Converts all date fields to UTC to maintain consistency with Odoo's date storage.
         """
         return """
             LEFT JOIN LATERAL (
@@ -218,7 +241,9 @@ class HrLeaveAttendanceReport(models.Model):
 
     def init(self):
         drop_view_if_exists(self.env.cr, self._table)
-        self.env.cr.execute(SQL("""
+        self.env.cr.execute(
+            SQL(
+                """
             CREATE OR REPLACE VIEW %s AS (
                 %s -- select
                 %s -- from
@@ -238,4 +263,5 @@ class HrLeaveAttendanceReport(models.Model):
                 SQL(self._join_resource_calendar_attendance()),
                 SQL(self._join_daily_leave_hours()),
                 SQL(self._where()),
-            ))
+            )
+        )

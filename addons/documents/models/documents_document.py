@@ -17,7 +17,7 @@ import odoo
 from odoo import SUPERUSER_ID, Command, _, api, fields, models, modules
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.filesystem.mimetypes import get_extension
+from odoo.libs.filesystem import get_extension
 from odoo.tools import groupby
 from odoo.tools.image import image_process
 from odoo.tools.misc import clean_context

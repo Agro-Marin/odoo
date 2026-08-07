@@ -111,6 +111,45 @@ class TestLiveTree(unittest.TestCase):
     def test_check_returns_zero_on_a_clean_tree(self):
         self.assertEqual(emsc.main(["--check"]), 0)
 
+    def test_every_core_package_is_scoped_or_exempt(self):
+        """A new core package must join the scan or be excused with a reason.
+
+        This gate's whole claim is that it *inventories* the framework's
+        string-keyed model dependency. A package outside ``SCOPE_PACKAGES``
+        cannot contribute to that inventory and cannot fail the ratchet, so an
+        unlisted package silently shrinks the claim while the gate still reports
+        the surface "matches the acknowledged set".
+
+        Mirrors ``layer_check``'s ``test_core_source_covers_every_core_package``
+        and ``libs_facade_check``'s ``test_every_core_package_is_scanned``: in
+        each case the coverage is a hand-maintained list, and the list is the
+        part that rots.
+        """
+        packages = {
+            p.name
+            for p in emsc.CORE.iterdir()
+            if p.is_dir() and (p / "__init__.py").exists() and p.name != "__pycache__"
+        }
+        unlisted = packages - set(emsc.SCOPE_PACKAGES) - emsc.SCOPE_EXEMPT_PACKAGES
+        self.assertEqual(
+            unlisted,
+            set(),
+            f"core package(s) neither scanned nor exempt: {sorted(unlisted)} — "
+            f"add to SCOPE_PACKAGES, or to SCOPE_EXEMPT_PACKAGES with a reason",
+        )
+
+    def test_scoped_and_exempt_packages_all_exist(self):
+        """The opposite drift: a renamed package silently shrinking the scan."""
+        for name in (*emsc.SCOPE_PACKAGES, *emsc.SCOPE_EXEMPT_PACKAGES):
+            with self.subTest(package=name):
+                self.assertTrue(
+                    (emsc.CORE / name).is_dir(), f"{name} is listed but absent"
+                )
+
+    def test_the_two_lists_do_not_overlap(self):
+        overlap = set(emsc.SCOPE_PACKAGES) & emsc.SCOPE_EXEMPT_PACKAGES
+        self.assertEqual(overlap, set(), f"both scanned and exempt: {sorted(overlap)}")
+
 
 if __name__ == "__main__":
     unittest.main()

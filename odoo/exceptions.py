@@ -5,6 +5,25 @@ Any other exception type bubbling until the RPC layer will be
 treated as a 'Server error'.
 """
 
+#: The public surface. This module is imported by essentially every addon, so
+#: what it exports is API: state it explicitly rather than leaving it to be
+#: whatever happens to be defined at module level. Declared for the same reason
+#: odoo.api / odoo.fields / odoo.models declare theirs, and pinned by
+#: base/tests/test_public_surfaces.py.
+__all__ = [
+    "AccessDenied",
+    "AccessError",
+    "CacheMiss",
+    "ConcurrencyError",
+    "LockError",
+    "MissingError",
+    "RedirectWarning",
+    "RetryableJobError",
+    "TerminalJobError",
+    "UserError",
+    "ValidationError",
+]
+
 
 class UserError(Exception):
     """Generic error managed by the client.

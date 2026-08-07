@@ -2,7 +2,7 @@ from lxml import etree
 
 from odoo import _, models, Command
 from odoo.tools import html2plaintext
-from odoo.libs.numbers.float_utils import float_is_zero, float_round
+from odoo.libs.numbers import float_is_zero, float_round
 from odoo.tools.xml_utils import dict_to_xml
 from odoo.addons.account_edi_ubl_cii.models.account_edi_common import FloatFmt
 from odoo.addons.account_edi_ubl_cii.tools import Invoice, CreditNote, DebitNote

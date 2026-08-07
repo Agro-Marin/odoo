@@ -29,13 +29,13 @@ from odoo.libs.constants import (
     STYLE_EXTENSIONS,
     TEMPLATE_EXTENSIONS,
 )
+from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import (
     discover_transitive_import_specifiers,
 )
 from odoo.tools.assets.esm_registry import esm_registry
-from odoo.tools.hashing import cache_hash
 from odoo.tools.misc import file_path, str2bool
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle, BundleFileSpec

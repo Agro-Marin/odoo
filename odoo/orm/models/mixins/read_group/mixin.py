@@ -443,29 +443,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         return list(zip(*column_result, strict=False))
 
     @api.model
-    def _read_group_empty_value(self, spec):
-        """Return the empty value corresponding to the given groupby spec or aggregate spec."""
-        if spec == "__count":
-            return 0
-        fname, chain_fnames, func = parse_read_group_spec(spec)
-        if func in ("count", "count_distinct"):
-            return 0
-        if func in ("array_agg", "array_agg_distinct"):
-            return []
-        field = self._fields[fname]
-        if (not func or func == "recordset") and (field.relational or fname == "id"):
-            if chain_fnames and field.type == "many2one":
-                groupby_seq = f"{chain_fnames}:{func}" if func else chain_fnames
-                model = self.env[field.comodel_name]
-                return model._read_group_empty_value(groupby_seq)
-            return (
-                self.env[field.comodel_name]
-                if field.relational
-                else self.env[self._name]
-            )
-        return False
-
-    @api.model
     def _check_read_group_spec_access(self, groupby, aggregates, query) -> None:
         """Validate groupby/aggregate specs and check field read access.
 

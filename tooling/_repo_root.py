@@ -39,9 +39,42 @@ def find_odoo_root(start: Path, *, tool: str = "tooling") -> Path:
     )
 
 
+def _supplies_workspace_resources(path: Path) -> bool:
+    """Whether ``path`` looks like the workspace root of a multi-repo checkout.
+
+    Identified by what a workspace is actually *for*, rather than by its shape:
+    it supplies the environment the checkouts share — an odoo ``.conf`` and/or a
+    virtualenv. A CI checkout's parent (``/…/work/odoo``) supplies neither, so
+    this stays ``False`` there and ``find_workspace`` keeps returning ``None``.
+
+    Shape-matching is what broke: this used to require literally
+    ``<ws>/addons/odoo``. When the workspace was flattened to ``<ws>/odoo`` with
+    the venv and conf at its root, every tool silently decided it was a
+    repo-alone CI checkout — ``hoot`` then refused to start with "no odoo config
+    found (repo-alone checkout)" in a workspace that had one all along.
+    """
+    try:
+        if any(path.glob("*.conf")):
+            return True
+        return any(
+            (child / "bin" / "python").is_file()
+            for child in path.iterdir()
+            if child.is_dir()
+        )
+    except OSError:  # unreadable parent — treat as "not a workspace"
+        return False
+
+
 def in_workspace(odoo_root: Path) -> bool:
-    """Whether ``odoo_root`` sits inside a workspace checkout as ``addons/odoo``."""
-    return odoo_root.parent.name == "addons" and odoo_root.name == "odoo"
+    """Whether ``odoo_root`` sits inside a multi-repo workspace checkout.
+
+    Two layouts are recognised: the historical ``<ws>/addons/odoo`` and the
+    flat ``<ws>/odoo`` that replaced it, where the sibling checkouts, the venv
+    and the ``.conf`` all live directly under ``<ws>``.
+    """
+    if odoo_root.parent.name == "addons":
+        return True
+    return _supplies_workspace_resources(odoo_root.parent)
 
 
 def find_workspace(odoo_root: Path) -> Path | None:
@@ -51,8 +84,13 @@ def find_workspace(odoo_root: Path) -> Path | None:
     is no workspace, and climbing anyway lands on a directory that has nothing
     to do with this tree. Callers that need a venv or a config from it must say
     so instead of silently scanning the wrong place.
+
+    The workspace is one level up in the flat layout (``<ws>/odoo``) and two in
+    the historical one (``<ws>/addons/odoo``).
     """
-    return odoo_root.parents[1] if in_workspace(odoo_root) else None
+    if not in_workspace(odoo_root):
+        return None
+    return odoo_root.parents[1] if odoo_root.parent.name == "addons" else odoo_root.parent
 
 
 def sibling_repos_root(odoo_root: Path) -> Path:

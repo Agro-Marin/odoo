@@ -1,7 +1,8 @@
 from psycopg.errors import CheckViolation
 
+from odoo.db import schema as sql
 from odoo.tests.common import BaseCase, TransactionCase
-from odoo.tools import SQL, mute_logger, sql
+from odoo.tools import SQL, mute_logger
 
 
 class TestSQL(BaseCase):

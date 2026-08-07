@@ -80,6 +80,13 @@ class BaseCursor:
         self._savepoint_depth = 0
         self.cache = {}
         self.transaction = None
+        #: Number of SQL ``COMMIT``s this cursor has completed.  Bumped between
+        #: the COMMIT and the post-commit hooks, so a caller that catches an
+        #: exception out of :meth:`commit` can tell the two apart: the hooks run
+        #: with the transaction already durable, and treating a hook failure as
+        #: a failed commit rolls back state the database has already accepted.
+        #: See :func:`odoo.service.transaction.retrying`.
+        self.commit_count = 0
 
     def flush(self) -> None:
         """Flush the current transaction, and run precommit hooks.
@@ -672,25 +679,35 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             self._close()
 
     def _close(self) -> None:
+        keep_in_pool = True
         try:
-            self.cache.clear()
-
-            self.print_log()
-
+            try:
+                self.cache.clear()
+                self.print_log()
+            finally:
+                # Roll back BEFORE closing the underlying cursor, not after.
+                # :meth:`rollback` documents the invariant -- "prerollback runs
+                # BEFORE the SQL ROLLBACK so hooks can still read uncommitted
+                # transaction state" -- and this path used to invert it: the
+                # rollback sat in a finally that ran after ``self._obj.close()``
+                # and ``del self._obj``, so every hook reading the cursor got
+                # ``InterfaceError: Cursor already closed``, swallowed at DEBUG.
+                # close() is how a request-scoped cursor normally ends, so that
+                # was the path most hooks actually took.
+                #
+                # Still in a finally of its own: a failure in cache.clear() or
+                # print_log() must not skip the rollback, which is what the old
+                # placement guaranteed and this has to keep.
+                try:
+                    self._do_rollback()
+                except Exception:
+                    _logger.debug("Failed to roll back on cursor close", exc_info=True)
+                    keep_in_pool = self._connection_is_clean()
             self._obj.close()
         finally:
             self._closed = True
-
             del self._obj
-
-            keep_in_pool = True
-            try:
-                self._do_rollback()
-            except Exception:
-                _logger.debug("Failed to roll back on cursor close", exc_info=True)
-                keep_in_pool = self._connection_is_clean()
-            finally:
-                self.__pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
+            self.__pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
 
     def _connection_is_clean(self) -> bool:
         """True when the connection has no transaction open, so it may be pooled.
@@ -717,6 +734,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             )
         self.flush()
         self._cnx.commit()
+        # Durable from here on: anything below may raise, but the transaction
+        # is committed and callers must not undo it.
+        self.commit_count += 1
         self.clear()
         self._schema_cache.clear()
         self._now = None

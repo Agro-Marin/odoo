@@ -15,17 +15,14 @@ import psycopg
 from psycopg import sql as psycopg_sql
 
 from odoo import db
+from odoo.db import schema as sql
 from odoo.db.breaker import CircuitBreaker
 from odoo.db.lag import LAG_SQL, ReplicaLagGate
 from odoo.libs import gc
 from odoo.libs.func import locked, reset_cached_properties
 from odoo.libs.lru import LRU
-from odoo.tools import (
-    SQL,
-    OrderedSet,
-    config,
-    sql,
-)
+from odoo.libs.worker_thread import current_worker_thread
+from odoo.tools import SQL, OrderedSet, config
 from odoo.tools.misc import Collector, format_frame
 
 from .. import registration
@@ -561,87 +558,91 @@ class Registry(
         self._caches.clear_all()
 
         self.model_graph.begin_invalidation()
+        # try/finally: setup_model_classes() and get_depends() below both
+        # raise on a malformed model, and an unclosed window makes the
+        # graph refuse every later publication with nothing logged.
+        try:
+            reset_cached_properties(self)
+            self.model_graph.clear_caches()
+            self.registry_invalidated = True
 
-        reset_cached_properties(self)
-        self.model_graph.clear_caches()
-        self.registry_invalidated = True
+            models_field_depends_done = set()
 
-        models_field_depends_done = set()
+            if model_names is None:
+                self.many2many_relations.clear()
+                self.field_setup_dependents.clear()
 
-        if model_names is None:
-            self.many2many_relations.clear()
-            self.field_setup_dependents.clear()
-
-            for model_cls in self.models.values():
-                model_cls._setup_done__ = False
-
-            self.model_graph.reset_field_metadata()
-
-        else:
-            model_names_to_setup = self.descendants(
-                model_names, "_inherit", "_inherits"
-            )
-            for fields in self.many2many_relations.values():
-                for pair in list(fields):
-                    if pair[0] in model_names_to_setup:
-                        fields.discard(pair)
-
-            for model_name in model_names_to_setup:
-                self[model_name]._setup_done__ = False
-
-            todo = []
-            for model_cls in self.models.values():
-                if model_cls._custom:
+                for model_cls in self.models.values():
                     model_cls._setup_done__ = False
-                if model_cls._setup_done__:
-                    models_field_depends_done.add(model_cls)
-                else:
-                    todo.extend(model_cls._fields.values())
 
-            done = set()
-            for field in todo:
-                if field in done:
+                self.model_graph.reset_field_metadata()
+
+            else:
+                model_names_to_setup = self.descendants(
+                    model_names, "_inherit", "_inherits"
+                )
+                for fields in self.many2many_relations.values():
+                    for pair in list(fields):
+                        if pair[0] in model_names_to_setup:
+                            fields.discard(pair)
+
+                for model_name in model_names_to_setup:
+                    self[model_name]._setup_done__ = False
+
+                todo = []
+                for model_cls in self.models.values():
+                    if model_cls._custom:
+                        model_cls._setup_done__ = False
+                    if model_cls._setup_done__:
+                        models_field_depends_done.add(model_cls)
+                    else:
+                        todo.extend(model_cls._fields.values())
+
+                done = set()
+                for field in todo:
+                    if field in done:
+                        continue
+
+                    model_cls = self[field.model_name]
+                    if model_cls._setup_done__ and field._base_fields__:
+                        name = field.name
+                        base_fields = field._base_fields__
+
+                        field.__dict__.clear()
+                        field.__init__(_base_fields__=base_fields)
+                        field._toplevel = True
+                        field.__set_name__(model_cls, name)
+                        field._setup_done = False
+
+                        models_field_depends_done.discard(model_cls)
+
+                    elif model_cls._setup_done__ and field.related and field.manual:
+                        model_cls._setup_done__ = False
+                        models_field_depends_done.discard(model_cls)
+
+                    self.field_depends.pop(field, None)
+                    self.field_depends_context.pop(field, None)
+
+                    done.add(field)
+                    todo.extend(self.field_setup_dependents.pop(field, ()))
+
+            self.many2one_company_dependents.clear()
+
+            registration.setup_model_classes(env)
+
+            for model_cls in self.models.values():
+                if model_cls in models_field_depends_done:
                     continue
+                model = model_cls(env, (), ())
+                for field in model._fields.values():
+                    depends, depends_context = field.get_depends(model)
+                    self.field_depends[field] = tuple(depends)
+                    self.field_depends_context[field] = tuple(depends_context)
 
-                model_cls = self[field.model_name]
-                if model_cls._setup_done__ and field._base_fields__:
-                    name = field.name
-                    base_fields = field._base_fields__
+            reset_cached_properties(self)
 
-                    field.__dict__.clear()
-                    field.__init__(_base_fields__=base_fields)
-                    field._toplevel = True
-                    field.__set_name__(model_cls, name)
-                    field._setup_done = False
-
-                    models_field_depends_done.discard(model_cls)
-
-                elif model_cls._setup_done__ and field.related and field.manual:
-                    model_cls._setup_done__ = False
-                    models_field_depends_done.discard(model_cls)
-
-                self.field_depends.pop(field, None)
-                self.field_depends_context.pop(field, None)
-
-                done.add(field)
-                todo.extend(self.field_setup_dependents.pop(field, ()))
-
-        self.many2one_company_dependents.clear()
-
-        registration.setup_model_classes(env)
-
-        for model_cls in self.models.values():
-            if model_cls in models_field_depends_done:
-                continue
-            model = model_cls(env, (), ())
-            for field in model._fields.values():
-                depends, depends_context = field.get_depends(model)
-                self.field_depends[field] = tuple(depends)
-                self.field_depends_context[field] = tuple(depends_context)
-
-        reset_cached_properties(self)
-
-        self.model_graph.end_invalidation()
+        finally:
+            self.model_graph.end_invalidation()
 
         if self.ready:
             for model in env.values():
@@ -943,7 +944,13 @@ class Registry(
                 cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES")
                 self.registry_sequence += 1
 
-        elif self.cache_invalidated:
+        # `if`, not `elif`: a transaction can invalidate both, and the two are
+        # signalled on different sequences that peers track independently.  A
+        # peer whose registry sequence is already current takes the adoption
+        # branch in check_signaling and never rebuilds -- so a cache
+        # invalidation swallowed here is never applied anywhere, while the
+        # unconditional clear() below still discards it.
+        if self.cache_invalidated:
             _logger.info(
                 "Caches invalidated, signaling through the database: %s",
                 sorted(self.cache_invalidated),
@@ -1011,7 +1018,7 @@ class Registry(
             replica exists or that no readonly cursor could be acquired.
         """
         if readonly and self._db_readonly is not None:
-            thread = threading.current_thread()
+            thread = current_worker_thread()
             in_request = hasattr(thread, "cursor_mode")
             lag = self._replica_lag
             sample_due = lag.due_for_sample()

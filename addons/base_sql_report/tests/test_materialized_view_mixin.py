@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 import psycopg
 
+from odoo.libs.sql import SQL
 from odoo.tests.common import TransactionCase
-from odoo.tools.sql import SQL
 
 from odoo.addons.base_sql_report.models import sql_materialized_mixin
 

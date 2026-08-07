@@ -7,9 +7,9 @@ import typing
 import babel.dates
 
 from odoo.libs.datetime import utc
-from odoo.libs.datetime.tz import timezone as get_timezone
-from odoo.libs.locale import posix_to_ldml
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.datetime import timezone as get_timezone
+from odoo.libs.locale import format_number, posix_to_ldml
+from odoo.libs.numbers import float_round
 
 from .locale_utils import babel_locale_parse, get_lang
 
@@ -110,7 +110,6 @@ def formatLang(
     rounded_value = float_round(
         value, precision_digits=digits, rounding_method=rounding_method
     )
-    from odoo.addons.base.models.res_lang import format_number
 
     formatted_value = format_number(
         f"%.{digits}f", rounded_value, get_lang(env), grouping=grouping
@@ -350,7 +349,6 @@ def format_amount(
 ) -> str:
     fmt = f"%.{currency.decimal_places}f"
     lang = get_lang(env, lang_code)
-    from odoo.addons.base.models.res_lang import format_number
 
     formatted_amount = (
         format_number(fmt, currency.round(amount), lang, grouping=True)

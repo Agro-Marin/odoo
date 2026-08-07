@@ -11,9 +11,20 @@ the module registers the subclass on
 
 from __future__ import annotations
 
+import typing
+
 from odoo.db.cursor import BaseCursor
 from odoo.db.savepoint import _FlushingSavepoint
 from odoo.tools import reset_cached_properties
+
+#: "There was no transaction when this savepoint opened", as distinct from
+#: "``default_env`` was ``None``".  Collapsing the two let a rollback write
+#: ``None`` over a ``default_env`` that had been established *inside* the
+#: savepoint, which puts the transaction permanently into
+#: ``Transaction.flush``'s degraded branch — it fabricates a SUPERUSER
+#: environment to flush with, so a user's pending writes get flushed with the
+#: wrong user, company and record-rule context, warning but not failing.
+_NO_SNAPSHOT: typing.Final = object()
 
 
 class _OrmFlushingSavepoint(_FlushingSavepoint):
@@ -32,11 +43,12 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
 
     def _save_orm_state(self, cr: BaseCursor) -> None:
         txn = cr.transaction
-        self._saved_default_env = txn.default_env if txn else None
+        self._saved_default_env = txn.default_env if txn else _NO_SNAPSHOT
 
     def _restore_orm_state(self, cr: BaseCursor) -> None:
         txn = cr.transaction
-        txn.default_env = self._saved_default_env
+        if self._saved_default_env is not _NO_SNAPSHOT:
+            txn.default_env = self._saved_default_env
         current = type(txn.registry).registries.get(txn.registry.db_name)
         if current is not None and current is not txn.registry:
             txn.reset()

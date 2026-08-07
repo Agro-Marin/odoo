@@ -24,6 +24,7 @@ import odoo.modules.db
 import odoo.modules.neutralize
 import odoo.release
 import odoo.tools
+from odoo.db import schema as _db_schema
 from odoo.release import version_info
 from odoo.tools import SQL
 from odoo.tools.misc import exec_pg_environ, find_pg_tool
@@ -39,7 +40,6 @@ from ._db_helpers import (
     database_identifier,
     validate_db_name,
 )
-
 from ._dump_scanner import (
     _assert_dump_sql_safe,
     _find_disallowed_psql_meta_command,
@@ -1507,7 +1507,7 @@ def list_db_incompatible(databases: list[str]) -> list[str]:
     for database_name in databases:
         try:
             with closing(odoo.db.db_connect(database_name).cursor()) as cr:
-                if odoo.tools.sql.table_exists(cr, "ir_module_module"):
+                if _db_schema.table_exists(cr, "ir_module_module"):
                     cr.execute(
                         "SELECT db_version FROM ir_module_module WHERE name=%s",
                         ("base",),

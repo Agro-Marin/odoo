@@ -1,31 +1,18 @@
-import ast
-import functools
 import locale
 import logging
-import re
 import threading
 from typing import Any, Literal, Self
 
 from odoo import _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.locale import format_number
 from odoo.tools import OrderedSet
 from odoo.tools.misc import ReadonlyDict
 
 _logger = logging.getLogger(__name__)
 
 _LOCALE_LOCK = threading.Lock()
-
-
-@functools.lru_cache(maxsize=128)
-def _parse_grouping(grouping: str) -> tuple[int, ...]:
-    """Parse a locale grouping spec (e.g. ``"[3,0]"``) to a tuple, cached.
-
-    RL-P1: input is one of a tiny bounded set (the ``grouping`` Selection), so
-    caching avoids an ``ast.literal_eval`` per value on the QWeb number/currency
-    rendering hot path.
-    """
-    return tuple(ast.literal_eval(grouping))
 
 
 class LangData(ReadonlyDict):
@@ -574,108 +561,3 @@ class ResLang(models.Model):
                 "next": {"type": "ir.actions.act_window_close"},
             },
         }
-
-
-def split(l: str, counts: list[int]) -> list[str]:
-    """Chop ``l`` left-to-right into chunks of the given ``counts``.
-
-    A count of ``0`` repeats the previous size until the string is consumed; a
-    count of ``-1`` stops splitting and keeps the rest as a single chunk.
-
-    >>> split("hello world", [])
-    ['hello world']
-    >>> split("hello world", [1])
-    ['h', 'ello world']
-    >>> split("hello world", [2])
-    ['he', 'llo world']
-    >>> split("hello world", [2, 3])
-    ['he', 'llo', ' world']
-    >>> split("hello world", [2, 3, 0])
-    ['he', 'llo', ' wo', 'rld']
-    >>> split("hello world", [2, -1, 3])
-    ['he', 'llo world']
-
-    """
-    res = []
-    saved_count = len(l)
-    for count in counts:
-        if not l:
-            break
-        if count == -1:
-            break
-        if count == 0:
-            while l:
-                res.append(l[:saved_count])
-                l = l[saved_count:]
-            break
-        res.append(l[:count])
-        l = l[count:]
-        saved_count = count
-    if l:
-        res.append(l)
-    return res
-
-
-intersperse_pat = re.compile(r"([^0-9]*)([^ ]*)(.*)")
-
-
-def intersperse(string: str, counts: list[int], separator: str = "") -> tuple[str, int]:
-    """Group the number in ``string`` from the right and join the groups with ``separator``.
-
-    Used to apply thousands separators. The leading non-space run (after any
-    non-digit prefix) is split into groups and rejoined; ``counts`` gives the
-    group sizes, interpreted by :func:`split` on the reversed run. The prefix
-    and everything from the first space on are left untouched.
-
-    :return: the grouped string and the number of separators inserted
-    :rtype: tuple[str, int]
-    """
-    left, rest, right = intersperse_pat.match(string).groups()
-
-    def reverse(s):
-        return s[::-1]
-
-    splits = split(reverse(rest), counts)
-    res = separator.join(reverse(s) for s in reverse(splits))
-    return left + res + right, (len(splits) > 0 and len(splits) - 1) or 0
-
-
-def format_number(spec: str, value, lang_data: LangData, grouping: bool = False) -> str:
-    """Format ``value`` using the ``spec`` ``%char`` specifier and
-    ``lang_data``'s locale conventions.
-
-    Pure, registry-free counterpart of :meth:`ResLang.format`: all locale data
-    (``decimal_point``, ``grouping``, ``thousands_sep``) comes from
-    ``lang_data``, so this is DB-free and callable by code already holding a
-    :class:`LangData`. Handles float (``%e``/``%f``/``%g``) and integer
-    (``%d``/``%i``/``%u``) specs; scientific-notation output is never grouped.
-    """
-    if not spec or spec[0] != "%":
-        raise ValueError(
-            "format_number() must be given exactly one %char format specifier"
-        )
-
-    formatted = spec % value
-
-    decimal_point = lang_data.decimal_point
-    if grouping:
-        lang_grouping, thousands_sep = (
-            lang_data.grouping,
-            lang_data.thousands_sep or "",
-        )
-        eval_lang_grouping = _parse_grouping(lang_grouping)
-
-        if spec[-1] in "eEfFgG":
-            parts = formatted.split(".")
-            if "e" not in formatted and "E" not in formatted:
-                parts[0] = intersperse(parts[0], eval_lang_grouping, thousands_sep)[0]
-
-            formatted = decimal_point.join(parts)
-
-        elif spec[-1] in "diu":
-            formatted = intersperse(formatted, eval_lang_grouping, thousands_sep)[0]
-
-    elif spec[-1] in "eEfFgG" and "." in formatted:
-        formatted = formatted.replace(".", decimal_point)
-
-    return formatted

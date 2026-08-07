@@ -7,8 +7,9 @@ from collections.abc import (
 )
 from typing import override
 
+from odoo.db import schema as sql
 from odoo.exceptions import AccessError
-from odoo.tools import SQL, OrderedSet, Query, sql, unique
+from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import SENTINEL, Sentinel
 
 from ..._recordset import is_search_overridden

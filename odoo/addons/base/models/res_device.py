@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from odoo import api, fields, models, tools
+from odoo.db.schema import drop_view_if_exists
 from odoo.exceptions import AccessError
 from odoo.http import (
     STORED_SESSION_BYTES,
@@ -341,7 +342,7 @@ class ResDevice(models.Model):
         return f"{self._select()} {self._from()} {self._where()}"
 
     def init(self) -> None:
-        tools.drop_view_if_exists(self.env.cr, self._table)
+        drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             SQL(
                 """

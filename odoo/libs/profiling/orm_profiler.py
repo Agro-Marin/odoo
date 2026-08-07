@@ -1,5 +1,4 @@
-"""
-Aggregate ORM profiler for transaction-level performance analysis.
+"""Aggregate ORM profiler for transaction-level performance analysis.
 
 Collects per-model, per-operation timing statistics across an entire
 transaction (HTTP request / RPC call / test), then emits a structured
@@ -19,10 +18,11 @@ call (module-level ``_orm_profiling_enabled`` flag).
 
 See Also
 --------
-- ``odoo.tools.nplusone`` — N+1 CRUD detection (repeated single-record calls)
+- ``odoo.libs.profiling.nplusone`` — N+1 CRUD detection (repeated single-record calls)
 - ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
 - ``odoo.tests.benchmark`` — Micro-benchmark statistics
 - ``doc/coding_guidelines.rst`` §11 (Performance) — when to reach for which tool
+
 """
 
 import logging
@@ -106,6 +106,7 @@ class OrmProfiler:
     __slots__ = ("_data", "_total_time")
 
     def __init__(self) -> None:
+        """Start with empty per-(operation, model) stats and a zero time total."""
         self._data: dict[_Key, _OpStats] = {}
         self._total_time: float = 0.0
 
@@ -128,31 +129,39 @@ class OrmProfiler:
         self._total_time += elapsed
 
     def record_create(self, model_name: str, record_count: int, elapsed: float) -> None:
+        """Record a ``create`` of ``record_count`` rows on ``model_name``."""
         self._record("create", model_name, record_count, elapsed)
 
     def record_write(self, model_name: str, record_count: int, elapsed: float) -> None:
+        """Record a ``write`` over ``record_count`` rows on ``model_name``."""
         self._record("write", model_name, record_count, elapsed)
 
     def record_unlink(self, model_name: str, record_count: int, elapsed: float) -> None:
+        """Record an ``unlink`` of ``record_count`` rows on ``model_name``."""
         self._record("unlink", model_name, record_count, elapsed)
 
     def record_read(self, model_name: str, record_count: int, elapsed: float) -> None:
+        """Record a ``read`` of ``record_count`` rows on ``model_name``."""
         self._record("read", model_name, record_count, elapsed)
 
     def record_search(self, model_name: str, record_count: int, elapsed: float) -> None:
+        """Record a ``search`` returning ``record_count`` rows on ``model_name``."""
         self._record("search", model_name, record_count, elapsed)
 
     def record_recompute(
         self, model_name: str, record_count: int, elapsed: float
     ) -> None:
+        """Record a ``recompute`` over ``record_count`` rows on ``model_name``."""
         self._record("recompute", model_name, record_count, elapsed)
 
     def record_flush(self, model_name: str, record_count: int, elapsed: float) -> None:
+        """Record a ``flush`` over ``record_count`` rows on ``model_name``."""
         self._record("flush", model_name, record_count, elapsed)
 
     def record_modified(
         self, model_name: str, record_count: int, elapsed: float
     ) -> None:
+        """Record a ``modified`` over ``record_count`` rows on ``model_name``."""
         self._record("modified", model_name, record_count, elapsed)
 
     def report(self) -> None:
@@ -177,8 +186,10 @@ class OrmProfiler:
             agg.time += stats.time
 
         lines = [
-            f"ORM Profile Summary ({len(self._data)} model/op pairs, "
-            f"{self._total_time * 1000:.1f} ms total):"
+            (
+                f"ORM Profile Summary ({len(self._data)} model/op pairs, "
+                f"{self._total_time * 1000:.1f} ms total):"
+            )
         ]
 
         lines.append("  Operation totals:")
@@ -207,5 +218,6 @@ class OrmProfiler:
         _logger.warning("\n".join(lines))
 
     def clear(self) -> None:
+        """Drop all accumulated stats (called after :meth:`report`)."""
         self._data.clear()
         self._total_time = 0.0

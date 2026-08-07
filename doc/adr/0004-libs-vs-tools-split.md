@@ -24,10 +24,37 @@ must keep working, a thin re-export or wrapper is left in `tools/` — e.g.
 `libs/xml/template_inheritance.py`. These are plain re-exports/wrappers, not
 `DeprecationWarning` shims.
 
-Rule of thumb for new code:
+Rule of thumb for new code — **import-clean AND general-purpose**:
 
-- no `odoo` import needed → `odoo/libs/<area>/`
-- needs config / ORM / runtime → `odoo/tools/`
+- no `odoo` import needed *and* the helper is not framework-specific by purpose
+  → `odoo/libs/<area>/`
+- needs config / ORM / runtime, **or** is framework-specific even without an
+  `odoo` import (e.g. an ORM-only profiler) → `odoo/tools/`
+
+The membership test has two halves on purpose. The gate can only enforce the
+first (the `libs-is-dependency-free` contract — read it as *libs-is-odoo-free*;
+"dependency-free" is historical, `libs/` freely uses lxml/PIL/babel and
+`odoo_rust`). The second half is a judgement call kept out of `libs/` so it does
+not become "everything that compiles without odoo": a module that is import-clean
+but exists *only* to instrument the ORM stays in `tools/`. Generic profiling
+*infrastructure* (frame/thread sampling, speedscope emission) is general-purpose
+and lives in `libs/profiling/`; an ORM-shaped profiler configured on top of it is
+the framework-specific part.
+
+A worked example of splitting a *mixed* module by this rule: `tools/sql.py`
+(2026-08) was three things at once — the general-purpose `SQL` composition
+builder with its string/trigram helpers, ~30 cursor-executing DDL helpers, and
+one recordset operation. The mechanical import test would admit all of it to
+`libs/` (none imports `odoo` at runtime), but the hybrid rule split it by
+*purpose*: the `SQL` builder + string/trigram helpers → `libs/sql/`
+(general-purpose); the DDL helpers → `odoo/db/schema.py` (PostgreSQL-generic but
+cursor-coupled — `db/`, not the framework-free `libs/`); and
+`increment_fields_skiplock` → a `BaseModel._increment_fields_skiplock` method (it
+operates on records, an ORM concern, and the façade boundary keeps addons from
+importing it out of `odoo.orm`). The `odoo.tools` façade re-exports the builder
+and string helpers, so `from odoo.tools import SQL` still resolves; the DDL
+helpers are imported from `odoo.db.schema` (tools cannot import `db` — `db`
+imports tools).
 
 ## Consequences
 

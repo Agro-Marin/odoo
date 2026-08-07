@@ -12,9 +12,9 @@ from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.constants import PREFETCH_MAX
+from odoo.libs.hashing import ALGO_TAG
 from odoo.tests.common import skip_if_dev_mode
 from odoo.tools import OrderedSet, human_size, mute_logger
-from odoo.tools.hashing import ALGO_TAG
 from odoo.tools.image import image_to_base64
 
 from odoo.addons.base.models import ir_attachment as ir_attachment_module
@@ -1749,7 +1749,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 class TestContentDigestKeys(TransactionCaseWithUserDemo):
     """Algorithm-tagged store keys and coexistence with legacy sha1 keys.
 
-    The digest moved from sha1 to ``tools.hashing``'s content family; keys
+    The digest moved from sha1 to ``libs.hashing``'s content family; keys
     written under the new algorithm carry its tag so the two layouts share one
     filestore.  What must hold is compatibility, not any particular algorithm:
     rows written before the switch keep resolving, and every filestore

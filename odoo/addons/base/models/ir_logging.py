@@ -2,8 +2,8 @@ import datetime
 import logging
 
 from odoo import api, fields, models
+from odoo.db import schema as sql
 from odoo.libs.constants import GC_UNLINK_LIMIT
-from odoo.tools import sql
 
 _logger = logging.getLogger(__name__)
 

@@ -12,16 +12,11 @@ from collections import defaultdict
 from inspect import getmembers
 
 from odoo.exceptions import UserError
-from odoo.tools import SQL, OrderedSet, frozendict
-from odoo.tools.orm_profiler import _OrmProfile
 
 from .. import decorators as api
 from .._recordset import set_base_model
 from ..fields.base import Field, determine
-from ..fields.misc import Id
-from ..fields.textual import Char
 from ..helpers import own_class_memo
-from ..parsing import parse_field_expr
 from .metaclass import MetaModel
 from .mixins import (
     AccessMixin,
@@ -43,14 +38,11 @@ from .mixins import (
     UnlinkMixin,
     WriteMixin,
 )
-
-if typing.TYPE_CHECKING:
-    from collections.abc import Iterable
-    from types import MappingProxyType
-
-    from ..runtime import Registry
-    from .table_objects import TableObject
-
+from .mixins._constraints import _ConstraintsMixin
+from .mixins._magic_fields import _MagicFieldsMixin
+from .mixins._metadata import _ModelMetadataMixin
+from .mixins._properties import _PropertiesMixin
+from .mixins._query import _QueryMixin
 
 _logger = logging.getLogger("odoo.models")
 _orm_crud = logging.getLogger("odoo.orm.crud")
@@ -75,6 +67,11 @@ class BaseModel(
     ExportMixin,
     LoadMixin,
     AccessMixin,
+    _PropertiesMixin,
+    _QueryMixin,
+    _ConstraintsMixin,
+    _MagicFieldsMixin,
+    _ModelMetadataMixin,
     metaclass=MetaModel,
 ):
     """Base class for Odoo models.
@@ -107,148 +104,11 @@ class BaseModel(
 
     __slots__ = ["_ids", "_prefetch_ids", "env"]
 
-    pool: Registry
-    """The registry instance, set as a class attribute during model setup.
-
-    Same object as ``self.env.registry``. Convention: use ``self.pool`` for
-    registry *metadata* (field_computed, field_inverses, ...) and
-    ``self.env.registry`` / ``self.env[model_name]`` for model class lookups.
-    """
-
-    _fields__: dict[str, Field]
-    _fields: MappingProxyType[str, Field]
-
-    _auto: bool = False
-    """Whether a database table should be created.
-    If set to ``False``, override :meth:`~odoo.models.BaseModel.init`
-    to create the database table.
-
-    Defaults to ``True`` for :class:`Model` and :class:`TransientModel`, and
-    ``False`` for :class:`AbstractModel`/:class:`BaseModel` (which have no
-    table).
-
-    .. tip:: To create a model without any table, inherit
-            from :class:`~odoo.models.AbstractModel`.
-    """
+    # MetaModel reads this out of the raw class-body ``attrs`` dict, not off the
+    # class, so unlike the rest of the metadata (now in _ModelMetadataMixin) it
+    # cannot be inherited: attrs.get("_register", True) would be True and
+    # BaseModel would try to register itself as an addon model.
     _register: bool = False
-    _abstract: bool = True
-    """ Whether the model is *abstract*.
-
-    .. seealso:: :class:`AbstractModel`
-    """
-    _transient: bool = False
-    """ Whether the model is *transient*.
-
-    .. seealso:: :class:`TransientModel`
-    """
-
-    _name: str = None
-    _description: str | None = None
-    _module: str | None = None
-    _custom: bool = False
-
-    _inherit: str | list[str] | tuple[str, ...] = ()
-    """Python-inherited models:
-
-    :type: str or list(str) or tuple(str)
-
-    .. note::
-
-        * If :attr:`._name` is set, name(s) of parent models to inherit from
-        * If :attr:`._name` is unset, name of a single model to extend in-place
-    """
-    _inherits: dict[str, str] = frozendict()
-    """dictionary {'parent_model': 'm2o_field'} mapping the _name of the parent business
-    objects to the names of the corresponding foreign key fields to use::
-
-      _inherits = {
-          'a.model': 'a_field_id',
-          'b.model': 'b_field_id'
-      }
-
-    implements composition-based inheritance: the new model exposes all
-    the fields of the inherited models but stores none of them:
-    the values themselves remain stored on the linked record.
-
-    .. warning::
-
-      if multiple fields with the same name are defined in the
-      :attr:`~odoo.models.Model._inherits`-ed models, the inherited field will
-      correspond to the last one (in the inherits list order).
-    """
-    _table: str = ""
-    _table_query: SQL | str | None = None
-    _table_objects: dict[str, TableObject] = frozendict()
-    _table_inheritance_root: str = ""
-    """Name of the table this model's subtypes share through PostgreSQL table
-    inheritance (``CREATE TABLE ... INHERITS``), when it is this model's own.
-
-    A foreign key pointing at such a table is accepted by PostgreSQL but only
-    ever sees the rows of the parent itself, so it rejects every id that lives
-    in a child table: relational fields must not declare one, and their
-    ``ondelete`` has to be applied in Python instead.  Subtypes inherit the
-    attribute but own a different :attr:`_table`, which is what makes
-    :meth:`_is_table_inheritance_root` false for them — they are ordinary
-    tables and do get their foreign keys.
-    """
-    _inherit_children: OrderedSet[str]
-
-    _rec_name: str | None = None
-    """Field to use for labeling records. Default: ``name`` if the model has it.
-
-    Set during model setup in ``registration.py``. The default stays ``name``
-    (not ``''``): ``_compute_display_name`` relies on the implicit fallback.
-    """
-    _rec_names_search: list[str] | None = None
-    _order: str = "id"
-    _parent_name: str = "parent_id"
-    _parent_store: bool = False
-    """set to True to compute parent_path field.
-
-    Alongside a :attr:`~.parent_path` field, sets up an indexed storage
-    of the tree structure of records, to enable faster hierarchical queries
-    on the records of the current model using the ``child_of`` and
-    ``parent_of`` domain operators.
-    """
-    _active_name: str | None = None
-    """field to use for active records, automatically set to either ``"active"``
-    or ``"x_active"``.
-    """
-    _fold_name: str = "fold"
-
-    _translate: bool = True
-    """Whether to export translations for this model.
-
-    Legacy attribute; some models (e.g. ir.model.constraint) set it to
-    ``False`` to suppress translation export.
-    """
-    _check_company_auto: bool = False
-    """On write and create, call ``_check_company`` to ensure companies
-    consistency on the relational fields having ``check_company=True``
-    as attribute.
-    """
-
-    _allow_sudo_commands: bool = True
-    """Allow One2many and Many2many Commands targeting this model in an environment using `sudo()` or `with_user()`.
-    By disabling this flag, security-sensitive models protect themselves
-    against malicious manipulation of One2many or Many2many fields
-    through an environment using `sudo` or a more privileged user.
-    """
-
-    _depends: frozendict[str, Iterable[str]] = frozendict()
-    """dependencies of models backed up by SQL views
-    ``{model_name: field_names}``, where ``field_names`` is an iterable.
-    This is only used to determine the changes to flush to database before
-    executing any search/read operations. It won't be used for cache
-    invalidation or recomputing fields.
-    """
-
-    id = Id()
-    display_name = Char(
-        string="Display Name",
-        compute="_compute_display_name",
-        search="_search_display_name",
-    )
 
     def _valid_field_parameter(self, field: Field, name: str) -> bool:
         """Return whether the given parameter name is valid for the field."""
@@ -258,82 +118,6 @@ class BaseModel(
     def _post_model_setup__(self) -> None:
         """Method called after the model has been setup."""
         pass
-
-    @property
-    def _table_sql(self) -> SQL:
-        """Return the :class:`SQL` object for the table identifier or table query."""
-        table_query = self._table_query
-        if table_query and isinstance(table_query, SQL):
-            table_sql = SQL("(%s)", table_query)
-        elif table_query:
-            table_sql = SQL(f"({table_query})")
-        else:
-            table_sql = SQL.identifier(self._table)
-        if not self._depends:
-            return table_sql
-
-        fields_to_flush: OrderedSet[Field] = OrderedSet()
-        seen: set[str] = {self._name}
-        models = [self]
-        while models:
-            current_model = models.pop()
-            for model_name, field_names in current_model._depends.items():
-                model = self.env[model_name]
-                if model_name not in seen:
-                    seen.add(model_name)
-                    models.append(model)
-                fields_to_flush.update(model._fields[fname] for fname in field_names)
-
-        return SQL.EMPTY.join(
-            [
-                table_sql,
-                *(SQL(to_flush=field) for field in fields_to_flush),
-            ]
-        )
-
-    @property
-    def _constraint_methods(self) -> list:
-        """Return a list of methods implementing Python constraints."""
-
-        def is_constraint(func):
-            return callable(func) and hasattr(func, "_constrains")
-
-        def wrap(func, names):
-            sudo_flag = getattr(func, "_constrains_sudo", True)
-
-            @api.constrains(*names, sudo=sudo_flag)
-            def wrapper(self):
-                return func(self)
-
-            return wrapper
-
-        cls = self.env.registry[self._name]
-
-        def build():
-            methods = []
-            for attr, func in getmembers(cls, is_constraint):
-                if callable(func._constrains):
-                    func = wrap(func, func._constrains(self.sudo()))
-                for name in func._constrains:
-                    field = cls._fields.get(name)
-                    if not field:
-                        _logger.warning(
-                            "method %s.%s: @constrains parameter %r is not a field name",
-                            cls._name,
-                            attr,
-                            name,
-                        )
-                    elif not (field.store or field.inverse or field.inherited):
-                        _logger.warning(
-                            "method %s.%s: @constrains parameter %r is not writeable",
-                            cls._name,
-                            attr,
-                            name,
-                        )
-                methods.append(func)
-            return methods
-
-        return own_class_memo(cls, "_constraint_methods__", build)
 
     @property
     def _ondelete_methods(self) -> list:
@@ -390,53 +174,6 @@ class BaseModel(
 
         return own_class_memo(cls, "_onchange_methods__", build)
 
-    def _is_an_ordinary_table(self) -> bool:
-        return self.pool.is_an_ordinary_table(self)
-
-    def _is_table_inheritance_root(self) -> bool:
-        """Whether this model owns the table its subtypes inherit from.
-
-        See :attr:`_table_inheritance_root`.  Relational fields consult this to
-        skip the foreign key PostgreSQL would let them create but never honour.
-        """
-        return bool(self._table) and self._table == self._table_inheritance_root
-
-    def _validate_fields(
-        self, field_names: Iterable[str], excluded_names: Iterable[str] = ()
-    ) -> None:
-        """Invoke the constraint methods for which at least one field name is
-        in ``field_names`` and none is in ``excluded_names``.
-        """
-        methods = self._constraint_methods
-        if not methods:
-            return
-
-        prof = _OrmProfile(_orm_crud)
-        if prof.debug:
-            _count = 0
-
-        records_sudo = self.sudo()
-        records_user = self
-        field_names = set(field_names)
-        excluded_names = set(excluded_names)
-        for check in methods:
-            if not field_names.isdisjoint(
-                check._constrains
-            ) and excluded_names.isdisjoint(check._constrains):
-                use_sudo = getattr(check, "_constrains_sudo", True)
-                check(records_sudo if use_sudo else records_user)
-                if prof.debug:
-                    _count += 1
-
-        prof.stop()
-        if prof.debug:
-            _orm_crud.debug(
-                "[%.3f ms] _validate_fields %s: %d constraints",
-                prof.elapsed * 1000,
-                self._name,
-                _count,
-            )
-
     @api.model
     def _rec_name_fallback(self) -> str:
         return self._rec_name or "id"
@@ -482,44 +219,6 @@ class BaseModel(
         record = self.create({self._rec_name: name})
         return record.id, record.display_name
 
-    @api.model
-    def get_property_definition(self, full_name: str) -> dict:
-        """Return the definition of the given property.
-
-        :param full_name: Name of the field / property
-            (e.g. "property.integer")
-        """
-        self.browse().check_access("read")
-        field_name, property_name = parse_field_expr(full_name)
-        field = self._fields.get(field_name)
-        if not field:
-            raise ValueError(f"Invalid field {field_name!r} on model {self._name!r}")
-        if field.type != "properties":
-            raise ValueError(
-                f"Field {field_name!r} on model {self._name!r} is not a "
-                f"properties field"
-            )
-        from ..fields.properties import check_property_field_value_name
-
-        check_property_field_value_name(property_name)
-
-        target_model = self.env[self._fields[field.definition_record].comodel_name]
-        field_definition = target_model._fields[field.definition_record_field]
-        result = self.env.execute_query_dict(
-            SQL(
-                """ SELECT definition
-                  FROM %(table)s, jsonb_array_elements(%(field)s) definition
-                 WHERE %(field)s IS NOT NULL AND definition->>'name' = %(name)s
-                 LIMIT 1 """,
-                table=SQL.identifier(target_model._table),
-                field=SQL.identifier(
-                    field.definition_record_field, to_flush=field_definition
-                ),
-                name=property_name,
-            )
-        )
-        return result[0]["definition"] if result else {}
-
     def get_base_url(self) -> str:
         """Return the root URL for this record.
 
@@ -538,43 +237,6 @@ class BaseModel(
         if field.store and any(self._ids):
             fnames = [f.name for f in self.pool.field_computed[field]]
             self.filtered("id")._validate_fields(fnames)
-
-    def _clean_properties(self) -> None:
-        """Remove all properties of ``self`` that are no longer in the related definition"""
-        for fname, field in self._fields.items():
-            if field.type != "properties":
-                continue
-            for record in self:
-                old_value = record[fname]._values
-                if not old_value:
-                    continue
-
-                definitions = field._get_properties_definition(record)
-                all_names = {definition["name"] for definition in definitions}
-                new_values = {
-                    name: value
-                    for name, value in old_value.items()
-                    if name in all_names
-                }
-                if len(new_values) != len(old_value):
-                    record[fname] = new_values
-
-    def _validate_properties_definition(
-        self, properties_definition: typing.Any, field: Field
-    ) -> None:
-        """Allow to validate additional properties attributes."""
-
-    def _additional_allowed_keys_properties_definition(self) -> tuple[str, ...]:
-        """Allow to add more allowed key for properties."""
-        return ()
-
-    def _convert_to_cache_properties_definition(self, value: typing.Any) -> typing.Any:
-        """Allow to patch `convert_to_cache` of the properties definition."""
-        return value
-
-    def _convert_to_column_properties_definition(self, value: typing.Any) -> typing.Any:
-        """Allow to patch `convert_to_column` of the properties definition."""
-        return value
 
     @property
     @api.deprecated("Deprecated since 19.0, use self.env.cr directly")

@@ -3,7 +3,7 @@
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.tests import tagged
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.libs.numbers import float_compare
 
 from odoo.addons.sale_loyalty.tests.common import TestSaleCouponNumbersCommon
 

@@ -8,6 +8,7 @@ from psycopg.types.json import Json
 import odoo.api
 import odoo.modules
 import odoo.tools
+from odoo.db import schema as _db_schema
 
 from .registry import Registry
 
@@ -53,7 +54,7 @@ def is_initialized(cr: Cursor) -> bool:
     The database can be initialized with the 'initialize' function below.
 
     """
-    return odoo.tools.sql.table_exists(cr, "ir_module_module")
+    return _db_schema.table_exists(cr, "ir_module_module")
 
 
 def initialize(cr: Cursor) -> None:

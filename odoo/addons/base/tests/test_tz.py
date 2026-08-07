@@ -2,8 +2,7 @@ import datetime
 import logging
 from unittest.mock import patch
 
-from odoo.libs.datetime import tz
-from odoo.libs.datetime.tz import TIMEZONE_ALIASES, all_timezones, timezone
+from odoo.libs.datetime import TIMEZONE_ALIASES, all_timezones, timezone, tz
 from odoo.tests.common import TransactionCase
 
 _logger = logging.getLogger(__name__)

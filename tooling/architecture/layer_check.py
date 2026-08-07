@@ -60,6 +60,12 @@ class Contract:
 
     Matching is by dotted-path prefix. A target import is a violation when it
     matches a ``forbidden`` prefix and does *not* match any ``allow`` prefix.
+
+    ``allow_exact`` exempts a module *itself* without exempting its subtree,
+    which prefix matching cannot express: ``core-does-not-depend-on-addons``
+    has to permit ``import odoo.addons`` (the namespace package, for ``__path__``
+    discovery) while forbidding every ``odoo.addons.<module>`` under it. A
+    prefix in ``allow`` would exempt both.
     """
 
     name: str
@@ -67,6 +73,7 @@ class Contract:
     forbidden: tuple[str, ...]
     allow: tuple[str, ...]
     rationale: str
+    allow_exact: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -83,11 +90,11 @@ class Known:
     reason: str
 
 
-# Known, tolerated boundary exceptions. Each would be real debt with a
-# documented remediation; see the "Known boundary exceptions" section of
-# odoo/ARCHITECTURE.md.
+# Known, tolerated boundary exceptions; see the "Known boundary exceptions"
+# section of odoo/ARCHITECTURE.md.
 #
-# The framework core currently has NONE — all eight boundaries are clean at zero:
+# The EIGHT ORIGINAL contracts are clean at zero and stay that way
+# (test_the_eight_original_contracts_are_clean_at_zero):
 #   * RESOLVED 2026-06: the ESM/esbuild asset pipeline was relocated from libs/
 #     to odoo/tools/assets/ (ADR-0004).
 #   * RESOLVED 2026-06: libs/filesystem/osutil.py no longer imports odoo.release
@@ -101,7 +108,57 @@ class Known:
 #     the submodule name; visit_ImportFrom now emits ``<base>.<name>`` so the
 #     ``from <pkg> import <submodule>`` and ``from odoo import <shim>`` forms are
 #     caught, and the seam modules themselves are now in a contract source set.
-KNOWN_VIOLATIONS: tuple[Known, ...] = ()
+#
+# The NINTH, core-does-not-depend-on-addons (2026-08), starts with two pinned
+# entries. Unlike the list above they are NOT debt with a tracked fix: the
+# cron/job runner threads genuinely run before a registry exists (see
+# _CRON_REASON). They are pinned rather than allow-listed so they stay scoped to
+# odoo.service and stay visible in every report. The two inversions that WERE
+# debt were fixed instead of pinned, in the commit that added the contract:
+#   * MODULE_UNINSTALL_FLAG  addons/base/models/ir_model_common -> orm/primitives
+#   * format_number & co.    addons/base/models/res_lang -> libs/locale/number_format
+
+#: Core packages deliberately left OUT of ``core-does-not-depend-on-addons``.
+#: Asserted by ``test_core_source_covers_every_core_package``, so a package can
+#: only be missing on purpose.
+CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT = frozenset(
+    {
+        # ``odoo.tests`` is the test *framework*, whose job is to drive
+        # application code. ``tests/http.py`` reaches into ``odoo.addons.bus``
+        # for websocket teardown, deferred AND guarded by
+        # ``if "bus.bus" in self.env.registry:`` — i.e. it already treats the
+        # addon as optional, which is the property the contract would be
+        # enforcing. Bringing it in scope would buy a pinned exception and no
+        # safety.
+        "tests",
+    }
+)
+
+_CRON_REASON = (
+    "Deliberate, and not scheduled for removal. The cron/job runner threads call "
+    "IrCron._process_jobs(db_name) / IrJob._process_jobs(db_name) -- @staticmethod "
+    "entry points that open their own cursor because they run BEFORE a registry "
+    "exists for that database, so there is no env to route through. Both imports "
+    "are deferred to call time (base models must not load at service import "
+    "time), and the audit that added this contract verified there is no override "
+    "of _process_jobs anywhere in odoo/enterprise/agromarin, so binding to the "
+    "definition class hides nothing. Pinned rather than fixed: the honest "
+    "alternative is a registered callback the base module fills in at load, which "
+    "buys indirection and no decoupling."
+)
+
+KNOWN_VIOLATIONS: tuple[Known, ...] = (
+    Known(
+        module="odoo.service",
+        imports="odoo.addons.base.models.ir_cron",
+        reason=_CRON_REASON,
+    ),
+    Known(
+        module="odoo.service",
+        imports="odoo.addons.base.models.ir_job",
+        reason=_CRON_REASON,
+    ),
+)
 
 
 # The verified, load-bearing architectural invariants of the framework core.
@@ -113,9 +170,14 @@ CONTRACTS: tuple[Contract, ...] = (
         forbidden=("odoo",),
         allow=("odoo.libs",),
         rationale=(
-            "odoo/libs/ is the home for dependency-free utilities. It must not "
-            "import the Odoo framework (orm, tools, http, ...) so it stays "
-            "reusable and testable in isolation. See ADR-0004."
+            "odoo/libs/ is the home for Odoo-framework-free utilities. The "
+            "invariant is 'imports no odoo.* (except odoo.libs)', NOT "
+            "'dependency-free' in the literal sense — libs/ freely uses "
+            "third-party packages (lxml, PIL, babel, markupsafe) and the "
+            "odoo_rust extension. What it must not import is the framework "
+            "(orm, tools, http, ...), so it stays reusable and testable in "
+            "isolation. The contract name is kept for continuity; read it as "
+            "'libs-is-odoo-free'. See ADR-0004."
         ),
     ),
     Contract(
@@ -194,6 +256,59 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
     ),
     Contract(
+        name="core-does-not-depend-on-addons",
+        # The mirror image of ``facade-boundary``. That one stops addons reaching
+        # into ORM internals; nothing stopped the *framework* taking a dependency
+        # on a specific addon module, which is the more damaging direction: it
+        # makes the core un-loadable without an addon, and inverts the layering
+        # (``addons/base`` is a consumer of the framework, not a dependency of
+        # it).
+        #
+        # ``source`` names the core packages explicitly rather than the ``odoo``
+        # prefix, because ``odoo`` would also match ``odoo.addons`` and the
+        # own-subtree rule in ``check()`` would then exempt every import. A
+        # self-test (``test_core_source_covers_every_core_package``) asserts this
+        # list stays complete, so a new top-level core package cannot silently
+        # escape the contract.
+        #
+        # ``odoo.addons`` itself is allowed: importing the *namespace package*
+        # for ``__path__`` manipulation is how addon discovery works
+        # (``modules/module.py``, ``tools/files.py``, the CLI). That imports no
+        # addon code. Only ``odoo.addons.<something>`` is forbidden.
+        source=(
+            "odoo._monkeypatches",
+            "odoo.api",
+            "odoo.cli",
+            "odoo.db",
+            "odoo.fields",
+            "odoo.http",
+            "odoo.libs",
+            "odoo.models",
+            "odoo.modules",
+            "odoo.orm",
+            "odoo.service",
+            "odoo.tools",
+            "odoo.upgrade_code",
+        ),
+        forbidden=("odoo.addons",),
+        allow=(),
+        # ``odoo.addons`` — the namespace package, for __path__ discovery.
+        # ``odoo.addons.__path__`` — the same thing via
+        # ``from odoo.addons import __path__``, which visit_ImportFrom renders as
+        # ``<base>.<name>``. Both import the namespace, never an addon.
+        allow_exact=("odoo.addons", "odoo.addons.__path__"),
+        rationale=(
+            "The framework core must be importable without any addon. A core "
+            "module that imports odoo.addons.<module> inverts the layering and "
+            "makes the framework depend on its own consumer. Reach addon "
+            "behaviour through the registry (env['ir.cron']) or move the shared "
+            "definition down into the core, as MODULE_UNINSTALL_FLAG "
+            "(-> odoo.orm.primitives) and format_number "
+            "(-> odoo.libs.locale.number_format) were. Bare ``import "
+            "odoo.addons`` for __path__ discovery is fine and not matched here."
+        ),
+    ),
+    Contract(
         name="facade-boundary",
         # Addon code is the largest consumer of the ORM and the reason the public
         # façades exist. It must reach the ORM only through odoo.api / odoo.fields
@@ -236,6 +351,96 @@ CONTRACTS: tuple[Contract, ...] = (
             "@api decorators must not import the model (Layer 2) or runtime "
             "(Layer 3) layers at runtime. The seam exists precisely to break "
             "that cycle (ADR-0001); enforcing it keeps the seam honest."
+        ),
+    ),
+    Contract(
+        name="db-resilience-below-connectivity",
+        # ARCHITECTURE.md has always drawn db/ as [connectivity] + [resilience]
+        # (now + [foundation]), with an explicit note that a bracketed name is a
+        # "logical grouping, not a directory". subsystem_map_check.py verifies
+        # the listed modules EXIST; nothing verified the direction between the
+        # groups, so the structure was documentation only.
+        #
+        # Measured before this contract landed: connectivity -> resilience 6
+        # runtime edges (pool -> budget/leaks/reaper/stats, cursor -> metrics),
+        # resilience -> connectivity exactly 1 -- metrics -> errors. That single
+        # back-edge was a MIS-GROUPING, not a cycle: errors.py (like dsn.py and
+        # utils.py) imports nothing else in db/ and is used by both tiers, i.e.
+        # it is foundation, not connectivity. Splitting [foundation] out of
+        # [connectivity] leaves this contract clean at zero.
+        source=(
+            "odoo.db.breaker",
+            "odoo.db.lag",
+            "odoo.db.budget",
+            "odoo.db.leaks",
+            "odoo.db.reaper",
+            "odoo.db.metrics",
+            "odoo.db.stats",
+        ),
+        forbidden=(
+            "odoo.db.pool",
+            "odoo.db.cursor",
+            "odoo.db.ddl",
+            "odoo.db.schema",
+            "odoo.db.savepoint",
+            "odoo.db.schema_cache",
+            "odoo.db.bulk",
+            "odoo.db.lifecycle",
+        ),
+        allow=(),
+        rationale=(
+            "The resilience tier (breaker, lag, budget, leaks, reaper, metrics, "
+            "stats) is instrumentation and policy ABOUT connections; the "
+            "connectivity tier owns them. Connectivity calls into resilience "
+            "(pool -> budget/leaks/reaper/stats, cursor -> metrics), never the "
+            "reverse, so resilience stays independently testable without "
+            "standing up a pool or a cursor. Shared leaf helpers belong in the "
+            "[foundation] tier (errors, dsn, utils), which both may import."
+        ),
+    ),
+    Contract(
+        name="http-features-below-serving",
+        # Same argument as db-resilience-below-connectivity, for the other flat
+        # package the map draws in brackets. Measured before this landed:
+        # serving -> features 22 runtime edges, features -> serving exactly 1
+        # (helpers -> core). Again a mis-grouping rather than a cycle: helpers.py
+        # imports core and is imported by dispatcher/_serve/request_class, all
+        # [serving] -- it IS a serving module and the map now files it there.
+        #
+        # _protocols.py's imports of dispatcher/session/wrappers are under
+        # ``if TYPE_CHECKING:`` and so are exempt here, exactly as they are for
+        # the ORM layer contracts: they never execute.
+        source=(
+            "odoo.http.openapi",
+            "odoo.http._params",
+            "odoo.http.geoip",
+            "odoo.http.constants",
+            "odoo.http.exceptions",
+            "odoo.http._protocols",
+        ),
+        forbidden=(
+            "odoo.http.application",
+            "odoo.http.dispatcher",
+            "odoo.http.routing",
+            "odoo.http.session",
+            "odoo.http.request_class",
+            "odoo.http._serve",
+            "odoo.http._response",
+            "odoo.http.wrappers",
+            "odoo.http.stream",
+            "odoo.http._csrf",
+            "odoo.http.controller",
+            "odoo.http.core",
+            "odoo.http.helpers",
+        ),
+        allow=(),
+        rationale=(
+            "The [features] modules (OpenAPI generation, typed-route parameter "
+            "coercion, geoip, and the shared constants/exceptions/protocols) "
+            "describe or decorate the request pipeline; the [serving] modules "
+            "run it. Features must not import serving, so the pipeline can be "
+            "reasoned about — and the OpenAPI generator run — without dragging "
+            "in the dispatcher and session machinery."
         ),
     ),
 )
@@ -351,12 +556,38 @@ def _matches(dotted: str, prefixes: tuple[str, ...]) -> bool:
     return any(dotted == p or dotted.startswith(p + ".") for p in prefixes)
 
 
+#: ``odoo/tests/`` is NOT tests. It is the shipped test *framework* --
+#: ``TransactionCase``, ``HttpCase``, ``ChromeBrowser``, the loader and the tag
+#: selector -- 17 modules imported by every addon suite in the workspace. A
+#: directory-name rule ("any path with a ``tests`` component") swallowed it whole,
+#: which made those modules invisible to every contract.
+#:
+#: That mattered for a specific, non-obvious reason. ``odoo.tests`` is
+#: deliberately absent from ``core-does-not-depend-on-addons``'s ``source``, and
+#: ``CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT`` records that so
+#: ``test_core_source_covers_every_core_package`` can hold the list complete.
+#: The intended way to revoke the exemption is to drop ``tests`` from that
+#: frozenset, watch the self-test fail, and add ``odoo.tests`` to ``source``.
+#: Before this fix, doing all of that correctly still enforced *nothing*: the
+#: files were dropped here, one step earlier, so the contract came back green
+#: over code it had never read. An exemption you cannot revoke is worse than one
+#: that is merely wide, because it looks revocable.
+_CORE_TEST_FRAMEWORK_PACKAGE = ("odoo", "tests")
+
+
 def _is_test_file(path: Path) -> bool:
     # Tests legitimately import across any boundary (fixtures, bootstrap, etc.).
+    # ``path`` may be absolute (the tree walk) or relative (callers and tests),
+    # so anchor on ROOT only when it actually applies.
+    try:
+        parts = path.relative_to(ROOT).parts
+    except ValueError:
+        parts = path.parts
+    if parts[: len(_CORE_TEST_FRAMEWORK_PACKAGE)] == _CORE_TEST_FRAMEWORK_PACKAGE:
+        # Inside the test framework, only its own tests are test files.
+        return path.name.startswith("test_") or path.name == "conftest.py"
     return (
-        "tests" in path.parts
-        or path.name == "conftest.py"
-        or path.name.startswith("test_")
+        "tests" in parts or path.name == "conftest.py" or path.name.startswith("test_")
     )
 
 
@@ -371,10 +602,7 @@ def iter_source_files() -> list[Path]:
             files.extend(sorted(root.rglob("*.py")))
         elif root.with_suffix(".py").is_file():
             files.append(root.with_suffix(".py"))
-    return [
-        f for f in files
-        if "__pycache__" not in f.parts and not _is_test_file(f)
-    ]
+    return [f for f in files if "__pycache__" not in f.parts and not _is_test_file(f)]
 
 
 def _is_known(module: str, target: str) -> bool:
@@ -410,6 +638,8 @@ def check(files: list[Path] | None = None) -> tuple[list[Violation], list[Violat
                     continue
                 if _matches(target, contract.allow):
                     continue
+                if target in contract.allow_exact:
+                    continue
                 # A file may legitimately import a sibling within its own source
                 # subtree (e.g. odoo.orm.fields importing odoo.orm.fields.base);
                 # that is never a layering violation.
@@ -428,7 +658,9 @@ def check(files: list[Path] | None = None) -> tuple[list[Violation], list[Violat
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="CI mode: exit 1 on any NEW violation")
+    parser.add_argument(
+        "--check", action="store_true", help="CI mode: exit 1 on any NEW violation"
+    )
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args(argv)
 
@@ -436,10 +668,15 @@ def main(argv: list[str] | None = None) -> int:
     new, known = check(files)
 
     if args.json:
-        print(json.dumps(
-            {"new": [v.__dict__ for v in new], "known": [v.__dict__ for v in known]},
-            indent=2,
-        ))
+        print(
+            json.dumps(
+                {
+                    "new": [v.__dict__ for v in new],
+                    "known": [v.__dict__ for v in known],
+                },
+                indent=2,
+            )
+        )
     else:
         print("Architecture layering check")
         print("=" * 64)

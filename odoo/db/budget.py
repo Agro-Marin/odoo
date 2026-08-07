@@ -14,14 +14,22 @@ import threading
 class ConnectionBudget:
     """The cap on connections checked out at once, shareable between pools.
 
-    ``db_maxconn`` is documented as "the maximum number of physical connections
-    to PostgreSQL", and that is what an operator sizes ``max_connections``
-    against.  It used to mean something else: the R/W and read-only pools are
-    two ``ConnectionPool`` instances, each of which owned a
-    ``BoundedSemaphore(db_maxconn)``, so a single worker process could hold
-    ``2 * db_maxconn`` connections — 128 against the default 64, which alone
-    exceeds a stock ``max_connections = 100``.  Hoisting the semaphore into one
-    object that both pools share makes the option mean what it says.
+    The R/W and read-only pools are two ``ConnectionPool`` instances, each of
+    which used to own a ``BoundedSemaphore(db_maxconn)``, so a single worker
+    process could hold ``2 * db_maxconn`` connections *checked out* — 128
+    against the default 64.  Hoisting the semaphore into one object that both
+    pools share removes that doubling.
+
+    .. warning::
+        This bounds **checked-out** connections, not the process's server
+        footprint.  Each per-DSN pool independently retains up to ``maxconn``
+        *idle* connections for ``db_conn_max_idle``, so a process that touches
+        several databases holds ``maxconn × n_databases`` backends in the worst
+        case — measured: four databases under ``db_maxconn = 2`` hold four
+        backends, with never more than one checked out.  ``db_maxconn`` is
+        therefore not "the maximum number of physical connections to
+        PostgreSQL"; size ``max_connections`` against the product, and see the
+        matching warning on :class:`~odoo.db.pool.ConnectionPool`.
 
     Note the trade this makes explicit.  Two independent budgets could never
     starve each other; one shared budget can, and a request holding a R/W cursor

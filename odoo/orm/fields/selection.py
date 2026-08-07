@@ -2,8 +2,8 @@ import typing
 from collections import defaultdict
 from typing import override
 
+from odoo.libs.sql import pg_varchar
 from odoo.tools.misc import SENTINEL, Sentinel, merge_sequences
-from odoo.tools.sql import pg_varchar
 
 from .base import Field, _logger, _make_scalar_get, determine, resolve_mro
 

@@ -23,8 +23,8 @@ from odoo.exceptions import (
 )
 from odoo.fields import Command, Domain
 from odoo.http import DEFAULT_LANG, request
-from odoo.libs.datetime.tz import all_timezones
-from odoo.libs.datetime.tz import timezone as get_timezone
+from odoo.libs.datetime import all_timezones
+from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.password import CryptContext
 from odoo.tools import (

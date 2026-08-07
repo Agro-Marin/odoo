@@ -19,8 +19,8 @@ from odoo.libs.image import (
     binary_to_image,
     get_webp_size,
 )
-from odoo.libs.image.utils import ImageProcess as LibImageProcess
-from odoo.libs.xml.template_inheritance import XPathExpressionError
+from odoo.libs.image import ImageProcess as LibImageProcess
+from odoo.libs.xml import XPathExpressionError
 
 
 class TestImageErrorsAreTypedAndSubclassValueError(unittest.TestCase):
@@ -56,7 +56,7 @@ class TestXPathExpressionErrorType(unittest.TestCase):
     def test_locate_node_raises_typed_error_on_bad_xpath(self):
         from lxml import etree
 
-        from odoo.libs.xml.template_inheritance import locate_node
+        from odoo.libs.xml import locate_node
 
         arch = etree.fromstring("<form/>")
         spec = etree.fromstring('<xpath expr="//[[[bad" position="replace"/>')

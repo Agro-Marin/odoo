@@ -1,5 +1,6 @@
 from odoo.orm._typing import DomainType
 from odoo.orm.primitives import (
+    MODULE_UNINSTALL_FLAG,
     SUPERUSER_ID,
     ContextType,
     IdType,
@@ -24,6 +25,7 @@ from odoo.orm.decorators import (
 from odoo.orm.runtime import Environment
 
 __all__ = [
+    "MODULE_UNINSTALL_FLAG",
     "SUPERUSER_ID",
     "ContextType",
     "DomainType",

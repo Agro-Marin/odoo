@@ -12,7 +12,7 @@ from json import JSONDecodeError
 from odoo.addons.account.tools import LegacyHTTPAdapter
 
 from odoo import api, models, _
-from odoo.libs.numbers.float_utils import json_float_round
+from odoo.libs.numbers import json_float_round
 
 _logger = logging.getLogger(__name__)
 

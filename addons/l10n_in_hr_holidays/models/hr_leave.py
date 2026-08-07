@@ -7,7 +7,7 @@ import pytz
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.intervals import Intervals
-from odoo.libs.numbers.float_utils import float_compare
+from odoo.libs.numbers import float_compare
 from odoo.tools.date_utils import sum_intervals
 
 
