@@ -275,39 +275,56 @@ class TestCountsRestatedElsewhere(unittest.TestCase):
 
 
 class TestPosture(unittest.TestCase):
-    """The Identity section's headline claim: the monoliths are decomposed.
+    """The premise the whole page rests on: the monoliths are decomposed.
 
-    It names six files. Five are now packages or gone; ``service/server.py``
-    survives as a re-export facade. That is the page's whole premise — every
-    layering rule below it exists because those files were split — so it is
-    worth asserting rather than assuming.
+    Six files. Five are now packages or gone; ``service/server.py`` survives as
+    a re-export facade. Every layering rule on the page exists because those
+    files were split, so it is worth asserting rather than assuming.
+
+    The list used to be read out of an ``Identity`` bullet. That section was
+    prose restating what the tree already shows — the floors it also carried are
+    now cited by constant in *Process boot* — so the names live here instead,
+    and this became a check on the tree rather than on a sentence about it.
     """
 
-    def test_named_monoliths_are_no_longer_monoliths(self) -> None:
-        listed = re.search(
-            r"the monoliths \((.*?)\) have been\s*\n?\s*decomposed", DOC, re.DOTALL
-        )
-        self.assertIsNotNone(listed, "the Posture bullet no longer names the files")
-        names = re.findall(r"`([\w/.]+\.py)`", listed.group(1))
-        self.assertEqual(6, len(names), f"expected six named files, got {names}")
+    #: Each monolith and the package that replaced it, or ``None`` where the
+    #: file survives as a thin re-export facade.
+    #:
+    #: Written as a mapping because the previous form — walk the six names,
+    #: ``if not path.exists(): continue`` — skipped five of them. ``odoo/api.py``
+    #: does not exist precisely BECAUSE it became ``odoo/api/``, so the check
+    #: read the absence that proves the claim as a reason to assert nothing, and
+    #: ``service/server.py`` was the only one it ever tested.
+    REPLACEMENTS = {
+        "models.py": "models",
+        "fields.py": "fields",
+        "api.py": "api",
+        "http.py": "http",
+        "sql_db.py": "db",
+        "service/server.py": None,
+    }
 
-        for name in names:
-            path = ROOT / "odoo" / name
-            if not path.exists():
-                continue  # e.g. sql_db.py, replaced wholesale by db/
-            if path.is_file():
-                # Survivors are allowed, but only as thin facades. server.py is
-                # 81 lines of re-exports; a monolith would be thousands.
-                lines = len(path.read_text(encoding="utf-8").splitlines())
-                self.assertLess(
-                    lines,
-                    400,
-                    f"odoo/{name} is {lines} lines — the page calls it decomposed",
+    def test_named_monoliths_are_no_longer_monoliths(self) -> None:
+        for name, package in self.REPLACEMENTS.items():
+            with self.subTest(monolith=name):
+                path = ROOT / "odoo" / name
+                if package is None:
+                    # Survivors are allowed, but only as thin facades.
+                    # server.py is 81 lines of re-exports; a monolith would be
+                    # thousands.
+                    self.assertTrue(path.is_file(), f"odoo/{name} is gone entirely")
+                    lines = len(path.read_text(encoding="utf-8").splitlines())
+                    self.assertLess(
+                        lines, 400, f"odoo/{name} is {lines} lines — not a facade"
+                    )
+                    continue
+                self.assertFalse(
+                    path.exists(), f"odoo/{name} is back as a single module"
                 )
-            else:
                 self.assertTrue(
-                    (path / "__init__.py").is_file(),
-                    f"odoo/{name} is a directory but not a package",
+                    (ROOT / "odoo" / package / "__init__.py").is_file(),
+                    f"odoo/{name} was split into odoo/{package}/, which is not "
+                    f"a package",
                 )
 
     def test_sql_db_is_gone(self) -> None:
@@ -693,16 +710,30 @@ class TestRuntimeFloors(unittest.TestCase):
                     cls.consts[node.target.id] = ast.literal_eval(node.value)
 
     def test_python_floor(self) -> None:
-        self.assertEqual((3, 14), self.consts["MIN_PY_VERSION"])
-        self.assertEqual((3, 14), self.consts["MAX_PY_VERSION"])
-        self.assertIn(
-            "Python 3.14 (`MIN_PY_VERSION` = `MAX_PY_VERSION` = 3.14)", DOC_FLAT
-        )
+        """The page names the constant; ``init.py`` is what enforces it.
+
+        It used to restate the value too — "Python 3.14 (`MIN_PY_VERSION` =
+        `MAX_PY_VERSION` = 3.14)" — and this test policed the restatement. That
+        is the second copy `doc/adr/README.md` forbids in as many words ("never
+        restate a number that lives somewhere else; cite the file, not the
+        value"), and it bought nothing: the digits were only ever correct
+        because a test compared them to `release.py`, which is where a reader
+        can look anyway. So the pinning moved to the pair that must agree —
+        the constant and the code that raises on it.
+        """
+        self.assertEqual(self.consts["MIN_PY_VERSION"], self.consts["MAX_PY_VERSION"])
+        self.assertIn("`MIN_PY_VERSION`", DOC)
+        init = (ROOT / "odoo" / "init.py").read_text(encoding="utf-8")
+        self.assertIn("if sys.version_info[:2] < MIN_PY_VERSION:", init)
 
     def test_postgres_floor(self) -> None:
-        match = re.search(r"PostgreSQL ≥ (\d+) \(`MIN_PG_VERSION`\)", DOC)
-        self.assertIsNotNone(match, "the PG floor is no longer stated with its const")
-        self.assertEqual(int(match.group(1)), self.consts["MIN_PG_VERSION"])
+        """Same shape, for the floor the connect path owns."""
+        self.assertIsInstance(self.consts["MIN_PG_VERSION"], int)
+        self.assertIn("`MIN_PG_VERSION`", DOC)
+        self.assertIn("`PoolError`", DOC)
+        pool = (ROOT / "odoo" / "db" / "pool.py").read_text(encoding="utf-8")
+        self.assertIn("from odoo.release import MIN_PG_VERSION", pool)
+        self.assertIn("raise PoolError(", pool.split("sv < MIN_PG_VERSION")[1])
 
 
 class TestReferencedArtifacts(unittest.TestCase):
@@ -2003,6 +2034,222 @@ class TestPermissionIsNotPractice(unittest.TestCase):
                 bullet,
                 f"the Layer-0 bullet does not name {dotted}",
             )
+
+
+class TestLifecycleSketches(unittest.TestCase):
+    """The ``Lifecycles`` sketches must name callables that exist, in call order.
+
+    The page carried one lifecycle (HTTP) and pinned it hard, because its three
+    ordering claims had already drifted once. The boot, registry-build and
+    flush sketches are the same kind of claim -- a call chain restated in prose
+    -- and arrived with the same exposure, so they arrive with the same gate.
+    Order is the part a text search cannot see, so where a sketch asserts one
+    (the module-loader phases) it is checked against the caller, not just
+    against the set of names.
+    """
+
+    @staticmethod
+    def _block(heading: str) -> str:
+        """The first fenced block under ``heading``."""
+        return DOC.split(heading, 1)[1].split("```", 2)[1]
+
+    #: ``(name as written in the boot sketch, file, def-pattern)``.
+    BOOT_CHAIN = (
+        ("odoo.cli.main()", "cli/command.py", r"^def main\("),
+        (
+            "load_server_wide_modules()",
+            "service/lifecycle.py",
+            r"^def load_server_wide_modules\(",
+        ),
+        ("service.lifecycle.start()", "service/lifecycle.py", r"^def start\("),
+        (
+            "preload_registries(dbnames)",
+            "service/lifecycle.py",
+            r"^def preload_registries\(",
+        ),
+        ("Registry.new(", "orm/runtime/registry.py", r"^    def new\("),
+    )
+
+    def test_boot_chain_resolves(self) -> None:
+        block = self._block("### Process boot")
+        for written, rel, pattern in self.BOOT_CHAIN:
+            self.assertIn(written, block, f"the boot sketch no longer names {written}")
+            src = (ROOT / "odoo" / rel).read_text(encoding="utf-8")
+            self.assertRegex(
+                src, re.compile(pattern, re.MULTILINE), f"{rel}: {pattern}"
+            )
+
+    def test_the_three_server_classes_are_the_ones_start_chooses(self) -> None:
+        """Named as a deployment choice, so the page must name all of them."""
+        src = (ROOT / "odoo" / "service" / "lifecycle.py").read_text(encoding="utf-8")
+        body = src.split("\ndef start(", 1)[1]
+        chosen = {
+            name
+            for name in ("EventServer", "PreforkServer", "ThreadedServer")
+            if f"{name}(" in body
+        }
+        self.assertEqual(
+            chosen,
+            {"EventServer", "PreforkServer", "ThreadedServer"},
+            "service.lifecycle.start() no longer constructs all three servers",
+        )
+        block = self._block("### Process boot")
+        for name in chosen:
+            self.assertIn(name, block, f"the boot sketch dropped {name}")
+
+    def test_bootstrap_order_matches_odoo_init(self) -> None:
+        """``odoo/init.py`` is quoted *in order*; that order is the whole claim.
+
+        The Rust probe has to run before the monkeypatches (a missing extension
+        must fail with its own message, not inside a patched import), so a
+        reordering here is a real regression rather than a wording change.
+        """
+        self.assertIn("`MIN_PY_VERSION`, probe the mandatory `odoo_rust`", DOC_FLAT)
+        src = (ROOT / "odoo" / "init.py").read_text(encoding="utf-8")
+        marks = ["MIN_PY_VERSION", "import odoo_rust", "gc.set_threshold", "patch_init"]
+        positions = []
+        for mark in marks:
+            index = src.find(mark)
+            self.assertNotEqual(-1, index, f"odoo/init.py no longer does {mark}")
+            positions.append(index)
+        self.assertEqual(
+            positions, sorted(positions), f"odoo/init.py reordered: {marks}"
+        )
+
+    @staticmethod
+    def _loader_call_order() -> list[str]:
+        """``loader.<phase>()`` calls in ``load_modules``, in source order."""
+        src = (ROOT / "odoo" / "modules" / "loading.py").read_text(encoding="utf-8")
+        body = src.split("\ndef load_modules(", 1)[1]
+        return re.findall(r"loader\.(\w+)\(", body)
+
+    def test_registry_build_phases_are_real_and_ordered(self) -> None:
+        """Every phase named must be a ``_ModuleLoader`` method, in call order."""
+        loading = (ROOT / "odoo" / "modules" / "loading.py").read_text(encoding="utf-8")
+        methods = set(
+            re.findall(
+                r"^    def (\w+)\(",
+                loading.split("\nclass _ModuleLoader", 1)[1],
+                re.MULTILINE,
+            )
+        )
+        self.assertTrue(methods, "_ModuleLoader has no methods; the split changed")
+
+        block = self._block("### Registry build")
+        named = [n for n in re.findall(r"\b(\w+)\(\)", block) if n in methods]
+        self.assertTrue(
+            named, "the registry-build sketch names no _ModuleLoader phase at all"
+        )
+        unknown = [
+            n
+            for n in re.findall(r"^\s*[├└]─ (\w+)\(", block, re.MULTILINE)
+            if n not in methods and n not in {"setup_signaling", "load_modules"}
+        ]
+        self.assertEqual(unknown, [], f"phases that are not loader methods: {unknown}")
+
+        order = self._loader_call_order()
+        positions = [order.index(n) for n in named if n in order]
+        self.assertEqual(len(positions), len(named), "a named phase is never called")
+        self.assertEqual(
+            positions,
+            sorted(positions),
+            "the registry-build sketch lists phases in an order load_modules "
+            f"does not run them in: {named}",
+        )
+
+    def test_the_reload_reentry_is_real(self) -> None:
+        """ "may force one full reload" — the loop really does re-enter Registry.new."""
+        self.assertIn("may force one full reload", DOC)
+        src = (ROOT / "odoo" / "modules" / "loading.py").read_text(encoding="utf-8")
+        handler = src.split("except _UninstallRequiresReload:", 1)
+        self.assertEqual(
+            len(handler), 2, "_UninstallRequiresReload is no longer caught"
+        )
+        self.assertIn("Registry.new(", handler[1].split("\n\n", 1)[0])
+
+    def test_transaction_owns_what_the_sketch_draws(self) -> None:
+        """Each branch of the transaction diagram must be a ``Transaction`` slot."""
+        block = self._block("### Transaction, cache and flush")
+        drawn = re.findall(r"^\s*[├└]─ (\w+)\s", block, re.MULTILINE)
+        self.assertTrue(drawn, "the transaction sketch draws no members")
+        src = (ROOT / "odoo" / "orm" / "runtime" / "transaction.py").read_text(
+            encoding="utf-8"
+        )
+        slots = set(re.findall(r'"(\w+)"', src.split("__slots__ = (", 1)[1]))
+        missing = [name for name in drawn if name not in slots]
+        self.assertEqual(missing, [], f"not Transaction slots: {missing}")
+
+    def test_environment_interning_claim(self) -> None:
+        """ "interned per (cr, uid, su, context)" — the lookup must exist."""
+        self.assertIn("is **interned** per `(cr, uid, su, context)`", DOC_FLAT)
+        src = (ROOT / "odoo" / "orm" / "runtime" / "environment.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("envs.lookup(envs.key(uid, su, frozen_context))", src)
+
+    def test_flush_loop_names_and_cap(self) -> None:
+        """The fixpoint cap is quoted as a number, so re-derive it."""
+        match = re.search(r"MAX_FIXPOINT_ITERATIONS`? \((\d+)\)", DOC_FLAT)
+        self.assertIsNotNone(match, "the fixpoint cap is no longer stated")
+        transaction = (ROOT / "odoo" / "orm" / "runtime" / "transaction.py").read_text(
+            encoding="utf-8"
+        )
+        declared = re.search(
+            r"^MAX_FIXPOINT_ITERATIONS = (\d+)", transaction, re.MULTILINE
+        )
+        self.assertIsNotNone(declared, "MAX_FIXPOINT_ITERATIONS moved")
+        self.assertEqual(int(match.group(1)), int(declared.group(1)))
+
+    def test_flush_entry_points_exist(self) -> None:
+        env = (ROOT / "odoo" / "orm" / "runtime" / "environment.py").read_text(
+            encoding="utf-8"
+        )
+        uow = (ROOT / "odoo" / "orm" / "components" / "unit_of_work.py").read_text(
+            encoding="utf-8"
+        )
+        recompute = (
+            ROOT / "odoo" / "orm" / "models" / "mixins" / "recompute.py"
+        ).read_text(encoding="utf-8")
+        for name, src in (
+            ("run_flush_loop", uow),
+            ("flush_model", recompute),
+            ("_flush", recompute),
+        ):
+            # Not backtick-anchored: most of these are named inside the fenced
+            # sketch, where the page (rightly) does not backtick anything.
+            self.assertIn(name, DOC, f"the flush sketch dropped {name}")
+            self.assertRegex(src, re.compile(rf"^    def {name}\b", re.MULTILINE))
+        self.assertIn("flush_all()", DOC)
+        self.assertRegex(env, re.compile(r"^    def flush_all\b", re.MULTILINE))
+        # The pipeline and the escape hatch are both stated; both are real.
+        self.assertIn("`tolerant_recompute`", DOC)
+        self.assertIn('context.get("tolerant_recompute")', env)
+        self.assertIn("cr.pipeline()", DOC)
+        self.assertIn("with self.cr.pipeline():", env)
+
+
+class TestContractNamesResolveEverywhere(unittest.TestCase):
+    """A contract cited outside the rules table must still be a contract.
+
+    The blueprint tables (ownership, "where to add code") name contracts far
+    from the table that defines them, which is exactly the shape that rots: a
+    renamed contract stays right in one place and wrong in three. Checked
+    globally rather than per-table so a fourth citation is covered for free.
+    """
+
+    def test_every_kebab_case_citation_is_a_real_contract(self) -> None:
+        known = {c.name for c in layer_check.CONTRACTS}
+        # Whole backtick spans only, and at least two hyphens: enough to
+        # exclude ordinary hyphenated prose (`pre-push`) without listing
+        # exceptions, since every contract name has three or more.
+        cited = set(re.findall(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+){2,})`", DOC))
+        self.assertTrue(cited, "the page cites no contract; the pattern has rotted")
+        self.assertEqual(
+            cited - known,
+            set(),
+            f"backticked kebab-case names that are not contracts: "
+            f"{sorted(cited - known)}",
+        )
 
 
 if __name__ == "__main__":

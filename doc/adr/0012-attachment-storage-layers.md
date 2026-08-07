@@ -1,6 +1,6 @@
 # ADR-0012: Attachment storage layers (object store, key policy, delivery)
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-07-30
 
 ## Context
@@ -160,3 +160,46 @@ commit: an instrument that writes rows inside the operation it times measures it
   Reconciliation is periodic; deleting content only at the next sweep leaves deleted
   attachments' bytes in a bucket, which is a storage-cost and retention problem.
   Both mechanisms are wanted: eager for the normal case, periodic for what it misses.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — Status corrected to `Proposed`; none of this is built
+
+This ADR was committed as `Accepted` and written in the past tense ("Storage
+became verifiable", "`cloud_storage` no longer depends on `mail`"). None of the
+Decision has been implemented in this repository. Searched at the time of this
+amendment: every ref in `odoo`, `enterprise`, `agromarin` and `design-themes`
+(`git ls-tree` per ref), plus the whole filesystem. Zero occurrences of
+`ObjectStore`, `KeyedObjectStorage`, `attachment_reconcile`, `object_store_s3`,
+`object_store_metrics`, `cloud_storage_s3`, `documents_cloud` or
+`cloud_storage_mail`. The commit that added this file (`50d1487d710`) changed
+three files, all of them documentation.
+
+What is verifiably still true is the **Context**, which diagnoses this tree
+accurately: `AttachmentStorage` does fuse vendor I/O (`read`/`write`/`delete`),
+key policy (`owns_key`, `backend_for_key`) and delivery (`to_stream`) in one
+199-line class; there is no enumeration primitive anywhere beneath it; and
+`cloud_storage` does depend on `mail` because `CloudAttachmentController`
+subclasses `mail`'s `AttachmentController` to patch `mail_attachment_upload`.
+
+Two references in the Decision do not correspond to this tree even as a
+description of the "before" state, and are recorded here rather than edited
+above:
+
+- **`cloud_storage/models/cloud_provider.py` does not exist.** URL minting lives
+  on `ir.attachment` as `_generate_cloud_storage_url` in
+  `cloud_storage/models/ir_attachment.py`. The `CloudProvider` registry the
+  Context describes is a design for what that logic would become.
+- **`Stream.delivery_mode()` and `frontend_path()` do not exist.**
+  `odoo/http/stream.py` resolves, which is why the path check passed for a year;
+  the methods are proposed, not present. `x_sendfile` is applied inline at
+  `odoo/http/stream.py:171-179`.
+
+The layering this ADR proposes is not withdrawn — it is a sound response to a
+real, still-present diagnosis. It is reclassified so that a reader can tell
+which half is the tree and which half is the plan. Promote to `Accepted` when
+the Decision lands, at which point `test_adr_coherence.py` will begin requiring
+every name above to exist.

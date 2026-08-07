@@ -226,6 +226,26 @@ def _strip_anchor(path: str) -> str:
     return path.split("#", 1)[0]
 
 
+def _inside_repo(candidate: Path) -> bool:
+    """Whether a resolved candidate is part of THIS checkout.
+
+    The gate's stated scope is this repo and nothing else (see ``REPO_ROOT``),
+    and the ``_is_unverifiable`` hook that used to wave sibling checkouts
+    through was deleted for that reason. But the resolution walk below could
+    still reach them: it calls ``.resolve()``, so a ``../../`` ref climbs out of
+    the checkout, and at the top of the walk ``REPO_ROOT / "../../x.md"``
+    resolves into the workspace. Measured: ``../../agromarin/CLAUDE.md`` cited
+    from ``doc/adr/`` reported "No broken .md references found" because a
+    DIFFERENT git repository happened to be checked out next door.
+
+    That is worse than tolerating the reference, because the verdict then
+    depends on what is outside the tree: green on a workstation with sibling
+    checkouts, red in CI where the repo stands alone. A gate whose answer
+    changes with the machine teaches people to ignore it.
+    """
+    return candidate == REPO_ROOT or REPO_ROOT in candidate.parents
+
+
 def _extract_refs(content: str) -> list[tuple[int, str]]:
     """Return (line, raw_path) for every plausible .md reference."""
     refs: list[tuple[int, str]] = []
@@ -275,22 +295,25 @@ def _resolve_ref(source_file: Path, raw_path: str) -> Path | None:
     """
     cleaned = _strip_anchor(raw_path)
 
+    def _accept(candidate: Path) -> Path | None:
+        # ``.resolve()`` before the containment test, not after: an unresolved
+        # path still carries its ``..`` segments, so ``REPO_ROOT/"../x.md"``
+        # would pass a naive ``is_relative_to`` check and then ``exists()``
+        # outside the tree anyway.
+        resolved = candidate.resolve()
+        return resolved if _inside_repo(resolved) and resolved.exists() else None
+
     if cleaned.startswith("/"):
-        candidate = REPO_ROOT / cleaned.lstrip("/")
-        if candidate.exists():
-            return candidate
-        return None
+        return _accept(REPO_ROOT / cleaned.lstrip("/"))
 
     if cleaned.split("/", 1)[0] in _repo_top_level_dirs():
-        candidate = REPO_ROOT / cleaned
-        if candidate.exists():
-            return candidate
+        if found := _accept(REPO_ROOT / cleaned):
+            return found
 
     current = source_file.parent
     while True:
-        candidate = (current / cleaned).resolve()
-        if candidate.exists():
-            return candidate
+        if found := _accept(current / cleaned):
+            return found
         if current == REPO_ROOT:
             break
         if current.parent == current:

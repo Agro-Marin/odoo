@@ -318,6 +318,52 @@ def test_core_source_covers_every_core_module():
     )
 
 
+def test_core_package_init_is_scanned_and_judged():
+    """``odoo/__init__.py`` — the one file both completeness tests exclude.
+
+    They have to: the package test filters ``p.is_dir()`` and the module test
+    filters ``p.name != "__init__.py"``, so neither can see it, and it slipped
+    through twice over. ``iter_source_files`` derives its roots from ``source``
+    and no prefix there is bare ``odoo``, so the file was never opened; and
+    ``module_name_for`` renders it as ``odoo``, which matches no ``source``
+    prefix, so forcing it into the walk still produced no verdict. Measured
+    before ``source_exact`` closed it: an ``import odoo.addons.<module>``
+    injected here reported "New: 0", while the identical line in
+    ``odoo/init.py`` reported "New: 1".
+
+    Both halves are asserted, because fixing either one alone leaves the gate
+    exactly as green as it was.
+    """
+    init = lc.ROOT / "odoo" / "__init__.py"
+    assert init in lc.iter_source_files(), (
+        "odoo/__init__.py is not in the walk -- the package root every "
+        "`import odoo` executes is being read by nothing."
+    )
+    judged = lc.violations_for(
+        lc.module_name_for(init),
+        [("odoo.addons.base.models.ir_cron", 1)],
+        "odoo/__init__.py",
+    )
+    assert [v.contract for v in judged] == ["core-does-not-depend-on-addons"], (
+        "odoo/__init__.py is scanned but matches no contract's source, so the "
+        "walk reads it and then has nothing to say about it."
+    )
+
+
+def test_source_exact_does_not_drag_in_a_subtree():
+    """A ``source_exact`` entry contributes ONE file, never its package.
+
+    ``ROOT/"odoo"`` is a directory, so routing ``source_exact`` through the
+    normal root walk would pull ``odoo/addons`` (6000+ files, deliberately out
+    of scope for every contract but ``facade-boundary``) into every core
+    contract, and double-count everything already walked.
+    """
+    exact = lc._source_exact_files()
+    assert exact == [lc.ROOT / "odoo" / "__init__.py"]
+    files = lc.iter_source_files()
+    assert len(files) == len(set(files)), "iter_source_files returned a duplicate"
+
+
 def test_top_level_core_modules_are_actually_scanned():
     """Coverage in ``source`` is worthless if the walk still skips the file.
 
@@ -744,6 +790,56 @@ def test_every_contract_has_a_source_and_rationale():
         assert c.source, f"{c.name} has no source"
         assert c.forbidden, f"{c.name} forbids nothing"
         assert c.rationale.strip(), f"{c.name} has no rationale"
+
+
+# --- every contract names its decision record --------------------------------
+#
+# ``CONTRACTS`` is prefaced by "Each one corresponds to an ADR; keep this list
+# and doc/adr/ in sync". Nothing enforced that, and by the time anyone checked,
+# seven of fourteen contracts had no record: a reader of doc/adr/ could not
+# learn why odoo/http/ is tiered, why db/ has a resilience layer, or why the ORM
+# sits below the serving tier, because only the code knew. These two tests make
+# the comment true and make the remaining gap a number that can only fall.
+
+#: Contracts still awaiting an ADR. DRIFT-ZERO AND ONE-WAY: a new contract must
+#: name its record, and writing one of these up means deleting its entry here.
+UNRECORDED_CONTRACTS = frozenset(
+    {
+        "tools-does-not-reach-the-orm-runtime",
+        "orm-helpers-and-registration-stay-below-runtime",
+        "core-does-not-depend-on-addons",
+        "db-resilience-below-connectivity",
+        "http-features-below-serving",
+        "orm-below-the-serving-tier",
+    }
+)
+
+
+def test_every_contract_names_an_adr_that_exists():
+    adr_dir = lc.ROOT / "doc" / "adr"
+    numbers = {p.name[:4] for p in adr_dir.glob("[0-9][0-9][0-9][0-9]-*.md")}
+    for c in lc.CONTRACTS:
+        if c.adr == lc.UNRECORDED:
+            continue
+        assert c.adr in numbers, (
+            f"{c.name} names ADR-{c.adr}, which is not in doc/adr/. A contract "
+            f"cites the record that argues for it; if the record moved, follow it."
+        )
+
+
+def test_the_unrecorded_contracts_are_pinned_and_shrinking():
+    unrecorded = {c.name for c in lc.CONTRACTS if c.adr == lc.UNRECORDED}
+    new = unrecorded - UNRECORDED_CONTRACTS
+    assert not new, (
+        f"contract(s) with no ADR: {sorted(new)}. A boundary worth failing CI "
+        f"over is worth a decision record — write one and set adr=, or add the "
+        f"name to UNRECORDED_CONTRACTS with your reason for deferring."
+    )
+    written_up = UNRECORDED_CONTRACTS - unrecorded
+    assert not written_up, (
+        f"{sorted(written_up)} now name an ADR. Good — remove them from "
+        f"UNRECORDED_CONTRACTS so the count cannot drift back up."
+    )
 
 
 # --- odoo/tests/ is the shipped test FRAMEWORK, not tests ---------------------

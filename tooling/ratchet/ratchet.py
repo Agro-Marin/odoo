@@ -203,7 +203,15 @@ def run(argv: list[str] | None = None) -> int:
 
     try:
         existing = Baseline.load(args.gate)
-    except (ValueError, KeyError, json.JSONDecodeError) as exc:
+    # The same set ``_list_baselines`` catches, for the same reason it catches
+    # them: a malformed floor must be a usage error, not a traceback. This form
+    # was narrower — ``{"count": null}`` raises TypeError from ``int(None)`` and
+    # an unreadable file raises OSError, neither of them listed — so ``--list``
+    # reported the problem cleanly while the ``--count`` path a CI job actually
+    # runs died on it, which is the reverse of what the comment down there says
+    # it matched. (``json.JSONDecodeError`` subclasses ValueError; it is named
+    # for the reader.)
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
         print(f"error: bad baseline for {args.gate!r}: {exc}", file=sys.stderr)
         return EXIT_USAGE
 

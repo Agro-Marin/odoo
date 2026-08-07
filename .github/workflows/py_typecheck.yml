@@ -80,7 +80,13 @@ jobs:
             -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules \
             2>&1 | tee /tmp/mypy.log
           set -e
-          ERR_COUNT=$(grep -cE ": error:" /tmp/mypy.log || echo 0)
+          # `|| true`, NOT `|| echo 0`: `grep -c` PRINTS "0" and THEN exits 1
+          # when it matches nothing, so the `||` branch appends a SECOND "0"
+          # and the count becomes the two-line string "0\n0", which is
+          # invalid in $GITHUB_OUTPUT (one `key=value` per line). Latent only
+          # while this floor is above zero -- it would break CI on precisely
+          # the run that finally reached zero.
+          ERR_COUNT=$(grep -cE ": error:" /tmp/mypy.log || true)
           echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
 
       - name: Enforce ratchet

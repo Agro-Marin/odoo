@@ -14,6 +14,7 @@ from odoo.cli.command import (
     load_addons_commands,
     load_internal_commands,
 )
+from odoo.db import SYSTEM_DBS
 from odoo.tests import BaseCase
 from odoo.tools import config, file_path
 
@@ -971,11 +972,11 @@ class TestCommand(BaseCase):
         rename_mock.assert_not_called()
         duplicate_mock.assert_not_called()
 
-    def test_start_refuses_system_database_names(self):
+    def _assert_start_refuses_db_name(self, db_name):
         from odoo.cli import start as startmod
 
         with tempfile.TemporaryDirectory() as tmp:
-            proj = Path(tmp) / "postgres"
+            proj = Path(tmp) / db_name
             proj.mkdir()
             with (
                 mock.patch.object(startmod, "_create_empty_database") as create_mock,
@@ -983,7 +984,17 @@ class TestCommand(BaseCase):
             ):
                 startmod.Start().run(["-p", str(proj)])
         create_mock.assert_not_called()
-        self.assertIn("system database", str(ctx.exception.code))
+        message = str(ctx.exception.code)
+        self.assertIn("Refusing to use", message)
+        self.assertIn(db_name, message)
+
+    def test_start_refuses_system_database_names(self):
+        for db_name in SYSTEM_DBS:
+            with self.subTest(db_name=db_name):
+                self._assert_start_refuses_db_name(db_name)
+
+    def test_start_refuses_the_configured_db_template(self):
+        self._assert_start_refuses_db_name(config["db_template"])
 
     def test_db_list_prints_databases(self):
         import contextlib

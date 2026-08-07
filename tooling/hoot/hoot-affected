@@ -7,7 +7,12 @@ _t="$(dirname "$0")/../_trampoline.sh"
 . "$_t"
 '''
 
-"""Print the minimal set of @web/... HOOT suites affected by changed JS files.
+# The shell preamble above is the module's FIRST string literal, so Python binds
+# it as ``__doc__`` and the real documentation below becomes an inert expression
+# statement. ``hoot`` passes ``description=__doc__`` to argparse, so ``hoot
+# --help`` printed the trampoline's shell source instead of its own usage guide.
+# Rebinding it here is the one-line fix that keeps the polyglot intact.
+__doc__ = """Print the minimal set of @web/... HOOT suites affected by changed JS files.
 
 With no arguments, uses ``git diff --name-only HEAD`` inside addons/odoo and
 keeps files under an addon ``static/`` tree. Otherwise treats each argument as a

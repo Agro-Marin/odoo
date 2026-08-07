@@ -7,7 +7,12 @@ _t="$(dirname "$0")/../_trampoline.sh"
 . "$_t"
 '''
 
-"""Fast warm-server HOOT test runner for the Odoo 19 web module.
+# The shell preamble above is the module's FIRST string literal, so Python binds
+# it as ``__doc__`` and the real documentation below becomes an inert expression
+# statement. ``hoot`` passes ``description=__doc__`` to argparse, so ``hoot
+# --help`` printed the trampoline's shell source instead of its own usage guide.
+# Rebinding it here is the one-line fix that keeps the polyglot intact.
+__doc__ = """Fast warm-server HOOT test runner for the Odoo 19 web module.
 
 Replaces the ~8-11 min ``odoo-bin --test-tags /web:WebSuite.test_X`` loop:
 boots ONE persistent threaded dev server (once), keeps it warm across

@@ -1,7 +1,10 @@
 # AgroMarin Odoo 19 — Core Framework Fork
 
 This repository is **a fork of Odoo Community 19.0**
-(`github.com/Agro-Marin/odoo`): the Odoo framework plus its bundled base addons.
+(`github.com/Agro-Marin/odoo`). What the framework core contains, how it is
+layered, and which dependencies are legal is `odoo/ARCHITECTURE.md` — the
+canonical subsystem map, CI-enforced by `tooling/architecture/`. Read it before
+restructuring core.
 
 > This repo is deployed as one checkout inside a larger workspace. Environment
 > setup, launch commands, addons_path priority, and concurrent-session rules
@@ -14,23 +17,34 @@ This repository is **a fork of Odoo Community 19.0**
 
 ## Branch Model
 
-This fork tracks upstream Odoo and layers AgroMarin work on top of it:
+This fork was cut from upstream Odoo and has since diverged past the point where
+merging or cherry-picking between the two is possible:
 
 - **`19.0`** — a pristine **mirror of upstream Odoo's `19.0` branch**: a copy of
   Odoo's 19.0 series, kept in sync with `odoo/odoo`. It is **not** an AgroMarin
   working branch and **not** our stable/production line. No features or fixes are
-  committed here directly; its only purpose is to ingest upstream changes and
-  serve as the baseline that `19.0-marin` merges from. Committing AgroMarin work
-  onto `19.0` would make it diverge from upstream and break the next sync — don't.
+  committed here directly. Its purpose is to be **read**: a clean reference to
+  diff against and to source upstream fixes from, which are then **re-implemented
+  by hand** on `19.0-marin`. `19.0-marin` does not merge from it. Committing
+  AgroMarin work onto `19.0` would spoil the reference — don't.
 
-- **`19.0-marin`** — the **active AgroMarin production branch**, forked from
-  `19.0`. All AgroMarin work lands here (via pull request). This is the
-  integration branch you build on: refactoring is allowed, with no upstream
-  backward-compatibility constraints.
+- **`19.0-marin`** — the **active AgroMarin production branch**, originally forked
+  from `19.0`. All AgroMarin work lands here (via pull request). This is the
+  integration branch you build on. Nothing is ever merged in from `19.0`, so
+  **"this would conflict with upstream" is not a reason to hold back a refactor**
+  — there is no merge for it to conflict with. The wider posture this follows
+  from (upstream is a baseline, not a ceiling) is *Scope and precedence* in
+  `doc/coding_guidelines.rst`.
 
-- **`19.0-t<NNNNN>-<developer>`** — per-task feature branches cut from
-  `19.0-marin` and merged back into it via PR (`<NNNNN>` = task id,
-  `<developer>` = author handle).
+- **Feature branches** — cut from `19.0-marin` and merged back into it via PR.
+  Two naming forms are in use and neither is enforced:
+  `19.0-t<NNNNN>-<developer>` (`<NNNNN>` = task id, `<developer>` = author
+  handle), which `doc/coding_guidelines.rst` §7.2–§7.3 specifies and most of the
+  team follows; and a topic-slugged `19.0-<subject>-<developer>`
+  (`19.0-core-audit-maringuadarrama`), which the user uses instead. **Never
+  invent a task id or ask for one** — the user's branches and commits carry
+  none. Working with the user, name the branch after the subject; otherwise
+  match the branch you are already on.
 
 ## Pre-Work Check
 
@@ -85,12 +99,15 @@ Related:
 
 - `ruff.toml` (repo root) — linter and formatter config, with the rationale for
   every suppression. Note `ruff check` is **not** expected to be clean: CI runs it
-  as a ratchet against a committed floor (`tooling/ratchet/baselines/`, scope
-  `odoo/` only). The ratchet runs in `exact` mode, so **lowering** the count fails
-  the build too — commit the new floor with
-  `python tooling/ratchet/ratchet.py ruff --count <N> --update` in the same PR.
-  Ruff is one of several ratcheted gates (`mypy`, `tsc`, `eslint`, JS
-  size/privacy checks — see the baselines dir). See *The ratchets* in the guide.
+  as a ratchet against a committed floor (`tooling/ratchet/baselines/`), and **a
+  ratchet fails in both directions** — lowering a count without committing the new
+  floor fails the build too. Ruff is one of several ratcheted gates (`mypy`,
+  `tsc`, `eslint`, JS size/privacy checks — see the baselines dir). Per-gate
+  scope, commands and the `--update` recipe are *The ratchets* in the guide, the
+  canonical account; it also covers the trap that the ruff floor measures `odoo/`
+  and not `addons/`. One thing the guide does not: `ruff.yml` lints **`tooling/`
+  and `tests/` at a hard zero** in a separate blocking step, with no floor to
+  absorb a new finding.
 - `odoo/addons/test_lint/` — the fork's own AST checkers and registry gates. Not
   wired into CI; run it yourself with
   `odoo-bin -d <db> -i test_lint --test-enable --stop-after-init`.

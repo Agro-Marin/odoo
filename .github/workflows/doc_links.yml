@@ -77,9 +77,26 @@ jobs:
           # Count `✗` lines as the new-violation indicator (mirrors
           # typecheck.yml's `error TS` grep approach).  A clean run
           # has zero `✗` lines and prints `✓ No new violations`.
-          NEW_COUNT=$(grep -c "^✗" /tmp/doc-link-output.log || echo 0)
+          #
+          # `|| true`, NOT `|| echo 0`: `grep -c` PRINTS "0" and THEN exits 1
+          # when it matches nothing, so the `||` branch appended a SECOND "0"
+          # and NEW_COUNT became the two-line string "0\n0". That is written
+          # straight into $GITHUB_OUTPUT, whose format is one `key=value` per
+          # line, so the stray `0` line makes Actions reject the whole file
+          # ("Invalid format '0'") — and it fired on the CLEAN path, which here
+          # is the normal one, since the baseline is empty and the gate is
+          # green. `exit_code` is set on the very next line and would be lost
+          # with it, defaulting the annotate step's `!= '0'` test to true.
+          NEW_COUNT=$(grep -c "^✗" /tmp/doc-link-output.log || true)
           echo "new_count=${NEW_COUNT}" >> "$GITHUB_OUTPUT"
           echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          # BLOCKING, as this workflow's header has always claimed. The exit
+          # status was captured and recorded but never propagated — alone among
+          # the gate steps in this repo, all thirteen of architecture.yml's end
+          # with exactly this line — so a new broken reference produced a notice
+          # and a green check. The baseline is empty and every reference in the
+          # tree resolves, so there is nothing left to tolerate.
+          exit "${GATE_EXIT}"
 
       - name: Summarise
         if: always()
@@ -112,18 +129,18 @@ jobs:
               echo "> :white_check_mark: No new broken doc references."
             fi
             echo ""
-            echo "Phase 1 warn-only — gate flips to blocking in Phase 3 once baseline is driven down."
+            echo "BLOCKING: the baseline is empty, so any new broken reference fails this job."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Annotate PR (warn-only)
+      - name: Annotate PR on failure
         if: always() && steps.gate.outputs.exit_code != '0'
         uses: actions/github-script@v7
         with:
           script: |
             const newCount = parseInt('${{ steps.gate.outputs.new_count }}', 10) || 0;
-            core.notice(
+            core.error(
               `Doc-link gate: ${newCount} new broken .md reference(s). ` +
-              `Warn-only mode — does not block merge. See workflow Summary tab.`
+              `This blocks the merge. See workflow Summary tab.`
             );
             if (newCount > 0) {
               core.warning(

@@ -54,6 +54,11 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="layer_check")
 PKG_ROOT = ROOT / "odoo"
 
 
+#: A contract that enforces a boundary no ADR has recorded yet. Declarable, so
+#: the gap is visible and countable, but never silent — see ``Contract.adr``.
+UNRECORDED = "unrecorded"
+
+
 @dataclass(frozen=True)
 class Contract:
     """A "forbidden import" rule: files under ``source`` may not import ``forbidden``.
@@ -66,6 +71,22 @@ class Contract:
     has to permit ``import odoo.addons`` (the namespace package, for ``__path__``
     discovery) while forbidding every ``odoo.addons.<module>`` under it. A
     prefix in ``allow`` would exempt both.
+
+    ``source_exact`` is the mirror of that, on the source side, and exists for
+    exactly one shape: a package's own ``__init__.py``. ``module_name_for``
+    renders ``odoo/__init__.py`` as ``odoo``, and no prefix can name that module
+    without also naming ``odoo.addons`` — which would make the own-subtree rule
+    in :func:`violations_for` exempt every import. Listing it here matches the
+    module ITSELF and contributes exactly one file to the walk, leaving both
+    ``source``'s prefix semantics and the own-subtree rule untouched.
+
+    ``adr`` names the decision record this contract enforces, as a bare number
+    (``"0003"``). The comment above ``CONTRACTS`` has always said "each one
+    corresponds to an ADR; keep this list and doc/adr/ in sync" — nothing
+    checked, and by the time it was checked seven contracts had no record at
+    all. ``adr=UNRECORDED`` makes that state declarable but not silent: it is
+    tracked debt in the same spirit as ``KNOWN_VIOLATIONS``, and
+    ``test_layer_check`` counts it so the number can only fall.
     """
 
     name: str
@@ -73,7 +94,9 @@ class Contract:
     forbidden: tuple[str, ...]
     allow: tuple[str, ...]
     rationale: str
+    adr: str
     allow_exact: tuple[str, ...] = ()
+    source_exact: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -166,6 +189,7 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
 CONTRACTS: tuple[Contract, ...] = (
     Contract(
         name="libs-is-dependency-free",
+        adr="0004",
         source=("odoo.libs",),
         forbidden=("odoo",),
         allow=("odoo.libs",),
@@ -182,6 +206,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="db-is-orm-agnostic",
+        adr="0003",
         source=("odoo.db",),
         forbidden=("odoo.orm", "odoo.models", "odoo.fields", "odoo.api"),
         allow=("odoo.libs",),
@@ -193,6 +218,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="tools-does-not-reach-the-orm-runtime",
+        adr=UNRECORDED,
         source=("odoo.tools",),
         forbidden=("odoo.orm.runtime",),
         allow=(),
@@ -218,6 +244,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-helpers-and-registration-stay-below-runtime",
+        adr=UNRECORDED,
         source=("odoo.orm.helpers", "odoo.orm.registration"),
         forbidden=("odoo.orm.runtime",),
         allow=(),
@@ -241,6 +268,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-components-are-pure-python",
+        adr="0002",
         source=("odoo.orm.components",),
         forbidden=("odoo",),
         allow=("odoo.orm.components", "odoo.libs"),
@@ -252,6 +280,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-layer1-below-models-and-runtime",
+        adr="0001",
         source=("odoo.orm.fields", "odoo.orm.domain"),
         # Forbid both the internal layers and their public shims: importing the
         # ``odoo.models`` / ``odoo.api`` façades pulls in Layer 2 / Layer 3 just
@@ -266,6 +295,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-layer0-is-foundational",
+        adr="0001",
         source=(
             "odoo.orm.primitives",
             "odoo.orm.parsing",
@@ -294,6 +324,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-models-below-runtime",
+        adr="0001",
         source=("odoo.orm.models",),
         forbidden=("odoo.orm.runtime",),
         allow=(),
@@ -305,6 +336,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="core-does-not-depend-on-addons",
+        adr=UNRECORDED,
         # The mirror image of ``facade-boundary``. That one stops addons reaching
         # into ORM internals; nothing stopped the *framework* taking a dependency
         # on a specific addon module, which is the more damaging direction: it
@@ -352,6 +384,17 @@ CONTRACTS: tuple[Contract, ...] = (
             "odoo._testing_bootstrap",
             "odoo.__main__",
         ),
+        # ``odoo/__init__.py`` — the package root every ``import odoo`` runs.
+        # It was missed TWICE over: ``iter_source_files`` derives its roots from
+        # ``source`` and no prefix there is bare ``odoo``, so the file was never
+        # opened; and ``module_name_for`` renders it as ``odoo``, which matches
+        # no ``source`` prefix, so even forcing it into the walk produced no
+        # verdict. Both completeness self-tests structurally exclude it as well
+        # (one filters ``p.is_dir()``, the other ``p.name != "__init__.py"``),
+        # so nothing could report the hole either. Proven by injection: an
+        # ``import odoo.addons.base.models.ir_ui_view`` here passed the gate
+        # green while the identical line in ``odoo/init.py`` failed it.
+        source_exact=("odoo",),
         forbidden=("odoo.addons",),
         allow=(),
         # ``odoo.addons`` — the namespace package, for __path__ discovery.
@@ -372,6 +415,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="facade-boundary",
+        adr="0008",
         # Addon code is the largest consumer of the ORM and the reason the public
         # façades exist. It must reach the ORM only through odoo.api / odoo.fields
         # / odoo.models (which are NOT under odoo.orm, hence not forbidden here),
@@ -398,6 +442,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-seams-stay-below-models-and-runtime",
+        adr="0001",
         # The cross-cutting seam modules that sit directly under odoo.orm and
         # were previously outside every contract's source set. _recordset.py is
         # the Layer-1 inversion point whose entire purpose is to let
@@ -417,6 +462,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="db-resilience-below-connectivity",
+        adr=UNRECORDED,
         # ARCHITECTURE.md has always drawn db/ as [connectivity] + [resilience]
         # (now + [foundation]), with an explicit note that a bracketed name is a
         # "logical grouping, not a directory". subsystem_map_check.py verifies
@@ -462,6 +508,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="http-features-below-serving",
+        adr=UNRECORDED,
         # Same argument as db-resilience-below-connectivity, for the other flat
         # package the map draws in brackets. Measured before this landed:
         # serving -> features 22 runtime edges, features -> serving exactly 1
@@ -507,6 +554,7 @@ CONTRACTS: tuple[Contract, ...] = (
     ),
     Contract(
         name="orm-below-the-serving-tier",
+        adr=UNRECORDED,
         source=("odoo.orm",),
         forbidden=("odoo.service", "odoo.http", "odoo.cli"),
         allow=(),
@@ -693,6 +741,26 @@ def _collapse_nested(roots: list[Path]) -> list[Path]:
     return [r for r in roots if not any(d != r and d in r.parents for d in dirs)]
 
 
+def _source_exact_files() -> list[Path]:
+    """The single file each ``source_exact`` entry names.
+
+    Deliberately NOT routed through ``roots``: ``ROOT.joinpath("odoo")`` IS a
+    directory, so feeding it to the walk would pull in ``odoo/addons`` and the
+    whole core twice over. A ``source_exact`` entry contributes its own module
+    file and nothing beneath it — the package's ``__init__.py`` for a package,
+    the module itself for a plain module.
+    """
+    files: list[Path] = []
+    for contract in CONTRACTS:
+        for dotted in contract.source_exact:
+            base = ROOT.joinpath(*dotted.split("."))
+            for candidate in (base / "__init__.py", base.with_suffix(".py")):
+                if candidate.is_file():
+                    files.append(candidate)
+                    break
+    return files
+
+
 def iter_source_files() -> list[Path]:
     source_prefixes = {p for c in CONTRACTS for p in c.source}
     # Translate dotted source prefixes to directories to avoid walking the whole
@@ -706,7 +774,13 @@ def iter_source_files() -> list[Path]:
             files.extend(sorted(root.rglob("*.py")))
         elif root.with_suffix(".py").is_file():
             files.append(root.with_suffix(".py"))
-    return [f for f in files if "__pycache__" not in f.parts and not _is_test_file(f)]
+    files.extend(_source_exact_files())
+    kept = [f for f in files if "__pycache__" not in f.parts and not _is_test_file(f)]
+    # Dedupe: a ``source_exact`` file can also sit under a directory root (it
+    # does not today, but a future entry naming a subpackage would), and a file
+    # counted twice is a violation reported twice — the exact defect
+    # ``_collapse_nested`` was written to end.
+    return sorted(dict.fromkeys(kept))
 
 
 def _is_known(module: str, target: str) -> bool:
@@ -729,7 +803,7 @@ def violations_for(
     """
     found: list[Violation] = []
     for contract in CONTRACTS:
-        if not _matches(module, contract.source):
+        if not (_matches(module, contract.source) or module in contract.source_exact):
             continue
         # ``visit_ImportFrom`` deliberately emits BOTH ``<base>`` and
         # ``<base>.<name>`` so ``from .. import models`` is caught. When the

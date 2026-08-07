@@ -233,3 +233,67 @@ class TestEveryToolAgrees:
             f"_repo_root.find_odoo_root(), which is depth-independent and "
             f"raises instead of guessing"
         )
+
+
+class TestShellBootstrapsAgree:
+    """The same agreement, for the two bootstraps that cannot import Python.
+
+    ``tooling/_trampoline.sh`` and ``tooling/codegen/_resolve_env.sh`` re-derive
+    the checkout root and the workspace in shell, because they run *before* an
+    interpreter is chosen. Nothing tied them to ``_repo_root``, and they drifted
+    exactly as the Python copies did: ``_resolve_env.sh`` kept the retired
+    ``<ws>/addons/odoo`` shape-match long after the workspace was flattened to
+    ``<ws>/odoo``, so it declared a repo-alone checkout — and
+    ``regen_model_types.sh`` died with "no workspace to discover a config from"
+    — in a workspace holding both a venv and a config. ``_trampoline.sh`` had
+    been fixed; this one had not, which is the drift ``_trampoline.sh``'s own
+    header says it was extracted to prevent.
+
+    Pinned by BEHAVIOUR (what each script resolves) rather than by text, so a
+    rewrite that keeps the answer right is free and one that does not is caught.
+    """
+
+    SHELL_BOOTSTRAPS = ("_trampoline.sh", "codegen/_resolve_env.sh")
+
+    def test_both_shell_bootstraps_exist(self):
+        for rel in self.SHELL_BOOTSTRAPS:
+            assert (ODOO_ROOT / "tooling" / rel).is_file(), rel
+
+    def test_resolve_env_agrees_with_find_workspace(self):
+        """``_resolve_env.sh``'s WORKSPACE must equal ``find_workspace()``."""
+        import subprocess
+
+        script = ODOO_ROOT / "tooling" / "codegen" / "_resolve_env.sh"
+        done = subprocess.run(
+            ["bash", "-c", f'source "{script}"; printf "%s" "$WORKSPACE"'],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        expected = find_workspace(ODOO_ROOT)
+        assert done.stdout == (str(expected) if expected else ""), (
+            f"_resolve_env.sh resolved WORKSPACE={done.stdout!r} but "
+            f"_repo_root.find_workspace() says {expected!r} — the shell copy "
+            f"has drifted from the shared rule again"
+        )
+
+    def test_no_shell_bootstrap_hardcodes_only_the_addons_layout(self):
+        """Both shapes must be handled, not just the historical one.
+
+        A bootstrap that tests ``basename(dirname(root)) == "addons"`` and has
+        no ``else`` branch reaching the parent is matching the retired layout
+        only. That single line is the whole of the bug this class exists for.
+        """
+        offenders = []
+        for rel in self.SHELL_BOOTSTRAPS:
+            text = (ODOO_ROOT / "tooling" / rel).read_text(encoding="utf-8")
+            if '= "addons"' not in text and '== "addons"' not in text:
+                continue  # shape-match gone entirely: fine
+            # The flat layout must be reachable too: something has to climb
+            # exactly one level when the parent is not `addons`.
+            if '/.."' not in text.replace('/../.."', ""):
+                offenders.append(rel)
+        assert not offenders, (
+            f"shell bootstrap handles only <ws>/addons/odoo: {offenders} — the "
+            f"workspace is flat (<ws>/odoo) now; see _repo_root.in_workspace"
+        )

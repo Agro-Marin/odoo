@@ -7,7 +7,12 @@ _t="$(dirname "$0")/../_trampoline.sh"
 . "$_t"
 '''
 
-"""Parallel shard wrapper around the warm-server ``hoot`` runner.
+# The shell preamble above is the module's FIRST string literal, so Python binds
+# it as ``__doc__`` and the real documentation below becomes an inert expression
+# statement. ``hoot`` passes ``description=__doc__`` to argparse, so ``hoot
+# --help`` printed the trampoline's shell source instead of its own usage guide.
+# Rebinding it here is the one-line fix that keeps the polyglot intact.
+__doc__ = """Parallel shard wrapper around the warm-server ``hoot`` runner.
 
 HOOT runs a suite's tests *serially inside one browser page*, so a single
 ``hoot`` invocation's wall-clock is just the sum of its tests. This wrapper

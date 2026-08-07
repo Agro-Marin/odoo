@@ -82,6 +82,86 @@ def test_a_violation_of_each_new_contract_would_be_caught():
         assert jlc._matches_path(module, c.source), name
         assert jlc._matches_spec(spec, c.forbidden), name
 
+# --- relative specifiers resolve to the same module the contracts name ---
+
+
+def test_normalise_spec_resolves_relative_to_the_web_form():
+    """The two spellings of one import must reach the same contract.
+
+    ``check`` used to skip anything not literally starting with ``@web/``, so
+    ``core/domain.js`` importing ``"../views/utils"`` breached
+    entity-below-widget-page invisibly while ``"@web/views/utils"`` produced two
+    violations. 448 relative specifiers already exist in the 698 governed files.
+    """
+    assert jlc.normalise_spec("../views/utils", "core/domain.js") == "@web/views/utils"
+    assert (
+        jlc.normalise_spec("./utils/arrays", "core/domain.js")
+        == "@web/core/utils/arrays"
+    )
+    assert jlc.normalise_spec("./x.js", "core/domain.js") == "@web/core/x"
+    # A file at the src root has no directory component to resolve against.
+    assert jlc.normalise_spec("./session", "env.js") == "@web/session"
+
+
+def test_normalise_spec_ignores_what_is_not_a_web_module():
+    # Climbs out of static/src -> vendored lib, not governed here.
+    assert jlc.normalise_spec("../../lib/luxon/luxon", "core/domain.js") is None
+    # Bare package specifiers are not first-party paths.
+    assert jlc.normalise_spec("luxon", "core/domain.js") is None
+    # Another addon (and @odoo/owl) pass through unchanged; the contracts'
+    # own `@web/` prefix test is what filters them.
+    assert (
+        jlc.normalise_spec("@mail/core/store", "core/domain.js") == "@mail/core/store"
+    )
+
+
+def test_relative_and_absolute_forms_produce_the_same_violations(tmp_path):
+    """Same breach, two spellings, identical verdict — the actual regression."""
+    src_dir = tmp_path / "addons" / "web" / "static" / "src" / "core"
+    src_dir.mkdir(parents=True)
+    web_src = tmp_path / "addons" / "web" / "static" / "src"
+
+    def run(spec):
+        (src_dir / "domain.js").write_text(f'import {{ x }} from "{spec}";\n')
+        old_root, old_src = jlc.ROOT, jlc.WEB_SRC
+        jlc.ROOT, jlc.WEB_SRC = tmp_path, web_src
+        try:
+            new, _ = jlc.check([src_dir / "domain.js"])
+        finally:
+            jlc.ROOT, jlc.WEB_SRC = old_root, old_src
+        return sorted(v.contract for v in new), {v.imports for v in new}
+
+    absolute = run("@web/views/utils")
+    relative = run("../views/utils")
+    assert relative == absolute
+    assert absolute[0] == [
+        "entity-below-widget-page",
+        "shared-below-feature-widget-page",
+    ]
+
+
+def test_violation_records_how_the_import_is_written(tmp_path):
+    """A report naming a specifier the file does not contain is unactionable."""
+    web_src = tmp_path / "addons" / "web" / "static" / "src"
+    (web_src / "core").mkdir(parents=True)
+    target = web_src / "core" / "domain.js"
+    target.write_text('import { x } from "../views/utils";\n')
+    old_root, old_src = jlc.ROOT, jlc.WEB_SRC
+    jlc.ROOT, jlc.WEB_SRC = tmp_path, web_src
+    try:
+        new, _ = jlc.check([target])
+    finally:
+        jlc.ROOT, jlc.WEB_SRC = old_root, old_src
+    assert {v.written for v in new} == {"../views/utils"}
+    # An already-canonical specifier leaves it empty rather than repeating itself.
+    target.write_text('import { x } from "@web/views/utils";\n')
+    jlc.ROOT, jlc.WEB_SRC = tmp_path, web_src
+    try:
+        new, _ = jlc.check([target])
+    finally:
+        jlc.ROOT, jlc.WEB_SRC = old_root, old_src
+    assert {v.written for v in new} == {""}
+
 
 # --- regression guard: the real web tree is clean at zero ---
 
