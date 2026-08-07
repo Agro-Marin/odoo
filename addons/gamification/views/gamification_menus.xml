@@ -2,16 +2,16 @@
 <odoo>
     <!-- Dashboard client action -->
     <record id="gamification_dashboard_action" model="ir.actions.client">
-        <field name="name">Gamification Dashboard</field>
+        <field name="name">Dashboard</field>
         <field name="tag">gamification_dashboard</field>
         <field name="path">gamification-dashboard</field>
     </record>
 
-    <!-- Root menu in settings - technical feature required -->
     <menuitem id="gamification_menu"
-              name="Gamification Tools"
-              parent="base.menu_administration"
-              groups="base.group_no_one" />
+              name="Gamification"
+              web_icon="gamification,static/description/icon.png"
+              sequence="18"
+              groups="gamification.group_gamification_user"/>
 
     <!-- Dashboard (top level) -->
     <menuitem id="gamification_dashboard_menu"
@@ -85,6 +85,7 @@
     <menuitem id="gamification_analytics_parent_menu"
               name="Analytics"
               parent="gamification_menu"
+              groups="gamification.group_gamification_manager"
               sequence="40"/>
     <menuitem id="gamification_activity_feed_menu"
               parent="gamification_analytics_parent_menu"
@@ -99,6 +100,7 @@
     <menuitem id="gamification_config_parent_menu"
               name="Configuration"
               parent="gamification_menu"
+              groups="gamification.group_gamification_manager"
               sequence="50"/>
     <menuitem id="gamification_definition_menu"
               parent="gamification_config_parent_menu"
