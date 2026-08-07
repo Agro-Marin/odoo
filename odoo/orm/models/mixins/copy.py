@@ -8,7 +8,7 @@ from ...primitives import MAGIC_COLUMNS, Command
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Callable, Collection
 
 _logger = logging.getLogger("odoo.models")
 
@@ -142,6 +142,67 @@ class CopyMixin(_ModelStubs):
                         for term_lang, to_lang_term in to_lang_terms.items():
                             translations[term_lang][from_lang_term] = to_lang_term
                     new.update_field_translations(name, translations)
+
+    def _copy_translations_of_renamed_field(
+        self,
+        new: Self,
+        field_name: str,
+        rename: Callable[[Self, str], str],
+    ) -> None:
+        """Re-apply a ``copy_data`` rename to every stored translation.
+
+        Models that mark duplicates with ``vals["name"] = _("%s (copy)", ...)``
+        only see the value in the duplicating user's language: ``create``
+        stores that one string under every language, and
+        :meth:`copy_translations` then puts the *source* record's terms back
+        for all the other languages -- so the copy silently carries the
+        original's exact name there, and a later rename made in the
+        duplicator's language never reaches it.
+
+        Call this from :meth:`copy_translations`, passing ``field_name`` to the
+        ``super()`` call's ``excluded`` so the generic pass leaves the field
+        alone::
+
+            def copy_translations(self, new, excluded=()):
+                super().copy_translations(new, excluded=(*excluded, "name"))
+                self._copy_translations_of_renamed_field(
+                    new, "name", lambda record, term: record.env._("%s (copy)", term)
+                )
+
+        :param new: the copy, as received by :meth:`copy_translations`
+        :param field_name: a stored ``translate=True`` field
+        :param rename: ``(record_in_lang, term) -> str``; called once per
+            language with ``self`` in that language, so a translatable marker
+            is itself translated into the language it is appended to.  It must
+            reproduce what ``copy_data`` did: the field is left untouched when
+            the two disagree, which is how a caller-supplied default wins.
+        """
+        field = self._fields[field_name]
+        assert field.translate is True and field.store, (
+            f"{field} is not a stored translate=True field"
+        )
+        if new[field_name] != rename(self, self[field_name]):
+            # ``field_name`` came from a caller-supplied default, not from the
+            # ``copy_data`` rename: leave it alone.
+            return
+        stored_translations = field._get_stored_translations(self)
+        if not stored_translations:
+            return
+        valid_langs = {code for code, _name in self.env["res.lang"].get_installed()}
+        valid_langs.add("en_US")
+        # NB: a ``translate=True`` field keeps one cache per language, so the
+        # whole dict has to go through ``_update_cache``, which dispatches it.
+        # ``env.cache.update_raw`` would store it as the *current* language's
+        # value, and the record would then read back a dict instead of a name.
+        field._update_cache(
+            new,
+            {
+                lang: rename(self.with_context(lang=lang), term)
+                for lang, term in stored_translations.items()
+                if lang in valid_langs
+            },
+            dirty=True,
+        )
 
     def copy(self, default: ValuesType | None = None) -> Self:
         vals_list = self.with_context(active_test=False).copy_data(default)

@@ -435,6 +435,15 @@ class ProductTemplate(models.Model):
                 vals["name"] = _("%s (copy)", template.name)
         return vals_list
 
+    def copy_translations(self, new, excluded=()):
+        # ``copy_data`` suffixes ``name`` in the duplicating user's language
+        # only; without this the copy would keep the source product's exact
+        # name in every other language.
+        super().copy_translations(new, excluded=(*excluded, "name"))
+        self._copy_translations_of_renamed_field(
+            new, "name", lambda record, term: record.env._("%s (copy)", term)
+        )
+
     @api.depends("type")
     def _compute_service_tracking(self):
         self.filtered(lambda product: product.type != "service").service_tracking = "no"

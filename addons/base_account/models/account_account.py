@@ -947,19 +947,12 @@ class AccountAccount(models.Model):
         return vals_list
 
     def copy_translations(self, new, excluded=()):
+        # ``copy_data`` suffixes ``name`` in the duplicating user's language
+        # only; without this the copy would keep the source account's exact
+        # name in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
-        if new.name == self.env._("%s (copy)", self.name):
-            name_field = self._fields["name"]
-            self.env.cache.update_raw(
-                new,
-                name_field,
-                [
-                    {
-                        lang: self.env._("%s (copy)", tr)
-                        for lang, tr in name_field._get_stored_translations(
-                            self
-                        ).items()
-                    }
-                ],
-                dirty=True,
-            )
+        self._copy_translations_of_renamed_field(
+            new,
+            "name",
+            lambda record, term: record.env._("%s (copy)", term or ""),
+        )

@@ -71,6 +71,15 @@ class ChatbotScript(models.Model):
         vals_list = super().copy_data(default=default)
         return [dict(vals, title=self.env._("%s (copy)", script.title)) for script, vals in zip(self, vals_list)]
 
+    def copy_translations(self, new, excluded=()):
+        # ``copy_data`` renames ``title`` in the duplicating user's language
+        # only; without this the copy would keep the source record's exact
+        # ``title`` in every other language.
+        super().copy_translations(new, excluded=(*excluded, "title"))
+        self._copy_translations_of_renamed_field(
+            new, "title", lambda record, term: record.env._("%s (copy)", term)
+        )
+
     def copy(self, default=None):
         """ Correctly copy the 'triggering_answer_ids' field from the original script_step_ids to the clone.
         This needs to be done in post-processing to make sure we get references to the newly created

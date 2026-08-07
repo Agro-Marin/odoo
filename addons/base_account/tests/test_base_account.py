@@ -230,3 +230,46 @@ class TestAccountCodeMapping(TransactionCase):
 
         with self.assertRaises(ValueError):
             _pack_mapping_id(1, COMPANY_OFFSET)
+
+
+@tagged("post_install", "-at_install")
+class TestAccountNameDuplication(TransactionCase):
+    """`copy_translations` patches the "<name> (copy)" suffix into every stored
+    translation.  It used to route that per-language dict through
+    `cache.update_raw`, which -- for a `translate=True` field, whose cache is
+    split per language -- stored the whole dict as the value of the *current*
+    language: a Spanish user duplicating an account got a stringified dict as
+    the account name, and the en_US name became the Spanish term.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["res.lang"]._activate_lang("es_MX")
+        cls.account = cls.env["account.account"].create(
+            {"name": "Bank Suspense", "code": "ZZ9001"}
+        )
+        cls.account.with_context(lang="es_MX").name = "Banco Transitorio"
+        cls.env.flush_all()
+
+    def test_duplicating_suffixes_each_language_separately(self):
+        copy = self.account.with_context(lang="es_MX").copy()
+        self.env.flush_all()
+
+        name_en = copy.with_context(lang="en_US").name
+        name_es = copy.with_context(lang="es_MX").name
+        self.assertIsInstance(name_en, str)
+        self.assertIsInstance(name_es, str)
+        self.assertIn("Bank Suspense", name_en)
+        self.assertNotEqual(name_en, "Bank Suspense")
+        self.assertIn("Banco Transitorio", name_es)
+        self.assertNotEqual(name_es, "Banco Transitorio")
+
+    def test_explicit_default_name_is_left_alone(self):
+        copy = self.account.with_context(lang="es_MX").copy(
+            {"name": "Fixed Name", "code": "ZZ9002"}
+        )
+        self.env.flush_all()
+
+        self.assertEqual(copy.with_context(lang="en_US").name, "Fixed Name")
+        self.assertEqual(copy.with_context(lang="es_MX").name, "Fixed Name")

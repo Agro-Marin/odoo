@@ -477,6 +477,15 @@ class StockPickingType(models.Model):
                 vals["sequence_code"] = _("%s (copy)", picking.sequence_code)
         return vals_list
 
+    def copy_translations(self, new, excluded=()):
+        # ``copy_data`` renames ``name`` in the duplicating user's language
+        # only; without this the copy would keep the source record's exact
+        # ``name`` in every other language.
+        super().copy_translations(new, excluded=(*excluded, "name"))
+        self._copy_translations_of_renamed_field(
+            new, "name", lambda record, term: record.env._("%s (copy)", term)
+        )
+
     def _order_field_to_sql(self, alias, field_name, direction, nulls, query):
         if field_name == "is_favorite":
             sql_field = SQL(

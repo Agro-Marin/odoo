@@ -188,6 +188,15 @@ class StockRule(models.Model):
                 vals["name"] = _("%s (copy)", rule.name)
         return vals_list
 
+    def copy_translations(self, new, excluded=()):
+        # ``copy_data`` renames ``name`` in the duplicating user's language
+        # only; without this the copy would keep the source record's exact
+        # ``name`` in every other language.
+        super().copy_translations(new, excluded=(*excluded, "name"))
+        self._copy_translations_of_renamed_field(
+            new, "name", lambda record, term: record.env._("%s (copy)", term)
+        )
+
     @api.onchange("picking_type_id")
     def _onchange_picking_type(self):
         """Default the source/destination locations from the picking type."""

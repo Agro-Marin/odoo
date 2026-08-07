@@ -45,6 +45,15 @@ class SmsTemplate(models.Model):
         # copy_data returns one vals dict per record (ORM contract), so self and vals_list align
         return [dict(vals, name=self.env._("%s (copy)", template.name)) for template, vals in zip(self, vals_list, strict=True)]
 
+    def copy_translations(self, new, excluded=()):
+        # ``copy_data`` renames ``name`` in the duplicating user's language
+        # only; without this the copy would keep the source record's exact
+        # ``name`` in every other language.
+        super().copy_translations(new, excluded=(*excluded, "name"))
+        self._copy_translations_of_renamed_field(
+            new, "name", lambda record, term: record.env._("%s (copy)", term)
+        )
+
     def unlink(self):
         self.sudo().mapped('sidebar_action_id').unlink()
         return super().unlink()
