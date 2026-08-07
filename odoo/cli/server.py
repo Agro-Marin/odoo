@@ -9,6 +9,7 @@ from psycopg.errors import InsufficientPrivilege
 
 import odoo
 import odoo.release  # noqa: F401  binds the submodule so `odoo.release.version` resolves below
+from odoo.db import is_maintenance_db
 from odoo.service import db, server
 from odoo.tools import config
 
@@ -94,9 +95,8 @@ def main(args: list[str]) -> None:
     check_postgres_user()
     report_configuration()
 
-    protected_dbs = db.SYSTEM_DBS | {config["db_template"]}
     for db_name in config["db_name"]:
-        if db_name in protected_dbs:
+        if is_maintenance_db(db_name):
             sys.exit(f"Refusing to serve from system or template database {db_name}.")
 
     for db_name in config["db_name"]:

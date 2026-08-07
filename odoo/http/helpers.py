@@ -13,6 +13,7 @@ import psycopg
 import odoo.service.common
 import odoo.service.db
 import odoo.service.model
+from odoo.db import is_maintenance_db
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools import config
 
@@ -68,8 +69,7 @@ def _compiled_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
 
 
 def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
-    protected_dbs = odoo.service.db.SYSTEM_DBS | {config["db_template"]}
-    dbs = [db for db in dbs if db not in protected_dbs]
+    dbs = [db for db in dbs if not is_maintenance_db(db)]
     if config["dbfilter"]:
         if host is None:
             host = request.httprequest.environ.get("HTTP_HOST", "") if request else ""

@@ -214,9 +214,7 @@ class Registry(
         new_db_demo: bool | None = None,
         models_to_check: set[str] | None = None,
     ) -> Registry:
-        from odoo.service._db_helpers import SYSTEM_DBS
-
-        if db_name in SYSTEM_DBS or db_name == config["db_template"]:
+        if db.is_maintenance_db(db_name):
             raise ValueError(
                 f"Refusing to build a registry over system or template "
                 f"database {db_name!r}"

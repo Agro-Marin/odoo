@@ -505,6 +505,22 @@ CONTRACTS: tuple[Contract, ...] = (
             "in the dispatcher and session machinery."
         ),
     ),
+    Contract(
+        name="orm-below-the-serving-tier",
+        source=("odoo.orm",),
+        forbidden=("odoo.service", "odoo.http", "odoo.cli"),
+        allow=(),
+        rationale=(
+            "The ORM (Layers 0-3 plus components/ and the seams) is the "
+            "substrate the serving tier runs on: service/ owns process "
+            "lifecycle and RPC, http/ owns the WSGI pipeline, cli/ owns the "
+            "entry points, and all three import the ORM freely. The reverse "
+            "direction must stay empty so a Registry/Environment can exist — "
+            "and be tested — without a server. Constants both tiers need "
+            "(SYSTEM_DBS, is_maintenance_db) belong in odoo.db or odoo.tools, "
+            "below both."
+        ),
+    ),
 )
 
 

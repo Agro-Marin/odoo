@@ -4,6 +4,7 @@ from typing import Any
 
 import psycopg
 
+import odoo.api
 import odoo.release
 from odoo.db import PoolError
 from odoo.exceptions import AccessDenied

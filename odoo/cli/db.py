@@ -12,10 +12,9 @@ from typing import NoReturn
 
 import requests
 
-from ..db import db_connect
+from ..db import SYSTEM_DBS, db_connect
 from ..modules.neutralize import neutralize_database
 from ..service.db import (
-    SYSTEM_DBS,
     _drop_database,
     _duplicate_database,
     _rename_database,
