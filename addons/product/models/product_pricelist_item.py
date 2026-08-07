@@ -448,6 +448,15 @@ class ProductPricelistItem(models.Model):
         :meth:`_check_product_variant_consistency` instead of being papered over.
         """
         self.ensure_one()
+        # NB: a `categ_id` written on a rule that already targets a template or
+        # a variant is *dropped*, not honoured: the stored, higher-precedence
+        # target keeps the level where it is and `_sanitize_applied_on_vals`
+        # then nulls the category out again, so the write succeeds and stores
+        # nothing. That is deliberate (see
+        # `test_pricelist_item_targeting.test_write_deduces_per_record_in_a_batch`)
+        # -- a rule has exactly one target and the most specific one wins. To
+        # re-aim a rule at a category, clear the product/template in the same
+        # write, or name the level explicitly with `applied_on`.
         product = (
             self.env["product.product"].browse(vals["product_id"])
             if "product_id" in vals
@@ -747,12 +756,17 @@ class ProductPricelistItem(models.Model):
                     }
                 )
             elif item.display_applied_on == "2_product_category":
+                # No `product_uom_name`: it is `related="product_tmpl_id.uom_name"`
+                # and the template is being cleared on the very same line, so
+                # the ORM recomputes it to False by itself. Assigning it here
+                # only wrote a value the next recompute overwrote -- and wrote
+                # it *through* a readonly related field, which on a saved
+                # record would try to reach `uom.uom.name`.
                 item.update(
                     {
                         "product_id": None,
                         "product_tmpl_id": None,
                         "applied_on": "2_product_category",
-                        "product_uom_name": None,
                     }
                 )
 
@@ -959,7 +973,23 @@ class ProductPricelistItem(models.Model):
         elif rule_base == "standard_price":
             src_currency = product.cost_currency_id
             price = product._compute_price(rule_base, uom=uom, date=date)[product.id]
-        else:  # list_price
+        else:
+            # `list_price`, and anything unknown. The bare `else` used to hand
+            # whatever it got straight to `product._compute_price`, which reads
+            # it as a field name -- so a `base` this method does not handle
+            # priced every product through a raw `KeyError` instead of saying
+            # what was wrong. `base` is a Selection, so `create`/`write` cannot
+            # produce one; a stale column left by an uninstalled module that
+            # extended the selection, or a direct SQL edit, can.
+            if rule_base != "list_price":
+                raise ValidationError(
+                    _(
+                        "%(rule)s cannot be priced: %(base)s is not a base this"
+                        " pricelist knows how to compute from.",
+                        rule=self.display_name,
+                        base=rule_base,
+                    ),
+                )
             src_currency = product.currency_id
             price = product._compute_price(rule_base, uom=uom, date=date)[product.id]
 
