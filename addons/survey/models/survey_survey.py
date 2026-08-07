@@ -1827,7 +1827,16 @@ class SurveySurvey(models.Model):
         self.sudo().write(
             {
                 "questions_layout": "page_per_question",
-                "session_start_time": fields.Datetime.now(),
+                # Stamped from the transaction clock, not the wall clock: every
+                # reader of this field compares it against ``create_date``
+                # (``session_answer_count``, ``session_best_scores``,
+                # ``_get_session_answers``, ``action_end_session``, the session
+                # manager controller), and ``create_date`` comes from
+                # ``cr.now()``.  ``fields.Datetime.now()`` advances *during* a
+                # transaction while ``create_date`` stays pinned to its start,
+                # so an answer created after the session opened still looked
+                # older than it and dropped out of every one of those queries.
+                "session_start_time": self.env.cr.now(),
                 "session_question_id": None,
                 "session_state": "ready",
             }
