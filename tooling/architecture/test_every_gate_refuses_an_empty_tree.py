@@ -68,6 +68,10 @@ GATES = {
     # empty scan would print 0 literal-shaped services, which reads exactly like
     # a tree that fixed all 33.
     "js_service_shape": ["--count"],
+    # Same again for the §2.4 verb vocabulary: 0 abolished-verb definitions is
+    # what a finished migration looks like, so an empty scan must refuse rather
+    # than report one.
+    "naming_vocabulary": ["--count"],
 }
 
 UNPROBED = {

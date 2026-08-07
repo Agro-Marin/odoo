@@ -717,12 +717,40 @@ lesser-preferred synonyms — they are wrong.
      - writes to records; ``_set_*`` is reserved for ``inverse=`` targets
    * - Addition
      - ``_add_*``
-     - ``_append_`` ``_insert_`` ``_push_``
-     - —
+     - ``_append_``
+     - ``_insert_`` / ``_push_`` are reserved, not abolished — see below
    * - Removal
      - ``_remove_*``
-     - ``_delete_`` ``_drop_`` ``_purge_`` ``_discard_``
-     - ``unlink`` stays reserved for the ORM operation
+     - ``_delete_`` ``_purge_``
+     - ``unlink`` stays reserved for the ORM operation; so do ``_drop_`` /
+       ``_discard_``
+
+**Reserved, not abolished** ``[review]``. Four verbs look like synonyms of ``_add_``
+and ``_remove_`` and are not — each is a term of art from a layer below the ORM, and
+collapsing it destroys information:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 84
+
+   * - Verb
+     - Reserved for
+   * - ``_drop_``
+     - SQL DDL — ``_drop_table``, ``_drop_column``
+   * - ``_insert_``
+     - SQL DML and ordered insertion — ``_insert_cache``, ``insert_rows``
+   * - ``_push_``
+     - stack or queue semantics — ``push_protection``
+   * - ``_discard_``
+     - the ``set.discard`` contract: remove if present, never raise
+
+Use them **only** with those meanings. A business method that deletes records is
+``_remove_*``, never ``_drop_*``.
+
+**The vocabulary governs model methods.** It applies to classes deriving from
+``models.Model`` / ``TransientModel`` / ``AbstractModel``. The framework packages
+below the ORM — ``odoo/db``, ``odoo/http``, ``odoo/tools``, ``odoo/orm`` internals —
+legitimately speak SQL and Python data-structure vocabulary, and are out of scope.
 
 **``_get_`` is not a default.** At 7,965 definitions it is 17.6 % of every method in
 the fork, having absorbed reading, building, deriving and computing. The split that
@@ -755,12 +783,20 @@ meanings — ``account.move._post`` (accounting), ``message_post`` (mail) and HT
 handlers. Do not add a fourth: new code names the domain operation. The existing
 three are load-bearing and are not renamed by this section.
 
-**Adoption.** As with §2.2, apply the vocabulary to methods you create or
-substantially rework rather than churning files you are passing through. Enforcement
-is planned as a ``test_lint`` counter over a ``naming`` ratchet baseline; until that
-lands, every rule in this subsection is ``[review]`` only. A rename must rewrite the
-XML ``name="…"`` bindings and JS references in the same commit — a Python-only
-refactor breaks them silently and no gate catches it today.
+**Adoption** ``[ratchet naming]``. As with §2.2, apply the vocabulary to methods you
+create or substantially rework rather than churning files you are passing through.
+``tooling/architecture/naming_vocabulary.py`` counts the definitions still using an
+abolished verb and feeds the shared ratchet::
+
+    python tooling/architecture/naming_vocabulary.py --count \
+        | xargs python tooling/ratchet/ratchet.py naming --count
+
+It measures the **mechanically decidable** rules only — the abolished-verb list.
+The ``_get_``/``_prepare_`` split and the two *provisional* rules are excluded by
+design, because a floor nobody can lower by reading the rule is a floor people learn
+to ignore; those stay ``[review]``. A rename must rewrite the XML ``name="…"``
+bindings and JS references in the same commit — a Python-only refactor breaks them
+silently and no gate catches that today.
 
 **Never rename an inherited core method** ``[review]``. These rules apply to methods
 you author. Core ships many ``button_*`` methods bound by name from XML and many
@@ -3232,9 +3268,17 @@ Appendix D — Document history
        now canonical and ``_validate_`` is marked legacy in both placement tables.
        Flagged ``_post_`` as carrying three unrelated meanings across 242
        definitions. The EXEC-verb and ``_set_``/``_update_`` rules ship marked
-       *provisional*. Enforcement is ``[review]`` only — the ``test_lint`` counter
-       and ``naming`` ratchet baseline are not built yet, and this revision does not
-       claim they are.
+       *provisional*. **Corrected by the first measurement**: the draft abolished
+       ``_drop_``, ``_insert_``, ``_push_`` and ``_discard_``, and running the gate
+       showed all four are terms of art from below the ORM — SQL DDL and DML, a
+       stack push, and the ``set.discard`` contract. They are now *reserved* with
+       stated meanings rather than abolished, and the vocabulary is scoped to model
+       classes, the framework packages being legitimately entitled to that
+       vocabulary. Enforced as a count by
+       ``tooling/architecture/naming_vocabulary.py`` over the ``naming`` ratchet
+       baseline (floor 274 in this repo; ``enterprise`` measures 230 and
+       ``agromarin`` 54, each needing its own). The rules the gate cannot decide
+       mechanically stay ``[review]``.
    * - 5.1
      - 2026-07-30
      - Corrected five claims that execution disproved. **``force_company`` does

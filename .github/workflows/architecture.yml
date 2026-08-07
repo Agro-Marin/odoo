@@ -494,6 +494,24 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run method-naming vocabulary ratchet
+        id: naming_vocab
+        # doc/coding_guidelines.rst §2.4 fixes one canonical verb per operation.
+        # A count ratchet rather than a contract, because the tree opens with 274
+        # of these: a blocking gate would fail every build on day one and be
+        # switched off within the week. It counts the mechanically decidable
+        # rules only -- the abolished-verb list -- so the floor is one anybody can
+        # lower by reading §2.4.
+        run: |
+          set +e
+          python tooling/architecture/naming_vocabulary.py | tee /tmp/naming_vocab.log
+          python tooling/architecture/naming_vocabulary.py --count \
+            | xargs python tooling/ratchet/ratchet.py naming --count
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          set -e
+          exit $rc
+
       - name: Run JS private-access ratchet
         id: js_private
         # A count ratchet, wired here after an audit found it orphaned: the gate
