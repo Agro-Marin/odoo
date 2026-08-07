@@ -81,11 +81,53 @@ def module_file_paths(modules: tuple[str, ...] | None = None) -> tuple[str, ...]
     )
 
 
+def iter_module_files(*globs: str, modules=None):
+    """Yield paths of all module files matching the provided globs (AND-ed).
+
+    Globs use fnmatch semantics on full paths, so ``"*.py"`` matches any ``.py``
+    file at any depth and ``"**/static/**/*.js"`` matches JS files inside
+    ``static/`` subdirectories.
+
+    Whole-tree walks are cached per module set: eight tests ask for the same
+    18k paths, and the walk alone is a second each.
+
+    A function rather than only a method, because it never needed an instance:
+    ``XmlRecordLinter.setUpClass`` was constructing a ``TestCase`` -- with no
+    test method and nothing to run -- purely to reach it.
+    """
+    for path in module_file_paths(None if modules is None else tuple(modules)):
+        if all(fnmatch.fnmatch(path, glob) for glob in globs):
+            yield path
+
+
+def core_xml_files() -> list[str]:
+    """Every XML file in the repository this fork owns.
+
+    The one selection behind every XML gate and both fixers, so they cannot
+    drift apart -- which they had, the lint test reporting 12 665 files and the
+    fixer declining 9 876 of them.
+    """
+    return [path for path in iter_module_files("*.xml") if is_core_path(path)]
+
+
+def core_module_roots() -> list[str]:
+    """Addon roots belonging to this repository, for the Rust file scanners.
+
+    ``scan_regex_patterns`` and ``scan_byte_patterns`` take roots rather than
+    file lists, so a gate built on them cannot be scoped by filtering results
+    after the fact without still paying to read every sibling checkout. Handing
+    them the core roots is both the scope every other gate here uses and the
+    cheaper walk.
+    """
+    return [path for path in _module_roots() if is_core_path(path)]
+
+
 @no_retry
 class LintCase(BaseCase):
     """Utility methods for lint-type test cases."""
 
     _module_roots = staticmethod(_module_roots)
+    iter_module_files = staticmethod(iter_module_files)
 
     def assert_ratchet(self, findings, floor: int, what: str, fix: str) -> None:
         """Assert that *findings* number exactly *floor*, and say so either way.
@@ -114,23 +156,9 @@ class LintCase(BaseCase):
         if len(found) < floor:
             self.fail(
                 f"{len(found)} {what} but the committed floor is {floor}. The "
-                f"debt went down -- lower the floor in this same change, so it "
-                f"cannot come back unnoticed."
+                f"debt went down -- lower the floor to {len(found)} in this same "
+                f"change, so it cannot come back unnoticed."
             )
-
-    def iter_module_files(self, *globs: str, modules=None):
-        """Yield paths of all module files matching the provided globs (AND-ed).
-
-        Globs use fnmatch semantics on full paths, so ``"*.py"`` matches any
-        ``.py`` file at any depth and ``"**/static/**/*.js"`` matches JS files
-        inside ``static/`` subdirectories.
-
-        Whole-tree walks are cached per module set: eight tests ask for the same
-        18k paths, and the walk alone is a second each.
-        """
-        for path in module_file_paths(None if modules is None else tuple(modules)):
-            if all(fnmatch.fnmatch(path, glob) for glob in globs):
-                yield path
 
     @staticmethod
     def served_bundle_names(env) -> list[str]:
