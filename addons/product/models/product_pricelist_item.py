@@ -842,10 +842,10 @@ class ProductPricelistItem(models.Model):
             src_currency = self.base_pricelist_id.currency_id
         elif rule_base == "standard_price":
             src_currency = product.cost_currency_id
-            price = product._price_compute(rule_base, uom=uom, date=date)[product.id]
+            price = product._compute_price(rule_base, uom=uom, date=date)[product.id]
         else:  # list_price
             src_currency = product.currency_id
-            price = product._price_compute(rule_base, uom=uom, date=date)[product.id]
+            price = product._compute_price(rule_base, uom=uom, date=date)[product.id]
 
         if src_currency != currency:
             price = src_currency._convert(
