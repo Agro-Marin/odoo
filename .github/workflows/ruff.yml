@@ -12,11 +12,21 @@ name: Python Lint (ruff)
 # ruff is pinned in requirements-dev.txt (0.16.2); the floor must be measured
 # with that pin so local and CI agree.
 #
-# The pin is now a HARD floor, not just a reproducibility aid: ruff.toml runs with
-# `explicit-preview-rules` and names individual preview rules, so a ruff that predates
-# any of them refuses to start ("Unknown rule selector") instead of degrading. Bumping
-# ruff DOWN, or forgetting one of the three pin sites (here, requirements-dev.txt,
-# .pre-commit-config.yaml), breaks the gate outright rather than shifting the count.
+# The pin is now a HARD floor, not just a reproducibility aid, and there are two
+# independent reasons for that. ruff.toml runs with `explicit-preview-rules` and names
+# individual preview rules, so a ruff that predates any of them refuses to start
+# ("Unknown rule selector") instead of degrading. Since the 0.16.2 bump it also sets
+# `output-prefer-rule-codes`, a config key 0.16.0 does not know, and an unknown key is
+# a TOML parse failure reported against line 1 — it does not even name the field's real
+# location. Bumping ruff DOWN, or forgetting one of the three pin sites in this repo
+# (here, requirements-dev.txt, .pre-commit-config.yaml), breaks the gate outright rather
+# than shifting the count. Two more pins live outside this repo: the enterprise and
+# agromarin .pre-commit-config.yaml files, which inherit this ruff.toml via `extend`.
+#
+# That `extend` inheritance is load-bearing and has failed silently before: a missing
+# extend target aborts ruff instead of skipping the include, so a wrapper reading only
+# the exit code cannot distinguish "config broken" from "no findings". See the comment
+# at the top of ../enterprise/ruff.toml.
 
 on:
   # Mainline re-verification: re-run the ratchet on every push to a protected

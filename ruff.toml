@@ -7,12 +7,20 @@
 #   requirements-dev.txt · .pre-commit-config.yaml · .github/workflows/ruff.yml
 #   ../enterprise/.pre-commit-config.yaml · ../agromarin/.pre-commit-config.yaml
 #
-# Pinned at 0.16.2. Being precise about what that pin does and does not buy: the
-# 0.16.0 -> 0.16.2 bump introduced NO new rule and NO preview stabilization —
-# verified by diffing `ruff rule --all --output-format json` between the two
-# binaries, not by reading release notes — so every selector below already
-# resolved on 0.16.0 and the hard "Unknown rule selector" floor did not move.
-# The pin is still exact, for the other reason it exists: the ratchet in
+# Pinned at 0.16.2, and 0.16.2 is a HARD floor — but not via a selector. The
+# 0.16.0 -> 0.16.2 bump introduced no new rule and no preview stabilization
+# (verified by diffing `ruff rule --all --output-format json` between the two
+# binaries, not by reading release notes), so every selector below already
+# resolved on 0.16.0. The floor comes from the `output-prefer-rule-codes` key
+# above, which 0.16.0 rejects outright:
+#   Cause: TOML parse error at line 1, column 1
+#   unknown field `output-prefer-rule-codes`
+# Note where that lands: an unknown KEY fails at line 1 of the file, naming a
+# field that is nowhere near line 1, so the error points at the config rather
+# than at the key. An unknown SELECTOR at least names the rule. Downgrade ruff
+# and this is what you get.
+#
+# The pin is also exact for the reason it always was: the ratchet in
 # .github/workflows/ruff.yml runs in EXACT mode against a single committed
 # integer, so the count has to be reproducible, and any ruff whose bug fixes
 # shift a finding by one breaks the build in both directions. Measured both
@@ -21,6 +29,24 @@
 
 target-version = "py314"
 line-length = 88
+
+# Print `F401`, not `unused-import`. New in 0.16.2, and it repairs a regression
+# this config walked into the moment it set `preview = true`: under preview, ruff
+# switched its human-readable output formats from rule CODES to rule NAMES, so
+#   ruff check odoo/ --output-format=concise
+# had been emitting
+#   odoo/_monkeypatches/_excel_utils.py:8:1: unsorted-imports: [*] Import block …
+# with the code appearing nowhere. That is the exact string CI publishes as
+# /tmp/ruff.log (.github/workflows/ruff.yml), and it is unusable: a code is the
+# only token that can be pasted into a `# noqa:`, into `select`/`ignore` here,
+# into `external` below, or into a per-file-ignores entry. Every other gate in
+# this repo speaks codes too — test_lint's E85xx checkers, the RUF102 `external`
+# list, the ratchet. Names break that chain for a cosmetic gain.
+#
+# `--statistics` was never affected (it always printed codes), so the ratchet
+# count never moved — which is why this went unnoticed: the number was right and
+# only the log a human reads was degraded.
+output-prefer-rule-codes = true
 
 # Extension-less executables ruff's own discovery would never find. `odoo-bin`
 # is the famous one; the three hoot runners are 961 lines — 23% of tooling/'s
@@ -282,7 +308,13 @@ select = [
     "PLR0202",    # no-classmethod-decorator (0)
     "PLR0203",    # no-staticmethod-decorator (0)
     "PLR1712",    # swap-with-temporary-variable (0)
-    "PLR6104",    # non-augmented-assignment (23) — `x = x + y` -> `x += y`
+    "PLR6104",    # non-augmented-assignment (23) — `x = x + y` -> `x += y`.
+                  # Fix is UNSAFE-only, so pre-commit's `--fix` never applies it; that
+                  # is the right default twice over. It rewrites the whole statement and
+                  # drops any comment inside it, and `a *= b` is not `a = a * b` for a
+                  # buffer-writing type — NumPy raises on the in-place form where the
+                  # plain one would broadcast or promote. Moot today (zero numpy imports
+                  # across all three repos, checked) but not moot if that ever changes.
     "FURB101",    # read-whole-file (7) — pairs with the PTH family already enforced
     "FURB103",    # write-whole-file (3)
     "FURB131",    # delete-full-slice (0)
