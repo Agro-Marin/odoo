@@ -5,7 +5,7 @@
         <field name="name">Products</field>
         <field name="description">Helps you manage your product catalog.</field>
         <field name="placeholder">View</field>
-        <field name="category_id" ref="base.module_category_master_data"/>
+        <field name="category_id" ref="base.module_category_master_data" />
         <field name="sequence">9</field>
     </record>
 
@@ -19,122 +19,117 @@
 
     <record id="group_product_manager" model="res.groups">
         <field name="name">Create</field>
-        <field name="implied_by_ids" eval="[Command.link(ref('base.group_system'))]"/>
-        <field name="user_ids" eval="[Command.link(ref('base.user_root'))]"/>
-        <field name="privilege_id" ref="res_groups_privilege_product"/>
+        <field name="implied_by_ids" eval="[Command.link(ref('base.group_system'))]" />
+        <field name="user_ids" eval="[Command.link(ref('base.user_root'))]" />
+        <field name="privilege_id" ref="res_groups_privilege_product" />
     </record>
 
     <record id="base.user_admin" model="res.users">
-        <field name="group_ids" eval="[Command.link(ref('group_product_manager'))]"/>
+        <field name="group_ids" eval="[Command.link(ref('group_product_manager'))]" />
     </record>
 
-<data noupdate="1">
+    <data noupdate="1">
+        <record id="product_comp_rule" model="ir.rule">
+            <field name="name">Product multi-company</field>
+            <field name="model_id" ref="model_product_template" />
+            <field
+                name="domain_force">['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
+        </record>
+        <record id="product_document_comp_rule" model="ir.rule">
+            <field name="name">Product multi-company</field>
+            <field name="model_id" ref="model_product_document" />
+            <field
+                name="domain_force">['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
+        </record>
+        <record id="product_pricelist_comp_rule" model="ir.rule">
+            <field name="name">product pricelist company rule</field>
+            <field name="model_id" ref="model_product_pricelist" />
+            <field
+                name="domain_force">['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
+        </record>
+        <record id="product_pricelist_item_comp_rule" model="ir.rule">
+            <field name="name">product pricelist item company rule</field>
+            <field name="model_id" ref="model_product_pricelist_item" />
+            <field
+                name="domain_force">['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
+        </record>
+        <record id="product_supplierinfo_comp_rule" model="ir.rule">
+            <field name="name">product supplierinfo company rule</field>
+            <field name="model_id" ref="model_product_supplierinfo" />
+            <field
+                name="domain_force">['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]</field>
+        </record>
+        <record id="product_combo_comp_rule" model="ir.rule">
+            <field name="name">Product combo multi-company rule</field>
+            <field name="model_id" ref="model_product_combo" />
+            <field
+                name="domain_force">['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]</field>
+        </record>
+        <!--
+            `product.combo.item` stores its own `company_id` (related to the combo,
+            stored) and is readable by base.group_user. Unlike `product.product` it
+            does not delegate to a rule-protected parent via `_inherits`, so without
+            this rule the composition of another company's combos is readable by
+            querying the item model directly.
+        -->
+        <record id="product_combo_item_comp_rule" model="ir.rule">
+            <field name="name">Product combo item multi-company rule</field>
+            <field name="model_id" ref="model_product_combo_item" />
+            <field
+                name="domain_force">['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]</field>
+        </record>
+        <!--
+            Same reasoning for `product.uom`: it carries a real `company_id` and is
+            readable by every employee, so packaging barcodes would otherwise leak
+            across companies.
+        -->
+        <record id="product_uom_comp_rule" model="ir.rule">
+            <field name="name">Product packaging multi-company rule</field>
+            <field name="model_id" ref="model_product_uom" />
+            <field
+                name="domain_force">['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]</field>
+        </record>
+        <!--
+            The attribute configuration of a template is reachable without going
+            through the template. `product.attribute` and `product.attribute.value`
+            are genuinely global master data, but these three models each carry a
+            (stored, related) `product_tmpl_id`, are readable by every employee, and
+            (unlike `product.product`) do not delegate to the rule-protected
+            template through `_inherits`. Without these rules a user who cannot see
+            a template at all still reads which attributes it uses and the
+            `price_extra` of each of its values. Same reasoning as the combo item
+            and packaging rules above; locked by
+            `test_product_audit_fixes.test_attribute_config_not_visible_across_companies`.
+        -->
+        <record id="product_template_attribute_line_comp_rule" model="ir.rule">
+            <field name="name">Product attribute line multi-company rule</field>
+            <field name="model_id" ref="model_product_template_attribute_line" />
+            <field
+                name="domain_force">['|', ('product_tmpl_id.company_id', '=', False), ('product_tmpl_id.company_id', 'parent_of', company_ids)]</field>
+        </record>
+        <record id="product_template_attribute_value_comp_rule" model="ir.rule">
+            <field name="name">Product attribute value multi-company rule</field>
+            <field name="model_id" ref="model_product_template_attribute_value" />
+            <field
+                name="domain_force">['|', ('product_tmpl_id.company_id', '=', False), ('product_tmpl_id.company_id', 'parent_of', company_ids)]</field>
+        </record>
+        <record id="product_template_attribute_exclusion_comp_rule" model="ir.rule">
+            <field name="name">Product attribute exclusion multi-company rule</field>
+            <field name="model_id" ref="model_product_template_attribute_exclusion" />
+            <field
+                name="domain_force">['|', ('product_tmpl_id.company_id', '=', False), ('product_tmpl_id.company_id', 'parent_of', company_ids)]</field>
+        </record>
+        <!--
+            Transient models get no implicit per-user isolation, and the label
+            layout wizard is reachable by id from the report `data` payload. Without
+            this rule any employee can read (or overwrite) another user's in-flight
+            wizard. `create_uid` is the only ownership marker a TransientModel has.
+        -->
+        <record id="product_label_layout_own_rule" model="ir.rule">
+            <field name="name">Product label layout: own wizards only</field>
+            <field name="model_id" ref="model_product_label_layout" />
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+        </record>
+    </data>
 
-    <record id="product_comp_rule" model="ir.rule">
-        <field name="name">Product multi-company</field>
-        <field name="model_id" ref="model_product_template"/>
-        <field name="domain_force"> ['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
-    </record>
-
-    <record id="product_document_comp_rule" model="ir.rule">
-        <field name="name">Product multi-company</field>
-        <field name="model_id" ref="model_product_document"/>
-        <field name="domain_force"> ['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
-    </record>
-
-    <record id="product_pricelist_comp_rule" model="ir.rule">
-        <field name="name">product pricelist company rule</field>
-        <field name="model_id" ref="model_product_pricelist"/>
-        <field name="domain_force"> ['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
-    </record>
-
-    <record id="product_pricelist_item_comp_rule" model="ir.rule">
-        <field name="name">product pricelist item company rule</field>
-        <field name="model_id" ref="model_product_pricelist_item"/>
-        <field name="domain_force"> ['|', ('company_id', 'parent_of', company_ids), ('company_id', '=', False)]</field>
-    </record>
-
-    <record id="product_supplierinfo_comp_rule" model="ir.rule">
-        <field name="name">product supplierinfo company rule</field>
-        <field name="model_id" ref="model_product_supplierinfo"/>
-        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]</field>
-    </record>
-
-    <record id="product_combo_comp_rule" model="ir.rule">
-        <field name="name">Product combo multi-company rule</field>
-        <field name="model_id" ref="model_product_combo"/>
-        <field name="domain_force">
-            ['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]
-        </field>
-    </record>
-
-    <!-- `product.combo.item` stores its own `company_id` (related to the combo,
-         stored) and is readable by base.group_user. Unlike `product.product` it
-         does not delegate to a rule-protected parent via `_inherits`, so without
-         this rule the composition of another company's combos is readable by
-         querying the item model directly. -->
-    <record id="product_combo_item_comp_rule" model="ir.rule">
-        <field name="name">Product combo item multi-company rule</field>
-        <field name="model_id" ref="model_product_combo_item"/>
-        <field name="domain_force">
-            ['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]
-        </field>
-    </record>
-
-    <!-- Same reasoning for `product.uom`: it carries a real `company_id` and is
-         readable by every employee, so packaging barcodes would otherwise leak
-         across companies. -->
-    <record id="product_uom_comp_rule" model="ir.rule">
-        <field name="name">Product packaging multi-company rule</field>
-        <field name="model_id" ref="model_product_uom"/>
-        <field name="domain_force">
-            ['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]
-        </field>
-    </record>
-
-    <!-- The attribute configuration of a template is reachable without going
-         through the template. `product.attribute` and `product.attribute.value`
-         are genuinely global master data, but these three models each carry a
-         (stored, related) `product_tmpl_id`, are readable by every employee, and
-         (unlike `product.product`) do not delegate to the rule-protected
-         template through `_inherits`. Without these rules a user who cannot see
-         a template at all still reads which attributes it uses and the
-         `price_extra` of each of its values. Same reasoning as the combo item
-         and packaging rules above; locked by
-         `test_product_audit_fixes.test_attribute_config_not_visible_across_companies`. -->
-    <record id="product_template_attribute_line_comp_rule" model="ir.rule">
-        <field name="name">Product attribute line multi-company rule</field>
-        <field name="model_id" ref="model_product_template_attribute_line"/>
-        <field name="domain_force">
-            ['|', ('product_tmpl_id.company_id', '=', False), ('product_tmpl_id.company_id', 'parent_of', company_ids)]
-        </field>
-    </record>
-
-    <record id="product_template_attribute_value_comp_rule" model="ir.rule">
-        <field name="name">Product attribute value multi-company rule</field>
-        <field name="model_id" ref="model_product_template_attribute_value"/>
-        <field name="domain_force">
-            ['|', ('product_tmpl_id.company_id', '=', False), ('product_tmpl_id.company_id', 'parent_of', company_ids)]
-        </field>
-    </record>
-
-    <record id="product_template_attribute_exclusion_comp_rule" model="ir.rule">
-        <field name="name">Product attribute exclusion multi-company rule</field>
-        <field name="model_id" ref="model_product_template_attribute_exclusion"/>
-        <field name="domain_force">
-            ['|', ('product_tmpl_id.company_id', '=', False), ('product_tmpl_id.company_id', 'parent_of', company_ids)]
-        </field>
-    </record>
-
-    <!-- Transient models get no implicit per-user isolation, and the label
-         layout wizard is reachable by id from the report `data` payload. Without
-         this rule any employee can read (or overwrite) another user's in-flight
-         wizard. `create_uid` is the only ownership marker a TransientModel has. -->
-    <record id="product_label_layout_own_rule" model="ir.rule">
-        <field name="name">Product label layout: own wizards only</field>
-        <field name="model_id" ref="model_product_label_layout"/>
-        <field name="domain_force">[('create_uid', '=', user.id)]</field>
-    </record>
-
-</data>
 </odoo>

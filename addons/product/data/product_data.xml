@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="1">
 
+    <data noupdate="1">
         <!-- Categories -->
         <record id="product_category_goods" model="product.category">
             <field name="name">Goods</field>
@@ -12,9 +12,8 @@
         <record id="product_category_services" model="product.category">
             <field name="name">Services</field>
         </record>
-
         <!--
-             Precisions
+            Precisions
         -->
         <record id="decimal_price" model="decimal.precision" forcecreate="True">
             <field name="name">Product Price</field>
@@ -32,12 +31,11 @@
             <field name="name">Volume</field>
             <field name="digits">2</field>
         </record>
-
         <!--
-... to here, it should be in product_demo but we cant just move it
-there yet otherwise people who have installed the server (even with the without-demo
-parameter) will see those record just disappear.
--->
-
+            ... to here, it should be in product_demo but we cant just move it
+            there yet otherwise people who have installed the server (even with the without-demo
+            parameter) will see those record just disappear.
+        -->
     </data>
+
 </odoo>
