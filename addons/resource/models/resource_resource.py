@@ -168,10 +168,16 @@ class ResourceResource(models.Model):
         result = {}
         for resource in self:
             resource_tz = timezone(resource.tz)
-            start, end = start.astimezone(resource_tz), end.astimezone(resource_tz)
+            # Localize into per-iteration names.  Rebinding the outer ``start``
+            # / ``end`` here worked only because ``astimezone`` preserves the
+            # instant; it left every later resource reading a value already
+            # converted for the previous one, which is a trap for any future
+            # edit that derives a wall-clock value before re-converting.
+            local_start = start.astimezone(resource_tz)
+            local_end = end.astimezone(resource_tz)
             search_range = [
-                start + relativedelta(hour=0, minute=0, second=0),
-                end + relativedelta(days=1, hour=0, minute=0, second=0),
+                local_start + relativedelta(hour=0, minute=0, second=0),
+                local_end + relativedelta(days=1, hour=0, minute=0, second=0),
             ]
             calendar = (
                 resource.calendar_id
@@ -179,14 +185,14 @@ class ResourceResource(models.Model):
                 or self.env.company.resource_calendar_id
             )
             calendar_start = calendar._get_closest_work_time(
-                start,
+                local_start,
                 resource=resource,
                 search_range=search_range,
                 compute_leaves=compute_leaves,
             )
-            search_range[0] = start
+            search_range[0] = local_start
             calendar_end = calendar._get_closest_work_time(
-                max(start, end),
+                max(local_start, local_end),
                 match_end=True,
                 resource=resource,
                 search_range=search_range,

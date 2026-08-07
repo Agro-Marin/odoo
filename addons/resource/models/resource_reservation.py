@@ -6,7 +6,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.intervals import Intervals
 from odoo.tools import SQL
-from odoo.tools.date_utils import localized
+from odoo.tools.date_utils import localized, sum_intervals
 
 
 class ResourceReservation(models.Model):
@@ -28,13 +28,23 @@ class ResourceReservation(models.Model):
     _description = "Resource Reservation"
     _inherit = ["resource.scheduling.tools"]
     _order = "date_start"
+    # ``check_company=True`` on a field is inert on its own — the ORM only runs
+    # ``_check_company`` from create/write when the model opts in here.
+    _check_company_auto = True
 
     # ---- Identity ----
     name = fields.Char(required=True)
     active = fields.Boolean(default=True)
+    # No ``default=``: a default counts as an explicit value and would beat the
+    # precompute, which is exactly how bookings ended up stamped with the
+    # acting user's company instead of the resource's.
     company_id = fields.Many2one(
         "res.company",
-        default=lambda self: self.env.company,
+        compute="_compute_company_id",
+        store=True,
+        readonly=False,
+        precompute=True,
+        index="btree_not_null",
     )
 
     # ---- Scheduling date fields ----
@@ -52,6 +62,7 @@ class ResourceReservation(models.Model):
         "resource.resource",
         "Resource",
         index=True,
+        check_company=True,
         help="The resource (person, equipment) assigned to this schedule.",
     )
     resource_calendar_id = fields.Many2one(
@@ -60,6 +71,7 @@ class ResourceReservation(models.Model):
         compute="_compute_resource_calendar_id",
         store=True,
         readonly=False,
+        check_company=True,
     )
 
     # ---- Allocation ----
@@ -153,8 +165,36 @@ class ResourceReservation(models.Model):
         ``active`` and ``enforcement_mode`` are triggers too: unarchiving a
         reservation re-asserts its claim on the resource, and switching to
         ``hard`` opts in to blocking — both must re-validate.
+
+        Validation is not limited to the records being written.  A ``hard``
+        reservation is a claim *against everyone*, so a record moving into its
+        window must be refused even when that record is itself ``soft`` — and
+        ``soft`` is the default every consumer creates.  Checking only ``self``
+        meant a "Block" slot was trivially overrun by creating or rescheduling
+        the conflicting booking second; only the mirror case (the hard record
+        moving) was caught.
         """
-        hard = self.filtered(lambda r: r.active and r.enforcement_mode == "hard")
+        live = self.filtered(
+            lambda r: r.active and r.resource_id and r.date_start and r.date_end
+        )
+        hard = live.filtered(lambda r: r.enforcement_mode == "hard")
+
+        # Hard reservations, not in this batch, whose slot these records intrude on.
+        if live:
+            hard |= (
+                self.sudo()
+                .search(
+                    [
+                        ("id", "not in", live.ids),
+                        ("active", "=", True),
+                        ("enforcement_mode", "=", "hard"),
+                        ("resource_id", "in", live.resource_id.ids),
+                        ("date_start", "<", max(live.mapped("date_end"))),
+                        ("date_end", ">", min(live.mapped("date_start"))),
+                    ]
+                )
+                .with_env(self.env)
+            )
         if not hard:
             return
         # Recompute overlap counts (flushes internally before SQL)
@@ -172,6 +212,23 @@ class ResourceReservation(models.Model):
     # ------------------------------------------------------------------
     # Compute
     # ------------------------------------------------------------------
+
+    @api.depends("resource_id.company_id")
+    def _compute_company_id(self):
+        """Inherit the booked resource's company.
+
+        A reservation is a claim on a *resource*, so it belongs to that
+        resource's company.  Defaulting to ``env.company`` instead let a user
+        acting in company B book a company-A resource; the multi-company rule
+        then hid that booking from company A, whose users saw the resource as
+        free while it was in fact taken.  ``check_company`` on ``resource_id``
+        now rejects the mismatch outright, and this keeps the common path from
+        ever hitting it.
+        """
+        for record in self:
+            record.company_id = (
+                record.resource_id.company_id or record.company_id or self.env.company
+            )
 
     @api.depends("resource_id", "resource_id.calendar_id", "company_id")
     def _compute_resource_calendar_id(self):
@@ -196,23 +253,111 @@ class ResourceReservation(models.Model):
 
         Respects the resource calendar (including flexible resources) and
         applies ``allocated_percentage`` to scale the result.
-        """
-        for record in self:
-            if not record.date_start or not record.date_end:
-                record.allocated_hours = 0.0
-                continue
-            work_hours = record._scheduling_get_work_hours(
-                record.date_start,
-                record.date_end,
-                resource=record.resource_id,
-                calendar=record.resource_calendar_id,
-            )
-            pct = record.allocated_percentage
-            record.allocated_hours = round(work_hours * pct / 100.0, 2)
 
-    @api.depends("date_start", "date_end", "resource_id", "allocated_percentage")
+        Records sharing a resource *and* calendar are resolved together: the
+        work intervals are fetched once for the group's union window and each
+        record is then measured against that cached set.  Computing per record
+        cost ~2 extra queries each (167 queries for 80 reservations, against 5
+        when the value is supplied), which is pure overhead whenever a
+        consumer syncs a batch of reservations.
+
+        Flexible resources keep the per-record path: their synthesized
+        intervals depend on the queried window, so a group-wide window would
+        not give the same answer as the individual ones.
+        """
+        undated = self.filtered(lambda r: not r.date_start or not r.date_end)
+        undated.allocated_hours = 0.0
+        dated = self - undated
+        if not dated:
+            return
+
+        flexible = dated.filtered(
+            lambda r: r.resource_id and r.resource_id._is_flexible()
+        )
+        for record in flexible:
+            record.allocated_hours = record._scale_allocation(
+                record._scheduling_get_work_hours(
+                    record.date_start,
+                    record.date_end,
+                    resource=record.resource_id,
+                    calendar=record.resource_calendar_id,
+                )
+            )
+
+        # Group by *calendar*, not by (calendar, resource): the underlying
+        # ``_get_valid_work_intervals`` already resolves many resources in one
+        # go, so one group per calendar collapses the whole batch into a
+        # handful of queries.  Grouping per resource would leave one round trip
+        # per record, which is the very cost this avoids.
+        groups = defaultdict(self.browse)
+        for record in dated - flexible:
+            groups[record.resource_calendar_id] |= record
+
+        attendance = self.env["resource.calendar.attendance"]
+        for calendar, records in groups.items():
+            window_start = localized(min(records.mapped("date_start")))
+            window_end = localized(max(records.mapped("date_end")))
+
+            resources = records.resource_id
+            intervals_per_resource = {}
+            if resources:
+                intervals_per_resource, _calendar_intervals = (
+                    resources._get_valid_work_intervals(
+                        window_start,
+                        window_end,
+                        calendars=(calendar,) if calendar else None,
+                    )
+                )
+            calendar_intervals = None
+            if len(records.filtered(lambda r: not r.resource_id)) and calendar:
+                calendar_intervals = calendar._work_intervals_batch(
+                    window_start, window_end
+                )[False]
+
+            for record in records:
+                if record.resource_id:
+                    intervals = intervals_per_resource.get(record.resource_id.id)
+                elif calendar_intervals is not None:
+                    intervals = calendar_intervals
+                else:
+                    # No resource and no calendar: fall back to raw elapsed time.
+                    span = localized(record.date_end) - localized(record.date_start)
+                    record.allocated_hours = record._scale_allocation(
+                        span.total_seconds() / 3600.0
+                    )
+                    continue
+                clipped = (intervals or Intervals()) & Intervals(
+                    [
+                        (
+                            localized(record.date_start),
+                            localized(record.date_end),
+                            attendance,
+                        )
+                    ]
+                )
+                record.allocated_hours = record._scale_allocation(
+                    sum_intervals(clipped)
+                )
+
+    def _scale_allocation(self, work_hours):
+        """Apply ``allocated_percentage`` to a raw working-hours figure."""
+        self.ensure_one()
+        return round(work_hours * self.allocated_percentage / 100.0, 2)
+
+    @api.depends(
+        "date_start", "date_end", "resource_id", "allocated_percentage", "active"
+    )
     def _compute_schedule_overlap_count(self):
         """Sweep-line overlap detection for same-resource schedule conflicts.
+
+        .. note::
+           The value depends on *sibling rows*, which ``@api.depends`` cannot
+           express: archiving or moving another reservation does not
+           invalidate this one's cached count within the same transaction.
+           A fresh read (the normal request path) is always correct, and
+           ``_check_hard_overlap`` recomputes explicitly rather than trusting
+           the cache.  ``active`` is listed so at least the record's own
+           archive flip invalidates it.
 
         A reservation is in conflict when, at some instant within its window,
         the *cumulative* allocation of all active reservations on the same
@@ -250,9 +395,17 @@ class ResourceReservation(models.Model):
         self.flush_model(
             ["date_start", "date_end", "resource_id", "allocated_percentage", "active"]
         )
-        # Fetch every active, dated reservation for the involved resources in a
-        # single query, then sweep each resource's timeline in Python (the row
-        # count per resource is small in practice).
+        # Fetch the potentially-conflicting rows in a single query, then sweep
+        # each resource's timeline in Python.
+        #
+        # The window bound matters: without it the query returned every
+        # reservation the resource ever had, so computing the count for one
+        # 2025 booking pulled in bookings from years earlier and the cost grew
+        # with the resource's whole history instead of with the period under
+        # test.  Only rows intersecting the union window of ``stored`` can
+        # possibly overlap one of them.
+        window_start = min(stored.mapped("date_start"))
+        window_end = max(stored.mapped("date_end"))
         self.env.cr.execute(
             SQL(
                 """
@@ -263,9 +416,13 @@ class ResourceReservation(models.Model):
                    AND active
                    AND date_start IS NOT NULL
                    AND date_end IS NOT NULL
+                   AND date_start < %s
+                   AND date_end > %s
                 """,
                 SQL.identifier(self._table),
                 list(set(stored.resource_id.ids)),
+                window_end,
+                window_start,
             )
         )
         rows_by_resource = defaultdict(list)
@@ -285,22 +442,46 @@ class ResourceReservation(models.Model):
         every maximal over-100% region begins exactly at some start boundary;
         evaluating the covering set at each start instant is therefore
         sufficient to find all conflicts.
+
+        This walks the boundaries once (O(n log n) for the sort, then O(1)
+        amortised bookkeeping per event) instead of rescanning every row at
+        every distinct start, which was quadratic *regardless* of whether any
+        conflict existed — 2 000 bookings on one resource cost ~140 ms of pure
+        rescanning.  Now the only super-linear term is the conflict output
+        itself, which is empty in the healthy case.
+
+        Intervals are half-open: a booking ending exactly when another starts
+        does not overlap it, so ``close`` events are applied before ``open``
+        events at the same instant.
         """
         partners = defaultdict(set)
         for rows in rows_by_resource.values():
-            starts = sorted({row[1] for row in rows})
-            for instant in starts:
-                covering = [
-                    (res_id, pct)
-                    for res_id, date_start, date_end, pct in rows
-                    if date_start <= instant < date_end
-                ]
-                if sum(pct for _res_id, pct in covering) <= 100:
+            events = []
+            for res_id, date_start, date_end, pct in rows:
+                if date_end <= date_start:
+                    # Zero-length bookings cover no instant.
                     continue
-                ids_here = [res_id for res_id, _pct in covering]
-                for res_id in ids_here:
-                    partners[res_id].update(
-                        other for other in ids_here if other != res_id
+                events.append((date_start, 1, res_id, pct))
+                events.append((date_end, 0, res_id, pct))
+            # (instant, kind) with kind 0 = close sorts before kind 1 = open.
+            events.sort(key=lambda event: (event[0], event[1]))
+
+            active = {}
+            for _instant, kind, res_id, pct in events:
+                if not kind:
+                    active.pop(res_id, None)
+                    continue
+                active[res_id] = pct
+                # Re-sum rather than keeping a running total: the values are
+                # floats and a running total would accumulate drift across
+                # thousands of events, eventually mis-classifying an exact
+                # 50 + 50 = 100 as a conflict.
+                if sum(active.values()) <= 100:
+                    continue
+                ids_here = list(active)
+                for other_id in ids_here:
+                    partners[other_id].update(
+                        peer for peer in ids_here if peer != other_id
                     )
         return partners
 

@@ -115,7 +115,11 @@ class ResourceCalendarLeaves(models.Model):
         # leave's real company — so it end-dated every leave in the wrong tz.  The
         # leave's own ``calendar_id`` is provided in vals and carries a required
         # ``tz``, making it the reliable, correct source.
-        user_tz_name = self.env.user.tz or self.env.context.get("tz")
+        # Context tz first, then the user's own: an explicit context tz is how
+        # a caller states "interpret this in that timezone", so it must win
+        # over the acting user's profile rather than be a fallback for it —
+        # which is what the paragraph above already claimed the code did.
+        user_tz_name = self.env.context.get("tz") or self.env.user.tz
         for leave in self:
             if not leave.date_from or (
                 leave.date_to and leave.date_to > leave.date_from

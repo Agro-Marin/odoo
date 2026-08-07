@@ -30,7 +30,13 @@ class ResUsers(models.Model):
         ):
             if self.resource_calendar_id:
                 self.resource_calendar_id.tz = vals["tz"]
-            else:
-                self.env.ref("resource.resource_calendar_std", False).tz = vals["tz"]
+            elif default_calendar := self.env.ref(
+                "resource.resource_calendar_std", False
+            ):
+                # env.ref(..., False) yields None, not an empty recordset, so
+                # assigning through it raised AttributeError once the xmlid was
+                # gone (deleted demo data, a pruned data record) instead of
+                # quietly skipping the convenience update.
+                default_calendar.tz = vals["tz"]
 
         return rslt
