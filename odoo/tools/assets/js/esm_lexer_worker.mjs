@@ -1,5 +1,5 @@
-import { createInterface } from "node:readline";
 import { init, parse } from "es-module-lexer";
+import { createInterface } from "node:readline";
 
 await init;
 

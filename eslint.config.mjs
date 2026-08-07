@@ -282,7 +282,15 @@ const COMMUNITY_NO_CONSOLE_MODULES = [
  */
 export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
     // Build file globs: "addons/web/**/*.js" etc.
-    const allModuleGlobs = modules.map((m) => `${m}/**/*.js`);
+    //
+    // `.mjs` is included deliberately. Node-side code in the tree (the asset
+    // pipeline's es-module-lexer worker, tooling helpers) is written as `.mjs`,
+    // and a bare `*.js` glob left those files matched ONLY by the repo-wide
+    // `js.configs.recommended` + prettier — silently exempt from eqeqeq,
+    // no-var, prefer-const, curly, arrow-body-style, simple-import-sort and
+    // no-restricted-globals. They looked linted (eslint reported them, clean)
+    // while the half of the ruleset that carries the standards never ran.
+    const allModuleGlobs = modules.map((m) => `${m}/**/*.{js,mjs}`);
 
     return [
     // =========================================================================
