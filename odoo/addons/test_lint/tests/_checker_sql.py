@@ -2,7 +2,6 @@ import ast
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
 
 CURSOR_EXPRESSIONS = frozenset(
     {
@@ -72,28 +71,47 @@ class SqlInjectionChecker:
     #: ``id(scope) -> {names referenced inside an assert}``. See
     #: :meth:`_is_asserted`.
     _assert_cache: dict[int, set[str]] = field(default_factory=dict, init=False)
+    #: Test code, which builds queries freely and ships nothing. Passed in
+    #: rather than derived from the path: three checkers used to derive it and
+    #: all three disagreed, so ``addons/base/tests/common.py`` was scanned by
+    #: this one and by neither of the others. See :func:`_py_scan.is_test_path`.
+    is_test: bool = False
+
     #: ``id(module) -> {name: value}`` for top-level assignments. See
     #: :meth:`_module_constant`.
     _module_const_cache: dict[int, dict[str, ast.expr]] = field(
         default_factory=dict, init=False
     )
-    _is_test_file: bool = field(default=False, init=False)
-
-    def __post_init__(self) -> None:
-        # Answered once instead of rebuilding a `Path` for every call node.
-        self._is_test_file = Path(self.filepath).name.startswith("test_")
+    #: Names and nodes currently being resolved, so a definition that mentions
+    #: itself terminates. See :meth:`_check_name_constexpr`.
+    _resolving_names: set[tuple[int, str]] = field(default_factory=set, init=False)
+    _resolving_nodes: set[int] = field(default_factory=set, init=False)
 
     def check(self, tree: ast.Module) -> Iterator[Violation]:
-        yield from self._walk(tree)
+        """Walk *tree* and yield SQL injection violations.
 
-    def _walk(self, node: ast.AST) -> Iterator[Violation]:
-        match node:
-            case ast.Call():
-                yield from self._visit_call(node)
-            case ast.FunctionDef() | ast.AsyncFunctionDef():
-                yield from self._visit_functiondef(node)
-        for child in ast.iter_child_nodes(node):
-            yield from self._walk(child)
+        Requires :func:`annotate_parents` to have been called on *tree*. Callers
+        that already hold a parent-annotated node list should use
+        :meth:`check_nodes` instead and save the traversal.
+        """
+        yield from self.check_nodes(_walk_pre_order(tree))
+
+    def check_nodes(self, nodes: list[ast.AST]) -> Iterator[Violation]:
+        """Yield violations for an already-materialised depth-first pre-order walk.
+
+        Order is part of the contract, not an implementation detail: a call to a
+        function defined further down the file is re-judged when that definition
+        is reached, using the call sites recorded so far. Handed a differently
+        ordered list, the checker still terminates and still reports -- it just
+        answers a slightly different question about which definitions it had
+        seen.
+        """
+        for node in nodes:
+            match node:
+                case ast.Call():
+                    yield from self._visit_call(node)
+                case ast.FunctionDef() | ast.AsyncFunctionDef():
+                    yield from self._visit_functiondef(node)
 
     def _visit_call(self, node: ast.Call) -> Iterator[Violation]:
         if self._check_sql_injection_risky(node):
@@ -101,7 +119,7 @@ class SqlInjectionChecker:
 
     def _visit_functiondef(self, node: ast.FunctionDef) -> Iterator[Violation]:
         """Record function definitions and re-evaluate earlier call sites."""
-        if self._is_test_file:
+        if self.is_test:
             return
 
         self._function_defs[node.name].append(node)
@@ -116,7 +134,7 @@ class SqlInjectionChecker:
 
     def _check_sql_injection_risky(self, node: ast.Call) -> bool:
         """Return True if *node* is a risky SQL call."""
-        if self._is_test_file:
+        if self.is_test:
             return False
 
         if not node.args:
@@ -142,11 +160,31 @@ class SqlInjectionChecker:
         return True
 
     def _check_concatenation(self, node: ast.expr) -> bool | None:
+        """Check if *node* is an unsafe string construction.
+
+        Returns True (injection), False (safe), or None (unknown/not applicable).
+
+        A name resolved to an expression mentioning itself -- ``where_clause =
+        "(%s) AND (%s)" % (where_clause, …)``, in ``mail_followers`` -- walks
+        back into this method on the same node forever. Re-entry answers
+        "unknown", which leaves the caller to treat the query as risky. It is a
+        real accumulation and the caller cannot see what went into it, so that
+        is the right answer as well as a terminating one.
+        """
         node = self._resolve(node)
 
         if self._allowable(node):
             return False
 
+        if id(node) in self._resolving_nodes:
+            return None
+        self._resolving_nodes.add(id(node))
+        try:
+            return self._check_concatenation_inner(node)
+        finally:
+            self._resolving_nodes.discard(id(node))
+
+    def _check_concatenation_inner(self, node: ast.expr) -> bool | None:
         match node:
             case ast.BinOp(op=ast.Mod() | ast.Add()):
                 match node.right:
@@ -312,10 +350,39 @@ class SqlInjectionChecker:
         *,
         args_allowed: bool = False,
     ) -> bool:
+        """Evaluate whether a variable reference resolves to a constant.
+
+        A name whose own definition mentions it -- ``where_clause = "…" %
+        (where_clause, …)`` -- resolves through here into itself, with no base
+        case: the checker recursed until the interpreter stopped it, and the
+        scan then dropped the **whole file** with a warning. Re-entry answers
+        "not constant", which is both terminating and true: a value built by
+        accumulating onto itself is not a compile-time constant.
+
+        Previously unreachable, because every such accumulation this repository
+        has is written inside a private method, and those were exempt outright.
+        """
         scope = self._find_enclosing_scope(node)
         if scope is None:
             return False
 
+        key = (id(scope), name)
+        if key in self._resolving_names:
+            return False
+        self._resolving_names.add(key)
+        try:
+            return self._resolve_name(node, name, scope, args_allowed=args_allowed)
+        finally:
+            self._resolving_names.discard(key)
+
+    def _resolve_name(
+        self,
+        node: ast.Name,
+        name: str,
+        scope: ast.AST,
+        *,
+        args_allowed: bool = False,
+    ) -> bool:
         assigned_results: list[bool] = []
 
         for assign_node in self._find_assignments(scope, name):
@@ -468,12 +535,25 @@ class SqlInjectionChecker:
         return result
 
     def _allowable(self, node: ast.expr) -> bool:
-        scope = self._find_enclosing_scope(node)
-        if isinstance(scope, ast.FunctionDef) and (
-            scope.name.startswith("_") or scope.name == "init"
-        ):
-            return True
+        """Return True if *node* is safe to include in SQL construction.
 
+        **Being inside a private method is not a reason.** This used to open
+        with ``if scope.name.startswith("_"): return True``, inherited from the
+        pylint-odoo checker, and in a codebase where the convention is that
+        every model method is ``_``-prefixed it exempted 1 366 of the 2 703
+        query-construction sites in this repository -- half the surface, and
+        the half most likely to be doing the interesting work. Reachability
+        from RPC is not what makes a query injectable; the value it is built
+        from is.
+
+        Dropping it takes the rule from 16 findings to 43, which is a size a
+        ratchet can carry. The pattern it was really there to permit --
+        ``f'UPDATE "{self._table}" SET "{column_name}" = %s'``, an identifier
+        that cannot be a bound parameter -- is still permitted where it is
+        written from ``self._*``, and where it comes from an argument it is now
+        reported, which is correct: that is the shape a caller can control.
+        Each such site says so with ``# noqa: sql-injection <why>``.
+        """
         if self._looks_like_psycopg(node):
             return True
 
@@ -633,19 +713,25 @@ class SqlInjectionChecker:
         return False
 
 
+def _walk_pre_order(tree: ast.AST) -> list[ast.AST]:
+    """Depth-first pre-order node list, matching what the shared scan produces."""
+    nodes: list[ast.AST] = []
+    stack: list[ast.AST] = [tree]
+    while stack:
+        node = stack.pop()
+        nodes.append(node)
+        stack.extend(reversed(list(ast.iter_child_nodes(node))))
+    return nodes
+
+
 def annotate_parents(tree: ast.AST) -> None:
+    """Add ``_parent`` attribute to every node in the AST.
+
+    Required by :meth:`SqlInjectionChecker._find_enclosing_scope`. The shared
+    corpus scan hangs these links during the one traversal it already makes
+    (:func:`_py_scan.walk_with_parents`); this is for the standalone entry
+    points, which have no such walk to piggyback on.
+    """
     for node in ast.walk(tree):
         for child in ast.iter_child_nodes(node):
             child._parent = node
-
-
-def check_file(filepath: str, source: bytes | str | None = None) -> list[Violation]:
-    if source is None:
-        source = Path(filepath).read_bytes()
-    try:
-        tree = ast.parse(source, filepath)
-    except SyntaxError:
-        return []
-    annotate_parents(tree)
-    checker = SqlInjectionChecker(filepath)
-    return list(checker.check(tree))

@@ -55,11 +55,12 @@ def _has_self_root(node: ast.expr) -> bool:
     return False
 
 
-def check(tree: ast.Module, filepath: str = "", nodes=None) -> Iterator[Violation]:
+def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
     """Walk *tree* and yield N+1 query violations.
 
-    Skips test files and test directories since test code often uses loops
-    for readability over performance.
+    Whether the file is test code -- where a loop is often the readable choice
+    and the performance does not matter -- is the scan's decision, not this
+    checker's: see :func:`_py_scan.is_test_path`.
 
     Only the **outermost** ``for`` of a nest is used as the entry point. Every
     ``for`` used to be its own entry, and since the subtree walk descends into
@@ -70,14 +71,11 @@ def check(tree: ast.Module, filepath: str = "", nodes=None) -> Iterator[Violatio
     *nodes* is an already-materialised ``ast.walk(tree)`` shared with the other
     checkers.
     """
-    if filepath and (
-        filepath.rsplit("/", 1)[-1].startswith("test_") or "/tests/" in filepath
-    ):
-        return iter(())
-
-    # `ast.walk` is breadth-first, so an enclosing `for` is always seen before
-    # the ones nested in it. Marking the nested ones as we descend therefore
-    # costs one set insertion, and needs no second traversal to find them.
+    # Both `ast.walk` (breadth-first) and the shared scan's traversal
+    # (depth-first pre-order) visit a node before its descendants, so an
+    # enclosing `for` is always seen before the ones nested in it. Marking the
+    # nested ones as we descend therefore costs one set insertion, and needs no
+    # second traversal to find them.
     nested: set[int] = set()
     violations: list[Violation] = []
     for node in nodes if nodes is not None else ast.walk(tree):

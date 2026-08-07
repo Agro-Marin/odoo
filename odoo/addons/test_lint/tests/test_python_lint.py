@@ -9,6 +9,10 @@ See :mod:`_py_scan` for the measurements and :mod:`_suppression` for what
 Standard lint rules are ruff's job (``ruff.toml``, ratcheted in CI). What lives
 here is the set of Odoo-specific rules no general linter knows about.
 
+The same division settles JavaScript: ESLint owns it, as a blocking ratchet in
+CI (``.github/workflows/lint.yml`` against ``tooling/ratchet/baselines/``), so
+this module carries no JS gate of its own.
+
 **Every rule is a ratchet, and that is the point.** The suite this replaces
 failed 3 562 times on a clean checkout -- most of it against sibling checkouts
 the fork must not edit, but 1 585 findings in its own code too. A gate that is
@@ -21,9 +25,8 @@ because lowering the count without committing the new floor fails too. Same
 mechanism as ``tooling/ratchet`` and ``SINGLE_BUNDLE_GAP_FLOOR``.
 """
 
-from odoo.tests.common import BaseCase, no_retry
-
 from . import _py_scan
+from .lint_case import LintCase
 
 #: Findings currently present in the code this fork owns (addons + framework).
 #: Exact match: raising one of these is a regression, lowering one is progress
@@ -33,17 +36,35 @@ from . import _py_scan
 #: independent -- it is read off the addons path, not out of the registry -- so
 #: these numbers do not move with what happens to be installed.
 FLOORS = {
-    "sql-injection": 15,
+    "sql-injection": 43,
     "gettext-variable": 1,
-    "gettext-placeholders": 4,
+    "gettext-placeholders": 5,
     "gettext-repr": 8,
     "missing-gettext": 20,
     "raise-unlink-override": 1,
     "orm-import": 0,
     "onchange-domain": 0,
     "noqa-rationale": 79,
-    "n-plus-one-query": 418,
+    "n-plus-one-query": 417,
 }
+
+#: ``sql-injection`` was 15 and is 43. Nothing regressed: the checker stopped
+#: exempting every ``_``-prefixed function, which in a codebase where that is
+#: the convention for *all* model methods had been hiding 1 366 of 2 703 query
+#: construction sites -- and it stopped recursing forever on a value built by
+#: accumulating onto itself (``where_clause = "…" % (where_clause, …)``), which
+#: had been dropping a whole file from the scan with a warning.
+#:
+#: ``n-plus-one-query`` went 418 -> 417 and the gettext rules did not move: the
+#: three private definitions of "is this a test file" became one, which for
+#: those rules is the scope the gettext checker already had.
+#:
+#: ``gettext-placeholders`` went 4 -> 5 because the placeholder regex now uses
+#: the conversion types Python's ``%`` operator actually has. It was missing
+#: ``i``, ``u`` and ``a``, so ``l10n_ar``'s ``_('No VAT configured for partner
+#: [%i] %s', …)`` -- two unnamed placeholders, the precise thing this rule is
+#: for -- had never been counted.
+
 
 _ADVICE = {
     "sql-injection": (
@@ -72,8 +93,8 @@ _ADVICE = {
 }
 
 
-@no_retry
-class TestPythonLint(BaseCase):
+# `LintCase` already carries `@no_retry`.
+class TestPythonLint(LintCase):
     """Odoo-specific AST rules, checked against the code this fork owns."""
 
     maxDiff = None
@@ -86,23 +107,19 @@ class TestPythonLint(BaseCase):
         _py_scan.findings()
 
     def _assert_ratchet(self, rule):
-        found = _py_scan.findings().get(rule, [])
-        floor = FLOORS[rule]
-
-        if len(found) > floor:
-            self.fail(
-                f"{len(found)} {rule} finding(s), floor is {floor}. "
-                f"{_ADVICE[rule]}.\n  "
-                + "\n  ".join(
-                    str(f) for f in sorted(found, key=lambda f: (f.path, f.lineno))
-                )
-            )
-        if len(found) < floor:
-            self.fail(
-                f"{len(found)} {rule} finding(s) but the floor is {floor}. The "
-                f"debt went down -- set FLOORS[{rule!r}] = {len(found)} in this "
-                f"same change, so it cannot come back unnoticed."
-            )
+        # One implementation of the ratchet, on `LintCase`. There were two, with
+        # different wording and different truncation, and a gate that reports its
+        # debt differently depending on which one it inherited is a gate people
+        # learn to read selectively.
+        self.assert_ratchet(
+            sorted(
+                _py_scan.findings().get(rule, []),
+                key=lambda f: (f.path, f.lineno),
+            ),
+            FLOORS[rule],
+            f"{rule} finding(s)",
+            f"{_ADVICE[rule]}.",
+        )
 
     def test_sql_injection(self):
         """No query may be built from a value that is not a compile-time constant."""
@@ -164,6 +181,18 @@ class TestPythonLint(BaseCase):
             sorted(FLOORS.keys() - _py_scan.RULES),
             [],
             "these floors name a rule no checker produces",
+        )
+        # The direction that was missing. The two checks above compare the
+        # floors against the rules that *fired* and against `RULES`; neither
+        # notices a rule declared in `RULES` with no floor, because a rule with
+        # no findings never reaches `findings()`. A new checker that happens to
+        # be clean on the day it lands would therefore go in ungated, and only
+        # start being enforced once it broke something.
+        self.assertEqual(
+            sorted(_py_scan.RULES - FLOORS.keys()),
+            [],
+            "these rules exist but have no committed floor, so nothing holds "
+            "them at zero",
         )
 
     def test_the_corpus_is_not_empty(self):

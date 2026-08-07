@@ -75,12 +75,62 @@ class Unit:
     path: str
     source: str
     tree: ast.Module
-    #: ``ast.walk(tree)`` materialised. Traversing the tree, not analysing it,
-    #: was most of what the checkers cost: unlink 4.2 s, onchange 4.7 s, batch
-    #: 2.5 s, gettext 2.2 s, orm-import 2.2 s over the corpus, and each of those
-    #: figures is dominated by its own private ``ast.walk``. One walk, shared.
+    #: Every node of the tree, in depth-first pre-order, with ``_parent`` set on
+    #: each. Traversing the tree, not analysing it, is nearly all of what the
+    #: checkers cost -- the SQL one spends 8.1 s of its 8.3 s in ``ast`` walking
+    #: machinery and 0.17 s deciding anything -- so the traversal happens once.
+    #:
+    #: It used to happen three times per file on the SQL path alone: this walk,
+    #: then ``annotate_parents`` to hang parent links (4.8 s over the corpus),
+    #: then the checker's own recursive descent (3.3 s). Doing all three jobs in
+    #: this one pass costs 3.5 s and finds the same violations.
+    #:
+    #: Pre-order matters twice over. The SQL checker re-evaluates a call site
+    #: when it later meets the function it called, which is the order its own
+    #: descent produced; and the batch checker relies on an enclosing ``for``
+    #: being seen before the ones nested inside it, which pre-order gives just
+    #: as breadth-first did.
     nodes: list[ast.AST]
     in_module: bool
+    #: Test code, by :func:`is_test_path`. Answered once here rather than three
+    #: different ways in three checkers.
+    is_test: bool = False
+
+
+def is_test_path(path: str) -> bool:
+    """Whether *path* holds test code, for every rule that exempts it.
+
+    There were three answers to this question and they disagreed. The SQL
+    checker asked whether the *basename* started with ``test_``; gettext asked
+    whether ``/test_`` or ``/tests/`` appeared anywhere in the path; the batch
+    checker asked for the basename *or* ``/tests/``. So
+    ``addons/base/tests/common.py`` -- a test helper by any reading -- was
+    scanned for SQL injection and by nothing else, and which rules applied to a
+    file depended on which checker happened to be looking.
+
+    One definition, the union of the three: any path component named ``tests``
+    or starting with ``test_``. That covers a ``tests`` directory, a
+    ``test_*.py`` module, and a whole ``test_*`` addon -- which matters,
+    because ``test_mail``'s and ``test_orm``'s models are scaffolding for the
+    suite and nothing else. The gettext checker had them by accident, through
+    ``"/test_" in filepath``; stating it deliberately is what lets the other
+    rules agree.
+    """
+    return any(part == "tests" or part.startswith("test_") for part in path.split("/"))
+
+
+def walk_with_parents(tree: ast.AST) -> list[ast.AST]:
+    """Depth-first pre-order node list, with ``_parent`` set on every child."""
+    nodes: list[ast.AST] = []
+    stack: list[ast.AST] = [tree]
+    while stack:
+        node = stack.pop()
+        nodes.append(node)
+        children = list(ast.iter_child_nodes(node))
+        for child in children:
+            child._parent = node
+        stack.extend(reversed(children))
+    return nodes
 
 
 #: Every rule name a checker here can emit. Stated rather than derived, because
@@ -115,10 +165,11 @@ _NOQA_SELF = (
 
 
 def _sql(unit: Unit) -> Iterator[object]:
-    # Not driven by `unit.nodes`: this checker carries per-node state and
-    # resolves names against an enclosing scope, so it owns its traversal.
-    _checker_sql.annotate_parents(unit.tree)
-    yield from _checker_sql.SqlInjectionChecker(unit.path).check(unit.tree)
+    # The parent links this checker resolves scopes through are already on the
+    # nodes, hung by `walk_with_parents` during the one traversal every checker
+    # shares. It used to walk the tree twice more for them.
+    checker = _checker_sql.SqlInjectionChecker(unit.path, is_test=unit.is_test)
+    yield from checker.check_nodes(unit.nodes)
 
 
 #: ``(rule, runner, scope)``. *rule* is the reported name -- or ``None`` when
@@ -127,11 +178,11 @@ def _sql(unit: Unit) -> Iterator[object]:
 _CHECKERS: list[
     tuple[str | None, Callable[[Unit], Iterator], Callable[[Unit], bool]]
 ] = [
-    ("sql-injection", _sql, lambda u: True),
+    ("sql-injection", _sql, lambda u: not u.is_test),
     (
         None,
-        lambda u: _checker_gettext.check(u.tree, u.path, u.nodes),
-        lambda u: True,
+        lambda u: _checker_gettext.check(u.tree, u.nodes),
+        lambda u: not u.is_test,
     ),
     (
         "raise-unlink-override",
@@ -140,8 +191,8 @@ _CHECKERS: list[
     ),
     (
         "n-plus-one-query",
-        lambda u: _checker_batch.check(u.tree, u.path, u.nodes),
-        lambda u: True,
+        lambda u: _checker_batch.check(u.tree, u.nodes),
+        lambda u: not u.is_test,
     ),
     (
         "noqa-rationale",
@@ -149,11 +200,12 @@ _CHECKERS: list[
         lambda u: not u.path.endswith(_NOQA_SELF),
     ),
     # An addon rule: the framework may of course import its own internals, and
-    # `odoo/orm/*.py` importing `odoo.orm` is not a finding.
+    # `odoo/orm/*.py` importing `odoo.orm` is not a finding. Test code is exempt
+    # too -- testing an ORM internal necessarily imports it.
     (
         "orm-import",
-        lambda u: _checker_orm_import.check(u.tree, u.path, u.nodes),
-        lambda u: u.in_module,
+        lambda u: _checker_orm_import.check(u.tree, u.nodes),
+        lambda u: u.in_module and not u.is_test,
     ),
     (
         "onchange-domain",
@@ -190,6 +242,15 @@ def corpus() -> tuple[Source, ...]:
     return tuple(sorted(sources, key=lambda s: s.path))
 
 
+def _source_line(text: str, lineno: int, limit: int = 110) -> str:
+    """The offending line of source, trimmed, for a checker that reports none."""
+    lines = text.split("\n")
+    if not 1 <= lineno <= len(lines):
+        return ""
+    line = lines[lineno - 1].strip()
+    return line if len(line) <= limit else line[: limit - 1] + "…"
+
+
 @functools.cache
 def findings() -> dict[str, list[Finding]]:
     """Run every Python checker over the corpus in a single parse pass.
@@ -208,7 +269,14 @@ def findings() -> dict[str, list[Finding]]:
         except OSError, SyntaxError, ValueError:
             parse_errors += 1
             continue
-        unit = Unit(entry.path, text, tree, list(ast.walk(tree)), entry.in_module)
+        unit = Unit(
+            entry.path,
+            text,
+            tree,
+            walk_with_parents(tree),
+            entry.in_module,
+            is_test_path(entry.path),
+        )
 
         for rule, runner, in_scope in _CHECKERS:
             if not in_scope(unit):
@@ -232,8 +300,14 @@ def findings() -> dict[str, list[Finding]]:
                     continue
                 # `raw` is the noqa checker's spelling; it carries the offending
                 # source line, which is the only useful thing to print for it.
-                message = getattr(violation, "message", "") or getattr(
-                    violation, "raw", ""
+                # Failing both, the source line is still better than nothing:
+                # the SQL rule reported bare `path:lineno` and left the reader
+                # to go and look, which is the whole triage cost of a rule
+                # whose floor is 43.
+                message = (
+                    getattr(violation, "message", "")
+                    or getattr(violation, "raw", "")
+                    or _source_line(text, lineno)
                 )
                 by_rule.setdefault(name, []).append(
                     Finding(entry.path, lineno, name, message.strip())

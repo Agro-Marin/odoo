@@ -49,7 +49,7 @@ class TestSuppression(BaseCase):
         )
 
     def test_rule_name_and_numeric_alias_are_equivalent(self):
-        for code in ("E8507", "n-plus-one-query"):
+        for code in ("E8507", "e8507", "n-plus-one-query"):
             with self.subTest(code=code):
                 self.assertTrue(
                     _suppression.is_suppressed(
@@ -58,6 +58,29 @@ class TestSuppression(BaseCase):
                         "n-plus-one-query",
                     )
                 )
+
+    def test_a_rule_named_in_full_scopes_the_suppression_too(self):
+        """The half of ``RULE_ALIASES`` that was unreachable, and worse.
+
+        Only ``[A-Z]+\\d+`` matched the code group, so a rule spelled by name
+        did not match it at all -- and an unmatched code group was read as a
+        bare ``# noqa``, which silences everything on the line. Asking for one
+        rule by its name therefore silenced *all* of them. The test above
+        passed on exactly that behaviour and could not tell the two apart,
+        because it only ever asked about the rule it had named.
+        """
+        line = "x  # noqa: sql-injection  the table name comes from _table"
+        self.assertTrue(_suppression.is_suppressed(line, 1, "sql-injection"))
+        self.assertFalse(
+            _suppression.is_suppressed(line, 1, "n-plus-one-query"),
+            "naming one rule must not waive the others on the line",
+        )
+
+    def test_an_unparseable_code_list_silences_nothing(self):
+        """A typo in a code list must not become a blanket waiver."""
+        self.assertFalse(
+            _suppression.is_suppressed("x  # noqa: !!!  see above", 1, "sql-injection")
+        )
 
     def test_pylint_disable_is_still_honoured(self):
         self.assertTrue(
@@ -81,9 +104,7 @@ class TestOrmImportLint(BaseCase):
     """Addon code reaches the ORM through the public facade."""
 
     def _check(self, snippet, filepath="models/thing.py"):
-        return list(
-            _checker_orm_import.check(ast.parse(dedent(snippet).strip()), filepath)
-        )
+        return list(_checker_orm_import.check(ast.parse(dedent(snippet).strip())))
 
     def test_direct_import_flagged(self):
         self.assertTrue(self._check("import odoo.orm.fields"))
@@ -93,12 +114,6 @@ class TestOrmImportLint(BaseCase):
     def test_facade_import_allowed(self):
         self.assertFalse(self._check("from odoo import api, fields, models"))
         self.assertFalse(self._check("import odoo.ormsomething"))
-
-    def test_tests_are_exempt_by_location(self):
-        """Testing an ORM internal necessarily imports it."""
-        self.assertFalse(
-            self._check("from odoo.orm import fields", "sale/tests/test_x.py")
-        )
 
     def test_string_mentioning_odoo_orm_is_not_an_import(self):
         """The previous line-regex version could not tell these apart."""
@@ -147,11 +162,14 @@ class TestOnchangeLint(BaseCase):
 
 @no_retry
 class TestSqlLint(BaseCase):
-    def _check(self, snippet, filepath="dummy.py"):
+    """Test the SQL injection checker."""
+
+    def _check(self, snippet, filepath="dummy.py", is_test=False):
+        """Parse snippet and return violations."""
         source = dedent(snippet).strip()
         tree = ast.parse(source)
         _checker_sql.annotate_parents(tree)
-        checker = _checker_sql.SqlInjectionChecker(filepath)
+        checker = _checker_sql.SqlInjectionChecker(filepath, is_test=is_test)
         return list(checker.check(tree))
 
     def test_printf(self):
@@ -316,6 +334,39 @@ class TestSqlLint(BaseCase):
         """)
         self.assertFalse(violations)
 
+    def test_a_private_method_is_not_a_licence(self):
+        """The exemption that hid half the corpus.
+
+        ``_allowable`` opened by returning True for anything inside a
+        ``_``-prefixed function. In a codebase where every model method is
+        ``_``-prefixed by convention, that exempted 1 366 of 2 703 query
+        construction sites -- and reachability from RPC was never what made a
+        query injectable.
+        """
+        snippet = """
+        def {name}(self, user_input):
+            self.env.cr.execute("SELECT * FROM t WHERE x = '%s'" % user_input)
+        """
+        self.assertTrue(self._check(snippet.format(name="do_thing")))
+        self.assertTrue(
+            self._check(snippet.format(name="_do_thing")),
+            "a leading underscore is a naming convention, not a safety proof",
+        )
+
+    def test_an_identifier_from_self_is_still_allowed(self):
+        """What the exemption was really there for, and still permitted.
+
+        A table or column name cannot be a bound parameter, so it has to be
+        interpolated. Read off ``self._*`` there is nothing a caller controls.
+        """
+        self.assertFalse(
+            self._check("""
+        def _init_column(self, value):
+            query = f'UPDATE "{self._table}" SET "{self._rec_name}" = %s'
+            self.env.cr.execute(query, (value,))
+        """)
+        )
+
     def test_real_false_positive_private_function(self):
         violations = self._check("""
         def _search_phone_mobile_search(self, operator, value):
@@ -357,12 +408,40 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations)
 
     def test_private_function_fstring_with_param(self):
+        """An identifier taken from an argument is reported, and should be.
+
+        This asserted the opposite while ``_allowable`` waved through anything
+        inside a ``_``-prefixed function. ``column_name`` is whatever the caller
+        passed; that it is spliced into an identifier position -- where a bound
+        parameter is not available -- is what makes it worth a look, not what
+        makes it safe. The real ``_init_column`` takes its name from a field
+        object it owns; a helper that takes one from its caller is the shape
+        this rule exists to surface.
+        """
         violations = self._check("""
         def _init_column(self, column_name):
             query = f'UPDATE "{self._table}" SET "{column_name}" = %s WHERE "{column_name}" IS NULL'
             self.env.cr.execute(query, (value,))
         """)
-        self.assertFalse(violations)
+        self.assertTrue(violations)
+
+    def test_a_self_referential_accumulation_terminates(self):
+        """``where_clause = "…" % (where_clause, …)`` resolved into itself.
+
+        The name's definition mentions the name, so the constant-folding walked
+        back into itself with no base case: the checker recursed until the
+        interpreter stopped it, and the scan dropped ``mail_followers.py``
+        entirely with a warning. It was unreachable while private methods were
+        exempt, which is where every accumulation like this is written.
+        """
+        violations = self._check("""
+        def _build(self, parts, pids):
+            where_clause = " OR ".join(parts)
+            if pids:
+                where_clause = "(%s) AND (%s)" % (where_clause, "fol.partner_id = ANY(%s)")
+            self.env.cr.execute("SELECT id FROM t WHERE " + where_clause)
+        """)
+        self.assertTrue(violations, "an accumulated value is not a constant")
 
     def test_dict_format_const(self):
         violations = self._check("""
@@ -483,15 +562,14 @@ class TestSqlLint(BaseCase):
         """)
         self.assertTrue(violations)
 
-    def test_skips_test_files(self):
-        violations = self._check(
-            """
+    def test_test_code_is_exempt(self):
+        """Which files those are is `_py_scan.is_test_path`'s call, not this one's."""
+        snippet = """
         def do_the_thing(cr, name):
             cr.execute('select %s from thing' % name)
-        """,
-            filepath="test_something.py",
-        )
-        self.assertFalse(violations, "test files should be skipped")
+        """
+        self.assertTrue(self._check(snippet))
+        self.assertFalse(self._check(snippet, is_test=True))
 
 
 @no_retry
@@ -499,7 +577,7 @@ class TestGetTextLint(BaseCase):
     def _check(self, snippet, filepath="not_test.py"):
         source = dedent(snippet).strip()
         tree = ast.parse(source)
-        return list(_checker_gettext.check(tree, filepath))
+        return list(_checker_gettext.check(tree))
 
     def test_gettext_env(self):
         violations = self._check("""
@@ -539,6 +617,36 @@ class TestGetTextLint(BaseCase):
         self.assertEqual(count("%%%s"), 1, "an escaped percent then a real one")
         self.assertEqual(count("100%% of %s and %s"), 2)
         self.assertEqual(count("%(named)s %(other)s"), 0, "named ones are the fix")
+        self.assertEqual(count("%i of %i"), 2, "%i is a Python conversion")
+        self.assertEqual(count("%u and %u"), 2, "so is %u")
+        self.assertEqual(count("%a and %a"), 2, "and %a")
+
+    def test_the_conversion_types_are_the_ones_python_has(self):
+        """The set was wrong at both ends.
+
+        It carried ``b`` and ``n``, which ``%`` does not accept at all, and it
+        omitted ``i``, ``u`` and ``a``, which it does -- so a message reading
+        ``"%i of %i"`` counted zero placeholders and slipped past the rule whose
+        entire job is that pair.
+        """
+        import re as _re
+
+        types = _checker_gettext.PLACEHOLDER_REGEXP.pattern
+        for char in "diouxXeEfFgGcrsa":
+            with self.subTest(conversion=char):
+                self.assertEqual(
+                    len(
+                        _checker_gettext.PLACEHOLDER_REGEXP.findall(f"%{char} %{char}")
+                    ),
+                    2,
+                )
+        for char in "bnwz":
+            with self.subTest(conversion=char):
+                self.assertFalse(
+                    _checker_gettext.PLACEHOLDER_REGEXP.findall(f"%{char}"),
+                    f"%{char} raises at runtime; it is not a placeholder",
+                )
+        self.assertNotIn("bcdeEfFgGnorsxX", _re.sub(r"\s|#.*", "", types))
 
     def test_gettext_placeholders(self):
         violations = self._check("""
@@ -591,15 +699,6 @@ class TestGetTextLint(BaseCase):
         """)
         missing = [v for v in violations if v.rule == "missing-gettext"]
         self.assertEqual(len(missing), 6)
-
-    def test_skips_test_files(self):
-        violations = self._check(
-            """
-        UserError('This is not translated')
-        """,
-            filepath="/some/path/tests/test_something.py",
-        )
-        self.assertFalse(violations, "test files should be skipped")
 
 
 @no_retry
@@ -657,7 +756,7 @@ class TestBatchLint(BaseCase):
     def _check(self, snippet, filepath="not_test.py"):
         source = dedent(snippet).strip()
         tree = ast.parse(source)
-        return list(_checker_batch.check(tree, filepath))
+        return list(_checker_batch.check(tree))
 
     def test_search_in_for_loop(self):
         violations = self._check("""
@@ -757,17 +856,6 @@ class TestBatchLint(BaseCase):
             source = "def process(self, a):\n    " + body.replace("\n", "\n    ")
             with self.subTest(depth=depth):
                 self.assertEqual(len(self._check(source)), 1)
-
-    def test_skips_test_files(self):
-        violations = self._check(
-            """
-        def process(self, records):
-            for record in records:
-                self.env['res.partner'].search([('id', '=', record.id)])
-        """,
-            filepath="test_something.py",
-        )
-        self.assertFalse(violations, "test files should be skipped")
 
     def test_while_loop_not_flagged(self):
         violations = self._check("""

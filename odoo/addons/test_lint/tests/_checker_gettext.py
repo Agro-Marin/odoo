@@ -12,11 +12,17 @@ PLACEHOLDER_REGEXP = re.compile(
     # placeholders. The lookbehind stays, to anchor the run at its true start.
     (?<!%)(?:%%)*
     %
-    [#0\- +]*          # conversion flag
-    (?:\d+|\*)?        # minimum field width
-    (?:\.(?:\d+|\*))?  # precision
-    [hlL]?             # length modifier
-    [bcdeEfFgGnorsxX]  # conversion type
+    [#0\- +]*            # conversion flag
+    (?:\d+|\*)?          # minimum field width
+    (?:\.(?:\d+|\*))?    # precision
+    [hlL]?               # length modifier
+    # The conversion types Python's `%` operator actually accepts, no more and
+    # no fewer. The set here was `[bcdeEfFgGnorsxX]`, which is neither: it
+    # carried `b` and `n`, which raise `ValueError: unsupported format
+    # character`, and it omitted `i`, `u` and `a`, so `_("%i of %i")` counted
+    # zero placeholders and the rule that exists to catch exactly that pair
+    # said nothing.
+    [diouxXeEfFgGcrsa]   # conversion type
 """,
     re.VERBOSE,
 )
@@ -63,18 +69,16 @@ def _is_whitelisted_argument(arg: ast.expr) -> bool:
     return False
 
 
-def check(tree: ast.Module, filepath: str = "", nodes=None) -> Iterator[Violation]:
+def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
     """Walk *tree* and yield gettext violations.
 
-    Files whose path contains ``/test_`` or ``/tests/`` are skipped
-    (same as the original pylint checker).
+    Whether the file is test code -- and so exempt -- is the scan's decision,
+    not this checker's: see :func:`_py_scan.is_test_path`. Three checkers used
+    to answer it three different ways.
 
-    *nodes* is an already-materialised ``ast.walk(tree)``, shared by the scan
-    so the tree is traversed once for every checker rather than once each.
+    *nodes* is an already-materialised walk of the tree, shared by the scan so
+    the tree is traversed once for every checker rather than once each.
     """
-    if "/test_" in filepath or "/tests/" in filepath:
-        return
-
     for node in nodes if nodes is not None else ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
