@@ -493,13 +493,27 @@ class ProductProduct(models.Model):
             # Operators the candidate-set path can't evaluate (e.g. `like`): fall back to
             # computing the field for every product and filtering in memory. Order on `id`
             # to avoid the default (name) order, which slows the underlying search down.
-            ids = (
-                self.with_context(prefetch_fields=False)
-                .search_fetch([], [field], order="id")
-                .filtered_domain([(field, operator, value)])
-                .ids
+            records = self.with_context(prefetch_fields=False).search_fetch(
+                [], [field], order="id"
             )
-            return [("id", "in", ids)]
+            # Deliberately *not* `filtered_domain([(field, operator, value)])`.
+            # These quantities are search-defined fields, so the domain evaluator
+            # answers such a condition by running the search itself
+            # (`Domain._as_predicate`) -- which lands straight back in this
+            # method, recursing until the guard reports the bewildering
+            # "Domain nesting too deep to optimize". Build the field's own
+            # in-memory predicate instead: it is what `filtered_domain` would
+            # have used had the field been stored, so the operator keeps
+            # identical semantics without re-entering `_search`.
+            positive_operator = Domain.NEGATIVE_OPERATORS.get(operator, operator)
+            predicate = self._fields[field].filter_function(
+                records, field, positive_operator, value
+            )
+            if positive_operator != operator:
+                matched_records = records.filtered(lambda rec: not predicate(rec))
+            else:
+                matched_records = records.filtered(predicate)
+            return [("id", "in", matched_records.ids)]
         # Only products with quants or moves (kits aside) can be non-zero; the rest
         # are 0. Compute those candidates via the override-aware compute; every other
         # product is treated as 0 in the `not in` branch below, skipping a full compute.
