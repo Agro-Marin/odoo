@@ -63,3 +63,53 @@ class TestRatingStats(TransactionCase):
         self.assertAlmostEqual(stats["percent"][5], 200 / 3, places=2)
         self.assertAlmostEqual(stats["percent"][1], 100 / 3, places=2)
         self.assertEqual(stats["percent"][2], 0.0)
+
+    def test_grades_map_rating_values(self):
+        """Ratings split into great (>=4), okay (>=3) and bad grades."""
+        self._rate(5)
+        self._rate(4)
+        self._rate(3)
+        self._rate(1)
+        grades = self.task.rating_get_grades()
+        self.assertEqual(grades, {"great": 2, "okay": 1, "bad": 1})
+
+    def test_stats_expose_percent_avg_and_total(self):
+        """Aggregated stats carry the percent split, average and total."""
+        self._rate(5)
+        self._rate(5)
+        self._rate(1)
+        stats = self.task.rating_get_stats()
+        self.assertEqual(stats["total"], 3)
+        self.assertAlmostEqual(stats["avg"], 11 / 3, places=2)
+        self.assertAlmostEqual(stats["percent"][5], 200 / 3, places=2)
+        self.assertEqual(stats["percent"][3], 0)
+
+    def test_parent_project_aggregates_task_ratings(self):
+        """The project aggregates its tasks' ratings via the parent mixin."""
+        self._rate(5)
+        self._rate(5)
+        self._rate(1)
+        self.project.invalidate_recordset(
+            ["rating_count", "rating_avg", "rating_percentage_satisfaction"],
+        )
+        self.assertEqual(self.project.rating_count, 3)
+        self.assertAlmostEqual(self.project.rating_avg, 11 / 3, places=2)
+        # integer field: 200/3 truncates to 66
+        self.assertEqual(self.project.rating_percentage_satisfaction, 66)
+        self.assertAlmostEqual(
+            self.project.rating_avg_percentage, 11 / 15, places=2,
+        )
+
+    def test_parent_without_ratings_uses_sentinel(self):
+        """A project without ratings reports the -1 sentinel (boundary)."""
+        self.project.invalidate_recordset(["rating_percentage_satisfaction"])
+        self.assertEqual(self.project.rating_percentage_satisfaction, -1)
+
+    def test_search_projects_by_average_rating(self):
+        """Projects are searchable by their aggregated average rating."""
+        self._rate(5)
+        self._rate(4)
+        matches = self.env["project.project"].search([("rating_avg", ">=", 4)])
+        self.assertIn(self.project, matches)
+        empty = self.env["project.project"].search([("rating_avg", ">=", 4.6)])
+        self.assertNotIn(self.project, empty)
