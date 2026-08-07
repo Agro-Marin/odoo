@@ -729,8 +729,14 @@ class PurchaseOrderLine(models.Model):
             False,
         )
 
-        # Convert UoM
-        return seller.product_uom_id._compute_price(price_unit, self.product_uom_id)
+        # Convert UoM. The vendor unit is allowed to be unrelated to the line's
+        # (see `product.supplierinfo.product_uom_id`), and this only suggests a
+        # default the buyer can override, so degrade instead of raising: this
+        # runs from a stored compute, where raising would make the line
+        # uncreatable rather than merely mispriced.
+        return seller.product_uom_id._compute_price_estimate(
+            price_unit, self.product_uom_id
+        )
 
     def _get_price_from_product_cost(self):
         """Get price from product standard cost (fallback when no seller).
@@ -743,9 +749,13 @@ class PurchaseOrderLine(models.Model):
         # Determine UoM for pricing
         po_line_uom = self.product_uom_id or self.product_id.uom_id
 
-        # Convert product cost to line UoM and adjust for taxes
+        # Convert product cost to line UoM and adjust for taxes. Suggested
+        # default price computed from a stored compute: degrade rather than
+        # raise when the line's unit is unrelated to the product's, so an
+        # incompatible unit leaves the line mispriced-but-editable instead of
+        # aborting the whole flush.
         price_unit = self.env["account.tax"]._fix_tax_included_price_company(
-            self.product_id.uom_id._compute_price(
+            self.product_id.uom_id._compute_price_estimate(
                 self.product_id.standard_price,
                 po_line_uom,
             ),
@@ -947,7 +957,11 @@ class PurchaseOrderLine(models.Model):
 
         if seller:
             price_unit = (
-                seller.product_uom_id._compute_price(seller.price, product_uom_id)
+                # Suggested default from a seller whose unit may legitimately be
+                # unrelated to the line's; degrade rather than raise.
+                seller.product_uom_id._compute_price_estimate(
+                    seller.price, product_uom_id
+                )
                 if product_uom_id
                 else seller.price
             )

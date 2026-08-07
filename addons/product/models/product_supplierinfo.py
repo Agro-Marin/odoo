@@ -120,9 +120,17 @@ class ProductSupplierinfo(models.Model):
         "discount", "price", "product_uom_id", "product_id", "product_tmpl_id.uom_id"
     )
     def _compute_price_discounted(self):
+        # `product_uom_id` is deliberately allowed to be cross-category (a
+        # vendor may quote in a unit unrelated to the product's own; such
+        # sellers are filtered at use time by `_get_filtered_sellers`). This
+        # field restates the vendor price in the *product's* unit, so when the
+        # two units are incompatible there is no meaningful conversion: degrade
+        # to the unconverted price instead of scaling by the raw factor ratio,
+        # which turned a 100/kg quote on a product sold in Units into 0.10 and
+        # carried that straight into `purchase_stock`'s replenishment estimate.
         for rec in self:
             product_uom_id = (rec.product_id or rec.product_tmpl_id).uom_id
-            rec.price_discounted = rec.product_uom_id._compute_price(
+            rec.price_discounted = rec.product_uom_id._compute_price_estimate(
                 rec.price,
                 product_uom_id,
             ) * (1 - rec.discount / 100)

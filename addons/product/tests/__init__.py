@@ -1,6 +1,7 @@
 from . import test_barcode
 from . import test_common
 from . import test_document_upload
+from . import test_import_and_copy_integrity
 from . import test_import_files
 from . import test_label_report
 from . import test_name

@@ -316,8 +316,12 @@ class ProductTemplate(models.Model):
 
     @api.constrains("company_id")
     def _check_barcode_uniqueness(self):
-        for template in self:
-            template.product_variant_ids._check_barcode_uniqueness()
+        # One batched call for the whole recordset: the variant-side check
+        # already groups its input by company, so the per-template loop only
+        # multiplied queries (2n + 4 for n templates, against a flat 4) without
+        # changing what is validated. Bulk company reassignment is exactly the
+        # case that triggers this constraint.
+        self.product_variant_ids._check_barcode_uniqueness()
 
     @api.constrains("uom_id", "uom_ids")
     def _check_uom_ids_are_convertible(self):
@@ -439,24 +443,32 @@ class ProductTemplate(models.Model):
             self.browse(unique(self._ids)), res, strict=True
         ):
             # Since we don't copy the product template attribute values, we need to match the extra prices.
+            # Lines still pair by position (the copy is generated from these
+            # very lines, in order), but the *values* are matched on the
+            # attribute value they materialize. A source line can carry
+            # archived `product.template.attribute.value` records -- a value
+            # removed while a variant using it could not be deleted -- that the
+            # copy has no counterpart for. Pairing values by position then
+            # shifted every later pair, the equality check below rejected all
+            # of them, and the duplicate silently came out with every extra
+            # price reset to 0.
             for ptal, copied_ptal in zip(
                 template.attribute_line_ids,
                 copied_template.attribute_line_ids,
                 strict=False,
             ):
-                for ptav, copied_ptav in zip(
-                    ptal.product_template_value_ids,
-                    copied_ptal.product_template_value_ids,
-                    strict=False,
-                ):
+                copied_ptav_by_pav = {
+                    copied_ptav.product_attribute_value_id: copied_ptav
+                    for copied_ptav in copied_ptal.product_template_value_ids
+                }
+                for ptav in ptal.product_template_value_ids:
                     if not ptav.price_extra:
                         continue
+                    copied_ptav = copied_ptav_by_pav.get(
+                        ptav.product_attribute_value_id
+                    )
                     # security check
-                    if (
-                        ptav.attribute_id == copied_ptav.attribute_id
-                        and ptav.product_attribute_value_id
-                        == copied_ptav.product_attribute_value_id
-                    ):
+                    if copied_ptav and ptav.attribute_id == copied_ptav.attribute_id:
                         copied_ptav.price_extra = ptav.price_extra
         return res
 
