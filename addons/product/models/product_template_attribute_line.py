@@ -102,10 +102,23 @@ class ProductTemplateAttributeLine(models.Model):
 
         Reactivating existing lines allows to re-use existing variants when
         possible, keeping their configuration and avoiding duplication.
+
+        The result is assembled back in `vals_list` order. Returning the
+        reactivated lines first (the previous behaviour) broke the
+        `@api.model_create_multi` contract, and callers pair the two lists by
+        position: `product.product._import_resolve_ptavs` zips them
+        `strict=True`, so a batch whose *later* rows matched an archived line
+        mapped every `(template, attribute)` to the wrong line, resolved empty
+        `product.template.attribute.value` records, and aborted the whole
+        product import with a raw "column ... is of type integer but
+        expression is of type boolean" from Postgres. `_load_records` assigns
+        external ids by the same positional pairing.
         """
         create_values = []
-        activated_lines = self.env["product.template.attribute.line"]
-        for value in vals_list:
+        create_positions = []
+        # `record_ids[i]` is the line answering `vals_list[i]`.
+        record_ids = [None] * len(vals_list)
+        for index, value in enumerate(vals_list):
             vals = dict(value, active=value.get("active", True))
             # While not ideal for peformance, this search has to be done at each
             # step to exclude the lines that might have been activated at a
@@ -127,10 +140,15 @@ class ProductTemplateAttributeLine(models.Model):
                 archived_ptal.with_context(
                     update_product_template_attribute_values=False
                 ).write(vals)
-                activated_lines += archived_ptal
+                record_ids[index] = archived_ptal.id
             else:
                 create_values.append(value)
-        res = activated_lines + super().create(create_values)
+                create_positions.append(index)
+        for position, record in zip(
+            create_positions, super().create(create_values), strict=True
+        ):
+            record_ids[position] = record.id
+        res = self.browse(record_ids)
         if self.env.context.get("update_product_template_attribute_values", True):
             res._update_product_template_attribute_values()
         return res

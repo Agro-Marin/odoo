@@ -1022,7 +1022,9 @@ class PurchaseOrder(models.Model):
             if seller.product_uom_id != product_uom_id:
                 # The discounted price is expressed in the product's UoM, not in the vendor
                 # price's UoM, so we need to convert it into to match the displayed UoM.
-                price = product_uom_id._compute_price(price, seller.product_uom_id)
+                # Display value: degrade rather than raise when the vendor quotes
+                # in a unit unrelated to the product's own (which is allowed).
+                price = product_uom_id._compute_price_report(price, seller.product_uom_id)
                 product_infos.update(
                     uomFactor=seller.product_uom_id.factor / product_uom_id.factor
                 )

@@ -301,12 +301,63 @@ class UomUom(models.Model):
             )
         return product_qty
 
-    def _compute_price(self, price: float, to_unit: Self) -> float:
-        """Convert a price per unit of `self` into a price per unit of `to_unit`."""
+    def _compute_price(
+        self, price: float, to_unit: Self, raise_if_failure: bool = True
+    ) -> float:
+        """Convert a price per unit of `self` into a price per unit of `to_unit`.
+
+        Strict by default, exactly like `_compute_quantity`: scaling by the
+        ratio of two factors is only meaningful when both units measure the
+        same thing. Without the check a price of 100 per kg asked for "in
+        Units" came back as 0.1 -- a plausible-looking number that is off by
+        the raw factor ratio, with nothing to distinguish it from a real one.
+
+        Call-sites that must degrade instead of raising use the named wrappers
+        below (`_compute_price_report` / `_compute_price_estimate`) -- see the
+        comment block above them for the decision rule.
+        """
         self.ensure_one()
         if not price or not to_unit or self == to_unit:
             return price
+        if not self._has_common_reference(to_unit):
+            if raise_if_failure:
+                raise UserError(
+                    _(
+                        "A price per %(unit)s cannot be converted into a price per"
+                        " %(other_unit)s because they do not share a common"
+                        " reference unit.",
+                        unit=self.name,
+                        other_unit=to_unit.name,
+                    )
+                )
+            return price
         return price * to_unit.factor / self.factor
+
+    # --- Degrade-on-failure wrappers ------------------------------------
+    # Same rule as the quantity family above: anything that prices a real
+    # record (an order line, a valuation, a bill) stays on the strict base
+    # method. Pick a wrapper only when the value feeds:
+    # - _compute_price_report: a screen, PDF or aggregate display.
+    # - _compute_price_estimate: a forecast/planning estimate that guides but
+    #   does not size a record.
+    # The vendor unit on `product.supplierinfo` is deliberately allowed to be
+    # cross-category (it is filtered at use time by
+    # `product.product._get_filtered_sellers`), so the seller-price call-sites
+    # are the ones that legitimately need to degrade rather than raise.
+    # The opt-out is forced: a caller-passed `raise_if_failure` is discarded.
+
+    def _compute_price_lenient(self, price: float, to_unit: Self, **kwargs) -> float:
+        """Shared body of the degrade wrappers; call those, not this."""
+        kwargs.pop("raise_if_failure", None)
+        return self._compute_price(price, to_unit, raise_if_failure=False, **kwargs)
+
+    def _compute_price_report(self, price: float, to_unit: Self, **kwargs) -> float:
+        """Convert a price for a display/report value; degrades on incompatible units."""
+        return self._compute_price_lenient(price, to_unit, **kwargs)
+
+    def _compute_price_estimate(self, price: float, to_unit: Self, **kwargs) -> float:
+        """Convert a price for a planning estimate; degrades on incompatible units."""
+        return self._compute_price_lenient(price, to_unit, **kwargs)
 
     def _unprotected_uom_xml_ids(self):
         """Return a list of UoM XML IDs that are not protected by default.
