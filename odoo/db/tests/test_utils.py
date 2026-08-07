@@ -53,6 +53,22 @@ class TestIsMaintenanceDb(unittest.TestCase):
                 with self.subTest(name=name):
                     self.assertFalse(is_maintenance_db(name))
 
+    def test_system_dbs_has_one_definition(self):
+        """``SYSTEM_DBS`` is defined here and only re-exported elsewhere.
+
+        The predicate used to be re-spelled inline at seven call sites across
+        ``service``/``http``/``cli``/``orm.runtime`` — one of them the sole
+        runtime ``orm -> service`` edge (now forbidden by the
+        ``orm-below-the-serving-tier`` contract). Identity, not equality:
+        a second frozenset with the same members would drift independently.
+        """
+        self.assertEqual(
+            db_utils.SYSTEM_DBS, frozenset({"postgres", "template0", "template1"})
+        )
+        import odoo.db
+
+        self.assertIs(odoo.db.SYSTEM_DBS, db_utils.SYSTEM_DBS)
+
 
 class TestConnectionInfoForKeywords(unittest.TestCase):
     def _info(self, name="mydb", readonly=False, **overrides):

@@ -9,9 +9,15 @@ from .budget import ConnectionBudget
 from .cursor import BaseCursor, Cursor, Savepoint
 from .savepoint import insert_or_existing
 from .pool import Connection, ConnectionPool, PoolError
-from .utils import categorize_query, connection_info_for
+from .utils import (
+    SYSTEM_DBS,
+    categorize_query,
+    connection_info_for,
+    is_maintenance_db,
+)
 
 __all__ = [
+    "SYSTEM_DBS",
     "BaseCursor",
     "Connection",
     "ConnectionBudget",
@@ -27,6 +33,7 @@ __all__ = [
     "drain_all",
     "drain_db",
     "insert_or_existing",
+    "is_maintenance_db",
     "is_pooled",
     "pool_health",
     "sql_counter",  # noqa: F822  served by the module-level __getattr__ below

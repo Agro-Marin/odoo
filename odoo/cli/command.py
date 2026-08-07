@@ -82,9 +82,9 @@ def get_single_database(
         return None
 
     db_name = db_names[0]
-    from odoo.service._db_helpers import SYSTEM_DBS
+    from odoo.db import is_maintenance_db
 
-    if db_name in SYSTEM_DBS or db_name == config["db_template"]:
+    if is_maintenance_db(db_name):
         error_handler(f"Refusing to use system or template database {db_name}.")
         return None
 

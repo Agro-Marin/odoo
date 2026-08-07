@@ -20,13 +20,11 @@ def register_adapters(conn: psycopg.Connection) -> None:
     conn.adapters.register_loader("numeric", _NumericToFloatLoader)
 
 
+SYSTEM_DBS = frozenset({"postgres", "template0", "template1"})
+
+
 def is_maintenance_db(db_name: str) -> bool:
-    return db_name in (
-        "template0",
-        "template1",
-        "postgres",
-        tools.config["db_template"],
-    )
+    return db_name in SYSTEM_DBS or db_name == tools.config["db_template"]
 
 
 re_from = re.compile(

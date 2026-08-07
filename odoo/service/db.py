@@ -24,6 +24,7 @@ import odoo.modules.db
 import odoo.modules.neutralize
 import odoo.release
 import odoo.tools
+from odoo.db import SYSTEM_DBS, is_maintenance_db
 from odoo.db import schema as _db_schema
 from odoo.release import version_info
 from odoo.tools import SQL
@@ -32,7 +33,6 @@ from odoo.tools.misc import exec_pg_environ, find_pg_tool
 from ._db_helpers import (
     DBNAME_MAX_LENGTH,
     DBNAME_PATTERN,
-    SYSTEM_DBS,
     DatabaseExists,
     _drop_conn,
     check_db_management_enabled,
@@ -1415,7 +1415,7 @@ def _rpc_db_exist(db_name: str) -> bool:
         validate_db_name(db_name)
     except TypeError, ValueError:
         return False
-    if db_name in SYSTEM_DBS or db_name == odoo.tools.config["db_template"]:
+    if is_maintenance_db(db_name):
         return False
     if db_name not in list_dbs(True):
         return False

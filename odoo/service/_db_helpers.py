@@ -7,6 +7,7 @@ from psycopg import sql as psycopg_sql
 
 import odoo.exceptions
 import odoo.tools
+from odoo.db import is_maintenance_db
 from odoo.tools import SQL
 
 if TYPE_CHECKING:
@@ -16,8 +17,6 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.service.db")
 
-
-SYSTEM_DBS = frozenset({"postgres", "template0", "template1"})
 
 DBNAME_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*\Z"
 
@@ -43,7 +42,7 @@ def validate_db_name(name: str) -> None:
 def rpc_db_exposed(db_name: object) -> bool:
     if not isinstance(db_name, str) or not db_name:
         return False
-    if db_name in SYSTEM_DBS or db_name == odoo.tools.config["db_template"]:
+    if is_maintenance_db(db_name):
         return False
     exposed = odoo.tools.config["db_name"]
     return not exposed or db_name in exposed
