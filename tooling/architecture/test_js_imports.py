@@ -11,7 +11,11 @@ and three could not. The last test does exactly that — it re-derives the
 `web` import graph and compares it against the tree itself.
 """
 
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
 
 import js_imports  # sys.path set by conftest.py
 import js_imports as ji
@@ -241,7 +245,7 @@ def test_a_string_that_merely_looks_like_a_specifier_is_not_an_import():
 
 
 def _web_src() -> Path:
-    root = Path(__file__).resolve().parent.parent.parent
+    root = find_odoo_root(Path(__file__).resolve(), tool="test_js_imports")
     return root / "addons" / "web" / "static" / "src"
 
 

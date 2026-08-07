@@ -441,7 +441,7 @@ python tooling/architecture/subsystem_map_check.py --check   # the map above vs 
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **twenty-two** blocking checkers — it first
+`Architecture Boundaries` workflow runs **twenty-four** blocking checkers — it first
 runs `pytest tooling/architecture/` to self-test them, then:
 
 | Gate | What it locks |
@@ -468,6 +468,8 @@ runs `pytest tooling/architecture/` to self-test them, then:
 | `js_private_access.py` | the cross-module private-access budget (`_member` reached past a module) |
 | `js_service_shape.py` | a service handing back an instance, not a literal |
 | `js_public_surface.py` | the web addon's published JS surface, as a ratchet |
+| `naming_vocabulary.py` | the §2.4 method-naming verb vocabulary |
+| `xml_reference_coherence.py` | view-arch strings (`widget=`, `js_class=`, `t-call`) against the JS registries and templates |
 
 Four of those are the same argument as `mixin_coupling_check.py`, applied to
 surfaces the import graph cannot see:
@@ -607,7 +609,7 @@ earlier version of this paragraph claimed the removed names were "quoted rather
 than backticked on purpose" — they never were, and no convention asks authors to
 punctuate around a checker.
 
-(`cross_repo_coherence.py` is a fourteenth checker and the only one outside CI: it
+(`cross_repo_coherence.py` is a twenty-fifth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub checks
 out this repo alone and the check needs the sibling checkouts to compare against.
 It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
@@ -616,7 +618,7 @@ Two further mechanisms keep the *non-structural* quality signals from
 regressing:
 
 - **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns four tool
-  counts into one-way contracts: **mypy, ruff, eslint and tsc** (floors in
+  counts into one-way contracts: **mypy, ruff, eslint, tsc, jsfunclen, jsprivate, jsserviceshape and naming** (floors in
   `tooling/ratchet/baselines/`). CI fails on any increase, and — in the default
   `exact` mode — on an *un-committed* decrease too, so every cleanup is locked
   in.
@@ -633,9 +635,9 @@ regressing:
   verified to *behave*, not just to import cleanly.
 
   **This is the only lane that runs addon tests, and that is the sharpest limit
-  on the word "enforced" at the top of this page.** Every one of the twenty-two
+  on the word "enforced" at the top of this page.** Every one of the twenty-four
   boundary checkers is structural and DB-free: they read import graphs, call
-  graphs, reached-member sets and documents. A change can satisfy all twenty-two,
+  graphs, reached-member sets and documents. A change can satisfy all twenty-four,
   and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
   (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
   2026-08 while every gate and both DB-free tiers stayed green, because nothing

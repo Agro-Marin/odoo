@@ -72,6 +72,18 @@ GATES = {
     # what a finished migration looks like, so an empty scan must refuse rather
     # than report one.
     "naming_vocabulary": ["--count"],
+    # The Python core gates. They resolve inputs from `odoo/` packages rather
+    # than the JS trees, so EMPTY_TREES creates those too — present-and-empty,
+    # the harder of the two shapes.
+    "env_surface_check": ["--check"],
+    "env_model_surface_check": ["--check"],
+    "pool_surface_check": ["--check"],
+    "worker_thread_surface_check": ["--check"],
+    "mixin_coupling_check": ["--check"],
+    "libs_facade_check": ["--check"],
+    "py_cycle_check": ["--check"],
+    "package_index_check": ["--check"],
+    "subsystem_map_check": ["--check"],
 }
 
 UNPROBED = {
@@ -89,6 +101,15 @@ EMPTY_TREES = (
     "addons/web/static/src",
     "addons/web/static/tests",
     "odoo/addons",
+    # The core packages the Python gates resolve their inputs from.
+    "odoo/orm",
+    "odoo/db",
+    "odoo/libs",
+    "odoo/tools",
+    "odoo/http",
+    "odoo/service",
+    "odoo/modules",
+    "odoo/tests",
 )
 
 
