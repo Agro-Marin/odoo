@@ -9,6 +9,12 @@ class ProductPricelistItem(models.Model):
     _order = "applied_on, min_quantity desc, categ_id desc, id desc"
     _check_company_auto = True
 
+    # The fields that decide *what* a rule targets, and from which its
+    # `applied_on` level is deduced. `create` and `write` both derive the level
+    # from exactly these, and `_sanitize_applied_on_vals` nulls out the ones the
+    # level does not use -- keep the three in step.
+    _TARGETING_FIELDS = ("product_id", "product_tmpl_id", "categ_id")
+
     pricelist_id = fields.Many2one(
         comodel_name="product.pricelist",
         string="Pricelist",
@@ -271,6 +277,34 @@ class ProductPricelistItem(models.Model):
                     ),
                 )
 
+    @api.constrains("product_id", "product_tmpl_id")
+    def _check_product_variant_consistency(self):
+        """A rule may not target a variant of a *different* template.
+
+        ``_check_product_consistency`` below only checks that the target
+        implied by ``applied_on`` is *present*; nothing checked that the two
+        product fields agree. They are read as a pair by
+        ``_get_applicable_rules_domain``, which requires both to match, so a
+        rule whose variant and template disagree matches no product at all --
+        a silently dead row rather than an error. Named after (and mirroring)
+        ``product.supplierinfo._check_product_variant_consistency``, which
+        already rejects exactly this on the same field pair.
+        """
+        for item in self:
+            if (
+                item.product_id
+                and item.product_tmpl_id
+                and item.product_id.product_tmpl_id != item.product_tmpl_id
+            ):
+                raise ValidationError(
+                    _(
+                        "The product variant %(variant)s does not belong to the"
+                        " product %(product)s.",
+                        variant=item.product_id.display_name,
+                        product=item.product_tmpl_id.display_name,
+                    ),
+                )
+
     @api.constrains("product_id", "product_tmpl_id", "categ_id")
     def _check_product_consistency(self):
         for item in self:
@@ -334,7 +368,13 @@ class ProductPricelistItem(models.Model):
             for variant in self.env["product.product"].browse(missing_tmpl_ids)
         }
 
-        for values in vals_list:
+        # Build new dicts rather than editing the caller's: these overrides add
+        # `product_tmpl_id`/`applied_on` and null out targeting fields, and a
+        # caller reusing one dict across rows (or reading it back after the
+        # call) would silently inherit another row's deductions.
+        new_vals_list = []
+        for vals in vals_list:
+            values = dict(vals)
             if values.get("product_id") and not values.get("product_tmpl_id"):
                 # Deduce the template from the variant so the rule stays properly
                 # configured/displayed even with partial data (mostly for imports).
@@ -342,20 +382,90 @@ class ProductPricelistItem(models.Model):
 
             if not values.get("applied_on"):
                 values["applied_on"] = self._deduce_applied_on(
-                    product_id=values.get("product_id"),
-                    product_tmpl_id=values.get("product_tmpl_id"),
-                    categ_id=values.get("categ_id"),
+                    **{field: values.get(field) for field in self._TARGETING_FIELDS}
                 )
 
             # Ensure item consistency for later searches.
             self._sanitize_applied_on_vals(values)
-        return super().create(vals_list)
+            new_vals_list.append(values)
+        return super().create(new_vals_list)
 
     def write(self, vals):
         if vals.get("applied_on"):
-            # Ensure item consistency for later searches.
+            # Ensure item consistency for later searches (on a copy: see create).
+            vals = dict(vals)
             self._sanitize_applied_on_vals(vals)
-        return super().write(vals)
+            return super().write(vals)
+
+        if not any(field in vals for field in self._TARGETING_FIELDS):
+            return super().write(vals)
+
+        # Targeting changed without an explicit level: deduce it, exactly like
+        # `create` does. Maintaining the invariant in one direction only left a
+        # rule whose stored `applied_on` no longer described what it targets --
+        # and since `_order` starts with `applied_on`, such a rule sorts at the
+        # wrong precedence: a template rule narrowed to a single variant kept
+        # sorting as a template rule and lost to any template-wide rule created
+        # after it, instead of winning as the variant override it had become.
+        # The level depends on each record's *merged* (stored + written) state,
+        # so group the recordset by what it resolves to. Only the resolved level
+        # (and a template deduced from a written variant) is ever written back:
+        # the rest of the merged picture exists solely to derive the level, and
+        # writing it would stamp one record's targets onto the whole group.
+        writes = {}
+        for item in self:
+            applied_on, template_id = item._targeting_after_write(vals)
+            # `vals` already carries the template when the caller wrote one; an
+            # override is only needed for a template deduced from a variant.
+            override = (
+                None
+                if "product_tmpl_id" in vals or template_id == item.product_tmpl_id.id
+                else template_id
+            )
+            writes.setdefault((applied_on, override), []).append(item.id)
+
+        result = True
+        for (applied_on, override), item_ids in writes.items():
+            item_vals = {**vals, "applied_on": applied_on}
+            if override is not None:
+                item_vals["product_tmpl_id"] = override
+            self._sanitize_applied_on_vals(item_vals)
+            result = (
+                super(ProductPricelistItem, self.browse(item_ids)).write(item_vals)
+                and result
+            )
+        return result
+
+    def _targeting_after_write(self, vals):
+        """Return the ``(applied_on, product_tmpl_id)`` ``vals`` leaves this rule on.
+
+        Fields absent from ``vals`` are read through to their stored value, so
+        the level is derived from the same complete picture ``create`` sees.
+        An explicitly written variant carries its template with it -- the
+        completion ``create`` performs -- because between the two the variant is
+        the more specific statement; an explicitly written *template* is left
+        alone, so a variant that contradicts it reaches
+        :meth:`_check_product_variant_consistency` instead of being papered over.
+        """
+        self.ensure_one()
+        product = (
+            self.env["product.product"].browse(vals["product_id"])
+            if "product_id" in vals
+            else self.product_id
+        )
+        if "product_tmpl_id" in vals:
+            template_id = vals["product_tmpl_id"]
+        elif product:
+            template_id = product.product_tmpl_id.id
+        else:
+            template_id = self.product_tmpl_id.id
+        categ_id = vals.get("categ_id", self.categ_id.id)
+        applied_on = self._deduce_applied_on(
+            product_id=product.id,
+            product_tmpl_id=template_id,
+            categ_id=categ_id,
+        )
+        return applied_on, template_id
 
     @api.model
     def _deduce_applied_on(
@@ -866,7 +976,7 @@ class ProductPricelistItem(models.Model):
         """Compute the base price of the given rule, considering chained pricelists.
 
         :param product: recordset of product (product.product/product.template)
-        :param float qty: quantity of products requested (in given uom)
+        :param float quantity: quantity of products requested (in given uom)
         :param uom: unit of measure (uom.uom record)
         :param datetime date: date to use for price computation and currency conversions
         :param currency: currency in which the returned price must be expressed

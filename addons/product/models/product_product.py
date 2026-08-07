@@ -1,13 +1,15 @@
 import re
 from collections import defaultdict
 
-from odoo import api, fields, models, tools
+from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.sql import SQL
 from odoo.tools import OrderedSet, float_compare, groupby
 from odoo.tools.image import is_image_size_above
 from odoo.tools.misc import unique
+
+from .utils import unlink_where_possible
 
 # Resolutions (px) for which resized image / image_variant fields exist.
 IMAGE_SIZES = (1920, 1024, 512, 256, 128)
@@ -1185,11 +1187,18 @@ class ProductProduct(models.Model):
             # No pricelist = no discount
             return 0.0
 
+        # Both sides of the ratio must be converted at the *same* date, the one
+        # the price itself is computed at (`_get_contextual_price` forwards
+        # `context['date']` down to `_compute_price_rule`). Pinning the
+        # numerator to `now()` while the denominator followed the context date
+        # made the discount drift by the whole currency-rate change between the
+        # two: a plain 10% rule on a back-dated context reported 77.5%.
+        date = self.env.context.get("date") or fields.Datetime.now()
         lst_price = self.currency_id._convert(
             self.lst_price,
             pricelist.currency_id,
             self.env.company,
-            fields.Datetime.now(),
+            date,
             round=False,
         )
         if lst_price:
@@ -1806,20 +1815,10 @@ class ProductProduct(models.Model):
             to_archive.write({"active": False})
             self = to_unlink
 
-        try:
-            with self.env.cr.savepoint(), tools.mute_logger("odoo.db"):
-                self.unlink()
-        except Exception:
-            # We catch all kind of exceptions to be sure that the operation
-            # doesn't fail.
-            if len(self) > 1:
-                self[: len(self) // 2]._unlink_or_archive(check_access=False)
-                self[len(self) // 2 :]._unlink_or_archive(check_access=False)
-            elif self.active:
-                # Note: this can still fail if something is preventing
-                # from archiving.
-                # This is the case from existing stock reordering rules.
-                self.write({"active": False})
+        # Note: archiving can still fail if something prevents it -- existing
+        # stock reordering rules, for one.
+        undeletable = unlink_where_possible(self, lambda products: products.unlink())
+        undeletable.filtered("active").write({"active": False})
 
     def _is_variant_possible(self, parent_combination=None):
         """Return whether the variant is possible based on its own combination,

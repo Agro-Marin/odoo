@@ -35,31 +35,42 @@ class UpdateProductAttributeValue(models.TransientModel):
                     wizard.product_count,
                 )
 
+    def _get_product_count_key(self):
+        """What identifies the set of products this wizard would act on.
+
+        Two wizards sharing a key count exactly the same products.
+        """
+        self.ensure_one()
+        if self.mode == "add":
+            return ("add", self.attribute_value_id.attribute_id.id)
+        if self.mode == "update_extra_price":
+            return ("update_extra_price", self.attribute_value_id.id)
+        return None
+
+    @api.model
+    def _get_product_count_domain(self, key):
+        """`product.template` domain answering a key from
+        :meth:`_get_product_count_key`.
+        """
+        mode, record_id = key
+        if mode == "add":
+            return [("attribute_line_ids.attribute_id", "=", record_id)]
+        return [("attribute_line_ids.value_ids", "=", record_id)]
+
     @api.depends("mode")
     def _compute_product_count(self):
         self.product_count = 0
         ProductTemplate = self.env["product.template"]
+        # One count per *distinct* target rather than one per wizard record.
+        # The domain depends only on (mode, attribute value), so a recompute
+        # over several records re-issued the very same query for each of them.
+        keys_by_wizard = {wizard: wizard._get_product_count_key() for wizard in self}
+        counts = {
+            key: ProductTemplate.search_count(self._get_product_count_domain(key))
+            for key in set(keys_by_wizard.values()) - {None}
+        }
         for wizard in self:
-            if wizard.mode == "add":
-                wizard.product_count = ProductTemplate.search_count(
-                    [
-                        (
-                            "attribute_line_ids.attribute_id",
-                            "=",
-                            wizard.attribute_value_id.attribute_id.id,
-                        ),
-                    ]
-                )
-            elif wizard.mode == "update_extra_price":
-                wizard.product_count = ProductTemplate.search_count(
-                    [
-                        (
-                            "attribute_line_ids.value_ids",
-                            "=",
-                            wizard.attribute_value_id.id,
-                        ),
-                    ]
-                )
+            wizard.product_count = counts.get(keys_by_wizard[wizard], 0)
 
     def action_confirm(self):
         self.ensure_one()

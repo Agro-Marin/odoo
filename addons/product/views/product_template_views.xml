@@ -8,22 +8,16 @@
             <search string="Product">
                 <field name="name" string="Product"
                     filter_domain="['|', '|', '|', ('default_code', 'ilike', self), ('product_variant_ids.default_code', 'ilike', self),('name', 'ilike', self), ('barcode', 'ilike', self)]" />
-                <field name="categ_id"
-                    filter_domain="[('categ_id', 'child_of', raw_value)]" />
+                <field name="categ_id" filter_domain="[('categ_id', 'child_of', raw_value)]" />
                 <field name="product_tag_ids" string="Tags" />
                 <separator />
-                <filter string="Goods" name="goods"
-                    domain="[('type', '=', 'consu')]" />
-                <filter string="Services" name="services"
-                    domain="[('type','=','service')]" />
-                <filter string="Combo" name="combo"
-                    domain="[('type', '=', 'combo')]" />
+                <filter string="Goods" name="goods" domain="[('type', '=', 'consu')]" />
+                <filter string="Services" name="services" domain="[('type','=','service')]" />
+                <filter string="Combo" name="combo" domain="[('type', '=', 'combo')]" />
                 <separator />
-                <filter string="Favorites" name="favorites"
-                    domain="[('is_favorite', '=', True)]" />
+                <filter string="Favorites" name="favorites" domain="[('is_favorite', '=', True)]" />
                 <separator />
-                <filter string="Sales" name="filter_to_sell"
-                    domain="[('sale_ok','=',True)]" />
+                <filter string="Sales" name="filter_to_sell" domain="[('sale_ok','=',True)]" />
                 <separator />
                 <field string="Attributes" name="attribute_line_ids"
                     groups="product.group_product_variant" />
@@ -42,11 +36,9 @@
                 <filter string="Warnings" name="activities_exception"
                     domain="[('activity_exception_decoration', '!=', False)]" />
                 <separator />
-                <filter string="Archived" name="inactive"
-                    domain="[('active','=',False)]" />
+                <filter string="Archived" name="inactive" domain="[('active','=',False)]" />
                 <group>
-                    <filter string="Product Type" name="group_by_type"
-                        context="{'group_by':'type'}" />
+                    <filter string="Product Type" name="group_by_type" context="{'group_by':'type'}" />
                     <filter string="Product Category" name="group_by_categ_id"
                         context="{'group_by':'categ_id'}" />
                     <filter string="Product Properties" name="group_by_product_properties"
@@ -73,10 +65,10 @@
                 <field name="barcode" optional="hide" readonly="product_variant_count != 1" />
                 <field name="company_id" options="{'no_create': True}"
                     groups="base.group_multi_company" optional="hide" />
-                <field name="list_price" string="Sales Price" widget='monetary'
+                <field name="list_price" string="Sales Price" widget="monetary"
                     options="{'currency_field': 'currency_id'}" optional="show"
                     decoration-muted="not sale_ok" />
-                <field name="standard_price" widget='monetary'
+                <field name="standard_price" widget="monetary"
                     options="{'currency_field': 'cost_currency_id'}" optional="show" readonly="1" />
                 <field name="categ_id" optional="hide" />
                 <field name="type" optional="hide" readonly="1" />
@@ -90,8 +82,8 @@
     <record id="view_product_template_list_sellable" model="ir.ui.view">
         <field name="name">product.template.list.sellable</field>
         <field name="model">product.template</field>
-        <field name="mode">primary</field>
         <field name="inherit_id" ref="product.view_product_template_list" />
+        <field name="mode">primary</field>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='standard_price']" position="attributes">
                 <attribute name="optional">hide</attribute>
@@ -102,8 +94,8 @@
     <record id="view_product_template_list_purchasable" model="ir.ui.view">
         <field name="name">product.template.list.purchasable</field>
         <field name="model">product.template</field>
-        <field name="mode">primary</field>
         <field name="inherit_id" ref="product.view_product_template_list" />
+        <field name="mode">primary</field>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='list_price']" position="attributes">
                 <attribute name="optional">hide</attribute>
@@ -132,7 +124,7 @@
                 <field name="activity_state" />
                 <field name="categ_id" />
                 <progressbar field="activity_state"
-                    colors='{"planned": "success", "today": "warning", "overdue": "danger"}' />
+                    colors="{&quot;planned&quot;: &quot;success&quot;, &quot;today&quot;: &quot;warning&quot;, &quot;overdue&quot;: &quot;danger&quot;}" />
                 <templates>
                     <t t-name="card" class="flex-row">
                         <main class="pe-2">
@@ -143,8 +135,7 @@
                                     <field name="name" />
                                 </div>
                                 <span t-if="record.default_code.value"> [<field name="default_code" />
-                                    ]
-                                </span>
+                                    ] </span>
                                 <strong t-if="record.product_variant_count.value &gt; 1">
                                     <field name="product_variant_count" /> Variants </strong>
                             </div>
@@ -154,13 +145,9 @@
                             <field name="product_properties" widget="properties" />
                         </main>
                         <aside>
-                            <field
-                                name="image_128"
-                                widget="image"
-                                alt="Product"
+                            <field name="image_128" widget="image" alt="Product"
                                 options="{'img_class': 'w-100 object-fit-contain'}"
-                                invisible="not image_128"
-                            />
+                                invisible="not image_128" />
                         </aside>
                     </t>
                 </templates>
@@ -175,18 +162,15 @@
         <field name="arch" type="xml">
             <form string="Product">
                 <sheet name="product_form">
-                    <field name='product_variant_count' invisible='1' />
-                    <field name='is_product_variant' invisible='1' />
-                    <field name='attribute_line_ids' invisible='1' />
+                    <field name="product_variant_count" invisible="1" />
+                    <field name="is_product_variant" invisible="1" />
+                    <field name="attribute_line_ids" invisible="1" />
                     <field name="company_id" invisible="1" />
                     <div class="oe_button_box" name="button_box">
                         <!-- Dummy tag for organizing buttons, using position='replace' when
                         inheriting -->
                         <span id="button_website" invisible="1" />
-                        <button
-                            name="action_view_documents"
-                            type="object"
-                            class="oe_stat_button"
+                        <button name="action_view_documents" type="object" class="oe_stat_button"
                             icon="fa-regular fa-file-lines">
                             <field string="Documents" name="product_document_count"
                                 widget="statinfo" />
@@ -195,12 +179,8 @@
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                         invisible="active" />
                     <field name="id" invisible="True" />
-                    <field
-                        name="image_1920"
-                        widget="image"
-                        class="oe_avatar"
-                        options="{'convert_to_webp': True, 'preview_image': 'image_128'}"
-                    />
+                    <field name="image_1920" widget="image" class="oe_avatar"
+                        options="{'convert_to_webp': True, 'preview_image': 'image_128'}" />
                     <div class="oe_title">
                         <label for="name" string="Product" />
                         <h1>
@@ -225,80 +205,44 @@
                                 <group name="group_general">
                                     <field name="active" invisible="1" />
                                     <field name="type" widget="radio" options="{'horizontal': True}" />
-                                    <field
-                                        name="combo_ids"
-                                        widget="many2many_tags"
+                                    <field name="combo_ids" widget="many2many_tags"
                                         placeholder="e.g. Starter - Meal - Desert"
                                         invisible="type != 'combo'"
-                                        options="{
-                                            'no_quick_create': True,
-                                            'edit_tags': True,
-                                        }"
-                                    />
+                                        options="{                                             'no_quick_create': True,                                             'edit_tags': True,                                         }" />
                                     <field name="service_tracking"
                                         invisible="1 or type != 'service'" />
-                                    <field name="product_tooltip"
-                                        class="fst-italic text-muted"
-                                        string=""
-                                        invisible="not product_tooltip"
-                                    />
+                                    <field name="product_tooltip" class="fst-italic text-muted"
+                                        string="" invisible="not product_tooltip" />
                                 </group>
                                 <group name="group_standard_price">
                                     <label for="list_price" />
                                     <div name="list_price_uom">
-                                        <field name="list_price"
-                                            class="oe_inline"
-                                            widget="monetary"
+                                        <field name="list_price" class="oe_inline" widget="monetary"
                                             options="{'currency_field': 'currency_id', 'field_digits': True}" />
-                                        <span
-                                            name="uom_span"
-                                            groups="uom.group_uom"
-                                            invisible="type == 'combo'"
-                                        > per <field
-                                                name="uom_id" widget="many2one_uom"
-                                                class="oe_inline" style="max-width:136px"
-                                                options="{'no_quick_create': True}"
-                                            />
+                                        <span name="uom_span" groups="uom.group_uom"
+                                            invisible="type == 'combo'"> per <field name="uom_id"
+                                                widget="many2one_uom" class="oe_inline"
+                                                style="max-width:136px"
+                                                options="{'no_quick_create': True}" />
                                         </span>
                                     </div>
-                                    <label
-                                        for="standard_price"
-                                        invisible="type == 'combo'
-                                                    or (not is_product_variant and (
-                                                        product_variant_count &gt; 1
-                                                        or (product_variant_count == 0 and is_dynamically_created)
-                                                    ))"
-                                        id="standard_price_label"
-                                    />
-                                    <div
-                                        name="standard_price_uom"
-                                        invisible="type == 'combo'
-                                                    or (not is_product_variant and (
-                                                        product_variant_count &gt; 1
-                                                        or (product_variant_count == 0 and is_dynamically_created)
-                                                    ))"
-                                    >
-                                        <field
-                                            name="standard_price"
-                                            class="oe_inline"
+                                    <label for="standard_price"
+                                        invisible="type == 'combo'                                                     or (not is_product_variant and (                                                         product_variant_count &gt; 1                                                         or (product_variant_count == 0 and is_dynamically_created)                                                     ))"
+                                        id="standard_price_label" />
+                                    <div name="standard_price_uom"
+                                        invisible="type == 'combo'                                                     or (not is_product_variant and (                                                         product_variant_count &gt; 1                                                         or (product_variant_count == 0 and is_dynamically_created)                                                     ))">
+                                        <field name="standard_price" class="oe_inline"
                                             widget="monetary"
-                                            options="{
-                                                'currency_field': 'cost_currency_id',
-                                                'field_digits': True,
-                                            }"
-                                        />
-                                        <span groups="uom.group_uom"> per <field
-                                                name="uom_id" widget="many2one_uom"
-                                                class="oe_inline" style="max-width:136px"
-                                                options="{'no_quick_create': True}"
-                                            />
+                                            options="{                                                 'currency_field': 'cost_currency_id',                                                 'field_digits': True,                                             }" />
+                                        <span groups="uom.group_uom"> per <field name="uom_id"
+                                                widget="many2one_uom" class="oe_inline"
+                                                style="max-width:136px"
+                                                options="{'no_quick_create': True}" />
                                         </span>
                                     </div>
                                     <field name="categ_id" string="Category" />
-                                    <field name="company_id"
-                                        groups="base.group_multi_company"
-                                        options="{'no_create': True}"
-                                        placeholder="Visible to all" />
+                                    <field name="company_id" groups="base.group_multi_company"
+                                        options="{'no_create': True}" placeholder="Visible to all" />
                                     <field name="currency_id" invisible="1" />
                                     <field name="cost_currency_id" invisible="1" />
                                     <field name="product_variant_id" invisible="1" />
@@ -312,13 +256,10 @@
                         <page string="Sales" name="sales" invisible="1 or not sale_ok">
                             <group name="sale">
                                 <group string="Upsell &amp; Cross-Sell" name="upsell" invisible="1">
-                                    <field
-                                        name="uom_ids"
-                                        widget="many2many_uom_tags"
+                                    <field name="uom_ids" widget="many2many_uom_tags"
                                         options="{'no_quick_create': True, 'edit_tags': True}"
-                                        groups="uom.group_uom"
-                                        force_save="1"
-                                        context="{'product_id': product_variant_id if product_variant_count == 1 else False, 'product_ids': product_variant_ids, 'show_variant_name': product_variant_count > 1}" />
+                                        groups="uom.group_uom" force_save="1"
+                                        context="{'product_id': product_variant_id if product_variant_count == 1 else False, 'product_ids': product_variant_ids, 'show_variant_name': product_variant_count &gt; 1}" />
                                 </group>
                                 <group name="extra_info" string="Extra Info">
                                     <field name="product_tag_ids" widget="many2many_tags"
@@ -332,18 +273,10 @@
                                 </group>
                             </group>
                         </page>
-                        <page
-                            string="Prices"
-                            name="sales_price"
-                            groups="product.group_product_pricelist"
-                            invisible="not sale_ok"
-                        >
-                            <field
-                                name="pricelist_rule_ids"
-                                context="{
-                                    'form_view_ref': 'product.view_product_pricelist_item_form_2',
-                                }"
-                            >
+                        <page string="Prices" name="sales_price"
+                            groups="product.group_product_pricelist" invisible="not sale_ok">
+                            <field name="pricelist_rule_ids"
+                                context="{                                     'form_view_ref': 'product.view_product_pricelist_item_form_2',                                 }">
                                 <list>
                                     <control>
                                         <create name="add_product_price" string="Add a price" />
@@ -363,23 +296,16 @@
                                 </list>
                             </field>
                         </page>
-                        <page
-                            string="Purchase"
-                            name="purchase"
+                        <page string="Purchase" name="purchase"
                             invisible="1 or not purchase_ok or type == 'combo'"
-                            groups="uom.group_uom"
-                        >
+                            groups="uom.group_uom">
                             <group name="purchase">
                                 <group string="Vendor Bills" name="bill">
                                 </group>
                             </group>
                         </page>
-                        <page
-                            string="Inventory"
-                            name="inventory"
-                            groups="uom.group_uom"
-                            invisible="type in ['service', 'combo']"
-                        >
+                        <page string="Inventory" name="inventory" groups="uom.group_uom"
+                            invisible="type in ['service', 'combo']">
                             <group name="inventory">
                                 <group name="group_lots_and_weight" string="Logistics"
                                     invisible="type != 'consu'">
@@ -431,9 +357,9 @@
     <record id="view_product_template_form_only" model="ir.ui.view">
         <field name="name">product.template.product.form</field>
         <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.view_product_template_form" />
         <field name="mode">primary</field>
         <field name="priority" eval="8" />
-        <field name="inherit_id" ref="product.view_product_template_form" />
         <field name="arch" type="xml">
 
             <xpath expr="//form" position="attributes">
@@ -445,28 +371,20 @@
                     invisible="product_variant_count &gt; 1" />
                 <field name="valid_product_template_attribute_line_ids" invisible="1" />
                 <field name="barcode"
-                    invisible="product_variant_count &gt; 1
-                        or (product_variant_count == 0
-                        and valid_product_template_attribute_line_ids)
-                        or type in ['service', 'combo']" />
+                    invisible="product_variant_count &gt; 1                         or (product_variant_count == 0                         and valid_product_template_attribute_line_ids)                         or type in ['service', 'combo']" />
             </field>
 
             <button name="action_view_documents" position="before">
-                <button name="%(product.product_variant_action)d" type="action"
-                    icon="fa-sitemap" class="oe_stat_button"
-                    invisible="product_variant_count &lt;= 1"
+                <button name="%(product.product_variant_action)d" type="action" icon="fa-sitemap"
+                    class="oe_stat_button" invisible="product_variant_count &lt;= 1"
                     groups="product.group_product_variant">
                     <field string="Variants" name="product_variant_count" widget="statinfo" />
                 </button>
             </button>
 
             <xpath expr="//page[@name='general_information']" position="after">
-                <page
-                    name="variants"
-                    string="Attributes &amp; Variants"
-                    groups="product.group_product_variant"
-                    invisible="type == 'combo'"
-                >
+                <page name="variants" string="Attributes &amp; Variants"
+                    groups="product.group_product_variant" invisible="type == 'combo'">
                     <field name="attribute_line_ids" widget="one2many"
                         context="{'show_attribute': False}" force_save="1">
                         <list string="Variants" editable="bottom"
@@ -477,8 +395,8 @@
                             <field name="value_ids" widget="many2many_tags"
                                 options="{'no_create_edit': True, 'color_field': 'color'}"
                                 context="{'default_attribute_id': attribute_id, 'show_attribute': False}" />
-                            <button string="Configure" class="float-end btn-secondary"
-                                type="object" name="action_open_attribute_values"
+                            <button string="Configure" class="float-end btn-secondary" type="object"
+                                name="action_open_attribute_values"
                                 groups="product.group_product_variant" />
                         </list>
                     </field>
@@ -551,18 +469,17 @@
     <record id="action_product_template_print_labels" model="ir.actions.server">
         <field name="name">Print Labels</field>
         <field name="model_id" ref="product.model_product_template" />
-        <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
         <field name="binding_model_id" ref="product.model_product_template" />
         <field name="state">code</field>
         <field name="code">
 if records:
     action = records.action_view_label_layout()
         </field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
     </record>
 
     <record id="action_product_template_price_list_report" model="ir.actions.server">
         <field name="name">Pricelist Report</field>
-        <field name="group_ids" eval="[(4, ref('product.group_product_pricelist'))]" />
         <field name="model_id" ref="product.model_product_template" />
         <field name="binding_model_id" ref="product.model_product_template" />
         <field name="state">code</field>
@@ -574,6 +491,7 @@ action = {
     'context': env.context,
 }
         </field>
+        <field name="group_ids" eval="[(4, ref('product.group_product_pricelist'))]" />
     </record>
 
 </odoo>

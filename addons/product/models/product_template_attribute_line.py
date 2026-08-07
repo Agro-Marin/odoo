@@ -1,6 +1,8 @@
-from odoo import _, api, fields, models, tools
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.fields import Command
+from odoo.fields import Command, Domain
+
+from .utils import unlink_where_possible
 
 
 class ProductTemplateAttributeLine(models.Model):
@@ -118,20 +120,16 @@ class ProductTemplateAttributeLine(models.Model):
         create_positions = []
         # `record_ids[i]` is the line answering `vals_list[i]`.
         record_ids = [None] * len(vals_list)
+        # Reusable archived lines, resolved in one query for the whole batch.
+        # The per-row search this replaces existed only to skip lines already
+        # revived by an earlier row; consuming them from an ordered pool does
+        # the same thing without a query per row.
+        archived_ptal_pool = self._pool_of_reusable_archived_lines(vals_list)
         for index, value in enumerate(vals_list):
             vals = dict(value, active=value.get("active", True))
-            # While not ideal for peformance, this search has to be done at each
-            # step to exclude the lines that might have been activated at a
-            # previous step. Since `vals_list` will likely be a small list in
-            # all use cases, this is an acceptable trade-off.
-            archived_ptal = self.search(
-                [
-                    ("active", "=", False),
-                    ("product_tmpl_id", "=", vals.pop("product_tmpl_id", 0)),
-                    ("attribute_id", "=", vals.pop("attribute_id", 0)),
-                ],
-                limit=1,
-            )
+            pool_key = (vals.pop("product_tmpl_id", 0), vals.pop("attribute_id", 0))
+            candidates = archived_ptal_pool.get(pool_key)
+            archived_ptal = candidates.pop(0) if candidates else self.browse()
             if archived_ptal:
                 # Write given `vals` in addition of `active` to ensure
                 # `value_ids` or other fields passed to `create` are saved too,
@@ -160,7 +158,11 @@ class ProductTemplateAttributeLine(models.Model):
         - Clean up related values and related variants when archiving or when
             updating `value_ids`.
         """
-        values = vals
+        # Copy: the archiving branch below injects `value_ids` into this dict,
+        # and `vals` belongs to the caller. Mutating it made a dict reused for a
+        # second `write` silently carry a `Command.clear()` on `value_ids` --
+        # wiping the values of records the caller never meant to touch.
+        values = dict(vals)
         if "product_tmpl_id" in values:
             for ptal in self:
                 if ptal.product_tmpl_id.id != values["product_tmpl_id"]:
@@ -217,22 +219,22 @@ class ProductTemplateAttributeLine(models.Model):
         self.product_template_value_ids._only_active().unlink()
         # Keep a reference to the related templates before the deletion.
         templates = self.product_tmpl_id
-        # Now delete or archive the lines.
-        ptal_to_archive = self.env["product.template.attribute.line"]
-        for ptal in self:
-            try:
-                with self.env.cr.savepoint(), tools.mute_logger("odoo.db"):
-                    super(ProductTemplateAttributeLine, ptal).unlink()
-            except Exception:
-                # We catch all kind of exceptions to be sure that the operation
-                # doesn't fail.
-                ptal_to_archive += ptal
+        # Now delete or archive the lines, attempting the batch as a whole and
+        # splitting only on failure (see `unlink_where_possible`) rather than
+        # opening a savepoint per line.
+        ptal_to_archive = unlink_where_possible(
+            self, lambda ptals: ptals._unlink_without_fallback()
+        )
         ptal_to_archive.action_archive()  # only calls write if there are records
         # For archived lines `_update_product_template_attribute_values` is
         # implicitly called during the `write` above, but for products that used
         # unlinked lines `_create_variant_ids` has to be called manually.
         (templates - ptal_to_archive.product_tmpl_id)._create_variant_ids()
         return True
+
+    def _unlink_without_fallback(self):
+        """Delete outright, skipping the archive-on-failure handling above."""
+        return super().unlink()
 
     def _update_product_template_attribute_values(self):
         """Create or unlink `product.template.attribute.value` for each line in
@@ -249,8 +251,21 @@ class ProductTemplateAttributeLine(models.Model):
         ProductTemplateAttributeValue = self.env["product.template.attribute.value"]
         ptav_to_create = []
         ptav_to_unlink = ProductTemplateAttributeValue
+        # Pool of re-usable archived values, resolved in one query for the whole
+        # recordset instead of one `_read_group` per line. It is kept in step
+        # with the loop below -- values archived at one step are added back,
+        # values revived are taken out -- so a later line can still re-use a
+        # value an earlier line archived, which is the only reason the query
+        # used to sit inside the loop.
+        archived_ptav_pool = self._pool_of_reusable_archived_values()
         for ptal in self:
             ptav_to_activate = ProductTemplateAttributeValue
+            # Only this line's additions get archived at the end of the step;
+            # `ptav_to_unlink` accumulates across lines for the final `unlink`,
+            # and re-writing the whole accumulation on every line was quadratic
+            # in the number of lines for no effect (the earlier ones are already
+            # archived).
+            ptav_to_deactivate = ProductTemplateAttributeValue
             remaining_pav = set(ptal.value_ids.ids)
             for ptav in ptal.product_template_value_ids:
                 if ptav.product_attribute_value_id.id not in remaining_pav:
@@ -259,28 +274,23 @@ class ProductTemplateAttributeLine(models.Model):
                     # archived it means they could not be deleted previously.
                     if ptav.ptav_active:
                         ptav_to_unlink += ptav
+                        ptav_to_deactivate += ptav
                 else:
                     # Activate corresponding values that are currently archived.
                     remaining_pav.remove(ptav.product_attribute_value_id.id)
                     if not ptav.ptav_active:
                         ptav_to_activate += ptav
 
-            ptav_groups = ProductTemplateAttributeValue._read_group(
-                [
-                    ("ptav_active", "=", False),
-                    ("product_tmpl_id", "=", ptal.product_tmpl_id.id),
-                    ("attribute_id", "=", ptal.attribute_id.id),
-                    ("product_attribute_value_id", "in", list(remaining_pav)),
-                ],
-                groupby=["product_attribute_value_id"],
-                aggregates=["id:recordset"],
-            )
-            for pav, ptav in ptav_groups:
-                ptav = ptav[0]
+            line_key = (ptal.product_tmpl_id.id, ptal.attribute_id.id)
+            for pav_id in sorted(remaining_pav):
+                ptav = archived_ptav_pool.pop((*line_key, pav_id), None)
+                if ptav is None:
+                    continue
                 ptav.write({"ptav_active": True, "attribute_line_id": ptal.id})
                 # If the value was marked for deletion, now keep it.
                 ptav_to_unlink -= ptav
-                remaining_pav.remove(pav.id)
+                ptav_to_deactivate -= ptav
+                remaining_pav.remove(pav_id)
 
             remaining_pav = (
                 self.env["product.attribute.value"].sudo().browse(sorted(remaining_pav))
@@ -297,12 +307,91 @@ class ProductTemplateAttributeLine(models.Model):
             # Handle active at each step in case a following line might want to
             # re-use a value that was archived at a previous step.
             ptav_to_activate.write({"ptav_active": True})
-            ptav_to_unlink.write({"ptav_active": False})
+            ptav_to_deactivate.write({"ptav_active": False})
+            # Keep the pool in step with what this step just (de)activated, so
+            # the batched lookup answers exactly what the per-line query did.
+            for ptav in ptav_to_activate:
+                archived_ptav_pool.pop(self._archived_value_key(ptav), None)
+            for ptav in ptav_to_deactivate:
+                archived_ptav_pool.setdefault(self._archived_value_key(ptav), ptav)
         if ptav_to_unlink:
             ptav_to_unlink.unlink()
         ProductTemplateAttributeValue.create(ptav_to_create)
         if self.env.context.get("create_product_product", True):
             self.product_tmpl_id._create_variant_ids()
+
+    @api.model
+    def _pool_of_reusable_archived_lines(self, vals_list):
+        """Archived lines the rows of ``vals_list`` could revive, as
+        ``{(template_id, attribute_id): [ptal, ...]}``.
+
+        One query for the whole batch. Each list keeps the model's own order, so
+        popping from the front picks the same line the per-row ``limit=1``
+        search did, and consuming an entry is what stops two rows targeting the
+        same (template, attribute) from reviving one line twice.
+        """
+        wanted = {
+            (vals.get("product_tmpl_id"), vals.get("attribute_id"))
+            for vals in vals_list
+            if vals.get("product_tmpl_id") and vals.get("attribute_id")
+        }
+        if not wanted:
+            return {}
+        domain = Domain("active", "=", False) & Domain.OR(
+            Domain("product_tmpl_id", "=", template_id)
+            & Domain("attribute_id", "=", attribute_id)
+            for template_id, attribute_id in wanted
+        )
+        pool = {}
+        for ptal in self.search(domain):
+            pool.setdefault((ptal.product_tmpl_id.id, ptal.attribute_id.id), []).append(
+                ptal
+            )
+        return pool
+
+    @api.model
+    def _archived_value_key(self, ptav):
+        """Pool key of a `product.template.attribute.value`: what identifies it
+        as a re-usable slot for a line (template, attribute, attribute value).
+        """
+        return (
+            ptav.product_tmpl_id.id,
+            ptav.attribute_id.id,
+            ptav.product_attribute_value_id.id,
+        )
+
+    def _pool_of_reusable_archived_values(self):
+        """Archived `product.template.attribute.value` records that the lines in
+        `self` could revive, as ``{(template_id, attribute_id, value_id): ptav}``.
+
+        One query for the whole recordset. The candidate values are over-fetched
+        (every value of every line, not just the ones that turn out to be
+        missing) because narrowing per line is exactly what forced the query
+        into the loop; entries that are never consulted cost nothing.
+
+        Ordered by id and inserted with `setdefault`, so a duplicated
+        (template, attribute, value) triple resolves to the lowest id -- stable,
+        unlike the arbitrary aggregate order this replaces.
+        """
+        pairs = {(ptal.product_tmpl_id.id, ptal.attribute_id.id) for ptal in self}
+        value_ids = self.value_ids.ids
+        if not pairs or not value_ids:
+            return {}
+        domain = (
+            Domain("ptav_active", "=", False)
+            & Domain("product_attribute_value_id", "in", value_ids)
+            & Domain.OR(
+                Domain("product_tmpl_id", "=", template_id)
+                & Domain("attribute_id", "=", attribute_id)
+                for template_id, attribute_id in pairs
+            )
+        )
+        pool = {}
+        for ptav in self.env["product.template.attribute.value"].search(
+            domain, order="id"
+        ):
+            pool.setdefault(self._archived_value_key(ptav), ptav)
+        return pool
 
     def _without_no_variant_attributes(self):
         return self.filtered(

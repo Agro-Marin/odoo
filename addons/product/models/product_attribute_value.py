@@ -101,28 +101,41 @@ class ProductAttributeValue(models.Model):
         return res
 
     def unlink(self):
-        # Batch search all PTAVs linked to these PAVs in a single query
-        all_ptavs = (
-            self.env["product.template.attribute.value"]
-            .search([("product_attribute_value_id", "in", self.ids)])
-            .with_context(active_test=False)
+        # Batch search all PTAVs linked to these PAVs in a single query.
+        # `active_test=False` has to be on the recordset the m2m is *read*
+        # from: the cache holds every id of the relation and the ORM applies
+        # the active filter at read time, from the reading record's context.
+        # Grouping through `|=` into a recordset built on the bare env dropped
+        # that context (a union takes the left operand's env), so
+        # `ptav_product_variant_ids` came back active-only, the branch below
+        # was dead, and a value whose only trace was an archived variant went
+        # to `super().unlink()` -- where the RESTRICT foreign key of
+        # `product_variant_combination` turned it into a raw RestrictViolation
+        # traceback instead of the archive this code is written to do.
+        PTAV = self.env["product.template.attribute.value"].with_context(
+            active_test=False
         )
-        ptavs_by_pav = {}
-        for ptav in all_ptavs:
-            ptavs_by_pav.setdefault(
-                ptav.product_attribute_value_id.id,
-                self.env["product.template.attribute.value"],
-            )
-            ptavs_by_pav[ptav.product_attribute_value_id.id] |= ptav
+        ptavs_by_pav = PTAV.search(
+            [("product_attribute_value_id", "in", self.ids)]
+        ).grouped("product_attribute_value_id")
         pavs_to_archive = self.env["product.attribute.value"]
         for pav in self:
-            linked_products = ptavs_by_pav.get(
-                pav.id, self.env["product.template.attribute.value"]
-            ).ptav_product_variant_ids
+            linked_products = ptavs_by_pav.get(pav, PTAV).ptav_product_variant_ids
             active_linked_products = linked_products.filtered("active")
-            if not active_linked_products and linked_products:
-                # If product attribute value found on non-active product variants
-                # archive PAV instead of deleting
+            # Archive (rather than delete) a value whose only remaining trace is
+            # an archived variant -- but never one an *active* product still
+            # offers on an attribute line: archiving it there desynchronises the
+            # line (`value_ids` stops listing it while the stored `value_count`
+            # and the active `product.template.attribute.value` keep counting
+            # it) and the next `_create_variant_ids` resurrects the very variant
+            # the user archived. Such a value must keep raising the explanatory
+            # UserError from `_unlink_except_used_on_product`, exactly like the
+            # archived-template case handled below.
+            if (
+                linked_products
+                and not active_linked_products
+                and not pav.is_used_on_products
+            ):
                 pavs_to_archive |= pav
         # A value still referenced by an attribute line cannot be deleted:
         # `product_attribute_value_product_template_attribute_line_rel` is a

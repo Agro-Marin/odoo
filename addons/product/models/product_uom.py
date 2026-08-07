@@ -52,14 +52,41 @@ class ProductUom(models.Model):
         through when the packaging and the product belonged to different
         companies.
         """
-        for company, packagings in groupby(self, lambda p: p.company_id):
-            barcodes = [p.barcode for p in packagings if p.barcode]
+        barcodes_by_company = {
+            company: [p.barcode for p in packagings if p.barcode]
+            for company, packagings in groupby(self, lambda p: p.company_id)
+        }
+        all_barcodes = [
+            b for barcodes in barcodes_by_company.values() for b in barcodes
+        ]
+        if not all_barcodes:
+            return
+        # One query for every company in the batch rather than one per company:
+        # the company scoping is a cheap filter on the result, not a reason to
+        # go back to the database. `search_fetch` so the two fields read below
+        # come back with the rows.
+        colliding = (
+            self.env["product.product"]
+            .sudo()
+            .search_fetch([("barcode", "in", all_barcodes)], ["barcode", "company_id"])
+        )
+        if not colliding:
+            return
+        for company, barcodes in barcodes_by_company.items():
             if not barcodes:
                 continue
-            domain = [("barcode", "in", barcodes)]
-            if company:
-                domain.append(("company_id", "in", (False, company.id)))
-            if self.env["product.product"].sudo().search_count(domain, limit=1):
+            wanted = set(barcodes)
+            if any(
+                product.barcode in wanted
+                # A packaging with no company collides with any product; one
+                # owned by a company only with that company's or a shared one.
+                and (
+                    not company
+                    or not product.company_id
+                    or product.company_id == company
+                )
+                for product in colliding
+            ):
                 raise ValidationError(_("A product already uses the barcode"))
 
     def _compute_display_name(self):

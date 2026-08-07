@@ -1,8 +1,10 @@
 from random import randint
 
-from odoo import _, api, fields, models, tools
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+
+from .utils import unlink_where_possible
 
 
 class ProductTemplateAttributeValue(models.Model):
@@ -186,18 +188,18 @@ class ProductTemplateAttributeValue(models.Model):
         # Try to remove the variants before deleting to potentially remove some
         # blocking references.
         self.ptav_product_variant_ids._unlink_or_archive()
-        # Now delete or archive the values.
-        ptav_to_archive = self.env["product.template.attribute.value"]
-        for ptav in self:
-            try:
-                with self.env.cr.savepoint(), tools.mute_logger("odoo.db"):
-                    super(ProductTemplateAttributeValue, ptav).unlink()
-            except Exception:
-                # We catch all kind of exceptions to be sure that the operation
-                # doesn't fail.
-                ptav_to_archive += ptav
+        # Now delete or archive the values, attempting the batch as a whole and
+        # splitting only on failure (see `unlink_where_possible`) rather than
+        # opening a savepoint per value.
+        ptav_to_archive = unlink_where_possible(
+            self, lambda ptavs: ptavs._unlink_without_fallback()
+        )
         ptav_to_archive.write({"ptav_active": False})
         return True
+
+    def _unlink_without_fallback(self):
+        """Delete outright, skipping the archive-on-failure handling above."""
+        return super().unlink()
 
     @api.depends("attribute_id")
     def _compute_display_name(self):

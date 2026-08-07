@@ -166,3 +166,46 @@ class TestProductRounding(ProductCommon):
         ]
         product = self.product_100_dollars.with_context(pricelist=self.pricelist_cad.id)
         self.assertAlmostEqual(product._get_contextual_discount(), 0.25, places=4)
+
+    def test_discount_uses_the_contextual_date_on_both_sides(self):
+        """`context['date']` reaches the price but used to be ignored by the
+        list price it is compared against.
+
+        `_get_contextual_price` forwards the date down to `_compute_price_rule`,
+        while the denominator was converted at `fields.Datetime.now()`. Any
+        currency-rate change between the two dates leaked straight into the
+        ratio: with the rate below (1.0 then 4.0) a plain 10% rule reported a
+        77.5% discount on a back-dated context.
+        """
+        self._enable_pricelists()
+        currency = self.env["res.currency"].create(
+            {
+                "name": "DXY",
+                "symbol": "D",
+                "rounding": 0.01,
+                "rate_ids": [
+                    Command.create({"rate": 1.0, "name": "2020-01-01"}),
+                    Command.create({"rate": 4.0, "name": time.strftime("%Y-%m-%d")}),
+                ],
+            }
+        )
+        pricelist = self.env["product.pricelist"].create(
+            {
+                "name": "Pricelist Testing Dated",
+                "currency_id": currency.id,
+                "item_ids": [
+                    Command.create(
+                        {"compute_price": "percentage", "percent_price": 10.0}
+                    )
+                ],
+            }
+        )
+        product = self.product_100_dollars.with_context(
+            pricelist=pricelist.id, date="2020-06-01 12:00:00"
+        )
+        self.assertAlmostEqual(
+            product._get_contextual_discount(),
+            0.10,
+            places=6,
+            msg="the discount must not absorb the currency-rate change",
+        )

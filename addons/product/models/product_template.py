@@ -40,6 +40,7 @@ class ProductTemplate(models.Model):
         comodel_name="product.category",
         string="Product Category",
         tracking=True,
+        index=True,
         group_expand="_read_group_categ_id",
     )
 
@@ -369,7 +370,10 @@ class ProductTemplate(models.Model):
             templates._create_variant_ids()
 
         # This is needed to set given values to first variant after creation
-        for template, vals in zip(templates, vals_list, strict=False):
+        # (`strict=True`: `@api.model_create_multi` guarantees one record per
+        # vals dict, and a silent length mismatch here would pair a template
+        # with another one's values)
+        for template, vals in zip(templates, vals_list, strict=True):
             related_vals = {}
             for field_name in self._get_related_fields_variant_template():
                 if vals.get(field_name) and not template[field_name]:
@@ -396,17 +400,20 @@ class ProductTemplate(models.Model):
             )
             products.with_context(skip_uom_conversion=True)._update_uom(vals["uom_id"])
         res = super().write(vals)
-        if (
-            self.env.context.get("create_product_product", True)
-            and "attribute_line_ids" in vals
-        ):
-            self._create_variant_ids()
-        elif vals.get("active"):
-            # Reactivated templates that have no active variant must (re)generate
-            # them. This is decided per-record: using the batch union
-            # (len(self.product_variant_ids) == 0) let a single template that
-            # still has variants mask the others, leaving them with no variant.
-            self.filtered(lambda t: not t.product_variant_ids)._create_variant_ids()
+        # `create_product_product=False` means "this caller manages variants
+        # itself" (the import path, `product.product.create`); it has to gate
+        # the reactivation branch too, which used to generate variants behind
+        # the back of a caller that had explicitly opted out.
+        if self.env.context.get("create_product_product", True):
+            if "attribute_line_ids" in vals:
+                self._create_variant_ids()
+            elif vals.get("active"):
+                # Reactivated templates that have no active variant must
+                # (re)generate them. This is decided per-record: using the batch
+                # union (len(self.product_variant_ids) == 0) let a single
+                # template that still has variants mask the others, leaving them
+                # with no variant.
+                self.filtered(lambda t: not t.product_variant_ids)._create_variant_ids()
         if "active" in vals and not vals.get("active"):
             self.with_context(active_test=False).product_variant_ids.write(
                 {"active": False}
@@ -832,9 +839,14 @@ class ProductTemplate(models.Model):
     def name_search(self, name="", domain=None, operator="ilike", limit=100):
         # Only use the product.product heuristics if there is a search term and the domain
         # does not specify a match on `product.template` IDs.
+        # `iter_conditions()` rather than indexing raw terms: callers legitimately
+        # pass a `Domain` object, whose iteration yields condition objects (not
+        # 3-tuples), so `term[0]` silently stopped recognising an `id` condition
+        # and re-enabled the variant heuristics on an id-pinned search.
         self_obj = self
         if "search_product_product" not in self.env.context and any(
-            term[0] == "id" for term in (domain or [])
+            condition.field_expr == "id"
+            for condition in Domain(domain or Domain.TRUE).iter_conditions()
         ):
             self_obj = self_obj.with_context(search_product_product=False)
         return super(ProductTemplate, self_obj).name_search(

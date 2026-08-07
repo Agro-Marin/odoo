@@ -22,6 +22,8 @@ Pricelists preferences by product and/or partners.
 
 Print product labels with barcode.
     """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
     "depends": ["uom", "mail"],
     "data": [
         "data/product_data.xml",
@@ -52,6 +54,13 @@ Print product labels with barcode.
         "report/product_pricelist_report_templates.xml",
         "views/product_menu.xml",
     ],
+    "demo": [
+        "demo/product_attribute_demo.xml",
+        "demo/product_category_demo.xml",
+        "demo/product_demo.xml",
+        "demo/product_document_demo.xml",
+        "demo/product_supplierinfo_demo.xml",
+    ],
     "assets": {
         "web.assets_backend": [
             "product/static/src/js/**/*",
@@ -68,14 +77,5 @@ Print product labels with barcode.
             "product/static/tests/**/*",
         ],
     },
-    "demo": [
-        "demo/product_attribute_demo.xml",
-        "demo/product_category_demo.xml",
-        "demo/product_demo.xml",
-        "demo/product_document_demo.xml",
-        "demo/product_supplierinfo_demo.xml",
-    ],
     "installable": True,
-    "author": "Odoo S.A.",
-    "license": "LGPL-3",
 }

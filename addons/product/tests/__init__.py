@@ -7,6 +7,8 @@ from . import test_label_report
 from . import test_name
 from . import test_pricelist
 from . import test_pricelist_auto_creation
+from . import test_pricelist_item_targeting
+from . import test_pricelist_rule_selection
 from . import test_product_attribute_value_config
 from . import test_combination_engine
 from . import test_product_audit_fixes
@@ -19,3 +21,4 @@ from . import test_variants
 from . import test_product_rounding
 from . import test_product_uom_and_copy
 from . import test_robustness
+from . import test_unlink_where_possible
