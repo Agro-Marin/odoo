@@ -166,6 +166,45 @@ class TestReferenceResolution:
         (source.parent / "doc.md").write_text("x", encoding="utf-8")
         assert gate._resolve_ref(source, "/doc.md") is None
 
+    def test_ref_escaping_the_checkout_is_a_violation(self, tmp_path, monkeypatch):
+        """A sibling checkout is not this repo, even when it is on disk.
+
+        The walk `.resolve()`s each candidate and only stops AFTER testing
+        `current == REPO_ROOT`, so a `../../` ref climbed out of the tree.
+        Measured on a real workstation: ``../../agromarin/CLAUDE.md`` cited from
+        ``doc/adr/`` reported "No broken .md references found" because another
+        git repository happened to sit next door — and the same ref in CI, where
+        the repo stands alone, was a failure. A verdict that depends on what is
+        outside the tree is the one thing this gate must not produce.
+        """
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path / "repo")
+        outside = tmp_path / "sibling" / "CLAUDE.md"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("x", encoding="utf-8")
+        source = tmp_path / "repo" / "doc" / "adr" / "README.md"
+        source.parent.mkdir(parents=True)
+        assert gate._resolve_ref(source, "../../../sibling/CLAUDE.md") is None
+
+    def test_rooted_ref_cannot_climb_out_with_dotdot(self, tmp_path, monkeypatch):
+        """The `/`-anchored branch needs the same guard as the walk."""
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path / "repo")
+        (tmp_path / "repo").mkdir()
+        outside = tmp_path / "outside.md"
+        outside.write_text("x", encoding="utf-8")
+        source = tmp_path / "repo" / "CLAUDE.md"
+        assert gate._resolve_ref(source, "/../outside.md") is None
+
+    def test_in_repo_refs_still_resolve_after_the_guard(self, tmp_path, monkeypatch):
+        """Containment must not cost the legitimate walk-up resolutions."""
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+        target = tmp_path / "doc" / "guide.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("x", encoding="utf-8")
+        source = tmp_path / "addons" / "web" / "machine_doc_v1" / "MAP.md"
+        source.parent.mkdir(parents=True)
+        # Walks up from machine_doc_v1/ to the root before it matches.
+        assert gate._resolve_ref(source, "doc/guide.md") == target.resolve()
+
 
 class TestNextTargetRanksReality:
     """The ranker must answer "what is broken now", not "what was broken then"."""

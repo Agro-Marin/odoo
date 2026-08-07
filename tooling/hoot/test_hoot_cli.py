@@ -69,6 +69,41 @@ class TestScriptsAreImportable:
         # ever starts, and no test above would catch that.
         assert (HERE.parent / "_trampoline.sh").is_file()
 
+    @pytest.mark.parametrize("filename", ["hoot", "hoot-shard", "hoot-affected"])
+    def test_docstring_is_the_documentation_not_the_trampoline(self, filename):
+        """The polyglot costs the module its ``__doc__`` unless it is rebound.
+
+        ``''':' … '''`` is the FIRST string literal in the file, so Python takes
+        it as the docstring and the real documentation below it becomes an inert
+        expression statement. ``hoot`` passes ``description=__doc__`` to
+        argparse, so ``hoot --help`` printed the shell trampoline — ``:'``, then
+        ``_t="$(dirname "$0")/../_trampoline.sh"`` — where its usage guide
+        should be, and the guide was reachable from nowhere at all.
+        """
+        module = _load(f"doc_{filename.replace('-', '_')}", filename)
+        doc = module.__doc__ or ""
+        assert not doc.lstrip().startswith(":'"), (
+            f"{filename}: __doc__ is the shell preamble — rebind it with an "
+            f'explicit `__doc__ = """..."""` after the polyglot block'
+        )
+        assert "_trampoline.sh" not in doc, f"{filename}: shell leaked into __doc__"
+        assert len(doc.splitlines()) > 5, f"{filename}: __doc__ lost its content"
+
+    def test_hoot_help_renders_its_own_documentation(self):
+        """The user-visible half of the assertion above."""
+        cli = _load("help_probe_hoot", "hoot")
+        buf = io.StringIO()
+        argv = sys.argv
+        sys.argv = ["hoot", "--help"]
+        try:
+            with redirect_stdout(buf), pytest.raises(SystemExit):
+                cli.main()
+        finally:
+            sys.argv = argv
+        rendered = buf.getvalue()
+        assert "warm-server HOOT test runner" in rendered
+        assert "_trampoline.sh" not in rendered
+
 
 class TestShardSummaryParsing:
     """`hoot-shard` reads `hoot`'s stdout. Pin both ends of that contract."""

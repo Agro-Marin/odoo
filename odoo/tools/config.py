@@ -1782,7 +1782,12 @@ class configmanager:
 
     def _load_file_options(self, rcfile: str) -> None:
         self._file_options.clear()
-        p = configparser.RawConfigParser()
+        # ``#`` and ``;`` introduce a comment wherever they appear after
+        # whitespace, not only at the start of a line. configparser disables
+        # inline comments by default, which silently folded the comment into the
+        # value (``db_port = 5432  ; the default`` parsed as ``"5432  ; the
+        # default"`` and failed as an int).
+        p = configparser.RawConfigParser(inline_comment_prefixes=("#", ";"))
         try:
             p.read([rcfile])
             for name, value in p.items("options"):
@@ -1810,10 +1815,14 @@ class configmanager:
                 ):
                     self._log(
                         logging.WARNING,
-                        "option %s reads %r in the config file at %s but isn't a boolean option, skip",
+                        "option %s reads %r in the config file at %s but isn't a "
+                        "boolean option, skip. %r was the pre-19.0 spelling of "
+                        "'unset'; write %s with an empty value instead.",
                         name,
                         value,
                         rcfile,
+                        value,
+                        name,
                     )
                     continue
                 try:
@@ -1831,7 +1840,7 @@ class configmanager:
             self.parser.error(f"malformed configuration file {rcfile!r}: {exc}")
 
     def save(self, keys: list[str] | None = None) -> None:
-        p = configparser.RawConfigParser()
+        p = configparser.RawConfigParser(inline_comment_prefixes=("#", ";"))
         rc_exists = Path(self["config"]).exists()
         if rc_exists and keys:
             p.read([self["config"]])

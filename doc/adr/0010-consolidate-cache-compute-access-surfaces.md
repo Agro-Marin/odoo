@@ -188,3 +188,39 @@ lighter first step.
   business-logic effort, not a handle swap.)
 - **Step 5 (group `env` recompute/protect adapters): not started** — optional,
   cosmetic.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — step 1's artefact was deleted, and step 2 was not true when it shipped
+
+The Implementation status above reports "Steps 1–3: done." Two of the three need
+qualifying; step 3 is intact and doing its job.
+
+- **Step 1's deliverable no longer exists.** The step was "document in `OrmCore`'s
+  module docstring that it is an *intentionally curated* subset". That ~30-line
+  docstring was removed by the comment/docstring strip of `odoo/`
+  (`eff67f80316`, 936 files, −49,443 lines). The strip was deliberate and kept an
+  explicit retention list of machine-checked docstrings — `orm/__init__.py`,
+  `service/db.py`, all of `odoo/cli/` and others — but `components/core.py` was
+  not on it, because nothing read it. That is the lesson worth keeping: a
+  docstring nominated as an ADR deliverable and gated by nothing is not a
+  deliverable. `odoo/ARCHITECTURE.md` still carries the curated-boundary
+  statement, so the decision survives in prose; the class-level comment in
+  `components/core.py` now carries the rest.
+
+- **Step 2 was incomplete on the day it landed.** Renaming
+  `Transaction.cache_store` → `_cache_store` did not privatise the raw handles,
+  because `OrmCore`'s own slots were named `cache` and `engine` — so
+  `env._core.cache` *was* `transaction._cache_store`, a public pass-through
+  straight to the object the façade exists to wrap. Measured when this was found:
+  62 of 64 `_core.<attr>` accesses used a curated method and 2 reached the raw
+  cache, both for `get_value`, which the façade did not expose. The slots are now
+  `_cache` / `_engine`, `get_value` is on the façade, and
+  `orm/tests/test_orm_core_facade_boundary.py` pins it.
+
+Both corrections were found by reading the tree, not the record. The general
+point is ADR-0008's, turned inward: a documented guarantee that no gate enforces
+decays into a claim, and this ADR made two of them.

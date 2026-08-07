@@ -76,7 +76,7 @@ imports `odoo.api`, `odoo.tools`, `odoo.modules`, and `odoo.addons`. It did
 `odoo/tools/assets/`**. The dependency-free helpers it builds on
 (`libs/asset_log.py`, `libs/constants.py`) remain in `libs/` (`tools/` may
 import `libs/`, never the reverse). All in-repo importers
-(`base/models/assetsbundle.py`, `base/models/ir_qweb.py`,
+(`base/models/assetsbundle/`, `base/models/ir_qweb.py`,
 `web/controllers/webclient.py`, and the asset tests) were updated.
 
 `libs/filesystem/osutil.py` previously imported `odoo.release` for a Windows
@@ -89,3 +89,35 @@ dependency-free** — the contract has no remaining known exceptions.
 `tooling/architecture/layer_check.py`, contract `libs-is-dependency-free`
 (currently **clean at zero**). The gate is **drift-zero** — no `odoo.*` import
 may be added under `libs/`.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — `assetsbundle.py` is a package; `hashing`/`nplusone` have moved
+
+Three factual references had aged out of the tree. The first is corrected in
+place because it is a citation, not a decision; the other two are recorded here
+because correcting them would rewrite the Consequences' argument.
+
+- **The assets bundle is a package now**, `base/models/assetsbundle/`, not the
+  single module this ADR cited. It was itself decomposed after this ADR was
+  written. Corrected in place above; this is what `test_adr_coherence.py`'s new
+  addon-relative path check found first when it was added.
+- **`hashing` is no longer under `tools/`.** The Consequences cite `hashing`,
+  `query` and `nplusone` as framework-free helpers still awaiting migration.
+  `hashing` completed that migration and now lives at `odoo/libs/hashing.py`;
+  `nplusone` no longer exists under either name. Only `query` (`odoo/tools/query.py`)
+  is still an example of the point being made — which the point survives, since
+  it was about the gate enforcing "no `libs/` → `odoo.*` edge" rather than
+  "every framework-free helper has already moved".
+
+One open question this ADR's own rule raises and does not answer:
+`odoo/libs/_field_access/` is import-clean and therefore legal under the
+`libs-is-dependency-free` contract, but its purpose is the ORM's field cache
+(`batch_cache_fill`, `to_prefetch_ids`, `sort_ids_by_cache`) and its only
+production consumer is `odoo/orm/models/mixins/traversal.py`. By the hybrid rule
+above — "framework-specific even without an `odoo` import → `odoo/tools/`" — it
+is on the wrong side of the line, and its leading underscore says so. Resolving
+that is a decision, not an amendment, and wants its own record.

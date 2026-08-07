@@ -78,6 +78,9 @@ EXPECTED_SURVIVORS: dict[str, str] = {
     "TestPatchModuleConvention.test_every_registered_patch_exposes_the_hook": "code-only",
     "TestPinnedCyclesAndRemovals.test_the_backtick_note_is_not_reinstated": "negative",
     "TestPinnedViolations.test_no_new_violations": "code-only",
+    # the six decomposed monoliths are named in the test, not read off the page:
+    # the ``Identity`` bullet that used to list them was prose restating the tree
+    "TestPosture.test_named_monoliths_are_no_longer_monoliths": "code-only",
     "TestPosture.test_sql_db_is_gone": "code-only",
     "TestReferencedArtifacts.test_ci_path_filter_covers_every_scanned_tree": "code-only",
     # the integration lane's shape, asserted against the workflow itself: the

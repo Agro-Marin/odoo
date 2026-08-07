@@ -169,6 +169,28 @@ class CliTests(unittest.TestCase):
         self.assertIn("broken", err)
         self.assertIn("nocount", err)
 
+    def test_the_count_path_reports_a_malformed_baseline_too(self):
+        """The gating path must survive what ``--list`` already survives.
+
+        ``--list`` caught ``OSError, ValueError, KeyError, TypeError``; the
+        ``--count`` path — the one every CI job runs — caught a strictly
+        narrower set, so a floor of ``{"count": null}`` gave a maintainer a
+        clean report under ``--list`` and a raw ``TypeError`` traceback under
+        the command that decides whether the build passes.
+        """
+        for name, body in (
+            ("nulls", '{"count": null}'),
+            ("dicts", '{"count": {}}'),
+            ("lists", '{"count": []}'),
+            ("broken", "{not json"),
+            ("nocount", '{"note": "oops"}'),
+        ):
+            with self.subTest(baseline=name):
+                (ratchet.BASELINES_DIR / f"{name}.json").write_text(body)
+                code, _out, err = self._run([name, "--count", "5"])
+                self.assertEqual(code, EXIT_USAGE)
+                self.assertIn("bad baseline", err)
+
     def test_list_json_separates_good_from_broken(self):
         self._run(["good", "--count", "3", "--update"])
         (ratchet.BASELINES_DIR / "broken.json").write_text("{not json")

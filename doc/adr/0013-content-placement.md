@@ -1,6 +1,6 @@
 # ADR-0013: Content placement — where an attachment's bytes are, as data
 
-- **Status:** Accepted
+- **Status:** Proposed
 - **Date:** 2026-07-30
 - **Extends:** ADR-0012 (attachment storage layers)
 
@@ -170,3 +170,31 @@ every store that declares `CAP_LIST` rather than only the filestore.
   holding it. Choosing delivery per *folder* — which is what `documents_cloud`'s
   benchmark exists to inform — is a policy hook on top of this field, not a
   further column.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — Status corrected to `Proposed`; none of this is built
+
+Like ADR-0012, which it extends, this record was committed as `Accepted` and
+written throughout in the past tense — including a paragraph reporting that
+three write-path bugs "are fixed and pinned by a test per path". No such code
+exists here. `ir.content.placement` appears nowhere in any ref of any repository
+in this workspace, nor anywhere on the filesystem; neither do
+`_placements_sync`, `_restore_content_from_replica`, `_content_from_replica`,
+`_gc_unplaced_content` or `delivery_intent`. The commit that added this file
+(`50d1487d710`) touched only documentation.
+
+The Context's diagnosis of the *present* tree holds and is worth keeping: a
+single `store_fname` column really does fuse "which store" with "which key", and
+`_rewrite_stored_content` (`odoo/addons/base/models/ir_attachment.py:693`) is
+real. The `skip_res_field_check` argument — that nine copies of one subtle
+precondition is a missing entity rather than nine mistakes — is the strongest
+part of this record and is unaffected by the status change.
+
+Promote to `Accepted` when `ir.content.placement` exists. At that point
+`test_adr_coherence.py` stops exempting this file and begins requiring every
+name above to resolve, which is the check that would have caught this in the
+first place.

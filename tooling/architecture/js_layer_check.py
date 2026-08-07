@@ -57,6 +57,7 @@ mirroring how ``layer_check.py`` skips ``if TYPE_CHECKING:`` blocks.
 
 import argparse
 import json
+import posixpath
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -237,9 +238,14 @@ CONTRACTS: tuple[Contract, ...] = (
 class Violation:
     contract: str
     module: str
-    imports: str
+    imports: str  # canonical @web/... form — what the contract matched
     path: str
     lineno: int
+    #: How the import is actually spelled in the file, when that differs from
+    #: ``imports``. A report that says ``core/domain.js -> @web/views/utils``
+    #: over a line reading ``from "../views/utils"`` sends the reader grepping
+    #: for a string that is not there.
+    written: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +267,42 @@ def _matches_spec(spec: str, prefixes: tuple[str, ...]) -> bool:
     """True if a ``@web/...`` import ``spec`` equals or sits under any of
     ``prefixes`` (slash-delimited)."""
     return any(spec == p or spec.startswith(p + "/") for p in prefixes)
+
+
+def normalise_spec(spec: str, rel: str) -> str | None:
+    """An import specifier as its canonical ``@web/...`` form, or ``None``.
+
+    Contracts are written in ``@web/...`` terms because that is how Odoo's ESM
+    normally spells a cross-directory import — but it is not the only way, and
+    ``check`` used to skip anything that did not literally start with ``@web/``.
+    A relative specifier resolves to the same module and crosses the same
+    layers, so ``core/domain.js`` importing ``"../views/utils"`` was a real
+    entity->widget breach that the gate could not see, while the identical
+    ``"@web/views/utils"`` produced two violations. Measured when this was
+    fixed: **448 relative specifiers** across the 698 governed files — roughly a
+    third of the import edges in the gated tree were being matched against
+    nothing. None of them crossed a layer, so the gate was green by luck rather
+    than by enforcement, and the ESLint ``no-restricted-imports`` rules the
+    module docstring cites as the weaker predecessor share the blind spot, so
+    there was no backstop either.
+
+    ``js_cycle_check._resolve`` has always resolved these; this is that
+    arithmetic, applied to the layering gate.
+
+    ``None`` for anything that is not a first-party ``web`` module: a bare
+    package, another addon's ``@mail/...``, or a relative path that climbs out
+    of ``static/src`` (``../../lib/...`` — vendored code, not governed here).
+    """
+    if spec.startswith("@"):
+        return spec
+    if not spec.startswith("."):
+        return None  # bare package specifier (@odoo/owl is caught above)
+    # posixpath, not Path: pure specifier arithmetic on forward-slash module
+    # ids, with no filesystem or symlink semantics wanted.
+    target = posixpath.normpath(posixpath.join(posixpath.dirname(rel), spec))
+    if target.startswith(".."):
+        return None  # leaves static/src
+    return "@web/" + target.removesuffix(".js")
 
 
 def _is_known(rel: str, target: str) -> bool:
@@ -301,12 +343,17 @@ def check(
         except (UnicodeDecodeError, OSError) as exc:  # pragma: no cover
             print(f"warning: could not read {path}: {exc}", file=sys.stderr)
             continue
-        imports = collect_imports(src)
+        # Normalise once per file, not once per contract: the arithmetic is the
+        # same for all four and depends only on the importing module's path.
+        imports = [
+            (normalise_spec(spec, rel), spec, lineno)
+            for spec, lineno in collect_imports(src)
+        ]
         for contract in CONTRACTS:
             if not _matches_path(rel, contract.source):
                 continue
-            for target, lineno in imports:
-                if not target.startswith("@web/"):
+            for target, spelled, lineno in imports:
+                if target is None or not target.startswith("@web/"):
                     continue
                 if not _matches_spec(target, contract.forbidden):
                     continue
@@ -318,6 +365,7 @@ def check(
                     imports=target,
                     path=str(path.relative_to(ROOT)),
                     lineno=lineno,
+                    written="" if spelled == target else spelled,
                 )
                 (known if _is_known(rel, target) else new).append(v)
     return new, known
@@ -367,7 +415,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n{len(new)} NEW violation(s) — these fail the gate:\n")
             for v in new:
                 print(f"  {v.path}:{v.lineno}")
-                print(f"      {v.module}  ->  {v.imports}")
+                spelled = f'  (written "{v.written}")' if v.written else ""
+                print(f"      {v.module}  ->  {v.imports}{spelled}")
                 print(f"      breaks contract: {v.contract}")
         else:
             print("\nNo new violations. All JS layering contracts hold. ✓")
