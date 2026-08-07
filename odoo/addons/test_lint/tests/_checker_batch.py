@@ -11,6 +11,24 @@ _QUERY_METHODS = frozenset(
     }
 )
 
+_RECORDSET_METHODS = frozenset(
+    {
+        "sudo",
+        "with_context",
+        "with_user",
+        "with_company",
+        "with_env",
+        "browse",
+        "exists",
+        "filtered",
+        "filtered_domain",
+        "mapped",
+        "sorted",
+        "union",
+        "concat",
+    }
+)
+
 
 @dataclass(slots=True)
 class Violation:
@@ -37,8 +55,10 @@ def _looks_like_orm_receiver(node: ast.expr) -> bool:
             return _has_self_root(node)
         case ast.Name(id=name) if name[0].isupper() and not name.isupper():
             return True
+        case ast.Call(func=ast.Attribute(attr=attr, value=receiver)):
+            return attr in _RECORDSET_METHODS or _looks_like_orm_receiver(receiver)
         case ast.Call():
-            return True
+            return False
     return False
 
 
@@ -56,25 +76,15 @@ def _has_self_root(node: ast.expr) -> bool:
 
 
 def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
-    """Walk *tree* and yield N+1 query violations.
-
-    Whether the file is test code -- where a loop is often the readable choice
-    and the performance does not matter -- is the scan's decision, not this
-    checker's: see :func:`_py_scan.is_test_path`.
-
-    Only the **outermost** ``for`` of a nest is used as the entry point. Every
-    ``for`` used to be its own entry, and since the subtree walk descends into
-    nested loops, one query in a doubly-nested loop was reported twice and in a
-    triply-nested loop three times -- the count grew with the indentation rather
-    than with the defect.
-
-    *nodes* is an already-materialised ``ast.walk(tree)`` shared with the other
-    checkers.
-    """
+    # `async for` counts. It iterates and runs its body per item exactly as
+    # `for` does, so a query in it is the same N+1 -- the rule just could not
+    # see it, because `ast.AsyncFor` is a separate node type. (`while` is
+    # excluded on purpose: it is an iterate-until-done shape, not a
+    # record-by-record one.)
     nested: set[int] = set()
     violations: list[Violation] = []
     for node in nodes if nodes is not None else ast.walk(tree):
-        if not isinstance(node, ast.For) or id(node) in nested:
+        if not isinstance(node, (ast.For, ast.AsyncFor)) or id(node) in nested:
             continue
         for stmt in (*node.body, *node.orelse):
             _collect(stmt, nested, violations)
@@ -82,23 +92,12 @@ def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
 
 
 def _collect(node: ast.AST, nested: set[int], out: list[Violation]) -> None:
-    """Record ORM query calls anywhere in *node*'s subtree.
-
-    Skips nested function/class definitions **and lambdas** — all three create a
-    scope whose body runs when called, not once per iteration of the enclosing
-    loop. The lambda was previously flagged while the equivalent ``def`` was
-    not, so the same deferred query was or was not an N+1 depending on which
-    syntax expressed it.
-
-    Nested ``for`` nodes are recorded in *nested* on the way past, so the caller
-    does not use them as entry points of their own.
-    """
     if isinstance(
         node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
     ):
         return
 
-    if isinstance(node, ast.For):
+    if isinstance(node, (ast.For, ast.AsyncFor)):
         nested.add(id(node))
     elif isinstance(node, ast.Call):
         method_name = _is_query_call(node)

@@ -17,7 +17,6 @@ JS_DISABLED_RE = re.compile(r"""t-js=["']False["']""")
 
 class TestEsmBundles(lint_case.LintCase):
     def _rendered_bundles(self):
-        """Bundle names reached by ``t-call-assets`` with JS enabled."""
         rendered = set()
         for path in self.iter_module_files("*.xml"):
             try:
@@ -30,22 +29,6 @@ class TestEsmBundles(lint_case.LintCase):
         return rendered
 
     def test_rendered_bundles_carrying_esm_are_declared(self):
-        """A bundle serving ES-module sources must be declared under ``esm``.
-
-        An undeclared bundle is assembled as a legacy concatenation, and
-        ``JsPipeline._module_syntax_error_stub`` replaces every module-syntax
-        file in it with a ``console.error``. The page it serves then boots into
-        nothing. It is a whole-page outage that leaves the HTTP response at 200
-        and shows up only as server ERRORs nobody reads -- 307 of them per load,
-        in the case that prompted this test (`pos_preparation_display.assets`).
-
-        Only bundles reached by ``t-call-assets`` are checked. Bundles that
-        exist purely to be ``('include', ...)``-ed into another one are
-        assembled as part of their parent and never take the legacy path on
-        their own, so ~4200 files in `web.assets_backend` are not a finding.
-        A ``t-js="False"`` render asks for the stylesheet only and never emits
-        the JS, so it is not one either.
-        """
         manifests = list(Manifest.all_addon_manifests())
         addon_dirs = {m.name: Path(m.path) for m in manifests}
 
@@ -72,7 +55,6 @@ class TestEsmBundles(lint_case.LintCase):
                         own_files.setdefault(bundle, []).append(entry)
 
         def module_files(bundle, seen):
-            """Module-syntax .js the bundle carries, following ``include``."""
             if bundle in seen:
                 return []
             seen.add(bundle)

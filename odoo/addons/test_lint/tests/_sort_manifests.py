@@ -45,9 +45,26 @@ def expected_key_order(present_keys: list[str]) -> list[str]:
 
 
 def _fmt_str(s: str) -> str:
+    # The triple-quoted form is only used when it is *verified* to mean the
+    # same string, never when it merely looks safe. Escaping rules for a
+    # triple-quoted literal have more corners than they appear to -- a value
+    # ending in `"` closes the literal a quote early, a trailing backslash
+    # escapes the closing delimiter, and `\r` is folded into `\n` by universal
+    # newlines. Enumerating those shapes is how this went wrong once already:
+    # it produced `"""...a quoted "word""""`, an unterminated literal, and the
+    # module it was rewriting dropped out of the addons list.
+    #
+    # Deciding by round-trip instead of by rule is correct by construction, and
+    # a fuzz of 9 579 values (`test_fixers`) puts the number of shapes that
+    # reach the fallback at whatever it really is rather than whatever was
+    # remembered. json.dumps is exact for every string; it is only less pretty.
     if "\n" in s:
-        inner = s.replace("\\", "\\\\").replace('"""', r"\"\"\"")
-        return f'"""{inner}"""'
+        candidate = f'"""{s.replace("\\", "\\\\").replace('"""', r"\"\"\"")}"""'
+        try:
+            if ast.literal_eval(candidate) == s:
+                return candidate
+        except SyntaxError, ValueError:
+            pass
     return json.dumps(s)
 
 
@@ -92,6 +109,20 @@ def render_manifest(data: dict) -> str:
     return f"{{\n{body}\n}}\n"
 
 
+def _is_faithful(new_source: str, data: dict) -> bool:
+    try:
+        tree = ast.parse(new_source)
+    except SyntaxError:
+        return False
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Dict):
+            try:
+                return ast.literal_eval(node.value) == data
+            except ValueError, TypeError:
+                return False
+    return False
+
+
 def sort_manifest(path: Path, *, dry_run: bool = False) -> bool | None:
     source = path.read_text(encoding="utf-8")
 
@@ -129,12 +160,19 @@ def sort_manifest(path: Path, *, dry_run: bool = False) -> bool | None:
     if new_source == source:
         return False
 
+    if not _is_faithful(new_source, data):
+        print(
+            f"  SKIP  {path}: the rewritten manifest would not say the same thing",
+            file=sys.stderr,
+        )
+        return None
+
     if not dry_run:
         path.write_text(new_source, encoding="utf-8")
     return True
 
 
-def main(argv: list[str] | None = None) -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Sort Odoo __manifest__.py keys into canonical order.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -159,7 +197,11 @@ def main(argv: list[str] | None = None) -> None:
         default=["_vendor"],
         help="Directory names to skip (default: _vendor); repeatable",
     )
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
 
     excluded: set[str] = set(args.exclude)
     changed = unchanged = skipped = 0

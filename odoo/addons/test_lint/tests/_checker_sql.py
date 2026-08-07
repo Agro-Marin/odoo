@@ -7,12 +7,13 @@ CURSOR_EXPRESSIONS = frozenset(
     {
         "self.env.cr",
         "self.cr",
+        "self._cr",
         "cr",
+        "env.cr",
         "odoo.tools",
         "tools",
     }
 )
-
 ATTRIBUTE_WHITELIST = ("_table", "name", "lang", "id", "get_lang.code")
 
 FUNCTION_WHITELIST = frozenset(
@@ -76,24 +77,9 @@ class SqlInjectionChecker:
     _resolving_nodes: set[int] = field(default_factory=set, init=False)
 
     def check(self, tree: ast.Module) -> Iterator[Violation]:
-        """Walk *tree* and yield SQL injection violations.
-
-        Requires :func:`annotate_parents` to have been called on *tree*. Callers
-        that already hold a parent-annotated node list should use
-        :meth:`check_nodes` instead and save the traversal.
-        """
         yield from self.check_nodes(_walk_pre_order(tree))
 
     def check_nodes(self, nodes: list[ast.AST]) -> Iterator[Violation]:
-        """Yield violations for an already-materialised depth-first pre-order walk.
-
-        Order is part of the contract, not an implementation detail: a call to a
-        function defined further down the file is re-judged when that definition
-        is reached, using the call sites recorded so far. Handed a differently
-        ordered list, the checker still terminates and still reports -- it just
-        answers a slightly different question about which definitions it had
-        seen.
-        """
         for node in nodes:
             match node:
                 case ast.Call():
@@ -106,7 +92,6 @@ class SqlInjectionChecker:
             yield Violation(node.lineno, node.col_offset)
 
     def _visit_functiondef(self, node: ast.FunctionDef) -> Iterator[Violation]:
-        """Record function definitions and re-evaluate earlier call sites."""
         if self.is_test:
             return
 
@@ -121,7 +106,6 @@ class SqlInjectionChecker:
                 )
 
     def _check_sql_injection_risky(self, node: ast.Call) -> bool:
-        """Return True if *node* is a risky SQL call."""
         if self.is_test:
             return False
 
@@ -148,17 +132,6 @@ class SqlInjectionChecker:
         return True
 
     def _check_concatenation(self, node: ast.expr) -> bool | None:
-        """Check if *node* is an unsafe string construction.
-
-        Returns True (injection), False (safe), or None (unknown/not applicable).
-
-        A name resolved to an expression mentioning itself -- ``where_clause =
-        "(%s) AND (%s)" % (where_clause, …)``, in ``mail_followers`` -- walks
-        back into this method on the same node forever. Re-entry answers
-        "unknown", which leaves the caller to treat the query as risky. It is a
-        real accumulation and the caller cannot see what went into it, so that
-        is the right answer as well as a terminating one.
-        """
         node = self._resolve(node)
 
         if self._allowable(node):
@@ -338,18 +311,6 @@ class SqlInjectionChecker:
         *,
         args_allowed: bool = False,
     ) -> bool:
-        """Evaluate whether a variable reference resolves to a constant.
-
-        A name whose own definition mentions it -- ``where_clause = "…" %
-        (where_clause, …)`` -- resolves through here into itself, with no base
-        case: the checker recursed until the interpreter stopped it, and the
-        scan then dropped the **whole file** with a warning. Re-entry answers
-        "not constant", which is both terminating and true: a value built by
-        accumulating onto itself is not a compile-time constant.
-
-        Previously unreachable, because every such accumulation this repository
-        has is written inside a private method, and those were exempt outright.
-        """
         scope = self._find_enclosing_scope(node)
         if scope is None:
             return False
@@ -416,22 +377,6 @@ class SqlInjectionChecker:
         return self._is_asserted(scope, name)
 
     def _module_constant(self, node: ast.AST, name: str) -> ast.expr | None:
-        """The value of a module-level ``NAME = ...``, if *name* is one.
-
-        A function body that reads a query constant defined at module scope --
-        ``cr.execute(_AUTO_INSTALL_CANDIDATES_QUERY)`` in ``odoo/modules/db.py``
-        is the canonical shape -- resolved to nothing before this: the search
-        only ever looked inside the enclosing function, found no assignment, and
-        the name was therefore not constant. Every such call read as an
-        injection. It went unnoticed only because the framework was outside the
-        scanned corpus entirely.
-
-        Deliberately restricted to statements directly in the module body.
-        Consulting every assignment anywhere in the module -- which is what the
-        Module scope's own lookup does -- would let a name assigned unsafely
-        inside some *other* function answer for this one, turning a false
-        positive into a false negative.
-        """
         module = getattr(node, "_parent", None)
         while module is not None and not isinstance(module, ast.Module):
             module = getattr(module, "_parent", None)
@@ -523,25 +468,6 @@ class SqlInjectionChecker:
         return result
 
     def _allowable(self, node: ast.expr) -> bool:
-        """Return True if *node* is safe to include in SQL construction.
-
-        **Being inside a private method is not a reason.** This used to open
-        with ``if scope.name.startswith("_"): return True``, inherited from the
-        pylint-odoo checker, and in a codebase where the convention is that
-        every model method is ``_``-prefixed it exempted 1 366 of the 2 703
-        query-construction sites in this repository -- half the surface, and
-        the half most likely to be doing the interesting work. Reachability
-        from RPC is not what makes a query injectable; the value it is built
-        from is.
-
-        Dropping it takes the rule from 16 findings to 43, which is a size a
-        ratchet can carry. The pattern it was really there to permit --
-        ``f'UPDATE "{self._table}" SET "{column_name}" = %s'``, an identifier
-        that cannot be a bound parameter -- is still permitted where it is
-        written from ``self._*``, and where it comes from an argument it is now
-        reported, which is correct: that is the shape a caller can control.
-        Each such site says so with ``# noqa: sql-injection <why>``.
-        """
         if self._looks_like_psycopg(node):
             return True
 
@@ -599,17 +525,6 @@ class SqlInjectionChecker:
         return None
 
     def _assignments_in(self, scope: ast.AST) -> dict[str, list[ast.AST]]:
-        """Every name assigned in *scope*, mapped to the statements assigning it.
-
-        Built once per scope. It used to be a fresh ``ast.walk(scope)`` for
-        every single name resolution, which made the checker quadratic in the
-        size of the enclosing scope: 100/200/400/800 statements took
-        0.21/0.81/2.80/11.03 s -- a clean n². Real files kept it survivable only
-        because their functions are small.
-
-        A parameter name shadows everything else in the scope, so it maps to the
-        function alone; that is what the old early ``return`` expressed.
-        """
         cached = self._assign_cache.get(id(scope))
         if cached is not None:
             return cached
@@ -656,7 +571,6 @@ class SqlInjectionChecker:
         return mapping
 
     def _find_assignments(self, scope: ast.AST, name: str) -> Iterator[ast.AST]:
-        """Nodes in *scope* that assign to *name*, in source order."""
         yield from self._assignments_in(scope).get(name, ())
 
     @staticmethod
@@ -664,15 +578,6 @@ class SqlInjectionChecker:
         return [child for child in ast.walk(node) if isinstance(child, ast.Return)]
 
     def _is_asserted(self, scope: ast.AST, name: str) -> bool:
-        """Whether *name* is referenced in any ``assert`` within *scope*.
-
-        The names are collected once per scope. This is the query that actually
-        made the checker quadratic: it is reached for every name the scope does
-        *not* assign -- the common case -- and each miss used to re-walk the
-        whole scope looking for asserts. Caching the assignment map alone left
-        the n² intact (0.09/0.35/1.47/5.62 s for 100/200/400/800 statements);
-        caching this too is what flattens it.
-        """
         cached = self._assert_cache.get(id(scope))
         if cached is None:
             cached = {
@@ -700,7 +605,6 @@ class SqlInjectionChecker:
 
 
 def _walk_pre_order(tree: ast.AST) -> list[ast.AST]:
-    """Depth-first pre-order node list, matching what the shared scan produces."""
     nodes: list[ast.AST] = []
     stack: list[ast.AST] = [tree]
     while stack:
@@ -711,13 +615,6 @@ def _walk_pre_order(tree: ast.AST) -> list[ast.AST]:
 
 
 def annotate_parents(tree: ast.AST) -> None:
-    """Add ``_parent`` attribute to every node in the AST.
-
-    Required by :meth:`SqlInjectionChecker._find_enclosing_scope`. The shared
-    corpus scan hangs these links during the one traversal it already makes
-    (:func:`_py_scan.walk_with_parents`); this is for the standalone entry
-    points, which have no such walk to piggyback on.
-    """
     for node in ast.walk(tree):
         for child in ast.iter_child_nodes(node):
             child._parent = node

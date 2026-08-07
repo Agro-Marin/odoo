@@ -1,0 +1,156 @@
+name: Fork Lint Gates (test_lint)
+
+# The fork's own AST checkers and registry gates, which until now ran nowhere.
+#
+# `odoo/addons/test_lint` holds the rules no general linter knows about: SQL
+# built from non-constant values, gettext misuse, N+1 queries, ORM-facade
+# imports, dynamic domains in onchange, XML/manifest canonical form, asset
+# bundles that do not assemble, ESM specifiers that do not resolve, dark
+# stylesheets in light bundles. Every one of them is an exact-match ratchet
+# (`LintCase.assert_ratchet`): the count may not rise, and it may not fall
+# silently either, so a fix that gets undone fails just as loudly as a new
+# offence.
+#
+# It was documented as "not wired into CI; run it yourself", which meant a
+# 182-test suite guarding roughly 7 700 already-paid-down findings depended on
+# somebody remembering. This lane is what makes those floors mean something.
+#
+# Scope: `base` + `test_lint` only. The file-based rules (XML, manifests, JS,
+# SCSS, ESM) walk the addons path and do not care what is installed; the
+# registry-based ones (bundles, dark siblings, override signatures, docstrings)
+# judge what is. Installing more would broaden the second group at a cost this
+# gate does not need to pay to protect the first — see TEST_COUNT_FLOOR below,
+# which is what catches a scope that silently narrows.
+#
+# Why template0 + C collation: Odoo creates its database with
+# `ENCODING 'unicode' LC_COLLATE 'C'` only when db_template is template0
+# (odoo/service/db.py). PostgreSQL 18's default template1 locale would
+# otherwise take the non-C path and give non-deterministic ordering.
+
+on:
+  # Mainline re-verification: the rules are enforced against the whole tree, so
+  # a change anywhere can move a count. Re-run on every push to a protected
+  # branch, so a floor cannot drift via a direct commit or merge-skew.
+  push:
+    branches: ['19.0-marin', '19.0']
+  # No `paths:` filter on pull_request, deliberately. Every gate here scans the
+  # repository rather than a subtree: a new `.py` anywhere can add an
+  # N+1 finding, a new `.xml` can break canonical form, a deleted file can
+  # break a manifest asset path. A path filter would let exactly those merge
+  # unseen, which is the failure mode this suite exists to prevent.
+  pull_request:
+    branches: ['*']
+
+permissions:
+  contents: read
+
+env:
+  INSTALL: test_lint
+  TEST_TAGS: /test_lint
+  # Floor for the count gate below: a run reporting fewer than this skipped
+  # rather than failed. 182 tests today; the margin absorbs a deliberate
+  # removal without hiding a mass-skip. Raise it when the suite grows.
+  TEST_COUNT_FLOOR: 170
+
+jobs:
+  fork-lint:
+    name: test_lint ratchets (PostgreSQL 18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build + install the odoo_rust extension
+        # The ORM hot paths hard-import odoo_rust — no fallback. Several gates
+        # here also use it directly (`odoo.libs.lint.scan` backs the conflict
+        # marker, JS translation, colour-scheme and grey-ramp rules).
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'maturin>=1.0,<2.0'
+          maturin build --release --manifest-path crates/odoo_rust/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_rust
+
+      - name: Install system + Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev
+          pip install --quiet -r requirements.txt
+
+      - name: Run the fork lint suite
+        # odoo-bin exits non-zero when any test fails, so a single ratchet
+        # breach fails the job. The log is kept for the count gate below.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_lint \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${INSTALL}" \
+            --test-enable --test-tags "${TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout 2>&1 | tee /tmp/test-lint.log
+
+      - name: Assert the suite actually ran
+        # A ratchet suite that executes nothing reports success. Every gate
+        # here already asserts its own scan was non-empty ("the scan reached no
+        # data files at all"), but that only covers a gate that ran; this
+        # covers a gate that did not.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/test-lint.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — the suite did not report a count"
+            exit 1
+          fi
+          echo "tests run: $RAN (floor: ${TEST_COUNT_FLOOR})"
+          if [ "$RAN" -lt "${TEST_COUNT_FLOOR}" ]; then
+            echo "::error::only $RAN tests ran, below the floor of ${TEST_COUNT_FLOOR} —"
+            echo "::error::something was skipped rather than failed. Raise the floor"
+            echo "::error::deliberately if the scope legitimately shrank."
+            exit 1
+          fi
+
+      - name: Explain a ratchet breach
+        if: failure()
+        run: |
+          echo "::notice::Every rule here is an EXACT-match ratchet: the count may"
+          echo "::notice::not rise, and it may not fall silently either."
+          echo "::notice::"
+          echo "::notice::  went UP  -> you added an offence; fix it, or add"
+          echo "::notice::            '# noqa: <code>  <why>' with a real reason."
+          echo "::notice::  went DOWN -> you fixed one; commit the new floor in the"
+          echo "::notice::            SAME change so it cannot come back unnoticed."
+          echo "::notice::"
+          echo "::notice::Floors live in test_python_lint.FLOORS, test_pretty_xml,"
+          echo "::notice::test_xml_records and test_manifests. Run locally with:"
+          echo "::notice::  odoo-bin -d <db> -i test_lint --test-enable --stop-after-init"

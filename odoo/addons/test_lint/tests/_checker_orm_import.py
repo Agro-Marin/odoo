@@ -1,22 +1,3 @@
-"""Direct-``odoo.orm``-import checker.
-
-Addon runtime code must reach the ORM through the public facade (``odoo.api``,
-``odoo.fields``, ``odoo.models``), never by importing the unstable internal
-``odoo.orm`` package.
-
-Test files are exempt *by location*. Testing an ORM internal necessarily
-imports it, and tests are not shipped API surface, so they carry none of the
-version-drift risk this guard exists to prevent -- that exemption is the sole
-reason the previous per-module allow-list (``base``, ``test_orm``,
-``test_performance``) existed. Skipping tests by path instead of naming modules
-keeps the check self-maintaining and, unlike the allow-list, still enforces the
-rule on every module's runtime code, ``base`` included.
-
-Operates on the AST rather than a line regex so that ``odoo.orm`` inside a
-string or a comment is not a finding, and so the report can name the imported
-symbol.
-"""
-
 import ast
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -24,8 +5,6 @@ from dataclasses import dataclass
 
 @dataclass
 class Violation:
-    """An import reaching into the internal ``odoo.orm`` package."""
-
     lineno: int
     col_offset: int
     message: str = ""
@@ -36,15 +15,6 @@ def _is_orm(name: str | None) -> bool:
 
 
 def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
-    """Yield a violation per ``import odoo.orm...`` / ``from odoo.orm... import``.
-
-    Test code is exempt -- see the module docstring -- but the scan decides
-    which files those are (:func:`_py_scan.is_test_path`), so every rule here
-    exempts the same set.
-
-    *nodes* is an already-materialised walk of the tree, shared with the other
-    checkers.
-    """
     for node in nodes if nodes is not None else ast.walk(tree):
         match node:
             case ast.Import(names=names):

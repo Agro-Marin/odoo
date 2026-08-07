@@ -1,39 +1,22 @@
-"""Unit and property tests for the in-place XML fixers.
-
-``_pretty_xml`` and ``_sort_xml_records`` rewrite every data file in the
-repository, and between them they had **no unit tests at all** -- the only
-exercise was the lint test running them in dry-run over the tree, which reports
-*that* a file would change and never *what* the change is. Every defect below
-survived in that blind spot:
-
-* text between child elements was silently deleted;
-* tab-indented arch content made the formatter oscillate instead of converge;
-* a namespaced tag was written back in Clark notation, ``<{urn:…}Invoice>``,
-  and its ``xmlns`` declarations dropped -- 268 files parsed before a run and
-  did not parse after it;
-* an element with no attributes and a long text lost its content *and* its
-  closing tag, because the line-wrapping loop is driven by the attribute list;
-* a character reference in an attribute came back as a literal newline, which
-  attribute-value normalisation then turns into a space;
-* a record naming the same field twice came back with one of them deleted.
-
-Four of those six are things no snippet-sized example was ever going to show.
-They were found by running the fixers over the **whole repository** and asking
-whether the result still says the same thing -- which is what
-:class:`TestFixersOverTheRepository` does, so the next one is found the same way
-and not by a report of a missing string in production.
-"""
-
+import ast
+import itertools
 import tempfile
 import textwrap
 from pathlib import Path
 
 from lxml import etree
 
+from odoo.modules import Manifest
 from odoo.tests.common import BaseCase, no_retry
 
-from . import _pretty_xml, _sort_xml_records
-from .lint_case import LintCase, core_root, core_xml_files
+from . import _pretty_xml, _sort_manifests, _sort_xml_records
+from .lint_case import (
+    LintCase,
+    core_data_files,
+    core_root,
+    core_xml_files,
+    is_core_path,
+)
 
 _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
 
@@ -41,11 +24,6 @@ DECLINED_BY_THE_FORMATTER: list[str] = []
 
 
 def _semantic(xml: bytes) -> bytes:
-    """A comparable form of *xml* that ignores whitespace-only text nodes.
-
-    Re-indenting is the formatter's job, so indentation must not count as a
-    difference -- but a text node with real content in it must.
-    """
     root = etree.fromstring(xml)
     for element in root.iter():
         if callable(element.tag):
@@ -58,12 +36,6 @@ def _semantic(xml: bytes) -> bytes:
 
 
 def _shape(xml: bytes) -> list[tuple]:
-    """Every element of *xml* as ``(depth, qualified tag, sorted attributes)``.
-
-    Attribute *values* are compared exactly, which is what catches a character
-    reference turning into the whitespace it stands for. Sibling order is not,
-    because reordering is precisely what the record sorter is for.
-    """
     root = etree.fromstring(xml)
     out = []
 
@@ -78,14 +50,6 @@ def _shape(xml: bytes) -> list[tuple]:
 
 
 def _words(xml: bytes) -> list[str]:
-    """Every word of every text node in *xml*, sorted.
-
-    The counterpart to :func:`_shape`, and deliberately a *different* reduction
-    from the one the formatter checks itself against: a test that reuses the
-    implementation's own notion of "the same" can only ever agree with it. This
-    one answers the question that matters -- is any word gone -- and does it
-    without caring where the line breaks fell.
-    """
     root = etree.fromstring(xml)
     return sorted(
         word
@@ -97,8 +61,6 @@ def _words(xml: bytes) -> list[str]:
 
 @no_retry
 class TestPrettyXml(BaseCase):
-    """The formatter must preserve meaning and reach a fixed point."""
-
     maxDiff = None
 
     def _format(self, source: str, passes: int = 1) -> str:
@@ -115,12 +77,6 @@ class TestPrettyXml(BaseCase):
         self.addCleanup(self._tmp.cleanup)
 
     def test_text_between_children_survives(self):
-        """The regression: a translatable string vanished from 317 files.
-
-        ``<span><t t-out="n"/> are not shown in the preview</span>`` lost its
-        sentence entirely, because the data-layer path emitted the open tag, the
-        children and the close tag, and nothing else.
-        """
         out = self._format("""
             <?xml version="1.0" encoding="utf-8"?>
             <odoo>
@@ -157,7 +113,6 @@ class TestPrettyXml(BaseCase):
         self.assertEqual(_semantic(source.encode()), _semantic(formatted.encode()))
 
     def test_formatting_is_idempotent(self):
-        """Running it twice must equal running it once, or the gate can never pass."""
         source = """
             <?xml version="1.0" encoding="utf-8"?>
             <odoo>
@@ -173,7 +128,6 @@ class TestPrettyXml(BaseCase):
         self.assertEqual(self._format(source, passes=1), self._format(source, passes=3))
 
     def test_tab_indented_arch_converges(self):
-        """The oscillation: 19 -> 9 -> 15 -> 9 columns, never settling."""
         source = (
             '<?xml version="1.0" encoding="utf-8"?>\n'
             "<odoo>\n"
@@ -191,14 +145,6 @@ class TestPrettyXml(BaseCase):
         self.assertNotIn("\t", once, "leading tabs should be normalised, not carried")
 
     def test_a_stray_column_does_not_multiply_the_indentation(self):
-        """The other divergence, and the one a synthetic case nearly missed.
-
-        Nesting used to be ``(spaces - base) // step`` with ``step`` the
-        *smallest* indent seen above the base. One continuation line a single
-        column deeper -- the wrapped attribute below -- made ``step`` 1, so
-        every real level of nesting multiplied by four and the file grew its
-        own indentation without bound, pass after pass.
-        """
         source = (
             '<?xml version="1.0" encoding="utf-8"?>\n'
             "<odoo>\n"
@@ -221,12 +167,6 @@ class TestPrettyXml(BaseCase):
         self.assertLess(widest, 40, f"indentation ran away:\n{once}")
 
     def test_a_namespaced_document_survives(self):
-        """``elem.tag`` is ``{uri}local`` and the declarations are not in ``attrib``.
-
-        Writing the tag straight out gives ``<{urn:B}simpleAddress>``, which is
-        not well-formed; keeping the prefix but not the ``xmlns`` gives an
-        undefined-prefix error instead. Both happened, on shipped data.
-        """
         out = self._format("""
             <?xml version="1.0" encoding="utf-8"?>
             <odoo>
@@ -244,12 +184,6 @@ class TestPrettyXml(BaseCase):
         )
 
     def test_a_long_attribute_less_element_keeps_its_content(self):
-        """The wrapping loop is driven by the attribute list.
-
-        With no attributes it ran zero times, and the suffix it was supposed to
-        place -- the text *and* the closing tag -- was dropped. Three shipped
-        snippet files lost the ``<path>`` of an ``<asset>`` this way.
-        """
         long_path = "website/static/src/snippets/s_mega_menu_big_icons/000.scss"
         out = self._format(f"""
             <?xml version="1.0" encoding="utf-8"?>
@@ -264,11 +198,6 @@ class TestPrettyXml(BaseCase):
         etree.fromstring(out.encode())
 
     def test_a_character_reference_in_an_attribute_keeps_its_value(self):
-        """A literal newline in an attribute is normalised to a space on reparse.
-
-        So writing one back where the source had ``&#10;`` changes the value --
-        silently, and only when the file is next read.
-        """
         out = self._format("""
             <?xml version="1.0" encoding="utf-8"?>
             <odoo>
@@ -291,7 +220,6 @@ class TestPrettyXml(BaseCase):
         self.assertIn('<!DOCTYPE odoo SYSTEM "odoo.dtd">', out)
 
     def test_reports_no_change_for_its_own_output(self):
-        """``dry_run`` must answer False once the file is canonical."""
         path = Path(self.tmpdir) / "case.xml"
         path.write_bytes(
             b'<?xml version="1.0" encoding="utf-8"?>\n<odoo>\n\n    <record '
@@ -307,13 +235,6 @@ class TestPrettyXml(BaseCase):
         self.assertIsNone(_pretty_xml.format_xml_file(path, dry_run=True))
 
     def test_an_unfaithful_rewrite_is_refused_rather_than_written(self):
-        """The safety net, exercised by making the serialiser lie.
-
-        Every defect above was a way of producing a plausible-looking file that
-        no longer said the same thing, and in each case the formatter reported
-        success. It now compares its own output against the input and declines
-        the file when they disagree, so the worst a future one can do is skip.
-        """
         path = Path(self.tmpdir) / "case.xml"
         path.write_bytes(
             b'<?xml version="1.0" encoding="utf-8"?>\n<odoo>\n'
@@ -329,11 +250,49 @@ class TestPrettyXml(BaseCase):
             _pretty_xml._esc_text = real
         self.assertEqual(path.read_bytes(), original, "the file must be untouched")
 
+    def test_the_self_check_covers_the_prologue_too(self):
+        # `_format_element` starts at the root, so the declaration, the
+        # doctype and the nodes above `<odoo>` are reassembled separately --
+        # and the faithfulness comparison used to start at the root as well,
+        # which made losing any of them a change it reported as faithful.
+        # Each mutation below drops one part of the prologue; each must be
+        # refused rather than written.
+        document = (
+            b'<?xml version="1.0" encoding="utf-8"?>\n'
+            b'<!DOCTYPE odoo SYSTEM "odoo.dtd">\n'
+            b"<!-- Copyright 2026 AgroMarin -->\n"
+            b"<odoo>\n"
+            b'    <record id="r" model="m"><field name="a">1</field></record>\n'
+            b"</odoo>\n"
+        )
+        path = Path(self.tmpdir) / "prologue.xml"
+        path.write_bytes(document)
+        _pretty_xml.format_xml_file(path)
+        rebuilt = path.read_text()
+
+        self.assertTrue(
+            _pretty_xml._is_faithful(document, rebuilt.encode()),
+            "the formatter's own output must read as faithful",
+        )
+        for label, prefix in (
+            ("the doctype", "<!DOCTYPE"),
+            ("the pre-root comment", "<!--"),
+            ("the xml declaration", "<?xml "),
+        ):
+            with self.subTest(loses=label):
+                lines = [
+                    line for line in rebuilt.split("\n") if not line.startswith(prefix)
+                ]
+                mutated = "\n".join(lines).encode()
+                self.assertNotEqual(mutated, rebuilt.encode(), f"{label} not dropped")
+                self.assertFalse(
+                    _pretty_xml._is_faithful(document, mutated),
+                    f"losing {label} must not read as a faithful rewrite",
+                )
+
 
 @no_retry
 class TestSortXmlRecords(BaseCase):
-    """The record sorter may reorder; it may not lose anything."""
-
     maxDiff = None
 
     def setUp(self):
@@ -349,12 +308,6 @@ class TestSortXmlRecords(BaseCase):
         return path.read_bytes()
 
     def test_a_repeated_field_name_keeps_both_elements(self):
-        """``hr_holidays``' kanban view, reduced.
-
-        The reordering went through a ``{name: element}`` map, so the second
-        ``mode`` was never put back: six fields in, five out, on the script the
-        lint gate prints as its remediation.
-        """
         out = self._sort("""
             <?xml version="1.0" encoding="utf-8"?>
             <odoo>
@@ -375,12 +328,6 @@ class TestSortXmlRecords(BaseCase):
         )
 
     def test_the_expected_order_of_a_repeated_name_lists_it_twice(self):
-        """Otherwise the record can never be made to pass.
-
-        A six-name actual order cannot equal a five-name expected one, so the
-        lint test reported the record as out of order for as long as it existed
-        -- and the fixer's answer was to delete the difference.
-        """
         self.assertEqual(
             _sort_xml_records.expected_field_order(
                 ["arch", "name", "mode", "mode"], "ir.ui.view"
@@ -389,7 +336,6 @@ class TestSortXmlRecords(BaseCase):
         )
 
     def test_a_record_with_a_non_field_child_is_left_alone(self):
-        """Reordering appends every field last, which moves the other child."""
         source = """
             <?xml version="1.0" encoding="utf-8"?>
             <odoo>
@@ -419,19 +365,6 @@ class TestSortXmlRecords(BaseCase):
 
 @no_retry
 class TestFixersOverTheRepository(LintCase):
-    """Both fixers, run over every data file they own, must not change meaning.
-
-    This is the test that found the namespace, suffix-drop, attribute-escaping
-    and duplicate-field defects. None of them is reachable from a snippet: they
-    need a real EDI template, a real ``<asset>`` path, a real view. Running the
-    fixer over the corpus and comparing before with after is the only exercise
-    that has ever caught one, and it costs a few seconds.
-
-    Scoped to the repository this fork owns, exactly as the gates built on
-    these fixers are: reformatting a sibling checkout is not on the table, so
-    neither is testing that it would survive it.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -442,12 +375,6 @@ class TestFixersOverTheRepository(LintCase):
         ]
 
     def _run_over_the_tree(self, fixer, *, twice: bool = False):
-        """Apply *fixer* to a copy of every data file, and report what it broke.
-
-        Returns ``(offences, declined)``: an offence is a file whose structure
-        or wording changed, or that stopped parsing; a decline is one the fixer
-        refused, which is safe but still worth counting.
-        """
         offences, declined, unsettled = [], [], []
         with tempfile.TemporaryDirectory() as tmp:
             for index, source in enumerate(self.data_files):
@@ -485,13 +412,6 @@ class TestFixersOverTheRepository(LintCase):
         )
 
     def test_the_formatter_preserves_every_data_file(self):
-        """Structure and wording, over all of it, in one pass and then again.
-
-        Four separate defects lived here and none was reachable from a snippet:
-        a namespaced tag, an ``<asset>`` path long enough to wrap, a character
-        reference in an attribute, a comment carrying markup. What they have in
-        common is that the formatter reported success on every one.
-        """
         offences, declined, unsettled = self._run_over_the_tree(
             _pretty_xml.format_xml_file, twice=True
         )
@@ -524,13 +444,6 @@ class TestFixersOverTheRepository(LintCase):
         )
 
     def test_the_two_fixers_agree_on_the_order_they_run_in(self):
-        """Sorting then formatting must equal formatting the sorted file.
-
-        They are documented as two separate commands over the same tree, so
-        whichever a contributor runs first has to leave the other able to
-        finish. Only the sorter changes structure, so it has to come first --
-        and the formatter has to be a fixed point of the pair.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             disagreeing = []
             for index, source in enumerate(self.data_files[:400]):
@@ -551,13 +464,201 @@ class TestFixersOverTheRepository(LintCase):
 
 
 @no_retry
+class TestSortManifests(BaseCase):
+    maxDiff = None
+
+    def setUp(self):
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+
+    def _write(self, source: str) -> Path:
+        path = Path(self.tmpdir) / "__manifest__.py"
+        path.write_text(textwrap.dedent(source).lstrip(), encoding="utf-8")
+        return path
+
+    def _roundtrip(self, value: object) -> None:
+        path = self._write(f'{{\n    "name": "m",\n    "description": {value!r},\n}}\n')
+        before = ast.literal_eval(_manifest_dict(path))
+        result = _sort_manifests.sort_manifest(path)
+        self.assertIsNotNone(result, "the fixer declined a manifest it should render")
+        self.assertEqual(ast.literal_eval(_manifest_dict(path)), before)
+
+    def test_a_multiline_string_ending_in_a_quote_does_not_break_the_file(self):
+        for value in (
+            'Multi-line description\nthat ends in a quoted "word"',
+            "Multi-line\nending in a backslash \\",
+            'Has an embedded """ triple quote\nand more',
+        ):
+            with self.subTest(value=value):
+                rendered = _sort_manifests._fmt_str(value)
+                self.assertEqual(
+                    ast.literal_eval(rendered),
+                    value,
+                    f"{rendered!r} does not round-trip",
+                )
+
+    def test_every_string_shape_round_trips(self):
+        # Hand-picked cases only ever cover the shapes someone thought of, and
+        # the first fix here covered exactly two of them -- a fuzz of the same
+        # alphabet then failed on 560 values out of 9 579. The renderer decides
+        # by verifying the literal it built, so this is a proof rather than a
+        # sample; the corpus is enumerated, not random, so it cannot go quiet.
+        pieces = [
+            "",
+            "a",
+            '"',
+            '""',
+            '"""',
+            "\\",
+            "\\\\",
+            "\n",
+            "\n\n",
+            "'",
+            "\t",
+            "\r",
+            "\x00",
+            " ",
+            'end"',
+            '"start',
+        ]
+        values = {
+            "".join(combo)
+            for length in (1, 2, 3)
+            for combo in itertools.product(pieces, repeat=length)
+        }
+        broken = []
+        for value in sorted(values):
+            rendered = _sort_manifests._fmt_str(value)
+            try:
+                if ast.literal_eval(rendered) != value:
+                    broken.append((value, rendered))
+            except SyntaxError, ValueError:
+                broken.append((value, rendered))
+        self.assertFalse(
+            broken,
+            f"{len(broken)} of {len(values)} string shapes do not round-trip, "
+            f"e.g. {broken[:3]}",
+        )
+
+    def test_values_survive_the_rewrite(self):
+        for value in (
+            "plain",
+            "two\nlines",
+            'ends in a quote"',
+            'multi\nline ending in a quote"',
+            "unicode — em dash, ünïcode",
+            "",
+        ):
+            with self.subTest(value=value):
+                self._roundtrip(value)
+
+    def test_keys_are_reordered_and_nothing_is_lost(self):
+        path = self._write("""
+            {
+                "depends": ["base"],
+                "name": "thing",
+                "license": "LGPL-3",
+                "version": "0.1",
+            }
+        """)
+        before = ast.literal_eval(_manifest_dict(path))
+        self.assertIs(_sort_manifests.sort_manifest(path), True)
+        after = ast.literal_eval(_manifest_dict(path))
+        self.assertEqual(after, before, "reordering must not change the value")
+        self.assertEqual(
+            list(after), ["name", "version", "license", "depends"], "and must reorder"
+        )
+
+    def test_a_header_comment_is_kept(self):
+        path = self._write("""
+            # -*- coding: utf-8 -*-
+            # Part of Odoo. See LICENSE file for full copyright and licensing details.
+            {
+                "depends": ["base"],
+                "name": "thing",
+            }
+        """)
+        _sort_manifests.sort_manifest(path)
+        self.assertIn("Part of Odoo", path.read_text())
+
+    def test_sorting_is_idempotent(self):
+        path = self._write("""
+            {
+                "depends": ["base"],
+                "name": "thing",
+                "description": "a\\nb",
+            }
+        """)
+        self.assertIs(_sort_manifests.sort_manifest(path), True)
+        once = path.read_text()
+        self.assertIs(_sort_manifests.sort_manifest(path), False)
+        self.assertEqual(path.read_text(), once)
+
+    def test_an_unfaithful_rewrite_is_refused_rather_than_written(self):
+        path = self._write("""
+            {
+                "depends": ["base"],
+                "name": "thing",
+            }
+        """)
+        original = path.read_bytes()
+        real = _sort_manifests._fmt_value
+        try:
+            _sort_manifests._fmt_value = lambda value, depth: '"clobbered"'
+            self.assertIsNone(_sort_manifests.sort_manifest(path))
+        finally:
+            _sort_manifests._fmt_value = real
+        self.assertEqual(path.read_bytes(), original, "the file must be untouched")
+
+
+def _manifest_dict(path: Path) -> str:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Dict):
+            return ast.unparse(node.value)
+    raise AssertionError(f"no dict literal left in {path}")
+
+
+@no_retry
+class TestSortManifestsOverTheRepository(LintCase):
+    def test_every_manifest_round_trips(self):
+        offences = []
+        checked = 0
+        with tempfile.TemporaryDirectory() as tmp:
+            for index, manifest in enumerate(Manifest.all_addon_manifests()):
+                source = Path(manifest.path) / "__manifest__.py"
+                if not is_core_path(str(source)) or not source.is_file():
+                    continue
+                try:
+                    before = ast.literal_eval(_manifest_dict(source))
+                except SyntaxError, ValueError, AssertionError:
+                    continue
+                checked += 1
+                target = Path(tmp) / f"{index}__manifest__.py"
+                target.write_bytes(source.read_bytes())
+                if _sort_manifests.sort_manifest(target) is None:
+                    offences.append(f"{manifest.name}: declined by the fixer")
+                    continue
+                try:
+                    after = ast.literal_eval(_manifest_dict(target))
+                except (SyntaxError, ValueError, AssertionError) as exc:
+                    offences.append(f"{manifest.name}: does not parse after: {exc}")
+                    continue
+                if after != before:
+                    offences.append(f"{manifest.name}: value changed")
+
+        self.assertGreater(checked, 100, "the scan reached almost no manifests")
+        self.assertFalse(
+            offences,
+            f"{len(offences)} manifest(s) did not survive the sorter:\n  "
+            + "\n  ".join(offences[:40]),
+        )
+
+
+@no_retry
 class TestFixerScope(LintCase):
-    """The lint test and the fixer must own exactly the same file set.
-
-    They did not: the test flagged 12 665 files and the fixer declined 9 876 of
-    them, so its own remediation instructions could not make it pass.
-    """
-
     def test_static_templates_are_not_data_files(self):
         self.assertFalse(
             _pretty_xml.is_formattable(Path("/a/account/static/src/x.xml"))
@@ -565,13 +666,6 @@ class TestFixerScope(LintCase):
         self.assertTrue(_pretty_xml.is_formattable(Path("/a/account/views/x.xml")))
 
     def test_the_cli_and_the_lint_test_select_the_same_files(self):
-        """Both must ask :func:`_pretty_xml.is_formattable`, and only that.
-
-        The check that used to stand here filtered a list by ``is_formattable``
-        and then asserted that nothing in it failed ``is_formattable`` -- true
-        by construction, whatever either side actually did. Comparing the two
-        selections against each other is the claim that was meant.
-        """
         from .test_pretty_xml import PrettyXmlLinter
 
         lint_selection = {str(path) for path in PrettyXmlLinter._files(self)}
@@ -584,3 +678,78 @@ class TestFixerScope(LintCase):
             cli_selection,
             "the gate and its remediation do not own the same files",
         )
+
+    def test_both_xml_gates_own_the_same_files_as_both_fixers(self):
+        # This class existed to stop a gate reporting files its fixer refuses,
+        # and then only ever checked the formatter. The record sorter had the
+        # same split the whole time -- `test_xml_records` scanned every core
+        # XML file while `_sort_xml_records.main` skipped `static/` (and
+        # `enterprise/`, by directory name) -- so a finding in any of those
+        # 1 600 files could never be fixed by the command the failure prints.
+        #
+        # Asserted through the one selection all four now ask, so the next
+        # divergence is a failure here rather than an unfixable report.
+        from .test_pretty_xml import PrettyXmlLinter
+        from .test_xml_records import XmlRecordLinter
+
+        shared = {str(path) for path in core_data_files()}
+        self.assertTrue(shared, "the shared selection reached no data files")
+        self.assertEqual({str(p) for p in PrettyXmlLinter._files(self)}, shared)
+        self.assertEqual({str(p) for p in XmlRecordLinter.scanned_files()}, shared)
+
+    def test_the_cli_walk_selects_what_the_gate_reports(self):
+        # The gates and the fixer entry points were compared above; this is the
+        # third side, and the one that had actually drifted -- what
+        # `main()` *walks*. Both CLIs inlined their own loop, so the record
+        # sorter skipped `static/` (and `enterprise/`, by name) while
+        # `test_xml_records` scanned it. Comparing the selections only at the
+        # gate level cannot see that: a mutation putting the old exclude list
+        # back passed every other test in this class.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            laid_out = [
+                "views/a.xml",
+                "data/b.xml",
+                "static/src/xml/c.xml",
+                "_vendor/d.xml",
+                "node_modules/e.xml",
+                "enterprise_like/f.xml",
+            ]
+            for relative in laid_out:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"<odoo/>\n")
+
+            walked = {
+                str(path.relative_to(root))
+                for path in _pretty_xml.iter_target_files([root])
+            }
+            self.assertEqual(
+                walked,
+                {"views/a.xml", "data/b.xml", "enterprise_like/f.xml"},
+                "the CLI walk and is_formattable disagree",
+            )
+            self.assertTrue(
+                all(_pretty_xml.is_formattable(root / relative) for relative in walked),
+                "the CLI walked a file the gate would never report",
+            )
+
+    def test_neither_fixer_names_a_sibling_checkout_by_directory(self):
+        # Scoping to this repository is `is_core_path`'s job, and it answers
+        # from the configured root. A fixer with `enterprise` baked into its
+        # exclude list is right only for one workspace layout, and silently
+        # wrong for any other -- including one where the sibling is a symlink
+        # or is called something else.
+        for module in (_pretty_xml, _sort_xml_records, _sort_manifests):
+            with self.subTest(fixer=module.__name__):
+                defaults = [
+                    action.default
+                    for action in module.build_parser()._actions
+                    if action.dest == "exclude"
+                ]
+                self.assertTrue(defaults, "no --exclude option to inspect")
+                self.assertNotIn(
+                    "enterprise",
+                    defaults[0],
+                    "scope by is_core_path, not by a hard-coded sibling name",
+                )

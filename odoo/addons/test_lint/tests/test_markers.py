@@ -14,13 +14,6 @@ EXTENSIONS = [".py", ".js", ".xml", ".less", ".sass"]
 
 class TestConflictMarkers(lint_case.LintCase):
     def test_conflict_markers(self):
-        """Test that there are no conflict markers left in Odoo files.
-
-        Scoped to this repository, like every other file-based gate here. The
-        roots came from ``odoo.addons.__path__``, which is the whole
-        addons_path -- so an unresolved merge in a sibling checkout failed this
-        fork's suite, on a conflict this branch cannot resolve.
-        """
         roots = sorted(
             {
                 str(Path(p).resolve())

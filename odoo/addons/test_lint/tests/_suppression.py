@@ -1,24 +1,3 @@
-"""In-line suppression of lint findings: ``# noqa`` and ``# pylint: disable=``.
-
-**The bug this module exists to fix.** The previous implementation stripped the
-text after ``# noqa`` and then tested it with ``startswith("  ")`` -- a
-condition ``strip()`` had just made unreachable. The effect was that a bare
-``# noqa`` suppressed, and ``# noqa  because the column is a legacy alias`` did
-not:
-
-    'x  # noqa'                  -> suppressed
-    'x  # noqa  because legacy'  -> NOT suppressed
-    'x  # noqa: F401  re-export' -> NOT suppressed
-
-which put it in direct contradiction with ``TestPythonLint.test_noqa_rationale``,
-whose whole point is that every suppression must carry a reason. Writing the
-rationale that one test demands silently switched the checker back on. The two
-gates cancelled each other out.
-
-A suppression is now read the way every other tool reads one: the codes decide
-what is silenced, and the prose after them is documentation.
-"""
-
 import re
 
 _NOQA_RE = re.compile(
@@ -27,10 +6,9 @@ _NOQA_RE = re.compile(
     (?P<sep>:)?\s*
     (?P<codes>[A-Za-z][\w-]* (?:\s*,\s*[A-Za-z][\w-]*)*)?
     """,
-    re.VERBOSE,
+    re.VERBOSE | re.IGNORECASE,
 )
-
-_PYLINT_DISABLE_RE = re.compile(r"#\s*pylint:\s*disable=([^\n#]+)")
+_PYLINT_DISABLE_RE = re.compile(r"#\s*pylint:\s*disable=([^\n#]+)", re.IGNORECASE)
 
 RULE_ALIASES: dict[str, frozenset[str]] = {
     "sql-injection": frozenset({"sql-injection", "E8501"}),
@@ -49,20 +27,6 @@ NOQA_RATIONALE_RULE = "noqa-rationale"
 
 
 def is_suppressed(source: str, lineno: int, rule: str) -> bool:
-    """Whether line *lineno* of *source* silences *rule*.
-
-    A bare ``# noqa`` silences everything on the line; ``# noqa: <codes>``
-    silences only the named rules, by code (``E8501``) or by name
-    (``sql-injection``). ``# pylint: disable=<rules>`` is honoured the same way,
-    since that is how these rules were written before the plugins were replaced
-    -- and it is still how every suppression in the tree is actually spelled.
-    Trailing prose never changes the outcome.
-
-    A ``# noqa:`` whose code list does not parse silences **nothing**. Reading
-    it as a bare ``noqa`` -- which is what happened before -- turns a typo into
-    a blanket waiver, and does it most readily on the line of someone who was
-    trying to be specific.
-    """
     if rule == NOQA_RATIONALE_RULE:
         return False
 

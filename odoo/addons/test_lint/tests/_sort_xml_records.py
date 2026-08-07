@@ -6,6 +6,13 @@ from pathlib import Path
 
 from lxml import etree
 
+try:
+    from . import _pretty_xml
+except ImportError:
+    # Run as a script: `python .../tests/_sort_xml_records.py`. `_pretty_xml`
+    # imports nothing from Odoo, so it loads either way.
+    import _pretty_xml
+
 FIELD_ORDER: dict[str, list[str]] = {
     "ir.ui.view": [
         "name",
@@ -128,19 +135,6 @@ _TOP_LEVEL_TAGS = frozenset(ATTRIB_ORDER) - {"record", "field"}
 
 
 def expected_field_order(present_fields: list[str], model: str) -> list[str]:
-    """Return canonical ``<field>`` child ordering for *present_fields* given *model*.
-
-    Known fields appear in the position defined by ``FIELD_ORDER[model]``.
-    Unknown fields are appended alphabetically. If *model* is not in
-    ``FIELD_ORDER``, the original order is returned unchanged.
-
-    A name present twice comes back twice. ``[k for k in canonical if k in
-    present]`` silently collapsed it to one, which made the expected order
-    *shorter* than the actual one -- and the sorter, rebuilding the record from
-    that list, dropped the extra element. It is also what made the lint test
-    report the record as out of order in the first place: a list of six names
-    cannot equal a list of five, so the record could never be made to pass.
-    """
     canonical = FIELD_ORDER.get(model)
     if canonical is None:
         return present_fields
@@ -175,31 +169,6 @@ def _normalize_attribs(element: etree._Element) -> bool:
 
 
 def _sort_record_fields(record: etree._Element, model: str) -> bool:
-    """Reorder ``<field>`` children of *record* to canonical order.
-
-    Records containing comment/PI nodes between their fields are skipped to
-    avoid disrupting intentional grouping comments. So are records carrying a
-    child that is not a ``<field>``: the reordering appends every field after
-    whatever else is there, which moves that element rather than leaving it
-    alone. Nothing in any of the four checkouts is shaped that way today, and
-    a fixer that rewrites the whole tree should not be the thing that finds out
-    what happens when something is.
-
-    Every field element is kept, duplicate names included. The previous version
-    reordered through a ``{name: element}`` map, which holds one element per
-    name -- so a record naming the same field twice came back with one of them
-    **deleted**. ``hr_holidays``' ``hr_leave_view_kanban_my`` declares ``mode``
-    twice and went from six fields to five on a single run of this script, the
-    one the lint gate prints as its remediation.
-
-    The ``.tail`` whitespace (indentation between closing tags) is preserved
-    by mapping original positional tails to the new positions — since all
-    non-last tails share the same indent string, each slot keeps the spacing
-    of its position in the result, not the spacing that came with the element.
-    That is only true while the count is unchanged, which is now guaranteed.
-
-    Returns ``True`` if the record was modified.
-    """
     children = list(record)
 
     if any(callable(c.tag) for c in children):
@@ -292,7 +261,7 @@ def sort_xml_file(
     return True
 
 
-def main(argv: list[str] | None = None) -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Sort Odoo XML <record> <field> children and normalize element "
@@ -322,34 +291,48 @@ def main(argv: list[str] | None = None) -> None:
             "Only process records of this model (repeatable); default: all known models"
         ),
     )
+    # Extra names only. The always-excluded set comes from
+    # `_pretty_xml.is_formattable`, which is the single answer to "is this a
+    # data file a fixer owns" -- the same one the lint gates ask.
+    #
+    # This used to carry its own list (`_vendor`, `enterprise`, `static`), and
+    # it did not match what `test_xml_records` scans: the gate reported over
+    # 5 400 files and this refused 1 600 of them, so its own remediation could
+    # not make it pass on a finding in any of those. That is the exact defect
+    # `TestFixerScope` was written for -- it just only ever checked the *other*
+    # fixer. Hard-coding `enterprise` was wrong for a second reason: it names a
+    # sibling checkout by directory name, which stops being true the moment the
+    # workspace is laid out differently.
     parser.add_argument(
         "--exclude",
         metavar="DIR",
         action="append",
-        default=["_vendor", "enterprise", "static"],
+        default=[],
         help=(
-            "Directory names to skip (default: _vendor, enterprise, static); repeatable"
+            "Extra directory names to skip, on top of the always-excluded "
+            f"{', '.join(sorted(_pretty_xml.EXCLUDED_DIRS))}; repeatable"
         ),
     )
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
 
     model_filter: set[str] | None = set(args.models) if args.models else None
     excluded: set[str] = set(args.exclude)
     changed = unchanged = skipped = 0
 
-    for root_str in args.roots:
-        for xml_file in sorted(Path(root_str).rglob("*.xml")):
-            if excluded.intersection(xml_file.parts):
-                continue
-            result = sort_xml_file(xml_file, models=model_filter, dry_run=args.dry_run)
-            if result is None:
-                skipped += 1
-            elif result:
-                label = "would sort" if args.dry_run else "sorted   "
-                print(f"  {label}  {xml_file}")
-                changed += 1
-            else:
-                unchanged += 1
+    for xml_file in _pretty_xml.iter_target_files(args.roots, excluded):
+        result = sort_xml_file(xml_file, models=model_filter, dry_run=args.dry_run)
+        if result is None:
+            skipped += 1
+        elif result:
+            label = "would sort" if args.dry_run else "sorted   "
+            print(f"  {label}  {xml_file}")
+            changed += 1
+        else:
+            unchanged += 1
 
     verb = "would change" if args.dry_run else "sorted"
     print(f"\nDone: {changed} {verb}, {unchanged} unchanged, {skipped} skipped")

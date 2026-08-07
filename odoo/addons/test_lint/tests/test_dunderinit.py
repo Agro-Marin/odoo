@@ -14,13 +14,6 @@ WHITELIST = [
 
 class TestDunderinit(lint_case.LintCase):
     def test_dunderinit(self):
-        """A module without ``__init__.py`` is not packaged.
-
-        Scoped to this repository, like every other file-based gate here, and
-        collected rather than asserted one module at a time: a bare
-        ``assertTrue`` in the loop stops at the first offender, so the count in
-        the log was never the number of modules with the problem.
-        """
         modules_list = [
             mod
             for mod in Manifest.all_addon_manifests()

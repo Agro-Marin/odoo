@@ -19,33 +19,7 @@ ALLOWED_SUFFIXES = ("/web/static/src/core/color_scheme.js",)
 
 
 class TestColorSchemeReads(lint_case.LintCase):
-    """The colour scheme must be read through @web/core/color_scheme.
-
-    The cookie is a transport detail — how the server hands the resolved
-    scheme over at boot. Reading it directly spreads its name, its storage and
-    its value set across every module that only wants to know whether the UI is
-    dark, and leaves nothing able to observe a change. It also invites the two
-    failures this rule exists to prevent: comparing against ``"dark"`` by hand
-    (so an unexpected value silently reads as light), and reading at module
-    scope, where no later correction can reach the value.
-
-    "Nothing able to observe a change" is why the accessor also owns
-    publication: a reader that goes through it can be told, and
-    ``useColorScheme`` tells it. That is not reachable from a module that
-    reaches past to the cookie.
-
-    Writes are held to the same list, because a second writer is the way the
-    cookie and the setting it mirrors come apart. The value is
-    ``ir_http.color_scheme``'s to decide — it resolves the *setting* above the
-    cookie — and every template that serves the web client sets it from there,
-    so a caller that has just changed the setting needs only to have the page
-    re-served. The one answer the server cannot give is ``system``, and the
-    inline resolver in ``webclient_bootstrap`` gives that one, in the template
-    rather than here.
-    """
-
     def check_text(self, text):
-        """Return the 1-based line numbers of direct cookie uses in *text*."""
         return sorted(
             text[: m.start()].count("\n") + 1
             for regex in REGEXES
@@ -65,7 +39,6 @@ class TestColorSchemeReads(lint_case.LintCase):
         self.assertEqual(self.check_text(bad_js), [2, 3, 5, 7])
 
     def test_no_direct_cookie_reads(self):
-        """Scoped to this repository, and reporting where, not how many."""
         results = scan_regex_patterns(
             lint_case.core_module_roots(),
             [".js"],

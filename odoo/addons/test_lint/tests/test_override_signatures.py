@@ -1,8 +1,6 @@
 import annotationlib
 import inspect
 import typing
-from collections import defaultdict
-from dataclasses import dataclass
 
 from odoo.modules.registry import Registry
 from odoo.tests.common import get_db_name, tagged
@@ -73,16 +71,6 @@ MODEL_METHODS_TO_IGNORE = {
     ("report.pos_hr.single_employee_sales_report", "get_sale_details"),
     ("sign.request", "_generate_completed_document"),
 }
-
-
-@dataclass(slots=True)
-class HitMiss:
-    hit: int = 0
-    miss: int = 0
-
-    @property
-    def ratio(self):
-        return self.hit / (self.hit + self.miss)
 
 
 def check_parameter(
@@ -175,7 +163,6 @@ def get_decorators(method):
 class TestLintOverrideSignatures(LintCase):
     def test_lint_override_signature(self):
         self.failureException = TypeError
-        counter = defaultdict(HitMiss)
         registry = Registry(get_db_name())
 
         for model_name, model_cls in registry.items():
@@ -189,11 +176,26 @@ class TestLintOverrideSignatures(LintCase):
                 ):
                     continue
 
+                # The iterator is deliberately kept alive: what remains of it
+                # after this loop is exactly the classes that override the
+                # original definition, which is what the second loop consumes.
                 reverse_mro = reversed(model_cls.mro()[1:-1])
                 for parent_class in reverse_mro:
                     method = getattr(parent_class, method_name, None)
                     if callable(method):
                         break
+                else:
+                    # Guards an invariant, not an observed failure: measured
+                    # against this registry, no (model, method) pair reaches
+                    # here, because every routine `getmembers` finds on a
+                    # synthesized registry class comes from one of its bases.
+                    # If one ever did, `method` would be None and the
+                    # `inspect.signature` below would raise TypeError from
+                    # outside any subTest -- an error attributed to the whole
+                    # test rather than to the method that caused it. Skipping
+                    # is the honest answer: a method with no parent definition
+                    # has no override to judge.
+                    continue
 
                 parent_module = get_odoo_module_name(parent_class.__module__)
                 _annfmt = annotationlib.Format.FORWARDREF
@@ -231,9 +233,7 @@ class TestLintOverrideSignatures(LintCase):
                             assert_attribute_override(
                                 method, override, is_private=is_private
                             )
-                            counter[method_name].hit += 1
                         except AssertionError as exc:
-                            counter[method_name].miss += 1
                             msg = failure_message.format(
                                 message=exc.args[0],
                                 model=model_name,
