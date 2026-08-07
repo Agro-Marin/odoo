@@ -345,3 +345,101 @@ class TestMrpAuditFixes(TestMrpCommon):
         # Pre-fix: this would loop forever (the BFS queue grows without bound).
         with self.assertRaises(ValidationError):
             bom_a.explode(prod_a, 1.0)
+
+    def test_bom_rejects_product_uom_of_another_category(self):
+        """mrp.bom._check_product_uom_id_category
+
+        `create` aligns the BoM unit with the product's only when it is not
+        supplied (see test_bom_create_syncs_product_uom_id). An explicit
+        cross-category unit had nothing stopping it, and `product_qty` is
+        expressed in it: every explosion and cost roll-up then scaled by the
+        ratio of two unrelated factors.
+        """
+        kgm = self.env.ref("uom.product_uom_kgm")
+        unit = self.env.ref("uom.product_uom_unit")
+        template = self.env["product.template"].create(
+            {"name": "Audit uom-category product", "uom_id": unit.id}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["mrp.bom"].create(
+                {
+                    "product_tmpl_id": template.id,
+                    "product_qty": 1.0,
+                    "product_uom_id": kgm.id,
+                }
+            )
+
+    def test_bom_accepts_convertible_product_uom(self):
+        """Control: a different but convertible unit stays allowed."""
+        dozen = self.env.ref("uom.product_uom_dozen")
+        unit = self.env.ref("uom.product_uom_unit")
+        template = self.env["product.template"].create(
+            {"name": "Audit dozen product", "uom_id": unit.id}
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": template.id,
+                "product_qty": 1.0,
+                "product_uom_id": dozen.id,
+            }
+        )
+        self.assertEqual(bom.product_uom_id, dozen)
+
+    def test_bom_line_rejects_product_uom_of_another_category(self):
+        """mrp.bom.line._check_product_uom_id_category"""
+        kgm = self.env.ref("uom.product_uom_kgm")
+        unit = self.env.ref("uom.product_uom_unit")
+        template = self.env["product.template"].create(
+            {"name": "Audit line parent", "uom_id": unit.id}
+        )
+        component = self.env["product.product"].create(
+            {"name": "Audit line component", "uom_id": unit.id}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["mrp.bom"].create(
+                {
+                    "product_tmpl_id": template.id,
+                    "product_qty": 1.0,
+                    "bom_line_ids": [
+                        Command.create(
+                            {
+                                "product_id": component.id,
+                                "product_qty": 1.0,
+                                "product_uom_id": kgm.id,
+                            }
+                        )
+                    ],
+                }
+            )
+
+    def test_byproduct_rejects_product_uom_of_another_category(self):
+        """mrp.bom.byproduct._check_product_uom_id_category
+
+        The UoM compute on by-products is `readonly=False`, so an explicit
+        value survives and would feed `cost_share` allocation in a unit
+        unrelated to the by-product.
+        """
+        kgm = self.env.ref("uom.product_uom_kgm")
+        unit = self.env.ref("uom.product_uom_unit")
+        template = self.env["product.template"].create(
+            {"name": "Audit byproduct parent", "uom_id": unit.id}
+        )
+        byproduct = self.env["product.product"].create(
+            {"name": "Audit byproduct", "uom_id": unit.id}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["mrp.bom"].create(
+                {
+                    "product_tmpl_id": template.id,
+                    "product_qty": 1.0,
+                    "byproduct_ids": [
+                        Command.create(
+                            {
+                                "product_id": byproduct.id,
+                                "product_qty": 1.0,
+                                "product_uom_id": kgm.id,
+                            }
+                        )
+                    ],
+                }
+            )
