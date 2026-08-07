@@ -74,9 +74,12 @@ class ProductTag(models.Model):
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
+        # A None entry marks a record already copied in this operation (the
+        # same record twice in `self`, or a cycle through a relation); it has
+        # no values to rename and is dropped by `copy()`.
         return [
-            dict(vals, name=self.env._("%s (copy)", tag.name))
-            for tag, vals in zip(self, vals_list, strict=False)
+            vals if vals is None else dict(vals, name=self.env._("%s (copy)", tag.name))
+            for tag, vals in zip(self, vals_list, strict=True)
         ]
 
     def copy_translations(self, new, excluded=()):
