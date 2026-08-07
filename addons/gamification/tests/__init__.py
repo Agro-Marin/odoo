@@ -8,6 +8,8 @@ from . import test_intelligence
 from . import test_mentorship
 from . import test_karma_tracking
 from . import test_kudos
+from . import test_menu_security
+from . import test_migrations
 from . import test_quest
 from . import test_security
 from . import test_streak

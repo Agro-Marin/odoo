@@ -96,3 +96,199 @@ class TestSecurityRules(common.TransactionCase):
         )
         with self.assertRaises(AccessError):
             self.env["gamification.karma.tracking"].with_user(self.user_a).search([])
+
+
+class TestGroupMigration(common.TransactionCase):
+    """Tests for the app's own access tiers and how they are populated."""
+
+    def test_group_user_implies_gamification_user(self):
+        """Every internal user reaches the app tier through base.group_user."""
+        group_user = self.env.ref("base.group_user")
+        app_group = self.env.ref("gamification.group_gamification_user")
+        self.assertIn(app_group, group_user.implied_ids)
+
+        employee = mail_new_test_user(
+            self.env,
+            login="gam_plain_employee",
+            name="Plain Employee",
+            email="gam_plain@example.com",
+            groups="base.group_user",
+        )
+        self.assertTrue(employee.has_group("gamification.group_gamification_user"))
+
+    def test_erp_manager_implies_gamification_manager(self):
+        """The previous administrators keep their reach through the manager tier."""
+        erp_manager = self.env.ref("base.group_erp_manager")
+        app_manager = self.env.ref("gamification.group_gamification_manager")
+        self.assertIn(app_manager, erp_manager.implied_ids)
+
+        manager = mail_new_test_user(
+            self.env,
+            login="gam_erp_manager",
+            name="ERP Manager",
+            email="gam_erp@example.com",
+            groups="base.group_user,base.group_erp_manager",
+        )
+        self.assertTrue(manager.has_group("gamification.group_gamification_manager"))
+        # The manager tier implies the user tier, not the other way round.
+        self.assertTrue(manager.has_group("gamification.group_gamification_user"))
+
+    def test_no_implication_cycle(self):
+        """The app tier must not imply back the group that grants it."""
+        app_group = self.env.ref("gamification.group_gamification_user")
+        group_user = self.env.ref("base.group_user")
+        self.assertNotIn(group_user, app_group.implied_ids)
+        self.assertNotIn(group_user, app_group.all_implied_ids)
+
+
+class TestAclParity(common.TransactionCase):
+    """The app tiers must grant exactly what base.group_user/erp_manager did."""
+
+    # model -> (read, write, create, unlink), as this module's own CSV granted
+    # base.group_user before the tiers existed. Hardcoded rather than derived:
+    # once the change is merged the "before" state is no longer queryable, so
+    # the reference has to travel with the test or it asserts nothing.
+    USER_GRANTS = {
+        "gamification.achievement": (1, 0, 0, 0),
+        "gamification.achievement.unlock": (1, 0, 0, 0),
+        "gamification.activity": (1, 0, 0, 0),
+        "gamification.badge": (1, 0, 0, 0),
+        "gamification.badge.user": (1, 0, 1, 0),
+        "gamification.badge.user.wizard": (1, 1, 1, 0),
+        "gamification.challenge": (1, 0, 0, 0),
+        "gamification.challenge.line": (1, 0, 0, 0),
+        "gamification.engagement.snapshot": (1, 0, 0, 0),
+        "gamification.goal": (1, 1, 0, 0),
+        "gamification.goal.definition": (1, 0, 0, 0),
+        "gamification.goal.wizard": (1, 1, 1, 0),
+        "gamification.karma.rank": (1, 0, 0, 0),
+        "gamification.kudos": (1, 1, 1, 0),
+        "gamification.kudos.category": (1, 0, 0, 0),
+        "gamification.mentorship": (1, 1, 1, 0),
+        "gamification.quest": (1, 0, 0, 0),
+        "gamification.quest.enrollment": (1, 1, 1, 0),
+        "gamification.quest.step": (1, 0, 0, 0),
+        "gamification.quest.step.completion": (1, 1, 1, 0),
+        "gamification.season": (1, 0, 0, 0),
+        "gamification.skill.node": (1, 0, 0, 0),
+        "gamification.skill.node.unlock": (1, 0, 0, 0),
+        "gamification.skill.tree": (1, 0, 0, 0),
+        "gamification.streak": (1, 0, 0, 0),
+        "gamification.streak.type": (1, 0, 0, 0),
+        "gamification.team": (1, 0, 0, 0),
+    }
+
+    # Same, for base.group_erp_manager. gamification.karma.rank is the one
+    # deliberate addition: the old CSV only gave it to base.group_system, which
+    # left the manager tier unable to configure ranks from its own menu.
+    MANAGER_GRANTS = {
+        model: (1, 1, 1, 1)
+        for model in USER_GRANTS
+        if not model.endswith(".wizard")  # transients reached via the user tier
+    } | {"gamification.karma.rank": (1, 1, 1, 1)}
+
+    def _module_grants(self, group_xmlid):
+        """Return {model: perms} for this module's ACL rows on one group.
+
+        Scoped to ACL rows owned by ``gamification`` so a bridge module granting
+        the same group elsewhere (hr_gamification does) cannot mask a regression.
+
+        :param str group_xmlid: external id of the group to collect
+        :rtype: dict[str, tuple[int, int, int, int]]
+        """
+        xmlids = self.env["ir.model.data"].search(
+            [("module", "=", "gamification"), ("model", "=", "ir.model.access")]
+        )
+        group = self.env.ref(group_xmlid)
+        acls = self.env["ir.model.access"].browse(xmlids.mapped("res_id"))
+        return {
+            acl.model_id.model: (
+                int(acl.perm_read),
+                int(acl.perm_write),
+                int(acl.perm_create),
+                int(acl.perm_unlink),
+            )
+            for acl in acls
+            if acl.group_id == group
+        }
+
+    def test_user_tier_grants_match_the_old_employee_rows(self):
+        """No internal user gained or lost model access in the re-pointing."""
+        self.assertEqual(
+            self._module_grants("gamification.group_gamification_user"),
+            self.USER_GRANTS,
+        )
+
+    def test_manager_tier_grants_match_the_old_erp_manager_rows(self):
+        """The seven erp_manager holders keep the same CRUD, plus karma ranks."""
+        self.assertEqual(
+            self._module_grants("gamification.group_gamification_manager"),
+            self.MANAGER_GRANTS,
+        )
+
+    def test_no_row_still_points_at_a_base_tier(self):
+        """The module owns its access tiers; no CSV row names base.* any more."""
+        stale = {
+            acl.model_id.model
+            for acl in self.env["ir.model.access"].browse(
+                self.env["ir.model.data"]
+                .search(
+                    [
+                        ("module", "=", "gamification"),
+                        ("model", "=", "ir.model.access"),
+                    ]
+                )
+                .mapped("res_id")
+            )
+            if acl.group_id
+            in (
+                self.env.ref("base.group_user"),
+                self.env.ref("base.group_erp_manager"),
+            )
+        }
+        self.assertFalse(stale)
+
+    def test_plain_employee_reads_every_model_but_karma_tracking(self):
+        """Behavioural counterpart: the tier actually reaches the employee.
+
+        Only ``read`` is asserted here. Writes stay in the grant maps above,
+        because an installed bridge module may legitimately widen them for a
+        plain employee and that is not this module's regression to catch.
+        """
+        employee = mail_new_test_user(
+            self.env,
+            login="gam_acl_employee",
+            name="ACL Employee",
+            email="gam_acl@example.com",
+            groups="base.group_user",
+        )
+        for model in self.USER_GRANTS:
+            with self.subTest(model=model):
+                records = self.env[model].with_user(employee).browse()
+                self.assertTrue(records.has_access("read"))
+
+        tracking = self.env["gamification.karma.tracking"].with_user(employee)
+        self.assertFalse(tracking.browse().has_access("read"))
+
+    def test_manager_can_write_karma_rank_but_not_karma_tracking(self):
+        """The new rank row lands on the tier, and the audit trail stays closed.
+
+        karma.tracking is deliberately left system-only: it is the karma audit
+        trail, not configuration, so a gamification administrator without
+        base.group_system must not reach it.
+        """
+        manager = mail_new_test_user(
+            self.env,
+            login="gam_rank_manager",
+            name="Rank Manager",
+            email="gam_rank@example.com",
+            groups="base.group_user,gamification.group_gamification_manager",
+        )
+        self.assertFalse(manager.has_group("base.group_system"))
+
+        rank = self.env["gamification.karma.rank"].with_user(manager)
+        self.assertTrue(rank.browse().has_access("write"))
+        self.assertTrue(rank.browse().has_access("create"))
+
+        tracking = self.env["gamification.karma.tracking"].with_user(manager)
+        self.assertFalse(tracking.browse().has_access("write"))
