@@ -543,6 +543,64 @@ class TestDumpDbZipStderr:
         assert not any(str(a).startswith("--file=") for a in cmd), cmd
 
 
+class TestDumpDbZipLargeSqlMember:
+    """A ``dump.sql`` past the ZIP64 threshold must still produce an archive.
+
+    Streaming into a member through ``ZipFile.open(..., "w")`` commits the local
+    header before any data is read, so — unlike ``ZipFile.write()``, which stats
+    its source first — zipfile cannot promote the member to ZIP64 on its own:
+    ``_open_to_write`` decides from ``force_zip64`` alone, the declared
+    ``file_size`` still being 0.  Without the flag the dump therefore dies at
+    member close with "File size too large, try using force_zip64" — but only
+    once the database outgrows 4 GiB, and only after the whole dump has already
+    run.  ``allowZip64`` on the archive covers the central directory, not this.
+
+    ``ZIP64_LIMIT`` is shrunk rather than dumping 4 GiB of fake SQL:
+    ``_ZipWriteFile.close`` reads it as a module global, so a tiny limit drives
+    exactly the branch a genuinely oversized dump reaches.
+    """
+
+    def _patches(self, db_mod, stdout: bytes, zip64_limit: int) -> list:
+        mock_cr = MagicMock()
+        mock_cr.__enter__ = MagicMock(return_value=mock_cr)
+        mock_cr.__exit__ = MagicMock(return_value=False)
+        mock_db = MagicMock()
+        mock_db.cursor.return_value = mock_cr
+        return [
+            patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch("odoo.service.db.exec_pg_environ", return_value={}),
+            patch("odoo.db.db_connect", return_value=mock_db),
+            patch.object(db_mod, "dump_db_manifest", return_value={"odoo_dump": "1"}),
+            patch(
+                "odoo.service.db.subprocess.Popen",
+                return_value=_FakePgDumpPopen(stdout=stdout),
+            ),
+            patch.object(zipfile, "ZIP64_LIMIT", zip64_limit),
+        ]
+
+    def test_sql_member_over_the_zip64_limit_round_trips(self, db_mod, bypass_db_mgmt):
+        sql = b"-- oversized dump\n" + b"x" * 4096
+        with ExitStack() as stack:
+            for p in self._patches(db_mod, sql, zip64_limit=64):
+                stack.enter_context(p)
+            dump = db_mod.dump_db("testdb", None, "zip", with_filestore=False)
+        assert dump is not None
+        with dump, zipfile.ZipFile(dump) as zf:
+            assert zf.testzip() is None
+            assert zf.read("dump.sql") == sql
+
+    def test_sql_member_under_the_limit_is_unaffected(self, db_mod, bypass_db_mgmt):
+        """The flag must not disturb the ordinary, comfortably-small case."""
+        sql = b"-- small dump\n"
+        with ExitStack() as stack:
+            for p in self._patches(db_mod, sql, zip64_limit=zipfile.ZIP64_LIMIT):
+                stack.enter_context(p)
+            dump = db_mod.dump_db("testdb", None, "zip", with_filestore=False)
+        assert dump is not None
+        with dump, zipfile.ZipFile(dump) as zf:
+            assert zf.read("dump.sql") == sql
+
+
 class TestDumpDbZipManifestBeforeFilestore:
     """The zip dump writes the manifest (which opens a DB cursor) BEFORE the
     filestore ``copytree``, so an unreachable/bogus DB fails fast instead of

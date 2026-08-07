@@ -914,7 +914,15 @@ def _write_zip_dump(
         with db.cursor() as cr:
             manifest = dump_db_manifest(cr)
         zipf.writestr("manifest.json", json.dumps(manifest, indent=4))
-        with zipf.open("dump.sql", "w") as sql_member:
+        # force_zip64 is mandatory, not defensive: streaming into a member
+        # through ``ZipFile.open(..., "w")`` commits the local header before a
+        # single byte is read, so zipfile cannot infer that the member needs
+        # ZIP64 the way ``ZipFile.write()`` does from a stat().  Without it a
+        # ``dump.sql`` that overruns 4 GiB raises "File size too large, try
+        # using force_zip64" at member close — after minutes of dumping, and
+        # only once the database grows past the threshold.  ``allowZip64`` on
+        # the archive covers the central directory, not this.
+        with zipf.open("dump.sql", "w", force_zip64=True) as sql_member:
             _run_pg_dump_streaming(cmd, env, sql_member)
         if with_filestore:
             _zip_filestore_into(zipf, odoo.tools.config.filestore(db_name))
