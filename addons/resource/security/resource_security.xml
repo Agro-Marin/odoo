@@ -11,19 +11,35 @@
         <field name="perm_unlink" eval="False" />
     </record>
 
+    <!--
+        An employee may only manage the time off of the resource that IS them.
+        The previous `('resource_id.user_id', 'in', [False, user.id])` was
+        copied from the read rule above, where the `False` legitimately covers
+        company-wide time off.  Here the first clause already excluded global
+        records, so the `False` matched every resource with no user account —
+        machines, rooms, vehicles and unlinked employee resources — letting any
+        internal user create, edit and delete their time off.  That data drives
+        MRP scheduling, appointment availability and the planning gantt.
+    -->
     <record model="ir.rule" id="resource_calendar_leaves_rule_group_user_modify">
         <field name="name">resource.calendar.leaves: employee modifies own</field>
         <field name="model_id" ref="model_resource_calendar_leaves" />
         <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
-        <field name="domain_force">[('resource_id', '!=', False), ('resource_id.user_id', 'in', [False, user.id])]</field>
+        <field name="domain_force">[('resource_id.user_id', '=', user.id)]</field>
         <field name="perm_read" eval="False" />
     </record>
 
+    <!--
+        Managers keep full write access.  Narrowing the rule above without
+        widening this one would have locked everyone below group_system out of
+        machine and room time off, since group rules are OR-ed and this was the
+        only other write path.
+    -->
     <record model="ir.rule" id="resource_calendar_leaves_rule_group_admin_modify">
-        <field name="name">resource.calendar.leaves: admin modifies global</field>
+        <field name="name">resource.calendar.leaves: admin modifies any</field>
         <field name="model_id" ref="model_resource_calendar_leaves" />
         <field name="groups" eval="[Command.link(ref('base.group_erp_manager'))]" />
-        <field name="domain_force">[('resource_id', '=', False)]</field>
+        <field name="domain_force">[(1, '=', 1)]</field>
         <field name="perm_read" eval="False" />
     </record>
 

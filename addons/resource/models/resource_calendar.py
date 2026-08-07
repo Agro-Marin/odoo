@@ -555,65 +555,76 @@ class ResourceCalendar(models.Model):
         """Approximate a flexible calendar's work intervals over a window.
 
         Flexible calendars have no fixed attendance lines, so we synthesize
-        them: fill each week up to the flexible weekly budget and each day up
-        to ``hours_per_day``, centering each day's block on noon.  This is the
-        best daily/weekly approximation for time-off, overtime and work-entry
-        computations.  Each interval carries a throwaway attendance holding
-        only its duration (see :meth:`_make_dummy_attendance`).
+        them: fill each 7-day chunk up to the flexible weekly budget and each
+        day up to ``hours_per_day``, centering each day's block on noon.  Each
+        interval carries a throwaway attendance holding only its duration (see
+        :meth:`_make_dummy_attendance`).
+
+        .. important::
+           The chunks are anchored on ``start_datetime``, not on the calendar
+           week, and the fill is greedy from there.  That is deliberate: a
+           flexible worker asked about Tue→Sat is credited five working days,
+           not "whatever is left of the Monday-anchored week" — see
+           ``hr_holidays`` ``test_undefined_working_hours``.
+
+           The trade-off is that the result is **not additive**: asking about
+           Mon→Mon returns one week's budget, while asking Mon→Thu and Thu→Mon
+           separately and adding them returns more, because each sub-window
+           starts a fresh budget.  Callers that partition a period and sum the
+           parts (as two adjacent reservations covering one week do) will
+           over-count.  Anchoring on the calendar week would fix that but would
+           silently shorten every mid-week leave, so the semantics are left as
+           they are and the limitation is documented here instead.
         """
         self.ensure_one()
         max_hours_per_week = self._get_flexible_hours_per_week()
         max_hours_per_day = self.hours_per_day
-        # The last microsecond of the range belongs to the final day.
-        end_date = end_datetime - relativedelta(seconds=1)
+        first_day = start_datetime.date()
+        # The last microsecond of the range still belongs to the final day.
+        last_day = (end_datetime - timedelta(microseconds=1)).date()
         # Total span duration is timezone-independent (same instants).
         total_hours = (end_datetime - start_datetime).total_seconds() / 3600
 
         intervals = []
-        week_start_day = start_datetime
-        while week_start_day <= end_date:
-            week_start = max(week_start_day, start_datetime)
-            week_end = min(week_start_day + timedelta(days=6), end_date)
+        # Iterate over plain dates.  Stepping an *aware* datetime by timedelta
+        # keeps the old UTC offset across a DST switch, so the wall-clock day a
+        # block is attributed to could drift by an hour and land on the wrong
+        # date; dates have no such hazard.
+        chunk_start = first_day
+        while chunk_start <= last_day:
+            chunk_end = min(chunk_start + timedelta(days=6), last_day)
+            remaining_hours = min(max_hours_per_week, total_hours)
 
-            # Hours already consumed by days of this week that precede the
-            # queried range (defensive: the loop starts on ``start_datetime``,
-            # so this only bites if a caller ever misaligns the window).
-            if week_start_day < start_datetime:
-                prior_days = (start_datetime - week_start_day).days
-                prior_hours = min(max_hours_per_week, max_hours_per_day * prior_days)
-            else:
-                prior_hours = 0
-            remaining_hours = min(max(0, max_hours_per_week - prior_hours), total_hours)
-
-            current_day = week_start
-            while current_day <= week_end:
-                if remaining_hours > 0:
-                    day_start = tz.localize(datetime.combine(current_day, time.min))
-                    day_end = tz.localize(datetime.combine(current_day, time.max))
-                    day_period_start = max(start_datetime, day_start)
-                    day_period_end = min(end_datetime, day_end)
-                    allocate_hours = min(
-                        max_hours_per_day,
-                        remaining_hours,
-                        (day_period_end - day_period_start).total_seconds() / 3600,
+            day = chunk_start
+            while day <= chunk_end:
+                if remaining_hours <= 0:
+                    break
+                day_start = tz.localize(datetime.combine(day, time.min))
+                day_end = tz.localize(datetime.combine(day, time.max))
+                day_period_start = max(start_datetime, day_start)
+                day_period_end = min(end_datetime, day_end)
+                allocate_hours = min(
+                    max_hours_per_day,
+                    remaining_hours,
+                    (day_period_end - day_period_start).total_seconds() / 3600,
+                )
+                remaining_hours -= allocate_hours
+                start_time, end_time = self._center_block_on_noon(
+                    day,
+                    allocate_hours,
+                    tz,
+                    day_period_start,
+                    day_period_end,
+                )
+                intervals.append(
+                    (
+                        start_time,
+                        end_time,
+                        self._make_dummy_attendance(allocate_hours, 1),
                     )
-                    remaining_hours -= allocate_hours
-                    start_time, end_time = self._center_block_on_noon(
-                        current_day,
-                        allocate_hours,
-                        tz,
-                        day_period_start,
-                        day_period_end,
-                    )
-                    intervals.append(
-                        (
-                            start_time,
-                            end_time,
-                            self._make_dummy_attendance(allocate_hours, 1),
-                        )
-                    )
-                current_day += timedelta(days=1)
-            week_start_day += timedelta(days=7)
+                )
+                day += timedelta(days=1)
+            chunk_start += timedelta(days=7)
         return intervals
 
     def _attendance_intervals_batch(
@@ -866,15 +877,22 @@ class ResourceCalendar(models.Model):
         else:
             resources_list = list(resources) + [self.env["resource.resource"]]
 
+        # Resolve the effective timezone ONCE and hand the same one to both
+        # halves.  Previously only the attendance half honoured the
+        # ``employee_timezone`` context key, so with that key set the two sides
+        # of the subtraction were built on different day boundaries — which
+        # matters because ``_leave_intervals_batch`` expands a flexible
+        # resource's leave to whole *local* days.
+        effective_tz = tz or self.env.context.get("employee_timezone")
         attendance_intervals = self._attendance_intervals_batch(
             start_dt,
             end_dt,
             resources,
-            tz=tz or self.env.context.get("employee_timezone"),
+            tz=effective_tz,
         )
         if compute_leaves:
             leave_intervals = self._leave_intervals_batch(
-                start_dt, end_dt, resources, domain, tz=tz
+                start_dt, end_dt, resources, domain, tz=effective_tz
             )
             return {
                 r.id: (attendance_intervals[r.id] - leave_intervals[r.id])
@@ -924,10 +942,17 @@ class ResourceCalendar(models.Model):
                 leaves = self._leave_intervals_batch(
                     start_dt, end_dt, resource, domain, tz=tz
                 )
-                if res_leaves := leaves.get(resource.id, []):
-                    result[resource.id] = [
-                        (i[0].astimezone(utc), i[1].astimezone(utc)) for i in res_leaves
-                    ]
+                # Always publish a key, even with no leaves.  Skipping the
+                # assignment left the resource absent from the returned dict:
+                # ``_unavailable_intervals`` then raised KeyError, and the
+                # gantt consumers that read this through
+                # ``.get(resource.id, company_leaves)`` silently fell back to
+                # the *company* calendar's unavailability — greying out cells
+                # for a flexible resource that is in fact available.
+                result[resource.id] = [
+                    (i[0].astimezone(utc), i[1].astimezone(utc))
+                    for i in leaves.get(resource.id, [])
+                ]
                 continue
             work_intervals = [
                 (start, stop)
@@ -999,10 +1024,10 @@ class ResourceCalendar(models.Model):
                     )
 
         return {
-            # Round the number of days to the closest 16th of a day.
-            "days": float_round(
-                sum(day_days[day] for day in day_days), precision_rounding=0.001
-            ),
+            # Round the day count to the nearest thousandth of a day, which is
+            # fine enough for half/quarter-day attendances while absorbing the
+            # float noise of the proportional split above.
+            "days": float_round(sum(day_days.values()), precision_rounding=0.001),
             "hours": sum(day_hours.values()),
         }
 
@@ -1389,6 +1414,7 @@ class ResourceCalendar(models.Model):
         day_dt: datetime,
         compute_leaves: bool = False,
         domain: list | None = None,
+        resource: Self | None = None,
     ) -> datetime | bool:
         """
         `compute_leaves` controls whether or not this method is taking into
@@ -1397,23 +1423,35 @@ class ResourceCalendar(models.Model):
         `domain` controls the way leaves are recognized.
         None means default value ('time_type', '=', 'leave')
 
+        `resource` scopes the leaves to that resource, mirroring
+        :meth:`plan_hours`.  Without it only *global* leaves were ever
+        subtracted, so ``compute_leaves=True`` happily planned work onto days
+        the resource was on leave.
+
         Returns the datetime of a days scheduling.
         """
         revert = to_timezone(day_dt.tzinfo)
         day_dt = localized(day_dt)
 
+        if resource is None:
+            resource = self.env["resource.resource"]
+
         # which method to use for retrieving intervals
         if compute_leaves:
-            get_intervals = partial(self._work_intervals_batch, domain=domain)
+            get_intervals = partial(
+                self._work_intervals_batch, domain=domain, resources=resource
+            )
+            resource_id = resource.id
         else:
             get_intervals = self._attendance_intervals_batch
+            resource_id = False
 
         if days > 0:
             found = set()
             delta = _PLAN_WINDOW
             for n in range(_PLAN_MAX_ITERATIONS):
                 dt = day_dt + delta * n
-                for start, stop, _meta in get_intervals(dt, dt + delta)[False]:
+                for start, stop, _meta in get_intervals(dt, dt + delta)[resource_id]:
                     found.add(start.date())
                     if len(found) == days:
                         return revert(stop)
@@ -1426,7 +1464,7 @@ class ResourceCalendar(models.Model):
             for n in range(_PLAN_MAX_ITERATIONS):
                 dt = day_dt - delta * n
                 for start, _stop, _meta in reversed(
-                    get_intervals(dt - delta, dt)[False]
+                    get_intervals(dt - delta, dt)[resource_id]
                 ):
                     found.add(start.date())
                     if len(found) == days:
