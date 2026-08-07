@@ -7,6 +7,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.sql import SQL
 from odoo.tools.image import is_image_size_above
+from odoo.tools.misc import unique
 
 _logger = logging.getLogger(__name__)
 PRICE_CONTEXT_KEYS = ["pricelist", "quantity", "uom", "date"]
@@ -129,7 +130,9 @@ class ProductTemplate(models.Model):
         comodel_name="uom.uom",
         string="Packagings",
         domain="[('id', '!=', uom_id)]",
-        help="Additional packagings for this product which can be used for sales",
+        help="Additional packagings for this product which can be used for sales.\n"
+        "They must measure the same thing as the product's unit (a box of 6, a"
+        " pallet, ...), so that a quantity or a price can be converted between them.",
     )
     uom_name = fields.Char(
         related="uom_id.name",
@@ -345,6 +348,44 @@ class ProductTemplate(models.Model):
         for template in self:
             template.product_variant_ids._check_barcode_uniqueness()
 
+    @api.constrains("uom_id", "uom_ids")
+    def _check_uom_ids_are_convertible(self):
+        """A packaging unit must measure the same thing as the product's unit.
+
+        `uom_ids` only excluded `uom_id` itself, so a product measured in Units
+        could be given a "kg" packaging through the normal form. Order lines
+        union `uom_ids` into their allowed units
+        (`order.line.mixin._compute_allowed_uom_ids`), and every price and
+        quantity conversion between two such units is meaningless: a sale line
+        for a 50.00 fixed-price rule priced out at 50000.00, silently, because
+        `uom._compute_price` just multiplies by the ratio of the two factors.
+
+        This is about *packaging* units only. A vendor may still quote in an
+        unrelated unit -- that is `product.supplierinfo.product_uom_id`, which
+        is deliberately allowed to be cross-category and is filtered at use
+        time by `product.product._get_filtered_sellers`.
+        """
+        for template in self:
+            if not template.uom_id:
+                continue
+            incompatible = template.uom_ids.filtered(
+                lambda uom, template=template: (
+                    not uom._has_common_reference(template.uom_id)
+                )
+            )
+            if incompatible:
+                raise ValidationError(
+                    _(
+                        "The packaging %(packagings)s cannot be used for"
+                        " %(product)s: they do not measure the same thing as its"
+                        " unit %(unit)s, so no quantity or price could be"
+                        " converted between them.",
+                        packagings=", ".join(incompatible.mapped("display_name")),
+                        product=template.display_name,
+                        unit=template.uom_id.display_name,
+                    )
+                )
+
     @api.model_create_multi
     def create(self, vals_list):
         """Store the initial standard price in order to be able to retrieve the cost of a product template for a given date"""
@@ -365,9 +406,19 @@ class ProductTemplate(models.Model):
 
     def write(self, vals):
         if "uom_id" in vals:
-            products = self.filtered(
-                lambda template: template.uom_id.id != vals["uom_id"]
-            ).product_variant_ids
+            # `active_test=False`: changing a product's unit is a *rename*
+            # (1 old = 1 new), and `_update_uom` restamps the unit on every
+            # document already referencing the variant -- stock moves, sale and
+            # purchase lines -- besides refusing the change when another unit
+            # was already used. Restricting it to active variants left the
+            # history of archived ones pointing at the old unit and skipped
+            # that safety check for them, while `_onchange_uom_id` right below
+            # already warns over archived variants too.
+            products = (
+                self.filtered(lambda template: template.uom_id.id != vals["uom_id"])
+                .with_context(active_test=False)
+                .product_variant_ids
+            )
             products.with_context(skip_uom_conversion=True)._update_uom(vals["uom_id"])
         res = super().write(vals)
         if (
@@ -407,31 +458,48 @@ class ProductTemplate(models.Model):
 
     def copy(self, default=None):
         res = super().copy(default=default)
-        # Since we don't copy the product template attribute values, we need to match the extra prices.
-        for ptal, copied_ptal in zip(
-            self.attribute_line_ids, res.attribute_line_ids, strict=False
+        # Pair each source template with its own copy, rather than zipping the
+        # flattened `attribute_line_ids` unions of the whole batch -- that pairs
+        # lines by position across templates, so one template's extra prices can
+        # land on another's copy as soon as the two disagree on line count.
+        # `unique()` keeps this correct for a duplicated recordset too, though
+        # `copy_data` now rejects one before it gets here.
+        for template, copied_template in zip(
+            self.browse(unique(self._ids)), res, strict=True
         ):
-            for ptav, copied_ptav in zip(
-                ptal.product_template_value_ids,
-                copied_ptal.product_template_value_ids,
+            # Since we don't copy the product template attribute values, we need to match the extra prices.
+            for ptal, copied_ptal in zip(
+                template.attribute_line_ids,
+                copied_template.attribute_line_ids,
                 strict=False,
             ):
-                if not ptav.price_extra:
-                    continue
-                # security check
-                if (
-                    ptav.attribute_id == copied_ptav.attribute_id
-                    and ptav.product_attribute_value_id
-                    == copied_ptav.product_attribute_value_id
+                for ptav, copied_ptav in zip(
+                    ptal.product_template_value_ids,
+                    copied_ptal.product_template_value_ids,
+                    strict=False,
                 ):
-                    copied_ptav.price_extra = ptav.price_extra
+                    if not ptav.price_extra:
+                        continue
+                    # security check
+                    if (
+                        ptav.attribute_id == copied_ptav.attribute_id
+                        and ptav.product_attribute_value_id
+                        == copied_ptav.product_attribute_value_id
+                    ):
+                        copied_ptav.price_extra = ptav.price_extra
         return res
 
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if "name" not in default:
-            for template, vals in zip(self, vals_list, strict=False):
+            for template, vals in zip(self, vals_list, strict=True):
+                # `vals` is None for a record already copied in this operation
+                # (the same record twice in `self`, or a cycle through a
+                # relation). Those entries carry no values to rename and are
+                # dropped by `copy()`.
+                if vals is None:
+                    continue
                 vals["name"] = _("%s (copy)", template.name)
         return vals_list
 
@@ -1040,13 +1108,15 @@ class ProductTemplate(models.Model):
             prices[template.id] = price
         return prices
 
-    def _convert_price_to_uom(self, price, uom):
-        """Convert ``price`` (per unit of the template's UoM) into ``uom``.
+    def _check_price_uom(self, uom):
+        """Raise if a price of this template cannot be expressed in ``uom``.
 
-        See `product.product._convert_price_to_uom`: `uom._compute_price` scales
-        by the ratio of the two units' factors without checking that they are
-        compatible, which turned an incoherent request into a silently wrong
-        price rather than an error.
+        See `product.product._check_price_uom`: `uom._compute_price` scales by
+        the ratio of the two units' factors without checking that they are
+        compatible, which turns an incoherent request into a silently wrong
+        price rather than an error. Kept in step with the variant-side helpers
+        -- `product.pricelist.item._compute_price` calls these on whichever of
+        the two models it was handed.
         """
         self.ensure_one()
         if uom and self.uom_id and not self.uom_id._has_common_reference(uom):
@@ -1060,6 +1130,10 @@ class ProductTemplate(models.Model):
                     product_unit=self.uom_id.display_name,
                 )
             )
+
+    def _convert_price_to_uom(self, price, uom):
+        """Convert ``price`` (per unit of the template's UoM) into ``uom``."""
+        self._check_price_uom(uom)
         return self.uom_id._compute_price(price, uom)
 
     def _create_first_product_variant(self, log_warning=False):

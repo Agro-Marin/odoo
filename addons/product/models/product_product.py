@@ -334,9 +334,13 @@ class ProductProduct(models.Model):
         # works for now, need to be fixed to return product_variant_id if it's
         # possible in the future
 
-        # Use tmp recordset in case we copy several variants from the same template
-        templates = [product.product_tmpl_id for product in self]
-        templates_to_copy = self.env["product.template"].concat(*templates)
+        # One copy per *distinct* template. Building the recordset per variant
+        # instead (`concat` keeps duplicates) put the same template twice into a
+        # single `copy()`, which cannot be honoured -- `copy_data` now rejects a
+        # repeated record outright. Two variants of one template therefore yield
+        # one duplicated product (carrying all its variants), not two identical
+        # ones.
+        templates_to_copy = self.product_tmpl_id
         new_templates = templates_to_copy.copy(default=default)
         new_product_list = [
             new_template.product_variant_id
@@ -530,19 +534,25 @@ class ProductProduct(models.Model):
             to_uom = self.env["uom.uom"].browse(self.env.context["uom"])
 
         for product in self:
+            # `price_extra` is denominated in the product's own UoM, exactly
+            # like `list_price`, so the *sum* is what gets converted. Converting
+            # only the base price left the attribute extra unscaled: a 100 + 10
+            # product read 1210 per dozen where `_compute_price('list_price',
+            # uom=dozen)` -- the same quantity by another route -- returned 1320,
+            # and `_set_product_lst_price` (which does convert the sum) could
+            # not round-trip its own field.
+            price = product.list_price + product.price_extra
             if to_uom:
-                list_price = product.uom_id._compute_price(product.list_price, to_uom)
-            else:
-                list_price = product.list_price
-            product.lst_price = list_price + product.price_extra
+                price = product._convert_price_to_uom(price, to_uom)
+            product.lst_price = price
 
+    @api.depends_context("partner_id")
     @api.depends(
         "default_code",
         "seller_ids.partner_id",
         "seller_ids.product_code",
         "seller_ids.product_id",
     )
-    @api.depends_context("partner_id")
     def _compute_product_code(self):
         read_access = self.env["ir.model.access"].check(
             "product.supplierinfo",
@@ -958,11 +968,8 @@ class ProductProduct(models.Model):
     def _set_product_lst_price(self):
         for product in self:
             if self.env.context.get("uom"):
-                value = (
-                    self.env["uom.uom"]
-                    .browse(self.env.context["uom"])
-                    ._compute_price(product.lst_price, product.uom_id)
-                )
+                uom = self.env["uom.uom"].browse(self.env.context["uom"])
+                value = product._convert_price_from_uom(product.lst_price, uom)
             else:
                 value = product.lst_price
             value -= product.price_extra
@@ -1122,12 +1129,12 @@ class ProductProduct(models.Model):
 
         return prices
 
-    def _convert_price_to_uom(self, price, uom):
-        """Convert ``price`` (per unit of the product's UoM) into ``uom``.
+    def _check_price_uom(self, uom):
+        """Raise if a price of this product cannot be expressed in ``uom``.
 
         `uom._compute_price` scales by the ratio of the two units' factors with
         no compatibility check, so asking for the price of a product sold in
-        Units "in Liters" silently returned a plausible-looking but meaningless
+        Units "in Liters" silently returns a plausible-looking but meaningless
         number (list price x liter factor / unit factor) instead of failing.
         Quantity conversion (`_compute_quantity`) already refuses that case;
         price conversion must not be more permissive.
@@ -1144,7 +1151,19 @@ class ProductProduct(models.Model):
                     product_unit=self.uom_id.display_name,
                 )
             )
+
+    def _convert_price_to_uom(self, price, uom):
+        """Convert ``price`` (per unit of the product's UoM) into ``uom``."""
+        self._check_price_uom(uom)
         return self.uom_id._compute_price(price, uom)
+
+    def _convert_price_from_uom(self, price, uom):
+        """Convert ``price`` (per unit of ``uom``) into the product's own UoM.
+
+        Exact inverse of :meth:`_convert_price_to_uom`, guarded the same way.
+        """
+        self._check_price_uom(uom)
+        return uom._compute_price(price, self.uom_id)
 
     def _filter_to_unlink(self):
         return self

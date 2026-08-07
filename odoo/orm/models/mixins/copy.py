@@ -17,6 +17,15 @@ class CopyMixin(_ModelStubs):
     __slots__ = ()
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
+        if len(set(self._ids)) != len(self._ids):
+            raise ValueError(
+                f"Cannot copy {self._name} records: the same record appears "
+                f"more than once in {self}. Deduplicate the recordset first "
+                f"(e.g. `records.browse(unique(records._ids))`); copying it "
+                f"twice over would yield a single copy."
+            )
+
+
         vals_list = []
         default = dict(default or {})
         if "__copy_data_seen" not in self.env.context:
@@ -43,8 +52,10 @@ class CopyMixin(_ModelStubs):
             if field.copy and name not in default and name not in blacklist
         }
 
+        # One shared map for the whole operation, carried through the context.
+        seen_map = self.env.context["__copy_data_seen"]
+
         for record in self:
-            seen_map = self.env.context["__copy_data_seen"]
             if record.id in seen_map[record._name]:
                 vals_list.append(None)
                 continue
@@ -54,8 +65,20 @@ class CopyMixin(_ModelStubs):
 
             for name, field in fields_to_copy.items():
                 if field.type == "one2many":
-                    lines = record[name].sorted(key="id").copy_data()
-                    vals[name] = [Command.create(line) for line in lines if line]
+                    # Drop the already-copied lines *before* recursing rather
+                    # than after: they would come back as `None` entries that
+                    # this method then filters out anyway, but on the way there
+                    # they pass through the child model's own `copy_data`, whose
+                    # overrides overwhelmingly assume a dict. Same result, minus
+                    # the trap. (Reachable whenever two copied relations overlap,
+                    # or a self-referential one2many closes a cycle.)
+                    lines = record[name].sorted(key="id")
+                    lines = lines.filtered(
+                        lambda line: line.id not in seen_map[line._name]
+                    )
+                    vals[name] = [
+                        Command.create(line) for line in lines.copy_data() if line
+                    ]
                 elif field.type == "many2many":
                     vals[name] = [
                         Command.set(record[name]._filtered_access("read").ids)

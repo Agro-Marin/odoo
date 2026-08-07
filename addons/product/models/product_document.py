@@ -68,7 +68,13 @@ class ProductDocument(models.Model):
             ir_default = {
                 field: default[field] for field in default if field in ir_fields
             }
-        for document, vals in zip(self, vals_list, strict=False):
+        for document, vals in zip(self, vals_list, strict=True):
+            # `vals` is None for a record already copied in this operation (the
+            # same record twice in `self`, or a cycle through a relation).
+            # Skipping also avoids copying an attachment for a document that
+            # `copy()` will not create.
+            if vals is None:
+                continue
             vals["ir_attachment_id"] = (
                 document.ir_attachment_id.with_context(
                     no_document=True,

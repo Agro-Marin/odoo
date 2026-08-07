@@ -16,4 +16,5 @@ from . import test_seller
 from . import test_update_pav_wizard
 from . import test_variants
 from . import test_product_rounding
+from . import test_product_uom_and_copy
 from . import test_robustness

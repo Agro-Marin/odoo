@@ -75,6 +75,11 @@ class ProductPricelist(models.Model):
         vals_list = super().copy_data(default=default)
         if "name" not in default:
             for pricelist, vals in zip(self, vals_list, strict=True):
+                # `vals` is None for a record already copied in this operation
+                # (the same record twice in `self`, or a cycle through a
+                # relation); `copy()` drops those entries.
+                if vals is None:
+                    continue
                 vals["name"] = _("%s (copy)", pricelist.name)
         return vals_list
 

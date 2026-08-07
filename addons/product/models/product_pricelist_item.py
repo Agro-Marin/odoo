@@ -778,7 +778,13 @@ class ProductPricelistItem(models.Model):
                     price, currency, self.env.company, date, round=False
                 )
             if product_uom_id != uom:
-                price = product_uom_id._compute_price(price, uom)
+                # Through the product's guarded converter, like every other
+                # price conversion: `uom._compute_price` alone just scales by
+                # the factor ratio, so a fixed-price rule asked for a unit from
+                # another category returned silent nonsense (50 -> 50000) where
+                # the very same call on a formula rule raised, because its base
+                # price goes through `product._compute_price`.
+                price = product._convert_price_to_uom(price, uom)
             return price
 
         if self.compute_price == "fixed":
