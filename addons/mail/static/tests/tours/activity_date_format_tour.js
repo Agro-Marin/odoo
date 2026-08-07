@@ -26,7 +26,8 @@ registry.category("web_tour.tours").add("mail_activity_date_format", {
             trigger: ".o-mail-Activity-info i",
             run: "click",
         },
-        // Format expected from the server for 9 AM at the first day of 2024 is date_format = "%d/%b/%y", time_format = "%I:%M:%S %p".
+        // The launching test freezes 2024-01-01 09:00 and sets the lang's
+        // date_format "%d/%b/%y" / time_format "%I:%M:%S %p".
         {
             trigger:
                 ".o-mail-Activity-details tr:contains('Created') td:contains('01/Jan/24 09:00:00 AM')",

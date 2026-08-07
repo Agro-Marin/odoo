@@ -13,21 +13,16 @@ export const MOCK_SFU_CLIENT_STATE = Object.freeze({
 });
 
 /**
- * Mirrors the event/state surface of the real SfuClient that is consumed by
- * `CallTransport` and `Network`:
- * - `state` getter/setter dispatching "stateChange" CustomEvents,
- * - "update" CustomEvents ({ name, payload }),
- * - `errors` array and `_consumers` map (read by `Network.getSfuConsumerStats`
- *   and `Rtc.buildSnapshot`),
- * - `connect`/`disconnect`/`broadcast`/`updateInfo`/`updateUpload`/
- *   `updateDownload`/`getStats` methods.
- *
- * Every method call is recorded in `calls` as `[methodName, ...args]` for
- * assertions.
+ * Mirrors the event/state surface of the real SfuClient consumed by
+ * `CallTransport` and `Network`: the `state` getter/setter dispatching
+ * "stateChange", "update" CustomEvents ({ name, payload }), and the
+ * connect/disconnect/broadcast/update/getStats methods. Every method call is
+ * recorded in `calls` as `[methodName, ...args]` for assertions.
  */
 export class MockSfuClient extends EventTarget {
     /** @type {Error[]} */
     errors = [];
+    // read by `Network.getSfuConsumerStats` and `Rtc.buildSnapshot`
     /** @type {Map<number, Object>} consumers by session id */
     _consumers = new Map();
     /** @type {Array<Array>} recorded method calls */

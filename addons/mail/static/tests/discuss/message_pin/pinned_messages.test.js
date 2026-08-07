@@ -19,9 +19,8 @@ test("pinned messages with equal pinned_at are ordered by id", async () => {
     const store = getService("mail.store");
     const thread = store.Thread.insert({ id: 1, model: "discuss.channel" });
     const pinnedAt = "2024-01-01 10:00:00";
-    // inserted out of id order and with the SAME pinned_at: the tiebreaker
-    // must kick in (a luxon DateTime is never === another, so the previous
-    // `===` check made the id tiebreak dead code and the order unstable)
+    // inserted out of id order with the SAME pinned_at, so the id tiebreaker
+    // must kick in; comparing luxon DateTimes with `===` never reaches it
     store["mail.message"].insert([
         { id: 2, thread: { id: 1, model: "discuss.channel" }, pinned_at: pinnedAt },
         { id: 1, thread: { id: 1, model: "discuss.channel" }, pinned_at: pinnedAt },

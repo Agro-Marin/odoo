@@ -24,10 +24,10 @@ registry.category("web_tour.tours").add("mail_message_load_order_tour", {
             run: "click",
         },
         {
-            // Messages depends on FETCH_LIMIT (currently set to 60) in
-            // the thread service. Thus, at first load the message range
-            // will be (31 - 60). This trigger ensures the next messages
-            // are fetched after jumping to the message.
+            // Messages depend on FETCH_LIMIT (currently 30) in the store
+            // service, so of the 60 seeded messages the first load covers
+            // (31 - 60). This trigger ensures the next messages are fetched
+            // after jumping to the message.
             trigger:
                 ".o-mail-Thread .o-mail-Message:first .o-mail-Message-textContent:not(:contains(31))",
             async run() {

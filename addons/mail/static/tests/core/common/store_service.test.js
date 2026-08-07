@@ -56,7 +56,7 @@ test("store.insert deletes record after relation created it", async () => {
     const store = getService("mail.store");
     store.insert({
         "mail.message": [{ id: 1, _DELETE: true }],
-        // they key coverage of the test is to have the relation listed after the delete
+        // the key coverage is having the relation listed after the delete
         "mail.link.preview": [{ id: 1 }],
         "mail.message.link.preview": [{ id: 1, link_preview_id: 1, message_id: 1 }],
     });

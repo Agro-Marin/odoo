@@ -448,7 +448,7 @@ class StockMove(models.Model):
         ):
             # when updating consumed qty need to update related pickings
             # context no_procurement means we don't want the qty update to modify stock i.e create new pickings
-            # ex. when spliting MO to backorders we don't want to move qty from pre prod to stock in 2/3 step config
+            # ex. when splitting MO to backorders we don't want to move qty from pre prod to stock in 2/3 step config
             self.filtered(
                 lambda m: (
                     m.raw_material_production_id.state
@@ -559,13 +559,11 @@ class StockMove(models.Model):
         )
 
     def _action_done(self, cancel_backorder=False):
-        # Explode kit moves that bypassed action_explode in _action_confirm.
-        # Include 'draft' kit moves: when _action_done() is called directly (e.g. scrap),
-        # draft kit moves skip _action_confirm and are exploded later inside stock's
-        # _action_done. But stock_account._action_done (which sits between mrp and stock in
-        # the MRO) captures moves_out BEFORE stock's _action_confirm runs, causing
-        # MissingError when the kit move is deleted mid-execution. Explode drafts here
-        # first so stock_account only sees component moves, never the kit move itself.
+        # Explode kit moves that bypassed action_explode in _action_confirm, 'draft' ones
+        # included: when _action_done() is called directly (e.g. scrap) they would only be
+        # exploded inside stock's _action_done, but stock_account._action_done — which sits
+        # between mrp and stock in the MRO — captures moves_out first and then raises
+        # MissingError once the kit move is unlinked mid-execution.
         moves_to_explode = self.filtered(
             lambda m: m.product_id.is_kits and m.state not in ("cancel", "done")
         )
@@ -580,7 +578,7 @@ class StockMove(models.Model):
         )
 
     def action_explode(self):
-        """Explodes pickings"""
+        """Explode the kit moves of `self` into their component moves."""
         # in order to explode a move, we must have a picking_type_id on that move because otherwise the move
         # won't be assigned to a picking and it would be weird to explode a move into several if they aren't
         # all grouped in the same picking.
@@ -879,8 +877,8 @@ class StockMove(models.Model):
             if bom_line.product_id.type == "service":
                 continue
             if bom_line.product_uom_id.is_zero(bom_line_data["qty"]):
-                # As BoMs allow components with 0 qty, a.k.a. optionnal components, we simply skip those
-                # to avoid a division by zero.
+                # BoMs allow components with 0 qty (optional ones): skip them to avoid a
+                # division by zero.
                 continue
             bom_line_moves = self.filtered(
                 lambda m, bom_line=bom_line: m.bom_line_id == bom_line

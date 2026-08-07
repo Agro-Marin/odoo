@@ -346,8 +346,8 @@ class ProductProduct(models.Model):
         return routes
 
     def get_components(self):
-        """Return the components list ids in case of kit product.
-        Return the product itself otherwise"""
+        """Return the ids of the storable components for a kit product.
+        Return the product's own ids otherwise"""
         self.ensure_one()
         bom_kit = self.env["mrp.bom"]._bom_find(self, bom_type="phantom")[self]
         if bom_kit:
@@ -449,9 +449,9 @@ class ProductProduct(models.Model):
                     if not component.is_storable or bom_line.product_uom_id.is_zero(
                         bom_line_data["qty"]
                     ):
-                        # As BoMs allow components with 0 qty, a.k.a. optionnal components, we simply skip those
-                        # to avoid a division by zero. The same logic is applied to non-storable products as those
-                        # products have 0 qty available.
+                        # BoMs allow components with 0 qty (optional ones): skip them to
+                        # avoid a division by zero. Non-storable products are skipped for
+                        # the same reason, their available qty being 0.
                         continue
                     uom_qty_per_kit = (
                         bom_line_data["qty"] / bom_line_data["original_qty"]
@@ -509,14 +509,11 @@ class ProductProduct(models.Model):
                 )
             if (
                 bom_sub_lines and ratios_virtual_available
-            ):  # Guard against all cnsumable bom: at least one ratio should be present.
+            ):  # Guard against an all-consumable bom: at least one ratio must be present.
                 res[product.id] = {
-                    # Round with the KIT product's own UoM (not the arbitrary
-                    # last-iterated `component`) and DOWN, then floor to whole
-                    # kits. The previous `component.uom_id.round(...) // 1` used a
-                    # leaked loop variable and HALF-UP rounding, so a fractional
-                    # shortfall could be rounded up past the true floor and
-                    # over-report the number of buildable kits.
+                    # Round in the KIT's own UoM (not the last-iterated `component`) and
+                    # DOWN before flooring to whole kits: rounding a fractional shortfall
+                    # up would over-report the number of buildable kits.
                     "qty_available_virtual": product.uom_id.round(
                         min(ratios_virtual_available) * bom_kits[product].product_qty,
                         rounding_method="DOWN",
@@ -654,7 +651,7 @@ class ProductProduct(models.Model):
     def _search_qty_available_new(
         self, operator, value, lot_id=False, owner_id=False, package_id=False
     ):
-        """extending the method in stock.product to take into account kits"""
+        """extending the method in stock's product.product to take into account kits"""
         op = PY_OPERATORS.get(operator)
         if not op:
             return NotImplemented

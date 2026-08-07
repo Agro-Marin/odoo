@@ -31,9 +31,8 @@ test("reading displayName does not reorder channel_name_member_ids in place", as
     // the label is still ordered by member id for display...
     expect(thread.displayName).toBe("Alice, Bob, and Charlie");
 
-    // ...but the stored reactive Many must keep its original order. displayName
-    // runs on the render path (every channel-row render); a `.sort()` on the
-    // field itself would permanently reorder it and churn reactivity.
+    // ...but the stored reactive Many must keep its order: displayName runs on
+    // the render path, so a `.sort()` on the field would churn reactivity.
     expect(thread.channel_name_member_ids.map((member) => member.id)).toEqual([
         30, 10, 20,
     ]);
@@ -53,10 +52,8 @@ test("getOrFetch resolves (never rejects) when the channel fetch fails", async (
         (thread) => (result = thread),
         () => (rejected = true),
     );
-    // regression: on a failed fetch, getOrFetch used to `reject(thread)` — with
-    // a Thread record, not an Error — producing unhandled rejections in the
-    // fire-and-forget callers (e.g. the new-message bus handler). It must now
-    // resolve `undefined` so those callers' null-checks handle the miss.
+    // a rejection here surfaces as an unhandled rejection in the fire-and-forget
+    // callers, so a failed fetch must resolve `undefined` for their null-checks
     expect(rejected).toBe(false);
     expect(result).toBe(undefined);
 });

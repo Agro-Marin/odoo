@@ -1093,10 +1093,8 @@ test("remove an uploading attachment", async () => {
 });
 
 test("Can dismiss mail composer with 500+ active_ids", async () => {
-    // When there are more than 500 active_ids, _compute_res_ids
-    // short-circuits and leaves res_ids empty for performance reasons.
-    // In that case, the code must rely on active_ids and dismissing
-    // the dialog must not crash.
+    // Past 500 active_ids, _compute_res_ids leaves res_ids empty (storage
+    // limit): the code must then rely on active_ids instead of crashing.
     const pyEnv = await startServer();
     const env = await makeDialogMockEnv();
     const partnerId = pyEnv["res.partner"].create({ name: "Partner" });
@@ -1136,9 +1134,8 @@ test("Uploading multiple files in the composer create multiple temporary attachm
 });
 
 test("[technical] does not crash when an attachment is removed before its upload starts", async () => {
-    // Uploading multiple files uploads attachments one at a time, this test
-    // ensures that there is no crash when an attachment is destroyed before its
-    // upload started.
+    // Multiple files are uploaded one at a time, so the second attachment can
+    // be destroyed while its own upload has not started yet.
     const pyEnv = await startServer();
     // Promise to block attachment uploading
     const uploadDef = new Deferred();

@@ -219,14 +219,9 @@ test("failed notification batches retry with backoff then give up", async () => 
     const p2p = new PeerToPeer({ notificationRoute: route });
     p2p.connect(1, 1);
     const notifyProm = p2p._busNotify("disconnect", { targets: [2] });
-    // Let the batch delay and every backoff delay (each bounded by
-    // MAXIMUM_RECONNECT_DELAY) elapse. Advance in chunks, because a timer the
-    // async retry loop schedules *during* an advance is only picked up by the
-    // next one -- so the number of chunks needed is the number of sequential
-    // timers, not the total virtual time. Stop as soon as the retries are
-    // exhausted instead of running a fixed count: the backoff is derived from
-    // INITIAL_RECONNECT_DELAY, which is randomised at module load, so any fixed
-    // budget sitting near the boundary fails on some page loads and not others.
+    // One chunk per sequential timer: a timer scheduled *during* an advance is
+    // only picked up by the next one. Loop until exhausted rather than a fixed
+    // count, as INITIAL_RECONNECT_DELAY is randomised at module load.
     for (let i = 0; i < 40 && rpcCount < 1 + MAX_NOTIFICATION_RETRIES; i++) {
         await advanceTime(10_000);
     }
@@ -273,8 +268,7 @@ test("an offer queued while the notification RPC is in flight is not dropped", a
     await advanceTime(10_000);
     await firstStarted;
 
-    // While RPC #1 is in flight, queue a NEWER offer for the same target. It
-    // reuses the `latestOffer_to:2` key, overwriting the map entry that RPC #1
+    // Reuses the `latestOffer_to:2` key, overwriting the map entry that RPC #1
     // is about to acknowledge.
     p2p._busNotify("offer", { targets: [2], payload: { sdp: "v2" } });
 
@@ -285,8 +279,7 @@ test("an offer queued while the notification RPC is in flight is not dropped", a
         await advanceTime(10_000);
     }
 
-    // Regression: v2 used to be deleted (by key) right after RPC #1 and never
-    // sent, stalling the handshake. It must now go out in a second batch.
+    // v2 must go out in a second batch instead of being dropped by key.
     expect(rpcCount).toBe(2);
     expect(batches[0][0][2]).toInclude("v1");
     expect(batches[1][0][2]).toInclude("v2");
@@ -302,17 +295,15 @@ onlineTest("recovery timeout firing after peer removal is a no-op", async () => 
     // connected: peer 2 ignores them and never answers.
     network.register(2);
     user1.p2p.connect(user1.id, 1);
-    // schedule a recovery for the unanswering peer, then simulate the stale
-    // race where the peer vanishes without its recovery timeout being
-    // cleared.
+    // schedule a recovery for the unanswering peer, then simulate the peer
+    // vanishing without its recovery timeout being cleared.
     user1.p2p.addPeer(2);
     user1.p2p._recover(2, "test: forced recovery");
     expect(user1.p2p._recoverTimeouts.size).toBe(1);
     user1.p2p.peers.get(2).disconnect();
     user1.p2p.peers.delete(2);
     await advanceTime(60_000);
-    // the recovery callback must bail out (it previously read
-    // `peer.connection.connectionState` before its null guard)
+    // the recovery callback must bail out on the missing peer
     expect(user1.p2p._recoverTimeouts.size).toBe(0);
     expect(user1.p2p.peers.size).toBe(0);
     network.close();

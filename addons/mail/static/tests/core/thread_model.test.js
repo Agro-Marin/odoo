@@ -241,9 +241,8 @@ test("a deleted message is not resurrected by a stale fetch response", async () 
     await runAllTimers();
     expect(store["mail.message"].get(messageId)).toBe(undefined);
     expect(thread.messages).toHaveLength(0);
-    // ...then a stale fetch response (computed before the deletion,
-    // processed after) lands: last-write-wins ingestion used to resurrect
-    // the message in the store and in the thread
+    // ...then a stale fetch response (computed before the deletion, processed
+    // after) lands: it must not resurrect the message in store nor in thread
     store.insert({
         "mail.message": [
             {

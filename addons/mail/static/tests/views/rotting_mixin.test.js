@@ -120,12 +120,9 @@ test("rotting_kanban highlights rotting cards", async () => {
     await contains(".o_kanban_record:contains('Banana'):not(.oe_kanban_card_rotting)");
 });
 
-// Grouping must be passed through the action context: mail's openKanbanView
-// goes through action_service.doAction, and buildViewInfo overwrites the
-// `groupBy` prop with `action.context.group_by` (action_info_builders.js).
-// The domain keeps the mock env's preseeded base partners (admin, OdooBot,
-// public user... all stage-less) out of the view — without it they form an
-// extra "None" column at :eq(0).
+// Grouping goes through the action context: `buildViewInfo` overwrites the
+// `groupBy` prop with `action.context.group_by`. The domain keeps the preseeded
+// stage-less base partners from forming an extra "None" column at :eq(0).
 const GROUPED_BY_STAGE = {
     context: { group_by: ["stage_id"] },
     domain: [["stage_id", "!=", false]],

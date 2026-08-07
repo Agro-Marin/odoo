@@ -37,7 +37,7 @@ test("Toggle display of original/translated version of chatter message", async (
     await openFormView("res.partner", partnerId);
     await contains("[title='Translate']");
     await contains("[title='Revert']", { count: 0 });
-    // Click acts as a toogle affecting its appearence and the actual message content displayed.
+    // the click toggles both the button appearance and the displayed content
     await click("[title='Translate']");
     await contains(".o-mail-Message-body", {
         text: "To bad weather, good face.(Translated from: Spanish)",

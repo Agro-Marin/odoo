@@ -739,7 +739,7 @@ describe("Normalize styles", () => {
 
     test("add a tbody to any table that doesn't have one", async () => {
         editable.innerHTML = `<table><tr><td>I don't have a body :'(</td></tr></table>`;
-        // unwrap tr (remove <body>)
+        // unwrap tr (remove the <tbody> the parser inserted)
         const tr = editable.querySelector("tr");
         const body = tr.parentElement;
         body.parentElement.appendChild(tr);
@@ -935,9 +935,9 @@ describe("Convert classes to inline styles", () => {
         // Some positional properties (eg., padding-right, margin-left) are not
         // concatenated (eg., as padding, margin) because they were defined with
         // variables (var) or calculated (calc).
-        // Note: computed border/border-radius values are no longer force
-        // applied on every node: only grouped styles that a matched rule
-        // defines through var()/calc() are completed with computed values.
+        // Computed border/border-radius values are not force applied on every
+        // node: only grouped styles that a matched rule defines through
+        // var()/calc() are completed with computed values.
         const containerStyle = `margin: 0px auto; box-sizing: border-box; max-width: 1320px; padding-left: 16px; padding-right: 16px; width: 100%; border-color: ${borderColor};`;
         const rowStyle = `box-sizing: border-box; margin-left: -16px; margin-right: -16px; margin-top: 0px; border-color: ${borderColor};`;
         const colStyle = `box-sizing: border-box; margin-top: 0px; padding-left: 16px; padding-right: 16px; max-width: 100%; width: 100%; border-color: ${borderColor};`;
@@ -986,8 +986,8 @@ describe("Convert classes to inline styles", () => {
         editable.innerHTML = `<div class="test-border-radius"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
-            // top-left top-right bottom-right bottom-left — each distinct corner
-            // must be preserved (this used to collapse to a single 30%).
+            // top-left top-right bottom-right bottom-left: each distinct
+            // corner must be preserved, not collapsed to a single value.
             `<div class="test-border-radius" style="border-radius:40% 10% 20% 30%;box-sizing:border-box;"></div>`,
             {
                 message:
@@ -1745,9 +1745,8 @@ describe("Convert classes to inline styles", () => {
         );
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         const div = editable.querySelector("div");
-        // The shorthand collapse must keep every corner. The current code copies
-        // border-bottom-left-radius onto all four corners, so a card authored
-        // with distinct corners renders with a single (bottom-left) radius.
+        // The shorthand collapse must keep every corner rather than copy one of
+        // them (bottom-left) onto all four and square off the asymmetry.
         expect(div.style.borderTopLeftRadius).toBe("4px", {
             message: "top-left radius must survive inlining",
         });
