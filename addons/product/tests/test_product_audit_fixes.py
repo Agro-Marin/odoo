@@ -469,9 +469,9 @@ class TestProductAuditFixes(ProductCommon):
             template.uom_id._has_common_reference(liter), "sanity: incompatible units"
         )
         with self.assertRaises(UserError):
-            template._price_compute("list_price", uom=liter)
+            template._compute_price("list_price", uom=liter)
         with self.assertRaises(UserError):
-            template.product_variant_id._price_compute("list_price", uom=liter)
+            template.product_variant_id._compute_price("list_price", uom=liter)
 
     def test_price_in_compatible_uom_still_converts(self):
         """The guard must not disturb legitimate conversions."""
@@ -481,7 +481,7 @@ class TestProductAuditFixes(ProductCommon):
             {"name": "UomOk", "list_price": 12.0, "uom_id": unit.id}
         )
         self.assertAlmostEqual(
-            template._price_compute("list_price", uom=dozen)[template.id],
+            template._compute_price("list_price", uom=dozen)[template.id],
             unit._compute_price(12.0, dozen),
             places=6,
         )
@@ -741,7 +741,7 @@ class TestProductAuditFixes(ProductCommon):
         """Contract lock, not a bug report.
 
         `standard_price` is stored per variant, so a multi-variant template
-        reads 0 and `_price_compute` falls back to the first variant's cost --
+        reads 0 and `_compute_price` falls back to the first variant's cost --
         otherwise a cost-based pricelist would price the template free.
         """
         template = self._template_with_two_costed_variants("CostFallback")
@@ -753,7 +753,7 @@ class TestProductAuditFixes(ProductCommon):
 
         self.assertEqual(template.standard_price, 0.0, "template mirrors no variant")
         self.assertAlmostEqual(
-            template._price_compute("standard_price")[template.id], 10.0, places=2
+            template._compute_price("standard_price")[template.id], 10.0, places=2
         )
 
     def test_multi_variant_template_cost_follows_variant_order(self):
@@ -769,7 +769,7 @@ class TestProductAuditFixes(ProductCommon):
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertAlmostEqual(
-            template._price_compute("standard_price")[template.id], 10.0, places=2
+            template._compute_price("standard_price")[template.id], 10.0, places=2
         )
 
         # Give the *other* variant an internal reference that sorts first.
@@ -778,7 +778,7 @@ class TestProductAuditFixes(ProductCommon):
         self.env.invalidate_all()
 
         self.assertAlmostEqual(
-            template._price_compute("standard_price")[template.id],
+            template._compute_price("standard_price")[template.id],
             999.0,
             places=2,
             msg="cost basis follows variant ordering, not any cost edit",

@@ -398,11 +398,6 @@ class ProductProduct(models.Model):
         self.env.registry.clear_cache("product_variants")
         return res
 
-    def _inverse_import_attribute_values(self):
-        raise UserError(
-            self.env._("This field can only be used to import products."),
-        )
-
     @api.depends("product_template_attribute_value_ids")
     def _compute_import_attribute_values(self):
         for product in self:
@@ -412,6 +407,921 @@ class ProductProduct(models.Model):
                     for ptav in product.product_template_attribute_value_ids
                 )
             )
+
+    def _compute_variant_image(self, size):
+        """Fall back to the template image when the variant has none, for the
+        given resolution ``size`` (e.g. 1920).
+
+        Kept as one method per size (rather than a single compute assigning all
+        five fields) so that reading a thumbnail never forces loading the larger
+        image blobs.
+        """
+        field = "image_%s" % size
+        variant_field = "image_variant_%s" % size
+        for record in self:
+            record[field] = record[variant_field] or record.product_tmpl_id[field]
+
+    def _compute_image_1920(self):
+        self._compute_variant_image(1920)
+
+    def _compute_image_1024(self):
+        self._compute_variant_image(1024)
+
+    def _compute_image_512(self):
+        self._compute_variant_image(512)
+
+    def _compute_image_256(self):
+        self._compute_variant_image(256)
+
+    def _compute_image_128(self):
+        self._compute_variant_image(128)
+
+    def _compute_can_image_1024_be_zoomed(self):
+        """Get the image from the template if no image is set on the variant."""
+        for record in self:
+            record.can_image_1024_be_zoomed = (
+                record.can_image_variant_1024_be_zoomed
+                if record.image_variant_1920
+                else record.product_tmpl_id.can_image_1024_be_zoomed
+            )
+
+    @api.depends("image_variant_1920", "image_variant_1024")
+    def _compute_can_image_variant_1024_be_zoomed(self):
+        # bin_size=False: under a bin_size context the binary fields yield
+        # size strings ("12.5 Kb") that crash the image decoding.
+        for record in self.with_context(bin_size=False):
+            record.can_image_variant_1024_be_zoomed = (
+                record.image_variant_1920
+                and is_image_size_above(
+                    record.image_variant_1920,
+                    record.image_variant_1024,
+                )
+            )
+
+    @api.depends("product_tmpl_id.pricelist_rule_ids")
+    def _compute_pricelist_rule_ids(self):
+        for product in self:
+            if not product.id:
+                product.pricelist_rule_ids = False
+                continue
+            product.pricelist_rule_ids = (
+                product.product_tmpl_id.pricelist_rule_ids.filtered(
+                    lambda rule, product=product: rule.product_id <= product,
+                )
+            )
+
+    @api.depends("product_tmpl_id.write_date")
+    def _compute_write_date(self):
+        """
+        First, the purpose of this computation is to update a product's
+        write_date whenever its template's write_date is updated.  Indeed,
+        when a template's image is modified, updating its products'
+        write_date will invalidate the browser's cache for the products'
+        image, which may be the same as the template's.  This guarantees UI
+        consistency.
+
+        Second, the field 'write_date' is automatically updated by the
+        framework when the product is modified.  The recomputation of the
+        field supplements that behavior to keep the product's write_date
+        up-to-date with its template's write_date.
+
+        Third, the framework normally prevents us from updating write_date
+        because it is a "magic" field.  However, the assignment inside the
+        compute method is not subject to this restriction.  It therefore
+        works as intended :-)
+        """
+        now = self.env.cr.now()
+        self.fetch(["write_date"])
+        for record in self:
+            if not record.id:
+                record.write_date = record._origin.write_date
+                continue
+            record.write_date = max(
+                record.write_date or now,
+                record.product_tmpl_id.write_date or now,
+            )
+
+    @api.depends("product_template_attribute_value_ids")
+    def _compute_combination_indices(self):
+        # A write through `product_template_variant_value_ids` (same relation)
+        # is funnelled back here by `write()`, which invalidates the field read
+        # below -- a plain `depends` on the alias would recompute from the
+        # sibling field's stale cache.
+        for product in self:
+            product.combination_indices = (
+                product.product_template_attribute_value_ids._ids2str()
+            )
+
+    def _compute_is_product_variant(self):
+        self.is_product_variant = True
+
+    @api.depends("product_template_attribute_value_ids.price_extra")
+    def _compute_product_price_extra(self):
+        for product in self:
+            product.price_extra = sum(
+                product.product_template_attribute_value_ids.mapped("price_extra"),
+            )
+
+    @api.depends("list_price", "price_extra")
+    @api.depends_context("uom")
+    def _compute_product_lst_price(self):
+        to_uom = None
+        if "uom" in self.env.context:
+            to_uom = self.env["uom.uom"].browse(self.env.context["uom"])
+
+        for product in self:
+            if to_uom:
+                list_price = product.uom_id._compute_price(product.list_price, to_uom)
+            else:
+                list_price = product.list_price
+            product.lst_price = list_price + product.price_extra
+
+    @api.depends(
+        "default_code",
+        "seller_ids.partner_id",
+        "seller_ids.product_code",
+        "seller_ids.product_id",
+    )
+    @api.depends_context("partner_id")
+    def _compute_product_code(self):
+        read_access = self.env["ir.model.access"].check(
+            "product.supplierinfo",
+            "read",
+            False,
+        )
+        partner_id = self.env.context.get("partner_id")
+        for product in self:
+            product.code = product.default_code
+            # With no partner in context no supplier row can match, so skip
+            # iterating sellers entirely (the common, no-partner render path).
+            if read_access and partner_id:
+                for supplier_info in product.seller_ids:
+                    if supplier_info.partner_id.id == partner_id:
+                        if (
+                            supplier_info.product_id
+                            and supplier_info.product_id != product
+                        ):
+                            # Supplier info specific for another variant.
+                            continue
+                        product.code = (
+                            supplier_info.product_code or product.default_code
+                        )
+                        if product == supplier_info.product_id:
+                            # Supplier info specific for this variant.
+                            break
+
+    @api.depends(
+        "default_code",
+        "name",
+        "code",
+        "display_name",
+        "seller_ids.partner_id",
+        "seller_ids.product_name",
+    )
+    @api.depends_context("partner_id")
+    def _compute_partner_ref(self):
+        partner_id = self.env.context.get("partner_id")
+        for product in self:
+            # Without a partner in context, no supplier row matches: fall back to
+            # display_name directly instead of scanning seller_ids per product.
+            matched_seller = False
+            if partner_id:
+                matched_seller = next(
+                    (
+                        seller
+                        for seller in product.seller_ids
+                        if seller.partner_id.id == partner_id
+                    ),
+                    False,
+                )
+            if matched_seller:
+                product_name = (
+                    matched_seller.product_name or product.default_code or product.name
+                )
+                product.partner_ref = "%s%s" % (
+                    (product.code and "[%s] " % product.code) or "",
+                    product_name,
+                )
+            else:
+                product.partner_ref = product.display_name
+
+    def _compute_product_document_count(self):
+        counts = {}
+        if self:
+            data = self.env["product.document"]._read_group(
+                [("res_model", "=", "product.product"), ("res_id", "in", self.ids)],
+                ["res_id"],
+                ["__count"],
+            )
+            counts = dict(data)
+        for product in self:
+            product.product_document_count = counts.get(product.id, 0)
+
+    @api.depends("product_tag_ids", "additional_product_tag_ids")
+    def _compute_all_product_tag_ids(self):
+        for product in self:
+            product.all_product_tag_ids = (
+                product.product_tag_ids | product.additional_product_tag_ids
+            ).sorted("sequence")
+
+    @api.depends_context(
+        "company_id",
+        "partner_id",
+        "display_default_code",
+        "seller_id",
+        "formatted_display_name",
+        "lang",
+    )
+    @api.depends("name", "default_code", "product_tmpl_id")
+    def _compute_display_name(self):
+        def get_display_name(name, code):
+            if self.env.context.get("display_default_code", True) and code:
+                if self.env.context.get("formatted_display_name"):
+                    return f"{name}\t--{code}--"
+                return f"[{code}] {name}"
+            return name
+
+        partner_id = self.env.context.get("partner_id")
+        if partner_id:
+            partner_ids = [
+                partner_id,
+                self.env["res.partner"].browse(partner_id).commercial_partner_id.id,
+            ]
+        else:
+            partner_ids = []
+        company_id = self.env.context.get("company_id")
+
+        # all user don't have access to seller and partner
+        # check access and use superuser
+        self.check_access("read")
+
+        product_template_ids = self.sudo().product_tmpl_id.ids
+
+        if partner_ids:
+            # prefetch the fields used by the `display_name`
+            supplier_info = (
+                self.env["product.supplierinfo"]
+                .sudo()
+                .search_fetch(
+                    [
+                        ("product_tmpl_id", "in", product_template_ids),
+                        ("partner_id", "in", partner_ids),
+                    ],
+                    [
+                        "product_tmpl_id",
+                        "product_id",
+                        "company_id",
+                        "product_name",
+                        "product_code",
+                    ],
+                )
+            )
+            supplier_info_by_template = {}
+            for r in supplier_info:
+                supplier_info_by_template.setdefault(r.product_tmpl_id, []).append(r)
+
+        # Loop-invariant: the seller forced through context is the same for
+        # every product, so resolve it once instead of per record.
+        context_sellers = (
+            self.env["product.supplierinfo"]
+            .sudo()
+            .browse(self.env.context.get("seller_id"))
+            or []
+        )
+
+        for product in self.sudo():
+            variant = (
+                product.product_template_attribute_value_ids._get_combination_name()
+            )
+
+            name = (variant and "%s (%s)" % (product.name, variant)) or product.name
+            sellers = context_sellers
+            if not sellers and partner_ids:
+                product_supplier_info = supplier_info_by_template.get(
+                    product.product_tmpl_id,
+                    [],
+                )
+                sellers = [
+                    x
+                    for x in product_supplier_info
+                    if x.product_id and x.product_id == product
+                ]
+                if not sellers:
+                    sellers = [x for x in product_supplier_info if not x.product_id]
+                # Filter out sellers based on the company. This is done afterwards for a better
+                # code readability. At this point, only a few sellers should remain, so it should
+                # not be a performance issue.
+                if company_id:
+                    sellers = [
+                        x for x in sellers if x.company_id.id in [company_id, False]
+                    ]
+            if sellers:
+                temp = []
+                for s in sellers:
+                    seller_variant = (
+                        s.product_name
+                        and (
+                            (variant and "%s (%s)" % (s.product_name, variant))
+                            or s.product_name
+                        )
+                    ) or False
+                    temp.append(
+                        get_display_name(
+                            seller_variant or name,
+                            s.product_code or product.default_code,
+                        ),
+                    )
+
+                product.display_name = ", ".join(unique(temp))
+            else:
+                product.display_name = get_display_name(name, product.default_code)
+
+    def _inverse_import_attribute_values(self):
+        raise UserError(
+            self.env._("This field can only be used to import products."),
+        )
+
+    def _inverse_pricelist_rule_ids(self):
+        for product in self:
+            template = product.product_tmpl_id
+            template.pricelist_rule_ids = (
+                product.pricelist_rule_ids
+                # We have to manually keep the rules the current variant
+                # wasn't aware of because they targeted other variants.
+                | template.pricelist_rule_ids.filtered(
+                    lambda rule, product=product: (
+                        rule.product_id and rule.product_id != product
+                    ),
+                )
+            )
+
+    def _set_image_1920(self):
+        return self._set_template_field("image_1920", "image_variant_1920")
+
+    @api.model
+    def _search(self, domain, *args, **kwargs):
+        # TDE FIXME: strange
+        if self.env.context.get("search_default_categ_id"):
+            domain = Domain(domain) & Domain(
+                "categ_id",
+                "child_of",
+                self.env.context["search_default_categ_id"],
+            )
+        return super()._search(domain, *args, **kwargs)
+
+    @api.model
+    def _search_display_name(self, operator, value):
+        is_positive = operator not in Domain.NEGATIVE_OPERATORS
+        template_domains = [[("name", operator, value)]]
+        product_domains = [[("default_code", operator, value)]]
+
+        if operator == "in":
+            product_domains.append([("barcode", "in", value)])
+            product_domains.extend(
+                [("default_code", "=", m.group(2))]
+                for v in value
+                if isinstance(v, str) and (m := re.search(r"(\[(.*?)\])", v))
+            )
+        elif operator.endswith("like") and is_positive:
+            product_domains.append([("barcode", "in", [value])])
+
+        supplier_domain = []
+        if partner_id := self.env.context.get("partner_id"):
+            supplier_domain = [
+                ("partner_id", "=", partner_id),
+                "|",
+                ("product_code", operator, value),
+                ("product_name", operator, value),
+            ]
+
+        # AND clauses properly hit indexes so no need for custom sql in this case.
+        if operator in Domain.NEGATIVE_OPERATORS:
+            domains = template_domains + product_domains
+            if supplier_domain:
+                domains.append([("product_tmpl_id.seller_ids", "any", supplier_domain)])
+            return Domain.AND(domains)
+
+        # Disable active_test to simplify subqueries
+        self_no_active_test = self.with_context(active_test=False)
+        queries = [
+            self_no_active_test._search(
+                [
+                    (
+                        "product_tmpl_id",
+                        "in",
+                        self_no_active_test.env["product.template"]._search(
+                            Domain.OR(template_domains)
+                        ),
+                    ),
+                ],
+            ),
+            self_no_active_test._search(Domain.OR(product_domains)),
+        ]
+        if supplier_domain:
+            queries.append(
+                self_no_active_test._search(
+                    [
+                        (
+                            "product_tmpl_id",
+                            "in",
+                            self_no_active_test.env["product.supplierinfo"]
+                            ._search(supplier_domain)
+                            .subselect("product_tmpl_id"),
+                        ),
+                    ],
+                ),
+            )
+        query = SQL(
+            """(%s)""",
+            SQL("UNION ALL").join([SQL("(%s)", query.select()) for query in queries]),
+        )
+
+        return [("id", "in", query)]
+
+    @api.model
+    def name_search(self, name="", domain=None, operator="ilike", limit=100):
+        if not name:
+            return super().name_search(name, domain, operator, limit)
+        # search progressively by the most specific attributes
+        positive_operators = ["=", "ilike", "=ilike", "like", "=like"]
+        is_positive = operator not in Domain.NEGATIVE_OPERATORS
+        products = self.browse()
+        domain = Domain(domain or Domain.TRUE)
+        if operator in positive_operators:
+            products = self.search_fetch(
+                domain & Domain("default_code", "=", name),
+                ["display_name"],
+                limit=limit,
+            ) or self.search_fetch(
+                domain & Domain("barcode", "=", name),
+                ["display_name"],
+                limit=limit,
+            )
+        if not products:
+            if is_positive:
+                # Do not merge the 2 next lines into one single search, SQL search performance would be abysmal
+                # on a database with thousands of matching products, due to the huge merge+unique needed for the
+                # OR operator (and given the fact that the 'name' lookup results come from the ir.translation table
+                # Performing a quick memory merge of ids in Python will give much better performance
+                products = self.search_fetch(
+                    domain & Domain("default_code", operator, name),
+                    ["display_name"],
+                    limit=limit,
+                )
+                limit_rest = limit and limit - len(products)
+                # `search` treats limit=0/None as "unlimited", so keep searching
+                # names whenever there is no limit or room remains. Guarding on
+                # `limit_rest > 0` alone dropped every name match for limit=0.
+                if not limit or limit_rest > 0:
+                    # This branch only runs when the default_code search did not
+                    # reach `limit`, so `products` already holds every matching
+                    # default_code row: reuse its ids instead of re-issuing the
+                    # same search as an exclusion subquery.
+                    products |= self.search_fetch(
+                        domain
+                        & Domain("id", "not in", products.ids)
+                        & Domain("name", operator, name),
+                        ["display_name"],
+                        limit=limit_rest,
+                    )
+            else:
+                domain_neg = Domain("name", operator, name) & (
+                    Domain("default_code", operator, name)
+                    | Domain("default_code", "=", False)
+                )
+                products = self.search_fetch(
+                    domain & domain_neg,
+                    ["display_name"],
+                    limit=limit,
+                )
+        if (
+            not products
+            and operator in positive_operators
+            and (m := re.search(r"(\[(.*?)\])", name))
+        ):
+            match_domain = Domain("default_code", "=", m.group(2))
+            products = self.search_fetch(
+                domain & match_domain,
+                ["display_name"],
+                limit=limit,
+            )
+        if not products and (partner_id := self.env.context.get("partner_id")):
+            # still no results, partner in context: search on supplier info as last hope to find something
+            supplier_domain = Domain(
+                [
+                    ("partner_id", "=", partner_id),
+                    "|",
+                    ("product_code", operator, name),
+                    ("product_name", operator, name),
+                ],
+            )
+            match_domain = Domain("product_tmpl_id.seller_ids", "any", supplier_domain)
+            products = self.search_fetch(
+                domain & match_domain,
+                ["display_name"],
+                limit=limit,
+            )
+        return [(product.id, product.display_name) for product in products.sudo()]
+
+    def _search_all_product_tag_ids(self, operator, operand):
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
+        return [
+            "|",
+            ("product_tag_ids", operator, operand),
+            ("additional_product_tag_ids", operator, operand),
+        ]
+
+    def _search_is_in_selected_section_of_order(self, operator, value):
+        if operator != "in":
+            return NotImplemented
+        ctx = self.env.context
+        order_id = ctx.get("order_id")
+        order_model = ctx.get("product_catalog_order_model")
+        line_field = ctx.get("child_field")
+        if not (order_id and order_model and line_field):
+            return []
+
+        product_ids = (
+            self.env[order_model]
+            .browse(order_id)[line_field]
+            .filtered(
+                lambda line: line.get_line_parent_section().id == ctx.get("section_id"),
+            )
+            .mapped("product_id")
+            .ids
+        )
+
+        return [("id", "in", product_ids)]
+
+    @api.onchange("lst_price")
+    def _set_product_lst_price(self):
+        for product in self:
+            if self.env.context.get("uom"):
+                value = (
+                    self.env["uom.uom"]
+                    .browse(self.env.context["uom"])
+                    ._compute_price(product.lst_price, product.uom_id)
+                )
+            else:
+                value = product.lst_price
+            value -= product.price_extra
+            product.write({"list_price": value})
+
+    @api.onchange("standard_price")
+    def _onchange_standard_price(self):
+        if self.standard_price < 0:
+            raise ValidationError(
+                self.env._("The cost of a product can't be negative."),
+            )
+
+    @api.onchange("default_code")
+    def _onchange_default_code(self):
+        if not self.default_code:
+            return None
+
+        domain = [("default_code", "=", self.default_code)]
+        if self.id.origin:
+            domain.append(("id", "!=", self.id.origin))
+
+        if self.env["product.product"].search_count(domain, limit=1):
+            return {
+                "warning": {
+                    "title": self.env._("Note:"),
+                    "message": self.env._(
+                        "The Reference '%s' already exists.",
+                        self.default_code,
+                    ),
+                },
+            }
+        return None
+
+    @api.onchange("uom_id")
+    def _onchange_uom_id(self):
+        if self._origin.uom_id == self.uom_id or not self._trigger_uom_warning():
+            return None
+        message = self.env._(
+            "Changing the unit of measure for your product will apply a conversion 1 %(old_uom_name)s = 1 %(new_uom_name)s.\n"
+            "All existing records (Sales orders, Purchase orders, etc.) using this product will be updated by replacing the unit name.",
+            old_uom_name=self._origin.uom_id.display_name,
+            new_uom_name=self.uom_id.display_name,
+        )
+        return {
+            "warning": {
+                "title": self.env._("What to expect ?"),
+                "message": message,
+            },
+        }
+
+    @api.model
+    def view_header_get(self, view_id, view_type):
+        if self.env.context.get("categ_id"):
+            return self.env._(
+                "Products: %(category)s",
+                category=self.env["product.category"]
+                .browse(self.env.context["categ_id"])
+                .name,
+            )
+        return super().view_header_get(view_id, view_type)
+
+    # === ACTION METHODS ===#
+
+    def action_archive(self):
+        records = self.filtered("active")
+        super().action_archive()
+        # We deactivate product templates which are active with no active variants.
+        records.product_tmpl_id.filtered(
+            lambda product_tmpl: (
+                product_tmpl.active and not product_tmpl.product_variant_ids
+            ),
+        ).action_archive()
+
+    def action_unarchive(self):
+        records = self.filtered(lambda rec: not rec.active)
+        super().action_unarchive()
+        # We activate product templates which are inactive with active variants.
+        records.product_tmpl_id.filtered(
+            lambda product_tmpl: (
+                not product_tmpl.active and product_tmpl.product_variant_ids
+            ),
+        ).action_unarchive()
+
+    @api.readonly
+    def action_view_label_layout(self):
+        if any(product.type == "service" for product in self):
+            raise ValidationError(
+                self.env._("Labels cannot be printed for products of service type"),
+            )
+        action = self.env["ir.actions.act_window"]._for_xml_id(
+            "product.action_view_label_layout",
+        )
+        action["context"] = {"default_product_ids": self.ids}
+        return action
+
+    def view_product_template(self):
+        """Utility method used to add an "Open Template" button in product views"""
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "product.template",
+            "view_mode": "form",
+            "res_id": self.product_tmpl_id.id,
+            "target": "new",
+        }
+
+    @api.readonly
+    def action_view_documents(self):
+        res = self.product_tmpl_id.action_view_documents()
+        res["context"].update(
+            {
+                "default_res_model": self._name,
+                "default_res_id": self.id,
+                "search_default_context_variant": True,
+            },
+        )
+        return res
+
+    # === BUSINESS METHODS ===#
+
+    def _compute_price(
+        self,
+        price_type,
+        uom=None,
+        currency=None,
+        company=None,
+        date=False,
+    ):
+        company = company or self.env.company
+        date = date or fields.Date.context_today(self)
+
+        self = self.with_company(company)
+        if price_type == "standard_price":
+            # standard_price field can only be seen by users in base.group_user
+            # Thus, in order to compute the sale price from the cost for users not in this group
+            # We fetch the standard price as the superuser
+            self = self.sudo()
+
+        prices = dict.fromkeys(self.ids, 0.0)
+        for product in self:
+            price = product[price_type] or 0.0
+            price_currency = product.currency_id
+            if price_type == "standard_price":
+                price_currency = product.cost_currency_id
+            elif price_type == "list_price":
+                price += product._get_attributes_extra_price()
+
+            if uom:
+                price = product._convert_price_to_uom(price, uom)
+
+            # Convert from current user company currency to asked one
+            # This is right cause a field cannot be in more than one currency
+            if currency:
+                price = price_currency._convert(price, currency, company, date)
+
+            prices[product.id] = price
+
+        return prices
+
+    def _convert_price_to_uom(self, price, uom):
+        """Convert ``price`` (per unit of the product's UoM) into ``uom``.
+
+        `uom._compute_price` scales by the ratio of the two units' factors with
+        no compatibility check, so asking for the price of a product sold in
+        Units "in Liters" silently returned a plausible-looking but meaningless
+        number (list price x liter factor / unit factor) instead of failing.
+        Quantity conversion (`_compute_quantity`) already refuses that case;
+        price conversion must not be more permissive.
+        """
+        self.ensure_one()
+        if uom and self.uom_id and not self.uom_id._has_common_reference(uom):
+            raise UserError(
+                self.env._(
+                    "The price of %(product)s cannot be expressed in %(unit)s:"
+                    " that unit is not compatible with the product's unit"
+                    " %(product_unit)s.",
+                    product=self.display_name,
+                    unit=uom.display_name,
+                    product_unit=self.uom_id.display_name,
+                )
+            )
+        return self.uom_id._compute_price(price, uom)
+
+    def _filter_to_unlink(self):
+        return self
+
+    def get_contextual_price(self):
+        return self._get_contextual_price()
+
+    def _get_contextual_price(self):
+        # FIXME VFE this won't consider ptavs extra prices, since we rely on the template price
+        self.ensure_one()
+        return self.product_tmpl_id._get_contextual_price(self)
+
+    def _get_contextual_discount(self):
+        self.ensure_one()
+
+        pricelist = self.product_tmpl_id._get_contextual_pricelist()
+        if not pricelist:
+            # No pricelist = no discount
+            return 0.0
+
+        lst_price = self.currency_id._convert(
+            self.lst_price,
+            pricelist.currency_id,
+            self.env.company,
+            fields.Datetime.now(),
+            round=False,
+        )
+        if lst_price:
+            return (lst_price - self._get_contextual_price()) / lst_price
+        return 0.0
+
+    def _get_invoice_policy(self):
+        return False
+
+    def _get_placeholder_filename(self, field):
+        if field in tuple("image_%s" % size for size in IMAGE_SIZES):
+            return self._get_product_placeholder_filename()
+        return super()._get_placeholder_filename(field)
+
+    def _get_product_placeholder_filename(self):
+        return self.product_tmpl_id._get_product_placeholder_filename()
+
+    def _get_barcodes_by_company(self):
+        return [
+            (company_id, [p.barcode for p in products if p.barcode])
+            for company_id, products in groupby(self, lambda p: p.company_id.id)
+        ]
+
+    def _get_barcode_search_domain(self, barcodes_within_company, company_id):
+        domain = [("barcode", "in", barcodes_within_company)]
+        if company_id:
+            domain.append(("company_id", "in", (False, company_id)))
+        return domain
+
+    def _get_filtered_sellers(
+        self,
+        partner_id=False,
+        quantity=0.0,
+        date=None,
+        uom_id=False,
+        params=False,
+    ):
+        self.ensure_one()
+        if not date:
+            date = fields.Date.context_today(self)
+        precision = self.env["decimal.precision"].precision_get("Product Unit")
+
+        sellers_filtered = self._prepare_sellers(params)
+        matching_ids = []
+        for seller in sellers_filtered:
+            if seller.date_start and seller.date_start > date:
+                continue
+            if seller.date_end and seller.date_end < date:
+                continue
+            if (
+                params
+                and params.get("force_uom")
+                and seller.product_uom_id not in (uom_id, self.uom_id)
+            ):
+                continue
+            if partner_id and seller.partner_id not in [
+                partner_id,
+                partner_id.parent_id,
+            ]:
+                continue
+            if seller.product_id and seller.product_id != self:
+                continue
+            # min_qty is expressed in the seller's UoM, so convert the requested
+            # quantity into it before comparing. This runs only for sellers that
+            # passed the filters above, so we never convert into the UoM of an
+            # irrelevant seller. If the requested UoM shares no reference unit
+            # with the seller's (different category, e.g. Units vs Liters), the
+            # seller cannot satisfy a request denominated in `uom_id` -- skip it
+            # instead of letting the conversion raise.
+            if quantity is not None:
+                quantity_uom_seller = quantity
+                if quantity_uom_seller and uom_id and uom_id != seller.product_uom_id:
+                    if not uom_id._has_common_reference(seller.product_uom_id):
+                        continue
+                    quantity_uom_seller = uom_id._compute_quantity(
+                        quantity_uom_seller,
+                        seller.product_uom_id,
+                    )
+                if (
+                    float_compare(
+                        quantity_uom_seller,
+                        seller.min_qty,
+                        precision_digits=precision,
+                    )
+                    == -1
+                ):
+                    continue
+            matching_ids.append(seller.id)
+        return self.env["product.supplierinfo"].browse(matching_ids)
+
+    def _get_product_price_context(self, combination):
+        self.ensure_one()
+        res = {}
+
+        no_variant_attributes_price_extra = self._get_no_variant_attributes_price_extra(
+            combination,
+        )
+
+        if no_variant_attributes_price_extra:
+            res["no_variant_attributes_price_extra"] = no_variant_attributes_price_extra
+
+        return res
+
+    def _get_no_variant_attributes_price_extra(self, combination):
+        # It is possible that a no_variant attribute is still in a variant if
+        # the type of the attribute has been changed after creation.
+        return sum(
+            ptav.price_extra
+            for ptav in combination.filtered(
+                lambda ptav: (
+                    ptav.price_extra
+                    and ptav.product_tmpl_id == self.product_tmpl_id
+                    and ptav not in self.product_template_attribute_value_ids
+                ),
+            )
+        )
+
+    def _get_attributes_extra_price(self):
+        self.ensure_one()
+
+        return self.price_extra + self.env.context.get(
+            "no_variant_attributes_price_extra",
+            0,
+        )
+
+    @api.model
+    def get_empty_list_help(self, help_message):
+        self = self.with_context(
+            empty_list_help_document_name=self.env._("product"),
+        )
+        return super().get_empty_list_help(help_message)
+
+    def get_product_multiline_description_sale(self):
+        """Compute a multiline description of this product, in the context of sales
+        (do not use for purchases or other display reasons that don't intend to use "description_sale").
+        It will often be used as the default description of a sale order line referencing this product.
+        """
+        name = self.display_name
+        if self.description_sale:
+            name += "\n" + self.description_sale
+
+        return name
+
+    @api.model
+    def load(self, fields, data):
+        if "import_attribute_values" in fields and not self.env.context.get(
+            "from_template_import"
+        ):
+            res = self.env["product.template"].load(fields, data)
+            res["ids"] = self.search(Domain("product_tmpl_id", "in", res["ids"])).ids
+            return res
+        return super().load(fields, data)
 
     def _load_records_write(self, values):
         import_attribute_values = values.get("import_attribute_values", "")
@@ -773,779 +1683,6 @@ class ProductProduct(models.Model):
             for pav in pavs
         }
 
-    @api.model
-    def load(self, fields, data):
-        if "import_attribute_values" in fields and not self.env.context.get(
-            "from_template_import"
-        ):
-            res = self.env["product.template"].load(fields, data)
-            res["ids"] = self.search(Domain("product_tmpl_id", "in", res["ids"])).ids
-            return res
-        return super().load(fields, data)
-
-    def _compute_variant_image(self, size):
-        """Fall back to the template image when the variant has none, for the
-        given resolution ``size`` (e.g. 1920).
-
-        Kept as one method per size (rather than a single compute assigning all
-        five fields) so that reading a thumbnail never forces loading the larger
-        image blobs.
-        """
-        field = "image_%s" % size
-        variant_field = "image_variant_%s" % size
-        for record in self:
-            record[field] = record[variant_field] or record.product_tmpl_id[field]
-
-    def _compute_image_1920(self):
-        self._compute_variant_image(1920)
-
-    def _compute_image_1024(self):
-        self._compute_variant_image(1024)
-
-    def _compute_image_512(self):
-        self._compute_variant_image(512)
-
-    def _compute_image_256(self):
-        self._compute_variant_image(256)
-
-    def _compute_image_128(self):
-        self._compute_variant_image(128)
-
-    def _compute_can_image_1024_be_zoomed(self):
-        """Get the image from the template if no image is set on the variant."""
-        for record in self:
-            record.can_image_1024_be_zoomed = (
-                record.can_image_variant_1024_be_zoomed
-                if record.image_variant_1920
-                else record.product_tmpl_id.can_image_1024_be_zoomed
-            )
-
-    @api.depends("image_variant_1920", "image_variant_1024")
-    def _compute_can_image_variant_1024_be_zoomed(self):
-        # bin_size=False: under a bin_size context the binary fields yield
-        # size strings ("12.5 Kb") that crash the image decoding.
-        for record in self.with_context(bin_size=False):
-            record.can_image_variant_1024_be_zoomed = (
-                record.image_variant_1920
-                and is_image_size_above(
-                    record.image_variant_1920,
-                    record.image_variant_1024,
-                )
-            )
-
-    @api.depends("product_tmpl_id.pricelist_rule_ids")
-    def _compute_pricelist_rule_ids(self):
-        for product in self:
-            if not product.id:
-                product.pricelist_rule_ids = False
-                continue
-            product.pricelist_rule_ids = (
-                product.product_tmpl_id.pricelist_rule_ids.filtered(
-                    lambda rule, product=product: rule.product_id <= product,
-                )
-            )
-
-    @api.depends("product_tmpl_id.write_date")
-    def _compute_write_date(self):
-        """
-        First, the purpose of this computation is to update a product's
-        write_date whenever its template's write_date is updated.  Indeed,
-        when a template's image is modified, updating its products'
-        write_date will invalidate the browser's cache for the products'
-        image, which may be the same as the template's.  This guarantees UI
-        consistency.
-
-        Second, the field 'write_date' is automatically updated by the
-        framework when the product is modified.  The recomputation of the
-        field supplements that behavior to keep the product's write_date
-        up-to-date with its template's write_date.
-
-        Third, the framework normally prevents us from updating write_date
-        because it is a "magic" field.  However, the assignment inside the
-        compute method is not subject to this restriction.  It therefore
-        works as intended :-)
-        """
-        now = self.env.cr.now()
-        self.fetch(["write_date"])
-        for record in self:
-            if not record.id:
-                record.write_date = record._origin.write_date
-                continue
-            record.write_date = max(
-                record.write_date or now,
-                record.product_tmpl_id.write_date or now,
-            )
-
-    @api.depends("product_template_attribute_value_ids")
-    def _compute_combination_indices(self):
-        # A write through `product_template_variant_value_ids` (same relation)
-        # is funnelled back here by `write()`, which invalidates the field read
-        # below -- a plain `depends` on the alias would recompute from the
-        # sibling field's stale cache.
-        for product in self:
-            product.combination_indices = (
-                product.product_template_attribute_value_ids._ids2str()
-            )
-
-    def _compute_is_product_variant(self):
-        self.is_product_variant = True
-
-    @api.depends("product_template_attribute_value_ids.price_extra")
-    def _compute_product_price_extra(self):
-        for product in self:
-            product.price_extra = sum(
-                product.product_template_attribute_value_ids.mapped("price_extra"),
-            )
-
-    @api.depends("list_price", "price_extra")
-    @api.depends_context("uom")
-    def _compute_product_lst_price(self):
-        to_uom = None
-        if "uom" in self.env.context:
-            to_uom = self.env["uom.uom"].browse(self.env.context["uom"])
-
-        for product in self:
-            if to_uom:
-                list_price = product.uom_id._compute_price(product.list_price, to_uom)
-            else:
-                list_price = product.list_price
-            product.lst_price = list_price + product.price_extra
-
-    @api.depends(
-        "default_code",
-        "seller_ids.partner_id",
-        "seller_ids.product_code",
-        "seller_ids.product_id",
-    )
-    @api.depends_context("partner_id")
-    def _compute_product_code(self):
-        read_access = self.env["ir.model.access"].check(
-            "product.supplierinfo",
-            "read",
-            False,
-        )
-        partner_id = self.env.context.get("partner_id")
-        for product in self:
-            product.code = product.default_code
-            # With no partner in context no supplier row can match, so skip
-            # iterating sellers entirely (the common, no-partner render path).
-            if read_access and partner_id:
-                for supplier_info in product.seller_ids:
-                    if supplier_info.partner_id.id == partner_id:
-                        if (
-                            supplier_info.product_id
-                            and supplier_info.product_id != product
-                        ):
-                            # Supplier info specific for another variant.
-                            continue
-                        product.code = (
-                            supplier_info.product_code or product.default_code
-                        )
-                        if product == supplier_info.product_id:
-                            # Supplier info specific for this variant.
-                            break
-
-    @api.depends(
-        "default_code",
-        "name",
-        "code",
-        "display_name",
-        "seller_ids.partner_id",
-        "seller_ids.product_name",
-    )
-    @api.depends_context("partner_id")
-    def _compute_partner_ref(self):
-        partner_id = self.env.context.get("partner_id")
-        for product in self:
-            # Without a partner in context, no supplier row matches: fall back to
-            # display_name directly instead of scanning seller_ids per product.
-            matched_seller = False
-            if partner_id:
-                matched_seller = next(
-                    (
-                        seller
-                        for seller in product.seller_ids
-                        if seller.partner_id.id == partner_id
-                    ),
-                    False,
-                )
-            if matched_seller:
-                product_name = (
-                    matched_seller.product_name or product.default_code or product.name
-                )
-                product.partner_ref = "%s%s" % (
-                    (product.code and "[%s] " % product.code) or "",
-                    product_name,
-                )
-            else:
-                product.partner_ref = product.display_name
-
-    def _compute_product_document_count(self):
-        counts = {}
-        if self:
-            data = self.env["product.document"]._read_group(
-                [("res_model", "=", "product.product"), ("res_id", "in", self.ids)],
-                ["res_id"],
-                ["__count"],
-            )
-            counts = dict(data)
-        for product in self:
-            product.product_document_count = counts.get(product.id, 0)
-
-    @api.depends("product_tag_ids", "additional_product_tag_ids")
-    def _compute_all_product_tag_ids(self):
-        for product in self:
-            product.all_product_tag_ids = (
-                product.product_tag_ids | product.additional_product_tag_ids
-            ).sorted("sequence")
-
-    @api.depends_context(
-        "company_id",
-        "partner_id",
-        "display_default_code",
-        "seller_id",
-        "formatted_display_name",
-        "lang",
-    )
-    @api.depends("name", "default_code", "product_tmpl_id")
-    def _compute_display_name(self):
-        def get_display_name(name, code):
-            if self.env.context.get("display_default_code", True) and code:
-                if self.env.context.get("formatted_display_name"):
-                    return f"{name}\t--{code}--"
-                return f"[{code}] {name}"
-            return name
-
-        partner_id = self.env.context.get("partner_id")
-        if partner_id:
-            partner_ids = [
-                partner_id,
-                self.env["res.partner"].browse(partner_id).commercial_partner_id.id,
-            ]
-        else:
-            partner_ids = []
-        company_id = self.env.context.get("company_id")
-
-        # all user don't have access to seller and partner
-        # check access and use superuser
-        self.check_access("read")
-
-        product_template_ids = self.sudo().product_tmpl_id.ids
-
-        if partner_ids:
-            # prefetch the fields used by the `display_name`
-            supplier_info = (
-                self.env["product.supplierinfo"]
-                .sudo()
-                .search_fetch(
-                    [
-                        ("product_tmpl_id", "in", product_template_ids),
-                        ("partner_id", "in", partner_ids),
-                    ],
-                    [
-                        "product_tmpl_id",
-                        "product_id",
-                        "company_id",
-                        "product_name",
-                        "product_code",
-                    ],
-                )
-            )
-            supplier_info_by_template = {}
-            for r in supplier_info:
-                supplier_info_by_template.setdefault(r.product_tmpl_id, []).append(r)
-
-        # Loop-invariant: the seller forced through context is the same for
-        # every product, so resolve it once instead of per record.
-        context_sellers = (
-            self.env["product.supplierinfo"]
-            .sudo()
-            .browse(self.env.context.get("seller_id"))
-            or []
-        )
-
-        for product in self.sudo():
-            variant = (
-                product.product_template_attribute_value_ids._get_combination_name()
-            )
-
-            name = (variant and "%s (%s)" % (product.name, variant)) or product.name
-            sellers = context_sellers
-            if not sellers and partner_ids:
-                product_supplier_info = supplier_info_by_template.get(
-                    product.product_tmpl_id,
-                    [],
-                )
-                sellers = [
-                    x
-                    for x in product_supplier_info
-                    if x.product_id and x.product_id == product
-                ]
-                if not sellers:
-                    sellers = [x for x in product_supplier_info if not x.product_id]
-                # Filter out sellers based on the company. This is done afterwards for a better
-                # code readability. At this point, only a few sellers should remain, so it should
-                # not be a performance issue.
-                if company_id:
-                    sellers = [
-                        x for x in sellers if x.company_id.id in [company_id, False]
-                    ]
-            if sellers:
-                temp = []
-                for s in sellers:
-                    seller_variant = (
-                        s.product_name
-                        and (
-                            (variant and "%s (%s)" % (s.product_name, variant))
-                            or s.product_name
-                        )
-                    ) or False
-                    temp.append(
-                        get_display_name(
-                            seller_variant or name,
-                            s.product_code or product.default_code,
-                        ),
-                    )
-
-                product.display_name = ", ".join(unique(temp))
-            else:
-                product.display_name = get_display_name(name, product.default_code)
-
-    def _inverse_pricelist_rule_ids(self):
-        for product in self:
-            template = product.product_tmpl_id
-            template.pricelist_rule_ids = (
-                product.pricelist_rule_ids
-                # We have to manually keep the rules the current variant
-                # wasn't aware of because they targeted other variants.
-                | template.pricelist_rule_ids.filtered(
-                    lambda rule, product=product: (
-                        rule.product_id and rule.product_id != product
-                    ),
-                )
-            )
-
-    def _set_image_1920(self):
-        return self._set_template_field("image_1920", "image_variant_1920")
-
-    @api.model
-    def _search(self, domain, *args, **kwargs):
-        # TDE FIXME: strange
-        if self.env.context.get("search_default_categ_id"):
-            domain = Domain(domain) & Domain(
-                "categ_id",
-                "child_of",
-                self.env.context["search_default_categ_id"],
-            )
-        return super()._search(domain, *args, **kwargs)
-
-    @api.model
-    def _search_display_name(self, operator, value):
-        is_positive = operator not in Domain.NEGATIVE_OPERATORS
-        template_domains = [[("name", operator, value)]]
-        product_domains = [[("default_code", operator, value)]]
-
-        if operator == "in":
-            product_domains.append([("barcode", "in", value)])
-            product_domains.extend(
-                [("default_code", "=", m.group(2))]
-                for v in value
-                if isinstance(v, str) and (m := re.search(r"(\[(.*?)\])", v))
-            )
-        elif operator.endswith("like") and is_positive:
-            product_domains.append([("barcode", "in", [value])])
-
-        supplier_domain = []
-        if partner_id := self.env.context.get("partner_id"):
-            supplier_domain = [
-                ("partner_id", "=", partner_id),
-                "|",
-                ("product_code", operator, value),
-                ("product_name", operator, value),
-            ]
-
-        # AND clauses properly hit indexes so no need for custom sql in this case.
-        if operator in Domain.NEGATIVE_OPERATORS:
-            domains = template_domains + product_domains
-            if supplier_domain:
-                domains.append([("product_tmpl_id.seller_ids", "any", supplier_domain)])
-            return Domain.AND(domains)
-
-        # Disable active_test to simplify subqueries
-        self_no_active_test = self.with_context(active_test=False)
-        queries = [
-            self_no_active_test._search(
-                [
-                    (
-                        "product_tmpl_id",
-                        "in",
-                        self_no_active_test.env["product.template"]._search(
-                            Domain.OR(template_domains)
-                        ),
-                    ),
-                ],
-            ),
-            self_no_active_test._search(Domain.OR(product_domains)),
-        ]
-        if supplier_domain:
-            queries.append(
-                self_no_active_test._search(
-                    [
-                        (
-                            "product_tmpl_id",
-                            "in",
-                            self_no_active_test.env["product.supplierinfo"]
-                            ._search(supplier_domain)
-                            .subselect("product_tmpl_id"),
-                        ),
-                    ],
-                ),
-            )
-        query = SQL(
-            """(%s)""",
-            SQL("UNION ALL").join([SQL("(%s)", query.select()) for query in queries]),
-        )
-
-        return [("id", "in", query)]
-
-    @api.model
-    def name_search(self, name="", domain=None, operator="ilike", limit=100):
-        if not name:
-            return super().name_search(name, domain, operator, limit)
-        # search progressively by the most specific attributes
-        positive_operators = ["=", "ilike", "=ilike", "like", "=like"]
-        is_positive = operator not in Domain.NEGATIVE_OPERATORS
-        products = self.browse()
-        domain = Domain(domain or Domain.TRUE)
-        if operator in positive_operators:
-            products = self.search_fetch(
-                domain & Domain("default_code", "=", name),
-                ["display_name"],
-                limit=limit,
-            ) or self.search_fetch(
-                domain & Domain("barcode", "=", name),
-                ["display_name"],
-                limit=limit,
-            )
-        if not products:
-            if is_positive:
-                # Do not merge the 2 next lines into one single search, SQL search performance would be abysmal
-                # on a database with thousands of matching products, due to the huge merge+unique needed for the
-                # OR operator (and given the fact that the 'name' lookup results come from the ir.translation table
-                # Performing a quick memory merge of ids in Python will give much better performance
-                products = self.search_fetch(
-                    domain & Domain("default_code", operator, name),
-                    ["display_name"],
-                    limit=limit,
-                )
-                limit_rest = limit and limit - len(products)
-                # `search` treats limit=0/None as "unlimited", so keep searching
-                # names whenever there is no limit or room remains. Guarding on
-                # `limit_rest > 0` alone dropped every name match for limit=0.
-                if not limit or limit_rest > 0:
-                    # This branch only runs when the default_code search did not
-                    # reach `limit`, so `products` already holds every matching
-                    # default_code row: reuse its ids instead of re-issuing the
-                    # same search as an exclusion subquery.
-                    products |= self.search_fetch(
-                        domain
-                        & Domain("id", "not in", products.ids)
-                        & Domain("name", operator, name),
-                        ["display_name"],
-                        limit=limit_rest,
-                    )
-            else:
-                domain_neg = Domain("name", operator, name) & (
-                    Domain("default_code", operator, name)
-                    | Domain("default_code", "=", False)
-                )
-                products = self.search_fetch(
-                    domain & domain_neg,
-                    ["display_name"],
-                    limit=limit,
-                )
-        if (
-            not products
-            and operator in positive_operators
-            and (m := re.search(r"(\[(.*?)\])", name))
-        ):
-            match_domain = Domain("default_code", "=", m.group(2))
-            products = self.search_fetch(
-                domain & match_domain,
-                ["display_name"],
-                limit=limit,
-            )
-        if not products and (partner_id := self.env.context.get("partner_id")):
-            # still no results, partner in context: search on supplier info as last hope to find something
-            supplier_domain = Domain(
-                [
-                    ("partner_id", "=", partner_id),
-                    "|",
-                    ("product_code", operator, name),
-                    ("product_name", operator, name),
-                ],
-            )
-            match_domain = Domain("product_tmpl_id.seller_ids", "any", supplier_domain)
-            products = self.search_fetch(
-                domain & match_domain,
-                ["display_name"],
-                limit=limit,
-            )
-        return [(product.id, product.display_name) for product in products.sudo()]
-
-    def _search_all_product_tag_ids(self, operator, operand):
-        if operator in Domain.NEGATIVE_OPERATORS:
-            return NotImplemented
-        return [
-            "|",
-            ("product_tag_ids", operator, operand),
-            ("additional_product_tag_ids", operator, operand),
-        ]
-
-    def _search_is_in_selected_section_of_order(self, operator, value):
-        if operator != "in":
-            return NotImplemented
-        ctx = self.env.context
-        order_id = ctx.get("order_id")
-        order_model = ctx.get("product_catalog_order_model")
-        line_field = ctx.get("child_field")
-        if not (order_id and order_model and line_field):
-            return []
-
-        product_ids = (
-            self.env[order_model]
-            .browse(order_id)[line_field]
-            .filtered(
-                lambda line: line.get_line_parent_section().id == ctx.get("section_id"),
-            )
-            .mapped("product_id")
-            .ids
-        )
-
-        return [("id", "in", product_ids)]
-
-    @api.onchange("lst_price")
-    def _set_product_lst_price(self):
-        for product in self:
-            if self.env.context.get("uom"):
-                value = (
-                    self.env["uom.uom"]
-                    .browse(self.env.context["uom"])
-                    ._compute_price(product.lst_price, product.uom_id)
-                )
-            else:
-                value = product.lst_price
-            value -= product.price_extra
-            product.write({"list_price": value})
-
-    @api.onchange("standard_price")
-    def _onchange_standard_price(self):
-        if self.standard_price < 0:
-            raise ValidationError(
-                self.env._("The cost of a product can't be negative."),
-            )
-
-    @api.onchange("default_code")
-    def _onchange_default_code(self):
-        if not self.default_code:
-            return None
-
-        domain = [("default_code", "=", self.default_code)]
-        if self.id.origin:
-            domain.append(("id", "!=", self.id.origin))
-
-        if self.env["product.product"].search_count(domain, limit=1):
-            return {
-                "warning": {
-                    "title": self.env._("Note:"),
-                    "message": self.env._(
-                        "The Reference '%s' already exists.",
-                        self.default_code,
-                    ),
-                },
-            }
-        return None
-
-    @api.onchange("uom_id")
-    def _onchange_uom_id(self):
-        if self._origin.uom_id == self.uom_id or not self._trigger_uom_warning():
-            return None
-        message = self.env._(
-            "Changing the unit of measure for your product will apply a conversion 1 %(old_uom_name)s = 1 %(new_uom_name)s.\n"
-            "All existing records (Sales orders, Purchase orders, etc.) using this product will be updated by replacing the unit name.",
-            old_uom_name=self._origin.uom_id.display_name,
-            new_uom_name=self.uom_id.display_name,
-        )
-        return {
-            "warning": {
-                "title": self.env._("What to expect ?"),
-                "message": message,
-            },
-        }
-
-    def action_archive(self):
-        records = self.filtered("active")
-        super().action_archive()
-        # We deactivate product templates which are active with no active variants.
-        records.product_tmpl_id.filtered(
-            lambda product_tmpl: (
-                product_tmpl.active and not product_tmpl.product_variant_ids
-            ),
-        ).action_archive()
-
-    def action_unarchive(self):
-        records = self.filtered(lambda rec: not rec.active)
-        super().action_unarchive()
-        # We activate product templates which are inactive with active variants.
-        records.product_tmpl_id.filtered(
-            lambda product_tmpl: (
-                not product_tmpl.active and product_tmpl.product_variant_ids
-            ),
-        ).action_unarchive()
-
-    @api.model
-    def view_header_get(self, view_id, view_type):
-        if self.env.context.get("categ_id"):
-            return self.env._(
-                "Products: %(category)s",
-                category=self.env["product.category"]
-                .browse(self.env.context["categ_id"])
-                .name,
-            )
-        return super().view_header_get(view_id, view_type)
-
-    # === ACTION METHODS ===#
-
-    @api.readonly
-    def action_view_label_layout(self):
-        if any(product.type == "service" for product in self):
-            raise ValidationError(
-                self.env._("Labels cannot be printed for products of service type"),
-            )
-        action = self.env["ir.actions.act_window"]._for_xml_id(
-            "product.action_view_label_layout",
-        )
-        action["context"] = {"default_product_ids": self.ids}
-        return action
-
-    def view_product_template(self):
-        """Utility method used to add an "Open Template" button in product views"""
-        self.ensure_one()
-        return {
-            "type": "ir.actions.act_window",
-            "res_model": "product.template",
-            "view_mode": "form",
-            "res_id": self.product_tmpl_id.id,
-            "target": "new",
-        }
-
-    @api.readonly
-    def action_open_documents(self):
-        res = self.product_tmpl_id.action_open_documents()
-        res["context"].update(
-            {
-                "default_res_model": self._name,
-                "default_res_id": self.id,
-                "search_default_context_variant": True,
-            },
-        )
-        return res
-
-    # === BUSINESS METHODS ===#
-
-    def _filter_to_unlink(self):
-        return self
-
-    def _unlink_or_archive(self, check_access=True):
-        """Unlink or archive products.
-        Try in batch as much as possible because it is much faster.
-        Use dichotomy when an exception occurs.
-        """
-        # Avoid access errors in case the products is shared amongst companies
-        # but the underlying objects are not. If unlink fails because of an
-        # AccessError (e.g. while recomputing fields), the 'write' call will
-        # fail as well for the same reason since the field has been set to
-        # recompute.
-        if check_access:
-            self.check_access("unlink")
-            self.check_access("write")
-            self = self.sudo()
-            to_unlink = self._filter_to_unlink()
-            to_archive = self - to_unlink
-            to_archive.write({"active": False})
-            self = to_unlink
-
-        try:
-            with self.env.cr.savepoint(), tools.mute_logger("odoo.db"):
-                self.unlink()
-        except Exception:
-            # We catch all kind of exceptions to be sure that the operation
-            # doesn't fail.
-            if len(self) > 1:
-                self[: len(self) // 2]._unlink_or_archive(check_access=False)
-                self[len(self) // 2 :]._unlink_or_archive(check_access=False)
-            elif self.active:
-                # Note: this can still fail if something is preventing
-                # from archiving.
-                # This is the case from existing stock reordering rules.
-                self.write({"active": False})
-
-    def _get_invoice_policy(self):
-        return False
-
-    def _get_placeholder_filename(self, field):
-        if field in tuple("image_%s" % size for size in IMAGE_SIZES):
-            return self._get_product_placeholder_filename()
-        return super()._get_placeholder_filename(field)
-
-    def _get_product_placeholder_filename(self):
-        return self.product_tmpl_id._get_product_placeholder_filename()
-
-    def _get_barcodes_by_company(self):
-        return [
-            (company_id, [p.barcode for p in products if p.barcode])
-            for company_id, products in groupby(self, lambda p: p.company_id.id)
-        ]
-
-    def _get_barcode_search_domain(self, barcodes_within_company, company_id):
-        domain = [("barcode", "in", barcodes_within_company)]
-        if company_id:
-            domain.append(("company_id", "in", (False, company_id)))
-        return domain
-
-    def _set_template_field(self, template_field, variant_field):
-        # Batch count active variants per template to avoid N+1 search_count
-        tmpl_ids = self.product_tmpl_id.ids
-        variant_counts = {}
-        if tmpl_ids:
-            data = self.env["product.product"]._read_group(
-                [("product_tmpl_id", "in", tmpl_ids), ("active", "=", True)],
-                ["product_tmpl_id"],
-                ["__count"],
-            )
-            variant_counts = {tmpl.id: count for tmpl, count in data}
-        for record in self:
-            if (
-                # We are trying to remove a field from the variant even though it is already
-                # not set on the variant, remove it from the template instead.
-                (not record[template_field] and not record[variant_field])
-                # We are trying to add a field to the variant, but the template field is
-                # not set, write on the template instead.
-                or (
-                    record[template_field]
-                    and not record.product_tmpl_id[template_field]
-                )
-                # There is only one variant, always write on the template.
-                or variant_counts.get(record.product_tmpl_id.id, 0) <= 1
-            ):
-                record[variant_field] = False
-                record.product_tmpl_id[template_field] = record[template_field]
-            else:
-                record[variant_field] = record[template_field]
-
-    def _trigger_uom_warning(self):
-        return False
-
     def _prepare_sellers(self, params=False):
         # Use variant_seller_ids (no company domain, unlike seller_ids) so that
         # _get_filtered_supplier can do the company filtering itself based on
@@ -1554,67 +1691,6 @@ class ProductProduct(models.Model):
         all_sellers = self.sudo().variant_seller_ids
         sellers = all_sellers._get_filtered_supplier(self.env.company, self, params)
         return sellers.sorted(lambda s: (s.sequence, -s.min_qty, s.price, s.id))
-
-    def _get_filtered_sellers(
-        self,
-        partner_id=False,
-        quantity=0.0,
-        date=None,
-        uom_id=False,
-        params=False,
-    ):
-        self.ensure_one()
-        if not date:
-            date = fields.Date.context_today(self)
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
-
-        sellers_filtered = self._prepare_sellers(params)
-        matching_ids = []
-        for seller in sellers_filtered:
-            if seller.date_start and seller.date_start > date:
-                continue
-            if seller.date_end and seller.date_end < date:
-                continue
-            if (
-                params
-                and params.get("force_uom")
-                and seller.product_uom_id not in (uom_id, self.uom_id)
-            ):
-                continue
-            if partner_id and seller.partner_id not in [
-                partner_id,
-                partner_id.parent_id,
-            ]:
-                continue
-            if seller.product_id and seller.product_id != self:
-                continue
-            # min_qty is expressed in the seller's UoM, so convert the requested
-            # quantity into it before comparing. This runs only for sellers that
-            # passed the filters above, so we never convert into the UoM of an
-            # irrelevant seller. If the requested UoM shares no reference unit
-            # with the seller's (different category, e.g. Units vs Liters), the
-            # seller cannot satisfy a request denominated in `uom_id` -- skip it
-            # instead of letting the conversion raise.
-            if quantity is not None:
-                quantity_uom_seller = quantity
-                if quantity_uom_seller and uom_id and uom_id != seller.product_uom_id:
-                    if not uom_id._has_common_reference(seller.product_uom_id):
-                        continue
-                    quantity_uom_seller = uom_id._compute_quantity(
-                        quantity_uom_seller,
-                        seller.product_uom_id,
-                    )
-                if (
-                    float_compare(
-                        quantity_uom_seller,
-                        seller.min_qty,
-                        precision_digits=precision,
-                    )
-                    == -1
-                ):
-                    continue
-            matching_ids.append(seller.id)
-        return self.env["product.supplierinfo"].browse(matching_ids)
 
     def _select_seller(
         self,
@@ -1658,121 +1734,72 @@ class ProductProduct(models.Model):
         res = self.env["product.supplierinfo"].browse(res_ids)
         return res and res.sorted(sort_function)[:1]
 
-    def _get_product_price_context(self, combination):
-        self.ensure_one()
-        res = {}
-
-        no_variant_attributes_price_extra = self._get_no_variant_attributes_price_extra(
-            combination,
-        )
-
-        if no_variant_attributes_price_extra:
-            res["no_variant_attributes_price_extra"] = no_variant_attributes_price_extra
-
-        return res
-
-    def _get_no_variant_attributes_price_extra(self, combination):
-        # It is possible that a no_variant attribute is still in a variant if
-        # the type of the attribute has been changed after creation.
-        return sum(
-            ptav.price_extra
-            for ptav in combination.filtered(
-                lambda ptav: (
-                    ptav.price_extra
-                    and ptav.product_tmpl_id == self.product_tmpl_id
-                    and ptav not in self.product_template_attribute_value_ids
-                ),
+    def _set_template_field(self, template_field, variant_field):
+        # Batch count active variants per template to avoid N+1 search_count
+        tmpl_ids = self.product_tmpl_id.ids
+        variant_counts = {}
+        if tmpl_ids:
+            data = self.env["product.product"]._read_group(
+                [("product_tmpl_id", "in", tmpl_ids), ("active", "=", True)],
+                ["product_tmpl_id"],
+                ["__count"],
             )
-        )
-
-    def _get_attributes_extra_price(self):
-        self.ensure_one()
-
-        return self.price_extra + self.env.context.get(
-            "no_variant_attributes_price_extra",
-            0,
-        )
-
-    def _price_compute(
-        self,
-        price_type,
-        uom=None,
-        currency=None,
-        company=None,
-        date=False,
-    ):
-        company = company or self.env.company
-        date = date or fields.Date.context_today(self)
-
-        self = self.with_company(company)
-        if price_type == "standard_price":
-            # standard_price field can only be seen by users in base.group_user
-            # Thus, in order to compute the sale price from the cost for users not in this group
-            # We fetch the standard price as the superuser
-            self = self.sudo()
-
-        prices = dict.fromkeys(self.ids, 0.0)
-        for product in self:
-            price = product[price_type] or 0.0
-            price_currency = product.currency_id
-            if price_type == "standard_price":
-                price_currency = product.cost_currency_id
-            elif price_type == "list_price":
-                price += product._get_attributes_extra_price()
-
-            if uom:
-                price = product._convert_price_to_uom(price, uom)
-
-            # Convert from current user company currency to asked one
-            # This is right cause a field cannot be in more than one currency
-            if currency:
-                price = price_currency._convert(price, currency, company, date)
-
-            prices[product.id] = price
-
-        return prices
-
-    def _convert_price_to_uom(self, price, uom):
-        """Convert ``price`` (per unit of the product's UoM) into ``uom``.
-
-        `uom._compute_price` scales by the ratio of the two units' factors with
-        no compatibility check, so asking for the price of a product sold in
-        Units "in Liters" silently returned a plausible-looking but meaningless
-        number (list price x liter factor / unit factor) instead of failing.
-        Quantity conversion (`_compute_quantity`) already refuses that case;
-        price conversion must not be more permissive.
-        """
-        self.ensure_one()
-        if uom and self.uom_id and not self.uom_id._has_common_reference(uom):
-            raise UserError(
-                self.env._(
-                    "The price of %(product)s cannot be expressed in %(unit)s:"
-                    " that unit is not compatible with the product's unit"
-                    " %(product_unit)s.",
-                    product=self.display_name,
-                    unit=uom.display_name,
-                    product_unit=self.uom_id.display_name,
+            variant_counts = {tmpl.id: count for tmpl, count in data}
+        for record in self:
+            if (
+                # We are trying to remove a field from the variant even though it is already
+                # not set on the variant, remove it from the template instead.
+                (not record[template_field] and not record[variant_field])
+                # We are trying to add a field to the variant, but the template field is
+                # not set, write on the template instead.
+                or (
+                    record[template_field]
+                    and not record.product_tmpl_id[template_field]
                 )
-            )
-        return self.uom_id._compute_price(price, uom)
+                # There is only one variant, always write on the template.
+                or variant_counts.get(record.product_tmpl_id.id, 0) <= 1
+            ):
+                record[variant_field] = False
+                record.product_tmpl_id[template_field] = record[template_field]
+            else:
+                record[variant_field] = record[template_field]
 
-    @api.model
-    def get_empty_list_help(self, help_message):
-        self = self.with_context(
-            empty_list_help_document_name=self.env._("product"),
-        )
-        return super().get_empty_list_help(help_message)
+    def _trigger_uom_warning(self):
+        return False
 
-    def get_product_multiline_description_sale(self):
-        """Compute a multiline description of this product, in the context of sales
-        (do not use for purchases or other display reasons that don't intend to use "description_sale").
-        It will often be used as the default description of a sale order line referencing this product.
+    def _unlink_or_archive(self, check_access=True):
+        """Unlink or archive products.
+        Try in batch as much as possible because it is much faster.
+        Use dichotomy when an exception occurs.
         """
-        name = self.display_name
-        if self.description_sale:
-            name += "\n" + self.description_sale
+        # Avoid access errors in case the products is shared amongst companies
+        # but the underlying objects are not. If unlink fails because of an
+        # AccessError (e.g. while recomputing fields), the 'write' call will
+        # fail as well for the same reason since the field has been set to
+        # recompute.
+        if check_access:
+            self.check_access("unlink")
+            self.check_access("write")
+            self = self.sudo()
+            to_unlink = self._filter_to_unlink()
+            to_archive = self - to_unlink
+            to_archive.write({"active": False})
+            self = to_unlink
 
-        return name
+        try:
+            with self.env.cr.savepoint(), tools.mute_logger("odoo.db"):
+                self.unlink()
+        except Exception:
+            # We catch all kind of exceptions to be sure that the operation
+            # doesn't fail.
+            if len(self) > 1:
+                self[: len(self) // 2]._unlink_or_archive(check_access=False)
+                self[len(self) // 2 :]._unlink_or_archive(check_access=False)
+            elif self.active:
+                # Note: this can still fail if something is preventing
+                # from archiving.
+                # This is the case from existing stock reordering rules.
+                self.write({"active": False})
 
     def _is_variant_possible(self, parent_combination=None):
         """Return whether the variant is possible based on its own combination,
@@ -1793,33 +1820,6 @@ class ProductProduct(models.Model):
             parent_combination=parent_combination,
             ignore_no_variant=True,
         )
-
-    def get_contextual_price(self):
-        return self._get_contextual_price()
-
-    def _get_contextual_price(self):
-        # FIXME VFE this won't consider ptavs extra prices, since we rely on the template price
-        self.ensure_one()
-        return self.product_tmpl_id._get_contextual_price(self)
-
-    def _get_contextual_discount(self):
-        self.ensure_one()
-
-        pricelist = self.product_tmpl_id._get_contextual_pricelist()
-        if not pricelist:
-            # No pricelist = no discount
-            return 0.0
-
-        lst_price = self.currency_id._convert(
-            self.lst_price,
-            pricelist.currency_id,
-            self.env.company,
-            fields.Datetime.now(),
-            round=False,
-        )
-        if lst_price:
-            return (lst_price - self._get_contextual_price()) / lst_price
-        return 0.0
 
     def _update_uom(self, to_uom_id):
         """Hook to handle an UoM modification. Avoid recomputation and just replace the
