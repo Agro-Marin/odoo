@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 {
     'name': 'HR Gamification',
-    'version': '1.0',
+    'version': '1.1',
     'category': 'Human Resources',
     'depends': ['gamification', 'hr'],
     'description': """Use the HR resources for the gamification process.
