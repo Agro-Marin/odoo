@@ -27,7 +27,12 @@ import pathlib
 import subprocess
 import sys
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
+# Located by marker, not by counting parents — see _repo_root. This was the last
+# tool still counting (``parents[2]``), and the one no agreement test covered.
+REPO_ROOT = find_odoo_root(pathlib.Path(__file__).resolve(), tool="check_parity")
 TEST_FILE = REPO_ROOT / "addons/web/static/tests/core/domain_server_parity.test.js"
 
 # The corpus was generated on a database WITH the unaccent extension, and the
@@ -168,12 +173,19 @@ def main() -> int:
     with registry.cursor() as cr:
         env = api.Environment(cr, SUPERUSER_ID, {})
         if UNACCENT_REQUIRED and not registry.has_unaccent:
+            # Exit 2, not 0. A run that verified nothing is not a run that
+            # passed, and this is the one branch where the difference is
+            # invisible: the corpus stays green in CI while no case was
+            # replayed. Same code the sibling gates use for "could not run"
+            # (tooling/ratchet, tooling/typecheck/scope_gate).
             print(
                 "SKIP: this database has no unaccent extension; the corpus was "
-                "generated with it and every ilike case would look divergent.",
+                "generated with it and every ilike case would look divergent. "
+                "Nothing was verified — re-run against a database with "
+                "unaccent, or the parity snapshot stays unchecked.",
                 file=sys.stderr,
             )
-            return 0
+            return 2
         result = server_verdicts(env, records, cases)
 
     drift = []

@@ -101,8 +101,13 @@ class TestStateFile:
     def test_rewrite_leaves_no_partial_file(self, tmp_path, monkeypatch):
         monkeypatch.setattr(H, "SCRIPT_DIR", tmp_path)
         for port in (8085, 8086, 8087):
-            H.write_state({"pid": 1, "port": port, "db": "probe", "log": "", "started": 0.0})
-            assert json.loads((tmp_path / ".hoot_state_probe.json").read_text())["port"] == port
+            H.write_state(
+                {"pid": 1, "port": port, "db": "probe", "log": "", "started": 0.0}
+            )
+            assert (
+                json.loads((tmp_path / ".hoot_state_probe.json").read_text())["port"]
+                == port
+            )
 
 
 class TestLogPruning:
@@ -142,8 +147,15 @@ class TestLogPruning:
         os.utime(log, (0, 0))  # oldest file in the directory
         proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
         (tmp_path / ".hoot_state.json").write_text(
-            json.dumps({"pid": proc.pid, "port": 8085, "db": "hoot_web",
-                        "log": str(log), "started": 0})
+            json.dumps(
+                {
+                    "pid": proc.pid,
+                    "port": 8085,
+                    "db": "hoot_web",
+                    "log": str(log),
+                    "started": 0,
+                }
+            )
         )
         for i in range(25):
             other = tmp_path / f"server_other{i:02d}.log"
@@ -190,7 +202,7 @@ class TestImportExtraction:
         f.write_text(
             'import "@web/views/form/form_utils";\n'
             'import "@web/views/view_utils";\n'
-            '\n'
+            "\n"
             'import { expect } from "@odoo/hoot";\n',
             encoding="utf-8",
         )
@@ -203,7 +215,8 @@ class TestImportExtraction:
     def test_multiline_brace_import_still_resolves(self, tmp_path):
         f = tmp_path / "x.test.js"
         f.write_text(
-            "import {\n    a,\n    b,\n} from \"@web/../tests/helpers\";\n", encoding="utf-8"
+            'import {\n    a,\n    b,\n} from "@web/../tests/helpers";\n',
+            encoding="utf-8",
         )
         assert H._imports_of(f) == {"@web/../tests/helpers"}
 
@@ -310,9 +323,7 @@ class TestRunSummary:
         assert r.incomplete is False
 
     def test_failed_names_are_deduplicated_in_order(self):
-        r = self.summarise(
-            ['Test "b" failed', 'Test "a" failed', 'Test "b" failed']
-        )
+        r = self.summarise(['Test "b" failed', 'Test "a" failed', 'Test "b" failed'])
         assert r.failed_tests == ["b", "a"]
 
     def test_truncated_and_failing_reports_both(self):
@@ -366,6 +377,66 @@ class TestChangedFileDiscovery:
         target.write_text("", encoding="utf-8")
         assert H.changed_web_js([str(target)]) == [target.resolve()]
 
+    def _repo_with(self, root, tracked_edit=True):
+        src = root / "addons" / "web" / "static" / "src"
+        tests = root / "addons" / "web" / "static" / "tests"
+        src.mkdir(parents=True)
+        tests.mkdir(parents=True)
+
+        def git(*args):
+            subprocess.run(
+                ["git", "-C", str(root), *args], check=True, capture_output=True
+            )
+
+        git("init", "-q", ".")
+        git("config", "user.email", "t@t")
+        git("config", "user.name", "t")
+        (src / "tracked.js").write_text("const x = 1;\n", encoding="utf-8")
+        (root / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-qm", "init")
+        if tracked_edit:
+            (src / "tracked.js").write_text("const y = 2;\n", encoding="utf-8")
+        return src, tests
+
+    def test_a_brand_new_untracked_test_file_is_discovered(self, tmp_path, monkeypatch):
+        """`git diff HEAD` reports tracked modifications only.
+
+        A freshly written `*.test.js` gave `changed_web_js() -> 0 files`, so
+        `--affected` selected nothing while reporting that it had selected the
+        affected suites — the same false-green shape as the quoting bug above.
+        Writing a test and immediately running it is the main use of
+        `--affected`, and the file is untracked for precisely that window.
+        """
+        root = tmp_path / "repo"
+        _src, tests = self._repo_with(root, tracked_edit=False)
+        (tests / "brand_new.test.js").write_text("", encoding="utf-8")
+
+        monkeypatch.setattr(H, "_git_toplevels", lambda: [root])
+        assert {p.name for p in H.changed_web_js()} == {"brand_new.test.js"}
+
+    def test_tracked_and_untracked_are_both_reported_once(self, tmp_path, monkeypatch):
+        root = tmp_path / "repo"
+        _src, tests = self._repo_with(root)
+        (tests / "new.test.js").write_text("", encoding="utf-8")
+
+        monkeypatch.setattr(H, "_git_toplevels", lambda: [root])
+        changed = H.changed_web_js()
+        assert {p.name for p in changed} == {"tracked.js", "new.test.js"}
+        assert len(changed) == len(set(changed)), "a path was reported twice"
+
+    def test_gitignored_output_is_not_picked_up(self, tmp_path, monkeypatch):
+        """`--exclude-standard` — otherwise every built bundle under an ignored
+        directory would be read as a change and drag in unrelated suites."""
+        root = tmp_path / "repo"
+        _src, _tests = self._repo_with(root, tracked_edit=False)
+        ignored = root / "addons" / "web" / "static" / "src" / "ignored"
+        ignored.mkdir()
+        (ignored / "bundle.js").write_text("", encoding="utf-8")
+
+        monkeypatch.setattr(H, "_git_toplevels", lambda: [root])
+        assert H.changed_web_js() == []
+
 
 class TestAddonDirCache:
     """The scan is cached for the process; the result is therefore shared."""
@@ -418,7 +489,9 @@ class TestSpecifierMapping:
 
     def test_test_specifier_maps_to_the_suite_hoot_registers(self):
         # Mirrors start.hoot.js's _suiteNameFromSpecifier.
-        assert H.specifier_to_suite("@web/../tests/core/domain.test") == "@web/core/domain"
+        assert (
+            H.specifier_to_suite("@web/../tests/core/domain.test") == "@web/core/domain"
+        )
 
     def test_a_src_specifier_is_not_a_suite(self):
         assert H.specifier_to_suite("@web/core/domain") is None
@@ -427,9 +500,7 @@ class TestSpecifierMapping:
         # Whole-corpus: any test file whose specifier does not map back to a
         # suite is a suite `--affected` can never select.
         files = [
-            f
-            for f in H._iter_test_files()
-            if "/web/static/tests/" in f.as_posix()
+            f for f in H._iter_test_files() if "/web/static/tests/" in f.as_posix()
         ]
         assert files
         for path in files:

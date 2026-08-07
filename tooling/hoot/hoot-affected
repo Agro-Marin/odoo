@@ -6,6 +6,7 @@ _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
+
 """Print the minimal set of @web/... HOOT suites affected by changed JS files.
 
 With no arguments, uses ``git diff --name-only HEAD`` inside addons/odoo and

@@ -28,9 +28,13 @@ def find_odoo_root(start: Path, *, tool: str = "tooling") -> Path:
 
     :param start: a path inside the checkout, normally ``Path(__file__).resolve()``
     :param tool: caller name, used in the error message
-    :raises SystemExit: if no ancestor carries the marker
+    :raises SystemExit: if neither ``start`` nor an ancestor carries the marker
     """
-    for candidate in start.parents:
+    # ``start`` itself first, so "at or above" is true rather than nearly true.
+    # It only used to scan ``parents``, which made ``find_odoo_root(ROOT)``
+    # raise — harmless while every caller passes ``__file__``, and a trap for
+    # the first one that passes a directory.
+    for candidate in (start, *start.parents):
         if (candidate / ODOO_MARKER).is_file():
             return candidate
     raise SystemExit(
@@ -90,7 +94,9 @@ def find_workspace(odoo_root: Path) -> Path | None:
     """
     if not in_workspace(odoo_root):
         return None
-    return odoo_root.parents[1] if odoo_root.parent.name == "addons" else odoo_root.parent
+    return (
+        odoo_root.parents[1] if odoo_root.parent.name == "addons" else odoo_root.parent
+    )
 
 
 def sibling_repos_root(odoo_root: Path) -> Path:

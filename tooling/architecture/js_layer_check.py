@@ -191,8 +191,20 @@ _VALUE_END_CHARS = frozenset(")]\"'`")
 #: ...except after these keywords, which are followed by an expression.
 _REGEX_PRECEDING_KEYWORDS = frozenset(
     {
-        "return", "typeof", "instanceof", "in", "of", "new", "delete", "void",
-        "throw", "case", "do", "else", "yield", "await",
+        "return",
+        "typeof",
+        "instanceof",
+        "in",
+        "of",
+        "new",
+        "delete",
+        "void",
+        "throw",
+        "case",
+        "do",
+        "else",
+        "yield",
+        "await",
     }
 )
 
@@ -361,7 +373,9 @@ def collect_imports(src: str) -> list[tuple[str, int]]:
 
     found: list[tuple[str, int]] = []
     for regex in (_FROM_RE, _SIDE_EFFECT_RE, _DYNAMIC_RE):
-        found.extend((m.group(1), lineno_at(m.start(1))) for m in regex.finditer(cleaned))
+        found.extend(
+            (m.group(1), lineno_at(m.start(1))) for m in regex.finditer(cleaned)
+        )
     return found
 
 

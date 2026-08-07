@@ -33,9 +33,7 @@ def _check_source(source: str, layer: str = "Layer 1", name: str = "probe.py"):
         if attr not in report.registry_members and not attr.startswith("__"):
             report.unknown_members.append(reach)
         if reach.is_private:
-            (
-                report.known if psc._is_known(rel, attr) else report.new
-            ).append(reach)
+            (report.known if psc._is_known(rel, attr) else report.new).append(reach)
     return report
 
 
@@ -104,6 +102,98 @@ class TestRegistryMembers(unittest.TestCase):
         members = psc.registry_members()
         for name in ("ready", "post_init", "add_foreign_key", "get_trigger_tree"):
             self.assertIn(name, members)
+
+
+class TestRegistrySurfaceIsNotOverCollected(unittest.TestCase):
+    """Rule 2 is only as good as its idea of what a Registry has.
+
+    ``REGISTRY_SOURCES`` are whole files, and they hold helper classes as well
+    as the Registry: ``DummyRLock``, ``_RegistryCaches``, ``_RegistryStubs``,
+    ``_UnaccentTables``. Harvesting every ``ClassDef`` in them admitted those
+    helpers' members as Registry members, so ``pool.acquire`` -- which exists
+    only on ``DummyRLock`` -- passed rule 2 silently. A probe injecting it
+    beside a nonsense name saw only the nonsense one reported.
+    """
+
+    #: Names defined ONLY on the neighbouring helper classes.
+    FOREIGN = ("acquire", "release", "clear_group", "clear_all", "lrus", "by_db")
+
+    def test_neighbouring_helper_class_members_are_not_registry_members(self):
+        members = psc.registry_members()
+        leaked = [name for name in self.FOREIGN if name in members]
+        self.assertEqual(
+            leaked,
+            [],
+            f"{leaked} are not on Registry; they leaked in from a helper class "
+            f"in REGISTRY_SOURCES. Check REGISTRY_CLASSES.",
+        )
+
+    def test_a_reach_to_a_foreign_helper_member_is_reported(self):
+        report = _check_source("def f(m):\n    return m.pool.acquire\n")
+        self.assertFalse(report.ok)
+        self.assertEqual([r.attr for r in report.unknown_members], ["acquire"])
+
+    def test_registry_classes_all_exist_in_the_sources(self):
+        # A renamed mixin would silently shrink the surface and produce false
+        # "does not exist" failures across the ORM.
+        found = set()
+        for path in psc.REGISTRY_SOURCES:
+            if not path.is_file():
+                continue
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if isinstance(node, ast.ClassDef):
+                    found.add(node.name)
+        self.assertEqual(
+            psc.REGISTRY_CLASSES - found,
+            set(),
+            "REGISTRY_CLASSES names a class that no longer exists",
+        )
+
+
+class TestScopeCompleteness(unittest.TestCase):
+    """The scope is a hand-maintained list, so the list is the part that rots.
+
+    Eight top-level ``odoo/orm/*.py`` modules were in neither SCOPE nor
+    ``orm/runtime``, and one of them (``registration.py``) was reading three
+    private Registry attributes the whole time. Same guard shape as
+    ``layer_check.test_core_source_covers_every_core_package``.
+    """
+
+    def test_every_orm_module_is_scoped_or_exempt(self):
+        import _orm_layer_scope as scope
+
+        missing = scope.unclassified_modules(psc.CORE)
+        self.assertEqual(
+            missing,
+            [],
+            f"ORM module(s) in neither SCOPE nor EXEMPT nor orm/runtime: "
+            f"{missing} — give each a layer in _orm_layer_scope.SCOPE, or an "
+            f"argued entry in _orm_layer_scope.EXEMPT",
+        )
+
+    def test_the_two_seam_gates_share_one_scope(self):
+        # They used to keep byte-identical copies under a comment claiming they
+        # were "deliberately identical", which nothing enforced.
+        import env_surface_check as esc
+
+        self.assertIs(psc.SCOPE, esc.SCOPE)
+
+    def test_registration_is_actually_scanned(self):
+        # The module the widened scope was for. If it drops out, the four pins
+        # below become stale and the reach becomes invisible again.
+        scanned = {
+            p.relative_to(psc.CORE).as_posix() for p, _ in psc.iter_scope_files()
+        }
+        self.assertIn("orm/registration.py", scanned)
+        self.assertIn("orm/helpers.py", scanned)
+
+    def test_exempt_entries_name_real_files(self):
+        import _orm_layer_scope as scope
+
+        for rel in scope.EXEMPT:
+            self.assertTrue(
+                (psc.CORE / rel).is_file(), f"EXEMPT names a missing file: {rel}"
+            )
 
 
 class TestNotVacuous(unittest.TestCase):

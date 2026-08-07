@@ -85,8 +85,19 @@ def _init_consumer(tmp_path: Path) -> Path:
     subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
     subprocess.run(
-        ["git", "-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t",
-         "commit", "-q", "-m", "seed"],
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            "seed",
+        ],
         check=True,
     )
     return repo
@@ -94,7 +105,9 @@ def _init_consumer(tmp_path: Path) -> Path:
 
 def test_find_dangling_flags_runtime_import_only(tmp_path):
     repo = _init_consumer(tmp_path)
-    removed = {"@web/fields/file_handler": "addons/web/static/src/fields/file_handler.js"}
+    removed = {
+        "@web/fields/file_handler": "addons/web/static/src/fields/file_handler.js"
+    }
     dangling = crc.find_dangling(removed, [repo])
     consumers = {d.consumer for d in dangling}
     assert "web_studio/static/src/uploader.js" in consumers

@@ -40,7 +40,7 @@ def test_inline_jsdoc_type_import_is_ignored():
         ' * @param {import("@web/views/list/list_renderer").Foo} x\n'
         ' * @returns {import("@web/webclient/x").Bar}\n'
         " */\n"
-        'export function f(x) { return x; }\n'
+        "export function f(x) { return x; }\n"
     )
     assert _specs(src) == []
 
@@ -99,7 +99,9 @@ def test_division_is_not_mistaken_for_a_regex():
 
 
 def test_regex_after_keyword_is_a_regex_not_division():
-    src = 'function f(s) { return /a\\/*b/.test(s); }\nimport { a } from "@web/core/a";\n'
+    src = (
+        'function f(s) { return /a\\/*b/.test(s); }\nimport { a } from "@web/core/a";\n'
+    )
     assert _specs(src) == ["@web/core/a"]
 
 
@@ -122,7 +124,9 @@ def test_long_comment_before_a_division_does_not_eat_a_same_line_import():
         src = f"let r = a {comment} / b; import('@web/webclient/x');\n"
         assert _specs(src) == ["@web/webclient/x"], f"lost the import after {comment!r}"
         src = f"let r = a {comment} / b; export {{ A }} from '@web/webclient/x';\n"
-        assert _specs(src) == ["@web/webclient/x"], f"lost the re-export after {comment!r}"
+        assert _specs(src) == ["@web/webclient/x"], (
+            f"lost the re-export after {comment!r}"
+        )
 
 
 def test_long_comment_before_a_real_regex_still_reads_a_regex():

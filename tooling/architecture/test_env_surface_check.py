@@ -26,6 +26,7 @@ under pytest.
 
 from __future__ import annotations
 
+import ast
 import sys
 import unittest
 from pathlib import Path
@@ -87,7 +88,9 @@ class TestCatchesRename(unittest.TestCase):
     def test_nonexistent_member_via_dict_key_is_flagged(self):
         # Simulates renaming Environment._field_cache_memo without updating the
         # four string-key call sites. Nothing else in the repo catches this.
-        report = _check_source('def f(env):\n    return env.__dict__["_renamed_away"]\n')
+        report = _check_source(
+            'def f(env):\n    return env.__dict__["_renamed_away"]\n'
+        )
         self.assertEqual([r.attr for r in report.unknown_members], ["_renamed_away"])
         self.assertFalse(report.ok)
 
@@ -119,11 +122,11 @@ class TestEnvironmentMembers(unittest.TestCase):
             raise unittest.SkipTest(f"odoo not importable: {exc}") from exc
         parsed = esc.environment_members()
         runtime = set(dir(Environment))
-        missed = {
-            n for n in runtime if not n.startswith("__") and n not in parsed
-        }
+        missed = {n for n in runtime if not n.startswith("__") and n not in parsed}
         self.assertEqual(
-            missed, set(), f"AST parse missed real Environment members: {sorted(missed)}"
+            missed,
+            set(),
+            f"AST parse missed real Environment members: {sorted(missed)}",
         )
 
 
@@ -177,7 +180,82 @@ class TestRealTree(unittest.TestCase):
     def test_scope_paths_all_exist(self):
         for rel in esc.SCOPE:
             with self.subTest(rel=rel):
-                self.assertTrue((esc.CORE / rel).exists(), f"SCOPE names a missing path: {rel}")
+                self.assertTrue(
+                    (esc.CORE / rel).exists(), f"SCOPE names a missing path: {rel}"
+                )
+
+    def test_the_widened_scope_is_actually_scanned(self):
+        """The eight modules that used to be in no scope at all.
+
+        ``registration.py`` and ``helpers.py`` are the ones that matter:
+        ``layer_check`` pins them below the runtime, and ``helpers.py`` is
+        imported by 11 Layer-2 mixins, so anything it reaches is reachable from
+        Layer 2 without Layer 2 reaching it.
+        """
+        scanned = {
+            p.relative_to(esc.CORE).as_posix() for p, _ in esc.iter_scope_files()
+        }
+        for rel in (
+            "orm/registration.py",
+            "orm/helpers.py",
+            "orm/_recordset.py",
+            "orm/decorators.py",
+            "orm/constants.py",
+            "orm/_typing.py",
+        ):
+            with self.subTest(rel=rel):
+                self.assertIn(rel, scanned)
+
+    def test_environment_declares_all_its_members_in_the_class_body(self):
+        """``environment_members`` reads the class body only.
+
+        Its sibling ``pool_surface_check.registry_members`` additionally walks
+        ``self.<name> = ...`` inside methods, because ``Registry`` creates
+        several members imperatively. ``Environment`` does not today, which is
+        why the simpler reader is correct — but if that changes, the symptom is
+        a storm of false "member does not exist" failures pointing at the ORM
+        rather than at this function. Fail here instead, with the reason.
+        """
+        tree = ast.parse(esc.ENVIRONMENT_PY.read_text(encoding="utf-8"))
+        declared, imperative = set(), set()
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.ClassDef) and node.name == "Environment"):
+                continue
+            for stmt in node.body:
+                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    declared.add(stmt.name)
+                elif isinstance(stmt, ast.AnnAssign) and isinstance(
+                    stmt.target, ast.Name
+                ):
+                    declared.add(stmt.target.id)
+                elif isinstance(stmt, ast.Assign):
+                    declared.update(
+                        t.id for t in stmt.targets if isinstance(t, ast.Name)
+                    )
+            for sub in ast.walk(node):
+                targets = (
+                    list(sub.targets)
+                    if isinstance(sub, ast.Assign)
+                    else [sub.target]
+                    if isinstance(sub, ast.AnnAssign)
+                    else []
+                )
+                imperative.update(
+                    t.attr
+                    for t in targets
+                    if isinstance(t, ast.Attribute)
+                    and isinstance(t.value, ast.Name)
+                    and t.value.id == "self"
+                )
+        undeclared = sorted(imperative - declared)
+        self.assertEqual(
+            undeclared,
+            [],
+            f"Environment now creates {undeclared} imperatively. "
+            f"environment_members() reads the class body only and will report "
+            f"every reach to them as 'does not exist' — teach it to walk "
+            f"self.<name> assignments, as registry_members() does.",
+        )
 
 
 if __name__ == "__main__":

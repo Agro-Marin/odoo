@@ -17,11 +17,19 @@ The measurement that motivated this gate: **Layer 1 — the layer declared
 *furthest below* the runtime — is the heaviest consumer of the runtime's
 private internals, wider than Layer 2.**
 
-    orm/fields   19 public env members +  4 unsanctioned private (10 accesses)
-    orm/models   21 public env members +  2 unsanctioned private ( 3 accesses)
-    orm/domain    3 public env members +  0
-    orm/components                    0 + 0   (its purity claim, independently
-                                               confirmed by this measure)
+    orm/fields        21 public env members + 4 unsanctioned private (10 accesses)
+    orm/models        23 public env members + 2 unsanctioned private ( 3 accesses)
+    orm/domain         4 public env members + 0
+    orm/registration   2 public env members + 0
+    orm/components                        0 + 0   (its purity claim,
+                                                   independently confirmed here)
+
+Only the **private** figures are pinned against a live run
+(``test_architecture_doc.TestRuntimeSurfaceFigures``). The public ones are
+reported, not ratcheted — and had already drifted (fields was written as 19,
+models as 21) before anyone noticed, which is the argument for the pinning
+rather than against it. ``orm/registration`` appears at all only because the
+scope stopped being ``orm/models`` alone; see ``_orm_layer_scope``.
 
 The distinct unsanctioned private names across the whole ORM number FIVE, not
 six: ``_field_depends_context`` is reached from both packages. Counting that
@@ -90,24 +98,22 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _orm_layer_scope import SCOPE
+from _orm_layer_scope import iter_scope_files as _iter_scope_files
 from _repo_root import find_odoo_root
 
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="env_surface_check")
 CORE = REPO_ROOT / "odoo"
 ENVIRONMENT_PY = CORE / "orm" / "runtime" / "environment.py"
 
-#: Packages scanned, and the ORM layer each one sits at. ``components`` is here
-#: with the strictest expectation of all: it may touch ``env`` for nothing.
-SCOPE: dict[str, str] = {
-    "orm/primitives.py": "Layer 0",
-    "orm/parsing.py": "Layer 0",
-    "orm/validation.py": "Layer 0",
-    "orm/fields": "Layer 1",
-    "orm/domain": "Layer 1",
-    "orm/models": "Layer 2",
-    "orm/components": "components",
-}
+#: Re-exported for callers and for the self-test. The scope itself lives in
+#: ``_orm_layer_scope`` because ``pool_surface_check`` needs the identical
+#: answer to "what is Layer N" -- the two used to keep byte-identical copies
+#: under a comment claiming they were "deliberately identical", which nothing
+#: enforced and which had already lapsed in two places.
+__all__ = ["SCOPE", "check", "environment_members", "iter_scope_files"]
 
 #: Private ``Environment`` members that lower layers may use. See the module
 #: docstring for why each one is here.
@@ -271,21 +277,7 @@ def environment_members(source: str | None = None) -> set[str]:
 
 
 def iter_scope_files() -> list[tuple[Path, str]]:
-    out: list[tuple[Path, str]] = []
-    for rel, layer in SCOPE.items():
-        target = CORE / rel
-        if target.is_dir():
-            paths = sorted(target.rglob("*.py"))
-        elif target.is_file():
-            paths = [target]
-        else:
-            continue
-        for p in paths:
-            parts = p.relative_to(CORE).parts
-            if "tests" in parts or "__pycache__" in parts or p.name.startswith("test_"):
-                continue
-            out.append((p, layer))
-    return out
+    return _iter_scope_files(CORE)
 
 
 def _is_known(path: str, attr: str) -> bool:

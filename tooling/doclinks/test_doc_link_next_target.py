@@ -121,7 +121,9 @@ class TestAuthoritativeScope:
         assert score.is_authoritative, source
 
     def test_an_ordinary_doc_is_not_authoritative(self):
-        score = ranker.score_files(_baseline(("addons/web/static/src/NOTES.md", "x.md")))[0]
+        score = ranker.score_files(
+            _baseline(("addons/web/static/src/NOTES.md", "x.md"))
+        )[0]
         assert not score.is_authoritative
 
 
@@ -136,7 +138,10 @@ class TestLiveByDefault:
     def test_live_scan_agrees_with_the_gate(self):
         import doc_link_gate as gate
 
-        live = {(v["source_file"], v["raw_path"]) for v in ranker._live_violations()["violations"]}
+        live = {
+            (v["source_file"], v["raw_path"])
+            for v in ranker._live_violations()["violations"]
+        }
         assert live == {(v.source_file, v.raw_path) for v in gate.scan()}
 
     def _sources(self, tmp_path, monkeypatch):
@@ -171,9 +176,13 @@ class TestLiveByDefault:
         assert "STALE_BASELINE.md" in out
         assert "LIVE_TREE.md" not in out
 
-    def test_from_baseline_without_a_baseline_is_a_usage_error(self, tmp_path, monkeypatch):
+    def test_from_baseline_without_a_baseline_is_a_usage_error(
+        self, tmp_path, monkeypatch
+    ):
         monkeypatch.setattr(
-            sys, "argv", ["p", "--from-baseline", "--baseline", str(tmp_path / "none.json")]
+            sys,
+            "argv",
+            ["p", "--from-baseline", "--baseline", str(tmp_path / "none.json")],
         )
         assert ranker._main() == 2
 

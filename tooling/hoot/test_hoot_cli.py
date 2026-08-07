@@ -24,6 +24,8 @@ which is where a silent wrong answer costs the most:
 import importlib.machinery
 import importlib.util
 import io
+import os
+import subprocess
 import sys
 from contextlib import redirect_stdout
 from itertools import chain
@@ -109,15 +111,24 @@ class TestShardSummaryParsing:
         [
             lambda H: H.RunResult(ok=True, suites=["@web/core"], passed=78, wall=3.2),
             lambda H: H.RunResult(
-                ok=False, suites=["@web/core"], passed=9, failed=2, wall=30.0,
+                ok=False,
+                suites=["@web/core"],
+                passed=9,
+                failed=2,
+                wall=30.0,
                 failed_tests=["@web/core/a", "@web/core/b"],
             ),
             lambda H: H.RunResult(
                 ok=False, suites=["@web/core"], passed=5, wall=12.5, incomplete=True
             ),
             lambda H: H.RunResult(
-                ok=False, suites=["@web/core"], passed=9, failed=2, wall=30.0,
-                incomplete=True, failed_tests=["@web/core/a"],
+                ok=False,
+                suites=["@web/core"],
+                passed=9,
+                failed=2,
+                wall=30.0,
+                incomplete=True,
+                failed_tests=["@web/core/a"],
             ),
         ],
         ids=["pass", "fail", "warn-truncated-clean", "fail-truncated"],
@@ -162,7 +173,9 @@ class TestShardPartitioning:
         weights = {"heavy": 494.0, **{f"s{i}": 20.0 for i in range(31)}}
         shards = shard.partition(list(weights), 4, weights)
         makespan = max(sum(weights[s] for s in group) for group in shards)
-        assert makespan == pytest.approx(494.0), "the 494s suite must set the makespan, alone"
+        assert makespan == pytest.approx(494.0), (
+            "the 494s suite must set the makespan, alone"
+        )
 
     def test_a_measured_weight_wins_over_the_file_count_estimate(self, shard):
         assert shard.weight_of("@web/core", {"@web/core": 42.0}) == pytest.approx(42.0)
@@ -177,7 +190,9 @@ class TestShardPartitioning:
 class TestShardDeadline:
     def test_scales_with_the_suite_count(self, shard):
         args = type("A", (), {"timeout": 100})()
-        assert shard.shard_deadline(["a"], args) < shard.shard_deadline(["a", "b"], args)
+        assert shard.shard_deadline(["a"], args) < shard.shard_deadline(
+            ["a", "b"], args
+        )
 
     def test_includes_the_cold_boot_allowance(self, shard):
         # A cold shard DB pays a one-time `web` install before its first page
@@ -194,7 +209,9 @@ class TestWeightsAreReadOnly:
         assert shard.load_weights() == shard.SEED_WEIGHTS
         assert not list(tmp_path.iterdir())
 
-    def test_a_corrupt_weights_file_falls_back_to_the_seed(self, shard, tmp_path, monkeypatch):
+    def test_a_corrupt_weights_file_falls_back_to_the_seed(
+        self, shard, tmp_path, monkeypatch
+    ):
         broken = tmp_path / "w.json"
         broken.write_text("{not json")
         monkeypatch.setattr(shard, "WEIGHTS_PATH", broken)
@@ -229,3 +246,100 @@ class TestColourContract:
         # escape codes in that text would break every summary match.
         monkeypatch.setattr(sys, "stdout", io.StringIO())
         assert shard._color("PASS", shard.C_GREEN) == "PASS"
+
+
+class TestThePolyglotPreambleStillExecutes:
+    """Run the scripts as scripts, which nothing did.
+
+    Every test above imports these files through a ``SourceFileLoader``, i.e.
+    exercises the PYTHON half. They are sh/python polyglots, and the SHELL half
+    is load-bearing: ``/bin/sh`` runs the preamble first, sources
+    ``tooling/_trampoline.sh``, and re-execs the file with the workspace venv.
+
+    All three shipped broken and nothing noticed. The preamble had been
+    rewritten from ``''':'`` to ``\"\"\":'`` -- the quote style a Python formatter
+    prefers, applied to a file that is not only Python. Under ``sh`` that is an
+    empty string followed by an unterminated ``:'``, so the shell aborted before
+    the re-exec and every invocation exited 2, ``./hoot --help`` included. The
+    Python half was untouched and every existing test still passed.
+
+    ``ODOO_VENV_PYTHON`` is set so the trampoline resolves without depending on
+    a workspace layout; that is the documented override and it makes this run in
+    a repo-alone CI checkout too.
+    """
+
+    #: ``hoot`` and ``hoot-shard`` use argparse; ``hoot-affected`` takes bare
+    #: paths and treats an unknown flag as "no paths given", so it prints its
+    #: normal output rather than a usage line. Exit status is the shared
+    #: contract; the usage string is only asserted where there is one.
+    SCRIPTS = ("hoot", "hoot-affected", "hoot-shard")
+    WITH_USAGE = ("hoot", "hoot-shard")
+
+    def _run(self, name, *args):
+        return subprocess.run(
+            [str(HERE / name), *args],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+            env={**os.environ, "ODOO_VENV_PYTHON": sys.executable},
+        )
+
+    @pytest.mark.parametrize("name", SCRIPTS)
+    def test_the_script_runs_and_reaches_its_python_half(self, name):
+        done = self._run(name, "--help")
+        assert done.returncode == 0, (
+            f"{name} --help exited {done.returncode} — the sh/python polyglot "
+            f"preamble is broken, so the file never reached Python.\n"
+            f"stdout: {done.stdout[:400]}\nstderr: {done.stderr[:400]}"
+        )
+        if name in self.WITH_USAGE:
+            assert "usage" in (done.stdout + done.stderr).lower()
+
+    @pytest.mark.parametrize("name", SCRIPTS)
+    def test_the_shell_preamble_is_the_single_quoted_polyglot(self, name):
+        """Pin the exact form, since the failure is invisible to Python.
+
+        ``'''`` opens a Python string AND collapses to the sh null command;
+        ``\"\"\"`` only does the first.
+        """
+        lines = (HERE / name).read_text(encoding="utf-8").splitlines()
+        assert lines[0] == "#!/bin/sh"
+        assert lines[1] == "''':'", f"{name}: preamble is {lines[1]!r}"
+        assert "'''" in lines[:12], f"{name}: preamble is never closed"
+
+    @pytest.mark.parametrize("name", SCRIPTS)
+    def test_sh_parses_the_preamble(self, name):
+        """``sh -n`` over the whole file: parse only, no execution.
+
+        The regression was a PARSE error — ``\"\"\"`` left ``:'`` opening a quote
+        that never closed — so the syntax check is the direct probe, and it needs
+        no venv, no trampoline and no ``$0``. Running the preamble instead would
+        fail for an unrelated reason: ``$0`` under ``sh -c`` is not the script,
+        so the trampoline's own existence check exits 1.
+
+        Only the preamble is fed in, and the closing ``'''`` is excluded. That
+        line exists for PYTHON, to close the string opened on line 2; to ``sh``
+        it is ``''`` plus a lone ``'`` that opens a quote swallowing the rest of
+        the file. sh never reaches it in a real run — ``. "$_t"`` execs the
+        interpreter first — so it is not part of the shell half and checking it
+        would fail on a correct file.
+        """
+        lines = (HERE / name).read_text(encoding="utf-8").splitlines()
+        end = next((i for i, ln in enumerate(lines[1:], 1) if ln == "'''"), None)
+        assert end is not None, (
+            f"{name}: no closing ''' in the preamble — if it was rewritten to "
+            f'\'"""\' the file is already broken for /bin/sh'
+        )
+        done = subprocess.run(
+            ["sh", "-n", "-c", "\n".join(lines[1:end])],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert done.returncode == 0, (
+            f"{name}: /bin/sh cannot parse this file — the polyglot preamble is "
+            f"broken and every invocation will abort before the re-exec.\n"
+            f"{done.stderr.strip()}"
+        )

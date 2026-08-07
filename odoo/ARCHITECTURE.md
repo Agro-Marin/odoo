@@ -241,8 +241,13 @@ Three scope caveats the "✅ clean" column does not show, all by design:
 that one stops addons reaching into ORM internals, this one stops the framework
 depending on its own consumer. It ships with **two pinned `KNOWN_VIOLATIONS`
 rules** (`odoo.service` → `odoo.addons.base.models.ir_cron` / `…ir_job`), which
-the report expands to **8 tolerated edges** — 4 call sites × 2 granularities
-(the module and the class). Both rules are intentional rather than debt:
+the report expands to **4 tolerated edges** — one per call site. It used to
+print eight: `_ImportCollector` emits both `<base>` and `<base>.<name>` for
+every `from X import Y`, so each of the four statements was reported twice, once
+at module granularity and once at class granularity. The synthesised record is
+now kept only when it is the one that carries the violation (`from odoo import
+models` under a contract that forbids `odoo.models` but not `odoo`), so one
+import statement is one violation. Both rules are intentional rather than debt:
 `service/_threaded.py` and `service/_worker.py` call `IrCron._process_jobs` /
 `IrJob._process_jobs`, `@staticmethod` entry points that open their own cursor
 because they run *before* a registry exists, so there is no `env` to route
@@ -492,12 +497,25 @@ surfaces the import graph cannot see:
   Registry is reached through `self.pool`, which produces no import edge either,
   and that reach shows the same inversion, though on one axis rather than three:
   **`orm/fields` (Layer 1) touches the Registry at 30 sites against
-  `orm/models`' 17**, and owns all 5 `pool[<model>]` subscripts, which Layer 2
-  never uses. Be precise about the rest, because the first version of this
-  paragraph was not: Layer 2 reaches *more distinct* members than Layer 1 (11
-  against 9), and it has a private reach of its own — `_ensure_field_triggers`,
-  pinned beside `_relation_reflections`. The claim that survives measurement is
-  volume and subscripts, not "Layer 2 touches nothing private".
+  `orm/models`' 28**, and uses 5 `pool[<model>]` subscripts against Layer 2's 3.
+  Be precise about the rest, because the first version of this paragraph was
+  not: Layer 2 reaches *more distinct* members than Layer 1 (15 against 9), and
+  it has private reaches of its own — `_ensure_field_triggers`, `_init_modules`,
+  `_database_translated_fields` and `_database_company_dependent_fields`, pinned
+  beside `_relation_reflections`. The claim that survives measurement is volume,
+  not "Layer 2 touches nothing private".
+
+  The Layer-2 figures moved in 2026-08 and the move is the point. Both seam
+  gates scoped Layer 2 to `orm/models` alone, which left eight top-level
+  `odoo/orm/*.py` modules in **no** scope at all — including `registration.py`,
+  which was reading three private `Registry` attributes on every model setup
+  while `layer_check`'s `orm-helpers-and-registration-stay-below-runtime`
+  reported it clean at zero. Correctly so: it imports `odoo.orm.runtime`
+  nowhere. That is exactly the channel these two gates exist to watch, and it
+  ran through the one file neither of them read. The scope now lives in
+  `tooling/architecture/_orm_layer_scope.py`, shared by both gates so they
+  cannot drift apart, with a completeness test that forces every ORM module to
+  be given a layer or an argued exemption.
   It ratchets three invariants — no unsanctioned `pool._private` from
   Layers 0–2, every referenced member must exist on `Registry`, and
   `components/` must not touch `pool` at all (the runtime half of the purity
@@ -519,8 +537,13 @@ surfaces the import graph cannot see:
   usually *works* until an entry point changes. Function-local imports are
   deliberately not edges: a deferred import is the sanctioned way to break a
   cycle, so counting it would flag every seam that already fixes the problem.
-  Three are pinned (`service`, `modules`, `cli` — all the benign
-  package↔submodule shape); **the ORM has none.**
+  Four are pinned (`service`, `modules`, `cli`, `tests` — all the benign
+  package↔submodule shape); **the ORM has none.** The `tests` one was not
+  tolerated but *invisible* until 2026-08: `odoo/tests/` is the shipped test
+  **framework**, and a "drop any path with a `tests` component" filter removed
+  all 17 of its modules, so the gate reported on 323 modules and called that the
+  core. It is 338. `layer_check` had the identical bug and fixed it at
+  `_CORE_TEST_FRAMEWORK_PACKAGE`; nothing had propagated the rule.
 - **`libs_facade_check.py`** — the mirror of `facade-boundary` for the
   dependency-free utility layer. The public boundary of `odoo/libs/` is the
   **area** (`odoo.libs.numbers`), not the module that implements it today

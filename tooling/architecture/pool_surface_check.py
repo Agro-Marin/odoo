@@ -10,17 +10,23 @@ Layers 1 and 2 do not reach the runtime by importing it — they reach it throug
 from ``..runtime``), so every ``model.pool.<member>`` is a Layer-N -> Layer-3
 access that produces no import edge and moves no existing gate.
 
-Measured when this checker landed — the same inversion ``env_surface_check`` was
-built to expose, on a wider surface:
+Measured — the same inversion ``env_surface_check`` was built to expose, on a
+wider surface:
 
-    orm/fields + orm/domain  (Layer 1)   30 accesses, 9 members, 5 subscripts
-    orm/models               (Layer 2)   17 accesses, 11 members, 0 subscripts
-    orm/components                        0 accesses  (its purity claim, again
-                                                       independently confirmed)
+    Layer 1  (fields, domain, _recordset, decorators)  30 accesses,  9 members
+    Layer 2  (models, helpers, registration)           28 accesses, 15 members
+    components                                          0 accesses  (its purity
+                                                        claim, again confirmed)
 
 Layer 1 — the layer declared *furthest below* the runtime — reaches the Registry
-almost twice as often as Layer 2 does, and reaches one member Layer 2 never
-touches: the private ``_relation_reflections``.
+more often than Layer 2 and owns 5 of the 8 ``pool[<model>]`` subscripts, though
+Layer 2 reaches more distinct members.
+
+**These numbers are restated prose and will rot.** They are pinned against a
+live run by ``test_architecture_doc.TestRuntimeSurfaceFigures``, which exists
+because this docstring and ``ARCHITECTURE.md`` once agreed with each other and
+with nothing else. The Layer-2 figures above already moved once, when the scope
+stopped being ``orm/models`` alone — see ``_orm_layer_scope``.
 
 WHAT IS ENFORCED
 ----------------
@@ -335,7 +341,9 @@ def _print_report(report: Report) -> None:
         attrs = {r.attr for r in hits if not r.subscript}
         subs = sum(1 for r in hits if r.subscript)
         privates = sorted({r.attr for r in hits if r.is_private})
-        print(f"\n  {layer}: {len(hits)} accesses, {len(attrs)} members, {subs} subscripts")
+        print(
+            f"\n  {layer}: {len(hits)} accesses, {len(attrs)} members, {subs} subscripts"
+        )
         if attrs:
             print(f"    {sorted(attrs)}")
         if privates:

@@ -118,7 +118,12 @@ def evaluate(gate: str, count: int, baseline: Baseline, mode: str) -> Verdict:
     drift = count - baseline.count
     if drift > 0:
         return Verdict(
-            gate, count, baseline.count, mode, ok=False, status="regressed",
+            gate,
+            count,
+            baseline.count,
+            mode,
+            ok=False,
+            status="regressed",
             message=(
                 f"{gate}: {count} > baseline {baseline.count} "
                 f"(+{drift}). Regression — bring the count back down, or, if the "
@@ -133,18 +138,33 @@ def evaluate(gate: str, count: int, baseline: Baseline, mode: str) -> Verdict:
         )
         if mode == "exact":
             return Verdict(
-                gate, count, baseline.count, mode, ok=False, status="improved",
+                gate,
+                count,
+                baseline.count,
+                mode,
+                ok=False,
+                status="improved",
                 message=(
                     f"{improved} — lock it in: rerun with --update so the floor "
                     f"drops to {count} and can never slip back."
                 ),
             )
         return Verdict(
-            gate, count, baseline.count, mode, ok=True, status="improved",
+            gate,
+            count,
+            baseline.count,
+            mode,
+            ok=True,
+            status="improved",
             message=f"{improved}; consider --update to lock the lower floor.",
         )
     return Verdict(
-        gate, count, baseline.count, mode, ok=True, status="unchanged",
+        gate,
+        count,
+        baseline.count,
+        mode,
+        ok=True,
+        status="unchanged",
         message=f"{gate}: {count} == baseline. No drift.",
     )
 
@@ -170,7 +190,9 @@ def run(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--note", default=None, help="note to store with --update")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
-    parser.add_argument("--list", action="store_true", help="list all baselines and exit")
+    parser.add_argument(
+        "--list", action="store_true", help="list all baselines and exit"
+    )
     args = parser.parse_args(argv)
 
     if args.list:
@@ -186,7 +208,9 @@ def run(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
 
     if args.update:
-        note = args.note if args.note is not None else (existing.note if existing else "")
+        note = (
+            args.note if args.note is not None else (existing.note if existing else "")
+        )
         path = Baseline(count=args.count, note=note).save(args.gate)
         verb = "updated" if existing else "created"
         old = f" (was {existing.count})" if existing else ""
@@ -221,13 +245,20 @@ def _list_baselines(*, as_json: bool) -> int:
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 rows.append(
-                    {"gate": path.stem, "count": int(data["count"]),
-                     "note": str(data.get("note", ""))}
+                    {
+                        "gate": path.stem,
+                        "count": int(data["count"]),
+                        "note": str(data.get("note", "")),
+                    }
                 )
             except (OSError, ValueError, KeyError, TypeError) as exc:
-                broken.append({"gate": path.stem, "error": f"{type(exc).__name__}: {exc}"})
+                broken.append(
+                    {"gate": path.stem, "error": f"{type(exc).__name__}: {exc}"}
+                )
     if as_json:
-        print(json.dumps({"baselines": rows, "broken": broken}, indent=2, sort_keys=True))
+        print(
+            json.dumps({"baselines": rows, "broken": broken}, indent=2, sort_keys=True)
+        )
     else:
         if not rows and not broken:
             print("no baselines yet")

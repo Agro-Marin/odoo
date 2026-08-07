@@ -363,8 +363,7 @@ class _SelfUseCollector(ast.NodeVisitor):
                 self.unit.uses.add(node.attr)
                 self.unit.recordset_uses.add(node.attr)
             elif (
-                base in self._recordset_locals
-                and node.attr not in NON_RECORDSET_ATTRS
+                base in self._recordset_locals and node.attr not in NON_RECORDSET_ATTRS
             ):
                 self.unit.recordset_uses.add(node.attr)
         self.generic_visit(node)
@@ -636,10 +635,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{wide['cyclic_edges']} cyclic"
         )
         for component in wide["sccs"]:
-            print(
-                f"  cycle of {len(component)} via recordsets: "
-                f"{', '.join(component)}"
-            )
+            print(f"  cycle of {len(component)} via recordsets: {', '.join(component)}")
         if m["scc_without_base"] < m["max_scc"]:
             print(
                 f"  without {BASE_UNIT}: largest cycle is "

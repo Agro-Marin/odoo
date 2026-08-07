@@ -121,7 +121,11 @@ _log = logging.getLogger("hoot")
 #: and the `_color` helper — and `hoot-shard` parses `hoot`'s coloured output,
 #: so the two agreeing is a contract, not a coincidence.
 C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
-    "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
+    "\033[32m",
+    "\033[31m",
+    "\033[33m",
+    "\033[2m",
+    "\033[0m",
 )
 
 
@@ -192,7 +196,9 @@ def check_db_name(db: str) -> str:
 
 
 def db_exists(db: str) -> bool:
-    return _psql(f"SELECT 1 FROM pg_database WHERE datname='{check_db_name(db)}'") == "1"
+    return (
+        _psql(f"SELECT 1 FROM pg_database WHERE datname='{check_db_name(db)}'") == "1"
+    )
 
 
 def drop_db(db: str) -> None:
@@ -1148,31 +1154,50 @@ def _git_toplevels() -> list[Path]:
 def changed_web_js(paths: list[str] | None = None) -> list[Path]:
     """Changed JS files under an addon ``static/`` tree.
 
-    With no explicit paths this is ``git diff --name-only HEAD`` in every
-    repository on the addons path, not just ``addons/odoo`` — each ``addons/*``
-    directory is its own checkout, so a one-repo diff silently ignored changes
-    in the other three.
+    With no explicit paths this is every repository on the addons path, not just
+    ``addons/odoo`` — each ``addons/*`` directory is its own checkout, so a
+    one-repo diff silently ignored changes in the other three.
+
+    TWO commands, not one. ``git diff HEAD`` reports tracked modifications only,
+    so a **brand-new** ``*.test.js`` was invisible: measured, a freshly created
+    test file gave ``changed_web_js() -> 0 files``, and ``--affected`` then
+    reported it had selected the affected suites while selecting none of them.
+    Adding a test file is the single most common reason to reach for
+    ``--affected``, and the file is untracked for exactly as long as it takes to
+    run the tests you just wrote. ``git ls-files --others --exclude-standard``
+    is the other half; ``--exclude-standard`` keeps ``.gitignore``d build output
+    out.
+
+    Both are ``-z``: git QUOTES any path outside plain ASCII by default
+    (``core.quotePath``), so an edited ``src/café.js`` came back as
+    ``"addons/web/static/src/caf\303\251.js"`` — a name matching nothing on
+    disk, silently dropped, with the same false "selected" report.
     """
     if paths:
         return [Path(p).resolve() for p in paths]
     changed: list[Path] = []
+    seen: set[Path] = set()
     for top in _git_toplevels():
-        # ``-z``: git QUOTES any path outside plain ASCII by default
-        # (``core.quotePath``), so an edited ``src/café.js`` came back as
-        # ``"addons/web/static/src/caf\303\251.js"`` — a name matching nothing
-        # on disk, silently dropped, and its suite left unselected while
-        # ``--affected`` reported it had selected the affected suites.
-        out = subprocess.run(
-            ["git", "-C", str(top), "diff", "--name-only", "-z", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        changed.extend(
-            (top / name).resolve()
-            for name in out.stdout.split("\0")
-            if name.endswith(".js") and "/static/" in name
-        )
+        for argv in (
+            ["diff", "--name-only", "-z", "HEAD"],
+            ["ls-files", "--others", "--exclude-standard", "-z"],
+        ):
+            out = subprocess.run(
+                ["git", "-C", str(top), *argv],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            for name in out.stdout.split("\0"):
+                if not (name.endswith(".js") and "/static/" in name):
+                    continue
+                resolved = (top / name).resolve()
+                # A path can be reported by both commands across nested
+                # checkouts; the import scan is per-file, so duplicates only
+                # cost time.
+                if resolved not in seen:
+                    seen.add(resolved)
+                    changed.append(resolved)
     return changed
 
 
@@ -1207,7 +1232,9 @@ def affected_suites(changed: list[Path], *, downstream: bool = False) -> list[st
     def keep(names: set[str]) -> list[str]:
         if downstream:
             return sorted(names)
-        return sorted(n for n in names if n.lstrip("@").partition("/")[0] in changed_addons)
+        return sorted(
+            n for n in names if n.lstrip("@").partition("/")[0] in changed_addons
+        )
 
     if not changed_specs:
         return keep(suites)
