@@ -26,11 +26,16 @@
                 <div class="alert alert-info text-center d-flex flex-wrap justify-content-center gap-1" role="alert"
                     invisible="is_membership_multi or not member_warning">
                     <field name="member_warning" class="w-auto"/>
-                    Working in multiple teams?
-                    <button name="crm_team_activate_multi_membership" type="button" class="btn btn-link p-0 lh-1"
-                        groups="sales_team.group_sale_manager">
-                        Activate "Multi-team"
-                    </button>
+                    <!-- The question and its button are one offer: only the button
+                         carried the group, so everyone else was asked "Working in
+                         multiple teams?" and given no way to answer. The warning
+                         itself is information, and stays visible to all. -->
+                    <span groups="sales_team.group_sale_manager" class="d-flex flex-wrap gap-1">
+                        Working in multiple teams?
+                        <button name="crm_team_activate_multi_membership" type="button" class="btn btn-link p-0 lh-1">
+                            Activate "Multi-team"
+                        </button>
+                    </span>
                 </div>
                 <sheet>
                     <div class="oe_button_box" name="button_box"/>
