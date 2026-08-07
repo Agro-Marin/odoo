@@ -59,7 +59,8 @@ class TestIndex(common.TransactionCase):
                 )
                 .mapped("module")
             )
-            return bool(modules and all("test" in module for module in modules))
+            # A model defined only by test modules carries no production data.
+            return bool(modules) and all("test" in module for module in modules)
 
         fields_to_index = set()
         for model_name in self.env.registry:
@@ -67,8 +68,14 @@ class TestIndex(common.TransactionCase):
             for field in model._fields.values():
                 if field.type == "one2many" and field.inverse_name:
                     comodel = self.env[field.comodel_name]
-                    inverse_field = comodel._fields.get(field.inverse_name).base_field
-                    if inverse_field and not ignore(field, inverse_field):
+                    # Subscript, not `.get(...)`: the ORM resolves this same
+                    # name with `comodel._fields[inverse_name]` during setup, so
+                    # on a loaded registry it always exists. The `.get(...)`
+                    # spelling read as a guard against `None` while already
+                    # dereferencing it one line above the check -- so it guarded
+                    # nothing, and made the real invariant harder to see.
+                    inverse_field = comodel._fields[field.inverse_name].base_field
+                    if not ignore(field, inverse_field):
                         fields_to_index.add(f"{inverse_field} (inverse of {field})")
         if fields_to_index:
             msg = (

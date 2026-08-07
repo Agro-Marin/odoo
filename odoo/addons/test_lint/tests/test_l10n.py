@@ -17,11 +17,21 @@ class L10nChecker(lint_case.NodeVisitor):
         return False
 
     def visit_ClassDef(self, node):
+        # The filter has to come before `deco.args` is touched. Written the
+        # other way round, a comprehension evaluates `deco.args` for *every*
+        # decorator and then filters, so a bare `@no_retry` (an `ast.Name`, with
+        # no `.args`) crashed the whole linter with an unrelated
+        # `AttributeError`. Only the absence of any such decorator in the l10n
+        # suites today kept it from firing.
+        #
+        # `arg.value` likewise only exists on a literal: `@tagged(*TAGS)` used to
+        # put an AST node into the tag set, where it silently matched nothing.
         tags = {
             arg.value
             for deco in node.decorator_list
-            for arg in deco.args
             if self.matches_tagged(deco)
+            for arg in deco.args
+            if isinstance(arg, ast.Constant)
         }
         if (
             (len({"post_install_l10n", "external_l10n"} & tags) != 1)
@@ -42,6 +52,13 @@ class L10nLinter(lint_case.LintCase):
         checker = L10nChecker()
         rs = []
         for path in self.iter_module_files("**/l10n_*/tests/*.py"):
+            # Scoped to this repository, like every other file-based gate here.
+            # Sibling checkouts are separately versioned -- `enterprise` is a
+            # pristine upstream mirror -- so a finding in one is not this
+            # branch's to fix, and reporting it only teaches people to skip the
+            # failure.
+            if not lint_case.is_core_path(path):
+                continue
             with file_open(path, "rb") as f:
                 t = ast.parse(f.read(), path)
             rs.extend(

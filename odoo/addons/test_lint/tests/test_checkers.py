@@ -3,7 +3,146 @@ from textwrap import dedent
 
 from odoo.tests.common import BaseCase, no_retry
 
-from . import _checker_batch, _checker_gettext, _checker_sql, _checker_unlink
+from . import (
+    _checker_batch,
+    _checker_gettext,
+    _checker_onchange,
+    _checker_orm_import,
+    _checker_sql,
+    _checker_unlink,
+    _suppression,
+)
+
+
+@no_retry
+class TestSuppression(BaseCase):
+    """``# noqa`` must mean the same thing to every rule.
+
+    The regression these lock down: the previous implementation stripped the
+    text after ``# noqa`` and then tested it with ``startswith("  ")``, a
+    condition ``strip()`` had just made unreachable. A bare ``# noqa``
+    suppressed and an *explained* one did not -- which put it in direct
+    contradiction with the rationale check, whose whole point is that every
+    suppression carries a reason. Writing the reason switched the checker back
+    on.
+    """
+
+    def test_bare_noqa_suppresses_everything(self):
+        self.assertTrue(_suppression.is_suppressed("x  # noqa", 1, "sql-injection"))
+
+    def test_rationale_does_not_cancel_the_suppression(self):
+        for line in (
+            "x  # noqa  because the column name is a legacy alias",
+            "x  # noqa: E8501 -- table name comes from _table",
+            "x  # noqa: E8501, F401  re-exported by __init__",
+        ):
+            with self.subTest(line=line):
+                self.assertTrue(
+                    _suppression.is_suppressed(line, 1, "sql-injection"),
+                    "explaining a suppression must not undo it",
+                )
+
+    def test_codes_scope_the_suppression(self):
+        self.assertFalse(
+            _suppression.is_suppressed("x  # noqa: F401  unused", 1, "sql-injection"),
+            "an unrelated code must not silence this rule",
+        )
+
+    def test_rule_name_and_numeric_alias_are_equivalent(self):
+        for code in ("E8507", "n-plus-one-query"):
+            with self.subTest(code=code):
+                self.assertTrue(
+                    _suppression.is_suppressed(
+                        f"x  # noqa: {code}  hoisting needs a schema change",
+                        1,
+                        "n-plus-one-query",
+                    )
+                )
+
+    def test_pylint_disable_is_still_honoured(self):
+        self.assertTrue(
+            _suppression.is_suppressed(
+                "x  # pylint: disable=sql-injection", 1, "sql-injection"
+            )
+        )
+
+    def test_the_rationale_rule_cannot_silence_itself(self):
+        """Every line it reports contains a ``# noqa`` by construction.
+
+        Honouring one would let the rule switch itself off permanently.
+        """
+        self.assertFalse(
+            _suppression.is_suppressed("x  # noqa", 1, _suppression.NOQA_RATIONALE_RULE)
+        )
+
+
+@no_retry
+class TestOrmImportLint(BaseCase):
+    """Addon code reaches the ORM through the public facade."""
+
+    def _check(self, snippet, filepath="models/thing.py"):
+        return list(
+            _checker_orm_import.check(ast.parse(dedent(snippet).strip()), filepath)
+        )
+
+    def test_direct_import_flagged(self):
+        self.assertTrue(self._check("import odoo.orm.fields"))
+        self.assertTrue(self._check("from odoo.orm import fields"))
+        self.assertTrue(self._check("from odoo.orm.fields import Many2one"))
+
+    def test_facade_import_allowed(self):
+        self.assertFalse(self._check("from odoo import api, fields, models"))
+        self.assertFalse(self._check("import odoo.ormsomething"))
+
+    def test_tests_are_exempt_by_location(self):
+        """Testing an ORM internal necessarily imports it."""
+        self.assertFalse(
+            self._check("from odoo.orm import fields", "sale/tests/test_x.py")
+        )
+
+    def test_string_mentioning_odoo_orm_is_not_an_import(self):
+        """The previous line-regex version could not tell these apart."""
+        self.assertFalse(self._check("DOC = 'see odoo.orm.fields for details'"))
+
+
+@no_retry
+class TestOnchangeLint(BaseCase):
+    """Dynamic domains returned from an onchange bind only one form view."""
+
+    def _check(self, snippet):
+        return list(_checker_onchange.check(ast.parse(dedent(snippet).strip())))
+
+    def test_domain_in_onchange_flagged(self):
+        self.assertTrue(
+            self._check("""
+        @api.onchange('partner_id')
+        def _onchange_partner(self):
+            return {'domain': {'x': []}}
+        """)
+        )
+
+    def test_domain_outside_onchange_ignored(self):
+        self.assertFalse(
+            self._check("""
+        def _compute_something(self):
+            return {'domain': {'x': []}}
+        """)
+        )
+
+    def test_one_report_per_method(self):
+        """A long onchange should send you to the method, not spam every literal."""
+        self.assertEqual(
+            len(
+                self._check("""
+            @api.onchange('a')
+            def _onchange_a(self):
+                x = {'domain': []}
+                y = {'domain': []}
+                return {'domain': []}
+            """)
+            ),
+            1,
+        )
 
 
 @no_retry
@@ -388,6 +527,19 @@ class TestGetTextLint(BaseCase):
         variable_violations = [v for v in violations if v.rule == "gettext-variable"]
         self.assertEqual(len(variable_violations), 4)
 
+    def test_placeholder_counting(self):
+        """The escape rule, stated directly on the regex."""
+
+        def count(text):
+            return len(_checker_gettext.PLACEHOLDER_REGEXP.findall(text))
+
+        self.assertEqual(count("%s %s"), 2)
+        self.assertEqual(count("Item%s and %s"), 2, "a placeholder may follow a word")
+        self.assertEqual(count("%%s %%s"), 0, "escaped percents are not placeholders")
+        self.assertEqual(count("%%%s"), 1, "an escaped percent then a real one")
+        self.assertEqual(count("100%% of %s and %s"), 2)
+        self.assertEqual(count("%(named)s %(other)s"), 0, "named ones are the fix")
+
     def test_gettext_placeholders(self):
         violations = self._check("""
         _("shouldn't match escaped %%s %%s")
@@ -574,14 +726,37 @@ class TestBatchLint(BaseCase):
             violations, "search inside nested function should not be flagged"
         )
 
-    def test_lambda_in_loop_flagged(self):
+    def test_lambda_in_loop_not_flagged(self):
+        """A lambda defers its body exactly as a nested ``def`` does.
+
+        The lambda used to be flagged while the equivalent ``def`` above was
+        not, so whether a deferred query counted as an N+1 depended on which
+        syntax expressed it. Neither runs per-iteration; neither is a finding.
+        """
         violations = self._check("""
         def process(self, records):
             callbacks = []
             for record in records:
                 callbacks.append(lambda: self.env['res.partner'].search([]))
         """)
-        self.assertTrue(violations, "search inside lambda in loop should be flagged")
+        self.assertFalse(
+            violations, "a lambda defers its body, like the nested def above"
+        )
+
+    def test_nested_loops_report_one_query_once(self):
+        """The count must follow the defect, not the indentation.
+
+        Every ``for`` used to be its own entry point, and the subtree walk
+        descends into nested loops, so one query reported once per level of
+        nesting: twice at depth two, three times at depth three.
+        """
+        for depth in (1, 2, 3, 4):
+            body = "self.env['res.partner'].search([])"
+            for level in range(depth):
+                body = f"for x{level} in a:\n    " + body.replace("\n", "\n    ")
+            source = "def process(self, a):\n    " + body.replace("\n", "\n    ")
+            with self.subTest(depth=depth):
+                self.assertEqual(len(self._check(source)), 1)
 
     def test_skips_test_files(self):
         violations = self._check(
