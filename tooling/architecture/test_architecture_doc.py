@@ -1587,6 +1587,124 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         self.assertIn(f"is a {expected} checker and the only one outside CI", DOC_FLAT)
 
 
+class TestRiskRegisterFigures(unittest.TestCase):
+    """The risk register's numbers must come from a live run, like every other.
+
+    ``risks.md`` arrived with four measured figures and a checker count, none of
+    which any assertion read. Mutating R2's to ``Layer 2's 99`` and ``777
+    Registry sites`` left the whole suite green -- the page was inside
+    ``DOC_PATHS`` and therefore *looked* gated, while the only thing pinned
+    about it was that its file existed.
+
+    That is the failure this document set is built against, stated on the front
+    door as *"if you add a number to this page, add the assertion with it"*, and
+    it is worse in a risk register than anywhere else: an entry whose severity
+    rests on a figure that has silently drifted argues for the wrong priority.
+    The figures were correct when checked; nothing was keeping them so.
+    """
+
+    @staticmethod
+    def _env_unsanctioned_private_members() -> dict[str, int]:
+        import env_surface_check
+
+        sanctioned = set(env_surface_check.SANCTIONED_PRIVATE)
+        by_layer: dict[str, set[str]] = {}
+        for reach in env_surface_check.check().reaches:
+            if reach.is_private and reach.attr not in sanctioned:
+                by_layer.setdefault(reach.layer, set()).add(reach.attr)
+        return {layer: len(attrs) for layer, attrs in by_layer.items()}
+
+    @staticmethod
+    def _registry_sites() -> dict[str, int]:
+        import pool_surface_check
+
+        sites: dict[str, int] = {}
+        for reach in pool_surface_check.check().reaches:
+            sites[reach.layer] = sites.get(reach.layer, 0) + 1
+        return sites
+
+    def test_the_runtime_channel_figures_are_measured(self) -> None:
+        """R2's claim is a *comparison*; both sides of it must be live.
+
+        The entry's whole argument is that Layer 1 is the heavier consumer on
+        both channels, so a stale figure on either side could invert the
+        conclusion while still reading as a measurement.
+        """
+        privates = self._env_unsanctioned_private_members()
+        sites = self._registry_sites()
+        self.assertIn(
+            f"{privates['Layer 1']} unsanctioned `Environment` privates against "
+            f"Layer 2's {privates['Layer 2']}, and {sites['Layer 1']} Registry "
+            f"sites against {sites['Layer 2']}",
+            DOC_FLAT,
+            f"the risk register's runtime-channel figures disagree with a live "
+            f"run (env privates {privates}, registry sites {sites})",
+        )
+
+    def test_the_register_still_states_which_side_is_heavier(self) -> None:
+        """Guard the conclusion, not only the digits.
+
+        Both figures could be re-measured correctly by a future editor and the
+        sentence around them left saying the opposite of what they show.
+        """
+        privates = self._env_unsanctioned_private_members()
+        sites = self._registry_sites()
+        self.assertGreater(privates["Layer 1"], privates["Layer 2"])
+        self.assertGreater(sites["Layer 1"], sites["Layer 2"])
+        self.assertIn("Layer 1 is the heavier consumer on both channels", DOC_FLAT)
+
+    def test_the_digit_form_of_the_checker_count_tracks_the_workflow(self) -> None:
+        """``gates.md`` spells the count as a word; the register uses digits.
+
+        ``test_stated_count_matches_both`` pins *"runs **twenty-four** blocking
+        checkers"*. Nothing read the three bare ``24``s in the register, so
+        adding a gate would fail the word form and leave the digits wrong.
+        Matched by shape rather than by whole sentence so a rewording of the
+        surrounding prose does not silently drop the check.
+        """
+        expected = len(
+            sorted(
+                set(
+                    re.findall(
+                        r"python tooling/architecture/([\w.]+\.py)",
+                        (ROOT / ".github" / "workflows" / "architecture.yml").read_text(
+                            encoding="utf-8"
+                        ),
+                    )
+                )
+            )
+        )
+        cited = [
+            int(n)
+            for n in re.findall(
+                r"(?:all|The) (\d+) (?:are structural|boundary checkers|and)",
+                DOC_FLAT,
+            )
+        ]
+        self.assertTrue(cited, "the register cites no checker count; regex rotted")
+        self.assertEqual(
+            set(cited),
+            {expected},
+            f"the register states a checker count the workflow does not run "
+            f"(cited {sorted(set(cited))}, workflow runs {expected})",
+        )
+
+    def test_the_public_surface_pin_size_is_measured(self) -> None:
+        """R6's severity is "how much is recorded"; that is a countable file."""
+        pin = ROOT / "tooling" / "architecture" / "public_surface_web.txt"
+        specifiers = [
+            line
+            for line in pin.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertIn(
+            f"{len(specifiers)} specifiers",
+            DOC_FLAT,
+            f"the register's pin size disagrees with {pin.name} "
+            f"({len(specifiers)} specifiers on disk)",
+        )
+
+
 class TestCitationsResolve(unittest.TestCase):
     """The citation forms ``test_named_source_paths_exist`` cannot see.
 
