@@ -124,12 +124,24 @@ class TestMenuParents(lint_case.LintCase):
         )
 
 
-# The four this gate ships red-on-arrival, all from the same fork regression:
-# commit 6cd8a09a646 removed `account/views/account_menuitem.xml` and left
-# `account.account_account_menu` (l10n_it_edi, l10n_latam_invoice_document,
-# l10n_tr_nilvera_einvoice_extended) and `account.account_invoicing_menu`
-# (l10n_cz) pointing at nothing. Repointing all four at
-# `account.menu_finance_configuration` -- where nine other l10n modules already
-# hang their configuration entries -- takes this to 0 and lets those modules
-# install again.
-MISSING_PARENT_FLOOR = 4
+# Zero, and it has to stay there: a dangling parent is not a lint nit, it fails
+# the install of every database that pulls the module in.
+#
+# The four this shipped red-on-arrival came from commit 6cd8a09a646, which
+# replaced `account/views/account_menuitem.xml` with `account_menus.xml` and
+# renamed the two menus onto the `menu_*` convention. They were *renames*, not
+# removals -- both successors carry the same name, groups and sequence as the
+# id they replaced:
+#
+#     account_account_menu   -> menu_account_accounting
+#     account_invoicing_menu -> menu_account_invoicing
+#
+# so the four references (l10n_it_edi, l10n_latam_invoice_document,
+# l10n_tr_nilvera_einvoice_extended on the first; l10n_cz on the second) are
+# repointed at their successors, which restores the exact placement they had.
+# An earlier note here proposed hanging them off `account.menu_finance_configuration`
+# instead, on the grounds that other l10n modules parent there. They do -- but
+# with their own top-level configuration sections, not with entries that belong
+# one level down under Accounting or Invoicing. Following that advice would have
+# traded a failed install for four silently relocated menus.
+MISSING_PARENT_FLOOR = 0

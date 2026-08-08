@@ -60,6 +60,6 @@
         <field name="context">{"search_default_active":1}</field>
     </record>
 
-    <menuitem action="action_document_type" id="menu_document_type" sequence="20" parent="account.account_account_menu"/>
+    <menuitem action="action_document_type" id="menu_document_type" sequence="20" parent="account.menu_account_accounting"/>
 
 </odoo>
