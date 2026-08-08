@@ -2,11 +2,20 @@ from . import _py_scan
 from .lint_case import LintCase
 
 FLOORS = {
-    # 43 -> 44: `env.cr` and `self._cr` joined CURSOR_EXPRESSIONS. The one
+    # 44 -> 42. Both units are `account_move._field_to_sql`, fixed by
+    # 6e1d7111794: the `move_sent_values` and `status_in_payment` branches
+    # built their CASE expressions by f-string, interpolating the caller's
+    # `alias` straight into SQL, and now pass `%s` / `%(name)s` placeholders
+    # instead. Every other difference against the 44-era list is line drift or
+    # the service/db.py packagization moving one site to db/lifecycle.py --
+    # confirmed by diffing the gate's own finding list at 99135119694 against
+    # HEAD, with both floors forced to 0 so the list is printed.
+    #
+    # 43 -> 44 was: `env.cr` and `self._cr` joined CURSOR_EXPRESSIONS. The one
     # call they brought into scope, odoo/tools/translate.py, builds
     # identifiers from a .po file -- but only after checking each against
     # `_fields`, so it is safe and wants an inline suppression saying why.
-    "sql-injection": 44,
+    "sql-injection": 42,
     # The one site is `_description_falsy_value_label`, whose literal lives in
     # the field declaration where the extractor already finds it -- safe, and
     # wants an inline suppression saying so.
@@ -25,12 +34,20 @@ FLOORS = {
     # so it wants an inline suppression carrying that evidence.
     "raise-unlink-override": 1,
     "orm-import": 0,
-    # The rule reads `tokenize` comments now, so a directive spelled inside a
-    # string literal is no longer one. That is also what retired `_NOQA_SELF`,
-    # the five-file blanket that hid exactly those three fixtures. 79 was never
-    # right: the tree held 80 the day the floor was written, which is why this
-    # gate had not been green since.
-    "noqa-rationale": 80,
+    # 80 -> 79. The single unit is odoo/tools/float_utils.py, deleted by
+    # 8340ad81fb4 while dropping dead surfaces: it was a two-line re-export
+    # shim whose `from odoo.libs.numbers import *  # noqa: F403` carried no
+    # reason. Every other difference against the 80-era list is line drift
+    # within bus.py, resource_mixin.py, product.py and orm/fields/numeric.py --
+    # confirmed by diffing the gate's own finding list at 1bbb97189d9 against
+    # HEAD, with the floor forced to 0 so the list is printed.
+    #
+    # 79 -> 80 was: the rule reads `tokenize` comments now, so a directive
+    # spelled inside a string literal is no longer one. That is also what
+    # retired `_NOQA_SELF`, the five-file blanket that hid exactly those three
+    # fixtures. 79 was never right for that scope: the tree held 80 the day the
+    # floor was written, which is why this gate had not been green since.
+    "noqa-rationale": 79,
     "onchange-domain": 0,
     # 417 -> 430. Two corrections, both measured:
     #   * a later commit fixed one N+1 in `base_import` without lowering the
