@@ -1118,13 +1118,16 @@ class DomainCondition(Domain):
 
 ANY_TYPES = (Domain, Query, SQL)
 
+#: The five underscore names this module used to list here --
+#: ``_FALSE_DOMAIN``, ``_MERGE_OPTIMIZATIONS``, ``_OPTIMIZATIONS_FOR``,
+#: ``_TRUE_DOMAIN`` and ``_optimize_nary_sort_key`` -- are gone from it.
+#: ``optimizations.py`` imports each by name from ``.ast``, which needs no
+#: ``__all__`` entry; listing them said "public" where the underscore says
+#: "private", about the module's most sharply internal objects (the optimizer
+#: registries).
 __all__ = [
     "ANY_TYPES",
     "MAX_OPTIMIZE_ITERATIONS",
-    "_FALSE_DOMAIN",
-    "_MERGE_OPTIMIZATIONS",
-    "_OPTIMIZATIONS_FOR",
-    "_TRUE_DOMAIN",
     "Domain",
     "DomainAnd",
     "DomainBool",
@@ -1134,5 +1137,4 @@ __all__ = [
     "DomainNot",
     "DomainOr",
     "OptimizationLevel",
-    "_optimize_nary_sort_key",
 ]

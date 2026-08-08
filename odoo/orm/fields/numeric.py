@@ -7,6 +7,7 @@ from odoo.exceptions import AccessError
 from odoo.tools import float_compare, float_round
 from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
+from ..primitives import SEQUENCE_FIELD
 from .base import Field, _make_scalar_get
 
 if typing.TYPE_CHECKING:
@@ -38,7 +39,8 @@ class Integer(Field[int]):
         self, model_class: type[BaseModel], name: str
     ) -> dict[str, typing.Any]:
         res = super()._get_attrs(model_class, name)
-        if "aggregator" not in res and name == "sequence":
+        # Convention, not a feature -- see primitives.CONVENTIONAL_FIELD_NAMES.
+        if "aggregator" not in res and name == SEQUENCE_FIELD:
             res["aggregator"] = None
         return res
 

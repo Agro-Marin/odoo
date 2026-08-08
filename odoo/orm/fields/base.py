@@ -24,7 +24,7 @@ from odoo.tools.misc import PENDING, SENTINEL, ReadonlyDict, Sentinel, unique
 
 from .._recordset import base_model, is_model_class, is_recordset
 from ..domain import Domain
-from ..primitives import COLLECTION_TYPES
+from ..primitives import COLLECTION_TYPES, STATE_FIELD
 from ._field_convert import _FieldConvertMixin
 from ._field_description import _FieldDescriptionMixin
 from ._field_sql import _FieldSqlMixin
@@ -44,7 +44,21 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 
-def expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
+def _expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
+    """``id0`` first, then the ids of the same kind, deduplicated.
+
+    "Kind" is truthiness: a real id and a :class:`NewId` must never be batched
+    together. One caller (:meth:`Field.recompute`), and private -- it read as
+    part of the module's surface while nothing outside this file has ever used
+    it.
+
+    :meth:`Field._to_prefetch`'s Python branch walks the same shape and is
+    deliberately NOT expressed in terms of this, because it differs on both
+    axes that matter in the hottest path in the ORM: it stops at
+    ``PREFETCH_MAX`` and skips ids already cached. Parameterising one generator
+    to cover both would put two branches per element inside prefetch expansion.
+    Noted here so the resemblance is visible rather than discovered.
+    """
     yield id0
     seen = {id0}
     kind = bool(id0)
@@ -290,7 +304,8 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         attrs["_module"] = modules[-1] if modules else None
         attrs["_modules"] = tuple(unique(modules) if len(modules) > 1 else modules)
 
-        if name == "state":
+        # Convention, not a feature -- see primitives.CONVENTIONAL_FIELD_NAMES.
+        if name == STATE_FIELD:
             attrs["copy"] = attrs.get("copy", False)
         if attrs.get("compute"):
             attrs["store"] = store = attrs.get("store", False)
@@ -958,33 +973,40 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         if not items:
             return
 
-        if self.is_column:
-            dirty_ids = env._core.get_dirty(self)
-            if dirty_ids:
-                overlap = sorted(dirty_ids.intersection(id_ for id_, _ in items))
-                if overlap:
-                    raise ValueError(
-                        f"Field._update_cache_items: refusing to overwrite the "
-                        f"dirty value of {self} on records {overlap} without "
-                        f"dirty=True; the pending write would be lost"
-                    )
+        self._check_not_dirty(env, [id_ for id_, _ in items], "_update_cache_items")
 
         self._get_cache(env).update(items)
+
+    def _check_not_dirty(
+        self, env: Environment, ids: Collection[IdType], caller: str
+    ) -> None:
+        """Refuse to overwrite a pending write.
+
+        Shared by :meth:`_update_cache_items` and :meth:`_update_cache`, which
+        carried near-identical copies of this guard down to the wording of the
+        message. ``_update_cache_items`` lacked the ``isdisjoint`` fast path the
+        other had, so it built a sorted intersection on every call with any
+        dirty id for the field, not only on the colliding ones.
+        """
+        if not self.is_column:
+            return
+        dirty_ids = env._core.get_dirty(self)
+        if not dirty_ids or dirty_ids.isdisjoint(ids):
+            return
+        overlap = sorted(dirty_ids.intersection(ids))
+        raise ValueError(
+            f"Field.{caller}: refusing to overwrite the dirty value of {self} "
+            f"on records {overlap} without dirty=True; the pending write would "
+            f"be lost"
+        )
 
     def _update_cache(
         self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
         env = records.env
 
-        if self.is_column and not dirty:
-            dirty_ids = env._core.get_dirty(self)
-            if dirty_ids and not dirty_ids.isdisjoint(records._ids):
-                overlap = sorted(dirty_ids.intersection(records._ids))
-                raise ValueError(
-                    f"Field._update_cache: refusing to overwrite the dirty "
-                    f"value of {self} on records {overlap} without dirty=True; "
-                    f"the pending write would be lost"
-                )
+        if not dirty:
+            self._check_not_dirty(env, records._ids, "_update_cache")
 
         field_cache = self._get_cache(env)
         ids = records._ids
@@ -1292,7 +1314,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
         for record in records:
             if record.id in to_compute_ids:
-                ids = expand_ids(record.id, to_compute_ids)
+                ids = _expand_ids(record.id, to_compute_ids)
                 recs = record.browse(itertools.islice(ids, PREFETCH_MAX))
                 try:
                     apply_except_missing(self.compute_value, recs)
