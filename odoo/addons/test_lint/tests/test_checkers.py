@@ -229,6 +229,81 @@ class TestScanScope(BaseCase):
 
 
 @no_retry
+class TestLeadingIndexColumns(BaseCase):
+    # What the index gate is allowed to accept as "already indexed". Loosening
+    # this quietly would stop it demanding indexes that are genuinely missing.
+
+    class _FakeModel:
+        """Enough of a model for `leading_index_columns`: a pool and indexes."""
+
+        pool = None
+
+        def __init__(self, table_objects):
+            self._table_objects = table_objects
+
+    def _columns(self, *definitions, unique=False):
+        from odoo.orm import models as orm_models
+
+        from .test_index import leading_index_columns
+
+        build = orm_models.UniqueIndex if unique else orm_models.Index
+        return leading_index_columns(
+            self._FakeModel(
+                {str(i): build(definition) for i, definition in enumerate(definitions)}
+            )
+        )
+
+    def test_a_composite_index_answers_its_leading_column(self):
+        self.assertEqual(self._columns("(product_id, location_id)"), {"product_id"})
+        self.assertEqual(
+            self._columns("(product_id, location_id, lot_id, package_id)"),
+            {"product_id"},
+        )
+
+    def test_a_trailing_column_is_not_answered(self):
+        # Postgres will not serve `WHERE location_id = ?` from `(a, location_id)`.
+        self.assertNotIn("location_id", self._columns("(product_id, location_id)"))
+
+    def test_a_sort_direction_changes_nothing(self):
+        self.assertEqual(self._columns("(date desc, move_name desc, id)"), {"date"})
+
+    def test_a_not_null_partial_index_counts(self):
+        # Exactly what `index="btree_not_null"` produces, and exactly the rows
+        # an inverse lookup wants.
+        self.assertEqual(
+            self._columns("(user_id) WHERE user_id IS NOT NULL"), {"user_id"}
+        )
+
+    def test_any_other_partial_index_does_not(self):
+        for definition in (
+            "(channel) WHERE state = 'started'",
+            "(id) WHERE state = 'outgoing'",
+            "(channel_id, end_dt) WHERE end_dt IS NULL",
+            "(has_crm_lead) WHERE has_crm_lead IS TRUE",
+        ):
+            with self.subTest(definition=definition):
+                self.assertEqual(
+                    self._columns(definition),
+                    set(),
+                    "a partial index only answers the rows it covers",
+                )
+
+    def test_a_non_btree_index_does_not_answer_equality(self):
+        self.assertEqual(self._columns("USING gin (barcode jsonb_path_ops)"), set())
+
+    def test_an_expression_index_has_no_leading_column(self):
+        self.assertEqual(self._columns("(lower(name))"), set())
+
+    def test_a_unique_index_counts_like_any_other(self):
+        # `mail.presence` declares both of its through `models.UniqueIndex`,
+        # which is why they sat in the hand-maintained ignore list.
+        self.assertEqual(
+            self._columns("(guest_id) WHERE guest_id IS NOT NULL", unique=True),
+            {"guest_id"},
+        )
+
+
+@no_retry
 class TestOrmImportLint(BaseCase):
     def _check(self, snippet, filepath="models/thing.py"):
         return list(_checker_orm_import.check(ast.parse(dedent(snippet).strip())))

@@ -3077,8 +3077,16 @@ class AccountTax(models.Model):
         partner=None,
         is_refund=False,
         handle_price_include=True,
-        include_caba_tags=False,
         rounding_method=None,
+        # Keyword-only, and after `rounding_method`, on purpose. This override
+        # used to insert `include_caba_tags` *between* `handle_price_include`
+        # and `rounding_method`, which silently renumbered the base signature
+        # in `base_tax`: anyone passing `rounding_method` as the 9th positional
+        # argument reached `include_caba_tags` instead, and got a rounding mode
+        # string interpreted as a boolean flag. An override may add an optional
+        # parameter; it may not renumber the ones it inherits.
+        *,
+        include_caba_tags=False,
     ):
         """Compute all information required to apply taxes (in self + their children in case of a tax group).
         We consider the sequence of the parent for group of taxes.
