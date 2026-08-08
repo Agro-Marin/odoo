@@ -62,11 +62,20 @@ class ResourceResource(models.Model):
     email = fields.Char(related="user_id.email")
     phone = fields.Char(related="user_id.phone")
 
+    # Deliberately NOT ``check_company``.  The pairing it would forbid -- a
+    # resource of one company on another's calendar -- looks like an integrity
+    # hole, and enforcing it was tried and reverted: working schedules are
+    # shared reference data (``security/resource_security.xml`` reaches the same
+    # conclusion for the record rule), so the check made ordinary operations
+    # fail, moving an employee between companies among them.  A company-less
+    # calendar is likewise offered to everyone, which the widened domain now
+    # says out loud -- it read ``= company_id`` and hid the "Visible to all"
+    # schedules the calendar form invites users to create.
     calendar_id = fields.Many2one(
         "resource.calendar",
         string="Working Time",
         default=lambda self: self.env.company.resource_calendar_id,
-        domain="[('company_id', '=', company_id)]",
+        domain="[('company_id', 'in', [company_id, False])]",
         help="Define the working schedule of the resource. If not set, the resource will have fully flexible working hours.",
     )
     tz = fields.Selection(

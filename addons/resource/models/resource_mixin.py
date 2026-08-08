@@ -30,6 +30,12 @@ class ResourceMixin(models.AbstractModel):
         readonly=False,
         help="This field is used in order to define in which timezone the resources will work.",
     )
+    # These two are *related* to the resource, writable and stored, so their
+    # defaults are not inert fallbacks: whatever they produce is written
+    # straight through onto the resource.  That is wanted when this record
+    # creates its own resource, and wrong when it attaches to an existing one --
+    # see ``create``, which pins both from the resource in that case so the
+    # default never fires and cannot repoint someone else's schedule.
     company_id = fields.Many2one(
         "res.company",
         "Company",
@@ -77,6 +83,36 @@ class ResourceMixin(models.AbstractModel):
             for vals in vals_list:
                 if not vals.get("resource_id"):
                     vals["resource_id"] = next(resources_iter)
+
+        # Attaching to a resource somebody else owns: pin the two related,
+        # writable, stored fields from that resource so the field defaults never
+        # run.  A default here is not a fallback -- it is an explicit value the
+        # ORM writes through the relation, so it would repoint the resource's
+        # company and calendar to the acting user's, silently handing a
+        # company-A resource company-B's schedule.  This runs before
+        # ``super().create()``, which is where ``_add_missing_default_values``
+        # would otherwise fill them in.
+        attached = [
+            vals
+            for vals in vals_list
+            if vals.get("resource_id")
+            and not ("company_id" in vals and "resource_calendar_id" in vals)
+        ]
+        if attached:
+            # ``exists()`` so a stale id falls through to the foreign key, which
+            # names the real problem, rather than dying on a lookup here.
+            resources_by_id = {
+                resource.id: resource
+                for resource in self.env["resource.resource"]
+                .browse([vals["resource_id"] for vals in attached])
+                .exists()
+            }
+            for vals in attached:
+                resource = resources_by_id.get(vals["resource_id"])
+                if not resource:
+                    continue
+                vals.setdefault("company_id", resource.company_id.id)
+                vals.setdefault("resource_calendar_id", resource.calendar_id.id)
         return super(ResourceMixin, self.with_context(check_idempotence=True)).create(
             vals_list
         )
@@ -240,7 +276,12 @@ class ResourceMixin(models.AbstractModel):
             # handle fully flexible resources by returning the length of the whole interval
             # since we do not take into account leaves for fully flexible resources
             if not calendar:
-                days = (to_datetime - from_datetime).days
+                # Count calendar days inclusively.  ``timedelta.days`` truncates,
+                # so a leave covering one whole day (00:00 to 23:59:59) measured
+                # **zero** days and a five-day span measured four -- always one
+                # short, and never right for any window that does not end
+                # exactly on a midnight.
+                days = (to_datetime.date() - from_datetime.date()).days + 1
                 hours = (to_datetime - from_datetime).total_seconds() / 3600
                 for calendar_resource in calendar_resources:
                     result[calendar_resource.id] = {"days": days, "hours": hours}

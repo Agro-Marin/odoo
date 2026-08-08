@@ -584,12 +584,27 @@ class ResourceCalendar(models.Model):
         "no calendar says otherwise" case, which nothing here used before.
 
         .. note::
-           The *hours* figure is deliberately left as elapsed time.  It is the
-           same number that feeds availability, so capping it to a nominal
-           working day here would shrink what a fully flexible resource is
-           available for -- which is the one thing "fully flexible" is supposed
-           to mean.  Consumers that need working hours rather than elapsed hours
-           should ask for a day count and multiply.
+           The *hours* figure is deliberately left as elapsed time, so a
+           five-day absence still reports 105 hours rather than 40.  Fixing
+           that means shortening the intervals themselves -- one noon-centred
+           block per day, as ``_flexible_attendance_intervals`` already does --
+           and the intervals are what every availability consumer reads, not
+           just the measuring ones.
+
+           The evidence, should someone pick this up: instrumenting this branch
+           across ``hr``, ``hr_holidays``, ``mrp``, ``project`` and
+           ``test_resource`` showed exactly one production entry point,
+           ``hr_leave._get_durations`` via ``_list_work_time_per_day``, which
+           only measures.  But ``enterprise`` holds ~20 further call sites of
+           ``_work_intervals_batch`` / ``_attendance_intervals_batch``, among
+           them ``planning``, ``project_enterprise``, ``appointment_hr`` and
+           ``hr_attendance_gantt`` -- all of which decide *availability*, and
+           none of which that instrumentation covered.  Shortening the blocks
+           without auditing those risks making a fully flexible person
+           unbookable outside 08:00-16:00, which is precisely what "fully
+           flexible" denies.  The day count is the figure leave balances are
+           kept in, and it is now right; the hours question needs that audit
+           first.
         """
         self.ensure_one()
         expected_day_hours = self.hours_per_day or HOURS_PER_DAY
@@ -969,11 +984,25 @@ class ResourceCalendar(models.Model):
             leave_date_from = leave.date_from
             leave_date_to = leave.date_to
             for resource, resource_tz, start, end in window_per_resource:
-                if leave_resource.id not in [False, resource.id] or (
+                if leave_resource.id not in [False, resource.id]:
+                    # A leave bound to another resource.
+                    continue
+                if (
                     not leave_resource
                     and resource
+                    and leave_company
+                    and resource.company_id
                     and resource.company_id != leave_company
                 ):
+                    # A *global* leave belongs to the company that declared it,
+                    # so it does not reach another company's resources.  Both
+                    # sides must actually name a company for that to be a
+                    # mismatch, though: an empty company is "not scoped", not
+                    # "scoped to nobody".  Comparing it as a value meant a
+                    # company-less resource -- or a holiday declared without
+                    # one -- observed no public holiday at all, while the
+                    # multi-company record rule on this very model admits
+                    # ``company_id = False`` for exactly the opposite reason.
                     continue
                 bounds_key = (leave.id, resource_tz)
                 if bounds_key in leave_bounds:
@@ -1528,6 +1557,16 @@ class ResourceCalendar(models.Model):
 
         if resource is None:
             resource = self.env["resource.resource"]
+
+        # NB: ``hours = 0`` deliberately falls through to the scan below and
+        # answers with the start of the next work interval, not with ``day_dt``.
+        # That is the continuous reading -- ``plan_hours(0.0002)`` lands at
+        # 08:00:00.72 of the same interval, so zero landing at 08:00 is its
+        # limit, and both skip a day the resource is on leave.  It differs from
+        # ``resource.scheduling.tools._scheduling_plan_hours``, which short-
+        # circuits zero to its input; that helper is asking "when does this
+        # finish", while this one answers "when does the work start".
+        # (``test_resource``'s ``test_plan_hours`` pins both branches.)
 
         # which method to use for retrieving intervals
         if compute_leaves:

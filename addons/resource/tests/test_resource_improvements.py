@@ -691,11 +691,38 @@ class TestPlanHoursWithResource(TransactionCase):
         self.assertEqual(result.day, 8)  # Still Wednesday
 
     def test_plan_hours_zero(self):
-        """plan_hours with 0 returns immediately."""
+        """plan_hours(0) answers with the start of the next work interval.
+
+        Not with the input. The comment here used to claim "return start", but
+        ``start`` is 10:00 inside a working morning, so the two coincided and the
+        assertion was only ``assertTrue``. The case below separates them.
+        """
         start = datetime(2025, 1, 6, 10, 0).replace(tzinfo=UTC)
-        result = self.calendar.plan_hours(0.0, start, compute_leaves=False)
-        # With 0 hours, first interval check: 0 <= interval_hours → return start
-        self.assertTrue(result)
+        self.assertEqual(
+            self.calendar.plan_hours(0.0, start, compute_leaves=False), start
+        )
+
+    def test_plan_hours_zero_outside_working_time(self):
+        """Off-shift, zero snaps forward -- as the limit of a tiny amount does.
+
+        ``plan_hours(0.0002)`` lands microseconds into the next interval, so
+        zero landing at its start is the continuous answer; returning the raw
+        input would make the function jump between 0 and 0.0001.
+        ``resource.scheduling.tools._scheduling_plan_hours`` does short-circuit
+        zero to its input, deliberately -- it answers "when does this finish",
+        not "when does the work start".
+        """
+        saturday = datetime(2025, 1, 11, 10, 0).replace(tzinfo=UTC)
+        monday_start = datetime(2025, 1, 13, 8, 0).replace(tzinfo=UTC)
+        self.assertEqual(
+            self.calendar.plan_hours(0.0, saturday, compute_leaves=False), monday_start
+        )
+        self.assertEqual(
+            self.calendar.plan_hours(0.0002, saturday, compute_leaves=False).replace(
+                microsecond=0
+            ),
+            monday_start,
+        )
 
 
 @tagged("post_install", "-at_install")

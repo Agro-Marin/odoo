@@ -45,6 +45,39 @@ class TestResourceSecondPassConsumers(TransactionCase):
         conflicted = model.search([("schedule_overlap_count", "!=", 0)])
         self.assertLessEqual({first.id, second.id}, set(conflicted.ids))
 
+    def test_attaching_to_a_resource_keeps_its_company_and_calendar(self):
+        """A consumer must not repoint the resource it attaches to.
+
+        ``company_id`` and ``resource_calendar_id`` are stored, writable
+        *related* fields, so the defaults they used to carry were written
+        straight through onto the resource at create time -- handing a
+        company-A resource the acting company's schedule, silently.
+        """
+        resource = self._resource(name="Keeps its calendar")
+        record = self.env["resource.test"].create(
+            {"name": "attached", "resource_id": resource.id}
+        )
+        self.assertEqual(resource.calendar_id, self.calendar)
+        self.assertEqual(resource.company_id, self.company)
+        self.assertEqual(record.resource_calendar_id, self.calendar)
+        self.assertEqual(record.company_id, self.company)
+
+    def test_fully_flexible_leave_days_count_inclusively(self):
+        """One whole day is one day, not zero."""
+        record = self.env["resource.test"].create({"name": "flex"})
+        record.resource_id.calendar_id = False
+        self.env.flush_all()
+        one_day = record._get_leave_days_data_batch(
+            utc.localize(datetime(2026, 3, 2, 0, 0)),
+            utc.localize(datetime(2026, 3, 2, 23, 59, 59)),
+        )
+        self.assertEqual(one_day[record.id]["days"], 1)
+        five_days = record._get_leave_days_data_batch(
+            utc.localize(datetime(2026, 3, 2, 0, 0)),
+            utc.localize(datetime(2026, 3, 6, 23, 59, 59)),
+        )
+        self.assertEqual(five_days[record.id]["days"], 5)
+
     def test_shared_resource_returns_every_record(self):
         shared = self._resource(name="Shared")
         first = self.env["resource.test"].create(

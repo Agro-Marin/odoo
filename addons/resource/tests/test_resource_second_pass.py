@@ -364,6 +364,106 @@ class TestResourceSecondPass(TransactionCase):
             leave.flush_recordset()
         self.assertIn("compan", str(caught.exception).lower())
 
+    def test_company_less_calendar_is_valid_for_any_resource(self):
+        """A calendar with no company is shared reference data, not a mismatch."""
+        shared = self.env["resource.calendar"].create(
+            {"name": "shared", "company_id": False, "tz": "UTC"}
+        )
+        resource = self._resource(name="Shared cal", calendar_id=shared.id)
+        resource.flush_recordset()
+        self.assertEqual(resource.calendar_id, shared)
+
+    # ------------------------------------------------------------------
+    # Global leaves reach resources whose company is unset
+    # ------------------------------------------------------------------
+
+    def _global_leave(self, calendar):
+        return self.env["resource.calendar.leaves"].create(
+            {
+                "name": "Public holiday",
+                "calendar_id": calendar.id,
+                "date_from": datetime(2026, 3, 2, 8, 0),
+                "date_to": datetime(2026, 3, 2, 17, 0),
+            }
+        )
+
+    def _sees_leave(self, resource):
+        return bool(
+            self.calendar._leave_intervals_batch(
+                utc.localize(datetime(2026, 3, 1)),
+                utc.localize(datetime(2026, 3, 8)),
+                resource,
+            )[resource.id]
+        )
+
+    def test_company_less_resource_sees_global_leaves(self):
+        """A shared ("Visible to all") calendar is the reachable form of this.
+
+        ``check_company`` now keeps a company-less resource off a company's
+        calendar, so the case that remains -- and that the form's "Visible to
+        all" placeholder invites -- is a shared calendar carrying a holiday that
+        was stamped with the acting company. An unset company on the resource
+        means "not scoped", not "scoped to nobody", so the holiday must apply.
+        """
+        shared_calendar = self.env["resource.calendar"].create(
+            {"name": "shared cal", "company_id": False, "tz": "UTC"}
+        )
+        resource = self._resource(
+            name="No company", company_id=False, calendar_id=shared_calendar.id
+        )
+        leave = self._global_leave(shared_calendar)
+        self.env.flush_all()
+        self.assertTrue(leave.company_id, "precondition: the leave names a company")
+        self.assertFalse(resource.company_id)
+        self.assertTrue(
+            bool(
+                shared_calendar._leave_intervals_batch(
+                    utc.localize(datetime(2026, 3, 1)),
+                    utc.localize(datetime(2026, 3, 8)),
+                    resource,
+                )[resource.id]
+            )
+        )
+
+    def test_a_leave_cannot_be_stranded_in_another_company(self):
+        """The mismatch the reader used to have to tolerate is now unreachable.
+
+        A leave whose resource and calendar disagree about the company was
+        accepted, and was then invisible to that company's users *and* to the
+        resource itself. Rejecting it at the source beats teaching every reader
+        to cope with it.
+        """
+        other_company = self.env["res.company"].create({"name": "Stranded Co"})
+        other_calendar = self.env["resource.calendar"].create(
+            {"name": "stranded", "company_id": other_company.id, "tz": "UTC"}
+        )
+        with self.assertRaises(UserError):
+            self.env["resource.calendar.leaves"].create(
+                {
+                    "name": "stranded",
+                    "calendar_id": other_calendar.id,
+                    "resource_id": self._resource(name="Local").id,
+                    "date_from": datetime(2026, 3, 2, 8, 0),
+                    "date_to": datetime(2026, 3, 2, 17, 0),
+                }
+            ).flush_recordset()
+
+    def test_global_leave_still_stops_at_a_company_boundary(self):
+        """The relaxation must not leak holidays across two named companies."""
+        other_company = self.env["res.company"].create({"name": "Boundary Co"})
+        other_calendar = self.env["resource.calendar"].create(
+            {"name": "boundary", "company_id": other_company.id, "tz": "UTC"}
+        )
+        resource = self._resource(
+            name="Boundary", company_id=other_company.id, calendar_id=other_calendar.id
+        )
+        self._global_leave(self.calendar)
+        self.env.flush_all()
+        self.assertFalse(
+            self._sees_leave(resource),
+            "a holiday declared by one named company must not reach another's",
+        )
+
     def test_same_company_leave_is_accepted(self):
         resource = self._resource(name="Same company resource")
         leave = self.env["resource.calendar.leaves"].create(
