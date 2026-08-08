@@ -1,4 +1,4 @@
-import { WORKER_STATE } from "@bus/workers/websocket_worker";
+import { CONNECTION_STATE } from "@bus/workers/websocket_worker_constants";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
@@ -263,7 +263,7 @@ registry.category("web_tour.tours").add('totp_login_device', {
         await new Promise((resolve) => {
             const bus = odoo.__WOWL_DEBUG__.root.env.services.bus_service;
             bus.addEventListener("BUS:CONNECT", resolve, { once: true });
-            if (bus.workerState === WORKER_STATE.CONNECTED) {
+            if (bus.workerState === CONNECTION_STATE.CONNECTED) {
                 resolve();
             }
         });
