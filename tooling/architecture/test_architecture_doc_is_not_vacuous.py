@@ -124,8 +124,14 @@ def _run_against(text: str) -> tuple[set[str], set[str]]:
 
 class TestDocSuiteIsNotVacuous(unittest.TestCase):
     def test_the_suite_passes_against_the_real_page(self) -> None:
-        """Control: without it, a suite that always fails would look rigorous."""
-        passed, every = _run_against(doc_suite.DOC_PATH.read_text(encoding="utf-8"))
+        """Control: without it, a suite that always fails would look rigorous.
+
+        ``read_docs()``, not ``DOC_PATH.read_text()``: the documentation is a
+        front door plus its views, and reading the front door alone would fail
+        every assertion about content that lives in a view — reporting the split
+        as a broken suite rather than as a moved sentence.
+        """
+        passed, every = _run_against(doc_suite.read_docs())
         self.assertEqual(passed, every, f"failing: {sorted(every - passed)}")
 
     def test_only_the_listed_tests_survive_an_empty_page(self) -> None:

@@ -42,8 +42,50 @@ import layer_check
 from _repo_root import find_odoo_root
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_architecture_doc")
+
+#: The architecture documentation is one document in several files: a front door
+#: (context, forces, mechanisms, view index) plus the views it indexes. Every
+#: assertion below is about *the documentation*, not about which file a sentence
+#: currently sits in — so ``DOC`` is their concatenation, and content may be
+#: moved between them without touching this suite. Splitting it that way is the
+#: whole point: a page organised around what a checker can verify drifts toward
+#: describing its own compliance instead of the system.
+#:
+#: Order is front door first, then the views in reading order, so a ``--verbose``
+#: diff is stable. ``DOC_PATH`` stays the front door: it is what
+#: ``test_architecture_doc_is_not_vacuous`` re-reads as the control.
 DOC_PATH = ROOT / "odoo" / "ARCHITECTURE.md"
-DOC = DOC_PATH.read_text(encoding="utf-8")
+_ARCH_DOCS = ROOT / "doc" / "architecture"
+DOC_PATHS = (
+    DOC_PATH,
+    _ARCH_DOCS / "views" / "module.md",
+    _ARCH_DOCS / "views" / "runtime.md",
+    _ARCH_DOCS / "views" / "data.md",
+    _ARCH_DOCS / "views" / "deployment.md",
+    _ARCH_DOCS / "gates.md",
+    _ARCH_DOCS / "qualities.md",
+    _ARCH_DOCS / "MEASUREMENTS.md",
+)
+for _p in DOC_PATHS:
+    if not _p.is_file():
+        raise AssertionError(
+            f"architecture document missing: {_p.relative_to(ROOT)} — this suite "
+            f"pins the whole set, so a missing file is a broken gate, not a "
+            f"lighter one"
+        )
+
+
+def read_docs() -> str:
+    """The whole architecture document, re-read from disk.
+
+    ``test_architecture_doc_is_not_vacuous`` needs this: its control run must
+    compare against exactly what this suite reads, and reading ``DOC_PATH``
+    alone would only be the front door.
+    """
+    return "\n\n".join(p.read_text(encoding="utf-8") for p in DOC_PATHS)
+
+
+DOC = read_docs()
 
 #: ``DOC`` with every run of whitespace collapsed to one space. Use this for any
 #: assertion on a prose *sentence*: the source is hard-wrapped at 80 columns, so

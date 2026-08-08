@@ -1,8 +1,8 @@
 """The implementation of the ORM (layered architecture).
 
 The layer of each module below is the one ``layer_check.py`` enforces, so this
-docstring and the gate cannot disagree; ``odoo/ARCHITECTURE.md`` is the prose
-companion. Note ``_typing.py`` is Layer 0, not cross-cutting: the
+docstring and the gate cannot disagree; ``doc/architecture/views/module.md`` is
+the prose companion. Note ``_typing.py`` is Layer 0, not cross-cutting: the
 ``orm-layer0-is-foundational`` contract names it alongside primitives/parsing/
 validation/constants, and it may import no higher ORM layer.
 

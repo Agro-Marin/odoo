@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate the *descriptive* half of ``odoo/ARCHITECTURE.md`` against the tree.
+"""Gate the *descriptive* half of the architecture docs against the tree.
 
 ``layer_check.py`` enforces the architecture's **contracts** (who may import
 whom).  Nothing enforced its **map** — the "Subsystem map" tree that tells a
@@ -59,7 +59,10 @@ from _repo_root import find_odoo_root
 # three levels down.
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="subsystem_map_check")
 
-ARCHITECTURE_MD = REPO_ROOT / "odoo" / "ARCHITECTURE.md"
+# The map moved out of odoo/ARCHITECTURE.md into the module view when the
+# architecture documentation was split into a front door plus views. The gate
+# follows the content: what it checks is the map, wherever the map lives.
+ARCHITECTURE_MD = REPO_ROOT / "doc" / "architecture" / "views" / "module.md"
 CORE_ROOT = REPO_ROOT / "odoo"
 
 MAP_HEADING = "## Subsystem map"
@@ -318,8 +321,9 @@ def _actual_children(package: str, core_root: Path) -> tuple[set[str], set[str]]
 def check(md_path: Path | None = None, core_root: Path | None = None) -> Report:
     """Run both rules over a tree and return the :class:`Report`.
 
-    Defaults to the live ``odoo/ARCHITECTURE.md`` and ``odoo/``; the parameters
-    exist so the self-test can drive the whole gate over synthetic trees.
+    Defaults to the live ``doc/architecture/views/module.md`` and ``odoo/``; the
+    parameters exist so the self-test can drive the whole gate over synthetic
+    trees.
     """
     md_path = md_path or ARCHITECTURE_MD
     core_root = core_root or CORE_ROOT
@@ -366,7 +370,7 @@ def render(report: Report) -> str:
     out: list[str] = []
     out.append("Subsystem-map coherence check")
     out.append("=" * 64)
-    out.append(f"odoo/ARCHITECTURE.md  ->  {CORE_ROOT}")
+    out.append(f"doc/architecture/views/module.md  ->  {CORE_ROOT}")
     out.append("")
     out.append(f"Names parsed from the map: {len(report.entries)}")
     out.append(f"Packages the map enumerates: {len(report.enumerated)}")
@@ -375,7 +379,7 @@ def render(report: Report) -> str:
     if report.fictional:
         out.append(f"[fail] {len(report.fictional)} path(s) in the map do not exist:")
         for name, line in report.fictional:
-            out.append(f"    ARCHITECTURE.md:{line}  {name}")
+            out.append(f"    module.md:{line}  {name}")
         out.append("")
     else:
         out.append("[  ok] every path named by the map exists")
@@ -399,8 +403,9 @@ def render(report: Report) -> str:
     else:
         out.append(
             "The subsystem map has drifted from the tree. Update the map in\n"
-            "odoo/ARCHITECTURE.md (or the tree), then re-run. A logical grouping\n"
-            "that is not a directory must be written [in brackets]."
+            "doc/architecture/views/module.md (or the tree), then re-run. A\n"
+            "logical grouping that is not a directory must be written "
+            "[in brackets]."
         )
     return "\n".join(out)
 

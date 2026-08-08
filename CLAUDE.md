@@ -2,9 +2,11 @@
 
 This repository is **a fork of Odoo Community 19.0**
 (`github.com/Agro-Marin/odoo`). What the framework core contains, how it is
-layered, and which dependencies are legal is `odoo/ARCHITECTURE.md` — the
-canonical subsystem map, CI-enforced by `tooling/architecture/`. Read it before
-restructuring core.
+layered, and which dependencies are legal is `doc/architecture/views/module.md` —
+the canonical subsystem map, CI-enforced by `tooling/architecture/`. Read it
+before restructuring core. `odoo/ARCHITECTURE.md` is the front door that indexes
+it: context, the forces the design answers to, the cross-cutting mechanisms, and
+where new code goes.
 
 > Throughout this file, **"repo root"** means the directory that contains this
 > file. Inside it, `odoo/` is the framework core *package*, not the checkout —
