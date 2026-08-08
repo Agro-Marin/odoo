@@ -18,6 +18,17 @@
 # A library used by exactly one addon is declared in that addon's
 # __manifest__.py `external_dependencies` and pinned in its own repo's
 # requirements.txt (doc/coding_guidelines.rst §1.2) — not here.
+#
+# Six pins are deliberately held below their latest release. Each needs work
+# these lines cannot carry on their own, so bump them one at a time, not in a
+# sweep:
+#   cbor2 (6.x)         major; auth_passkey's vendored webauthn decodes with it
+#   chardet (7.x)       two majors; charset-normalizer is already in the tree as
+#                       a requests dependency and is the better target
+#   cryptography (50.x) four majors across 54 call sites
+#   protobuf (8.x)      blocked on regenerating the vendored SCSS gencode
+#   pyopenssl (26.x)    major; the real fix is dropping it for cryptography
+#   reportlab (5.x)     major; PDF output needs visual comparison
 asn1crypto==1.5.1
 Babel==2.18.0
 # No python3-blake3 exists in any current distro, so this one always comes from
@@ -28,21 +39,21 @@ blake3==1.0.9  # content/cache digests (odoo/tools/hashing.py)
 cbor2==5.8.0  # web/auth_passkey (auto_install, so effectively always present)
 chardet==5.2.0
 cryptography==46.0.4
-docutils==0.22.4
-geoip2==5.2.0
-idna==3.11
-inotify==0.2.10 ; sys_platform == 'linux'  # autoreload backend for --dev=reload; preferred over watchdog on Linux
+docutils==0.23
+geoip2==5.3.0
+idna==3.18
+inotify==0.2.12 ; sys_platform == 'linux'  # autoreload backend for --dev=reload; preferred over watchdog on Linux
 Jinja2==3.1.6
-lxml==6.0.2
+lxml==6.1.1
 lxml-html-clean  # (removed from lxml, unpinned for future security patches)
 MarkupSafe==3.0.3
 num2words==0.5.14
 odfpy==1.4.1  # base_import: .ods reader (models/odf_ods_reader.py)
 openpyxl==3.1.5
-orjson==3.11.7
+orjson==3.11.9
 pdfminer.six==20260107  # optional: attachment_indexation degrades without it (find_spec-guarded)
-phonenumbers==9.0.24
-Pillow==12.1.1
+phonenumbers==9.0.36
+Pillow==12.3.0
 polib==1.2.0
 # Upper bound is load-bearing: the vendored SCSS gencode
 # (odoo/libs/_vendor/embedded_sass_pb2.py) calls ValidateProtobufRuntimeVersion
@@ -51,32 +62,32 @@ polib==1.2.0
 # compilation at boot. Regenerate the gencode before raising the ceiling.
 protobuf>=6.31.0,<8
 psutil==7.2.2
-psycopg[c,binary]>=3.3.2
-psycopg-pool>=3.3.0
-PyMuPDF==1.27.2.2  # AGPL-3.0-or-commercial; base/ir_actions_report guards the import and degrades
+psycopg[c,binary]>=3.3.4
+psycopg-pool>=3.3.1
+PyMuPDF==1.28.2  # AGPL-3.0-or-commercial; base/ir_actions_report guards the import and degrades
 pyopenssl==25.3.0
-pypdf==6.6.2
+pypdf==6.15.0
 pypiwin32 ; sys_platform == 'win32'
 pyserial==3.5  # iot_handlers/ only; iot_drivers is installable=False so no manifest can declare it
 python-dateutil==2.9.0.post0
 python-magic==0.4.27 ; sys_platform != 'win32'
-python-ldap==3.4.5 ; sys_platform != 'win32'
+python-ldap==3.4.7 ; sys_platform != 'win32'
 python-stdnum==2.2  # Fixes operation_timeout in SOAP client
 pytz  # no version pinning to avoid OS perturbations
 pyusb==1.3.1  # iot_handlers/ only; see pyserial above
 qrcode==8.2
 reportlab==4.4.10
-requests==2.32.5
+requests==2.34.2
 rjsmin==1.2.5
 rl-renderPM==4.0.3 ; sys_platform == 'win32'  # Needed by reportlab but included in deb package
 rlPyCairo==0.4.0  # Cairo backend for reportlab barcode/chart rendering (not in deb package)
-urllib3==2.6.3
+urllib3==2.7.0
 vobject==0.9.9
 weasyprint==69.0
-Werkzeug==3.1.5
+Werkzeug==3.1.8
 xlrd==2.0.2  # base_import: legacy .xls (BIFF) reader
 XlsxWriter==3.2.9
-zeep==4.3.2  # _monkeypatches, base_vat, and l10n/HR modules in enterprise + agromarin
-beautifulsoup4==4.14.3  # odoo/_monkeypatches/bs4.py, html_editor
+zeep==4.3.3  # _monkeypatches, base_vat, and l10n/HR modules in enterprise + agromarin
+beautifulsoup4==4.15.0  # odoo/_monkeypatches/bs4.py, html_editor
 defusedxml==0.7.1  # attachment_indexation, website
-google-auth==2.49.2  # cloud_storage_google, enterprise/social_push_notifications
+google-auth==2.56.3  # cloud_storage_google, enterprise/social_push_notifications

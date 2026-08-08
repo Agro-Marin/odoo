@@ -1447,7 +1447,7 @@ class IrActionsReport(models.Model):
         page_css = f"@page {{ size: {width}px {height}px; margin: 0; }}"
 
         try:
-            import fitz
+            import pymupdf
         except ImportError as e:
             _logger.warning("HTML-to-image rendering unavailable (PyMuPDF): %s", e)
             return [None] * len(bodies)
@@ -1466,7 +1466,7 @@ class IrActionsReport(models.Model):
                         font_config=_weasy_state.get_font_config(),
                         cache=_weasy_state.image_cache,
                     )
-                    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+                    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
                         png_bytes = doc[0].get_pixmap(dpi=96, alpha=True).tobytes("png")
 
                     with Image.open(io.BytesIO(png_bytes)) as src:

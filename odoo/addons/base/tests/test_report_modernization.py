@@ -46,9 +46,9 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
         return pdf
 
     def test_pdf_metadata_from_record_and_company(self):
-        import fitz
+        import pymupdf
 
-        with fitz.open(stream=self._render(), filetype="pdf") as doc:
+        with pymupdf.open(stream=self._render(), filetype="pdf") as doc:
             metadata = doc.metadata
             lang = doc.xref_get_key(doc.pdf_catalog(), "Lang")
         self.assertEqual(metadata["title"], "Sheet-Metadata Probe")
@@ -58,28 +58,28 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
         self.assertEqual(lang, ("string", "en-US"))
 
     def test_pdf_title_falls_back_to_report_label(self):
-        import fitz
+        import pymupdf
 
         self.report.print_report_name = False
-        with fitz.open(stream=self._render(), filetype="pdf") as doc:
+        with pymupdf.open(stream=self._render(), filetype="pdf") as doc:
             title = doc.metadata["title"]
         self.assertEqual(title, "Partner Sheet")
 
     def test_broken_print_report_name_never_blocks_printing(self):
-        import fitz
+        import pymupdf
 
         self.report.print_report_name = "object.missing_field_xyz"
-        with fitz.open(stream=self._render(), filetype="pdf") as doc:
+        with pymupdf.open(stream=self._render(), filetype="pdf") as doc:
             title = doc.metadata["title"]
         self.assertEqual(title, "Partner Sheet")
 
     def test_watermark_context_stamps_every_copy(self):
-        import fitz
+        import pymupdf
 
-        with fitz.open(stream=self._render(), filetype="pdf") as doc:
+        with pymupdf.open(stream=self._render(), filetype="pdf") as doc:
             self.assertNotIn("CONFIDENTIAL", doc[0].get_text())
         stamped = self._render(report_watermark="Confidential")
-        with fitz.open(stream=stamped, filetype="pdf") as doc:
+        with pymupdf.open(stream=stamped, filetype="pdf") as doc:
             self.assertIn("CONFIDENTIAL", doc[0].get_text())
 
 
