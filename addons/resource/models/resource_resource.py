@@ -1,20 +1,18 @@
 from collections import defaultdict
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from random import randint
 from typing import Any, Self
 
-from dateutil.relativedelta import relativedelta, weekdays
+from dateutil.relativedelta import MO, relativedelta
 from pytz import timezone
 
 from odoo import api, fields, models
 from odoo.libs.intervals import Intervals
 from odoo.models import ValuesType
-from odoo.tools import babel_locale_parse, get_lang
 from odoo.tools.date_utils import (
     localized,
     sum_intervals,
     to_timezone,
-    weeknumber,
 )
 
 from odoo.addons.base.models.res_partner import _tz_get
@@ -395,6 +393,32 @@ class ResourceResource(models.Model):
 
         return calendars_within_period_per_resource
 
+    @api.model
+    def _flexible_week_key(self, day: date) -> tuple[int, int]:
+        """Return the week bucket a flexible resource's hour budget belongs to.
+
+        This is the **single authority** for that bucket.  The
+        ``hours_per_week`` dictionaries produced by
+        :meth:`_get_flexible_resource_valid_work_intervals` are read and
+        decremented by ``hr_holidays``, ``planning`` and ``project_enterprise``,
+        so producer and consumers must agree on the key or the lookups silently
+        miss and the weekly cap stops applying.  Every one of them calls this.
+
+        The value is the **ISO week** — deterministic and locale-free.  It used
+        to be derived from the acting user's locale, which made it a display
+        preference: the same booking reported 48h or 40h depending on
+        ``res.lang.week_start``, and the wrong figure was then stored.  Worse,
+        the two sides disagreed on *which* locale — this model keyed off
+        ``res.lang.week_start`` while ``hr_holidays`` keyed off babel's
+        ``locale.first_week_day``; they coincide for stock locales but diverge
+        the moment someone edits the language, at which point leave hours stop
+        being subtracted at all.
+
+        ISO (Monday-anchored) also matches the module's own week model, where
+        ``resource.calendar.attendance.dayofweek`` numbers Monday as ``'0'``.
+        """
+        return day.isocalendar()[:2]
+
     def _format_leave(
         self,
         leave,
@@ -403,12 +427,10 @@ class ResourceResource(models.Model):
         ranges_to_remove,
         start_day,
         end_day,
-        locale,
     ):
         leave_start_day = leave[0].date()
         leave_end_day = leave[1].date()
         tz = timezone(self.tz or self.env.user.tz or "UTC")
-        week_start_day = int(get_lang(self.env).week_start) - 1
 
         while leave_start_day <= leave_end_day:
             if not self._is_fully_flexible():
@@ -416,7 +438,7 @@ class ResourceResource(models.Model):
                 # only days inside the original period
                 if leave_start_day >= start_day and leave_start_day <= end_day:
                     resource_hours_per_day[self.id][leave_start_day] -= hours
-                year_and_week = weeknumber(locale, leave_start_day, week_start_day)
+                year_and_week = self._flexible_week_key(leave_start_day)
                 resource_hours_per_week[self.id][year_and_week] -= hours
 
             range_start_datetime = tz.localize(
@@ -448,14 +470,14 @@ class ResourceResource(models.Model):
             raise ValueError("start and end datetimes must be timezone-aware")
 
         start_day, end_day = start.date(), end.date()
-        locale = babel_locale_parse(get_lang(self.env).code)
 
-        week_start_day = int(get_lang(self.env).week_start) - 1
-        delta = relativedelta(weekday=weekdays[week_start_day](-1))
+        # Monday-anchored, to match ``_flexible_week_key``: the widened range
+        # below must cover exactly the weeks the budget is bucketed by.
+        delta = relativedelta(weekday=MO(-1))
         week_start_date = start + delta
         week_end_date = end + delta + relativedelta(days=6)
 
-        end_year, end_week = weeknumber(locale, week_end_date, week_start_day)
+        end_week_key = self._flexible_week_key(week_end_date.date())
 
         min_start_date = week_start_date + relativedelta(
             hour=0, minute=0, second=0, microsecond=0
@@ -504,9 +526,8 @@ class ResourceResource(models.Model):
                 if day >= start_day and day <= end_day:
                     resource_hours_per_day[resource.id][day] = day_working_hours
 
-                year_week = weeknumber(locale, day, week_start_day)
-                year, week = year_week
-                if (year < end_year) or (year == end_year and week <= end_week):
+                year_week = self._flexible_week_key(day)
+                if year_week <= end_week_key:
                     # Cap weekly hours to the flexible calendar's weekly budget
                     # (single source of truth; falls back to the full-time
                     # equivalent when hours_per_week is unset for a flexible
@@ -536,7 +557,6 @@ class ResourceResource(models.Model):
                         ranges_to_remove,
                         start_day,
                         end_day,
-                        locale,
                     )
 
                 resource_work_intervals[resource_id] -= Intervals(ranges_to_remove)
@@ -586,10 +606,8 @@ class ResourceResource(models.Model):
             interval_duration_per_day[start.date()] += duration
 
         work_hours = 0.0
-        locale = babel_locale_parse(get_lang(self.env).code)
-        week_start_day = int(get_lang(self.env).week_start) - 1
         for day, hours in interval_duration_per_day.items():
-            week = weeknumber(locale, day, week_start_day)
+            week = self._flexible_week_key(day)
             day_working_hours = max(
                 0.0,
                 min(

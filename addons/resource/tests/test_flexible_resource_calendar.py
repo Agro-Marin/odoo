@@ -124,13 +124,17 @@ class TestFlexibleResourceCalendar(TransactionCase):
             },
             "0 hours when the resource is not available, hours_per_day from the calendar for working days",
         )
+        # The queried period (Mon 28 Jul -> Sun 3 Aug) is exactly ISO week 31,
+        # so there is a single bucket.  The budget is capped at the weekly 40h
+        # (7 days x 8h = 56h) and the three days off (29, 31 Jul and 1 Aug)
+        # take 24h off it.  A second bucket used to appear only because the
+        # range was widened to whole *Sunday*-anchored weeks, which reached
+        # into the following week; the budget is now bucketed by ISO week so
+        # that it no longer depends on res.lang.week_start.
         self.assertDictEqual(
             hours_per_week[self.flex_resource.id],
-            {
-                (2025, 31): 16.0,
-                (2025, 32): 24.0,
-            },
-            "3 days off (24 hours), remaining 16h, 2 days off (16 hours) for second week",
+            {(2025, 31): 16.0},
+            "40h weekly budget minus the 24h of time off inside the week",
         )
 
         self.assertTrue(

@@ -535,19 +535,33 @@ class MrpWorkorder(models.Model):
                 >= 0
             )
 
-    @api.depends("operation_id", "workcenter_id", "qty_producing", "qty_production")
+    @api.depends(
+        "operation_id", "workcenter_id", "qty_producing", "qty_production", "product_id"
+    )
     def _compute_duration_expected(self):
         for workorder in self:
+            if workorder.state in ("done", "cancel"):
+                continue
             # Recompute the duration expected if the qty_producing has been changed:
             # compare with the origin record if it happens during an onchange
-            if workorder.state not in ["done", "cancel"] and (
-                workorder.qty_producing != workorder.qty_production
-                or (
-                    workorder._origin != workorder
-                    and workorder._origin.qty_producing
-                    and workorder.qty_producing != workorder._origin.qty_producing
-                )
-            ):
+            qty_changed = workorder.qty_producing != workorder.qty_production or (
+                workorder._origin != workorder
+                and workorder._origin.qty_producing
+                and workorder.qty_producing != workorder._origin.qty_producing
+            )
+            # ``_get_duration_expected`` resolves setup/cleanup through
+            # ``workcenter_id._get_capacity(product_id, ...)``, so the stored
+            # value describes one specific product.  Changing the manufacturing
+            # order's product left it describing the *previous* one — the
+            # generic capacity kept applying after a product with its own
+            # ``mrp.workcenter.capacity`` was selected.  Restricted to records
+            # that already exist so that creating a work order still honours an
+            # explicitly supplied duration.
+            product_changed = (
+                workorder._origin
+                and workorder._origin.product_id != workorder.product_id
+            )
+            if qty_changed or product_changed:
                 workorder.duration_expected = workorder._get_duration_expected()
 
     @api.depends("time_ids.duration", "time_ids.loss_type", "qty_produced")
@@ -1209,8 +1223,22 @@ class MrpWorkorder(models.Model):
             self.production_bom_id.product_qty or 1,
         )
         if not self.operation_id:
+            # ``duration_expected`` currently holds ``old_setup + old_cleanup +
+            # working``, so the working part can only be recovered by stripping
+            # the capacity that produced it.  Subtracting the *new* setup and
+            # cleanup instead silently rolled the difference into the working
+            # time and handed back the very same total: switching a
+            # manufacturing order to a product with its own
+            # ``mrp.workcenter.capacity`` left the generic setup/cleanup in
+            # place (30 stayed 30 instead of becoming 15).
+            previous = self._origin if self._origin.workcenter_id else self
+            _capacity, old_setup, old_cleanup = previous.workcenter_id._get_capacity(
+                previous.product_id,
+                previous.product_uom_id,
+                previous.production_bom_id.product_qty or 1,
+            )
             duration_expected_working = (
-                (self.duration_expected - setup - cleanup)
+                (self.duration_expected - old_setup - old_cleanup)
                 * self.workcenter_id.time_efficiency
                 / 100.0
             )

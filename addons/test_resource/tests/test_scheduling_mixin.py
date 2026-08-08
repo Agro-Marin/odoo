@@ -1,7 +1,5 @@
 from datetime import datetime
 
-from odoo import api, fields, models
-from odoo.models import add_to_registry
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
@@ -25,86 +23,6 @@ class TestSchedulingMixin(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-
-        # -- Register a concrete test model inheriting the mixin --
-        # The mixin no longer owns the date / resource data fields (they live
-        # on resource.reservation). Test models that need calendar-aware
-        # computation declare the same columns locally and expose them via
-        # ``_get_reservation_date_fields``.
-        class SchedulingTest(models.Model):
-            _module = "resource"
-            _name = cls.MODEL_NAME
-            _description = "Scheduling Mixin Test Model"
-            _inherit = ["resource.scheduling.mixin"]
-
-            name = fields.Char()
-            company_id = fields.Many2one(
-                "res.company", default=lambda self: self.env.company
-            )
-            date_start = fields.Datetime("Scheduled Start", index=True)
-            date_end = fields.Datetime("Scheduled End", index=True)
-            resource_id = fields.Many2one("resource.resource", "Resource", index=True)
-            resource_calendar_id = fields.Many2one(
-                "resource.calendar",
-                "Working Calendar",
-                compute="_compute_resource_calendar_id",
-                store=True,
-                readonly=False,
-            )
-            _resource_schedule_idx = models.Index("(resource_id, date_start, date_end)")
-
-            @api.depends("resource_id", "resource_id.calendar_id")
-            def _compute_resource_calendar_id(self):
-                for record in self:
-                    if record.resource_id and record.resource_id.calendar_id:
-                        record.resource_calendar_id = record.resource_id.calendar_id
-                    elif record.company_id:
-                        record.resource_calendar_id = (
-                            record.company_id.resource_calendar_id
-                        )
-                    else:
-                        record.resource_calendar_id = (
-                            record.env.company.resource_calendar_id
-                        )
-
-            def _get_reservation_date_fields(self):
-                return ("date_start", "date_end")
-
-            def _get_reservation_vals_list(self):
-                # Faithful consumer: project the local scheduling columns into a
-                # single reservation so the mixin's create/write sync path and
-                # the reservation-ledger aggregation of ``allocated_hours`` /
-                # ``schedule_overlap_count`` are exercised end-to-end (rather
-                # than re-implementing that logic inside the test model).
-                self.ensure_one()
-                if not self.date_start or not self.date_end:
-                    return []
-                return [
-                    {
-                        "name": self.name or "Reservation",
-                        "date_start": self.date_start,
-                        "date_end": self.date_end,
-                        "resource_id": self.resource_id.id or False,
-                        "allocated_percentage": self.allocated_percentage or 100.0,
-                        "enforcement_mode": "soft",
-                    }
-                ]
-
-            def _get_sync_trigger_fields(self):
-                # Re-sync the reservation when the resource or the allocation
-                # share changes, not only the dates (the mixin default).
-                return super()._get_sync_trigger_fields() | {
-                    "resource_id",
-                    "allocated_percentage",
-                }
-
-        add_to_registry(cls.registry, SchedulingTest)
-        cls.registry._setup_models__(cls.env.cr, [])
-        cls.registry.init_models(
-            cls.env.cr,
-            [cls.MODEL_NAME],
-            {"module": "resource"},
-        )
 
         # Standard 40h/week calendar (Mon-Fri 8-12 + 13-17, UTC)
         cls.calendar = cls.env["resource.calendar"].create(

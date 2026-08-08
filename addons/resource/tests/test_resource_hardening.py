@@ -5,7 +5,7 @@ docstrings state the *observed wrong behaviour*, so a future change that
 reintroduces it fails with an explanation rather than a bare assertion.
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from pytz import timezone, utc
 
@@ -100,6 +100,97 @@ class TestFlexibleAttendanceSynthesis(TransactionCase):
         self.assertEqual(
             len(days), len(set(days)), "a day was allocated twice across the DST switch"
         )
+
+
+class TestFlexibleWeekKeyIsDeterministic(TransactionCase):
+    """The flexible weekly budget must not depend on a display preference.
+
+    The bucket used to come from the acting user's locale, so the very same
+    booking stored 48h under a Sunday-start language and 40h under a
+    Monday-start one.  Worse, the producer keyed off ``res.lang.week_start``
+    while ``hr_holidays`` keyed off babel's ``locale.first_week_day`` — two
+    different sources that only coincide by accident, and when they diverge
+    the leave hours stop being subtracted at all.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.calendar = cls.env["resource.calendar"].create(
+            {
+                "name": "Flexible 40h",
+                "schedule_type": "flexible",
+                "hours_per_week": 40,
+                "hours_per_day": 8,
+                "tz": "UTC",
+            }
+        )
+        cls.resource = cls.env["resource.resource"].create(
+            {"name": "Flexible worker", "calendar_id": cls.calendar.id, "tz": "UTC"}
+        )
+        cls.lang = cls.env["res.lang"].search(
+            [("code", "=", cls.env.user.lang or "en_US")], limit=1
+        )
+
+    def _allocated_hours_with_week_start(self, week_start):
+        self.lang.week_start = week_start
+        self.env.invalidate_all()
+        return (
+            self.env["resource.reservation"]
+            .create(
+                {
+                    "name": f"booking-{week_start}",
+                    "resource_id": self.resource.id,
+                    "date_start": datetime(2025, 3, 3),
+                    "date_end": datetime(2025, 3, 10),
+                }
+            )
+            .allocated_hours
+        )
+
+    def test_allocated_hours_ignores_week_start(self):
+        sunday_start = self._allocated_hours_with_week_start("7")
+        monday_start = self._allocated_hours_with_week_start("1")
+        self.assertEqual(
+            sunday_start,
+            monday_start,
+            "allocated_hours must not depend on res.lang.week_start",
+        )
+
+    def test_week_key_is_iso_and_locale_free(self):
+        Resource = self.env["resource.resource"]
+        # Sun 2025-03-09 and Mon 2025-03-10 are different ISO weeks; a
+        # Sunday-anchored bucket would group them together.
+        self.assertEqual(Resource._flexible_week_key(date(2025, 3, 9)), (2025, 10))
+        self.assertEqual(Resource._flexible_week_key(date(2025, 3, 10)), (2025, 11))
+        for week_start in ("1", "7"):
+            self.lang.week_start = week_start
+            self.env.invalidate_all()
+            with self.subTest(week_start=week_start):
+                self.assertEqual(
+                    Resource._flexible_week_key(date(2025, 3, 9)), (2025, 10)
+                )
+
+    def test_valid_work_intervals_budget_ignores_week_start(self):
+        start, end = (
+            utc.localize(datetime(2025, 3, 3)),
+            utc.localize(datetime(2025, 3, 10)),
+        )
+        results = []
+        for week_start in ("7", "1"):
+            self.lang.week_start = week_start
+            self.env.invalidate_all()
+            intervals, per_day, per_week = (
+                self.resource._get_flexible_resource_valid_work_intervals(start, end)
+            )
+            results.append(
+                self.resource._get_flexible_resource_work_hours(
+                    intervals[self.resource.id],
+                    per_day[self.resource.id],
+                    per_week[self.resource.id],
+                )
+            )
+        self.assertEqual(results[0], results[1])
 
 
 class TestUnavailableIntervalsFlexible(TransactionCase):
