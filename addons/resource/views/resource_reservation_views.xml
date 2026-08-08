@@ -6,7 +6,9 @@
         <field name="name">resource.reservation.list</field>
         <field name="model">resource.reservation</field>
         <field name="arch" type="xml">
-            <list string="Reservations">
+            <!-- Conflict detection is the point of this shared ledger, so an
+                 over-allocated booking must be visible without opening it. -->
+            <list string="Reservations" decoration-danger="schedule_overlap_count &gt; 0">
                 <field name="name" />
                 <field name="resource_id" />
                 <field name="date_start" />
