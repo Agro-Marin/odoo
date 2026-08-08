@@ -9,6 +9,7 @@ import logging
 import pathlib
 import re
 import threading
+from itertools import starmap
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -1521,3 +1522,149 @@ class TestSourceDialectTokenizers(BaseCase):
             StylesheetAsset._SOURCE_TOKEN_RE,
             "SCSS sources must not be scanned with the plain-CSS tokenizer",
         )
+
+
+class TestCssCompileErrorReporting(TransactionCase):
+    """What a broken stylesheet actually puts in front of a developer.
+
+    A Sass error does not raise past the pipeline: it lands in
+    `bundle.css_errors`, becomes the red banner, and the bundle still serves.
+    So the message IS the feature -- if it does not name the bundle and the
+    files that went into it, the developer is left with a Sass complaint about
+    line 2 of a concatenation they never wrote.
+
+    This path used to be covered by accident, because the deliberately-invalid
+    test_error.scss sat inside the static/src/*/** glob that three bundles
+    enumerate. Moving it out of their way (it was costing them all their CSS
+    coverage) took the accident with it, which is the better reason to assert
+    it on purpose.
+    """
+
+    BROKEN_SCSS = ".rule1 ()){\n    color: black;\n}\n"
+
+    def _bundle(self, *files, **kw):
+        return AssetsBundle(
+            "test_assetsbundle.csserr",
+            list(starmap(asset_file, files)),
+            env=self.env,
+            js=False,
+            **kw,
+        )
+
+    def test_a_sass_error_is_reported_not_raised(self):
+        bundle = self._bundle(("/m/static/src/broken.scss", self.BROKEN_SCSS))
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            out = bundle.preprocess_css()
+
+        self.assertEqual(out, "", "a bundle that failed to compile serves nothing")
+        self.assertTrue(bundle.css_errors)
+
+    def test_the_error_names_the_bundle_and_its_members(self):
+        bundle = self._bundle(
+            ("/m/static/src/broken.scss", self.BROKEN_SCSS),
+            ("/m/static/src/fine.scss", ".ok{color:red}"),
+        )
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            bundle.preprocess_css()
+
+        (error,) = bundle.css_errors
+        self.assertIn("test_assetsbundle.csserr", error)
+        self.assertIn("/m/static/src/broken.scss", error)
+        self.assertIn(
+            "/m/static/src/fine.scss",
+            error,
+            "every member is listed: the compiler saw the concatenation, so "
+            "the line it complains about is not necessarily in the broken file",
+        )
+
+    def test_the_error_reaches_the_banner(self):
+        bundle = self._bundle(("/m/static/src/broken.scss", self.BROKEN_SCSS))
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            banner = bundle.css().raw.decode()
+
+        self.assertIn(CssPipeline._CSS_ERROR_HEADER, banner)
+        self.assertIn("test_assetsbundle.csserr", banner)
+
+    def test_sass_load_path_noise_is_trimmed(self):
+        """Dart Sass appends its whole load-path list; it is not the message."""
+        pipeline = CssPipeline(SimpleNamespace(name="b", stylesheets=[], css_errors=[]))
+        formatted = pipeline._format_compiler_error(
+            "Error: bad\n  Use --trace for backtrace.\nLoad paths\n  /a\n  /b\n"
+        )
+        self.assertNotIn("Load paths", formatted)
+        self.assertNotIn("Use --trace", formatted)
+        self.assertIn("Error: bad", formatted)
+
+    def test_a_desynchronised_split_marker_is_loud(self):
+        """The compiled output is mapped back to assets by marker id.
+
+        If a marker names an asset the bundle no longer holds, the mapping is
+        wrong and every later asset would silently receive another one's CSS.
+        That must raise rather than mis-assign.
+        """
+        bundle = self._bundle(("/m/static/src/a.scss", ".a{color:red}"))
+        pipeline = bundle._css
+        pipeline.compile_css = lambda compiler, source: (
+            "/*! odoo-split:ffff */\n.a{color:red}"
+        )
+        with self.assertRaisesRegex(RuntimeError, "out of sync"):
+            pipeline.preprocess()
+
+
+class TestRtlcssProbeFailures(BaseCase):
+    """`_check_rtlcss` decides, once per process, whether RTL exists at all.
+
+    False makes run_rtlcss hand back the LTR source unchanged, so an RTL page
+    is silently served left-to-right. Every branch that returns False is
+    therefore a silent-degradation switch, and each has to warn.
+    """
+
+    def setUp(self):
+        super().setUp()
+        _ab.css_pipeline._check_rtlcss.cache_clear()
+        self.addCleanup(_ab.css_pipeline._check_rtlcss.cache_clear)
+
+    def test_a_missing_binary_disables_rtl(self):
+        with (
+            patch.object(
+                _ab.css_pipeline, "Popen", side_effect=OSError("no such file")
+            ),
+            self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as log,
+        ):
+            self.assertFalse(_ab.css_pipeline._check_rtlcss())
+        self.assertIn("rtlcss is required", "\n".join(log.output))
+
+    def test_a_hanging_probe_is_killed_and_disables_rtl(self):
+        import subprocess
+
+        probe = Mock()
+        # Two calls: the timed one that raises, then the drain after kill().
+        probe.communicate.side_effect = [
+            subprocess.TimeoutExpired("rtlcss", 10),
+            (b"", b""),
+        ]
+        with (
+            patch.object(_ab.css_pipeline, "Popen", return_value=probe),
+            self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as log,
+        ):
+            self.assertFalse(_ab.css_pipeline._check_rtlcss())
+        probe.kill.assert_called_once()
+        self.assertIn("probe timed out", "\n".join(log.output))
+
+    def test_a_nonzero_probe_disables_rtl(self):
+        probe = Mock()
+        probe.communicate.return_value = (b"", b"")
+        probe.returncode = 127
+        with (
+            patch.object(_ab.css_pipeline, "Popen", return_value=probe),
+            self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as log,
+        ):
+            self.assertFalse(_ab.css_pipeline._check_rtlcss())
+        self.assertIn("exited with 127", "\n".join(log.output))
+
+    def test_a_working_probe_enables_rtl(self):
+        probe = Mock()
+        probe.communicate.return_value = (b"4.1.0", b"")
+        probe.returncode = 0
+        with patch.object(_ab.css_pipeline, "Popen", return_value=probe):
+            self.assertTrue(_ab.css_pipeline._check_rtlcss())
