@@ -362,6 +362,14 @@ class TestHrAuditRound2(TestHrCommon):
             self.env["hr.employee"]._combine_tz(date(2026, 7, 1), time.min, None).tzinfo
         )
 
+    # Pinned inside the 2026-01-01 -> 2026-07-31 version window.  The scenario
+    # is "a leave on the *current* version's last valid day", and hr resolves a
+    # leave's calendar through ``employee_id.version_id`` — the version valid
+    # *now* — so the case only exists while now falls in that window.  With
+    # absolute dates and a live clock the test quietly stopped testing anything
+    # on 2026-08-01, when version_id moved on to the unbounded next version and
+    # its date_end became False.
+    @freeze_time("2026-06-15")
     def test_leave_on_version_last_day_gets_calendar(self):
         """A leave on a version's inclusive ``date_end`` is assigned that version's
         calendar (regression: the exclusive midnight bound dropped last-day leaves)."""
