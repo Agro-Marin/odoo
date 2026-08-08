@@ -119,8 +119,14 @@ them as current design.
 `@web/<path>`. The pin records which specifiers each consumer scope reaches so
 the surface can only shrink. On 2026-08-08 the pin was regenerated after 32
 deep imports in `agromarin` were rewritten to enter at their face; that removed
-the deep entries and shrank the pin from 235 to 222 specifiers. What remains is
-**recorded**, not resolved.
+the deep entries and shrank the pin from 235 to 222 specifiers. A later harvest
+the same day was taken against sibling checkouts that had fallen behind and
+recorded three specifiers no checkout imports — `@web/services/user`, which no
+longer exists anywhere (`services/user.js` → `core/user.js` was a completed
+move `agromarin` had already followed), and two `@web/legacy/js/…` modules
+absent from `addons/web/static/src/` entirely. Re-harvesting with all four
+checkouts current gives **219 specifiers**. What remains is **recorded**, not
+resolved.
 
 **Evidence.** `tooling/architecture/public_surface_web.txt`;
 `js_public_surface.py`.
@@ -128,9 +134,19 @@ the deep entries and shrank the pin from 235 to 222 specifiers. What remains is
 **Cost.** Every pinned specifier is a rename `web` cannot perform unilaterally.
 
 **Trap.** `--update` regenerates the pin against whatever the tree currently
-imports. Run it *before* fixing face violations and it records the deep paths as
-legitimate exposure — measured 2026-08-08, that produced 245 specifiers instead
-of 222. **Fix the violations first, regenerate second.**
+imports, and it is only as honest as that tree. Two ways to get it wrong, both
+hit on 2026-08-08:
+
+- Run it *before* fixing face violations and it records the deep paths as
+  legitimate exposure — that produced 245 specifiers rather than 222.
+  **Fix the violations first, regenerate second.**
+- Run it against **stale sibling checkouts** and it pins specifiers that resolve
+  to nothing, which no in-repo gate can catch: `--check` compares the pin to the
+  same tree that produced it, so a wrong pin and a stale checkout agree with
+  each other. It surfaces only where the siblings are current, as drift in
+  someone else's workspace. **Confirm every sibling is up to date before
+  regenerating**, and treat a pinned specifier that resolves to no file as
+  evidence the harvest was wrong rather than as surface to preserve.
 
 ## R7 — Every measured figure is single-process
 
