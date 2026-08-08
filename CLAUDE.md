@@ -26,21 +26,14 @@ merging or cherry-picking between the two is possible:
 
 - **`19.0-marin`** — the **active AgroMarin production branch**, originally forked
   from `19.0`. All AgroMarin work lands here (via pull request). This is the
-  integration branch you build on. Nothing is ever merged in from `19.0`, so
+  integration branch to build on. Nothing is ever merged in from `19.0`, so
   **"this would conflict with upstream" is not a reason to hold back a refactor**
   — there is no merge for it to conflict with. The wider posture this follows
   from (upstream is a baseline, not a ceiling) is *Scope and precedence* in
   `doc/coding_guidelines.rst`.
 
 - **Feature branches** — cut from `19.0-marin` and merged back into it via PR.
-  Two naming forms are in use and neither is enforced:
-  `19.0-t<NNNNN>-<developer>` (`<NNNNN>` = task id, `<developer>` = author
-  handle), which `doc/coding_guidelines.rst` §7.2–§7.3 specifies and most of the
-  team follows; and a topic-slugged `19.0-<subject>-<developer>`
-  (`19.0-core-audit-maringuadarrama`), which the user uses instead. **Never
-  invent a task id or ask for one** — the user's branches and commits carry
-  none. Working with the user, name the branch after the subject; otherwise
-  match the branch you are already on.
+
 
 ## What this checkout needs
 
@@ -53,18 +46,11 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
 - **PostgreSQL** — every CI lane runs 18.
 - **`pip install -r requirements.txt`** for the runtime; `requirements-dev.txt`
   for the gates. Its pins are hard, not reproducibility hints: `ruff==0.16.2`,
-  `mypy==1.19.1`, `pytest==9.1.1`. An older ruff does not shift the ratchet
-  count — it refuses to start, because `ruff.toml` names individual preview rules
-  under `explicit-preview-rules` and sets keys older versions parse as an error.
+  `mypy==1.19.1`, `pytest==9.1.1`.
 - **psycopg 3** (`psycopg[c,binary]>=3.3.2`) is the only driver `odoo/db/` uses.
-  Never add a `psycopg2` import; no code path would take it.
+  Never add a `psycopg2` import.
 - **`crates/odoo_rust` must be built into the environment.** It is a hard
-  dependency with **no pure-Python fallback**, imported unconditionally by
-  `odoo/db/cursor`, `odoo/orm/fields/base`, `odoo/orm/models/mixins/read`,
-  `odoo/orm/runtime/environment`, `odoo/orm/helpers`,
-  `odoo/libs/json/fast_clone`, `odoo/libs/_field_access`, `odoo/libs/lint/scan`
-  and web export. Without it `odoo-bin` dies at startup with `ImportError: The
-  required 'odoo_rust' native extension is not importable.` With a Rust toolchain
+  dependency with **no pure-Python fallback**, With a Rust toolchain
   on `PATH`:
 
   ```bash
@@ -84,10 +70,7 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
   `.github/workflows/rust.yml` gates `cargo fmt --check`,
   `cargo clippy -D warnings`, `cargo test`, the maturin build and the exported
   symbols. It blocks; it does not warn.
-- **`addons_path` must list both in-repo addon directories**, and mind that they
-  are named alike: `odoo/addons` (26 modules inside the core package) comes
-  **before** `addons` (615 bundled base addons at the repo root). Earlier entries
-  shadow later ones.
+
 
 ## Pre-Work Check
 
@@ -182,9 +165,7 @@ is a coding standard, not a recipe: `doc/coding_guidelines.rst` §6.7.
 `doc/coding_guidelines.rst` (repo root).** It is the **single authoritative
 source** for AgroMarin coding standards — built on Odoo 19.0 + OCA conventions,
 and authoritative where it speaks; where it is silent, follow upstream Odoo 19 /
-OCA. It supersedes any other `coding_guidelines` file in an AgroMarin Odoo-code
-repo and is canonical for all of them — `enterprise`, `agromarin` and
-`design-themes` defer to it. Each rule names the gate that catches it —
+OCA. It supersedes any other `coding_guidelines` file. Each rule names the gate that catches it —
 `[ruff CODE]`, `[test_lint CODE]`, `[fixer NAME]` or `[review]`; see *How rules
 are enforced* at the top of the guide.
 
