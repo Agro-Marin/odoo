@@ -31,8 +31,8 @@ class TestDbDispatchAuth(BaseCase):
         from odoo.service import db
 
         self.assertLessEqual(
-            db._REQUIRES_MASTER_PASSWORD,
-            set(db._DISPATCH),
+            db.rpc._REQUIRES_MASTER_PASSWORD,
+            set(db.rpc._DISPATCH),
             "every password-gated method must be a real dispatch handler",
         )
 
@@ -51,7 +51,7 @@ class TestDbDispatchAuth(BaseCase):
         ):
             self.assertIn(
                 method,
-                db._REQUIRES_MASTER_PASSWORD,
+                db.rpc._REQUIRES_MASTER_PASSWORD,
                 f"{method!r} is destructive and must require the master password",
             )
 
@@ -65,9 +65,9 @@ class TestDbDispatchAuth(BaseCase):
             "server_version",
             "list_countries",
         ):
-            self.assertIn(method, db._DISPATCH)
+            self.assertIn(method, db.rpc._DISPATCH)
             self.assertNotIn(
                 method,
-                db._REQUIRES_MASTER_PASSWORD,
+                db.rpc._REQUIRES_MASTER_PASSWORD,
                 f"{method!r} is a public read and must not require the master password",
             )

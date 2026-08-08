@@ -37,7 +37,9 @@ core. The workflow parameterises `INSTALL` / `TEST_TAGS` so coverage can broaden
 
 The database is created with `--db-template=template0`, because Odoo only applies
 its `ENCODING 'unicode' LC_COLLATE 'C'` creation path on `template0`
-(`odoo/service/db.py`); PostgreSQL 18's default `template1` locale would
+(`odoo/service/db/lifecycle.py` — it was odoo/service/db.py when this was
+written, deliberately not backticked here because that file no longer exists;
+see ADR-0014); PostgreSQL 18's default `template1` locale would
 otherwise yield non-deterministic ordering. Test failures fail the job directly:
 `odoo-bin` propagates the assertion report's result as the process exit code
 (`odoo/cli/server.py`), so no log-scraping is needed.

@@ -43,7 +43,11 @@ odoo/
 ├── service/        Process lifecycle + the servers
 │   ├── server, _base_server, _threaded (ThreadedServer + EventServer),
 │   │   _prefork, _worker, _watcher, wsgi, _cron, lifecycle
-│   └── transaction (the retrying() primitive), db, model, security, common,
+│   ├── db/         Database management, the /web/database/manager service
+│   │               (ADR-0014). Reads downward:
+│   │               rpc -> {restore -> {lifecycle, listing}, dump -> listing,
+│   │                       lifecycle -> listing}
+│   └── transaction (the retrying() primitive), model, security, common,
 │       _env, _helpers, _db_helpers, _dump_scanner, _metrics
 ├── modules/        The module graph (iterated by phase, dependency depth,
 │   │               then name) and what loads it

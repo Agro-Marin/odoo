@@ -90,7 +90,9 @@ def test_teardown_call_sites_use_forget_not_delete():
 
     root = pathlib.Path(reg_mod.__file__).resolve().parents[3]
     expected = {
-        "odoo/service/db.py": 2,  # _drop_database, _rename_database (old name)
+        # _drop_database, _rename_database (old name); both live in the
+        # lifecycle module since service/db.py became a package.
+        "odoo/service/db/lifecycle.py": 2,
         "odoo/http/_serve.py": 1,  # db_absent after a RegistryError
     }
     for rel, count in expected.items():

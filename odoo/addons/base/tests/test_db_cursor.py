@@ -2321,13 +2321,13 @@ class TestExpDropClosesPoolTwice(BaseCase):
         fake_conn.cursor.return_value = fake_cursor
 
         with (
-            patch("odoo.service.db.list_dbs", return_value=[fake_db]),
+            patch("odoo.service.db.listing.list_dbs", return_value=[fake_db]),
             patch("odoo.modules.registry.Registry.delete"),
-            patch("odoo.service.db._drop_conn"),
+            patch("odoo.service.db.lifecycle._drop_conn"),
             patch("odoo.db.close_db", side_effect=fake_close_db),
             patch("odoo.db.db_connect", return_value=fake_conn),
             patch(
-                "odoo.service.db.database_identifier",
+                "odoo.service.db.lifecycle.database_identifier",
                 return_value=SQL(f'"{fake_db}"'),
             ),
         ):
