@@ -20,13 +20,6 @@ from __future__ import annotations
 from pathlib import Path
 
 ODOO_MARKER = "odoo-bin"
-ODOO_SUBPATH = "addons/odoo"
-
-# Sibling checkouts whose presence identifies a directory as a workspace root.
-# A workspace is recognised by POSITIVE evidence, never by climbing: in CI this
-# repo IS the checkout root and its parent is arbitrary, so "has a parent" must
-# not read as "is in a workspace".
-WORKSPACE_SIBLINGS = ("enterprise", "agromarin", "design-themes")
 
 
 def find_odoo_root(start: Path, *, tool: str = "tooling") -> Path:
