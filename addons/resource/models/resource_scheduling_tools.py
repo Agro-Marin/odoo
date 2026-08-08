@@ -68,6 +68,21 @@ class ResourceSchedulingTools(models.AbstractModel):
             return (end_utc - start_utc).total_seconds() / 3600.0
 
         if resource._is_flexible():
+            if calendar and calendar != resource.calendar_id:
+                # An explicit calendar overrides the resource's own -- including
+                # here.  This branch used to ignore the argument entirely, so a
+                # reservation whose ``resource_calendar_id`` had been pointed at a
+                # different schedule silently kept measuring against the flexible
+                # one, and the docstring's promise held on every path but this.
+                # Measuring a flexible resource against a *fixed* override is the
+                # whole point of the override: the caller is saying "bill this
+                # against that timetable".
+                return calendar.get_work_hours_count(
+                    start_utc,
+                    end_utc,
+                    compute_leaves=compute_leaves,
+                    domain=leave_domain,
+                )
             work_intervals, hours_per_day, hours_per_week = (
                 resource._get_flexible_resource_valid_work_intervals(start_utc, end_utc)
             )

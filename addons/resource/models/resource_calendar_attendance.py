@@ -121,14 +121,17 @@ class ResourceCalendarAttendance(models.Model):
         through it — ``load``, XML data, the ORM and external API.
         """
         for attendance in self:
-            if (
-                attendance.calendar_id.two_weeks_calendar
-                and not attendance.display_type
-                and not attendance.week_type
-            ):
+            if attendance.calendar_id.two_weeks_calendar and not attendance.week_type:
+                # Section rows are covered too, not exempted.  A section *is* the
+                # week marker the form sorts the other lines against, so one that
+                # names no week is meaningless -- and it used to be worse than
+                # meaningless: ``_compute_display_name`` indexes a {"0", "1"} map
+                # with ``week_type`` and raised ``KeyError: False`` on every read,
+                # including the working-hours list, which renders ``display_name``
+                # for each row.
                 raise ValidationError(
                     self.env._(
-                        "%(name)s: a working time on a 2 weeks calendar must belong"
+                        "%(name)s: a line on a 2 weeks calendar must belong"
                         " to the first or the second week.",
                         name=attendance.name,
                     )
@@ -235,8 +238,17 @@ class ResourceCalendarAttendance(models.Model):
         section_names = {"0": self.env._("First week"), "1": self.env._("Second week")}
         section_info = {True: self.env._("this week"), False: self.env._("other week")}
         for record in self.filtered(lambda l: l.display_type == "line_section"):
-            section_name = f"{section_names[record.week_type]} ({section_info[this_week_type == record.week_type]})"
-            record.display_name = section_name
+            # ``_check_week_type`` now requires a week on every line of a 2 weeks
+            # calendar, but that constraint only fires on write: rows predating it
+            # must stay *readable*, or the very list a user would open to repair
+            # them raises instead of rendering.  Hence ``.get`` and not ``[]``.
+            week_name = section_names.get(record.week_type)
+            if not week_name:
+                record.display_name = self.env._("Unassigned week")
+                continue
+            record.display_name = (
+                f"{week_name} ({section_info[this_week_type == record.week_type]})"
+            )
 
     def _copy_attendance_vals(self) -> ValuesType:
         self.ensure_one()

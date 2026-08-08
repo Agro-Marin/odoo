@@ -7,3 +7,4 @@ from . import test_resource_cache_freshness
 from . import test_resource_tz_robustness
 from . import test_resource_hardening
 from . import test_resource_audit_fixes
+from . import test_resource_second_pass

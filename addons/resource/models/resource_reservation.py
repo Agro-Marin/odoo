@@ -1,3 +1,5 @@
+import logging
+import operator as operator_module
 from collections import defaultdict
 
 from pytz import utc
@@ -7,6 +9,19 @@ from odoo.exceptions import ValidationError
 from odoo.libs.intervals import Intervals
 from odoo.tools import SQL
 from odoo.tools.date_utils import localized, sum_intervals
+
+_logger = logging.getLogger(__name__)
+
+# Scalar comparisons the conflict search accepts.  A fixed map, so no operator
+# string from a domain ever reaches Python's ``eval`` path or the query.
+COMPARATORS = {
+    "=": operator_module.eq,
+    "!=": operator_module.ne,
+    "<": operator_module.lt,
+    "<=": operator_module.le,
+    ">": operator_module.gt,
+    ">=": operator_module.ge,
+}
 
 
 class ResourceReservation(models.Model):
@@ -109,6 +124,7 @@ class ResourceReservation(models.Model):
     schedule_overlap_count = fields.Integer(
         "Scheduling Conflicts",
         compute="_compute_schedule_overlap_count",
+        search="_search_schedule_overlap_count",
     )
 
     # ---- Origin tracking (generic reference) ----
@@ -327,8 +343,12 @@ class ResourceReservation(models.Model):
             # ``resource_calendar_id`` is not an override — it states nothing,
             # so those resources keep resolving their own calendar as before.
             if calendar:
+                # ``calendar=calendar`` binds the loop variable at definition time.
+                # The lambda is consumed inside this iteration so the late-binding
+                # bug never fired, but ruff's B023 flags it and the guard costs
+                # nothing.
                 native = records.resource_id.filtered(
-                    lambda resource: resource.calendar_id == calendar
+                    lambda resource, calendar=calendar: resource.calendar_id == calendar
                 )
             else:
                 native = records.resource_id
@@ -442,32 +462,95 @@ class ResourceReservation(models.Model):
         # possibly overlap one of them.
         window_start = min(stored.mapped("date_start"))
         window_end = max(stored.mapped("date_end"))
+        rows_by_resource = self._overlap_rows(
+            (
+                SQL("AND resource_id = ANY(%s)", list(set(stored.resource_id.ids))),
+                SQL("AND date_start < %s", window_end),
+                SQL("AND date_end > %s", window_start),
+            )
+        )
+
+        conflict_partners = self._sweep_overlap_partners(rows_by_resource)
+        for record in stored:
+            record.schedule_overlap_count = len(conflict_partners.get(record.id, ()))
+
+    def _overlap_rows(self, extra_conditions=()):
+        """Fetch the candidate rows for the sweep, grouped per resource.
+
+        Shared by the compute (which bounds the fetch to the window under test)
+        and the search (which cannot). Returns ``{resource_id: [(id, start, end,
+        pct)]}`` with the allocation clamped to 0..100, so rows predating the
+        table constraint cannot disarm the check.
+        """
         self.env.cr.execute(
             SQL(
                 """
                 SELECT id, resource_id, date_start, date_end,
                        LEAST(100, GREATEST(0, COALESCE(allocated_percentage, 100)))
                   FROM %s
-                 WHERE resource_id = ANY(%s)
+                 WHERE resource_id IS NOT NULL
                    AND active
                    AND date_start IS NOT NULL
                    AND date_end IS NOT NULL
-                   AND date_start < %s
-                   AND date_end > %s
+                   %s
                 """,
                 SQL.identifier(self._table),
-                list(set(stored.resource_id.ids)),
-                window_end,
-                window_start,
+                SQL(" ").join(extra_conditions),
             )
         )
         rows_by_resource = defaultdict(list)
         for res_id, resource_id, date_start, date_end, pct in self.env.cr.fetchall():
             rows_by_resource[resource_id].append((res_id, date_start, date_end, pct))
+        return rows_by_resource
 
-        conflict_partners = self._sweep_overlap_partners(rows_by_resource)
-        for record in stored:
-            record.schedule_overlap_count = len(conflict_partners.get(record.id, ()))
+    @api.model
+    def _search_schedule_overlap_count(self, operator, value):
+        """Make the conflict ledger queryable.
+
+        Without this the field was compute-only, so the cross-module
+        double-booking detection this model exists for (see the class docstring)
+        could not be expressed as a domain at all: no search-view filter, no
+        cron, no report -- a conflict was visible only by opening the one record
+        that reported it. ``search([("schedule_overlap_count", ">", 0)])`` raised
+        ``Cannot convert ... to SQL because it is not stored``.
+
+        The sweep is the same pure function the compute uses, so the two can
+        never disagree about what a conflict is.
+        """
+        if operator not in COMPARATORS or not isinstance(value, int):
+            return NotImplemented
+        compare = COMPARATORS[operator]
+
+        # Same reason as in the compute: the sweep reads sibling rows straight
+        # from the table, so pending writes must reach it first.
+        self.flush_model(
+            ["date_start", "date_end", "resource_id", "allocated_percentage", "active"]
+        )
+        partners = self._sweep_overlap_partners(self._overlap_rows())
+        conflicted = {res_id: len(peers) for res_id, peers in partners.items()}
+
+        if compare(0, value):
+            # Zero matches, so the answer is "everything except the conflicted
+            # rows that do not match" -- which also correctly sweeps in archived,
+            # resource-less and undated rows, none of which the query above
+            # returns and all of which have a count of 0.
+            excluded = [
+                res_id
+                for res_id, count in conflicted.items()
+                if not compare(count, value)
+            ]
+            return [("id", "not in", excluded)]
+        return [
+            (
+                "id",
+                "in",
+                [
+                    res_id
+                    for res_id, count in conflicted.items()
+                    if compare(count, value)
+                ],
+            )
+        ]
 
     @staticmethod
     def _sweep_overlap_partners(rows_by_resource):
@@ -569,6 +652,65 @@ class ResourceReservation(models.Model):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+
+    @api.autovacuum
+    def _gc_orphan_reservations(self):
+        """Drop reservations whose source record is gone.
+
+        ``res_id`` is a ``Many2oneReference``, so there is no foreign key to
+        cascade.  ``resource.scheduling.mixin.unlink`` cleans up on the normal
+        path, but anything that routes around it -- raw SQL, a consumer that
+        overrides ``unlink`` without calling super, a model that leaves the
+        registry -- strands rows here.  They are not inert: an orphan is still
+        ``active``, still holds a ``resource_id``, and still counts in the
+        overlap sweep, so it inflates conflict counts and can block a legitimate
+        booking under ``enforcement_mode = 'hard'`` on behalf of a record that
+        no longer exists.
+        """
+        reservations = self.sudo().with_context(active_test=False)
+        # One anti-join per distinct source model, rather than loading the whole
+        # ledger into memory to filter it in Python.  A healthy installation
+        # returns nothing from every query, so the nightly pass costs one cheap
+        # indexed scan per consumer model.
+        model_names = [
+            res_model
+            for [res_model] in reservations._read_group(
+                [("res_model", "!=", False)], groupby=["res_model"]
+            )
+        ]
+        orphan_ids = []
+        for model_name in model_names:
+            model = self.env.get(model_name)
+            if model is None or not model._auto:
+                # The owning module is uninstalled, or the source is an abstract
+                # or transient model with no table to point at.  Either way the
+                # rows can never be resolved again.
+                orphan_ids.extend(
+                    reservations.search([("res_model", "=", model_name)]).ids
+                )
+                continue
+            self.env.cr.execute(
+                SQL(
+                    """
+                    SELECT reservation.id
+                      FROM %s AS reservation
+                 LEFT JOIN %s AS source ON source.id = reservation.res_id
+                     WHERE reservation.res_model = %s
+                       AND source.id IS NULL
+                    """,
+                    SQL.identifier(self._table),
+                    SQL.identifier(model._table),
+                    model_name,
+                )
+            )
+            orphan_ids.extend(row[0] for row in self.env.cr.fetchall())
+
+        if orphan_ids:
+            _logger.info(
+                "Garbage-collecting %s orphan resource.reservation record(s)",
+                len(orphan_ids),
+            )
+            reservations.browse(orphan_ids).unlink()
 
     def action_open_origin(self):
         """Navigate to the source record."""

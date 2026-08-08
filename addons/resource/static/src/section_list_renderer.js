@@ -7,7 +7,13 @@ export class SectionListRenderer extends ListRenderer {
         super.setup();
 
         this.displayType = "line_section";
-        this.titleField = "title";
+        // The column that carries the section's label. `resource.calendar.attendance`
+        // has no `title` field -- that name was inherited from survey's renderer,
+        // where `survey.question.title` exists. Here the view supplies
+        // `display_name` (see resource_calendar_attendance_views.xml), and looking
+        // for the wrong name made `getSectionColumns` find nothing, so every
+        // section header rendered as an empty band.
+        this.titleField = "display_name";
 
         useEffect(
             (table) => {
@@ -44,6 +50,15 @@ export class SectionListRenderer extends ListRenderer {
         const titleCol = columns.find(
             (col) => col.type === "field" && col.name === this.titleField,
         );
+        if (!titleCol) {
+            // Fail loudly rather than pushing `{...undefined, colspan}`, which is a
+            // nameless, typeless column descriptor that renders as a blank row and
+            // raises nothing -- the exact way the `title` typo above hid for so long.
+            throw new Error(
+                `${this.constructor.name}: no column named "${this.titleField}" in the list; ` +
+                    `a section row has no label to render.`,
+            );
+        }
         sectionColumns.push({ ...titleCol, colspan });
         return sectionColumns;
     }

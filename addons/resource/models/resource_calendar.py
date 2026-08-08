@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from functools import partial
 from itertools import chain
-from typing import Any, NamedTuple, Self
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import DAILY, rrule
@@ -17,7 +17,12 @@ from odoo.models import ValuesType
 from odoo.tools import SQL, date_utils, float_compare
 from odoo.tools.date_utils import float_to_time, localized, to_timezone
 
+from .utils import HOURS_PER_DAY
 from odoo.addons.base.models.res_partner import _tz_get
+
+if TYPE_CHECKING:
+    from .resource_calendar_attendance import ResourceCalendarAttendance
+    from .resource_resource import ResourceResource
 
 
 class DummyAttendance(NamedTuple):
@@ -111,6 +116,11 @@ class ResourceCalendar(models.Model):
         index="btree_not_null",
     )
     leave_ids = fields.One2many("resource.calendar.leaves", "calendar_id", "Time Off")
+    resource_ids = fields.One2many(
+        "resource.resource",
+        "calendar_id",
+        "Work Resources",
+    )
     schedule_type = fields.Selection(
         [
             ("flexible", "Flexible"),
@@ -173,16 +183,21 @@ class ResourceCalendar(models.Model):
     two_weeks_explanation = fields.Char(
         "Explanation", compute="_compute_two_weeks_explanation"
     )
+
+    def _default_tz(self):
+        admin = self.env.ref("base.user_admin", raise_if_not_found=False)
+        return (
+            self.env.context.get("tz")
+            or self.env.user.tz
+            or (admin and admin.tz)
+            or "UTC"
+        )
+
     tz = fields.Selection(
         _tz_get,
         string="Timezone",
         required=True,
-        default=lambda self: (
-            self.env.context.get("tz")
-            or self.env.user.tz
-            or self.env.ref("base.user_admin").tz
-            or "UTC"
-        ),
+        default=lambda self: self._default_tz(),
         help="This field is used in order to define in which timezone the resources will work.",
     )
     tz_offset = fields.Char(compute="_compute_tz_offset", string="Timezone offset")
@@ -365,9 +380,18 @@ class ResourceCalendar(models.Model):
                 calendar._get_hours_per_week(), precision_digits=2
             )
 
-    @api.depends("two_weeks_calendar")
     def _compute_two_weeks_explanation(self):
-        today = fields.Date.today()
+        # No ``@api.depends``: the sentence is the same for every calendar and
+        # varies only with the wall clock, which no dependency can express.  It
+        # used to declare ``two_weeks_calendar``, which is not something the value
+        # reads.
+        #
+        # ``context_today``, not ``Date.today()``: the latter is the *server's*
+        # local date, while the section labels rendered directly beneath this
+        # sentence come from ``resource.calendar.attendance._compute_display_name``,
+        # which uses the user's.  Around midnight the two disagreed and the form
+        # contradicted itself.
+        today = fields.Date.context_today(self)
         week_type = self.env["resource.calendar.attendance"].get_week_type(today)
         # Name the week the way the calendar itself does.  This used to read
         # "odd"/"even", a second vocabulary for the very same thing: the form
@@ -394,6 +418,7 @@ class ResourceCalendar(models.Model):
                 "%z"
             )
 
+    @api.depends("resource_ids")
     def _compute_work_resources_count(self):
         resources_per_calendar = dict(
             self.env["resource.resource"]._read_group(
@@ -533,6 +558,70 @@ class ResourceCalendar(models.Model):
             {"duration_hours": hours, "duration_days": days}
         )
 
+    def _fully_flexible_attendance_intervals(self, start_datetime, end_datetime, tz):
+        """Availability of a resource with no calendar at all: every day, in full.
+
+        One interval **per calendar day** rather than a single block spanning the
+        whole window.  The union is identical, so availability is unchanged --
+        a fully flexible resource is still free at any instant of the range, and
+        planning/gantt see exactly what they saw before.  What changes is how the
+        range *measures*.
+
+        ``_get_attendance_intervals_days_data`` reads a day count off the payload
+        as ``duration_days x interval_hours / duration_hours``.  With one
+        whole-window block carrying ``duration_days = hours / 24`` that ratio
+        collapsed to "elapsed hours over 24", i.e. it counted **wall-clock**
+        days: a Monday-to-Friday absence beginning at 08:00 and ending at 17:00
+        measured 4.375 days instead of 5, and the shortfall grew with every
+        boundary that was not midnight.
+
+        Here each covered day carries a ``duration_days`` measured against an
+        *expected working day* rather than against 24 hours, and capped at one:
+        cover a day from 08:00 to midnight and it is one day, not 0.67; cover
+        three hours of it and it is 3/8 of a day, not 3/24.  The reference is
+        this calendar's ``hours_per_day`` when it has one, falling back to
+        :data:`HOURS_PER_DAY` -- the module's own constant for exactly this
+        "no calendar says otherwise" case, which nothing here used before.
+
+        .. note::
+           The *hours* figure is deliberately left as elapsed time.  It is the
+           same number that feeds availability, so capping it to a nominal
+           working day here would shrink what a fully flexible resource is
+           available for -- which is the one thing "fully flexible" is supposed
+           to mean.  Consumers that need working hours rather than elapsed hours
+           should ask for a day count and multiply.
+        """
+        self.ensure_one()
+        expected_day_hours = self.hours_per_day or HOURS_PER_DAY
+        intervals = []
+        day = start_datetime.date()
+        # The last microsecond of the range still belongs to the final day.
+        last_day = (end_datetime - timedelta(microseconds=1)).date()
+        while day <= last_day:
+            # Localize each midnight separately rather than adding a timedelta to
+            # an aware datetime: on a DST boundary the day is 23 or 25 hours long
+            # and the shortcut would silently keep the old offset.
+            midnight = tz.localize(datetime.combine(day, time.min))
+            next_midnight = tz.localize(
+                datetime.combine(day + timedelta(days=1), time.min)
+            )
+            day_start = max(start_datetime, midnight)
+            day_end = min(end_datetime, next_midnight)
+            if day_end > day_start:
+                covered_hours = (day_end - day_start).total_seconds() / 3600
+                intervals.append(
+                    (
+                        day_start,
+                        day_end,
+                        self._make_dummy_attendance(
+                            covered_hours,
+                            min(1.0, covered_hours / expected_day_hours),
+                        ),
+                    )
+                )
+            day += timedelta(days=1)
+        return intervals
+
     @staticmethod
     def _center_block_on_noon(day, hours, tz, lower, upper):
         """Center a ``hours``-long block on 12:00 of ``day``, tz-localized.
@@ -645,7 +734,7 @@ class ResourceCalendar(models.Model):
         self,
         start_dt: datetime,
         end_dt: datetime,
-        resources: Self | None = None,
+        resources: ResourceResource | None = None,
         domain: list | None = None,
         tz: BaseTzInfo | str | None = None,
         lunch: bool = False,
@@ -759,11 +848,13 @@ class ResourceCalendar(models.Model):
 
             for resource in tz_resources:
                 if resource and not resource_calendars.get(resource, False):
-                    # If the resource is fully flexible, return the whole period from start_dt to end_dt with a dummy attendance
-                    hours = (end_dt - start_dt).total_seconds() / 3600
-                    dummy_attendance = self._make_dummy_attendance(hours, hours / 24)
+                    # Fully flexible: available for the whole period, expressed one
+                    # calendar day at a time so the range measures in days rather
+                    # than in wall-clock hours (see the method's docstring).
                     result_per_resource_id[resource.id] = Intervals(
-                        [(start_datetime, end_datetime, dummy_attendance)],
+                        self._fully_flexible_attendance_intervals(
+                            start_datetime, end_datetime, tz
+                        ),
                         keep_distinct=True,
                     )
                 elif self.flexible_hours or (
@@ -793,7 +884,7 @@ class ResourceCalendar(models.Model):
         self,
         start_dt: datetime,
         end_dt: datetime,
-        resource: Self | None = None,
+        resource: ResourceResource | None = None,
         domain: list | None = None,
         tz: BaseTzInfo | str | None = None,
     ) -> Intervals:
@@ -811,7 +902,7 @@ class ResourceCalendar(models.Model):
         self,
         start_dt: datetime,
         end_dt: datetime,
-        resources: Self | None = None,
+        resources: ResourceResource | None = None,
         domain: list | None = None,
         tz: BaseTzInfo | str | None = None,
     ) -> dict[int | bool, Intervals]:
@@ -901,7 +992,7 @@ class ResourceCalendar(models.Model):
         self,
         start_dt: datetime,
         end_dt: datetime,
-        resources: Self | None = None,
+        resources: ResourceResource | None = None,
         domain: list | None = None,
         tz: BaseTzInfo | str | None = None,
         compute_leaves: bool = True,
@@ -940,7 +1031,7 @@ class ResourceCalendar(models.Model):
         self,
         start_dt: datetime,
         end_dt: datetime,
-        resource: Self | None = None,
+        resource: ResourceResource | None = None,
         domain: list | None = None,
         tz: BaseTzInfo | str | None = None,
     ) -> list[tuple[datetime, datetime]]:
@@ -958,7 +1049,7 @@ class ResourceCalendar(models.Model):
         self,
         start_dt: datetime,
         end_dt: datetime,
-        resources: Self | None = None,
+        resources: ResourceResource | None = None,
         domain: list | None = None,
         tz: BaseTzInfo | str | None = None,
     ) -> dict[int | bool, list[tuple[datetime, datetime]]]:
@@ -1010,9 +1101,20 @@ class ResourceCalendar(models.Model):
     # Private Methods / Helpers
     # --------------------------------------------------
 
-    def _check_overlap(self, attendance_ids: Self) -> None:
+    def _check_overlap(self, attendance_ids: ResourceCalendarAttendance) -> None:
         """attendance_ids correspond to attendance of a week,
         will check for each day of week that there are no superimpose."""
+        # Zero-length lines are excluded first: they cover no time, so they cannot
+        # overlap anything.  The nudge below would invert them (start > stop),
+        # ``Intervals`` drops an inverted tuple, and the length comparison then
+        # reported an "overlap" for a calendar holding a single 0-hour day.  That
+        # is reachable: on a duration-based calendar ``_inverse_duration_hours``
+        # turns ``duration_hours = 0`` into ``hour_from == hour_to == 12``.
+        timed_attendances = [
+            attendance
+            for attendance in attendance_ids
+            if attendance.hour_to > attendance.hour_from
+        ]
         # 0.000001 is added to each start hour to avoid detecting two contiguous intervals as superimposing.
         # Indeed Intervals function will join 2 intervals with the start and stop hour corresponding.
         result = [
@@ -1021,7 +1123,7 @@ class ResourceCalendar(models.Model):
                 int(attendance.dayofweek) * 24 + attendance.hour_to,
                 attendance,
             )
-            for attendance in attendance_ids
+            for attendance in timed_attendances
         ]
 
         if len(Intervals(result)) != len(result):
@@ -1071,7 +1173,7 @@ class ResourceCalendar(models.Model):
         self,
         dt: datetime,
         match_end: bool = False,
-        resource: Self | None = None,
+        resource: ResourceResource | None = None,
         search_range: list[datetime] | None = None,
         compute_leaves: bool = True,
     ) -> datetime | None:
@@ -1410,7 +1512,7 @@ class ResourceCalendar(models.Model):
         day_dt: datetime,
         compute_leaves: bool = False,
         domain: list | None = None,
-        resource: Self | None = None,
+        resource: ResourceResource | None = None,
     ) -> datetime | bool:
         """
         `compute_leaves` controls whether or not this method is taking into
@@ -1466,7 +1568,7 @@ class ResourceCalendar(models.Model):
         day_dt: datetime,
         compute_leaves: bool = False,
         domain: list | None = None,
-        resource: Self | None = None,
+        resource: ResourceResource | None = None,
     ) -> datetime | bool:
         """
         `compute_leaves` controls whether or not this method is taking into

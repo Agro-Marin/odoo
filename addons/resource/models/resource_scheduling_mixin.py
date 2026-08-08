@@ -55,6 +55,7 @@ class ResourceSchedulingMixin(models.AbstractModel):
     schedule_overlap_count = fields.Integer(
         "Scheduling Conflicts",
         compute="_compute_schedule_overlap_count",
+        search="_search_schedule_overlap_count",
     )
 
     # ------------------------------------------------------------------
@@ -109,11 +110,21 @@ class ResourceSchedulingMixin(models.AbstractModel):
     def _get_sync_trigger_fields(self):
         """Return the set of field names whose write triggers ``_sync_reservations``.
 
-        Default: the date fields returned by ``_get_reservation_date_fields``.
-        Consumers typically add assignee / allocation-percentage fields.
+        Default: the date fields returned by ``_get_reservation_date_fields``,
+        plus ``allocated_percentage``.  Consumers typically add their assignee
+        field on top.
+
+        ``allocated_percentage`` belongs here because *this mixin declares it*
+        and every consumer forwards it into ``_get_reservation_vals_list``.
+        Leaving it out made a field the mixin owns depend on each consumer
+        remembering to re-declare it: both consumers in the tree did, which is
+        the evidence that the default was wrong rather than that they were
+        careful.  A consumer that forgot got a mirror reservation permanently
+        stuck at the old percentage -- and therefore a wrong
+        ``allocated_hours`` -- with nothing to indicate it.
         """
+        triggers = {"allocated_percentage"}
         start_field, end_field = self._get_reservation_date_fields()
-        triggers = set()
         if start_field:
             triggers.add(start_field)
         if end_field:
@@ -257,3 +268,26 @@ class ResourceSchedulingMixin(models.AbstractModel):
             record.schedule_overlap_count = sum(
                 record.reservation_ids.mapped("schedule_overlap_count")
             )
+
+    @api.model
+    def _search_schedule_overlap_count(self, operator, value):
+        """Let consumers filter their own conflicted records.
+
+        Only ``in conflict`` / ``not in conflict`` is expressible here: this
+        field is a *sum* over the record's reservations, and the reservation
+        model can only answer per-row questions, so a threshold on the sum
+        cannot be pushed down. Zero-vs-nonzero is the question views and crons
+        actually ask, and it maps exactly: a record has a nonzero sum iff at
+        least one of its reservations is conflicted (counts are never negative).
+        """
+        if not isinstance(value, int) or value != 0 or operator not in ("=", "!="):
+            return NotImplemented
+        conflicted = (
+            self.env["resource.reservation"]
+            .sudo()
+            .search(
+                [("res_model", "=", self._name), ("schedule_overlap_count", ">", 0)]
+            )
+        )
+        record_ids = list({reservation.res_id for reservation in conflicted})
+        return [("id", "not in" if operator == "=" else "in", record_ids)]

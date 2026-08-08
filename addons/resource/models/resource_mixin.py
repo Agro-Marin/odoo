@@ -1,12 +1,15 @@
 from collections import defaultdict
 from datetime import datetime
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from pytz import utc
 
 from odoo import api, fields, models
 from odoo.models import ValuesType
 from odoo.tools.date_utils import localized
+
+if TYPE_CHECKING:
+    from .resource_calendar import ResourceCalendar
 
 
 class ResourceMixin(models.AbstractModel):
@@ -20,6 +23,12 @@ class ResourceMixin(models.AbstractModel):
         index=True,
         ondelete="restrict",
         required=True,
+    )
+    tz = fields.Selection(
+        related="resource_id.tz",
+        string="Timezone",
+        readonly=False,
+        help="This field is used in order to define in which timezone the resources will work.",
     )
     company_id = fields.Many2one(
         "res.company",
@@ -39,12 +48,6 @@ class ResourceMixin(models.AbstractModel):
         related="resource_id.calendar_id",
         store=True,
         readonly=False,
-    )
-    tz = fields.Selection(
-        string="Timezone",
-        related="resource_id.tz",
-        readonly=False,
-        help="This field is used in order to define in which timezone the resources will work.",
     )
 
     @api.model_create_multi
@@ -108,7 +111,9 @@ class ResourceMixin(models.AbstractModel):
             vals["resource_calendar_id"] = resource.calendar_id.id
         return vals_list
 
-    def _get_calendars(self, date_from: datetime | None = None) -> dict[int, Self]:
+    def _get_calendars(
+        self, date_from: datetime | None = None
+    ) -> dict[int, ResourceCalendar]:
         return {resource.id: resource.resource_calendar_id for resource in self}
 
     def _get_work_days_data_batch(
@@ -116,7 +121,7 @@ class ResourceMixin(models.AbstractModel):
         from_datetime: datetime,
         to_datetime: datetime,
         compute_leaves: bool = True,
-        calendar: Self | None = None,
+        calendar: ResourceCalendar | None = None,
         domain: list | None = None,
     ) -> dict[int, dict[str, float]]:
         """
@@ -129,8 +134,7 @@ class ResourceMixin(models.AbstractModel):
         Returns a dict {'days': n, 'hours': h} containing the
         quantity of working time expressed as days and as hours.
         """
-        resources = self.mapped("resource_id")
-        mapped_employees = {e.resource_id.id: e.id for e in self}
+        records_per_resource = self._records_per_resource()
         result = {}
 
         # naive datetimes are made explicit in UTC
@@ -170,14 +174,43 @@ class ResourceMixin(models.AbstractModel):
                     )
                 )
 
-        # convert "resource: result" into "employee: result"
-        return {mapped_employees[r.id]: result[r.id] for r in resources}
+        # convert "resource: result" into "record: result"
+        return self._fan_out_per_record(result, records_per_resource)
+
+    def _records_per_resource(self) -> dict[int, list[int]]:
+        """Group this recordset's ids by the resource they point at.
+
+        Nothing in the data model forbids two records sharing one
+        ``resource.resource`` -- there is no unique constraint, and creating a
+        second ``hr.employee`` on an existing resource is accepted.  The day-data
+        helpers below used to build ``{resource_id: record_id}``, so the second
+        record to name a resource overwrote the first and then vanished from the
+        returned dict, leaving callers that index by record id with a
+        ``KeyError`` and no hint as to why.
+        """
+        grouped = defaultdict(list)
+        for record in self:
+            grouped[record.resource_id.id].append(record.id)
+        return grouped
+
+    @staticmethod
+    def _fan_out_per_record(
+        result_per_resource: dict[int, dict[str, float]],
+        records_per_resource: dict[int, list[int]],
+    ) -> dict[int, dict[str, float]]:
+        """Re-key a per-resource result onto every record that holds it."""
+        return {
+            record_id: result_per_resource[resource_id]
+            for resource_id, record_ids in records_per_resource.items()
+            for record_id in record_ids
+            if resource_id in result_per_resource
+        }
 
     def _get_leave_days_data_batch(
         self,
         from_datetime: datetime,
         to_datetime: datetime,
-        calendar: Self | None = None,
+        calendar: ResourceCalendar | None = None,
         domain: list | None = None,
     ) -> dict[int, dict[str, float]]:
         """
@@ -190,8 +223,7 @@ class ResourceMixin(models.AbstractModel):
         Returns a dict {'days': n, 'hours': h} containing the number of leaves
         expressed as days and as hours.
         """
-        resources = self.mapped("resource_id")
-        mapped_employees = {e.resource_id.id: e.id for e in self}
+        records_per_resource = self._records_per_resource()
         result = {}
 
         # naive datetimes are made explicit in UTC
@@ -229,8 +261,8 @@ class ResourceMixin(models.AbstractModel):
                     )
                 )
 
-        # convert "resource: result" into "employee: result"
-        return {mapped_employees[r.id]: result[r.id] for r in resources}
+        # convert "resource: result" into "record: result"
+        return self._fan_out_per_record(result, records_per_resource)
 
     def _adjust_to_calendar(self, start: datetime, end: datetime) -> dict:
         resource_results = self.resource_id._adjust_to_calendar(start, end)
@@ -241,7 +273,7 @@ class ResourceMixin(models.AbstractModel):
         self,
         from_datetime: datetime,
         to_datetime: datetime,
-        calendar: Self | None = None,
+        calendar: ResourceCalendar | None = None,
         domain: list | None = None,
     ) -> dict[int, list[tuple]]:
         """
@@ -295,7 +327,7 @@ class ResourceMixin(models.AbstractModel):
         self,
         from_datetime: datetime,
         to_datetime: datetime,
-        calendar: Self | None = None,
+        calendar: ResourceCalendar | None = None,
         domain: list | None = None,
     ) -> list[tuple]:
         """

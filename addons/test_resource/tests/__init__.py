@@ -8,5 +8,6 @@ from . import (
     test_resource_errors,
     test_scheduling_archive,
     test_scheduling_mixin,
+    test_second_pass_consumers,
     test_timezones,
 )

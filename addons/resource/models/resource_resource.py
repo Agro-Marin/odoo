@@ -351,13 +351,16 @@ class ResourceResource(models.Model):
             )
 
         for tz, resources in resources_per_tz.items():
-            start = start_date
+            # Iterate on a local ``day`` rather than rebinding the ``start``
+            # parameter: the old code worked only because ``start_date`` and
+            # ``end_date`` had already been read off it, and any later edit that
+            # reached for ``start`` would have found a date where a datetime was
+            # declared.
+            day = start_date
             ranges = []
-            while start <= end_date:
-                start_datetime = tz.localize(
-                    datetime.combine(start, datetime.min.time())
-                )
-                end_datetime = tz.localize(datetime.combine(start, datetime.max.time()))
+            while day <= end_date:
+                start_datetime = tz.localize(datetime.combine(day, datetime.min.time()))
+                end_datetime = tz.localize(datetime.combine(day, datetime.max.time()))
                 ranges.append(
                     (
                         start_datetime,
@@ -365,7 +368,7 @@ class ResourceResource(models.Model):
                         self.env["resource.calendar.attendance"],
                     )
                 )
-                start += timedelta(days=1)
+                day += timedelta(days=1)
 
             for resource in resources:
                 res[resource.id] = Intervals(ranges)
@@ -549,7 +552,10 @@ class ResourceResource(models.Model):
                     continue
 
                 ranges_to_remove = []
-                for leave in leaves._items:
+                # Iterate the Intervals itself, not its private ``_items`` store:
+                # the public iteration yields the same tuples without pinning this
+                # module to the internals of ``odoo.libs.intervals``.
+                for leave in leaves:
                     resource_by_id[resource_id]._format_leave(
                         leave,
                         resource_hours_per_day,

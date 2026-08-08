@@ -87,6 +87,13 @@
                 <filter name="filter_workorders" string="Work Orders"
                     domain="[('res_model', '=', 'mrp.workorder')]" />
                 <separator />
+                <!-- The reason this shared ledger exists is to make a resource
+                     booked twice over findable. That was only possible one
+                     record at a time until schedule_overlap_count became
+                     searchable. -->
+                <filter name="in_conflict" string="In Conflict"
+                    domain="[('schedule_overlap_count', '&gt;', 0)]" />
+                <separator />
                 <filter name="hard" string="Hard Enforcement"
                     domain="[('enforcement_mode', '=', 'hard')]" />
                 <filter name="soft" string="Soft Enforcement"

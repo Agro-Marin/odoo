@@ -14,6 +14,7 @@ class ResourceCalendarLeaves(models.Model):
     _name = "resource.calendar.leaves"
     _description = "Resource Time Off Detail"
     _order = "date_from"
+    _check_company_auto = True
 
     name = fields.Char("Reason")
     company_id = fields.Many2one(
@@ -38,6 +39,7 @@ class ResourceCalendarLeaves(models.Model):
         "resource.resource",
         "Resource",
         index=True,
+        check_company=True,
         help="If empty, this is a generic time off for the company. If a resource is set, the time off is only for this resource",
     )
     time_type = fields.Selection(

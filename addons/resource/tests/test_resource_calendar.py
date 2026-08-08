@@ -50,10 +50,14 @@ class TestResourceCalendar(TransactionCase):
         self.assertEqual(
             attendance.duration_hours, 3.0, "Attendance duration should be 3 hours"
         )
-        self.assertEqual(
+        self.assertAlmostEqual(
             attendance.duration_days,
-            0.125,
-            "Attendance duration should be 0.125 days (3 hours)",
+            3.0 / calendar.hours_per_day,
+            places=6,
+            msg="3 hours is 3/hours_per_day of a working day. This asserted a flat"
+            " 0.125 -- 3/24 -- back when a fully-flexible day was modelled as 24"
+            " wall-clock hours, which is the same modelling that made a Mon-Fri"
+            " absence measure 4.375 days instead of 5.",
         )
 
     def test_flexible_calendar_attendance_interval_duration(self):
