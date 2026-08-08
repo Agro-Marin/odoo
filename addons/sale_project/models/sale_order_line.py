@@ -185,7 +185,11 @@ class SaleOrderLine(models.Model):
             for line in self:
                 if line.task_id and line.product_id.type == 'service':
                     allocated_hours = line._convert_qty_company_hours(line.task_id.company_id or self.env.user.company_id)
-                    line.task_id.write({'allocated_hours': allocated_hours})
+                    # The sold quantity is the task's *estimate*. allocated_hours
+                    # is the committed side, computed from the reservation ledger
+                    # (resource.scheduling.mixin), so writing it here was silently
+                    # undone on the next assignee or date change.
+                    line.task_id.write({'planned_hours': allocated_hours})
         return result
 
     def copy_data(self, default=None):
@@ -291,7 +295,8 @@ class SaleOrderLine(models.Model):
 
         return {
             'name': title if project.sale_line_id else '%s - %s' % (self.order_id.name or '', title),
-            'allocated_hours': allocated_hours,
+            # Estimate, not committed work -- see _timesheet_service_generation.
+            'planned_hours': allocated_hours,
             'partner_id': self.order_id.partner_id.id,
             'description': description,
             'project_id': project.id,
@@ -306,8 +311,8 @@ class SaleOrderLine(models.Model):
         return ['ordered_prepaid']
 
     def _prepare_task_template_vals(self, template, project):
-        if template.allocated_hours:
-            allocated_hours = template.allocated_hours
+        if template.planned_hours:
+            allocated_hours = template.planned_hours
         else:
             allocated_hours = sum(
                 sol._convert_qty_company_hours(self.company_id)
@@ -318,7 +323,7 @@ class SaleOrderLine(models.Model):
 
         return {
             'name': '%s - %s' % (self.order_id.name, template.name),
-            'allocated_hours': allocated_hours,
+            'planned_hours': allocated_hours,
             'project_id': project.id,
             'sale_line_id': self.id,
             'sale_order_id': self.order_id.id,
