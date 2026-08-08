@@ -7,7 +7,12 @@ from typing import Any
 import psycopg
 import psycopg.errors
 import werkzeug.security
-from werkzeug.exceptions import HTTPException, NotFound, UnsupportedMediaType
+from werkzeug.exceptions import (
+    HTTPException,
+    InternalServerError,
+    NotFound,
+    UnsupportedMediaType,
+)
 
 import odoo.api
 from odoo.db import PoolError
@@ -82,6 +87,26 @@ class _RequestServeMixin(RequestState):
             raise NotFound(f'File "{path}" not found in module {module}.\n') from None
 
     def _serve_aborted(self, exc: HTTPException) -> Response:
+        if exc.response is None and exc.code is None:
+            # ``abort(some_response)`` is the intended way into this branch:
+            # werkzeug wraps the response in a code-less ``HTTPException`` and
+            # ``get_response`` hands it straight back -- that is how
+            # http_routing's language 3xx and the dispatchers' early replies
+            # reach the client, and why a code-less exception is not an error
+            # here.
+            #
+            # A code-less exception with *no* response attached is a different
+            # animal: it carries no status at all, ``get_response`` builds
+            # ``Response(body, None, headers)``, and werkzeug materializes that
+            # as **200 OK** with an error body. Something was raised, so the
+            # client, any cache in front of us, an uptime monitor and a crawler
+            # must all be told it failed.
+            _logger.error(
+                "Aborted with a status-less HTTPException while serving %s",
+                self.httprequest.path,
+                exc_info=exc,
+            )
+            exc = InternalServerError(exc.description)
         response = exc.get_response()
         HttpDispatcher(self).post_dispatch(response)
         return response
