@@ -11,6 +11,12 @@ by ``odoo.http``, i.e. after ``proxy_mode`` folded the ``X-Forwarded-*``
 headers into the WSGI environ — is downgraded to a brand new public
 (unauthenticated) session.
 
+A *missing* or empty ``Origin`` is treated the same way: downgraded, not
+rejected. The header is only mandatory for browsers, and the downgrade is
+what provides the protection — so requiring its presence would lock out
+non-browser clients (IoT boxes, integrations) without denying an attacker
+anything, since they can send whatever ``Origin`` they like.
+
 Environment variables:
 
 - ``ODOO_BUS_TRUSTED_ORIGINS``: comma-separated allowlist of origins
@@ -63,7 +69,7 @@ from odoo.service.server import CommonServer
 from odoo.service.transaction import retrying
 from odoo.tools import config
 
-from .models.bus import dispatch
+from .models.bus import NOTIFICATION_HOLD_BACK_SECONDS, dispatch
 from .tools import orjson
 
 _logger = logging.getLogger(__name__)
@@ -127,8 +133,10 @@ class UpgradeRequired(HTTPException):
         headers = super().get_headers(environ)
         headers.append(
             (
+                # Comma-separated: this is an HTTP list header (RFC 6455 §4.4),
+                # not a parameterised one.
                 "Sec-WebSocket-Version",
-                "; ".join(WebsocketConnectionHandler.SUPPORTED_VERSIONS),
+                ", ".join(sorted(WebsocketConnectionHandler.SUPPORTED_VERSIONS)),
             )
         )
         return headers
@@ -467,7 +475,7 @@ class Websocket:
     # meantime.
     # Transactions known to be long should therefore create their notifications
     # at the end, as close as possible to their commit.
-    MAX_NOTIFICATION_HISTORY_SEC = 10
+    MAX_NOTIFICATION_HISTORY_SEC = NOTIFICATION_HOLD_BACK_SECONDS
     # How many requests can be made in excess of the given rate.
     # Clamped to >= 1: `_limit_rate` indexes the timestamp deque, and a
     # zero-length deque (burst 0) would raise IndexError on every frame
@@ -491,6 +499,28 @@ class Websocket:
     # 0 to re-validate on every dispatch (used by tests that need exact
     # session-expiry semantics).
     SESSION_VALIDITY_TTL = 60
+    # Hard bound on receiving ONE frame, and on any single socket recv/sendall.
+    #
+    # Without it, a peer that starts a frame and then stalls (one byte of a
+    # header, or a header announcing more payload than it sends) blocks the
+    # serving thread inside ``_get_next_frame``'s ``recv_bytes`` forever: the
+    # keep-alive / PING / command-queue logic all lives in ``get_messages``,
+    # which is never reached again. The connection then survives indefinitely,
+    # out of reach of ``_kick_all`` too, holding a thread (or greenlet + fd),
+    # its ``ImDispatch`` channel registrations, and -- because ``_terminate``
+    # never runs -- leaving ``_on_websocket_closed`` uncalled, so e.g. the
+    # user stays "online" to everyone else forever.
+    #
+    # Both halves are needed: the socket timeout makes a blocked ``recv``
+    # return so the deadline can be observed at all, and the whole-frame
+    # deadline stops a peer from renewing that timeout with one byte at a
+    # time (``_limit_rate`` counts frames, so a drip *inside* one frame is
+    # otherwise entirely unmetered).
+    #
+    # 15s is ~70KB/s for a maximum-size (``MESSAGE_MAX_SIZE``) frame, orders
+    # of magnitude above what bus traffic actually is, and fragmented messages
+    # get this budget per fragment rather than for the whole message.
+    FRAME_RECEIVE_TIMEOUT = 15
 
     def __init__(self, sock, session, cookies, *, clock=None):
         # Injectable monotonic clock (unit tests). Shared with the
@@ -504,6 +534,9 @@ class Websocket:
         self._cookies = cookies
         self._db = session.db
         self.__socket = sock
+        # See FRAME_RECEIVE_TIMEOUT. Bounds every recv/sendall on this socket;
+        # `_terminate` narrows it further for the orderly-shutdown drain.
+        sock.settimeout(self.FRAME_RECEIVE_TIMEOUT)
         self._close_sent = False
         self._close_received = False
         self._timeout_manager = TimeoutManager(clock=self._clock)
@@ -640,10 +673,19 @@ class Websocket:
         #    + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
         #    |                     Payload Data continued ...                |
         #    +---------------------------------------------------------------+
+        # A frame must arrive whole within this budget; see
+        # FRAME_RECEIVE_TIMEOUT for why a per-recv timeout alone is not enough.
+        frame_deadline = self._clock() + self.FRAME_RECEIVE_TIMEOUT
+
         def recv_bytes(n):
-            """Pull n bytes from the socket"""
+            """Pull n bytes from the socket, bounded by the frame deadline."""
             data = bytearray()
             while len(data) < n:
+                if self._clock() > frame_deadline:
+                    raise ConnectionClosedError(
+                        "Peer did not complete the frame within "
+                        f"{self.FRAME_RECEIVE_TIMEOUT}s"
+                    )
                 received_data = self.__socket.recv(n - len(data))
                 if not received_data:
                     raise ConnectionClosedError
@@ -864,7 +906,25 @@ class Websocket:
             self._trigger_lifecycle_event(LifecycleEvent.CLOSE)
             with acquire_cursor(self._db) as cr:
                 env = self.new_env(cr, self._session)
-                env["ir.websocket"]._on_websocket_closed(self._cookies)
+                # Through `retrying`, like the lifecycle callbacks above, NOT
+                # as a bare call. `_on_websocket_closed` is an extension point
+                # whose implementations write (mail flips the user's presence
+                # to offline), and an ORM assignment only lands in the
+                # transaction's cache -- something must flush it. A bare call
+                # left that to whatever the pooled cursor's transaction
+                # happened to do at commit, so the write persisted or was
+                # silently dropped depending on connection lifetime: measured
+                # on the same build, a socket torn down after ~60s flushed,
+                # one torn down after ~17s did not, and the user stayed
+                # "online" to everyone forever. `retrying` also gives the hook
+                # the serialization-error handling such a write needs (mail's
+                # own presence update mutes and retries those).
+                retrying(
+                    functools.partial(
+                        env["ir.websocket"]._on_websocket_closed, self._cookies
+                    ),
+                    env,
+                )
         except Exception:
             _logger.warning("Error during websocket teardown cleanup", exc_info=True)
 
@@ -1283,18 +1343,25 @@ class WebsocketConnectionHandler:
     # Given by the RFC in order to generate Sec-WebSocket-Accept from
     # Sec-WebSocket-Key value.
     _HANDSHAKE_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+    # Note the absence of ``origin``: it is deliberately NOT required.
+    # RFC 6455 only mandates it for browser clients, and rejecting a handshake
+    # without it buys nothing -- an absent (or empty, or foreign) Origin
+    # already fails ``_is_trusted_origin`` and is downgraded to a public
+    # session by ``_handle_public_configuration``, which is the actual CSWSH
+    # defence. Requiring it only broke the non-browser clients this module
+    # otherwise goes out of its way to support (see the worker-version check
+    # in ``_serve_forever``).
     _REQUIRED_HANDSHAKE_HEADERS = {
         "connection",
         "host",
         "sec-websocket-key",
         "sec-websocket-version",
         "upgrade",
-        "origin",
     }
     # Latest version of the websocket worker. This version should be incremented
     # every time `websocket_worker.js` is modified to force the browser to fetch
     # the new worker bundle.
-    _VERSION = "19.0-8"
+    _VERSION = "19.0-9"
 
     @classmethod
     def websocket_allowed(cls, request):
@@ -1479,10 +1546,13 @@ class WebsocketConnectionHandler:
         the version the client supports and those we support.
         :raise: BadRequest in case of invalid handshake.
         """
+        # Empty as well as missing: an empty ``upgrade``/``host`` is as
+        # unusable as an absent one, and the error message has always claimed
+        # to cover both.
         missing_or_empty_headers = {
             header
             for header in cls._REQUIRED_HANDSHAKE_HEADERS
-            if header not in headers
+            if not headers.get(header)
         }
         if missing_or_empty_headers:
             raise BadRequest(
@@ -1532,6 +1602,21 @@ class WebsocketConnectionHandler:
                 except SessionExpiredException:
                     websocket.close(CloseCode.SESSION_EXPIRED)
                 except PoolError:
+                    websocket.close(CloseCode.TRY_LATER)
+                except InvalidDatabaseError:
+                    # The database is gone, corrupted, or its version no longer
+                    # matches this server (mid-migration, restore in progress).
+                    # Nothing this connection does can ever succeed again, yet
+                    # without closing it the client keeps sending and the
+                    # server keeps logging a full traceback per message,
+                    # forever. TRY_LATER rather than a clean close so the
+                    # worker reconnects with its exponential backoff once the
+                    # database is serviceable again.
+                    _logger.warning(
+                        "Closing websocket: database %r is unavailable or "
+                        "incompatible with this server",
+                        db,
+                    )
                     websocket.close(CloseCode.TRY_LATER)
                 except (InvalidWebsocketRequestError, ValueError) as exc:
                     # Client-controlled input (malformed JSON, bad subscribe

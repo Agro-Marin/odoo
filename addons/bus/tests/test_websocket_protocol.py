@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import struct
+import time
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
@@ -73,6 +74,32 @@ class _FakeSocket:
         self.sent.extend(data)
 
 
+class _StallingSocket:
+    """A peer that starts a frame and then dribbles it, never finishing.
+
+    This is the shape of the slow-loris that used to pin a serving thread
+    forever: ``recv`` always returns *something*, so the blocking read never
+    ends and ``get_messages`` -- where keep-alive, PING and the command queue
+    all live -- is never reached again.
+    """
+
+    def __init__(self, header):
+        self._header = bytearray(header)
+        self.sent = bytearray()
+        self.recv_calls = 0
+
+    def recv(self, n):
+        self.recv_calls += 1
+        if self._header:
+            chunk = bytes(self._header[:n])
+            del self._header[:n]
+            return chunk
+        return b"\x00"  # one payload byte at a time, forever
+
+    def sendall(self, data):
+        self.sent.extend(data)
+
+
 def _client_frame(
     opcode, payload=b"", *, fin=True, rsv1=False, masked=True, seven_bit_len=None
 ):
@@ -129,6 +156,45 @@ class TestHandshakeValidation(BaseCase):
             del headers[header]
             with self.assertRaises(BadRequest, msg=f"Missing {header!r} should raise"):
                 WebsocketConnectionHandler._assert_handshake_validity(headers)
+
+    def test_origin_is_not_a_required_header(self):
+        """A handshake without ``Origin`` is accepted, not rejected.
+
+        ``Origin`` is only mandatory for browsers. Rejecting its absence
+        locked out non-browser clients (IoT boxes, integrations) while
+        denying an attacker nothing -- a foreign ``Origin`` is accepted too,
+        and downgraded to a public session by ``_handle_public_configuration``,
+        which is where the CSWSH protection actually lives.
+        """
+        self.assertNotIn(
+            "origin", WebsocketConnectionHandler._REQUIRED_HANDSHAKE_HEADERS
+        )
+        headers = self._valid_headers()
+        del headers["origin"]
+        WebsocketConnectionHandler._assert_handshake_validity(headers)
+
+    def test_empty_required_header_rejected(self):
+        """An empty required header is as unusable as a missing one.
+
+        The error message always claimed to cover "Empty or missing"; the
+        check only looked at membership, so ``Host:`` with no value passed.
+        """
+        for header in WebsocketConnectionHandler._REQUIRED_HANDSHAKE_HEADERS:
+            headers = self._valid_headers()
+            headers[header] = ""
+            with self.assertRaises(
+                (BadRequest, UpgradeRequired), msg=f"Empty {header!r} should raise"
+            ):
+                WebsocketConnectionHandler._assert_handshake_validity(headers)
+
+    def test_upgrade_required_lists_versions_comma_separated(self):
+        """``Sec-WebSocket-Version`` is an HTTP list header (RFC 6455 §4.4)."""
+        headers = dict(UpgradeRequired().get_headers())
+        self.assertEqual(
+            headers["Sec-WebSocket-Version"],
+            ", ".join(sorted(WebsocketConnectionHandler.SUPPORTED_VERSIONS)),
+        )
+        self.assertNotIn(";", headers["Sec-WebSocket-Version"])
 
     def test_wrong_upgrade_value(self):
         """Upgrade header must be 'websocket' (case-insensitive)."""
@@ -520,6 +586,9 @@ class TestSessionValidityCache(BaseCase):
 
     def _make_ws(self, clock, session):
         ws = Websocket.__new__(Websocket)
+        # `_get_next_frame` bounds each frame with the injectable
+        # clock `__init__` always sets (FRAME_RECEIVE_TIMEOUT).
+        ws._clock = time.monotonic
         ws._clock = clock
         ws._session = session
         ws._session_validated_until = 0.0
@@ -613,6 +682,9 @@ class TestFrameCodec(BaseCase):
 
     def _make_ws(self, incoming=b""):
         ws = Websocket.__new__(Websocket)
+        # `_get_next_frame` bounds each frame with the injectable
+        # clock `__init__` always sets (FRAME_RECEIVE_TIMEOUT).
+        ws._clock = time.monotonic
         sock = _FakeSocket(incoming)
         # Assign the name-mangled private socket attribute used by the codec.
         ws._Websocket__socket = sock
@@ -715,6 +787,48 @@ class TestFrameCodec(BaseCase):
         with self.assertRaises(PayloadTooLargeError):
             ws._process_next_message()
 
+    def test_stalled_frame_is_abandoned_at_the_deadline(self):
+        """A peer that dribbles a frame forever is cut loose, not waited on.
+
+        Regression guard for the slow-loris: with no bound on receiving one
+        frame, ``recv_bytes`` blocked indefinitely and the connection escaped
+        every timeout the module has (keep-alive, PING, frame-response) plus
+        ``_kick_all``, because all of them are driven from ``get_messages``,
+        which the stalled read never returns to.
+        """
+        # TEXT frame, masked, announcing a 1000-byte payload it never sends.
+        header = struct.pack("!BBH", 0x81, 0x80 | 126, 1000) + b"\x00\x00\x00\x00"
+        sock = _StallingSocket(header)
+        clock = _ManualClock()
+        ws = Websocket.__new__(Websocket)
+        ws._clock = clock
+        ws._Websocket__socket = sock
+        ws._timeout_manager = TimeoutManager(clock=clock)
+        ws.state = ConnectionState.OPEN
+        ws._limit_rate = lambda opcode: None
+
+        # Every read advances the clock a little, as a real dribble would.
+        original_recv = sock.recv
+
+        def ticking_recv(n):
+            clock.now += 1
+            return original_recv(n)
+
+        sock.recv = ticking_recv
+
+        with self.assertRaises(ConnectionClosedError):
+            ws._get_next_frame()
+        # It gave up on the deadline rather than reading the whole payload.
+        self.assertLess(sock.recv_calls, 1000)
+        self.assertGreaterEqual(clock.now, Websocket.FRAME_RECEIVE_TIMEOUT)
+
+    def test_frame_deadline_does_not_disturb_a_prompt_peer(self):
+        """A frame that arrives without stalling is unaffected by the bound."""
+        clock = _ManualClock()
+        ws, _ = self._make_ws(_client_frame(Opcode.TEXT, b"hello"))
+        ws._clock = clock  # never advances: well inside the deadline
+        self.assertEqual(ws._process_next_message(), "hello")
+
     def test_truncated_frame_raises_connection_closed(self):
         # Header claims 5 payload bytes but only 2 are provided.
         truncated = _client_frame(Opcode.TEXT, b"hello")[:-3]
@@ -770,6 +884,9 @@ class TestCloseFrameHandling(BaseCase):
 
     def _make_ws(self, incoming=b""):
         ws = Websocket.__new__(Websocket)
+        # `_get_next_frame` bounds each frame with the injectable
+        # clock `__init__` always sets (FRAME_RECEIVE_TIMEOUT).
+        ws._clock = time.monotonic
         sock = _FakeSocket(incoming)
         ws._Websocket__socket = sock
         ws._timeout_manager = TimeoutManager()

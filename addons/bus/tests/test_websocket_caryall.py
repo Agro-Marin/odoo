@@ -65,6 +65,37 @@ class TestWebsocketCaryall(WebsocketCase):
             self.wait_remaining_websocket_connections()
             self.assertEqual(events, ["open", "close"])
 
+    def test_on_websocket_closed_runs_through_retrying(self):
+        """The teardown hook must be flushed/committed, not called bare.
+
+        `_on_websocket_closed` is an extension point whose implementations
+        write -- mail flips the user's presence to offline. An ORM assignment
+        only lands in the transaction's cache, so something has to flush it.
+        Called bare, that was left to whatever the pooled cursor's transaction
+        happened to do at commit, and the result depended on the connection's
+        lifetime: measured against a live server on this build, a socket torn
+        down after ~60s flushed while one torn down after ~17s did not, so the
+        user stayed "online" to everyone else forever.
+
+        This asserts the mechanism rather than the symptom on purpose: under
+        `HttpCase` the websocket runs on a `TestCursor` that shares the test
+        transaction, so the lost write is not reproducible here -- which is
+        exactly why the bug survived. `retrying` is what the lifecycle
+        callbacks a few lines above already use.
+        """
+        seen = []
+        original_retrying = websocket_module.retrying
+
+        def _spy(func, env):
+            seen.append(getattr(func, "func", func).__name__)
+            return original_retrying(func, env)
+
+        with patch.object(websocket_module, "retrying", _spy):
+            ws = self.websocket_connect()
+            ws.close(CloseCode.CLEAN)
+            self.wait_remaining_websocket_connections()
+        self.assertIn("_on_websocket_closed", seen)
+
     def test_instances_weak_set(self):
         with patch.object(websocket_module, "_websocket_instances", WeakSet()):
             first_ws = self.websocket_connect()
