@@ -1,4 +1,4 @@
 {
-  "count": 24047,
-  "note": "24050 -> 24047. Onboarded addons/resource to COMMUNITY_MODULES and cleared its debt: its static/src was previously matched only by js.configs.recommended + prettier, so it lacked globals.browser (window/document tripped no-undef) and was exempt from simple-import-sort et al. All 19 findings under the full ruleset were autofixable; the module is now clean. Measured as CI does: npx eslint . --format=json, summed errorCount, with the committed toolchain. warningCount is 2, unchanged and ungated."
+  "count": 23970,
+  "note": "24047 -> 23970 (-77). Measured as CI does on a CLEAN worktree at HEAD (the shared checkout carries other sessions' in-progress work): npx eslint . --format=json, summed errorCount, committed toolchain (eslint 10.6.0). warningCount is 2, unchanged and ungated.\n\n76 of the 77 predate this change and were never committed as a floor: measuring the same way at the parent of this branch's bus work gave 23971, so the intervening commits improved JS without moving the baseline and left the gate red for everyone. The remaining 1 is bus_service.js's import sort in this series. Attributed rather than silently absorbed."
 }
