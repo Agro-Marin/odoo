@@ -105,15 +105,19 @@ class TestPagerTokenMinting(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # res.partner is not a portal.mixin, so use a model that is. Any
-        # portal.mixin record works; the pager only reads access_url/token.
         cls.records = cls.env["res.partner"].create(
             [{"name": "Pager A"}, {"name": "Pager B"}]
         )
 
-    def test_no_pager_for_models_without_a_url_field(self):
-        """res.partner has neither access_url nor website_url: no pager at all."""
-        result = get_records_pager(self.records.ids, self.records[0])
+    def test_no_pager_when_the_record_is_not_in_the_history(self):
+        """The navigation sequence has to contain the record being viewed.
+
+        Deliberately not asserting on "a model with no URL field" instead: which
+        fields ``res.partner`` carries depends on what else is installed
+        (``website`` contributes ``website_url``), so that premise holds only in
+        some module combinations.
+        """
+        result = get_records_pager([-1, -2], self.records[0])
 
         self.assertEqual(result, {})
 
