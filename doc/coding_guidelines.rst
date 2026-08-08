@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.1
-:Date: 2026-07-30
+:Version: 5.3
+:Date: 2026-08-07
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -62,7 +62,7 @@ floor in ``tooling/ratchet/baselines/``. *How rules are enforced* states the
 model and what closed the gaps that let the floors drift.
 
 **A ratchet fails in both directions.** ``ratchet.py`` defaults to ``exact`` mode
-and all four workflows invoke it without ``--mode``, so the count must *equal* the
+and all five workflows invoke it without ``--mode``, so the count must *equal* the
 floor: an improvement fails the build just as a regression does. This is
 deliberate — it forces the gain to be locked in rather than silently re-spent.
 When you lower a count, commit the new floor in the same PR:
@@ -100,10 +100,30 @@ unless the floor moved with it.
      - ``npx tsc --project tsconfig.json --noEmit``
      - all checked JS
      - ``typecheck.yml``
+   * - naming vocabulary
+     - ``tooling/architecture/naming_vocabulary.py``
+     - §2.4 abolished verbs
+     - ``architecture.yml``, ``unit_tests.yml``
+   * - JS function length
+     - ``tooling/architecture/js_function_length.py``
+     - ``web`` JS
+     - ``architecture.yml``
+   * - JS private access
+     - ``tooling/architecture/js_private_access.py``
+     - ``web`` JS, cross-module
+     - ``architecture.yml``
+   * - JS service shape
+     - ``tooling/architecture/js_service_shape.py``
+     - ``web`` JS services
+     - ``architecture.yml``
    * - layer boundaries
      - ``tooling/`` layer, import-cycle + named-export checks
      - **drift-zero**
      - ``architecture.yml``
+
+``tooling/ratchet/baselines/`` is the authoritative list — eight floors today.
+The ``test_lint`` ratchets are counted separately, inside the module's own
+``assert_ratchet`` (see below), and are not baselined here.
 
 Three consequences you must internalise:
 
@@ -129,9 +149,19 @@ The ``test_lint`` module
 
 ``odoo/addons/test_lint`` is the fork's own enforcement layer: AST checkers and
 registry-level tests that encode Odoo-specific rules no general-purpose linter
-knows about. **It is not wired into CI today** — ``integration_tests.yml`` installs
-only ``base``. Run it yourself before opening a PR that touches Python, XML or
-manifests:
+knows about. Every rule is an exact-match ratchet (``LintCase.assert_ratchet``):
+the count may not rise, and it may not fall silently either, so a fix that gets
+undone fails just as loudly as a new offence.
+
+**It runs in CI in two lanes.** ``test_lint.yml`` installs ``base`` +
+``test_lint`` and runs ``/test_lint`` on every pull request with no ``paths:``
+filter, because these gates scan the whole tree rather than a subtree: a new
+``.py`` anywhere can add an N+1 finding, a deleted file can break a manifest
+asset path. ``asset_lint.yml`` covers the classes that need a
+real registry (bundles, dark siblings, ESM specifiers) against a wider install
+set. ``integration_tests.yml`` installs only ``base`` and does not run these.
+
+Run it yourself before opening a PR that touches Python, XML or manifests:
 
 .. code-block:: bash
 
@@ -1786,7 +1816,7 @@ Colocate a component's ``.js`` and ``.xml`` in a feature folder
 
    import { Component } from "@odoo/owl";
    import { registry } from "@web/core/registry";
-   import { _t } from "@web/core/l10n/translation";
+   import { _t } from "@web/core/translation";
 
 ``/** @odoo-module **/`` is a **routing directive for the asset bundler**, parsed
 from the first 500 bytes of the file by ``odoo/tools/assets/esm_graph.py`` — not a
@@ -2562,7 +2592,7 @@ For constants declared outside a method, use ``LazyTranslate``:
 
 .. code-block:: javascript
 
-   import { _t } from "@web/core/l10n/translation";
+   import { _t } from "@web/core/translation";
 
    const message = _t("Operation completed");
 
@@ -3251,6 +3281,19 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.3
+     - 2026-08-07
+     - **``test_lint`` runs in CI**, correcting the claim that it is not wired in:
+       ``test_lint.yml`` runs ``/test_lint`` on ``base`` + ``test_lint`` for every
+       PR without a ``paths:`` filter, and ``asset_lint.yml`` runs the
+       registry-dependent classes against a wider install set.
+       ``integration_tests.yml`` installs only ``base`` and runs neither.
+       **Ratchets table completed** to the eight floors in
+       ``tooling/ratchet/baselines/``: added ``naming``, ``jsfunclen``,
+       ``jsprivate`` and ``jsserviceshape``, and named the baselines directory as
+       the authoritative list. ``test_lint``'s ratchets are counted inside the
+       module and are not baselined there. Five workflows invoke ``ratchet.py``
+       without ``--mode``, not four.
    * - 5.2
      - 2026-08-06
      - Expanded §2.4 with a **verb vocabulary**: one canonical verb per operation
