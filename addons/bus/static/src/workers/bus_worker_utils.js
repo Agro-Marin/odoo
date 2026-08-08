@@ -79,6 +79,10 @@ export class Logger {
                     transaction.onerror = (e) => rej(e.target.error);
                 });
             } catch (error) {
+                // Includes a synchronous throw from `transaction()` on a handle
+                // that died since it was cached: drop it so the next use
+                // reopens instead of failing every GC pass from here on.
+                logger._forgetDatabase();
                 console.error(
                     `Failed to clear logs for logger "${logger._name}":`,
                     error,
@@ -104,6 +108,22 @@ export class Logger {
         );
     }
 
+    /**
+     * Drop the cached connection so the next call reopens it.
+     *
+     * An IDBDatabase handle can stop being usable without this object hearing
+     * about it (the browser closing it under storage pressure, "clear site
+     * data", a `versionchange` from another context). `_ensureDatabaseAvailable`
+     * short-circuits on `this._db`, so a stale handle would otherwise be reused
+     * forever and every later `transaction()` would throw InvalidStateError for
+     * the rest of the worker's life -- silently killing bus logging, since
+     * `_logDebug` swallows the rejection into a console error.
+     */
+    _forgetDatabase() {
+        this._db = null;
+        this._dbPromise = null;
+    }
+
     async _ensureDatabaseAvailable() {
         if (this._db) {
             return;
@@ -116,6 +136,15 @@ export class Logger {
             const request = indexedDB.open(this._name, 1);
             request.onsuccess = (event) => {
                 this._db = event.target.result;
+                // Abnormal closure (storage pressure, "clear site data", ...):
+                // the handle is dead, forget it so the next call reopens.
+                this._db.onclose = () => this._forgetDatabase();
+                // Another context wants to upgrade: we must close, or we block
+                // it indefinitely. Same recovery on the next call.
+                this._db.onversionchange = () => {
+                    this._db?.close();
+                    this._forgetDatabase();
+                };
                 res();
             };
             request.onupgradeneeded = (event) => {
@@ -128,7 +157,7 @@ export class Logger {
             };
             request.onerror = (e) => {
                 // Allow a later call to retry the open.
-                this._dbPromise = null;
+                this._forgetDatabase();
                 rej(e.target.error);
             };
         });
@@ -138,7 +167,17 @@ export class Logger {
     async log(message) {
         await this._ensureDatabaseAvailable();
         Logger._ensureGcScheduled();
-        const transaction = this._db.transaction("logs", "readwrite");
+        let transaction;
+        try {
+            transaction = this._db.transaction("logs", "readwrite");
+        } catch (error) {
+            // The handle died after `_ensureDatabaseAvailable` cleared us (the
+            // `close` event may not have been delivered yet). Forget it so the
+            // next call reopens rather than throwing for the rest of the
+            // session.
+            this._forgetDatabase();
+            throw error;
+        }
         const store = transaction.objectStore("logs");
         const addRequest = store.add({ timestamp: Date.now(), message });
         return new Promise((res, rej) => {
