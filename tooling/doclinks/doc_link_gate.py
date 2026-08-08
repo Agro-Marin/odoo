@@ -310,6 +310,16 @@ def _resolve_ref(source_file: Path, raw_path: str) -> Path | None:
     never reached. A false positive is the worst failure for a gate: it teaches
     people to ignore it.
 
+    Step 3 buys that tolerance at a price worth naming: a **bare common
+    basename resolves against the nearest ancestor that happens to carry one**,
+    which need not be the file the author meant. ``TEST_TAGS.md`` in web's
+    machine_doc said "See that directory's ``README.md``" about
+    ``tooling/hoot/``; the walk found the repo-root ``README.md`` and reported
+    the citation fine for as long as that file existed. Deleting it is what
+    surfaced the error. So this gate proves a reference resolves to *something*,
+    never that it resolves to the *right* thing — cite a path with enough of its
+    directory to be unambiguous, and the walk-up has nothing to guess at.
+
     Anchor fragments are stripped before existence check.
     """
     cleaned = _strip_anchor(raw_path)

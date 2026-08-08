@@ -95,8 +95,10 @@ Some modules contain a `machine_doc_v<N>/` directory (e.g. `machine_doc_v1/`) wi
 structured, machine-consumable maps of routes, models, architecture, conventions,
 and test tags. **When working on any module, check for `machine_doc_v*/` first and
 read it before doing anything else.** This eliminates redundant codebase
-exploration and provides immediate context. A module's own `README.md` or
-`CLAUDE.md` comes next.
+exploration and provides immediate context. A module's own README.md or
+CLAUDE.md comes next — named without backticks on purpose: these are file
+*kinds* a module may carry, not paths, and a backticked path in this repo
+asserts that one particular file exists.
 
 ## Tests
 

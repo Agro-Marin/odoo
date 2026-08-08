@@ -95,7 +95,7 @@ is false and the **whole bundle** runs.
 paths, and `./hoot-shard` runs the whole desktop suite in parallel — **14209
 tests in 311 s wall at `-j 4`** against ~1216 s serial. Its suite list is read
 from `test_js.py`, heavy suites are split into child ids, and each suite gets its
-own page load so results mean what CI means. See that directory's `README.md`.
+own page load so results mean what CI means. See `tooling/hoot/README.md`.
 `./hoot --affected` selects suites from your git diff across **all four addon
 repos**; add `--downstream` for suites in other addons.
 
