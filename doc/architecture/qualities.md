@@ -1,6 +1,6 @@
 # Quality attributes — the numbers a design change is judged against
 
-> One of the views indexed by [`odoo/ARCHITECTURE.md`](../../odoo/ARCHITECTURE.md).
+> One of the views indexed by [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > The *Forces* table there says what the architecture optimises for. This page
 > says **how much**, so a change can fail one of those forces instead of merely
 > disappointing it.
@@ -102,7 +102,7 @@ the cold path runs DDL and module data loading while the warm path only composes
 classes and reads `ir_model*`. Anything that forces a rebuild — a schema-affecting
 change, a module install — pays the upper number, which is why registry
 invalidation is signalled rather than assumed (see
-[*Cross-process invalidation*](../../odoo/ARCHITECTURE.md)).
+[*Cross-process invalidation*](ARCHITECTURE.md)).
 
 Reproduce:
 

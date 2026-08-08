@@ -30,7 +30,7 @@ cursor can flush the cache on rollback without `db/` knowing the ORM exists.
 - The database layer can be reasoned about, and in principle reused, without
   the ORM.
 - The cost: the ORM↔db seam is a set of injected hooks/attributes that must be
-  documented and kept stable (see `odoo/ARCHITECTURE.md`, "Seams").
+  documented and kept stable (see `doc/architecture/ARCHITECTURE.md`, "Seams").
 
 ## Enforcement
 
@@ -48,3 +48,19 @@ The Enforcement section said the contract was "currently **clean at zero**". A
 status is a fact about the tree at a moment, and this record is immutable, so
 the sentence could only become false. Corrected in place: it is a citation, not
 the decision.
+
+### 2026-08-07 — the architecture front door moved to `doc/architecture/`
+
+This record cited the front door at the path it held inside the core package
+until 2026-08-07 (odoo/ARCHITECTURE.md — deliberately not backticked, because a
+backticked path in this repo asserts that the file exists, and this one no
+longer does). That page sat inside the core *package* while describing the
+whole repository — the gate
+catalog it indexes covers `addons/**` JS and the repo-wide `eslint`/`tsc`
+ratchets — so it was filed one level below its own scope, and the two halves of
+the architecture document cited each other across directories. Widening
+`doc_link_gate.py` to the set found 15 broken references held together by
+nothing. The set is now one flat directory, `doc/architecture/`, with the front
+door at `doc/architecture/ARCHITECTURE.md`.
+
+Corrected in place: the *Consequences* section's pointer to the seam documentation. It is a citation, not the decision.

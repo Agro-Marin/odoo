@@ -22,13 +22,15 @@ Amendments.
 
 ## Three rules that keep a frozen record from rotting
 
-**An ADR is past tense; `odoo/ARCHITECTURE.md` is present tense.** This is the
-rule the other two follow from. An ADR says *on this date, given these forces,
-we chose X over Y* — a claim about a moment, and therefore true forever.
-`odoo/ARCHITECTURE.md` says *this is how the system is today* — a claim about
-now, which is why it is gated and re-derived. **A sentence in an ADR written in
-the present tense about the tree is a bug**, because the record is immutable and
-the tree is not: it can only become false, and nothing will notice. Write "at
+**An ADR is past tense; `doc/architecture/ARCHITECTURE.md` is present tense.**
+This is the rule the other two follow from. An ADR says *on this date, given
+these forces, we chose X over Y* — a claim about a moment, and therefore true
+forever.
+`doc/architecture/ARCHITECTURE.md` says *this is how the system is today* — a
+claim about now, which is why it is gated and re-derived. **A sentence in an ADR
+written in the present tense about the tree is a bug**, because the record is
+immutable and the tree is not: it can only become false, and nothing will
+notice. Write "at
 this decision the count was N", not "the count is N"; write "run the checker",
 not "currently clean at zero". Gated by
 `test_adr_coherence.TestNoLiveStatusClaims`.
@@ -49,8 +51,9 @@ says so. This is what ADR-0004's two silent post-acceptance rewrites should have
 been.
 
 These records document the framework-core architecture of the `19.0-marin`
-fork. The companion overview is [`odoo/ARCHITECTURE.md`](../../odoo/ARCHITECTURE.md);
-the boundaries several of these ADRs establish are enforced by
+fork. The companion overview is
+[`doc/architecture/ARCHITECTURE.md`](../architecture/ARCHITECTURE.md); the
+boundaries several of these ADRs establish are enforced by
 [`tooling/architecture/layer_check.py`](../../tooling/architecture/layer_check.py).
 
 ADRs 0001–0004 are **retroactive**: they record decisions already embodied in

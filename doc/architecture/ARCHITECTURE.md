@@ -8,12 +8,12 @@ per-addon `addons/*/machine_doc_v1/ARCHITECTURE.md` maps.
 
 | If you are… | Read |
 |---|---|
-| new to the core | *Context* and *The forces* below, then [`doc/architecture/views/module.md`](../doc/architecture/views/module.md) |
+| new to the core | *Context* and *The forces* below, then [`module.md`](module.md) |
 | placing new code | *Where to add code* below |
-| debugging a runtime path | [`doc/architecture/views/runtime.md`](../doc/architecture/views/runtime.md) |
-| changing a boundary | [`doc/architecture/gates.md`](../doc/architecture/gates.md), then `doc/adr/` |
-| wondering why a rule exists | `doc/adr/`, then [`doc/architecture/MEASUREMENTS.md`](../doc/architecture/MEASUREMENTS.md) |
-| judging a change's cost | [`doc/architecture/qualities.md`](../doc/architecture/qualities.md) |
+| debugging a runtime path | [`runtime.md`](runtime.md) |
+| changing a boundary | [`gates.md`](gates.md), then `doc/adr/` |
+| wondering why a rule exists | `doc/adr/`, then [`MEASUREMENTS.md`](MEASUREMENTS.md) |
+| judging a change's cost | [`qualities.md`](qualities.md) |
 
 ## Context
 
@@ -123,7 +123,7 @@ dependent recomputes; the database sees nothing until a flush. A flush is a
 non-convergence is an error rather than a warning. This is what buys write
 throughput, and it is also why "the value I just wrote isn't in the database yet"
 is normal rather than a bug. Detail: [*Transaction, cache and
-flush*](../doc/architecture/views/runtime.md#transaction-cache-and-flush).
+flush*](runtime.md#transaction-cache-and-flush).
 
 ### Cross-process invalidation runs through PostgreSQL
 
@@ -134,7 +134,7 @@ id the database generated; every other worker notices on its next
 This is the mechanism that makes the process model architectural rather than a
 deployment knob, and it is why any process-lifetime cache must be registered in
 `CACHES_BY_KEY`. Detail: [*Concurrency, and why the process model is
-architectural*](../doc/architecture/views/runtime.md#concurrency-and-why-the-process-model-is-architectural).
+architectural*](runtime.md#concurrency-and-why-the-process-model-is-architectural).
 
 ### Access control is a model-layer concern, applied per operation
 
@@ -159,21 +159,21 @@ PostgreSQL serialization and deadlock errors, and a `readonly` route that turns
 out to write is re-run on a read/write cursor. Handlers must therefore be safe to
 execute more than once: non-transactional side effects — mail, outbound calls —
 must not precede the first write. Detail: [*Request
-lifecycle*](../doc/architecture/views/runtime.md#request-lifecycle-http).
+lifecycle*](runtime.md#request-lifecycle-http).
 
 ## The views
 
 | View | Answers | File |
 |---|---|---|
-| **Module** | what exists, who owns it, who may import whom | [`doc/architecture/views/module.md`](../doc/architecture/views/module.md) |
-| **Runtime** | what runs when — boot, registry build, request, transaction, concurrency | [`doc/architecture/views/runtime.md`](../doc/architecture/views/runtime.md) |
-| **Data** | what persists, who owns it, what is authoritative when stores disagree | [`doc/architecture/views/data.md`](../doc/architecture/views/data.md) |
-| **Deployment** | how many processes, what each may do, and how it degrades | [`doc/architecture/views/deployment.md`](../doc/architecture/views/deployment.md) |
-| **Gates** | what is mechanically enforced, and what "enforced" is worth | [`doc/architecture/gates.md`](../doc/architecture/gates.md) |
-| **Scenarios** | end-to-end threads — installing a module, upgrading a populated database | [`doc/architecture/views/scenarios.md`](../doc/architecture/views/scenarios.md) |
-| **Qualities** | how much the forces cost, measured — so a change can fail one | [`doc/architecture/qualities.md`](../doc/architecture/qualities.md) |
-| **Risks** | where the implementation and the design demonstrably disagree | [`doc/architecture/risks.md`](../doc/architecture/risks.md) |
-| **Measurements** | how these rules were arrived at, and what each cost to learn | [`doc/architecture/MEASUREMENTS.md`](../doc/architecture/MEASUREMENTS.md) |
+| **Module** | what exists, who owns it, who may import whom | [`module.md`](module.md) |
+| **Runtime** | what runs when — boot, registry build, request, transaction, concurrency | [`runtime.md`](runtime.md) |
+| **Data** | what persists, who owns it, what is authoritative when stores disagree | [`data.md`](data.md) |
+| **Deployment** | how many processes, what each may do, and how it degrades | [`deployment.md`](deployment.md) |
+| **Gates** | what is mechanically enforced, and what "enforced" is worth | [`gates.md`](gates.md) |
+| **Scenarios** | end-to-end threads — installing a module, upgrading a populated database | [`scenarios.md`](scenarios.md) |
+| **Qualities** | how much the forces cost, measured — so a change can fail one | [`qualities.md`](qualities.md) |
+| **Risks** | where the implementation and the design demonstrably disagree | [`risks.md`](risks.md) |
+| **Measurements** | how these rules were arrived at, and what each cost to learn | [`MEASUREMENTS.md`](MEASUREMENTS.md) |
 | **Decisions** | why the architecture is this way, dated and immutable | `doc/adr/` |
 
 Two subsystems document themselves in more depth than any view does:
@@ -193,7 +193,7 @@ unflattened HTTP call graph.
 >
 > **If you add a number to this page, add the assertion with it.** Prose that no
 > test reads is prose that has already drifted —
-> `doc/architecture/MEASUREMENTS.md` records what that cost when it was learned.
+> `MEASUREMENTS.md` records what that cost when it was learned.
 >
 > That rule has a failure mode worth naming, because this page is the correction
 > for it: it selects for claims that are *checkable*, not claims that are
@@ -219,7 +219,7 @@ unflattened HTTP call graph.
 
 Two rules that apply to all of the above: a new module must appear in the
 **Subsystem map** in
-[`doc/architecture/views/module.md`](../doc/architecture/views/module.md) if
+[`module.md`](module.md) if
 its package's contents are enumerated there, and a new number written anywhere in
 this document set must arrive with the assertion that re-derives it.
 

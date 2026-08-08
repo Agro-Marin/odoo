@@ -60,8 +60,9 @@ Keep `OrmCore` as the internal id-level boundary and reduce the surrounding
 noise, rather than collapsing or removing the façade.
 
 1. **Affirm `env._core` as the single id-level access point.** Document in
-   `OrmCore`'s module docstring (and `odoo/ARCHITECTURE.md`) that it is an
-   *intentionally curated* subset: reads, dirty/patch tracking, scheduling and
+   `OrmCore`'s module docstring (and `doc/architecture/ARCHITECTURE.md`) that
+   it is an *intentionally curated* subset: reads, dirty/patch tracking,
+   scheduling and
    protection live here; cache *mutation* and *lifecycle* do not, by design.
 
 2. **Privatise the raw handles.** Rename `Transaction.cache_store` →
@@ -164,7 +165,7 @@ lighter first step.
 ## Implementation status
 
 - **Steps 1–3: done.** `OrmCore` / `Environment._core` docstrings and
-  `odoo/ARCHITECTURE.md` document the curated boundary (step 1);
+  `doc/architecture/ARCHITECTURE.md` document the curated boundary (step 1);
   `Transaction.cache_store` / `compute_engine` are now `_cache_store` /
   `_compute_engine`, with the single external reader (an account test) moved to
   `env._core` (step 2); `TestOrmCoreDelegationDrift` in
@@ -207,8 +208,9 @@ qualifying; step 3 is intact and doing its job.
   `service/db.py`, all of `odoo/cli/` and others — but `components/core.py` was
   not on it, because nothing read it. That is the lesson worth keeping: a
   docstring nominated as an ADR deliverable and gated by nothing is not a
-  deliverable. `odoo/ARCHITECTURE.md` still carries the curated-boundary
-  statement, so the decision survives in prose; the class-level comment in
+  deliverable. `doc/architecture/ARCHITECTURE.md` still carries the
+  curated-boundary statement, so the decision survives in prose; the
+  class-level comment in
   `components/core.py` now carries the rest.
 
 - **Step 2 was incomplete on the day it landed.** Renaming
@@ -224,3 +226,20 @@ qualifying; step 3 is intact and doing its job.
 Both corrections were found by reading the tree, not the record. The general
 point is ADR-0008's, turned inward: a documented guarantee that no gate enforces
 decays into a claim, and this ADR made two of them.
+
+### 2026-08-07 — the architecture front door moved to `doc/architecture/`
+
+This record cited the front door at the path it held inside the core package
+until 2026-08-07 (odoo/ARCHITECTURE.md — deliberately not backticked, because a
+backticked path in this repo asserts that the file exists, and this one no
+longer does). That page sat inside the core *package* while describing the
+whole repository — the gate
+catalog it indexes covers `addons/**` JS and the repo-wide `eslint`/`tsc`
+ratchets — so it was filed one level below its own scope, and the two halves of
+the architecture document cited each other across directories. Widening
+`doc_link_gate.py` to the set found 15 broken references held together by
+nothing. The set is now one flat directory, `doc/architecture/`, with the front
+door at `doc/architecture/ARCHITECTURE.md`.
+
+Corrected in place: the three pointers naming the page that carries the curated-boundary
+statement. It is a citation, not the decision.

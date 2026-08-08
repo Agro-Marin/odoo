@@ -2,7 +2,7 @@
 """Architectural layering checker for the Odoo framework core (``odoo/``).
 
 This is a dependency-free (stdlib-only) enforcement tool for the layering
-contracts documented in ``odoo/ARCHITECTURE.md``. It is the mechanical
+contracts documented in ``doc/architecture/module.md``. It is the mechanical
 counterpart to that doc: the doc explains *why* the boundaries exist, this
 script guarantees they are not crossed.
 
@@ -114,7 +114,7 @@ class Known:
 
 
 # Known, tolerated boundary exceptions; see the "Known boundary exceptions"
-# section of odoo/ARCHITECTURE.md.
+# section of doc/architecture/module.md.
 #
 # The EIGHT ORIGINAL contracts are clean at zero and stay that way
 # (test_the_eight_original_contracts_are_clean_at_zero):

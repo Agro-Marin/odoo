@@ -66,29 +66,38 @@ class TestScanCoverage:
         assert scanned == on_disk, f"unwatched machine_doc trees: {on_disk - scanned}"
 
     def test_every_architecture_document_is_covered(self):
-        # The architecture set is ONE document split across two directories --
-        # the front door in the core package, its views and meta-pages under
-        # `doc/architecture/`. `test_architecture_doc.py` concatenates all ten
-        # and asserts against the blob, so the split is presentational; what
-        # holds it together for a human is ~30 relative links.
+        # `test_architecture_doc.py` concatenates the whole set and asserts
+        # against the blob, so which file a sentence sits in is presentational;
+        # what holds the set together for a human is its relative links.
         #
         # None of them was checked. The only `doc/` entry in the scan globs was
         # `doc/*.md`, which reads like a deliberate one-level narrowing around
         # `doc/cla/` and in fact matched ZERO files -- `doc/` has no `.md` at
-        # its top level at all. Widening surfaced 15 broken references on the
-        # first run, every one a backticked bare filename that resolves only
-        # from the directory the *other* half of the document lives in.
+        # its top level at all. Widening surfaced 15 broken references, every
+        # one a backticked bare filename that resolved only from the directory
+        # the *other* half of the document lived in: the set was split across
+        # `odoo/` and `doc/architecture/`. It is one flat directory now, which
+        # is what makes a bare sibling filename the correct citation and this
+        # glob the whole story -- no front-door special case any more.
         files = set(gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES))
         on_disk = set((gate.REPO_ROOT / "doc" / "architecture").glob("**/*.md"))
-        front_door = gate.REPO_ROOT / "odoo" / "ARCHITECTURE.md"
-        assert front_door.is_file(), (
-            "the front door has moved; point this test at its new home -- and "
-            "drop the special case entirely if it now lives under "
-            "doc/architecture/, where the glob above already covers it"
+        assert len(on_disk) >= 10, (
+            f"the architecture set has shrunk to {len(on_disk)} files; if it "
+            f"moved, point this test at its new home -- an empty glob would "
+            f"make every assertion below vacuously true"
         )
-        on_disk.add(front_door)
-        assert on_disk, "the architecture document set has moved; this test is blind"
         assert on_disk <= files, f"unwatched architecture docs: {on_disk - files}"
+
+    def test_the_front_door_is_in_the_set_it_indexes(self):
+        # It lived in `odoo/` until 2026-08 -- a package-scoped location for a
+        # repo-scoped document, which is what manufactured the cross-directory
+        # links that rotted. Co-locating it is what retires them.
+        front_door = gate.REPO_ROOT / "doc" / "architecture" / "ARCHITECTURE.md"
+        assert front_door.is_file(), f"front door not at {front_door}"
+        assert not (gate.REPO_ROOT / "odoo" / "ARCHITECTURE.md").exists(), (
+            "two front doors: the old location is back, so readers and gates "
+            "can disagree about which one is current"
+        )
 
     def test_the_adr_log_is_scanned_as_markdown_not_only_for_citations(self):
         # `ADR_SCAN_GLOBS` already reaches the records, but only to resolve
@@ -334,7 +343,7 @@ class TestAdrCitations:
             for f in gate._glob_files(gate.ADR_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
         }
         assert "tooling/architecture/layer_check.py" in scanned
-        assert "odoo/ARCHITECTURE.md" in scanned
+        assert "doc/architecture/ARCHITECTURE.md" in scanned
 
     def test_this_gate_plants_no_live_citation_of_its_own(self):
         """Its own prose must illustrate the form without citing a real ADR —

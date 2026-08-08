@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fact-check ``odoo/ARCHITECTURE.md`` against the code it describes.
+"""Fact-check ``doc/architecture/ARCHITECTURE.md`` against the code it describes.
 
 ``ARCHITECTURE.md`` opens by claiming it is *enforced*. That was true of the
 dependency rules — ``layer_check.py`` runs them — and false of everything else on
@@ -54,15 +54,20 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_architecture_doc")
 #: Order is front door first, then the views in reading order, so a ``--verbose``
 #: diff is stable. ``DOC_PATH`` stays the front door: it is what
 #: ``test_architecture_doc_is_not_vacuous`` re-reads as the control.
-DOC_PATH = ROOT / "odoo" / "ARCHITECTURE.md"
+#:
+#: All of it lives in one flat directory. The front door sat in ``odoo/`` until
+#: 2026-08 — a package-scoped home for a repo-scoped document, which forced the
+#: two halves to cite each other across directories and produced 15 broken
+#: references that no gate was reading.
 _ARCH_DOCS = ROOT / "doc" / "architecture"
+DOC_PATH = _ARCH_DOCS / "ARCHITECTURE.md"
 DOC_PATHS = (
     DOC_PATH,
-    _ARCH_DOCS / "views" / "module.md",
-    _ARCH_DOCS / "views" / "runtime.md",
-    _ARCH_DOCS / "views" / "data.md",
-    _ARCH_DOCS / "views" / "deployment.md",
-    _ARCH_DOCS / "views" / "scenarios.md",
+    _ARCH_DOCS / "module.md",
+    _ARCH_DOCS / "runtime.md",
+    _ARCH_DOCS / "data.md",
+    _ARCH_DOCS / "deployment.md",
+    _ARCH_DOCS / "scenarios.md",
     _ARCH_DOCS / "gates.md",
     _ARCH_DOCS / "risks.md",
     _ARCH_DOCS / "qualities.md",

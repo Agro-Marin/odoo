@@ -75,10 +75,27 @@ The Decision scopes the gate to the `base` suite and says the `INSTALL` /
 It has: `integration_tests.yml` now runs two suites, `base` (less
 `TestReportsRendering` and `TestIrModelFieldsTranslation`) and `test_http`, each
 against **its own database** (`-d ci_smoke`, `-d ci_http`). Separate databases
-are not a detail — the suites interfere, and `odoo/ARCHITECTURE.md` records the
-`res_partner_views.xml` / `test_hard_reset_from_file_still_works` collision that
-proves it.
+are not a detail — the suites interfere, and
+`doc/architecture/ARCHITECTURE.md` records the `res_partner_views.xml` /
+`test_hard_reset_from_file_still_works` collision that proves it.
 
 Recorded rather than corrected in place: the decision text is right about what
 was decided, and the broadening is that decision working as intended, not a
 citation that aged out. `--db-template=template0` is still what both runs pass.
+
+### 2026-08-07 — the architecture front door moved to `doc/architecture/`
+
+This record cited the front door at the path it held inside the core package
+until 2026-08-07 (odoo/ARCHITECTURE.md — deliberately not backticked, because a
+backticked path in this repo asserts that the file exists, and this one no
+longer does). That page sat inside the core *package* while describing the
+whole repository — the gate
+catalog it indexes covers `addons/**` JS and the repo-wide `eslint`/`tsc`
+ratchets — so it was filed one level below its own scope, and the two halves of
+the architecture document cited each other across directories. Widening
+`doc_link_gate.py` to the set found 15 broken references held together by
+nothing. The set is now one flat directory, `doc/architecture/`, with the front
+door at `doc/architecture/ARCHITECTURE.md`.
+
+Corrected in place: the *Consequences* pointer to where the suite-interference collision is
+recorded. It is a citation, not the decision.

@@ -1,12 +1,12 @@
-# AgroMarin Odoo 19 — Core Framework Fork
+# Odoo 19 — Core Framework Fork
 
 This repository is **a fork of Odoo Community 19.0**
 (`github.com/Agro-Marin/odoo`). What the framework core contains, how it is
-layered, and which dependencies are legal is `doc/architecture/views/module.md` —
+layered, and which dependencies are legal is `doc/architecture/module.md` —
 the canonical subsystem map, CI-enforced by `tooling/architecture/`. Read it
-before restructuring core. `odoo/ARCHITECTURE.md` is the front door that indexes
-it: context, the forces the design answers to, the cross-cutting mechanisms, and
-where new code goes.
+before restructuring core. `doc/architecture/ARCHITECTURE.md` is the front
+door that indexes it: context, the forces the design answers to, the
+cross-cutting mechanisms, and where new code goes.
 
 > Throughout this file, **"repo root"** means the directory that contains this
 > file. Inside it, `odoo/` is the framework core *package*, not the checkout —
@@ -22,8 +22,7 @@ merging or cherry-picking between the two is possible:
   AgroMarin working branch and **not** our stable/production line. No features or
   fixes are committed here directly. Its purpose is to be **read**: a clean
   reference to diff against and to source upstream fixes from, which are then
-  **re-implemented by hand** on `19.0-marin`. `19.0-marin` does not merge from
-  it. Committing AgroMarin work onto `19.0` would spoil the reference — don't.
+  **re-implemented by hand** on `19.0-marin`. Dont committing AgroMarin work onto `19.0`.
 
 - **`19.0-marin`** — the **active AgroMarin production branch**, originally forked
   from `19.0`. All AgroMarin work lands here (via pull request). This is the

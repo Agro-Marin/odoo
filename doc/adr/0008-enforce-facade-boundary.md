@@ -6,11 +6,11 @@
 ## Context
 
 The whole layered-ORM strategy (ADR-0001) rests on one promise stated in
-`odoo/ARCHITECTURE.md`: *addon and application code imports from the stable
-façades — `odoo.api`, `odoo.fields`, `odoo.models` — not from `odoo.orm.*`
-submodules directly.* Keeping that promise is what lets the ORM's internal
-layout (Layers 0–3, the mixin decomposition, the `components/` engine) evolve
-without breaking imports across hundreds of addons.
+`doc/architecture/ARCHITECTURE.md`: *addon and application code imports from
+the stable façades — `odoo.api`, `odoo.fields`, `odoo.models` — not from
+`odoo.orm.*` submodules directly.* Keeping that promise is what lets the ORM's
+internal layout (Layers 0–3, the mixin decomposition, the `components/` engine)
+evolve without breaking imports across hundreds of addons.
 
 Until now that promise was a **convention, not a guarantee**:
 
@@ -90,3 +90,19 @@ about today. Neither is: the contract set has grown well past eight, and
 ADR-0009 widened the façade scope to both addon trees a fortnight later, which
 this record could not know. Corrected in place — both now name the moment they
 describe and point at where the live value lives.
+
+### 2026-08-07 — the architecture front door moved to `doc/architecture/`
+
+This record cited the front door at the path it held inside the core package
+until 2026-08-07 (odoo/ARCHITECTURE.md — deliberately not backticked, because a
+backticked path in this repo asserts that the file exists, and this one no
+longer does). That page sat inside the core *package* while describing the
+whole repository — the gate
+catalog it indexes covers `addons/**` JS and the repo-wide `eslint`/`tsc`
+ratchets — so it was filed one level below its own scope, and the two halves of
+the architecture document cited each other across directories. Widening
+`doc_link_gate.py` to the set found 15 broken references held together by
+nothing. The set is now one flat directory, `doc/architecture/`, with the front
+door at `doc/architecture/ARCHITECTURE.md`.
+
+Corrected in place: the *Context* citation of the promise this decision rests on. It is a citation, not the decision.

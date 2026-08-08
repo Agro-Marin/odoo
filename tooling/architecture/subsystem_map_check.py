@@ -59,10 +59,11 @@ from _repo_root import find_odoo_root
 # three levels down.
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="subsystem_map_check")
 
-# The map moved out of odoo/ARCHITECTURE.md into the module view when the
-# architecture documentation was split into a front door plus views. The gate
+# The map moved out of the front door into the module view when the
+# architecture documentation was split into a front door plus views, and the
+# whole set was flattened into doc/architecture/ in 2026-08. The gate
 # follows the content: what it checks is the map, wherever the map lives.
-ARCHITECTURE_MD = REPO_ROOT / "doc" / "architecture" / "views" / "module.md"
+ARCHITECTURE_MD = REPO_ROOT / "doc" / "architecture" / "module.md"
 CORE_ROOT = REPO_ROOT / "odoo"
 
 MAP_HEADING = "## Subsystem map"
@@ -321,7 +322,7 @@ def _actual_children(package: str, core_root: Path) -> tuple[set[str], set[str]]
 def check(md_path: Path | None = None, core_root: Path | None = None) -> Report:
     """Run both rules over a tree and return the :class:`Report`.
 
-    Defaults to the live ``doc/architecture/views/module.md`` and ``odoo/``; the
+    Defaults to the live ``doc/architecture/module.md`` and ``odoo/``; the
     parameters exist so the self-test can drive the whole gate over synthetic
     trees.
     """
@@ -370,7 +371,7 @@ def render(report: Report) -> str:
     out: list[str] = []
     out.append("Subsystem-map coherence check")
     out.append("=" * 64)
-    out.append(f"doc/architecture/views/module.md  ->  {CORE_ROOT}")
+    out.append(f"doc/architecture/module.md  ->  {CORE_ROOT}")
     out.append("")
     out.append(f"Names parsed from the map: {len(report.entries)}")
     out.append(f"Packages the map enumerates: {len(report.enumerated)}")
@@ -403,7 +404,7 @@ def render(report: Report) -> str:
     else:
         out.append(
             "The subsystem map has drifted from the tree. Update the map in\n"
-            "doc/architecture/views/module.md (or the tree), then re-run. A\n"
+            "doc/architecture/module.md (or the tree), then re-run. A\n"
             "logical grouping that is not a directory must be written "
             "[in brackets]."
         )

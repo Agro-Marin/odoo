@@ -1,6 +1,6 @@
 # Runtime view — what runs, when, and in how many processes
 
-> One of the views indexed by [`odoo/ARCHITECTURE.md`](../../../odoo/ARCHITECTURE.md).
+> One of the views indexed by [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > This view answers *what happens at run time*. For *where code lives and what it
 > may import*, see [`module.md`](module.md).
 

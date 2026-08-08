@@ -2,7 +2,7 @@
 """mixin_coupling_check.py — drift-zero gate on BaseModel's mixin coupling.
 
 ``layer_check.py`` reasons about **import** edges, which is the right model for
-every boundary in ``odoo/ARCHITECTURE.md`` except one. ``BaseModel`` is composed
+every boundary in ``doc/architecture/ARCHITECTURE.md`` except one. ``BaseModel`` is composed
 from 23 ``__slots__ = ()`` mixins by multiple inheritance; they collaborate
 through ``self``, and a ``self._fields`` or ``self._search(...)`` produces **no
 import edge at all**. So the most intricate coupling surface in the framework is
