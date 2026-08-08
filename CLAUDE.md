@@ -53,7 +53,7 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
 - **PostgreSQL** — every CI lane runs 18.
 - **`pip install -r requirements.txt`** for the runtime; `requirements-dev.txt`
   for the gates. Its pins are hard, not reproducibility hints: `ruff==0.16.2`,
-  `mypy==1.19.1`, `pytest==9.0.2`. An older ruff does not shift the ratchet
+  `mypy==1.19.1`, `pytest==9.1.1`. An older ruff does not shift the ratchet
   count — it refuses to start, because `ruff.toml` names individual preview rules
   under `explicit-preview-rules` and sets keys older versions parse as an error.
 - **psycopg 3** (`psycopg[c,binary]>=3.3.2`) is the only driver `odoo/db/` uses.
