@@ -21,6 +21,7 @@ const COMMUNITY_MODULES = [
     "addons/gamification",
     "addons/survey",
     "addons/project",
+    "addons/resource",
     "addons/mass_mailing",
     "addons/purchase",
     "addons/spreadsheet",

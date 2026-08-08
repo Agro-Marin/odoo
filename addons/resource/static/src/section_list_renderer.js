@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { ListRenderer } from "@web/views/list";
 import { useEffect } from "@odoo/owl";
+import { ListRenderer } from "@web/views/list";
 
 export class SectionListRenderer extends ListRenderer {
     setup() {
@@ -15,7 +15,7 @@ export class SectionListRenderer extends ListRenderer {
                     table.classList.add("o_section_list_view");
                 }
             },
-            () => [this.tableRef.el]
+            () => [this.tableRef.el],
         );
     }
 
@@ -42,7 +42,7 @@ export class SectionListRenderer extends ListRenderer {
             colspan++;
         }
         const titleCol = columns.find(
-            (col) => col.type === "field" && col.name === this.titleField
+            (col) => col.type === "field" && col.name === this.titleField,
         );
         sectionColumns.push({ ...titleCol, colspan });
         return sectionColumns;

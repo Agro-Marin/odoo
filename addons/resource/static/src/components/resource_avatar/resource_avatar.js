@@ -1,5 +1,5 @@
-import { ImageField, imageField } from "@web/fields/media/image/image_field";
 import { registry } from "@web/core/registry";
+import { ImageField, imageField } from "@web/fields/media/image/image_field";
 
 export class ResourceAvatarField extends ImageField {
     static template = "resource.ResourceAvatarField";

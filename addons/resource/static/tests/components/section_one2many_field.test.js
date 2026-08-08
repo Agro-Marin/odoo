@@ -1,5 +1,10 @@
 import { expect, test } from "@odoo/hoot";
-import { defineModels, fields, models, mountView } from "@web/../tests/web_test_helpers";
+import {
+    defineModels,
+    fields,
+    models,
+    mountView,
+} from "@web/../tests/web_test_helpers";
 
 class Partner extends models.Model {
     lines = fields.One2many({ relation: "lines_sections" });

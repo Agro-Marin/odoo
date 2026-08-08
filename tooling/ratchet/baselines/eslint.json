@@ -1,4 +1,4 @@
 {
-  "count": 24050,
-  "note": "24278 (origin) / 24111 (replayed) -> 24050, re-measured after the rebase. Neither committed number was measured against this tree: the remote's predated the web architecture wave, the branch's predated the remote's 187 commits. Measured as CI does: npx eslint . --format=json, summed errorCount, with the committed toolchain. warningCount is 2, unchanged and ungated."
+  "count": 24047,
+  "note": "24050 -> 24047. Onboarded addons/resource to COMMUNITY_MODULES and cleared its debt: its static/src was previously matched only by js.configs.recommended + prettier, so it lacked globals.browser (window/document tripped no-undef) and was exempt from simple-import-sort et al. All 19 findings under the full ruleset were autofixable; the module is now clean. Measured as CI does: npx eslint . --format=json, summed errorCount, with the committed toolchain. warningCount is 2, unchanged and ungated."
 }

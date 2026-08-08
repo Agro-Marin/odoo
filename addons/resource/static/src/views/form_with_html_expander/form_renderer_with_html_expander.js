@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { useEffect, useRef } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { FormRenderer } from "@web/views/form";
-import { useRef, useEffect } from "@odoo/owl";
 
 export class FormRendererWithHtmlExpander extends FormRenderer {
     static props = {
@@ -25,29 +25,35 @@ export class FormRendererWithHtmlExpander extends FormRenderer {
         useEffect(
             (el, size) => {
                 if (el && this._canExpandHTMLField(size)) {
-                    const descriptionField = el.querySelector(this.htmlFieldQuerySelector);
+                    const descriptionField = el.querySelector(
+                        this.htmlFieldQuerySelector,
+                    );
                     if (descriptionField) {
                         const containerEL = descriptionField.closest(
-                            this.getHTMLFieldContainerQuerySelector
+                            this.getHTMLFieldContainerQuerySelector,
                         );
                         const editor = descriptionField.querySelector(".note-editable");
                         const elementToResize = editor || descriptionField;
                         const { top, bottom } = elementToResize.getBoundingClientRect();
-                        const { bottom: containerBottom } = containerEL.getBoundingClientRect();
-                        const { paddingTop, paddingBottom } = window.getComputedStyle(containerEL);
+                        const { bottom: containerBottom } =
+                            containerEL.getBoundingClientRect();
+                        const { paddingTop, paddingBottom } =
+                            window.getComputedStyle(containerEL);
                         const nonEditableHeight =
                             containerBottom -
                             bottom +
                             parseInt(paddingTop) +
                             parseInt(paddingBottom);
                         const minHeight =
-                            document.documentElement.clientHeight - top - nonEditableHeight;
+                            document.documentElement.clientHeight -
+                            top -
+                            nonEditableHeight;
                         elementToResize.style.minHeight = `${minHeight}px`;
                     }
                 }
                 this.props.notifyHtmlExpander();
             },
-            () => [ref.el, this.uiService.size, this.props.reloadHtmlFieldHeight]
+            () => [ref.el, this.uiService.size, this.props.reloadHtmlFieldHeight],
         );
     }
 

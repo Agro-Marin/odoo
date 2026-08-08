@@ -1,7 +1,8 @@
-import { test, expect, beforeEach } from "@odoo/hoot";
+import { beforeEach, expect, test } from "@odoo/hoot";
 import { mountView } from "@web/../tests/web_test_helpers";
-import { defineResourceModels } from "./resource_test_helpers.js";
+
 import { ResourceResource } from "./mock_server/mock_models/resource_resource.js";
+import { defineResourceModels } from "./resource_test_helpers.js";
 
 defineResourceModels();
 
