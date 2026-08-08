@@ -1862,3 +1862,141 @@ class TestRunEsbuildFailureReporting(BaseCase):
         self.assertEqual(
             list(Path(tempfile.gettempdir()).glob("esbuild_fail_test.quiet_*.js")), []
         )
+
+
+class TestExportExtractionWithoutTheLexer(BaseCase):
+    """The regex extractor, which decides what a bridge shim re-exports.
+
+    `_extract_esm_exports` prefers es-module-lexer and falls back to a table of
+    regexes when `lex_module` returns None -- node missing, or the worker
+    having disabled itself. This checkout has node, so the fallback had never
+    run, yet it is the thing standing between a module's real export list and
+    a shim that binds `undefined` under a name the importer will happily use.
+
+    The parsing that follows each match is where the risk sits: aliases,
+    destructuring renames and defaults all have to be reduced to the name the
+    module actually publishes.
+    """
+
+    @staticmethod
+    def _names(src, source_map=None, importer="@w/leaf"):
+        from odoo.tools.assets import esm_graph
+
+        with patch.object(esm_graph, "lex_module", return_value=None):
+            return esm_graph._extract_esm_exports(
+                src, source_map=source_map, importing_specifier=importer
+            )
+
+    def test_every_declaration_form_is_found(self):
+        names, _ = self._names(
+            "export const a = 1;\n"
+            "export let b = 2;\n"
+            "export var c = 3;\n"
+            "export function d() {}\n"
+            "export function* e() {}\n"
+            "export async function f() {}\n"
+            "export class g {}\n"
+        )
+        self.assertEqual(names, set("abcdefg"))
+
+    def test_an_export_list_publishes_the_alias_not_the_local(self):
+        names, _ = self._names("const x = 1;\nexport { x as publicName, y };\n")
+        self.assertEqual(names, {"publicName", "y"})
+
+    def test_a_re_export_list_is_read_the_same_way(self):
+        names, _ = self._names('export { a, b as c } from "./other";\n')
+        self.assertEqual(names, {"a", "c"})
+
+    def test_a_destructured_export_publishes_the_bound_names(self):
+        names, _ = self._names("export const { a, b: renamed, c = 3 } = obj;\n")
+        self.assertEqual(
+            names,
+            {"a", "renamed", "c"},
+            "a rename publishes the new name and a default publishes the key",
+        )
+
+    def test_a_namespace_re_export_publishes_the_namespace(self):
+        names, _ = self._names('export * as ns from "./other";\n')
+        self.assertIn("ns", names)
+
+    def test_default_is_reported_separately_and_never_as_a_name(self):
+        for src in (
+            "export default 1;\n",
+            "export default function () {}\n",
+            "export default function* gen() {}\n",
+            "export default async function go() {}\n",
+            "export default class Thing {}\n",
+        ):
+            names, has_default = self._names(src)
+            self.assertTrue(has_default, src)
+            self.assertNotIn("default", names, src)
+
+    def test_export_star_is_followed_through_the_source_map(self):
+        names, _ = self._names(
+            'export * from "./base";\nexport const C = 3;\n',
+            source_map={"@w/base": "export const A = 1;\nexport const B = 2;\n"},
+        )
+        self.assertEqual(names, {"A", "B", "C"})
+
+    def test_block_comments_and_template_literals_are_opaque(self):
+        names, has_default = self._names(
+            "/* export const commented = 1; */\n"
+            "const t = `export const templated = 2;`;\n"
+            "export const real = 3;\n"
+        )
+        self.assertEqual(names, {"real"})
+        self.assertFalse(has_default)
+
+    def test_a_quoted_string_is_NOT_opaque__documented_divergence(self):
+        """A known, bounded gap in the fallback -- not an oversight.
+
+        _JS_OPAQUE_RE blanks block comments and template literals, not quoted
+        strings, so an export-shaped string literal publishes a phantom name.
+        The lexer does not do this, so the two extractors disagree here.
+
+        It is left alone because the obvious fix is worse. Blanking quoted
+        strings too would also blank the module specifier in
+        `export * from "./base"`, and star_from needs that specifier to follow
+        the re-export -- so the cure turns an over-report into an
+        UNDER-report, which is the direction that actually breaks: a name the
+        shim fails to publish is a broken import, whereas a name it publishes
+        spuriously merely evaluates to undefined for an importer who was
+        already asking for something that does not exist.
+
+        Fixing it properly means telling specifier strings from ordinary ones,
+        which is the lexer's job. Change this test only alongside that.
+        """
+        names, _ = self._names(
+            'const s = "export const stringy = 2;";\nexport const real = 3;\n'
+        )
+        self.assertEqual(names, {"real", "stringy"})
+
+    def test_the_divergence_never_costs_a_real_export(self):
+        """The property that makes the gap above tolerable, stated directly."""
+        src = 'const s = "export const stringy = 2;";\nexport const real = 3;\n'
+        from odoo.tools.assets import esm_graph
+
+        lexed, _ = esm_graph._extract_esm_exports(src)
+        if not lexed:
+            self.skipTest("es-module-lexer worker unavailable")
+        fallback, _ = self._names(src)
+        self.assertLessEqual(
+            lexed, fallback, "the fallback must never publish FEWER names"
+        )
+
+    def test_the_two_extractors_agree_on_an_ordinary_module(self):
+        """The fallback is only safe while it says what the lexer says."""
+        src = (
+            "export const a = 1;\n"
+            "export function b() {}\n"
+            "export class c {}\n"
+            "const local = 4;\n"
+            "export { local as d };\n"
+            "export default 5;\n"
+        )
+        from odoo.tools.assets import esm_graph
+
+        lexed = esm_graph._extract_esm_exports(src)
+        if not lexed[0]:
+            self.skipTest("es-module-lexer worker unavailable")
+        self.assertEqual(lexed, self._names(src))
