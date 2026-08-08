@@ -29,6 +29,11 @@ mod web;
 /// The Python module exported as `odoo_rust`.
 #[pymodule]
 fn odoo_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Fingerprint of the sources this binary was built from, stamped by
+    // build.rs.  `odoo.init` compares it against the crate on disk and refuses
+    // to start on a mismatch, so a stale build reports itself instead of
+    // segfaulting or silently computing the wrong answer.
+    m.add("__source_crc__", env!("ODOO_RUST_SOURCE_CRC"))?;
     // clone
     m.add_function(wrap_pyfunction!(clone::fast_clone, m)?)?;
     // cache (scalar_cache_get intentionally not exported — the Python

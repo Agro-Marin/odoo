@@ -72,6 +72,16 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
   cd crates/odoo_rust && maturin develop
   ```
 
+  **A build that has fallen behind the crate is worse than a missing one**: with
+  no fallback, a stale `.so` segfaults on a cyclic `fast_clone` and silently
+  mis-orders timezone-aware columns, and neither failure names its cause. CI
+  never sees it — every lane builds the extension fresh — so it is a
+  long-lived-virtualenv problem only. `crates/odoo_rust/build.rs` therefore
+  stamps a CRC of the crate sources into the binary and `odoo/init.py` refuses
+  to start when it disagrees with the crate on disk, naming the rebuild command.
+  Rebuild after any `git pull` that touched `crates/`; the escape hatch, should
+  you ever need it, is `ODOO_SKIP_RUST_FRESHNESS_CHECK=1`.
+
   `.github/workflows/rust.yml` gates `cargo fmt --check`,
   `cargo clippy -D warnings`, `cargo test`, the maturin build and the exported
   symbols. It blocks; it does not warn.
