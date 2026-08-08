@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.3
+:Version: 5.4
 :Date: 2026-08-07
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -88,6 +88,10 @@ unless the floor moved with it.
      - ``ruff check odoo/ --no-cache --statistics``
      - ``odoo/`` only
      - ``.github/workflows/ruff.yml``
+   * - c901
+     - ``ruff check odoo/ --no-cache --select C901 --statistics``
+     - ``odoo/``, complexity > 20
+     - ``.github/workflows/ruff.yml``
    * - mypy
      - ``mypy -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules``
      - typed packages
@@ -121,17 +125,26 @@ unless the floor moved with it.
      - **drift-zero**
      - ``architecture.yml``
 
-``tooling/ratchet/baselines/`` is the authoritative list — eight floors today.
+``tooling/ratchet/baselines/`` is the authoritative list — nine floors today.
 The ``test_lint`` ratchets are counted separately, inside the module's own
 ``assert_ratchet`` (see below), and are not baselined here.
 
-Three consequences you must internalise:
+Four consequences you must internalise:
 
 * **The ruff ratchet measures ``odoo/``, not ``addons/``.** Addon code — including
   every ``agromarin`` module — is outside the counted scope. For addons, ``ruff``
   is a local discipline enforced by pre-commit and review, not by the ratchet.
 * **A finding on a file you touched may predate you.** Compare against ``git diff``,
   not against a whole-file lint report.
+* **``ruff`` and ``c901`` are two floors over one command.** ``ruff.toml``
+  ignores ``C901`` so it stays out of the aggregate, and the ``c901`` step
+  re-selects it on the CLI, which overrides that ignore. Its threshold is
+  ``[lint.mccabe] max-complexity`` — raising the threshold lowers the count
+  without fixing anything, so move it only as deliberately as the floor itself,
+  and say so in the baseline note. Complexity was ungated until 19.0-marin:
+  ``ruff.toml`` selected the ``C90`` family while ignoring ``C901``, its only
+  rule, and the two branch-complexity rules each justified their suppression by
+  naming the other.
 * **The architecture gate is different**: layer crossings are held at exactly
   zero and any new one fails outright. It is not a ratchet. The same job also
   holds JS *import cycles* at zero (``tooling/architecture/js_cycle_check.py``),
@@ -3281,6 +3294,20 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.4
+     - 2026-08-07
+     - **Cyclomatic complexity is gated**, as a ninth ratchet (``c901``, floor 46,
+       scope ``odoo/``, threshold ``[lint.mccabe] max-complexity = 20``, enforced
+       in ``ruff.yml``). It was not gated before, and the configuration read as
+       though it were: ``ruff.toml`` selected the ``C90`` family, ignored
+       ``C901`` — the family's *only* rule — and set ``max-complexity``, three
+       settings that cancel out, while the two branch-complexity rules each
+       justified their suppression by naming the other (``C901``: "see
+       PLR0912"; ``PLR0912``: "redundant with C90"). Kept out of the ``ruff``
+       aggregate on purpose, so a complexity fix cannot be masked by an
+       unrelated new finding. Ratchets table and floor count updated to nine;
+       ``gates.md`` said "four tool counts" against a list of eight, and its
+       assertion now re-derives the number as well as the names.
    * - 5.3
      - 2026-08-07
      - **``test_lint`` runs in CI**, correcting the claim that it is not wired in:

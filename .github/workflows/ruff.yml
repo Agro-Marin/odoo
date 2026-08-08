@@ -109,19 +109,53 @@ jobs:
           python tooling/ratchet/ratchet.py ruff --count "${{ steps.ruff.outputs.error_count }}" --json | tee /tmp/verdict.json
           python tooling/ratchet/ratchet.py ruff --count "${{ steps.ruff.outputs.error_count }}"
 
+      - name: Run C901 (cyclomatic complexity)
+        id: c901
+        # A SECOND floor, deliberately not folded into the aggregate above.
+        # ruff.toml ignores C901 so it stays out of that count; `--select` on the
+        # CLI overrides the ignore, and `[lint.mccabe] max-complexity = 20`
+        # supplies the threshold. Keeping it separate keeps it legible: in one
+        # bucket a complexity fix could be masked by an unrelated new finding,
+        # and the point of a floor is that a cleanup locks in.
+        #
+        # It gated nothing until now. ruff.toml selected the C90 family, ignored
+        # C901 (its only rule) and set max-complexity — three settings that
+        # cancel out — while the two branch-complexity rules each justified their
+        # suppression by naming the other, both being off.
+        run: |
+          set +e
+          ruff check odoo/ --no-cache --select C901 --output-format=concise | tee /tmp/c901.log
+          set -e
+          C901_COUNT=$(ruff check odoo/ --no-cache --select C901 --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
+          echo "count=${C901_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce C901 ratchet
+        run: |
+          python tooling/ratchet/ratchet.py c901 --count "${{ steps.c901.outputs.count }}" --json | tee /tmp/verdict-c901.json
+          python tooling/ratchet/ratchet.py c901 --count "${{ steps.c901.outputs.count }}"
+
       - name: Summarise
         if: always()
         run: |
           ERR_COUNT="${{ steps.ruff.outputs.error_count }}"
           BASELINE=$(python -c "import json;print(json.load(open('tooling/ratchet/baselines/ruff.json'))['count'])")
+          C901_COUNT="${{ steps.c901.outputs.count }}"
+          C901_BASE=$(python -c "import json;print(json.load(open('tooling/ratchet/baselines/c901.json'))['count'])")
+          # This step is `if: always()`, so the C901 step may not have produced
+          # an output. Render that as a dash rather than doing arithmetic on an
+          # empty string, which would make the summary itself fail.
+          if [ -n "${C901_COUNT}" ]; then
+            C901_ROW="| C901 (complexity) | ${C901_COUNT} | ${C901_BASE} | $((C901_COUNT - C901_BASE)) |"
+          else
+            C901_ROW="| C901 (complexity) | — | ${C901_BASE} | — |"
+          fi
           {
             echo "## Python lint (ruff ratchet)"
             echo ""
-            echo "| Metric | Value |"
-            echo "|--------|------:|"
-            echo "| Findings | ${ERR_COUNT} |"
-            echo "| Committed floor | ${BASELINE} |"
-            echo "| Drift | $((ERR_COUNT - BASELINE)) |"
+            echo "| Gate | Findings | Floor | Drift |"
+            echo "|------|---------:|------:|------:|"
+            echo "| ruff (aggregate) | ${ERR_COUNT} | ${BASELINE} | $((ERR_COUNT - BASELINE)) |"
+            echo "${C901_ROW}"
             echo ""
-            echo "Config: \`ruff.toml\` · Floor: \`tooling/ratchet/baselines/ruff.json\` · Scope: \`odoo/\`"
+            echo "Config: \`ruff.toml\` · Floors: \`tooling/ratchet/baselines/{ruff,c901}.json\` · Scope: \`odoo/\`"
           } >> "$GITHUB_STEP_SUMMARY"

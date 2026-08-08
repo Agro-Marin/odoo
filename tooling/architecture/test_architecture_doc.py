@@ -129,6 +129,29 @@ def _imported_modules(source: Path) -> set[str]:
     return names
 
 
+#: Number words the architecture documents spell out, so an assertion can
+#: re-derive the figure rather than trust it. Shared by every test here that
+#: compares a written-out count against a measured one -- it was a local dict
+#: inside one test until a second test needed it.
+NUMBER_WORDS = {
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "twenty-two": 22,
+    "twenty-three": 23,
+    "twenty-four": 24,
+    "twenty-five": 25,
+    "twenty-six": 26,
+}
+
+
 class TestMixinCount(unittest.TestCase):
     """The two mixin counts in the prose must equal ``BaseModel``'s bases."""
 
@@ -853,24 +876,7 @@ class TestReferencedArtifacts(unittest.TestCase):
 
         stated = re.search(r"workflow runs \*\*([\w-]+)\*\* blocking checkers", DOC)
         self.assertIsNotNone(stated, "the gate count is no longer stated")
-        words = {
-            "four": 4,
-            "five": 5,
-            "six": 6,
-            "seven": 7,
-            "eight": 8,
-            "nine": 9,
-            "ten": 10,
-            "eleven": 11,
-            "twelve": 12,
-            "thirteen": 13,
-            "twenty-two": 22,
-            "twenty-three": 23,
-            "twenty-four": 24,
-            "twenty-five": 25,
-            "twenty-six": 26,
-        }
-        self.assertEqual(words[stated.group(1)], len(run_in_ci))
+        self.assertEqual(NUMBER_WORDS[stated.group(1)], len(run_in_ci))
 
     def test_ci_path_filter_covers_every_scanned_tree(self) -> None:
         """A PR touching a scanned package must actually trigger this gate.
@@ -979,7 +985,8 @@ class TestReferencedArtifacts(unittest.TestCase):
 
     def test_ratchet_baselines_match_documented_gates(self) -> None:
         match = re.search(
-            r"\*\*mypy, ruff, eslint, tsc, jsfunclen, jsprivate, "
+            r"turns (\w+) tool\s+counts into one-way contracts: "
+            r"\*\*mypy, ruff, c901, eslint, tsc, jsfunclen, jsprivate, "
             r"jsserviceshape and naming\*\*",
             DOC,
         )
@@ -988,9 +995,18 @@ class TestReferencedArtifacts(unittest.TestCase):
             p.stem for p in (ROOT / "tooling" / "ratchet" / "baselines").glob("*.json")
         }
         self.assertEqual(
-            {"mypy", "ruff", "eslint", "tsc",
+            {"mypy", "ruff", "c901", "eslint", "tsc",
              "jsfunclen", "jsprivate", "jsserviceshape", "naming"},
             on_disk,
+        )
+        # The prose count is now captured too. It read "four" against a list of
+        # eight for as long as this assertion has existed, because the regex
+        # matched only the names -- a gate that pins a list and skips the number
+        # beside it leaves exactly the drift it was written to stop.
+        self.assertEqual(
+            NUMBER_WORDS[match.group(1)],
+            len(on_disk),
+            "the ratchet gate list and the count in front of it disagree",
         )
 
     def test_named_source_paths_exist(self) -> None:
