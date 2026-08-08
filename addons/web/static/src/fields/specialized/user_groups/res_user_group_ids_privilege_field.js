@@ -155,7 +155,15 @@ class ResUserGroupIdsPrivilegeField extends Component {
 /** @type {import("registries").FieldsRegistryItemShape} */
 const resUserGroupIdsPrivilegeField = {
     component: ResUserGroupIdsPrivilegeField,
-    supportedTypes: ["many2many"],
+    // The types this widget is actually mounted on. `res_user_group_ids` builds
+    // one synthetic field per privilege — `selection` where the privilege has
+    // levels, `boolean` for the extra on/off ones — and points them all here;
+    // the component branches on exactly those two and delegates to
+    // `SelectionField` / `BooleanField`. `["many2many"]` was inherited from the
+    // parent `res_user_group_ids` widget, which really is a many2many, and made
+    // `Field` log "don't support the type selection"/"…boolean" on every render
+    // of the user form.
+    supportedTypes: ["boolean", "selection"],
 };
 
 registerField("res_user_group_ids_privilege", resUserGroupIdsPrivilegeField);
