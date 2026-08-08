@@ -589,3 +589,32 @@ class TestValuationAuditFixes(TestStockValuationCommon):
         self.assertEqual(out._get_valued_qty(), 8.0)
         # 8 valued units at 10; taking the ratio over `quantity` (12) gave 72.
         self.assertAlmostEqual(out.value, 80.0, places=2)
+
+    def test_forecast_header_reports_this_warehouse_company(self):
+        """The forecasted report sums `quant.value` for one warehouse. It read
+        the cross-company `total_value` through the quants (reporting $600.00 for
+        stock worth 100) and labelled the sum with the *active* company's
+        currency rather than the warehouse company's."""
+        product = self.product_avco
+        self.env.user.company_ids = [(4, self.other_company.id)]
+        self.category_avco.with_company(self.other_company).property_cost_method = (
+            "average"
+        )
+        self.env.flush_all()
+        self._make_in_move(product, 10, unit_cost=10)  # company A: worth 100
+        self._make_other_company_receipt(product, 5, 100)  # company B: worth 500
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        both = self.env(
+            context=dict(
+                self.env.context,
+                allowed_company_ids=[self.company.id, self.other_company.id],
+            )
+        )
+        header = both["stock.forecasted_product_product"]._get_report_header(
+            False, product.ids, self.stock_location.ids
+        )
+        # Company A's warehouse holds 10 units at 10.
+        self.assertIn("100.00", header["value"])
+        self.assertIn(self.company.currency_id.symbol, header["value"])

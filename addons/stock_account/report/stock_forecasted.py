@@ -30,7 +30,12 @@ class StockForecasted_Product_Product(models.AbstractModel):
             domain_quants += [("product_id", "in", product_ids)]
         quants = self.env["stock.quant"].search(domain_quants)
 
-        currency = self.env.company.currency_id
+        # The warehouse's company, not `env.company`: these quants were filtered to
+        # `company` above, and `quant.value` is expressed in the quant's own
+        # company's currency (as `quant.currency_id` has always claimed). Labelling
+        # that sum with the active company's symbol would put two currencies in one
+        # figure whenever a user looks at another company's warehouse.
+        currency = company.currency_id
         value = sum(quants.mapped("value"))
         value = float_repr(value, precision_digits=currency.decimal_places)
         if currency.position == "after":
