@@ -2000,3 +2000,113 @@ class TestExportExtractionWithoutTheLexer(BaseCase):
         if not lexed[0]:
             self.skipTest("es-module-lexer worker unavailable")
         self.assertEqual(lexed, self._names(src))
+
+
+class _EntryMod:
+    """A native module as `_esbuild_entry_lines` reads one."""
+
+    def __init__(self, module_path, url="", filename=None):
+        self.module_path = module_path
+        self.url = url
+        self._filename = filename
+
+
+class TestEsbuildEntryLines(BaseCase):
+    """The synthetic entry point esbuild is fed on stdin.
+
+    esbuild bundles from an entry, and there is no file for one: the compiler
+    writes it. That text is the whole specification of the build -- which
+    modules are pulled in, under which specifier each is registered with the
+    loader, and which aliases are wired afterwards. A module missing from it
+    is simply not in the bundle, with no error anywhere, so the shape is worth
+    pinning per bundle kind rather than only through a successful compile.
+    """
+
+    ROOT = Path("/odoo")
+
+    def _compiler(self, modules, **kw):
+        return EsbuildCompiler("test.entry", modules, [], **kw)
+
+    def test_a_standalone_bundle_imports_for_side_effects_only(self):
+        """No loader registration: nothing else shares its module instances."""
+        lines = self._compiler(
+            [_EntryMod("@a/one", url="/a/static/src/one.js")], standalone=True
+        )._esbuild_entry_lines(self.ROOT)
+
+        self.assertEqual(lines, ['import "./addons/a/static/src/one.js";'])
+        self.assertFalse(any("registerNativeModules" in ln for ln in lines))
+
+    def test_an_app_bundle_registers_every_member_with_the_loader(self):
+        lines = self._compiler(
+            [
+                _EntryMod("@a/one", url="/a/static/src/one.js"),
+                _EntryMod("@a/two", url="/a/static/src/two.js"),
+            ]
+        )._esbuild_entry_lines(self.ROOT)
+        entry = "\n".join(lines)
+
+        self.assertIn('import * as __owl from "@odoo/owl";', entry)
+        self.assertIn("odoo.loader.registerNativeModules({", entry)
+        self.assertIn('"@a/one": __m0', entry)
+        self.assertIn('"@a/two": __m1', entry)
+        self.assertIn('"@odoo/owl": __owl', entry)
+
+    def test_a_real_file_is_addressed_by_its_path_on_disk(self):
+        """`filename` wins over the url, and is made relative to the root."""
+        lines = self._compiler(
+            [
+                _EntryMod(
+                    "@a/one",
+                    url="/a/static/src/one.js",
+                    filename="/odoo/addons/a/static/src/one.js",
+                )
+            ]
+        )._esbuild_entry_lines(self.ROOT)
+
+        self.assertIn('import * as __m0 from "./addons/a/static/src/one.js";', lines)
+
+    def test_a_test_member_is_skipped_where_the_import_map_supplies_it(self):
+        """skip_legacy_test_imports: the parent already registers these, and
+        importing them again would inline a second copy."""
+        modules = [
+            _EntryMod("@a/src", url="/a/static/src/src.js"),
+            _EntryMod("@a/../tests/spec", url="/a/static/tests/spec.js"),
+        ]
+        entry = "\n".join(
+            self._compiler(modules, skip_legacy_test_imports=True)._esbuild_entry_lines(
+                self.ROOT
+            )
+        )
+
+        self.assertIn('"@a/src"', entry)
+        self.assertNotIn("tests/spec", entry)
+
+    def test_the_same_member_is_kept_when_that_flag_is_off(self):
+        modules = [_EntryMod("@a/../tests/spec", url="/a/static/tests/spec.js")]
+        entry = "\n".join(self._compiler(modules)._esbuild_entry_lines(self.ROOT))
+        self.assertIn("tests/spec", entry)
+
+    def test_hoot_is_aliased_only_when_the_bundle_carries_it(self):
+        """`@odoo/hoot` is the public name of a module that lives under
+        `@web/../lib`; the alias is wired only if that module is present."""
+        without = "\n".join(
+            self._compiler(
+                [_EntryMod("@a/one", url="/a/static/src/one.js")]
+            )._esbuild_entry_lines(self.ROOT)
+        )
+        self.assertNotIn("@odoo/hoot", without)
+
+        with_hoot = "\n".join(
+            self._compiler(
+                [_EntryMod("@web/../lib/hoot/hoot", url="/web/static/lib/hoot/hoot.js")]
+            )._esbuild_entry_lines(self.ROOT)
+        )
+        self.assertIn(
+            'odoo.loader.modules.set("@odoo/hoot",'
+            'odoo.loader.modules.get("@web/../lib/hoot/hoot"));',
+            with_hoot,
+        )
+
+    def test_an_empty_bundle_still_registers_owl(self):
+        entry = "\n".join(self._compiler([])._esbuild_entry_lines(self.ROOT))
+        self.assertIn('"@odoo/owl": __owl', entry)
