@@ -332,6 +332,31 @@ class TestPagerBounds(TransactionCase):
         self.assertEqual(values["offset"], 0)
         self.assertEqual([p["num"] for p in values["pages"]], [1, 2, 3, 4, 5])
 
+    def test_page_digit_lookalikes_fall_back_instead_of_raising(self):
+        """``page`` is guarded by a numeric test, which must match ``int()``.
+
+        ``str.isdigit()`` is a wider test than ``int()`` accepts: superscripts
+        and enclosed numerals pass it and then raise ``ValueError``, i.e. the
+        exact input the guard exists to absorb crashed the pager instead.
+        """
+        for page in ("²", "①", "⁵"):
+            with self.subTest(page=page):
+                self.assertTrue(page.isdigit(), "fixture must be an isdigit trap")
+                values = pager("/my/orders", total=100, step=20, page=page)
+                self.assertEqual(values["page"]["num"], 1)
+
+    def test_page_non_ascii_decimal_digits_still_parse(self):
+        """Genuine decimal digits keep working, whatever the script."""
+        values = pager("/my/orders", total=100, step=20, page="٣")  # Arabic-Indic 3
+        self.assertEqual(values["page"]["num"], 3)
+
+    def test_page_junk_falls_back_to_first_page(self):
+        """Ordinary junk keeps degrading to page 1."""
+        for page in ("abc", "", "-3", "2.5", None):
+            with self.subTest(page=page):
+                values = pager("/my/orders", total=100, step=20, page=page)
+                self.assertEqual(values["page"]["num"], 1)
+
 
 @tagged("-at_install", "post_install")
 class TestPortalApiKeysVisibility(HttpCase):

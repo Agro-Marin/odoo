@@ -42,7 +42,7 @@ class ProjectCustomerPortal(CustomerPortal):
         session_info['user_context']['allow_timesheets'] = project.allow_timesheets
         return session_info
 
-    def _task_get_page_view_values(self, task, access_token, **kwargs):
+    def _task_get_page_view_values(self, task, access_token, /, **kwargs):
         values = super()._task_get_page_view_values(task, access_token, **kwargs)
         domain = request.env['account.analytic.line']._timesheet_get_portal_domain()
         task_domain = Domain(domain) & Domain('task_id', '=', task.id)

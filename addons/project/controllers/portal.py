@@ -39,6 +39,7 @@ class ProjectCustomerPortal(CustomerPortal):
         self,
         project: Any,
         access_token: str | None,
+        /,
         page: int = 1,
         date_begin: str | None = None,
         date_end: str | None = None,
@@ -473,7 +474,7 @@ class ProjectCustomerPortal(CustomerPortal):
     # My Task
     # ------------------------------------------------------------
     def _task_get_page_view_values(
-        self, task: Any, access_token: str | None, **kwargs: Any
+        self, task: Any, access_token: str | None, /, **kwargs: Any
     ) -> dict[str, Any]:
         project = kwargs.get("project")
         if project:

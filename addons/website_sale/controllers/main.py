@@ -1026,6 +1026,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if redirection := self._check_cart_and_addresses(order_sudo):
             return redirection
 
+        # `**query_params` reaches `_prepare_address_data(partner_sudo, **kwargs)`;
+        # see `_get_reserved_address_form_keys`.
+        query_params = self._sanitize_client_address_params(query_params)
         checkout_page_values = self._prepare_checkout_page_values(order_sudo, **query_params)
 
         can_skip_delivery = True  # Delivery is only needed for deliverable products.
@@ -1108,7 +1111,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 partner_sudo == order_sudo.partner_shipping_id == order_sudo.partner_invoice_id
             )
 
-        # Render the address form.
+        # Render the address form. `order_sudo` is passed explicitly just below,
+        # so a query param of that name would be a duplicate keyword argument;
+        # see `_get_reserved_address_form_keys`.
+        query_params = self._sanitize_client_address_params(query_params)
         address_form_values = self._prepare_address_form_values(
             partner_sudo,
             address_type=address_type,
@@ -1210,6 +1216,13 @@ class WebsiteSale(payment_portal.PaymentPortal):
         else:
             callback = callback or '/shop/checkout'
 
+        # This route passes `order_sudo=` explicitly and splats the rest of the
+        # form in, so a field literally named `order_sudo` (or any other name the
+        # address flow uses internally) becomes a duplicate keyword argument --
+        # `TypeError`, i.e. HTTP 500 on an `auth="public"` route. Same guard as
+        # portal's `/my/address/submit`; see `_get_reserved_address_form_keys`.
+        form_data = self._sanitize_client_address_params(form_data)
+
         partner_sudo, feedback_dict = self._create_or_update_address(
             partner_sudo,
             address_type=address_type,
@@ -1289,6 +1302,19 @@ class WebsiteSale(payment_portal.PaymentPortal):
             raise Forbidden
 
         return partner_sudo, address_type
+
+    def _get_reserved_address_form_keys(self):
+        """Override `portal` to reserve website_sale's own trusted kwarg.
+
+        ``order_sudo`` is threaded through the address flow by this controller
+        (``_complete_address_values``, ``_can_be_edited_by_current_customer``,
+        ``res.partner._get_current_partner``) and is always a ``sale.order``
+        recordset. A form field or query param of the same name would reach
+        those methods as a plain string -- ``AttributeError: 'str' object has
+        no attribute '_is_anonymous_cart'``, i.e. an HTTP 500 on
+        ``/my/address`` and ``/my/address/submit`` for any logged-in customer.
+        """
+        return super()._get_reserved_address_form_keys() | {"order_sudo"}
 
     def _complete_address_values(
         self, address_values, *args, order_sudo=False, **kwargs

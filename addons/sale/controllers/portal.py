@@ -236,7 +236,7 @@ class CustomerPortal(payment_portal.PaymentPortal):
     # ------------------------------------------------------------------
 
     def _sale_order_get_page_view_values(
-        self, order_sudo, access_token, values, history_session_key, **kwargs
+        self, order_sudo, access_token, values, history_session_key, /, **kwargs
     ):
         return self._get_page_view_values(
             order_sudo, access_token, values, history_session_key, False, **kwargs

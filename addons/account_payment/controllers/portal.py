@@ -11,7 +11,7 @@ from odoo.addons.payment.controllers.portal import PaymentPortal
 
 class PortalAccount(portal.PortalAccount, PaymentPortal):
 
-    def _invoice_get_page_view_values(self, invoice, access_token, payment=False, amount=None, **kwargs):
+    def _invoice_get_page_view_values(self, invoice, access_token, /, payment=False, amount=None, **kwargs):
         # EXTENDS account
 
         values = super()._invoice_get_page_view_values(invoice, access_token, amount=amount, **kwargs)
@@ -62,7 +62,7 @@ class PortalAccount(portal.PortalAccount, PaymentPortal):
         values = self._overdue_invoices_get_page_view_values(overdue_invoices, **kw)
         return request.render("account_payment.portal_overdue_invoices_page", values) if 'payment' in values else request.redirect('/my/invoices')
 
-    def _overdue_invoices_get_page_view_values(self, overdue_invoices, **kwargs):
+    def _overdue_invoices_get_page_view_values(self, overdue_invoices, /, **kwargs):
         values = {'page_name': 'overdue_invoices'}
 
         if len(overdue_invoices) == 0:

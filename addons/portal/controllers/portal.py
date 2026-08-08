@@ -56,7 +56,15 @@ def pager(url, total, page=1, step=30, scope=5, url_args=None):
     # ``page_last`` to build a "jump to end" link) read the 0 as real.
     page_count = max(1, math.ceil(max(0, total) / step))
 
-    page = max(1, min(int(page if str(page).isdigit() else 1), page_count))
+    # ``isdecimal`` and not ``isdigit``: this guard exists so a non-numeric
+    # ``page`` degrades to page 1 instead of raising, but ``str.isdigit()`` is a
+    # strictly wider test than what ``int()`` accepts. Superscripts and enclosed
+    # numerals ('²', '①') are digits to ``isdigit`` and a ``ValueError`` to
+    # ``int()`` — so the very input the guard is meant to absorb sailed through
+    # it and raised, an HTTP 500 on any paginated portal list. ``isdecimal()``
+    # is exactly the Nd category, i.e. exactly what ``int()`` parses in base 10
+    # (Arabic-Indic '٣' still works, as it did before).
+    page = max(1, min(int(page if str(page).isdecimal() else 1), page_count))
 
     page_previous = max(1, page - 1)
     page_next = min(page_count, page + 1)
@@ -277,6 +285,60 @@ class CustomerPortal(Controller):
         "Content-Security-Policy": "frame-ancestors 'self'",
     }
 
+    # Parameter names the address flow passes to itself. The address routes
+    # forward every *unrecognised* client key onward as ``**kwargs`` -- that is
+    # the documented extension point (``_handle_extra_form_data`` and the
+    # ``_validate_address_values`` overrides in the l10n modules rely on it) --
+    # and those kwargs eventually reach ``_validate_address_values``,
+    # ``_is_commercial_address``, ``_complete_address_values`` and
+    # ``res.partner._get_current_partner``. A client key that happens to match
+    # one of their parameters is therefore not extra data at all: it either
+    # duplicates an argument the caller already passes positionally, or it
+    # lands in a typed parameter as a raw string. Both are HTTP 500s on routes
+    # any logged-in customer can reach -- confirmed for ``partner_sudo``
+    # (``TypeError: ... got multiple values for argument 'partner_sudo'``) and,
+    # with ``website_sale`` installed, for ``order_sudo``
+    # (``AttributeError: 'str' object has no attribute '_is_anonymous_cart'``).
+    #
+    # These names are supplied by server code, never by a form field or query
+    # string, so dropping them from client input costs nothing and closes the
+    # whole class. Subclasses that add their own trusted kwarg extend the set
+    # through ``_get_reserved_address_form_keys``.
+    _RESERVED_ADDRESS_FORM_KEYS = frozenset(
+        {
+            "address_values",
+            "error_messages",
+            "extra_form_data",
+            "invalid_fields",
+            "is_commercial_address",
+            "missing_fields",
+            "partner_sudo",
+        }
+    )
+
+    def _get_reserved_address_form_keys(self):
+        """Client keys that must never survive into the address flow's kwargs.
+
+        :return: reserved parameter names
+        :rtype: frozenset[str]
+        """
+        return self._RESERVED_ADDRESS_FORM_KEYS
+
+    def _sanitize_client_address_params(self, client_params):
+        """Drop reserved names from client-supplied form data / query params.
+
+        Applied at the route boundary, before any value is forwarded as
+        ``**kwargs``, so every method downstream can keep its plain signature.
+
+        :param dict client_params: raw request values
+        :return: the same mapping without reserved keys
+        :rtype: dict
+        """
+        reserved = self._get_reserved_address_form_keys()
+        return {
+            key: value for key, value in client_params.items() if key not in reserved
+        }
+
     def _prepare_portal_layout_values(self):
         """Values for /my/* templates rendering.
 
@@ -418,8 +480,14 @@ class CustomerPortal(Controller):
         }
         return request.render("portal.my_addresses", values)
 
-    def _prepare_address_data(self, partner_sudo, **_kwargs):
+    def _prepare_address_data(self, partner_sudo, /, **_kwargs):
         """Provide the data of the current customer addresses.
+
+        ``partner_sudo`` is positional-only for the same reason as in
+        :meth:`_get_page_view_values`: ``/my/addresses`` splats its query string
+        in here, so ``?partner_sudo=x`` used to supply a second value for an
+        argument the caller already passes positionally (HTTP 500). The name now
+        lands in ``_kwargs``, which is ignored.
 
         Gives the addresses the customer can use, including:
             * his own addresses
@@ -584,6 +652,10 @@ class CustomerPortal(Controller):
         if partner_sudo and not partner_sudo._can_be_edited_by_current_customer():
             raise Forbidden
 
+        # ``query_params`` is forwarded as **kwargs all the way to
+        # ``res.partner._get_current_partner``; see _RESERVED_ADDRESS_FORM_KEYS.
+        query_params = self._sanitize_client_address_params(query_params)
+
         address_form_values = {
             **self._prepare_address_form_values(
                 partner_sudo,
@@ -706,6 +778,11 @@ class CustomerPortal(Controller):
         )
         if partner_sudo and not partner_sudo._can_be_edited_by_current_customer():
             raise Forbidden
+
+        # ``form_data`` is splatted into ``_create_or_update_address`` (which
+        # already receives ``partner_sudo`` positionally) and from there into
+        # the validation chain; see _RESERVED_ADDRESS_FORM_KEYS.
+        form_data = self._sanitize_client_address_params(form_data)
 
         _partner_sudo, feedback_dict = self._create_or_update_address(
             partner_sudo, **form_data
@@ -1454,7 +1531,14 @@ class CustomerPortal(Controller):
         return document_sudo
 
     def _get_page_view_values(
-        self, document, access_token, values, session_history, no_breadcrumbs, **kwargs
+        self,
+        document,
+        access_token,
+        values,
+        session_history,
+        no_breadcrumbs,
+        /,
+        **kwargs,
     ):
         """Include necessary values for portal chatter & pager setup (see template portal.message_thread).
 
@@ -1465,6 +1549,29 @@ class CustomerPortal(Controller):
         :param bool no_breadcrumbs:
         :return: updated values
         :rtype: dict
+
+        The five leading parameters are **positional-only** (PEP 570). Every
+        portal document route ends in this method with its leftover query string
+        splatted in as ``**kwargs``::
+
+            # account, sale, project, purchase, helpdesk, sign, ...
+            values = self._invoice_get_page_view_values(invoice_sudo, access_token, **kw)
+              -> self._get_page_view_values(invoice, access_token, values,
+                                            "my_invoices_history", False, **kwargs)
+
+        so a visitor appending ``?values=x`` to any portal document URL used to
+        supply a second value for a parameter the caller already passes
+        positionally -- ``TypeError: ... got multiple values for argument
+        'values'``, an HTTP 500 on ``auth="public"`` routes. Confirmed for all
+        of ``document``, ``values``, ``session_history`` and ``no_breadcrumbs``.
+
+        Marking them positional-only makes that impossible by construction: a
+        query param of the same name now lands in ``kwargs``, where unknown
+        client keys already go and are ignored. This is preferable to filtering
+        names at each of the ~10 downstream call sites, because the constraint
+        belongs to this signature and cannot drift away from it. Every in-tree
+        caller already passes these five positionally, and portal is the only
+        module that defines this method.
         """
         values["object"] = document
 

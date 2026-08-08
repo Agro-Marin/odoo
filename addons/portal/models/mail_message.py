@@ -114,6 +114,15 @@ class MailMessage(models.Model):
         :return: list of dict, one per message in ``self``
         :rtype: list[dict]
         """
+        # Work on a copy: ``properties_names`` belongs to the caller, and
+        # ``attachment_ids`` is removed from it below. Today every caller happens
+        # to build a fresh set per call, so the mutation is invisible — but a
+        # caller that computes the set once and formats several batches with it
+        # (an override caching its property list, a loop over pages of a thread)
+        # would silently lose attachments on every batch after the first. A
+        # formatting method has no business editing its argument.
+        properties_names = set(properties_names)
+
         # When attachments are requested, fetch them via sudo: read access on
         # the parent message implies read access on its attachments, but
         # ir.attachment ACL would otherwise refuse the portal user.
@@ -161,7 +170,11 @@ class MailMessage(models.Model):
             if "body" in values:
                 values["body"] = ["markup", values["body"]]
             if message_to_attachments:
-                values["attachment_ids"] = message_to_attachments.get(message.id, {})
+                # ``[]`` not ``{}``: the frontend iterates this as a list of
+                # attachment dicts. The fallback is unreachable while the map is
+                # built from ``self`` itself, but a wrong-typed default is a trap
+                # for the first override that narrows the map.
+                values["attachment_ids"] = message_to_attachments.get(message.id, [])
             if "author_avatar_url" in properties_names:
                 values["author_avatar_url"] = self._portal_format_avatar_url(
                     message, options
