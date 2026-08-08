@@ -10,13 +10,24 @@ name: Python Type Check
 #     baseline in the same PR, so every improvement is locked in and the floor
 #     can never silently slip back. See tooling/ratchet/ratchet.py.
 #
-# To change the floor, run locally (clean, deterministic) and commit the result:
-#   python -m mypy --no-incremental --config-file mypy.ini -p odoo.orm -p odoo.db \
-#     -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules 2>&1 | tee /tmp/mypy.log
-#   N=$(grep -cE ": error:" /tmp/mypy.log)
-#   python tooling/ratchet/ratchet.py mypy --count "$N" --update
+# To change the floor, reproduce THIS job's environment -- mypy and nothing else,
+# on a clean checkout -- and commit the result. Running it in a working venv
+# instead is what put the floor at 1379, a count no environment produces: with
+# the project dependencies installed, mypy resolves lxml/psycopg/dateutil to real
+# stubs and finds 87 MORE errors than this job does (1384 vs 1297, measured
+# 2026-08-08), so a floor taken there can never be reproduced by the gate
+# enforcing it, and the exact-match ratchet then fails every run.
 #
-# mypy is pinned in requirements-dev.txt (1.19.1).
+#   python3 -m venv /tmp/mypyenv && /tmp/mypyenv/bin/pip install mypy==1.19.1
+#   git worktree add --detach /tmp/clean HEAD   # the shared tree carries other work
+#   cd /tmp/clean && /tmp/mypyenv/bin/mypy --no-incremental --config-file mypy.ini \
+#     -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules \
+#     2>&1 | tee /tmp/mypy.log
+#   N=$(grep -cE ": error:" /tmp/mypy.log)
+#   python tooling/ratchet/ratchet.py mypy --count "$N" --update --note '<what moved and why>'
+#
+# mypy is pinned in requirements-dev.txt (1.19.1). Bumping it moves this floor:
+# 2.3.0 measures 1293 in this environment, mostly the same findings reworded.
 
 on:
   # Mainline re-verification: re-run the ratchet on every push to a protected
