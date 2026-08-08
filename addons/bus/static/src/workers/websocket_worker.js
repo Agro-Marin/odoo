@@ -783,9 +783,6 @@ export class WebsocketWorker {
         if (!notifications.length) {
             return;
         }
-        for (const notification of notifications) {
-            this.seenNotificationIds.set(notification.id, now);
-        }
         // Track the greatest id seen (batches are not guaranteed ascending),
         // used only as the `last` value of (re)subscribes. Max is correct
         // there: within a connection the server ignores later `last` values
@@ -794,11 +791,30 @@ export class WebsocketWorker {
         // on a fresh connection the server adopts it as the polling floor,
         // and any held-back lower ids it re-sends are handled by the
         // seen-id filter above.
-        this.lastNotificationId = Math.max(
-            this.lastNotificationId,
-            ...notifications.map((notification) => notification.id),
-        );
+        //
+        // A loop, NOT `Math.max(this.lastNotificationId, ...ids)`: the spread
+        // passes one argument per notification and throws `RangeError: Maximum
+        // call stack size exceeded` past ~130k of them. The server bounds a
+        // batch now (`MAX_NOTIFICATIONS_PER_POLL`), but this side must not be
+        // what breaks if that bound is ever raised -- and the failure was
+        // silent, not a visible error.
+        let highestId = this.lastNotificationId;
+        for (const notification of notifications) {
+            if (notification.id > highestId) {
+                highestId = notification.id;
+            }
+        }
+        // Broadcast BEFORE recording the ids as seen. Marking first meant that
+        // anything throwing in between lost the batch outright: the ids were
+        // remembered as delivered while no client had received them, so the
+        // dedup filter discarded the server's redelivery too. Recording after
+        // the broadcast can at worst repeat a batch, which subscribers already
+        // tolerate; it can no longer swallow one.
         this.broadcast("BUS:NOTIFICATION", notifications);
+        this.lastNotificationId = highestId;
+        for (const notification of notifications) {
+            this.seenNotificationIds.set(notification.id, now);
+        }
     }
 
     /**

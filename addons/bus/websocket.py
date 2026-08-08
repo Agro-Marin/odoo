@@ -968,6 +968,21 @@ class Websocket:
         code, reason = CloseCode.SERVER_ERROR, str(exc)
         if isinstance(exc, (ConnectionClosedError, OSError)):
             code = CloseCode.ABNORMAL_CLOSURE
+            if isinstance(exc, TimeoutError):
+                # A socket timeout here is NOT an ordinary disconnect: the peer
+                # is alive but could not keep up with a frame inside
+                # ``FRAME_RECEIVE_TIMEOUT``, and it will reconnect and be handed
+                # a comparable frame again. Left on the silent ABNORMAL_CLOSURE
+                # path this looked exactly like a client closing its tab, so a
+                # client stuck in that loop was invisible: the log showed only a
+                # 101 per attempt and nothing else. Name it.
+                _logger.warning(
+                    "Websocket timed out after %ss mid-frame; the peer is too "
+                    "slow for the frame being written and will reconnect. "
+                    "Channels: %.200s",
+                    self.FRAME_RECEIVE_TIMEOUT,
+                    self._channels,
+                )
         elif isinstance(exc, (ProtocolError, InvalidCloseCodeError)):
             code = CloseCode.PROTOCOL_ERROR
         elif isinstance(exc, UnicodeDecodeError):
@@ -1118,7 +1133,7 @@ class Websocket:
                     raise SessionExpiredException
                 self._session_validated_until = now + self.SESSION_VALIDITY_TTL
                 self._validated_session_sid = session.sid
-            notifications = env["bus.bus"]._poll(
+            notifications, truncated = env["bus.bus"]._poll_batch(
                 self._channels,
                 self._dispatch_state.last_id,
                 self._dispatch_state.ignore_ids,
@@ -1127,6 +1142,14 @@ class Websocket:
             return
         self._dispatch_state.record_dispatched([notif["id"] for notif in notifications])
         self._send(notifications)
+        if truncated:
+            # More is waiting than one frame may carry. Re-arm instead of
+            # widening the frame: an unbounded batch is exactly what could not be
+            # written inside the send deadline (see ``MAX_NOTIFICATIONS_PER_POLL``).
+            # Progress is guaranteed even while ``last_id`` is still held back,
+            # because the ids just dispatched are in ``ignore_ids`` and so cannot
+            # come back in the next batch.
+            self.trigger_notification_dispatching()
 
     def new_env(self, cr, session, *, set_lang=False):
         """
@@ -1367,7 +1390,7 @@ class WebsocketConnectionHandler:
     # Latest version of the websocket worker. This version should be incremented
     # every time `websocket_worker.js` is modified to force the browser to fetch
     # the new worker bundle.
-    _VERSION = "19.0-9"
+    _VERSION = "19.0-10"
 
     @classmethod
     def websocket_allowed(cls, request):

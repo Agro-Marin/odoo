@@ -601,10 +601,13 @@ class TestSessionValidityCache(BaseCase):
     @contextmanager
     def _dispatch_env(self, check_session_return=True):
         """Patch the collaborators of ``_dispatch_bus_notifications``: the
-        session chain is the identity, the cursor is fake, ``_poll`` returns
-        no notification (so ``_send`` is never reached)."""
+        session chain is the identity, the cursor is fake, ``_poll_batch``
+        returns no notification (so ``_send`` is never reached)."""
         env = MagicMock()
-        env.__getitem__.return_value._poll.return_value = []
+        # ``(notifications, truncated)``: the dispatch path polls in bounded
+        # batches and re-arms when more is waiting, see
+        # ``MAX_NOTIFICATIONS_PER_POLL``.
+        env.__getitem__.return_value._poll_batch.return_value = ([], False)
 
         @contextmanager
         def fake_acquire_cursor(db):

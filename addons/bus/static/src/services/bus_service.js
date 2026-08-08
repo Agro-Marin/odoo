@@ -147,14 +147,20 @@ export const busService = {
                     }
                     // Highest id of the batch, not `.at(-1)`: the worker
                     // deliberately does not assume server batches arrive in
-                    // ascending id order (see `_onWebsocketMessage`). Max with
-                    // the current value: the worker may also legitimately
-                    // deliver LOWER ids in later batches (late-committed
-                    // notifications inside the server's hold-back window).
-                    state.lastNotificationId = Math.max(
-                        state.lastNotificationId ?? 0,
-                        ...notifications.map(({ id }) => id),
-                    );
+                    // ascending id order (see `_onWebsocketMessage`). Compared
+                    // against the current value because the worker may also
+                    // legitimately deliver LOWER ids in later batches
+                    // (late-committed notifications inside the server's
+                    // hold-back window). A loop rather than
+                    // `Math.max(...ids)`, for the same reason as the worker:
+                    // the spread throws `RangeError` on a large enough batch.
+                    let highestId = state.lastNotificationId ?? 0;
+                    for (const { id } of notifications) {
+                        if (id > highestId) {
+                            highestId = id;
+                        }
+                    }
+                    state.lastNotificationId = highestId;
                     scheduleWatermarkWrite();
                     for (const { id, type, payload } of notifications) {
                         notificationBus.trigger(type, { id, payload });

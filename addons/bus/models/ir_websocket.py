@@ -6,6 +6,28 @@ from odoo.tools.misc import OrderedSet
 from ..models.bus import dispatch
 from ..websocket import wsrequest
 
+# Upper bounds on a single subscription, see ``_prepare_subscribe_data``.
+#
+# Deliberately far above any plausible client rather than close to it. Crossing
+# the limit rejects the whole subscribe message, and while that does not close
+# the connection (``_serve_forever`` logs client-controlled ValueErrors and
+# carries on), the tab keeps whatever subscription it had until something
+# triggers a re-subscribe -- so a limit tight enough to catch a real user would
+# cost them bus delivery for a reason only a server log explains. The channels
+# counted here are the client-supplied ones only; the groups and partner channel
+# that ``_build_bus_channel_list`` adds afterwards are not, so a user in many
+# groups is unaffected. Discuss is the heaviest known caller (one presence
+# channel per monitored partner, plus one per non-member thread) and stays
+# orders of magnitude below this.
+#
+# 4096 channels still bounds the amplification that motivated the cap to a few
+# MiB per connection: 20 000 channels measured at ~21 MiB, and it is linear.
+MAX_SUBSCRIBED_CHANNELS = 4096
+# Comfortably above the longest real names: presence channels
+# (``odoo-presence-res.partner_<id>-<64 hex>o0x<hex>``) run to about 100
+# characters, access-token channels to well under that.
+MAX_CHANNEL_LENGTH = 512
+
 
 class IrWebsocket(models.AbstractModel):
     _name = "ir.websocket"
@@ -66,17 +88,61 @@ class IrWebsocket(models.AbstractModel):
             isinstance(c, str) for c in channels
         ):
             raise ValueError("bus.Bus only string channels are allowed.")
+        # Bound the subscription itself. Only the 1 MiB frame cap used to limit
+        # it, and a subscribe is worth far more than it costs to send: measured,
+        # 20 000 channels arrive in an 859 KiB frame and retain ~21 MiB of server
+        # memory for as long as the (possibly anonymous) connection lives -- ~24
+        # bytes held per byte on the wire, sustainable at ~1 MiB/s without
+        # tripping the rate limiter. The memory is released on disconnect, so
+        # this is amplification rather than a leak, but nothing capped it.
+        if len(channels) > MAX_SUBSCRIBED_CHANNELS:
+            raise ValueError(
+                f"bus.Bus subscription is limited to {MAX_SUBSCRIBED_CHANNELS} "
+                f"channels, got {len(channels)}."
+            )
+        if any(len(channel) > MAX_CHANNEL_LENGTH for channel in channels):
+            raise ValueError(
+                f"bus.Bus channel names are limited to {MAX_CHANNEL_LENGTH} characters."
+            )
         if not isinstance(last, int) or isinstance(last, bool):
             raise ValueError("bus.Bus subscription 'last' must be an integer.")
-        # sudo - bus.bus: reading non-sensitive last bus id.
         # Clamp to [0, max_id]: negative values would match all rows, values
         # beyond max_id skip all existing notifications (reset to 0 instead).
         last = max(0, last)
-        last = 0 if last > self.env["bus.bus"].sudo()._bus_last_id() else last
+        if last:
+            # Only when there is something to clamp. ``last == 0`` already means
+            # "start from the lookback window", and ``0 > max_id`` can never hold
+            # (ids are positive, the aggregate coalesces to 0), so the query was
+            # pure overhead on the commonest subscribe of all -- and subscribes
+            # are frequent, the worker re-sends one on every channel change.
+            # sudo - bus.bus: reading non-sensitive last bus id.
+            last = 0 if last > self.env["bus.bus"].sudo()._bus_last_id() else last
+        channels = [c for c in channels if self._is_subscribable_channel(c)]
         return {
             "channels": OrderedSet(self._build_bus_channel_list(list(channels))),
             "last": last,
         }
+
+    def _is_subscribable_channel(self, channel):
+        """Whether the caller may subscribe to this client-supplied channel name.
+
+        Accepts everything by default, which is the historical behaviour and what
+        every current caller relies on. It exists so that behaviour has a single
+        place to change: ``/websocket`` is ``auth="public"``, so any client --
+        including an unauthenticated one -- may subscribe to any string channel
+        and receive everything ``bus.bus._sendone`` publishes there. Verified
+        against a running server: a socket with no session cookie subscribed to a
+        plausibly-named channel and received its payload in full.
+
+        The exposure is bounded to *string* channels. Record-derived channels are
+        unreachable from client input, because ``channel_with_db`` only ever turns
+        a client string into a two-element key, never the three-element one a
+        record produces. So the callers at risk are exactly those passing a bare
+        string to ``_sendone``, whose sole protection today is that the name is
+        hard to guess (as ``_sendone``'s own docstring asks). Override here to
+        enforce that centrally instead of trusting each caller.
+        """
+        return True
 
     def _after_subscribe_data(self, data):
         """Function invoked after subscribe data have been processed.
@@ -111,5 +177,14 @@ class IrWebsocket(models.AbstractModel):
                 wsrequest.session.logout(keep_db=True)
                 raise SessionExpiredException
         else:
-            public_user = self.env.ref("base.public_user")
-            wsrequest.update_env(user=public_user.id)
+            # `_xmlid_to_res_id`, not `env.ref`: only the id is wanted, and
+            # `Environment.ref` additionally runs an `exists()` query whose
+            # `transaction._ref_cache` can never help here -- every websocket
+            # message is served on a fresh cursor, hence a fresh transaction.
+            # Traced: exactly one such query per message on every public
+            # connection, ten for ten messages. `_xmlid_to_res_id` is ormcached
+            # and raises the same way when the xmlid is genuinely absent.
+            public_user_id = self.env["ir.model.data"]._xmlid_to_res_id(
+                "base.public_user"
+            )
+            wsrequest.update_env(user=public_user_id)

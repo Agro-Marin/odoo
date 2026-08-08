@@ -71,6 +71,31 @@ NOTIFY_PAYLOAD_MAX_LENGTH = get_notify_payload_max_length()
 DISPATCH_CATCHUP_CHUNK_SIZE = 50
 DISPATCH_CATCHUP_CHUNK_DELAY = 0.1  # seconds
 
+# Hard bounds on what a single ``_poll`` may return.
+#
+# A client reconnects with the last notification id it saw, and ``bus_bus``
+# retains a whole ``DEFAULT_GC_RETENTION_SECONDS`` window, so an unbounded
+# ``id > last`` returns the entire backlog of a busy channel in one go. The
+# resulting frame is one the serving thread cannot finish writing:
+# ``Websocket.FRAME_RECEIVE_TIMEOUT`` bounds the *whole* ``sendall`` (CPython
+# carries one deadline across the loop), so a client too slow to drain it is
+# dropped with ABNORMAL_CLOSURE having received nothing at all -- an incomplete
+# frame is never surfaced to the page -- and reconnects onto the identical
+# backlog. Measured before this bound existed: 20 000 notifications (5.7 MB)
+# against a client throttled to 150 KB/s failed three times out of three, each
+# attempt identical, with no path to convergence and nothing logged.
+#
+# Both bounds are needed. The count bounds the query and the Python-side result
+# set; the byte budget bounds the frame regardless of how large the individual
+# messages are, which is what the send deadline actually cares about. 256 KiB is
+# ~1.7s on a 150 KB/s link, an order of magnitude inside that deadline.
+#
+# Nothing is dropped: what does not fit stays in ``bus_bus`` and
+# ``Websocket._dispatch_bus_notifications`` re-arms itself, continuing from its
+# own watermark on the next pass.
+MAX_NOTIFICATIONS_PER_POLL = 500
+MAX_NOTIFICATION_BYTES_PER_POLL = 256 * 1024
+
 
 _notify_conn: psycopg.Connection | None = None
 _notify_lock = threading.Lock()
@@ -191,8 +216,13 @@ def _send_pg_notify(payloads):
     sent = 0
     with _notify_lock:
         for attempt in range(2):
-            conn = _get_notify_conn_locked()
             try:
+                # Inside the ``try``: a failure to *open* the connection is a
+                # connection-level failure like any other and must go through the
+                # same cycle-and-retry. Acquiring it outside meant the very first
+                # connect -- the one case where a stale cached handle is most
+                # likely -- propagated without the retry this loop exists for.
+                conn = _get_notify_conn_locked()
                 while sent < len(payloads):
                     try:
                         conn.execute(_query, (payloads[sent],))
@@ -290,7 +320,11 @@ def get_notify_payloads(channels):
         # A payload of n items encodes to: "[" + items + n-1 "," + "]",
         # i.e. items_len + len(items) + 1 bytes.
         if item_len + 2 >= NOTIFY_PAYLOAD_MAX_LENGTH:
-            _logger.warning(
+            # Error, not warning: nothing recovers from this. The channel's
+            # subscribers are simply never woken for these notifications, and
+            # only an unrelated later NOTIFY (or a dispatcher catch-up) brings
+            # them back -- a silent delivery loss deserves an error-level trace.
+            _logger.error(
                 "Dropping imbus channel whose %d-byte NOTIFY payload exceeds "
                 "the %d-byte limit: %.200s",
                 item_len + 2,
@@ -456,7 +490,34 @@ class BusBus(models.Model):
                     )
 
     @api.model
-    def _poll(self, channels, last=0, ignore_ids=None):
+    def _poll(
+        self, channels, last=0, ignore_ids=None, limit=MAX_NOTIFICATIONS_PER_POLL
+    ):
+        """Return the notifications of ``channels`` newer than ``last``.
+
+        Bounded: at most ``limit`` notifications, and at most
+        ``MAX_NOTIFICATION_BYTES_PER_POLL`` bytes of message payload. Callers
+        that must drain a backlog should use :meth:`_poll_batch`, which reports
+        whether more is waiting.
+        """
+        return self._poll_batch(channels, last, ignore_ids, limit)[0]
+
+    @api.model
+    def _poll_batch(
+        self,
+        channels,
+        last=0,
+        ignore_ids=None,
+        limit=MAX_NOTIFICATIONS_PER_POLL,
+        max_bytes=MAX_NOTIFICATION_BYTES_PER_POLL,
+    ):
+        """Poll one bounded batch of notifications.
+
+        :return: ``(notifications, truncated)`` where ``truncated`` says that at
+            least one further notification matched but did not fit in this batch,
+            so the caller should poll again once this one is delivered. See
+            ``MAX_NOTIFICATIONS_PER_POLL`` for why the bounds exist at all.
+        """
         # Direct SQL — bus.bus is a simple queue table with no computed fields.
         # Channel filtering provides security; sudo/access rules are unnecessary.
         if last == 0:
@@ -469,17 +530,31 @@ class BusBus(models.Model):
         if ignore_ids:
             where = SQL("%s AND NOT (id = ANY(%s))", where, ignore_ids)
         channels = [json_dump(channel_with_db(self.env.cr.dbname, c)) for c in channels]
+        # One row beyond the limit, so "there is more" is answered by the query
+        # itself rather than by a second round trip.
         self.env.cr.execute(
             SQL(
-                "SELECT id, message FROM bus_bus WHERE %s AND channel = ANY(%s) ORDER BY id",
+                "SELECT id, message FROM bus_bus WHERE %s AND channel = ANY(%s)"
+                " ORDER BY id LIMIT %s",
                 where,
                 channels,
+                limit + 1,
             )
         )
-        return [
-            {"id": row[0], "message": json_loads(row[1])}
-            for row in self.env.cr.fetchall()
-        ]
+        rows = self.env.cr.fetchall()
+        truncated = len(rows) > limit
+        del rows[limit:]
+        notifications = []
+        payload_bytes = 0
+        for row in rows:
+            # Measured on the stored JSON, before parsing: this is what the
+            # outgoing frame will actually carry, and it costs nothing to read.
+            payload_bytes += len(row[1])
+            notifications.append({"id": row[0], "message": json_loads(row[1])})
+            if payload_bytes >= max_bytes:
+                truncated = truncated or len(notifications) < len(rows)
+                break
+        return notifications, truncated
 
     def _bus_last_id(self):
         self.env.cr.execute("SELECT COALESCE(MAX(id), 0) FROM bus_bus")

@@ -888,3 +888,70 @@ test("the offline message queue is bounded, dropping the stalest entries", async
     expect(first.data).toBe(5);
     expect(last.data).toBe(worker.MESSAGE_QUEUE_MAX + 4);
 });
+
+test("a very large notification batch is broadcast, not swallowed", async () => {
+    // `Math.max(this.lastNotificationId, ...ids)` passed one argument per
+    // notification and threw `RangeError: Maximum call stack size exceeded`
+    // past ~130k of them, between marking the ids as seen and broadcasting.
+    // The batch was then lost with no error surfaced anywhere.
+    const worker = await startWebSocketWorker((type) => {
+        if (type === "BUS:NOTIFICATION") {
+            asyncStep("broadcast BUS:NOTIFICATION");
+        }
+    });
+    const notifications = Array.from({ length: 200_000 }, (_, i) => ({
+        id: i + 1,
+        message: { type: "probe", payload: {} },
+    }));
+    worker._onWebsocketMessage(
+        new MessageEvent("message", { data: JSON.stringify(notifications) }),
+    );
+    await waitForSteps(["broadcast BUS:NOTIFICATION"]);
+    expect(worker.lastNotificationId).toBe(200_000);
+});
+
+test("notification ids are recorded as seen only once broadcast", async () => {
+    // Marking first meant that anything throwing in between lost the batch for
+    // good: the ids counted as delivered while no client had received them, so
+    // the dedup filter discarded the server's redelivery too.
+    const worker = await startWebSocketWorker();
+    const notifications = [
+        { id: 11, message: { type: "probe", payload: {} } },
+        { id: 12, message: { type: "probe", payload: {} } },
+    ];
+    let seenDuringBroadcast = null;
+    patchWithCleanup(worker, {
+        broadcast(type, message) {
+            if (type === "BUS:NOTIFICATION") {
+                seenDuringBroadcast = [...worker.seenNotificationIds.keys()];
+            }
+            return super.broadcast(type, message);
+        },
+    });
+    worker._onWebsocketMessage(
+        new MessageEvent("message", { data: JSON.stringify(notifications) }),
+    );
+    expect(seenDuringBroadcast).toEqual([]);
+    expect([...worker.seenNotificationIds.keys()]).toEqual([11, 12]);
+});
+
+test("a batch whose broadcast throws is not remembered as delivered", async () => {
+    const worker = await startWebSocketWorker();
+    const notifications = [{ id: 21, message: { type: "probe", payload: {} } }];
+    patchWithCleanup(worker, {
+        broadcast(type) {
+            if (type === "BUS:NOTIFICATION") {
+                throw new Error("boom");
+            }
+            return super.broadcast(...arguments);
+        },
+    });
+    expect(() =>
+        worker._onWebsocketMessage(
+            new MessageEvent("message", { data: JSON.stringify(notifications) }),
+        ),
+    ).toThrow();
+    // Nothing was marked seen, so a redelivery can still reach the clients.
+    expect([...worker.seenNotificationIds.keys()]).toEqual([]);
+    expect(worker.lastNotificationId).toBe(0);
+});
