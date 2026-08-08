@@ -7,6 +7,7 @@ recognisable rather than merely red.
 
 from datetime import datetime
 
+from lxml import etree
 from psycopg.errors import CheckViolation
 from pytz import utc
 
@@ -490,3 +491,47 @@ class TestResourceAdminAccess(TransactionCase):
         for operation in ("write", "create", "unlink"):
             with self.subTest(operation=operation), self.assertRaises(AccessError):
                 Resource.check_access(operation)
+
+
+@tagged("post_install", "-at_install")
+class TestViewAvatarFields(TransactionCase):
+    """``avatar_field`` must name a field that exists on the related model.
+
+    The Resource Time Off calendar asked for ``image_128`` on
+    ``resource.resource``, which has ``avatar_128`` and never had an
+    ``image_128``.  Nothing validates the attribute — the ORM only checks
+    ``<field name=...>`` nodes — so the view loaded fine and the calendar
+    filter panel simply requested
+    ``/web/image/resource.resource/<id>/image_128`` and rendered a broken
+    image for every resource.  This walks the module's own views so a typo
+    fails a test instead of a pixel.
+    """
+
+    def test_module_views_reference_real_avatar_fields(self):
+        view_ids = (
+            self.env["ir.model.data"]
+            .search([("module", "=", "resource"), ("model", "=", "ir.ui.view")])
+            .mapped("res_id")
+        )
+        checked = 0
+        for view in self.env["ir.ui.view"].browse(view_ids):
+            if not view.model or view.model not in self.env:
+                continue
+            model = self.env[view.model]
+            for node in etree.fromstring(view.arch_db).xpath("//field[@avatar_field]"):
+                field_name = node.get("name")
+                avatar_field = node.get("avatar_field")
+                field = model._fields.get(field_name)
+                self.assertIsNotNone(
+                    field, f"{view.xml_id}: unknown field {field_name!r}"
+                )
+                comodel = self.env[field.comodel_name]
+                self.assertIn(
+                    avatar_field,
+                    comodel._fields,
+                    f"{view.xml_id}: avatar_field={avatar_field!r} does not exist on "
+                    f"{field.comodel_name} (available: "
+                    f"{sorted(n for n in comodel._fields if 'avatar' in n or 'image' in n)})",
+                )
+                checked += 1
+        self.assertTrue(checked, "no avatar_field found — the guard would be vacuous")
