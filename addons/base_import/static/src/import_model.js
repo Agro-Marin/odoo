@@ -28,11 +28,29 @@ const strftimeFormatTable = {
     MMMM: "B",
     YYYY: "Y",
     YY: "y",
+    SS: "S",
     ss: "S",
-    hh: "h",
+    // 12-hour clock. `II` (hour) and `p` (AM/PM) are the tokens the
+    // `datetime_format` help text tells users to use, and two of the six
+    // shipped presets are built from them -- but neither was in this table nor
+    // in the regex below, so "MM/DD/YYYY II:mm:SS p" was handed to the server
+    // as the literal "%m/%d/%Y II:%M:%S p". strptime then failed on every row
+    // and `to_re` built a pattern demanding the literal text "II"/"p", so both
+    // 12-hour presets were inert.
+    II: "I",
+    hh: "I",
     HH: "H",
+    p: "p",
     A: "p",
 };
+
+/**
+ * Longest-first so that e.g. `dddd` wins over `dd`, and `SS` is consumed as one
+ * token rather than two `S`. Case-insensitive: the lookup below retries on the
+ * lower/upper-cased token, which is what distinguishes `MM` (month) from `mm`
+ * (minute).
+ */
+const HUMAN_FORMAT_TOKENS = /(dddd|ddd|dd|d|mmmm|mmm|mm|ww|yyyy|yy|ii|hh|ss|a|p)/gi;
 
 /**
  * Convert a human readable format to Python strftime format. In case
@@ -43,23 +61,52 @@ const strftimeFormatTable = {
  * @returns {string} valid strftime format
  */
 const humanToStrftimeFormat = memoize(function humanToStrftimeFormat(value) {
-    const regex = /(dddd|ddd|dd|d|mmmm|mmm|mm|ww|yyyy|yy|hh|ss|a)/gi;
-    return value.replace(regex, (value) => {
-        if (strftimeFormatTable[value]) {
-            return "%" + strftimeFormatTable[value];
-        }
-        return (
-            "%" +
-            (strftimeFormatTable[value.toLowerCase()] || strftimeFormatTable[value.toUpperCase()])
-        );
+    return value.replace(HUMAN_FORMAT_TOKENS, (token) => {
+        const directive =
+            strftimeFormatTable[token] ??
+            strftimeFormatTable[token.toLowerCase()] ??
+            strftimeFormatTable[token.toUpperCase()];
+        // Leave an unknown token alone rather than emitting "%undefined":
+        // a literal is at least visible to the user and round-trips.
+        return directive ? "%" + directive : token;
     });
 });
 
+/**
+ * Inverse of {@link humanToStrftimeFormat}, used to redisplay the options the
+ * server echoes back. Several human tokens map to the same directive (`hh` and
+ * `II` are both `%I`), so this picks one canonical spelling per directive --
+ * the one used by the presets in `_getCSVFormattingOptions`.
+ */
+const STRFTIME_TO_HUMAN = {
+    w: "d",
+    d: "DD",
+    a: "ddd",
+    A: "dddd",
+    j: "DDDD",
+    U: "ww",
+    W: "WW",
+    M: "mm",
+    m: "MM",
+    b: "MMM",
+    B: "MMMM",
+    Y: "YYYY",
+    y: "YY",
+    S: "SS",
+    I: "II",
+    H: "HH",
+    p: "p",
+};
+
 const strftimeToHumanFormat = memoize(function strftimeToHumanFormat(value) {
-    Object.entries(strftimeFormatTable).forEach(([k, v]) => {
-        value = value.replace(`%${v}`, k);
-    });
-    return value;
+    // Single pass over the directives. The previous implementation ran
+    // `String.replace` with a *string* pattern once per table entry, which
+    // replaces only the first occurrence, so a format repeating a directive was
+    // converted partially.
+    return value.replace(
+        /%(.)/g,
+        (match, directive) => STRFTIME_TO_HUMAN[directive] ?? match
+    );
 });
 
 /**
@@ -91,7 +138,6 @@ export class BaseImportModel {
         this.fields = [];
         this.columns = [];
         this.importMessages = [];
-        this._importOptions = {};
 
         this.importTemplates = [];
 
@@ -199,14 +245,7 @@ export class BaseImportModel {
             }
         }
 
-        this._importOptions = tempImportOptions;
         return tempImportOptions;
-    }
-
-    set importOptions(options) {
-        for (const key in options) {
-            this.importOptionsValues[key].value = options[key];
-        }
     }
 
     /**
@@ -287,7 +326,10 @@ export class BaseImportModel {
 
             if (importProgress) {
                 importProgress.step = i;
-                importProgress.value = Math.round((100 * (i - 1)) / totalSteps);
+                // `i`, not `i - 1`: this runs *after* step `i` completed, so
+                // `i - 1` under-reported by a whole batch and the bar topped out
+                // at (n-1)/n -- 50% for a two-batch import that had finished.
+                importProgress.value = Math.round((100 * i) / totalSteps);
             }
         }
 
@@ -440,16 +482,23 @@ export class BaseImportModel {
 
     async _pushLocalImageToRecords(ids, binaryFilenames, isTest) {
         if (typeof binaryFilenames === "object") {
+            const importOptions = this.importOptions;
             const parameters = {
-                tracking_disable: this.importOptions.tracking_disable,
+                tracking_disable: importOptions.tracking_disable,
                 delayAfterEachBatch: this.binaryFilesParams.delayAfterEachBatch.value,
                 maxBatchSize: this.binaryFilesParams.maxSizePerBatch.value * 1024 * 1024,
+                // BinaryFileManager._send reads these three off `parameters`,
+                // but nothing ever passed them, so the user's field options were
+                // silently dropped for the attachment upload pass.
+                name_create_enabled_fields: importOptions.name_create_enabled_fields,
+                import_set_empty_fields: importOptions.import_set_empty_fields,
+                import_skip_records: importOptions.import_skip_records,
             };
 
-            if (!this.binaryFilesParams.binaryFiles) {
+            const binaryFiles = this.binaryFilesParams.binaryFiles.value;
+            if (!binaryFiles) {
                 return;
             }
-            const binaryFiles = this.binaryFilesParams.binaryFiles.value;
             const fields = Object.keys(binaryFilenames);
             const binaryFileManager = new BinaryFileManager(
                 this.resModel,
@@ -619,16 +668,20 @@ export class BaseImportModel {
         }
 
         if (this.importOptions.has_headers && res.headers && res.preview.length > 0) {
-            return res.headers.flatMap((header, index) =>
-                this._createColumn(
+            return res.headers.flatMap((header, index) => {
+                // A header row can be wider than the data rows the examples were
+                // built from (ragged CSV); fall back to an empty example rather
+                // than dereferencing `undefined`.
+                const previews = res.preview[index] || [""];
+                return this._createColumn(
                     res,
                     getId(res, index),
                     header,
                     index,
-                    res.preview[index],
-                    res.preview[index][0]
-                )
-            );
+                    previews,
+                    previews[0]
+                );
+            });
         } else if (res.preview && res.preview.length >= 2) {
             return res.preview.flatMap((preview, index) =>
                 this._createColumn(
@@ -721,16 +774,12 @@ export class BaseImportModel {
             }
         };
 
-        // Sort fields in their respective categories
+        // Sort fields in their respective categories. (The former
+        // `if (!field.isRelation)` guard was dead: the server never sends an
+        // `isRelation` key, so it was always true.)
+        const acceptedTypes = advanced ? ["all"] : res.header_types?.[index];
         for (const field of this.fields) {
-            if (!field.isRelation) {
-                if (advanced) {
-                    sortSingleField(field, [], undefined, ["all"]);
-                } else {
-                    const acceptedTypes = res.header_types[index];
-                    sortSingleField(field, [], undefined, acceptedTypes);
-                }
-            }
+            sortSingleField(field, [], undefined, acceptedTypes);
         }
 
         return fields;

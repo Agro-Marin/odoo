@@ -17,6 +17,11 @@ export class BinaryFileManager {
         this.delayAfterEachBatch = this.parameters.delayAfterEachBatch * 1000;
 
         this.dataToSend = {};
+        // Running total of the pending payload. `getCurrentSize()` used to
+        // JSON.stringify the whole `dataToSend` on every added file, so building
+        // one batch cost O(n^2) in serialisation -- up to `maxBatchSize` bytes
+        // re-serialised per file.
+        this.currentSize = 0;
 
         this.mutex = new Mutex();
     }
@@ -37,6 +42,20 @@ export class BinaryFileManager {
         }
         const dataSize = data.length;
 
+        // Resolve the column before mutating anything: an unknown field name
+        // yields -1, and `row[-1] = data` silently sets a stray property on the
+        // array instead of a cell, dropping the file without a word.
+        const indexOfField = this.fields.indexOf(field, 1);
+        if (indexOfField === -1) {
+            this.notificationService.add(
+                _t("Unknown binary field %(field)s, its files were not uploaded.", {
+                    field,
+                }),
+                { type: "danger" }
+            );
+            return;
+        }
+
         if (this.getCurrentSize() + dataSize >= this.maxBatchSize) {
             await this.mutex.exec(async () => await this._send());
         }
@@ -44,8 +63,8 @@ export class BinaryFileManager {
             this.dataToSend[id] = Array(this.fields.length);
             this.dataToSend[id][0] = id;
         }
-        const indexOfField = this.fields.indexOf(field, 1);
         this.dataToSend[id][indexOfField] = data;
+        this.currentSize += dataSize;
     }
 
     async sendLastPayload() {
@@ -60,6 +79,7 @@ export class BinaryFileManager {
         });
         const data = Object.values(this.dataToSend);
         this.dataToSend = {};
+        this.currentSize = 0;
         const context = {
             ...this.context,
             import_file: true,
@@ -106,6 +126,6 @@ export class BinaryFileManager {
     }
 
     getCurrentSize() {
-        return JSON.stringify(this.dataToSend).length;
+        return this.currentSize;
     }
 }
