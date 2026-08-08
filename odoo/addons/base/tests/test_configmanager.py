@@ -480,7 +480,8 @@ class TestConfigManager(TransactionCase):
             return [
                 f"WARNING:odoo.tools.config:option {option} reads 'False' "
                 f"in the config file at {config_path} but isn't a boolean "
-                "option, skip"
+                "option, skip. 'False' was the pre-19.0 spelling of 'unset'; "
+                f"write {option} with an empty value instead."
                 for option in options
             ]
 

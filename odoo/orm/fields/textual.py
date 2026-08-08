@@ -584,6 +584,15 @@ class BaseString(Field[str | typing.Literal[False]]):
             # no ids, or a non-SQL backend (the DB-free test env) with no jsonb
             # column to compare the stored terms against
             return {}
+        if lang == "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
+            # With English uninstalled, _mark_dirty_model_translation mirrors
+            # every write into en_US whatever language it targeted, so en_US
+            # holds a copy of the last language written rather than a term
+            # anyone authored. Equality with it is manufactured and says
+            # nothing about whether a language was translated away: reading it
+            # as an echo would destroy the real translations that happen to
+            # match -- exactly the loss this propagation exists to prevent.
+            return {}
         stored = self._get_stored_translations_multi(records.browse(ids), dirty_ids)
         followers = defaultdict(list)
         for id_, translations in stored.items():

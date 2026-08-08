@@ -855,7 +855,12 @@ class TestTranslationWrite(TransactionCase):
         self.assertEqual(category2.with_context(lang="fr_FR").name, "French")
 
         category2.with_context(lang="en_US").name = "English"
-        self.assertEqual(category2.with_context(lang="fr_FR").name, "French")
+        self.assertEqual(
+            category2.with_context(lang="fr_FR").name,
+            "English",
+            "fr_FR merely echoed the value typed at create time, so it follows "
+            "the en_US rename rather than keeping a term nobody authored",
+        )
 
         category3 = (
             self.env["res.partner.category"]
@@ -1088,7 +1093,12 @@ class TestTranslationWrite(TransactionCase):
 
         group.with_context(lang="fr_FR").comment = "French comment 2"
         self.assertEqual(group.with_context(lang="fr_FR").comment, "French comment 2")
-        self.assertEqual(group.with_context(lang="en_US").comment, "French comment")
+        self.assertEqual(
+            group.with_context(lang="en_US").comment,
+            "French comment 2",
+            "en_US only ever held an echo of the first French write, so it "
+            "follows the second instead of keeping the superseded term",
+        )
 
     def test_update_field_translations(self):
         self.env["res.lang"]._activate_lang("fr_FR")
