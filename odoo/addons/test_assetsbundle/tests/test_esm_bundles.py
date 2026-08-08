@@ -16,6 +16,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo import tools
+from odoo.libs.constants import ODOO_EXTERNAL_LIBS
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools.assets.esbuild import EsbuildCompiler, _find_esbuild
 from odoo.tools.assets.esm_bridges import BridgeShimManager
@@ -2110,3 +2111,197 @@ class TestEsbuildEntryLines(BaseCase):
     def test_an_empty_bundle_still_registers_owl(self):
         entry = "\n".join(self._compiler([])._esbuild_entry_lines(self.ROOT))
         self.assertIn('"@odoo/owl": __owl', entry)
+
+
+class TestExternalLibsValidator(BaseCase):
+    """The four invariants tying ODOO_EXTERNAL_LIBS to what esbuild can do.
+
+    An external library is one esbuild deliberately does NOT bundle: it leaves
+    the import verbatim and the browser resolves it through the page's import
+    map. That splits one fact across three tables -- the alias esbuild
+    resolves, the URL the import map serves, the file on disk -- and any pair
+    of them can drift. Each way they can drift is a production-only failure:
+    the build succeeds, the page loads, and one specifier 404s or fails to
+    resolve. The validator turns each into a startup error instead, and only
+    the first of its four guards had a test.
+    """
+
+    REAL_URL = "/web/static/lib/owl/owl.es.js"
+
+    def test_a_specifier_esbuild_cannot_resolve_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "no resolution for them"):
+            AssetsBundle._validate_external_libs(
+                {"left-pad": self.REAL_URL}, bare_specifiers=set(), lib_candidates={}
+            )
+
+    def test_a_bare_specifier_with_no_import_map_url_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "no import-map URL"):
+            AssetsBundle._validate_external_libs(
+                {}, bare_specifiers={"@odoo/owl"}, lib_candidates={}
+            )
+
+    def test_an_import_map_url_pointing_nowhere_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "do not exist"):
+            AssetsBundle._validate_external_libs(
+                {"@odoo/owl": "/web/static/lib/owl/does_not_exist.js"},
+                bare_specifiers=set(),
+                lib_candidates={},
+            )
+
+    def test_a_lib_alias_pointing_nowhere_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "_LIB_CANDIDATES aliases"):
+            AssetsBundle._validate_external_libs(
+                {},
+                bare_specifiers=set(),
+                lib_candidates={"@odoo/nope": ("web", "static", "lib", "nope.js")},
+            )
+
+    def test_an_unknown_addon_in_the_url_is_not_mistaken_for_a_missing_file(self):
+        """A URL under an addon this checkout lacks is out of scope, not broken.
+
+        `_addon_relative_path_exists` separates "the addon is not here" from
+        "the addon is here and the file is missing"; only the second is a
+        drift this validator can meaningfully report.
+        """
+        AssetsBundle._validate_external_libs(
+            {"@odoo/owl": "/no_such_addon_here/static/lib/x.js"},
+            bare_specifiers=set(),
+            lib_candidates={},
+        )
+
+    def test_the_live_tables_satisfy_all_four(self):
+        """The guard the other five exist to keep meaningful."""
+        AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)
+
+
+class TestEsmManifestShapeGuards(BaseCase):
+    """Manifest typos in `esm`, refused at build rather than absorbed.
+
+    The registry is merged from every manifest on the addons path, so a
+    malformed declaration in one addon shapes what every database does. A
+    bare string where a list belongs is the dangerous shape: it iterates as
+    characters, so `"web.assets_web"` would register fifteen one-letter
+    bundles instead of failing.
+    """
+
+    def _build_with(self, esm):
+        from odoo.modules import Manifest
+        from odoo.tools.assets import esm_registry as reg
+
+        fake = SimpleNamespace(name="probe_addon", get=lambda key: esm)
+        with patch.object(
+            Manifest, "all_addon_manifests", staticmethod(lambda: [fake])
+        ):
+            return reg._build()
+
+    def test_a_non_mapping_esm_key_is_refused(self):
+        with self.assertRaisesRegex(TypeError, "manifest 'esm' must be a dict"):
+            self._build_with(["web.assets_web"])
+
+    def test_an_unknown_esm_key_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "unknown 'esm' manifest keys"):
+            self._build_with({"bundels": ["a.b"]})
+
+    def test_bundles_as_a_bare_string_is_refused(self):
+        with self.assertRaisesRegex(TypeError, "'esm.bundles' must be a list"):
+            self._build_with({"bundles": "web.assets_web"})
+
+    def test_standalone_bundles_as_a_bare_string_is_refused(self):
+        with self.assertRaisesRegex(TypeError, "must be\\s+a list"):
+            self._build_with({"bundles": ["a.b"], "standalone_bundles": "a.b"})
+
+    def test_a_relationship_mapping_must_be_a_mapping(self):
+        with self.assertRaisesRegex(TypeError, "must be a dict"):
+            self._build_with({"bundles": ["a.b"], "dynamic_children": ["a.b"]})
+
+    def test_relationship_children_must_be_a_list(self):
+        with self.assertRaisesRegex(TypeError, "must be a\\s+list of bundle names"):
+            self._build_with({"bundles": ["a.b"], "dynamic_children": {"a.b": "a.c"}})
+
+    def test_a_well_formed_declaration_builds(self):
+        registry = self._build_with({"bundles": ["a.b"], "standalone_bundles": ["a.b"]})
+        self.assertIn("a.b", registry.bundles)
+        self.assertIn("a.b", registry.standalone_bundles)
+
+    def test_a_standalone_bundle_may_not_be_in_a_relationship(self):
+        """It has no import map or odoo.loader, so there is nothing to relate."""
+        with self.assertRaisesRegex(ValueError, "cannot participate"):
+            self._build_with(
+                {
+                    "bundles": ["a.b", "a.c"],
+                    "standalone_bundles": ["a.c"],
+                    "dynamic_children": {"a.b": ["a.c"]},
+                }
+            )
+
+
+class TestBridgeRwCursorEscalation(TransactionCase):
+    """Persisting bridge shims from a request served by a read replica.
+
+    A readonly cursor cannot create the attachment, and the fallback is a
+    `data:` URI -- functional, but it inlines the shim into the import map on
+    every render instead of once into a cached row. So the escalation to a
+    second, writable cursor is what keeps a replica-served page from paying
+    that cost forever.
+
+    Every other test of this patches the escalation out, because it commits on
+    a cursor of its own and the rows outlive the test transaction. This one
+    runs it for real and cleans up after itself, which is the only way to know
+    the rows actually land.
+    """
+
+    URL_PREFIX = "/web/assets/esm/bridges/rwprobe"
+
+    def _cleanup_rows(self):
+        from odoo.modules.registry import Registry
+        from odoo.tests.common import get_db_name
+
+        with Registry(get_db_name()).cursor() as cr:
+            cr.execute(
+                "DELETE FROM ir_attachment WHERE url LIKE %s", (self.URL_PREFIX + "%",)
+            )
+            cr.commit()
+
+    def _to_create(self, name):
+        return [
+            {
+                "name": name,
+                "url": f"{self.URL_PREFIX}_{name}",
+                "type": "binary",
+                "public": True,
+                "res_model": "ir.ui.view",
+                "res_id": False,
+                "raw": b"export default 1;",
+                "mimetype": "text/javascript",
+            }
+        ]
+
+    def test_the_rows_really_land_on_the_other_cursor(self):
+        from odoo.modules.registry import Registry
+        from odoo.tests.common import get_db_name
+
+        self.addCleanup(self._cleanup_rows)
+        manager = AssetsBundle("web.assets_web", [], env=self.env)._bridges
+
+        self.assertTrue(manager._persist_bridges_via_rw_cursor(self._to_create("ok")))
+
+        # A separate cursor, because the write was committed outside ours.
+        with Registry(get_db_name()).cursor() as cr:
+            cr.execute(
+                "SELECT count(*) FROM ir_attachment WHERE url = %s",
+                (f"{self.URL_PREFIX}_ok",),
+            )
+            self.assertEqual(cr.fetchone()[0], 1)
+
+    def test_a_failed_escalation_reports_false_rather_than_raising(self):
+        """The caller's whole point is to fall back, so this must not raise."""
+        manager = AssetsBundle("web.assets_web", [], env=self.env)._bridges
+        bad = self._to_create("bad")
+        # An unknown field: create() raises, which is what the escalation has
+        # to absorb. (res_model is a Char, so a bogus value there is coerced
+        # rather than refused -- it would not exercise anything.)
+        bad[0]["no_such_field_on_ir_attachment"] = 1
+
+        with self.assertLogs("odoo.tools.assets.esm_bridges", level="DEBUG") as logged:
+            self.assertFalse(manager._persist_bridges_via_rw_cursor(bad))
+        self.assertIn("escalation to a read-write cursor", "\n".join(logged.output))

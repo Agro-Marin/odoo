@@ -222,3 +222,48 @@ class TestRunCliPipeFailures(BaseCase):
     def test_non_utf8_success_output_degrades(self):
         out = _run_cli_pipe(["sh", "-c", "printf '\\377 ok'"], "", 10)
         self.assertIn("ok", out)
+
+
+class TestFingerprintDegradation(BaseCase):
+    """What the fingerprint does when it cannot read its own inputs.
+
+    It must never raise: it is on the hot path of every bundle version. Both
+    fallbacks trade correctness for availability, and quietly -- a fingerprint
+    that stops tracking the code still produces a stable-looking URL, so
+    cached bundles simply stop being invalidated by code changes. Each
+    therefore has to warn.
+    """
+
+    def setUp(self):
+        super().setUp()
+        _pipeline_fingerprint.cache_clear()
+        self.addCleanup(_pipeline_fingerprint.cache_clear)
+
+    def test_a_source_that_resolves_to_nothing_warns(self):
+        from odoo.addons.base.models.assetsbundle import common
+
+        ghost = pathlib.Path("/nonexistent/asset_pipeline_source")
+        with (
+            patch.object(common, "_pipeline_sources", return_value=(ghost,)),
+            self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as log,
+        ):
+            _pipeline_fingerprint()
+        self.assertIn("does not exist", "\n".join(log.output))
+
+    def test_an_unreadable_source_falls_back_to_the_release_version(self):
+        from odoo import release
+
+        from odoo.addons.base.models.assetsbundle import common
+
+        target = next(
+            p for s in _pipeline_sources() if s.is_dir() for p in s.glob("*.py")
+        )
+        with (
+            patch.object(common, "_pipeline_sources", return_value=(target,)),
+            patch.object(
+                type(target), "read_bytes", side_effect=OSError("permission denied")
+            ),
+            self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as log,
+        ):
+            self.assertEqual(_pipeline_fingerprint(), release.version)
+        self.assertIn("falling back to the release version", "\n".join(log.output))
