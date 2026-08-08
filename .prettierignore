@@ -15,7 +15,16 @@
 # test_split_marker.scss carries a `/*! <hex> */` loud comment of the exact
 # shape that once broke rx_css_split. A formatter must not reshape the syntax
 # these exist to guard.
-odoo/addons/test_assetsbundle/static/**
+#
+# Scoped to the fixture roots, NOT to static/**. The broad form also swept in
+# static/tests/**, which is ordinary hand-written code (a Hoot suite, a tour, a
+# lazy-loaded component) with no reason to be exempt -- and because eslint runs
+# prettier through the prettier/prettier rule, which honours THIS file, those
+# files were correctness-linted but silently formatting-exempt. eslint's own
+# list ignores only static/src/js/*.js; that asymmetry is what the header above
+# means by keeping the two in sync.
+odoo/addons/test_assetsbundle/static/src/**
+odoo/addons/test_assetsbundle/static/invalid_src/**
 
 # Vendored third-party libraries (not our code). By convention vendored code
 # lives under <module>/static/lib and nowhere else.

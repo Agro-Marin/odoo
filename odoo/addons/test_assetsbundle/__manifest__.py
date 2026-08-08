@@ -53,7 +53,6 @@
         "test_assetsbundle.manifest6": [
             ("include", "test_assetsbundle.manifest4"),
         ],
-        "test_assetsbundle.manifest_multi_module1": [],
         "test_assetsbundle.broken_css": [
             "test_assetsbundle/static/invalid_src/css/invalid_css.css",
         ],
@@ -76,9 +75,21 @@
         "test_assetsbundle.file_not_found": [
             "test_assetsbundle/static/invalid_src/xml/file_not_found.xml",
         ],
+        "test_assetsbundle.native_esm": [
+            "test_assetsbundle/static/tests/native_esm/*.js",
+        ],
         "web.assets_unit_tests": [
             "test_assetsbundle/static/tests/lazy_component.test.js",
         ],
+    },
+    # Registers native_esm as an esbuild-compiled bundle, which is what routes
+    # its members to AssetsBundle.native_modules and lets a test drive
+    # EsbuildCompiler.compile over files that really exist on disk. Standalone
+    # because it imports nothing from another bundle, so it needs no bridge to
+    # the parent app and can be compiled in isolation.
+    "esm": {
+        "bundles": ["test_assetsbundle.native_esm"],
+        "standalone_bundles": ["test_assetsbundle.native_esm"],
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",

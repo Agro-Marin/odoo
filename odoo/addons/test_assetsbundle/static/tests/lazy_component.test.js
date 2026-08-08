@@ -22,7 +22,6 @@ test("LazyComponent loads the required bundle", async () => {
     expect.verifySteps(["Lazy test component created"]);
     expect(".o_lazy_test_component").toHaveText("Lazy Component!");
     expect(
-        window.getComputedStyle(queryOne(".o_lazy_test_component"))
-            .backgroundColor,
+        window.getComputedStyle(queryOne(".o_lazy_test_component")).backgroundColor,
     ).toBe("rgb(165, 94, 117)");
 });

@@ -1,0 +1,8 @@
+// Invalid on purpose: `()` is not a selector, so Sass refuses the file. It
+// exercises the compile-error path (css_error_tour). It lives under
+// invalid_src/ and NOT under src/, because src/*/** is what the manifest*
+// bundles glob: a broken member there fails their whole stylesheet and costs
+// every one of them its CSS coverage.
+.rule1 ()){ /* error */
+    color: black;
+}

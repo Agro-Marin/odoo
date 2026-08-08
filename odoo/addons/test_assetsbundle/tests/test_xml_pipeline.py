@@ -1,0 +1,236 @@
+"""QWeb template assets: parsing, error reporting, and the JS they become.
+
+An XML asset is the one kind whose failure must be loud -- a template that
+does not parse cannot be degraded into "no template", it has to raise -- so
+the error paths carry as much weight here as the happy one.
+"""
+
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from odoo.tests.common import BaseCase, TransactionCase
+from odoo.tools import mute_logger
+from odoo.tools.json import scriptsafe as json
+
+from .common import FileTouchable, asset_file
+from odoo.addons.base.models.assetsbundle import (
+    AssetsBundle,
+    XMLAsset,
+    XMLAssetError,
+    XmlTemplatePipeline,
+)
+
+TEMPLATE_XML = "<templates><t t-name='audit.g10.tpl'><div>x</div></t></templates>"
+XML_SPACE_ATTR = "{http://www.w3.org/XML/1998/namespace}space"
+
+
+class TestXMLAssetsBundle(FileTouchable):
+    def _get_asset(self, bundle, rtl=False, debug_assets=False):
+        files, _ = self.env["ir.qweb"]._get_asset_content(bundle)
+        return AssetsBundle(
+            bundle, files, env=self.env, debug_assets=debug_assets, rtl=rtl
+        )
+
+    def test_01_broken_xml(self):
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            self.bundle = self._get_asset("test_assetsbundle.broken_xml")
+
+            with self.assertRaisesRegex(
+                XMLAssetError,
+                "Invalid XML template: Opening and ending tag mismatch: SomeComponent line 4 and t, line 5, column 7' in file '/test_assetsbundle/static/invalid_src/xml/invalid_xml.xml",
+            ):
+                self.bundle.xml()
+
+    def test_02_multiple_broken_xml(self):
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            self.bundle = self._get_asset("test_assetsbundle.multiple_broken_xml")
+
+            with self.assertRaisesRegex(
+                XMLAssetError,
+                "Invalid XML template: Opening and ending tag mismatch: SomeComponent line 4 and t, line 5, column 7' in file '/test_assetsbundle/static/invalid_src/xml/invalid_xml.xml",
+            ):
+                self.bundle.xml()
+
+    def test_04_template_wo_name(self):
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            self.bundle = self._get_asset("test_assetsbundle.wo_name")
+
+            with self.assertRaisesRegex(
+                XMLAssetError,
+                "'Template name is missing.' in file '/test_assetsbundle/static/invalid_src/xml/template_wo_name.xml'",
+            ):
+                self.bundle.xml()
+
+    def test_03_multiple_same_name(self):
+        """Two `t-name`s that collide are passed through, not rejected here.
+
+        The fixture and its bundle outlived the test that used them (this class
+        went 01, 02, 04, 05 for a while, and the gap was the only trace). The
+        behaviour it pins is a boundary: uniqueness of template names is the
+        registry's business at load time, not the bundle's, so the bundle owes
+        both elements to whoever consumes it rather than silently dropping one.
+        Were that to change, the drop would be invisible without this.
+        """
+        self.bundle = self._get_asset("test_assetsbundle.multiple_same_name")
+        (block,) = self.bundle.xml()
+        self.assertEqual(block["type"], "templates")
+        self.assertEqual(
+            [element.get("t-name") for element, _url, _key in block["templates"]],
+            ["test_assetsbundle.multiple_name_xml"] * 2,
+        )
+
+    def test_05_file_not_found(self):
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            self.bundle = self._get_asset("test_assetsbundle.file_not_found")
+
+            with self.assertRaisesRegex(
+                XMLAssetError,
+                "Could not find test_assetsbundle/static/invalid_src/xml/file_not_found.xml",
+            ):
+                self.bundle.xml()
+
+
+class TestXmlInlineErrorPath(TransactionCase):
+    def test_invalid_inherit_mode_inline(self):
+        bundle = AssetsBundle("test_assetsbundle.xmlerr", [], env=self.env)
+        bundle.templates.append(
+            XMLAsset(
+                bundle,
+                inline='<templates><t t-name="x" t-inherit="p" t-inherit-mode="bogus"/></templates>',
+            )
+        )
+        with (
+            self.assertLogs("odoo.addons.base.models.assetsbundle", level="ERROR"),
+            self.assertRaisesRegex(XMLAssetError, "Invalid inherit mode"),
+        ):
+            bundle.xml()
+
+
+class TestXmlParseFailureIsCached(TransactionCase):
+    def _broken_bundle(self):
+        return AssetsBundle(
+            "test.badxml",
+            [
+                asset_file(
+                    "/m/static/src/a.xml", "<templates><t t-name='x'></templates>"
+                )
+            ],
+            env=self.env,
+        )
+
+    def test_parse_is_attempted_once(self):
+        asset = self._broken_bundle().templates[0]
+        with patch.object(
+            type(asset), "_raw_source", wraps=asset._raw_source
+        ) as raw_source:
+            for _ in range(4):
+                with self.assertRaises(XMLAssetError):
+                    _ = asset.template_elements
+        self.assertEqual(raw_source.call_count, 1)
+
+    def test_the_error_still_surfaces_every_time(self):
+        asset = self._broken_bundle().templates[0]
+        errors = []
+        for _ in range(3):
+            with self.assertRaises(XMLAssetError) as caught:
+                _ = asset.template_elements
+            errors.append(str(caught.exception))
+        self.assertEqual(len(set(errors)), 1)
+        self.assertIn("Invalid XML template", errors[0])
+
+
+class TestXmlTemplateTreeImmutable(TransactionCase):
+    def test_cached_tree_not_mutated(self):
+        bundle = AssetsBundle(
+            "test_assetsbundle.audit_g10_mut",
+            [asset_file("/test/audit_g10_mut.xml", TEMPLATE_XML)],
+            env=self.env,
+            css=False,
+        )
+        rendered = bundle._xml.generate_xml_bundle()
+        self.assertIn('xml:space="preserve"', rendered)
+        (asset,) = bundle.templates
+        for element in asset.template_elements:
+            self.assertIsNone(
+                element.get(XML_SPACE_ATTR),
+                "get_template mutated the cached template element",
+            )
+
+    def test_xml_template_elements_shapes(self):
+        from odoo.addons.base.models.assetsbundle import XMLAsset
+
+        bundle = AssetsBundle("test.xmlshapes", [], env=self.env)
+        cases = {
+            '<templates><t t-name="a"/><t t-name="b"/></templates>': ["a", "b"],
+            '<odoo><t t-name="c"/></odoo>': ["c"],
+            '<t t-name="solo"/>': ["solo"],
+        }
+        for src, expected in cases.items():
+            asset = XMLAsset(bundle, inline=src, url="/web/static/src/_probe.xml")
+            names = [el.get("t-name") for el in asset.template_elements]
+            self.assertEqual(names, expected, f"for {src!r}")
+            self.assertIs(asset.template_elements, asset.template_elements)
+
+    def test_template_elements_skip_processing_instructions(self):
+        bundle = AssetsBundle("test.xmlpi", [], env=self.env)
+        asset = XMLAsset(
+            bundle,
+            inline=(
+                '<templates><?xml-stylesheet href="x"?>'
+                '<t t-name="audit.pi"><div/></t></templates>'
+            ),
+        )
+        elems = asset.template_elements
+        self.assertEqual(len(elems), 1)
+        self.assertEqual(elems[0].get("t-name"), "audit.pi")
+        bundle.templates = [asset]
+        blocks = bundle.xml()
+        self.assertEqual(blocks[0]["type"], "templates")
+
+
+class TestXmlBundleUrlEscaping(TransactionCase):
+    def test_url_with_backtick_cannot_break_the_template_literal(self):
+        files = [
+            {
+                "url": "/test/evil`${1 + 1}.xml",
+                "filename": None,
+                "content": (
+                    "<templates>"
+                    "<t t-name='probe.tpl'><div>${body}</div></t>"
+                    "</templates>"
+                ),
+                "last_modified": 1.0,
+            }
+        ]
+        bundle = AssetsBundle(
+            "test_assetsbundle.urlesc", files, env=self.env, css=False, js=True
+        )
+        js = bundle._xml.generate_xml_bundle()
+        self.assertIn(r"\${body}", js)
+        self.assertNotIn("`/test/evil`", js)
+        self.assertIn(json.dumps("/test/evil`${1 + 1}.xml"), js)
+
+
+class TestEsmTemplateBundleForms(BaseCase):
+    _TPL = '<templates><t t-name="my.module.Widget">hi</t></templates>'
+
+    def _bundle(self):
+        bundle = SimpleNamespace(name="my.bundle", env=None)
+        bundle.templates = [XMLAsset(bundle, inline=self._TPL)]
+        return XmlTemplatePipeline(bundle)
+
+    def test_debug_form_uses_native_import(self):
+        out = self._bundle().generate_esm_template_bundle(use_import=True)
+        self.assertIn("import {", out)
+        self.assertIn('from "@web/core/templates";', out)
+        self.assertIn('registerTemplate("my.module.Widget"', out)
+
+    def test_production_form_uses_loader_get(self):
+        out = self._bundle().generate_esm_template_bundle(use_import=False)
+        self.assertIn('odoo.loader.modules.get("@web/core/templates")', out)
+        self.assertNotIn("import {", out)
+        self.assertIn('registerTemplate("my.module.Widget"', out)
+
+    def test_empty_templates_yield_empty_string(self):
+        bundle = SimpleNamespace(name="my.bundle", env=None, templates=[])
+        self.assertEqual(XmlTemplatePipeline(bundle).generate_esm_template_bundle(), "")
