@@ -139,10 +139,6 @@ class ResourceReservation(models.Model):
         "Source",
         compute="_compute_origin_display",
     )
-    color = fields.Integer(
-        "Color",
-        compute="_compute_color",
-    )
 
     # ---- Indexes ----
     _resource_schedule_idx = models.Index("(resource_id, date_start, date_end)")
@@ -527,7 +523,17 @@ class ResourceReservation(models.Model):
 
     @api.depends("res_model", "res_id")
     def _compute_origin_display(self):
-        """Resolve each source record's display name (batched per model)."""
+        """Resolve each source record's display name (batched per model).
+
+        The name is only disclosed to a reader who may read the source record.
+        Reservations are visible to every internal user (they are the shared
+        booking ledger), so resolving the name unconditionally published the
+        title of records the reader has no access to — a user without project
+        rights could read every scheduled task's name straight off the
+        reservation list.  Unreadable sources fall back to the same raw
+        ``model,id`` reference already used for deleted ones and for models
+        whose module is uninstalled.
+        """
         self.origin_display = False
         with_origin = self.filtered(lambda r: r.res_model and r.res_id)
         for model_name, records in with_origin.grouped("res_model").items():
@@ -536,28 +542,29 @@ class ResourceReservation(models.Model):
                 for record in records:
                     record.origin_display = f"{model_name},{record.res_id}"
                 continue
-            # One browse for the whole group; ``exists()`` drops stale ids in a
-            # single query so a deleted source falls back to the raw reference
-            # instead of raising ``MissingError`` (the old per-record behaviour).
-            sources = self.env[model_name].browse(records.mapped("res_id")).exists()
+            # One browse for the whole group; ``_filtered_access`` drops both
+            # stale ids and forbidden ones in a single pass, so neither a
+            # deleted source (``MissingError``) nor an unreadable one
+            # (``AccessError``) can surface from reading a reservation.
+            sources = (
+                self.env[model_name]
+                .browse(records.mapped("res_id"))
+                .exists()
+                ._filtered_access("read")
+            )
             names = dict(zip(sources.ids, sources.mapped("display_name"), strict=True))
             for record in records:
                 record.origin_display = names.get(record.res_id) or (
                     f"{model_name},{record.res_id}"
                 )
 
-    # Color mapping: different colors per source module for visual distinction
-    _COLOR_MAP = {
-        "project.task": 1,  # red
-        "room.booking": 4,  # blue
-        "mrp.workorder": 2,  # orange
-    }
-
-    @api.depends("res_model")
-    def _compute_color(self):
-        """Assign a color index based on the source model for visual distinction."""
-        for record in self:
-            record.color = self._COLOR_MAP.get(record.res_model, 0)
+    # A ``color`` field computed from a hard-coded {res_model: index} map used
+    # to live here.  Nothing read it — the calendar view colours by
+    # ``resource_id``, no other view, asset or module referenced it — and the
+    # map only knew three consumer models, so every other one silently got 0.
+    # Removed rather than wired up: which consumer a booking came from is
+    # already carried by ``origin_display``, and colouring the shared ledger by
+    # *resource* is what makes a double-booking visible.
 
     # ------------------------------------------------------------------
     # Actions

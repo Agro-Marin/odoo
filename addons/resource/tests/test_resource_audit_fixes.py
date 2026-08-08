@@ -353,3 +353,75 @@ class TestCalendarlessIntervalApi(TransactionCase):
                 start, end
             )
         self.assertIn("fully flexible", str(caught.exception))
+
+
+@tagged("post_install", "-at_install")
+class TestOriginDisplayAccess(TransactionCase):
+    """``origin_display`` published the name of unreadable source records.
+
+    Reservations are the shared booking ledger and every internal user may read
+    them, so resolving the source's ``display_name`` unconditionally handed out
+    the title of records the reader has no rights to.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.calendar = cls.env["resource.calendar"].create(
+            {"name": "Origin", "tz": "UTC"}
+        )
+        cls.resource = cls.env["resource.resource"].create(
+            {"name": "Origin res", "calendar_id": cls.calendar.id, "tz": "UTC"}
+        )
+        cls.user = cls.env["res.users"].create(
+            {
+                "name": "Origin reader",
+                "login": "origin_reader",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
+            }
+        )
+
+    def _reservation(self, res_model, res_id, day):
+        return self.env["resource.reservation"].create(
+            {
+                "name": "origin probe",
+                "resource_id": self.resource.id,
+                "res_model": res_model,
+                "res_id": res_id,
+                "date_start": datetime(2025, 5, day, 8),
+                "date_end": datetime(2025, 5, day, 12),
+            }
+        )
+
+    def test_unreadable_source_falls_back_to_raw_reference(self):
+        # ir.mail_server is group_system only, so a plain internal user must
+        # not learn its name through a reservation.
+        server = self.env["ir.mail_server"].create(
+            {"name": "secret smtp", "smtp_host": "h"}
+        )
+        reservation = self._reservation("ir.mail_server", server.id, 1)
+        reservation.invalidate_recordset(["origin_display"])
+        self.assertEqual(
+            reservation.with_user(self.user).origin_display,
+            f"ir.mail_server,{server.id}",
+        )
+
+    def test_readable_source_still_resolves(self):
+        partner = self.env["res.partner"].create({"name": "Visible Partner"})
+        reservation = self._reservation("res.partner", partner.id, 2)
+        reservation.invalidate_recordset(["origin_display"])
+        self.assertEqual(
+            reservation.with_user(self.user).origin_display, "Visible Partner"
+        )
+
+    def test_deleted_source_still_falls_back(self):
+        reservation = self._reservation("res.partner", 99999999, 3)
+        reservation.invalidate_recordset(["origin_display"])
+        self.assertEqual(
+            reservation.with_user(self.user).origin_display, "res.partner,99999999"
+        )
+
+    def test_uninstalled_model_still_falls_back(self):
+        reservation = self._reservation("no.such.model", 7, 4)
+        reservation.invalidate_recordset(["origin_display"])
+        self.assertEqual(reservation.origin_display, "no.such.model,7")
