@@ -58,8 +58,21 @@ which is the other thing this gate is for: an area that a consumer must reach
 past is an area missing an export.
 
 Sibling checkouts (enterprise, agromarin) are separate repositories and out of
-scope — they carry their own copy of this gate's rule via
-``cross_repo_coherence.py``.
+scope: ``SCANNED_TREES`` is rooted at this repo and there is no option to
+retarget it.
+
+**They are not covered by anything else, either.** This paragraph used to say
+they carried the rule via ``cross_repo_coherence.py``; that file contains no
+such check, and neither sibling's ``architecture.yml`` invokes this one. The
+claim was measured and found false in 2026-08, when `enterprise` was carrying
+**75 leaf imports** — 50 of ``odoo.libs.web.urls`` alone — every one of which
+this gate would have rejected in-repo. They were repointed at their areas, but
+nothing stops the next one: a boundary that holds only where someone remembered
+to look is not a boundary, and this is the tree where nobody was looking.
+
+Closing it needs a way to scan a tree outside this repo (the siblings' own
+workflows already check this repo out beside them, so the plumbing exists).
+Until that lands, treat sibling coverage as **absent**, not delegated.
 
 Test files are scanned like any other: a test that binds a leaf path pins the
 layout just as firmly as production code does. Current exceptions are pinned in
