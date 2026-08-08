@@ -1,9 +1,15 @@
+import json
+from unittest.mock import MagicMock, patch
 from urllib.parse import urlsplit
 
+import psycopg
+
 from odoo.http import SESSION_ROTATION_INTERVAL, root
-from odoo.tests import JsonRpcException
+from odoo.tests import JsonRpcException, common
 from odoo.tools import mute_logger
 
+from ..websocket import CloseCode, InvalidDatabaseError, WebsocketRequest
+from .common import WebsocketCase
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 
@@ -205,3 +211,52 @@ class TestWebsocketWorkerBundle(HttpCaseWithUserDemo):
         response = self._get_bundle()
         self.assertNotIn("Access-Control-Allow-Origin", response.headers)
         self.assertNotIn("Access-Control-Allow-Credentials", response.headers)
+
+
+@common.tagged("-at_install", "post_install")
+class TestInvalidDatabase(WebsocketCase):
+    """A websocket against an unusable database must be closed, not kept alive.
+
+    ``serve_websocket_message`` turns a failing ``Registry``/``check_signaling``
+    into ``InvalidDatabaseError`` -- the database is gone, corrupted, or its
+    version no longer matches this server. That used to land in the catch-all
+    handler, which logs a full traceback and returns: the client kept sending,
+    the server kept logging a traceback per message, and the socket stayed
+    open forever even though nothing it did could ever succeed again.
+    """
+
+    def test_invalid_database_closes_with_try_later(self):
+        """The ``_serve_forever`` handler closes the connection."""
+        ws = self.websocket_connect()
+        with (
+            patch.object(
+                WebsocketRequest,
+                "serve_websocket_message",
+                side_effect=InvalidDatabaseError,
+            ),
+            mute_logger("odoo.addons.bus.websocket"),
+        ):
+            ws.send(json.dumps({"event_name": "noop", "data": {}}))
+            self.assert_close_with_code(ws, CloseCode.TRY_LATER)
+
+    def test_registry_failure_maps_to_invalid_database_error(self):
+        """The other half: a broken registry check produces that exception.
+
+        Patched on the registry *instance*: ``odoo.tests.common`` already
+        replaces ``check_signaling`` there for every test, and an instance
+        attribute shadows the class -- which is why this path has no coverage
+        from the ordinary test machinery.
+        """
+        req = WebsocketRequest.__new__(WebsocketRequest)
+        req.db = self.env.registry.db_name
+        req.ws = MagicMock()
+        req.ws._session = MagicMock()
+        registry = self.env.registry
+        with (
+            patch.object(WebsocketRequest, "_get_session", return_value=MagicMock()),
+            patch.object(
+                registry, "check_signaling", side_effect=psycopg.ProgrammingError
+            ),
+            self.assertRaises(InvalidDatabaseError),
+        ):
+            req.serve_websocket_message(json.dumps({"event_name": "noop"}))
