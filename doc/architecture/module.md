@@ -17,7 +17,7 @@ odoo/
 ├── orm/            The ORM, as an explicit 4-layer architecture (see below)
 │   ├── primitives, parsing, validation, constants, _typing   (Layer 0)
 │   ├── fields/, domain/                                       (Layer 1)
-│   ├── models/  (BaseModel + 23 mixins, metaclass)            (Layer 2)
+│   ├── models/  (BaseModel + 26 mixins, metaclass)            (Layer 2)
 │   ├── runtime/ (Environment, Registry, Transaction, backend) (Layer 3)
 │   ├── components/  pure-Python cache / compute / unit-of-work (cross-cutting)
 │   ├── _recordset, model_test_env                               (seams)
@@ -249,10 +249,11 @@ rather than debt, and the reasoning is in **Known boundary exceptions** below.
 
 ## Coupling the import graph cannot see
 
-`layer_check.py` reasons about **import** edges. `BaseModel` is composed from 23
+`layer_check.py` reasons about **import** edges. `BaseModel` is composed from 26
 `__slots__ = ()` mixins by multiple inheritance — 18 public (`CreateMixin` …
-`AccessMixin`) plus 5 private (`_PropertiesMixin`, `_QueryMixin`,
-`_MagicFieldsMixin`, `_ModelMetadataMixin`, `_ConstraintsMixin`) — and they
+`AccessMixin`) plus 8 private (`_PropertiesMixin`, `_QueryMixin`,
+`_ConstraintsMixin`, `_DisplayNameMixin`, `_FieldComputeMixin`, `_HooksMixin`,
+`_MagicFieldsMixin`, `_ModelMetadataMixin`) — and they
 collaborate through `self`, which produces no import at all. The framework's most
 intricate coupling surface therefore moves no import gate.
 `tooling/architecture/mixin_coupling_check.py` reconstructs that call graph and
@@ -275,9 +276,11 @@ exactly as much as calling it on `self`, and a `self`-only collector cannot see
 it. Following locals bound from `self.browse(…)`, `self.filtered(…)`,
 `self.sudo()` and the rest (`RECORDSET_PRODUCERS`) adds 8 edges — and the first
 such measurement found a cycle the `self`-only view could not: **`base.py` ⇄
-`create`**, where `orm/models/base.py:159` calls `self.create(…)` in
-`name_create` while `create.py` called `_validate_fields` on recordsets `self`
-never names.
+`create`**, where `base.py` called `self.create(…)` in `name_create` while
+`create.py` called `_validate_fields` on recordsets `self` never names.
+(No line citation: `name_create` has since moved to `_DisplayNameMixin`, and a
+pinned line number in a file that shrank by 87 lines is how
+`test_line_number_citations_resolve` earns its keep.)
 
 It was broken the same way its predecessors were, by moving behaviour off the
 composition root: `_constraint_methods` and `_validate_fields` live on a
@@ -286,6 +289,37 @@ reach the constraint machinery without touching `base.py`. **A leaf that nothing
 in the composition depends on cannot close a cycle** — that is the design rule
 for new mixins.
 
+**`base.py` is now a root with no edges at all**, which is what that rule was
+aimed at and what this page and the checker both previously claimed while it was
+not true. It kept six members after the metadata split, and measured through the
+checker's own collector they gave it out-edges to `create` (`name_create`'s
+`self.create(…)`), `_metadata`, `traversal` and `_magic_fields`, and — the part
+that settles it — **in-edges from `lifecycle` and `unlink`**, each reaching it
+for one thing: the `_onchange_methods` / `_ondelete_methods` registries. A
+composition root that two units depend on is a participant.
+
+Three more leaves finished it. `_HooksMixin` (`mixins/_hooks.py`) takes the two
+registries, joining `_constraint_methods` as the third `own_class_memo`
+decorator scan — `helpers.ORM_CLASS_MEMOS` lists all three memo keys side by
+side, while their owners had been split across three files.
+`_DisplayNameMixin` takes `_compute_display_name`, `_rec_name_fallback` and
+`name_create` — `orm/models/mixins/_display_name.py:51` calls `self.create(…)`,
+which is the same edge as before, now travelling with the behaviour that needs
+it instead of sitting at the root.
+`_FieldComputeMixin` (`mixins/_field_compute.py`) takes `_compute_field_value`,
+whose only caller is Layer 1 (`Field.compute_value`).
+
+That last one is a worked example of the design rule. The obvious home was
+`RecomputeMixin` — and it is wrong: `traversal` already reaches `recompute`
+through `flush_model`, so `_compute_field_value`'s `self.filtered("id")` added
+`recompute → traversal` and made a 2-cycle. The gate reported it on the first
+run. On its own leaf, which nothing in the composition depends on, the same
+three dependencies (`traversal`, `_constraints`, `_metadata`) close nothing.
+
+`base.py` now holds `__slots__`, `_register`, two setup hooks, `get_base_url`,
+the deprecated `_cr`, and the three registration calls — in-degree 0, out-degree
+0, in both views.
+
 Both views are ratcheted at zero (`recordset_max_scc` 1,
 `recordset_cyclic_edges` 0, `recordset_scc_without_base` 1), so a cycle spelled
 through a recordset fails CI even though the `self`-only numbers would stay
@@ -293,8 +327,8 @@ clean.
 
 The checker's numbers are cross-checked against the runtime
 `BaseModel.__mro__`, not just against themselves. It counts *file-level*
-units — 28, since `read_group/` contributes five (`_empty`, `fill`, `format`,
-`mixin`, `sql`) and `base.py` is itself a unit — not the 23 bases.
+units — 31, since `read_group/` contributes five (`_empty`, `fill`, `format`,
+`mixin`, `sql`) and `base.py` is itself a unit — not the 26 bases.
 
 ```bash
 python tooling/architecture/mixin_coupling_check.py            # report

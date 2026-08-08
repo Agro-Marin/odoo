@@ -1,8 +1,8 @@
 """Model identity and schema metadata — the declarations, not the behaviour.
 
 Nearly every unit of the composition reads these. Counted in the units
-``mixin_coupling_check.py`` builds — 28 of them, this module plus 27 others —
-``self._fields`` is read by 25, ``self._name`` by 25, ``self._table`` by 13 and
+``mixin_coupling_check.py`` builds — 31 of them, this module plus 30 others —
+``self._fields`` is read by 26, ``self._name`` by 26, ``self._table`` by 13 and
 ``self.pool`` by 9, then a long tail of ``_order`` / ``_rec_name`` /
 ``_inherits`` / ``_parent_name`` (2 to 4 each).
 While they were declared in ``BaseModel``'s own class body, every mixin had a

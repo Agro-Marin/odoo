@@ -3,7 +3,7 @@
 
 ``layer_check.py`` reasons about **import** edges, which is the right model for
 every boundary in ``doc/architecture/ARCHITECTURE.md`` except one. ``BaseModel`` is composed
-from 23 ``__slots__ = ()`` mixins by multiple inheritance; they collaborate
+from 26 ``__slots__ = ()`` mixins by multiple inheritance; they collaborate
 through ``self``, and a ``self._fields`` or ``self._search(...)`` produces **no
 import edge at all**. So the most intricate coupling surface in the framework is
 invisible to the checker that guards everything around it: a mixin can grow a
@@ -63,14 +63,15 @@ recorded history of this decomposition.
   job is to stop exactly that. They said the pair had converged at *2* (the
   value before ``_query.py`` broke ``read`` ⇄ ``search``; see ``BASELINE``'s
   2026-08b note) and that ``base.py`` was "now purely the composition root",
-  which it is not: measured through this module's own ``build_edges``, it has
-  out-edges to ``create`` (``name_create`` calls ``self.create``), ``_metadata``,
+  which at the time it was not: it had out-edges to ``create``, ``_metadata``,
   ``traversal`` and ``_magic_fields``, and in-edges from ``lifecycle`` and
-  ``unlink``, both reaching it only for the decorator-collected
-  ``_onchange_methods`` / ``_ondelete_methods`` registries. A composition root
-  with an in-degree is a participant. ``scc_without_base`` will stay equal to
-  ``max_scc`` either way; what it cannot yet report is a root that is genuinely
-  isolated.
+  ``unlink`` for the ``_onchange_methods`` / ``_ondelete_methods`` registries.
+  A composition root two units depend on is a participant. It **is** one now --
+  ``_HooksMixin``, ``_DisplayNameMixin`` and ``_FieldComputeMixin`` took the last
+  six members off it, and ``base.py`` measures in-degree 0 and out-degree 0 in
+  both views. So ``scc_without_base`` is now structurally pinned to ``max_scc``
+  rather than merely equal to it, and its job has narrowed to catching the
+  regression: if behaviour moves back into the root, the two diverge.
 
 ``units`` and ``edges`` are **reported but deliberately not ratcheted**. An
 earlier version ratcheted the raw edge count as a god-object guard, and the very

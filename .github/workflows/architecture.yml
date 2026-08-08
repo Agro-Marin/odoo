@@ -119,7 +119,7 @@ jobs:
       - name: Run mixin coupling check
         id: mixin_coupling
         # Complements layer_check, which reasons about IMPORT edges and is
-        # structurally blind here: BaseModel's 23 mixins are composed by
+        # structurally blind here: BaseModel's 26 mixins are composed by
         # multiple inheritance and collaborate through `self`, which produces no
         # import at all. So the framework's most intricate coupling surface --
         # the one place a decomposition can quietly rot back into a god object
