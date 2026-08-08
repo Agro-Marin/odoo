@@ -248,6 +248,7 @@ def load_module_graph(
     report: OdooTestResult | None = None,
     models_to_check: OrderedSet[str] | None = None,
     install_demo: bool = True,
+    run_tests: bool = True,
 ) -> None:
     if models_to_check is None:
         models_to_check = OrderedSet()
@@ -394,8 +395,10 @@ def load_module_graph(
             update_from_config = (
                 tools.config["update"] or tools.config["init"] or tools.config["reinit"]
             )
-            if tools.config["test_enable"] and (
-                update_operation or not update_from_config
+            if (
+                run_tests
+                and tools.config["test_enable"]
+                and (update_operation or not update_from_config)
             ):
                 from odoo.tests import loader
 
@@ -496,6 +499,7 @@ class _ModuleLoader:
         "registry",
         "reinit_modules",
         "report",
+        "run_tests",
         "update_module",
         "upgrade_modules",
     )
@@ -511,9 +515,11 @@ class _ModuleLoader:
         reinit_modules: Collection[str],
         new_db_demo: bool,
         models_to_check: OrderedSet[str],
+        run_tests: bool = True,
     ) -> None:
         self.registry = registry
         self.cr = cr
+        self.run_tests = run_tests
         self.update_module = update_module
         self.upgrade_modules = upgrade_modules
         self.install_modules = install_modules
@@ -584,6 +590,7 @@ class _ModuleLoader:
             report=self.report,
             models_to_check=self.models_to_check,
             install_demo=self.new_db_demo,
+            run_tests=self.run_tests,
         )
 
     def load_languages(self) -> None:
@@ -686,6 +693,7 @@ class _ModuleLoader:
                 update_module=self.update_module,
                 report=self.report,
                 models_to_check=self.models_to_check,
+                run_tests=self.run_tests,
             )
             if len(self.registry.updated_modules) == updated_modules_count:
                 break
@@ -871,7 +879,20 @@ def load_modules(
     reinit_modules: Collection[str] = (),
     new_db_demo: bool = False,
     models_to_check: OrderedSet[str] | None = None,
+    run_tests: bool = True,
 ) -> None:
+    """Build ``registry``'s module state.
+
+    ``run_tests=False`` vetoes the at_install suites this build would otherwise
+    run under ``--test-enable``.  Pass it from every path that provisions a
+    database as a *side effect of serving a request* (create, duplicate,
+    restore, migrate): ``--test-enable`` describes the databases this
+    ``odoo-bin`` invocation was told to test, not every registry the process
+    ever builds.  Without the veto the suites re-enter from the HTTP worker
+    thread, where the test framework's process-global state (the registry test
+    lock, ``current_test``, active patchers) is owned by the test thread — the
+    run then wedges for 60s per case and exits.
+    """
     if models_to_check is None:
         models_to_check = OrderedSet()
 
@@ -887,6 +908,7 @@ def load_modules(
             reinit_modules=reinit_modules,
             new_db_demo=new_db_demo,
             models_to_check=models_to_check,
+            run_tests=run_tests,
         )
 
         if not loader.bootstrap():

@@ -213,6 +213,7 @@ class Registry(
         reinit_modules: Collection[str] = (),
         new_db_demo: bool | None = None,
         models_to_check: set[str] | None = None,
+        run_tests: bool = True,
     ) -> Registry:
         if db.is_maintenance_db(db_name):
             raise ValueError(
@@ -262,6 +263,7 @@ class Registry(
                     reinit_modules=reinit_modules,
                     new_db_demo=new_db_demo,
                     models_to_check=models_to_check,
+                    run_tests=run_tests,
                 )
             except Exception:
                 reset_modules_state(db_name)

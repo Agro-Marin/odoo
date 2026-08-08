@@ -422,7 +422,7 @@ def _duplicate_database(
         )
 
     try:
-        registry = odoo.modules.registry.Registry.new(db_name)
+        registry = odoo.modules.registry.Registry.new(db_name, run_tests=False)
         with registry.cursor() as cr:
             env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
             env["ir.config_parameter"].init(force=True)
@@ -1167,7 +1167,7 @@ def restore_db(
                     f"Couldn't restore database {db!r}:\n{r.stderr.strip()}"
                 )
 
-            registry = odoo.modules.registry.Registry.new(db)
+            registry = odoo.modules.registry.Registry.new(db, run_tests=False)
             with registry.cursor() as cr:
                 env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
                 if copy:
@@ -1358,7 +1358,7 @@ def exp_migrate_databases(databases: list[str]) -> Literal[True]:
     for db in databases:
         _logger.info("migrate database %s", db)
         odoo.modules.registry.Registry.new(
-            db, update_module=True, upgrade_modules={"base"}
+            db, update_module=True, upgrade_modules={"base"}, run_tests=False
         )
     return True
 
