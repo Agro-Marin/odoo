@@ -27,6 +27,20 @@ pyserial==3.5  # serial_base_driver.py, serial_scale_driver.py, l10n_ke_edi_seri
 pyusb==1.3.1  # printer/scale USB interfaces
 websocket-client==1.9.0
 
+# The box runs a real `odoo-bin` (see overwrite_before_init/.../odoo.service), so
+# it needs the server's own dependencies too. Those come from packages.txt via
+# apt wherever Debian has them; the ones below have no Debian package at all and
+# so can only be pip-installed:
+#
+#   weasyprint  base/models/ir_actions_report.py imports it at module level, and
+#               `base` is loaded before `web`/`iot_drivers` — so without it the
+#               box does not boot at all. There is no python3-weasyprint in any
+#               Debian suite.
+#
+# See ../README.md for the apt-vs-pip rule and for the two blockers that stop
+# this image running the fork today.
+weasyprint==69.0
+
 # Windows Virtual IoT only: printer_driver_W.py / printer_interface_W.py
 pywin32==312 ; sys_platform == "win32"
 
