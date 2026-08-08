@@ -219,7 +219,12 @@ class TestWebhookIntegration(common.TransactionCase):
                 "name": "Standard Payload Webhook",
                 "model_id": self.model_lead.id,
                 "trigger": "on_webhook",
-                "record_getter": "env[payload['_model']].browse(payload['_id'])",
+                # `model` is the automation's own model; the environment is
+                # reached through it, which is exactly what the stock
+                # Odoo-to-Odoo record getter does.
+                "record_getter": (
+                    "model.env[payload['_model']].browse(int(payload['_id']))"
+                ),
             }
         )
 
@@ -292,14 +297,13 @@ record.write({'state': next_states.get(current, 'cancel')})
                 "name": "Complex Getter Webhook",
                 "model_id": self.model_lead.id,
                 "trigger": "on_webhook",
-                "record_getter": """
-lead_id = payload.get('lead_id')
-is_priority = payload.get('is_priority', False)
-if is_priority:
-    result = model.browse(lead_id)
-else:
-    result = model.browse([])
-""",
+                # record_getter is evaluated as a single expression
+                # (safe_eval in eval mode), so branching uses a conditional
+                # expression rather than statements.
+                "record_getter": (
+                    "model.browse(payload.get('lead_id')) "
+                    "if payload.get('is_priority') else model.browse([])"
+                ),
             }
         )
 
@@ -386,26 +390,15 @@ else:
             }
         )
 
-        # Get name field
-        name_field = self.env["ir.model.fields"]._get(
-            "base.automation.lead.test", "name"
-        )
-
         self.Action.create(
             {
                 "name": "Write Action",
                 "model_id": self.model_lead.id,
                 "state": "object_write",
-                "fields_lines": [
-                    (
-                        0,
-                        0,
-                        {
-                            "col1": name_field.id,
-                            "value": "Object write from webhook",
-                        },
-                    )
-                ],
+                # update_path is the input; update_field_id is derived from it
+                "update_path": "name",
+                "evaluation_type": "value",
+                "value": "Object write from webhook",
                 "base_automation_id": automation.id,
                 "usage": "base_automation",
             }
@@ -760,19 +753,58 @@ else:
     # Test Webhook Edge Cases
     # =========================================================================
 
-    def test_webhook_with_no_record_getter(self):
-        """Test webhook with no record_getter (should fail)."""
-        _logger.info("Testing webhook without record_getter")
+    def test_webhook_with_no_record_getter_runs_record_less(self):
+        """No record_getter is a create-from-payload receiver, not an error.
+
+        This fork removed the default record_getter deliberately: a default
+        assumes a payload shape the sender may not use. An empty getter now
+        means "run the actions once with no active record", with the parsed body
+        on the context — see base.automation._run_webhook_recordless.
+        """
+        _logger.info("Testing record-less webhook")
 
         automation = self.Automation.create(
             {
                 "name": "No Getter Webhook",
                 "model_id": self.model_lead.id,
                 "trigger": "on_webhook",
-                "record_getter": False,  # No getter
+                "record_getter": False,  # record-less receiver
             }
         )
 
+        self.Action.create(
+            {
+                "name": "Test Action",
+                "model_id": self.model_lead.id,
+                "state": "code",
+                "code": (
+                    "env['ir.config_parameter'].sudo().set_param("
+                    "'test_base_automation.recordless', payload.get('ping'))"
+                ),
+                "base_automation_id": automation.id,
+                "usage": "base_automation",
+            }
+        )
+
+        self.assertTrue(automation._execute_webhook({"ping": "pong"}))
+        self.assertEqual(
+            self.env["ir.config_parameter"].sudo().get_param(
+                "test_base_automation.recordless",
+            ),
+            "pong",
+            "the record-less path must still expose the payload to the action",
+        )
+
+    def test_webhook_with_record_getter_that_finds_nothing(self):
+        """A configured getter resolving to nothing IS a misconfiguration."""
+        automation = self.Automation.create(
+            {
+                "name": "Getter Finds Nothing",
+                "model_id": self.model_lead.id,
+                "trigger": "on_webhook",
+                "record_getter": "model.browse(0)",
+            }
+        )
         self.Action.create(
             {
                 "name": "Test Action",
@@ -783,8 +815,6 @@ else:
                 "usage": "base_automation",
             }
         )
-
-        # Should fail (no record to run on)
         with self.assertRaises(ValidationError):
             automation._execute_webhook({})
 

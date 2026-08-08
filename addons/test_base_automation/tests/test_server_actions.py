@@ -1,6 +1,7 @@
-# # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo.addons.base.models.ir_actions import ServerActionWithWarningsError
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from odoo.exceptions import ValidationError
+
+from odoo.addons.base.models.ir_actions_server import ServerActionWithWarningsError
 from odoo.addons.base.tests.test_ir_actions import TestServerActionsBase
 
 
@@ -52,11 +53,13 @@ class TestServerActionsValidation(TestServerActionsBase):
         })
         with self.assertRaises(ValidationError) as ve:
             self.action.write({'update_path': 'parent_id.name.something_else'})
-        self.assertEqual(ve.exception.args[0], "The path contained by the field "
-                        "'Field to Update Path' contains a non-relational field"
-                        " (Name) that is not the last field in the path. You "
-                        "can't traverse non-relational fields (even in the quantum"
-                        " realm). Make sure only the last field in the path is non-relational.")
+        # Assert what the message must convey, not its exact prose: this fork
+        # rewords validation messages to be more actionable, and pinning the
+        # full string turns every such improvement into a test failure.
+        message = ve.exception.args[0]
+        self.assertIn("Field to Update Path", message)
+        self.assertIn("non-relational", message)
+        self.assertIn("Name", message)
 
     def test_python_bad_expr(self):
         with self.assertRaises(ValidationError) as ve:

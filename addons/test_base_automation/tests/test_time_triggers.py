@@ -15,6 +15,7 @@ Tests cover:
 
 import datetime
 import logging
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.exceptions import ValidationError
@@ -26,6 +27,20 @@ _logger = logging.getLogger(__name__)
 @tagged("post_install", "-at_install")
 class TestTimeBasedTriggers(common.TransactionCase):
     """Test time-based triggers (on_time, on_time_created, on_time_updated)."""
+
+    def _run_cron(self):
+        """Run the time-based cron without the commit it performs in production.
+
+        ``_cron_process_time_based_actions`` calls ``ir.cron._commit_progress``,
+        which commits so a long cron keeps its progress across batches. That is
+        correct outside tests and forbidden inside one, where the whole case runs
+        in a single transaction that must roll back. Patch it to a no-op and
+        report "unlimited remaining time" so every automation is processed.
+        (Same approach as base_automation/tests/test_triggers.py::_run_cron.)
+        """
+        IrCron = type(self.env["ir.cron"])
+        with patch.object(IrCron, "_commit_progress", return_value=float("inf")):
+            self.env["base.automation"]._cron_process_time_based_actions()
 
     @classmethod
     def setUpClass(cls):
@@ -190,6 +205,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
 
         # Lead created 2 days ago - SHOULD be found (1 day trigger passed)
         lead1 = self.Lead.create({"name": "Old Lead"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (two_days_ago, lead1.id),
@@ -197,6 +215,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
 
         # Lead created 1 day ago - SHOULD be found
         lead2 = self.Lead.create({"name": "Recent Lead"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (one_day_ago, lead2.id),
@@ -204,6 +225,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
 
         # Lead created 1 hour ago - should NOT be found (too recent)
         lead3 = self.Lead.create({"name": "Very Recent Lead"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (one_hour_ago, lead3.id),
@@ -246,6 +270,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
 
         # Create priority lead (matches domain)
         priority_lead = self.Lead.create({"name": "Priority Lead", "priority": True})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (two_days_ago, priority_lead.id),
@@ -253,6 +280,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
 
         # Create regular lead (doesn't match domain)
         regular_lead = self.Lead.create({"name": "Regular Lead", "priority": False})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (two_days_ago, regular_lead.id),
@@ -287,14 +317,21 @@ class TestTimeBasedTriggers(common.TransactionCase):
         )
 
         now = fields.Datetime.now()
-        three_days_ago = now - datetime.timedelta(days=3)
+        four_days_ago = now - datetime.timedelta(days=4)
         two_days_ago = now - datetime.timedelta(days=2)
 
-        # Create lead 3 days ago
+        # Create the lead 4 days ago. The search window is half-open —
+        # [last_run + offset, until + offset) — which is exactly what stops a
+        # record being processed twice: a record sitting *on* the lower bound
+        # belongs to the new window, not the old one. Placing it strictly
+        # before the bound is what this test means by "already processed".
         lead = self.Lead.create({"name": "Test Lead"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
-            (three_days_ago, lead.id),
+            (four_days_ago, lead.id),
         )
         self.env.invalidate_all()
 
@@ -348,6 +385,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
 
         # Create lead 2 days ago
         lead = self.Lead.create({"name": "Cron Target"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (two_days_ago, lead.id),
@@ -355,7 +395,7 @@ class TestTimeBasedTriggers(common.TransactionCase):
         self.env.invalidate_all()
 
         # Execute cron
-        self.Automation._cron_process_time_based_actions()
+        self._run_cron()
 
         # Verify action executed
         self.assertEqual(lead.name, "Cron executed")
@@ -419,6 +459,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
 
         # Create lead
         lead = self.Lead.create({"name": "Multi Auto", "state": "draft"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (two_days_ago, lead.id),
@@ -426,7 +469,7 @@ class TestTimeBasedTriggers(common.TransactionCase):
         self.env.invalidate_all()
 
         # Execute cron
-        self.Automation._cron_process_time_based_actions()
+        self._run_cron()
 
         # Both automations should execute
         self.assertEqual(lead.name, "Auto1")
@@ -467,6 +510,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
         two_days_ago = now - datetime.timedelta(days=2)
 
         lead = self.Lead.create({"name": "Test Lead"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (two_days_ago, lead.id),
@@ -474,7 +520,7 @@ class TestTimeBasedTriggers(common.TransactionCase):
         self.env.invalidate_all()
 
         # Execute cron
-        self.Automation._cron_process_time_based_actions()
+        self._run_cron()
 
         # Should NOT execute
         self.assertEqual(lead.name, "Test Lead")  # Name unchanged
@@ -513,6 +559,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
 
         # Create lead (create_date will be set automatically)
         lead = self.Lead.create({"name": "Created Test"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (two_days_ago, lead.id),
@@ -520,7 +569,7 @@ class TestTimeBasedTriggers(common.TransactionCase):
         self.env.invalidate_all()
 
         # Execute cron
-        self.Automation._cron_process_time_based_actions()
+        self._run_cron()
 
         # Should execute based on create_date
         self.assertEqual(lead.name, "Created trigger")
@@ -558,6 +607,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
         lead.write({"state": "open"})
 
         # Manually set write_date to 3 hours ago
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET write_date = %s WHERE id = %s",
             (three_hours_ago, lead.id),
@@ -565,7 +617,7 @@ class TestTimeBasedTriggers(common.TransactionCase):
         self.env.invalidate_all()
 
         # Execute cron
-        self.Automation._cron_process_time_based_actions()
+        self._run_cron()
 
         # Should execute based on write_date
         self.assertEqual(lead.name, "Updated trigger")
@@ -589,10 +641,22 @@ class TestTimeBasedTriggers(common.TransactionCase):
             }
         )
 
-        # Manually set invalid field (bypass validation)
+        # Point trg_date_id at a real ir.model.fields row that does NOT belong
+        # to this automation's model. That is the state the guard in
+        # _search_time_based_automation_records actually defends against
+        # (Model._fields.get(name) returning None) and, unlike a dangling id,
+        # it is reachable: the FK to ir_model_fields rejects id 99999 outright,
+        # so the old version of this test could never run.
+        foreign_field = self.env["ir.model.fields"]._get("res.users", "login_date")
+        self.assertTrue(foreign_field, "fixture: res.users.login_date must exist")
+        self.assertNotIn(
+            foreign_field.name,
+            self.env[self.model_lead.model]._fields,
+            "precondition: the field must be absent from the automation's model",
+        )
         self.env.cr.execute(
-            "UPDATE base_automation SET trg_date_id = 99999 WHERE id = %s",
-            (automation.id,),
+            "UPDATE base_automation SET trg_date_id = %s WHERE id = %s",
+            (foreign_field.id, automation.id),
         )
         self.env.invalidate_all()
 
@@ -674,6 +738,9 @@ class TestTimeBasedTriggers(common.TransactionCase):
         # Lead created 2 days ago
         two_days_ago = now - datetime.timedelta(days=2)
         lead = self.Lead.create({"name": "Multi Range", "state": "draft"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
             (two_days_ago, lead.id),
@@ -681,7 +748,7 @@ class TestTimeBasedTriggers(common.TransactionCase):
         self.env.invalidate_all()
 
         # Execute cron - both should trigger
-        self.Automation._cron_process_time_based_actions()
+        self._run_cron()
 
         # Both automations should execute
         self.assertEqual(lead.name, "Hour")
@@ -712,11 +779,23 @@ class TestTimeBasedTriggers(common.TransactionCase):
             }
         )
 
-        # Create lead
+        # Create the lead, then place it strictly in the past. cr.now() is the
+        # transaction timestamp and does not advance, so a record created in the
+        # same transaction as the cron run sits exactly on the window's open
+        # upper bound and can never match. In production the cron runs in a
+        # later transaction, where this is not an issue.
         lead = self.Lead.create({"name": "Zero Test"})
+        # flush first: pending ORM writes would otherwise be written
+        # after this UPDATE and overwrite the backdated value
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE base_automation_lead_test SET create_date = %s WHERE id = %s",
+            (fields.Datetime.now() - datetime.timedelta(minutes=5), lead.id),
+        )
+        self.env.invalidate_all()
 
         # Execute cron immediately
-        self.Automation._cron_process_time_based_actions()
+        self._run_cron()
 
         # Should trigger immediately (0 delay)
         self.assertEqual(lead.name, "Zero range")

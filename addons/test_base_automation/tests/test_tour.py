@@ -261,7 +261,7 @@ class BaseAutomationTestUi(HttpCase):
     def test_form_view_model_id(self):
         self.start_tour(
             (
-                "/odoo/action-base_automation.base_automation_act/new?view_type='form'&amp;debug=0)"
+                "/odoo/action-base_automation.base_automation_act/new?view_type=form&debug=0"
             ),
             "test_form_view_model_id",
             login="admin",
@@ -272,7 +272,7 @@ class BaseAutomationTestUi(HttpCase):
         self.env["test_base_automation.tag"].create({"name": "test tag"})
         self.start_tour(
             (
-                "/odoo/action-base_automation.base_automation_act/new?view_type='form'&amp;debug=0)"
+                "/odoo/action-base_automation.base_automation_act/new?view_type=form&debug=0"
             ),
             "test_form_view_custom_reference_field",
             login="admin",
@@ -281,7 +281,7 @@ class BaseAutomationTestUi(HttpCase):
     def test_form_view_mail_triggers(self):
         self.start_tour(
             (
-                "/odoo/action-base_automation.base_automation_act/new?view_type='form'&debug=0)"
+                "/odoo/action-base_automation.base_automation_act/new?view_type=form&debug=0"
             ),
             "test_form_view_mail_triggers",
             login="admin",

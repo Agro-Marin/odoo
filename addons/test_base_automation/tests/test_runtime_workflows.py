@@ -56,8 +56,6 @@ class TestRuntimeWorkflows(common.TransactionCase):
                 "name": "Test Runtime Workflow",
                 "model_id": cls.model_automation.id,
                 "trigger": "on_hand",
-                "use_workflow_dag": True,
-                "auto_execute_workflow": False,
             }
         )
 
@@ -178,8 +176,6 @@ class TestRuntimeWorkflows(common.TransactionCase):
                 "name": "Empty Workflow",
                 "model_id": self.model_automation.id,
                 "trigger": "on_hand",
-                "use_workflow_dag": True,
-                "auto_execute_workflow": False,
             }
         )
 
@@ -281,9 +277,15 @@ class TestRuntimeWorkflows(common.TransactionCase):
 
         # Create action that logs execution
         execution_log = []
+        # Record the effect somewhere observable. Arbitrary context keys are
+        # not exposed as variables to a code action, so the old
+        # `execution_log.append(...)` could only ever raise NameError.
         action = self._create_runtime_action(
             "Log Action",
-            code="execution_log.append('executed')",
+            code=(
+                "env['ir.config_parameter'].sudo().set_param("
+                "'test_base_automation.next_step', 'executed')"
+            ),
         )
 
         runtime = self.Runtime.create(
@@ -298,9 +300,14 @@ class TestRuntimeWorkflows(common.TransactionCase):
         runtime.action_start()
 
         # Execute next step
-        result = runtime.with_context(execution_log=execution_log).action_next_step()
+        runtime.action_next_step()
 
-        # Line should be done
+        self.assertEqual(
+            self.env["ir.config_parameter"].sudo().get_param(
+                "test_base_automation.next_step",
+            ),
+            "executed",
+        )
         self.assertEqual(runtime.line_ids.state, "done")
         self.assertEqual(runtime.state, "done")
 
@@ -374,7 +381,7 @@ class TestRuntimeWorkflows(common.TransactionCase):
         runtime.action_cancel()
 
         # Should be cancelled
-        self.assertEqual(runtime.state, "cancelled")
+        self.assertEqual(runtime.state, "cancel")
 
         # Should not be able to execute next
         with self.assertRaises(UserError):
@@ -402,7 +409,7 @@ class TestRuntimeWorkflows(common.TransactionCase):
         runtime.action_cancel()  # Should not error
 
         # Should still be cancelled
-        self.assertEqual(runtime.state, "cancelled")
+        self.assertEqual(runtime.state, "cancel")
 
     # =========================================================================
     # Test Context Propagation
@@ -412,20 +419,18 @@ class TestRuntimeWorkflows(common.TransactionCase):
         """Test that runtime context (partner, amount, etc.) is available in actions."""
         _logger.info("Testing context propagation")
 
-        # Create action that uses runtime context
+        # `runtime` is exposed to code actions by
+        # base_automation's ir.actions.server._get_eval_context, so a step can
+        # read the execution instance it belongs to. The result is written to a
+        # real record: assigning to env.context is both a forbidden opcode
+        # (STORE_ATTR) and meaningless, since the context is frozen.
         action = self._create_runtime_action(
             "Context Action",
             code="""
-# Access runtime context
-partner_name = runtime.partner_id.name
-amount = runtime.amount
-reference = runtime.reference or 'No reference'
-
-# Store in env context for verification
-env.context = dict(env.context,
-    test_partner=partner_name,
-    test_amount=amount,
-    test_ref=reference
+env['ir.config_parameter'].sudo().set_param(
+    'test_base_automation.ctx',
+    '%s|%s|%s' % (runtime.partner_id.name, runtime.amount,
+                  runtime.reference or 'No reference'),
 )
 """,
         )
@@ -441,13 +446,17 @@ env.context = dict(env.context,
         )
 
         runtime.action_start()
-
-        # Execute with context capture
         runtime.action_next_step()
 
-        # Verify context was available (line should complete)
         self.assertEqual(runtime.line_ids.state, "done")
         self.assertEqual(runtime.state, "done")
+        self.assertEqual(
+            self.env["ir.config_parameter"].sudo().get_param(
+                "test_base_automation.ctx",
+            ),
+            f"{self.test_partner.name}|2500.0|CTX-TEST",
+            "the step must be able to read its own runtime's context",
+        )
 
     def test_multicompany_context(self):
         """Test that company context is available in runtime actions."""
@@ -456,10 +465,9 @@ env.context = dict(env.context,
         action = self._create_runtime_action(
             "Company Action",
             code="""
-# Company should be available
-company_name = env.company.name
-# Store for verification
-env.context = dict(env.context, test_company=company_name)
+env['ir.config_parameter'].sudo().set_param(
+    'test_base_automation.company', runtime.company_id.name,
+)
 """,
         )
 
@@ -475,8 +483,13 @@ env.context = dict(env.context, test_company=company_name)
         runtime.action_start()
         runtime.action_next_step()
 
-        # Should complete successfully
         self.assertEqual(runtime.state, "done")
+        self.assertEqual(
+            self.env["ir.config_parameter"].sudo().get_param(
+                "test_base_automation.company",
+            ),
+            runtime.company_id.name,
+        )
 
     # =========================================================================
     # Test DAG Dependency Resolution
@@ -557,13 +570,14 @@ env.context = dict(env.context, test_company=company_name)
 
         runtime.action_start()
 
-        # Execute should fail
-        with self.assertRaises(Exception, msg="Should propagate action error"):
-            runtime.action_next_step()
+        # A failing step is recorded, not raised: propagating the exception
+        # rolled the whole transaction back and destroyed the very history this
+        # model exists to keep. See automation.runtime.line.action_execute.
+        runtime.action_next_step()
 
-        # Line should still be ready (not done)
-        self.assertEqual(runtime.line_ids.state, "ready")
-        self.assertEqual(runtime.state, "in_progress")
+        self.assertEqual(runtime.line_ids.state, "error")
+        self.assertIn("Test error", runtime.line_ids.error_message)
+        self.assertEqual(runtime.state, "error")
 
     # =========================================================================
     # Test Edge Cases

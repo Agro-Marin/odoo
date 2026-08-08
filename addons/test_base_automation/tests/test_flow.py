@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from odoo import Command
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import Form, common, tagged, WhitespaceInsensitive
 from odoo.tools import mute_logger
 
@@ -1113,7 +1113,8 @@ action = {
                     'webhook_field_ids': [self.env['ir.model.fields']._get('ir.actions.server', 'code').id],
                 },
             )
-        self.assertEqual(e.exception.args[0], "Following child actions have warnings: Send Webhook Notification")
+        # Behaviour, not prose — see test_server_actions.py for the rationale.
+        self.assertIn("Send Webhook Notification", e.exception.args[0])
 
 
 @common.tagged('post_install', '-at_install')
@@ -1850,10 +1851,18 @@ class TestHttp(common.HttpCase):
         model = self.env["ir.model"]._get("base.automation.linked.test")
         obj = self.env[model.model].create({"name": "some name"})
 
-        automation_receiver = create_automation(self, trigger="on_webhook", model_id=model.id, _actions={
-            "state": "code",
-            "code": "record.write({'another_field': json.dumps(payload)})"
-        })
+        # This fork ships no default record_getter on purpose (a default assumes
+        # a payload shape and silently breaks record-less receivers), so the
+        # Odoo-to-Odoo getter is set explicitly. `model.env` — there is no bare
+        # `env` in this eval context.
+        automation_receiver = create_automation(
+            self, trigger="on_webhook", model_id=model.id,
+            record_getter="model.env[payload.get('_model')].browse(int(payload.get('_id')))",
+            _actions={
+                "state": "code",
+                "code": "record.write({'another_field': json.dumps(payload)})",
+            },
+        )
         name_field_id = self.env.ref("test_base_automation.field_base_automation_linked_test__name")
         automation_sender = create_automation(self, trigger="on_write", model_id=model.id, trigger_field_ids=[(6, 0, [name_field_id.id])], _actions={
             "name": "Send Webhook Notification",
@@ -1861,11 +1870,23 @@ class TestHttp(common.HttpCase):
             "webhook_url": automation_receiver.url,
         })
 
-        # Changing the name will make an http request, post-commitedly
-        obj.name = "new_name"
-        self.cr.flush()
-        with self.allow_requests(all_requests=True):
-            self.cr.postcommit.run()  # webhooks run in postcommit
+        # The outbound webhook action refuses non-globally-routable targets, and
+        # this round trip necessarily points at the loopback test server. Patch
+        # the check for the duration rather than carving a test-mode exception
+        # into the security control itself; test_webhook_refuses_loopback_target
+        # below pins the control's real behaviour.
+        # The URL is validated when the action *runs*, which happens
+        # synchronously inside the write below; only the HTTP call itself is
+        # deferred to postcommit. So the patch has to span both.
+        with patch(
+            "odoo.addons.base.models.ir_actions_server._webhook_url_blocked_reason",
+            return_value=None,
+        ):
+            # Changing the name will make an http request, post-commitedly
+            obj.name = "new_name"
+            self.cr.flush()
+            with self.allow_requests(all_requests=True):
+                self.cr.postcommit.run()  # webhooks run in postcommit
         self.cr.clear()
         self._wait_remaining_requests()  # just in case the request timeouts
         self.assertEqual(json.loads(obj.another_field), {
@@ -1873,6 +1894,21 @@ class TestHttp(common.HttpCase):
             "_id": obj.id,
             "_model": obj._name,
         })
+
+    def test_webhook_refuses_loopback_target(self):
+        """The outbound webhook action must refuse a non-routable target."""
+        model = self.env["ir.model"]._get("base.automation.linked.test")
+        obj = self.env[model.model].create({"name": "loopback probe"})
+        automation = create_automation(self, trigger="on_hand", model_id=model.id, _actions={
+            "name": "Send Webhook Notification",
+            "state": "webhook",
+            "webhook_url": "http://127.0.0.1:8069/web/hook/whatever",
+        })
+        with self.assertRaises(UserError) as caught:
+            automation.action_server_ids.with_context(
+                active_model=obj._name, active_id=obj.id, active_ids=obj.ids,
+            ).run()
+        self.assertIn("not a globally routable range", str(caught.exception))
 
     def test_on_change_get_views_cache(self):
         model_name = "base.automation.lead.test"
