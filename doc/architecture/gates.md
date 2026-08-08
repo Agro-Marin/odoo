@@ -175,11 +175,19 @@ It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
 Two further mechanisms keep the *non-structural* quality signals from
 regressing:
 
-- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns four tool
-  counts into one-way contracts: **mypy, ruff, eslint, tsc, jsfunclen, jsprivate, jsserviceshape and naming** (floors in
+- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns nine tool
+  counts into one-way contracts: **mypy, ruff, c901, eslint, tsc, jsfunclen, jsprivate, jsserviceshape and naming** (floors in
   `tooling/ratchet/baselines/`). CI fails on any increase, and — in the default
   `exact` mode — on an *un-committed* decrease too, so every cleanup is locked
   in.
+
+  The count said "four" while the list named eight, which is the drift this page
+  warns about one section up; the gate below reads the *names* and never read
+  the number. `c901` is the ninth and the newest: cyclomatic complexity in
+  `odoo/`, threshold `[lint.mccabe] max-complexity = 20`. It is kept out of the
+  `ruff` aggregate deliberately — in one bucket a complexity fix can be masked
+  by an unrelated new finding — and it gated nothing before, because `ruff.toml`
+  selected the `C90` family while ignoring `C901`, its only rule.
 
   ```bash
   python tooling/ratchet/test_ratchet.py     # self-test the tool

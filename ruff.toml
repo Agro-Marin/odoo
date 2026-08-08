@@ -133,7 +133,10 @@ select = [
     # Code quality
     "SIM",        # flake8-simplify
     "C4",         # flake8-comprehensions
-    "C90",        # mccabe (cyclomatic complexity)
+    # C90 (mccabe) is deliberately NOT selected here. Its only rule is C901, the
+    # main run ignores it, and the two cancelled out: selecting the family while
+    # ignoring its sole member is a no-op that reads like a live gate. Complexity
+    # IS gated, on its own floor — see the C901 note in `ignore` below.
     "RET",        # flake8-return
     "PIE",        # flake8-pie
     "FLY",        # flynt (f-string conversion)
@@ -562,10 +565,25 @@ ignore = [
     "PERF203",    # try-except-in-loop (Odoo processes records individually in try/except)
 
     # --- PLR adjustments (Odoo models are inherently complex) ---
-    "C901",       # mccabe-complexity (Odoo ORM/QWeb methods are inherently complex; see PLR0912)
+    # C901 is ignored HERE so it stays out of the aggregate the `ruff` floor
+    # measures, not because complexity is unpoliced. It has a ratchet of its own
+    # (tooling/ratchet/baselines/c901.json, enforced in .github/workflows/ruff.yml)
+    # measured with `ruff check odoo/ --no-cache --select C901`, which overrides
+    # this ignore; `[lint.mccabe] max-complexity` below is that gate's threshold
+    # and is live config, not a leftover.
+    #
+    # Splitting it out rather than folding it into the 761 aggregate keeps it
+    # legible: in one bucket a complexity fix could be masked by an unrelated new
+    # finding, and the point of the floor is that a cleanup locks in.
+    #
+    # The rationale this replaces -- "Odoo ORM/QWeb methods are inherently
+    # complex" -- was an argument about upstream's code, and it paired with
+    # PLR0912's "redundant with C90" so that each rule's suppression pointed at
+    # the other while both were off.
+    "C901",       # mccabe-complexity (ratcheted separately; see above)
     "PLR0904",    # too-many-public-methods (Odoo models have 50+ methods)
     "PLR0911",    # too-many-return-statements (dispatch methods)
-    "PLR0912",    # too-many-branches (redundant with C90)
+    "PLR0912",    # too-many-branches (branch count is covered by C901's ratchet)
     "PLR0913",    # too-many-arguments (Odoo API methods)
     "PLR0915",    # too-many-statements (Odoo has long methods)
     "PLR0917",    # too-many-positional-arguments (same as PLR0913)
@@ -866,6 +884,11 @@ extend-immutable-calls = [
 ]
 
 [lint.mccabe]
+# The threshold for the C901 ratchet (tooling/ratchet/baselines/c901.json), NOT
+# dead config: the main run ignores C901, but the gate re-selects it on the CLI
+# and reads this. Raising this number lowers the count without fixing anything,
+# so treat it as part of the floor -- move it only with the same deliberation,
+# and say so in the baseline note.
 max-complexity = 20
 
 [lint.flake8-builtins]
