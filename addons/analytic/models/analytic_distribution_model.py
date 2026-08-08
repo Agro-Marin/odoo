@@ -95,7 +95,12 @@ class AccountAnalyticDistributionModel(models.Model):
 
     def _create_domain(self, fname, value):
         if fname == "partner_category_id":
-            value += [False]
-            return [(fname, "in", value)]
-        else:
-            return [(fname, "in", [value, False])]
+            # Build a new list instead of `value += [False]`: the list belongs to
+            # the caller's vals dict, and callers memoize on that dict.
+            # `account.move.line._compute_analytic_distribution` keys a frozendict
+            # on it, so mutating it after insertion made every later lookup compare
+            # unequal -- the cache missed on every line and re-ran this search once
+            # per invoice line. Repeated calls also kept appending (`[False, False,
+            # ...]`).
+            return [(fname, "in", [*value, False])]
+        return [(fname, "in", [value, False])]

@@ -134,6 +134,26 @@ jobs:
           python tooling/ratchet/ratchet.py c901 --count "${{ steps.c901.outputs.count }}" --json | tee /tmp/verdict-c901.json
           python tooling/ratchet/ratchet.py c901 --count "${{ steps.c901.outputs.count }}"
 
+      - name: Run C901 on the bundled addons
+        id: c901_addons
+        # The `ruff` and `c901` floors above both measure `odoo/`, the core
+        # package. Nothing measured `addons/` -- where the 615 bundled modules
+        # and most of the business logic live -- so complexity there was
+        # unbounded. Its own floor, not a widened scope on c901: the two trees
+        # move for different reasons, and one bucket would let an addons cleanup
+        # mask a core regression.
+        run: |
+          set +e
+          ruff check addons/ --no-cache --select C901 --output-format=concise | tee /tmp/c901-addons.log
+          set -e
+          C901_ADDONS_COUNT=$(ruff check addons/ --no-cache --select C901 --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
+          echo "count=${C901_ADDONS_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce C901 addons ratchet
+        run: |
+          python tooling/ratchet/ratchet.py c901_addons --count "${{ steps.c901_addons.outputs.count }}" --json | tee /tmp/verdict-c901-addons.json
+          python tooling/ratchet/ratchet.py c901_addons --count "${{ steps.c901_addons.outputs.count }}"
+
       - name: Summarise
         if: always()
         run: |
@@ -141,13 +161,20 @@ jobs:
           BASELINE=$(python -c "import json;print(json.load(open('tooling/ratchet/baselines/ruff.json'))['count'])")
           C901_COUNT="${{ steps.c901.outputs.count }}"
           C901_BASE=$(python -c "import json;print(json.load(open('tooling/ratchet/baselines/c901.json'))['count'])")
+          C901_ADDONS_COUNT="${{ steps.c901_addons.outputs.count }}"
+          C901_ADDONS_BASE=$(python -c "import json;print(json.load(open('tooling/ratchet/baselines/c901_addons.json'))['count'])")
           # This step is `if: always()`, so the C901 step may not have produced
           # an output. Render that as a dash rather than doing arithmetic on an
           # empty string, which would make the summary itself fail.
           if [ -n "${C901_COUNT}" ]; then
-            C901_ROW="| C901 (complexity) | ${C901_COUNT} | ${C901_BASE} | $((C901_COUNT - C901_BASE)) |"
+            C901_ROW="| C901 (complexity, \`odoo/\`) | ${C901_COUNT} | ${C901_BASE} | $((C901_COUNT - C901_BASE)) |"
           else
-            C901_ROW="| C901 (complexity) | — | ${C901_BASE} | — |"
+            C901_ROW="| C901 (complexity, \`odoo/\`) | — | ${C901_BASE} | — |"
+          fi
+          if [ -n "${C901_ADDONS_COUNT}" ]; then
+            C901_ADDONS_ROW="| C901 (complexity, \`addons/\`) | ${C901_ADDONS_COUNT} | ${C901_ADDONS_BASE} | $((C901_ADDONS_COUNT - C901_ADDONS_BASE)) |"
+          else
+            C901_ADDONS_ROW="| C901 (complexity, \`addons/\`) | — | ${C901_ADDONS_BASE} | — |"
           fi
           {
             echo "## Python lint (ruff ratchet)"
@@ -156,6 +183,8 @@ jobs:
             echo "|------|---------:|------:|------:|"
             echo "| ruff (aggregate) | ${ERR_COUNT} | ${BASELINE} | $((ERR_COUNT - BASELINE)) |"
             echo "${C901_ROW}"
+            echo "${C901_ADDONS_ROW}"
             echo ""
-            echo "Config: \`ruff.toml\` · Floors: \`tooling/ratchet/baselines/{ruff,c901}.json\` · Scope: \`odoo/\`"
+            echo "Config: \`ruff.toml\` · Floors: \`tooling/ratchet/baselines/{ruff,c901,c901_addons}.json\`"
+            echo "Scope: \`ruff\` and \`c901\` measure \`odoo/\` (the core package); \`c901_addons\` measures \`addons/\`."
           } >> "$GITHUB_STEP_SUMMARY"

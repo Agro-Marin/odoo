@@ -3649,6 +3649,96 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
             "The selected UoM should be either Unit or Gram for the seller in the bill's company.",
         )
 
+    def test_vendor_uom_incompatible_with_the_product_is_skipped(self):
+        """A seller unit from another category must not reach the bill line.
+
+        `product.supplierinfo.product_uom_id` is allowed to be cross-category,
+        but `_compute_price_unit` restates the product price in it through the
+        *strict* `uom.uom._compute_price`, which raises when the two units share
+        no reference unit -- blocking creation of the bill entirely.
+        """
+        uom_unit = self.env.ref("uom.product_uom_unit")
+        uom_gram = self.env.ref("uom.product_uom_gram")
+        uom_kgm = self.env.ref("uom.product_uom_kgm")
+        product = self.env["product.product"].create(
+            {
+                "name": "Priced per kilogram",
+                "uom_id": uom_kgm.id,
+                "standard_price": 100.0,
+                "seller_ids": [
+                    # First by sequence, and deliberately incompatible with kg.
+                    Command.create(
+                        {
+                            "partner_id": self.partner_a.id,
+                            "company_id": self.env.company.id,
+                            "product_uom_id": uom_unit.id,
+                            "sequence": 1,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "partner_id": self.partner_a.id,
+                            "company_id": self.env.company.id,
+                            "product_uom_id": uom_gram.id,
+                            "sequence": 2,
+                        }
+                    ),
+                ],
+            }
+        )
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_line_ids": [
+                    Command.create({"product_id": product.id, "quantity": 1})
+                ],
+            }
+        )
+        line = bill.invoice_line_ids
+        self.assertEqual(
+            line.product_uom_id,
+            uom_gram,
+            "the Units seller shares no reference unit with kg and must be skipped",
+        )
+        self.assertAlmostEqual(
+            line.price_unit, 0.1, msg="100/kg restated per gram"
+        )
+
+    def test_vendor_uom_falls_back_to_the_product_unit(self):
+        """No compatible seller unit at all -> the product's own unit."""
+        uom_unit = self.env.ref("uom.product_uom_unit")
+        uom_kgm = self.env.ref("uom.product_uom_kgm")
+        product = self.env["product.product"].create(
+            {
+                "name": "Only an incompatible seller",
+                "uom_id": uom_kgm.id,
+                "standard_price": 100.0,
+                "seller_ids": [
+                    Command.create(
+                        {
+                            "partner_id": self.partner_a.id,
+                            "company_id": self.env.company.id,
+                            "product_uom_id": uom_unit.id,
+                        }
+                    )
+                ],
+            }
+        )
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_line_ids": [
+                    Command.create({"product_id": product.id, "quantity": 1})
+                ],
+            }
+        )
+        self.assertEqual(bill.invoice_line_ids.product_uom_id, uom_kgm)
+        self.assertAlmostEqual(bill.invoice_line_ids.price_unit, 100.0)
+
     def test_manual_label_change_on_payment_term_line(self):
         """Ensure label of the payment term line can be changed manually."""
         payment_term_line = self.invoice.line_ids.filtered(

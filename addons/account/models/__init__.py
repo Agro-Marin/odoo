@@ -12,6 +12,11 @@ from . import account_payment_term
 from . import account_move
 from . import account_move_edi
 from . import account_move_hash
+from . import account_move_catalog
+from . import account_move_mail
+from . import account_move_quick_edit
+from . import account_move_recurring
+from . import account_move_sequence
 from . import account_move_sync
 from . import account_move_line
 from . import account_move_line_tax_details

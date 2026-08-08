@@ -18,6 +18,10 @@ from odoo.tools import (
 )
 
 from odoo.addons.account.models.account_move import MAX_HASH_VERSION
+from odoo.addons.account.tools.reconciliation import (
+    amount_range_after_rate,
+    pick_reconciliation_currency,
+)
 from odoo.addons.web.controllers.utils import clean_action
 
 _logger = logging.getLogger(__name__)
@@ -1133,11 +1137,32 @@ class AccountMoveLine(models.Model):
         for line in self.filtered(lambda l: l.parent_state == "draft"):
             # vendor bills should have the product purchase UOM
             if line.move_id.is_purchase_document():
-                seller_ids = line.product_id.seller_ids._get_filtered_supplier(
+                sellers = line.product_id.seller_ids._get_filtered_supplier(
                     line.company_id, line.product_id, False
                 )
+                # The vendor unit on product.supplierinfo is allowed to be
+                # cross-category. This is a use site that cannot cope with that:
+                # `_compute_price_unit` restates the product price in this unit
+                # through the *strict* `_compute_price`, so a unit sharing no
+                # reference with the product's raised a UserError and blocked the
+                # whole bill. Skip those sellers and fall back to the product's
+                # own unit.
+                # Both operands are guarded: `_has_common_reference` ensure_one()s
+                # each side, and either can be empty on a NewId record (the unit
+                # is only `required` at flush time).
+                product_uom = line.product_id.uom_id
                 line.product_uom_id = (
-                    seller_ids[:1].product_uom_id or line.product_id.uom_id
+                    next(
+                        (
+                            seller.product_uom_id
+                            for seller in sellers
+                            if seller.product_uom_id
+                            and product_uom
+                            and seller.product_uom_id._has_common_reference(product_uom)
+                        ),
+                        product_uom,
+                    )
+                    or product_uom
                 )
             else:
                 line.product_uom_id = line.product_id.uom_id
@@ -3119,20 +3144,13 @@ class AccountMoveLine(models.Model):
             other_aml_values=debit_values,
         )
 
-        if (
-            debit_currency != company_currency
-            and debit_currency in debit_available_residual_amounts
-            and debit_currency in credit_available_residual_amounts
-        ):
-            recon_currency = debit_currency
-        elif (
-            credit_currency != company_currency
-            and credit_currency in debit_available_residual_amounts
-            and credit_currency in credit_available_residual_amounts
-        ):
-            recon_currency = credit_currency
-        else:
-            recon_currency = company_currency
+        recon_currency = pick_reconciliation_currency(
+            debit_currency,
+            credit_currency,
+            company_currency,
+            debit_available_residual_amounts,
+            credit_available_residual_amounts,
+        )
 
         debit_recon_values = debit_available_residual_amounts.get(recon_currency)
         credit_recon_values = credit_available_residual_amounts.get(recon_currency)
@@ -3173,20 +3191,6 @@ class AccountMoveLine(models.Model):
         min_recon_amount = min(recon_debit_amount, recon_credit_amount)
         debit_fully_matched = compare_amounts <= 0
         credit_fully_matched = compare_amounts >= 0
-
-        def get_amount_range_after_rate(currency_from, currency_to, amount, rate):
-            # Suppose balance=1000, rate=12.
-            # 1000.0 could be the result of a rounding of [999.995, 1000.0049999999999].
-            # Let's say the target currency could be [999.995 * 12, 1000.005 * 12] = [11999.94, 12000.06]
-            # instead of just 120000.
-            if not rate:
-                return 0.0, 0.0, 0.0
-            half_rounding = currency_from.rounding / 2
-            return (
-                currency_to.round((amount - half_rounding) * rate),
-                currency_to.round(amount * rate),
-                currency_to.round((amount + half_rounding) * rate),
-            )
 
         # ==== Computation of partial amounts ====
         if recon_currency == company_currency:
@@ -3234,7 +3238,7 @@ class AccountMoveLine(models.Model):
                 credit_rate = credit_recon_values["rate"]
 
             # Compute the partial amount expressed in foreign currency.
-            partial_debit_amount_range = get_amount_range_after_rate(
+            partial_debit_amount_range = amount_range_after_rate(
                 currency_from=debit_currency,
                 currency_to=company_currency,
                 amount=min_recon_amount,
@@ -3242,7 +3246,7 @@ class AccountMoveLine(models.Model):
             )
             partial_debit_amount = partial_debit_amount_range[1]
             partial_debit_amount = min(partial_debit_amount, remaining_debit_amount)
-            partial_credit_amount_range = get_amount_range_after_rate(
+            partial_credit_amount_range = amount_range_after_rate(
                 currency_from=credit_currency,
                 currency_to=company_currency,
                 amount=min_recon_amount,
@@ -4929,3 +4933,26 @@ class AccountMoveLine(models.Model):
     def _get_discount_lines(self):
         """Return the discount move lines associated with the move line."""
         return self.filtered(lambda line: line.display_type == "discount")
+
+    def _is_empty_line(self):
+        """Whether this line carries no content at all.
+
+        Used by the "remove empty lines" suggestion, which unlinks what it
+        matches -- so it must not match a line the user meant to keep. A zero
+        price is not enough: a described, quantified, free-of-charge line (a
+        sample, a bundled item) is deliberate content. Require the line to be
+        blank in every user-visible respect instead.
+
+        Deliberately not a quantity test: `_compute_quantity` forces a product
+        line to 1, so a row the user added and never filled in still reports
+        `quantity == 1.0`. Requiring a zero quantity here matched nothing at all
+        and silently retired the suggestion.
+        """
+        self.ensure_one()
+        return (
+            self.display_type == "product"
+            and not self.product_id
+            and not (self.name or "").strip()
+            and self.currency_id.is_zero(self.price_unit)
+            and self.currency_id.is_zero(self.price_total)
+        )

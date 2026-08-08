@@ -1,6 +1,7 @@
 """Regression tests for marin-fork correctness guarantees on account.move."""
 
 from odoo import Command, fields
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -179,4 +180,196 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         self.assertTrue(
             user.has_group(group_xmlid),
             "posting a partially-deductible bill still reveals the feature",
+        )
+
+    # ----- non-stored fields queried through _field_to_sql ---------------
+    # `Field.to_sql` tags each column identifier with `to_flush`, and that tag is
+    # what makes search / read_group / order flush pending values before running
+    # the query. A `_field_to_sql` override that spells the columns out by hand
+    # carries no tag, so the query silently runs against the pre-write table.
+
+    def test_status_in_payment_query_sees_unflushed_state(self):
+        invoice = self.init_invoice(
+            "out_invoice", partner=self.partner_a, amounts=[100.0], post=True
+        )
+        self.env.flush_all()
+        invoice.action_cancel()  # dirty in cache, deliberately not flushed
+        self.assertEqual(invoice.status_in_payment, "cancel")
+        self.assertEqual(
+            self.env["account.move"].search(
+                [("id", "=", invoice.id), ("status_in_payment", "=", "cancel")]
+            ),
+            invoice,
+            "search on status_in_payment must flush the columns its SQL reads",
+        )
+        self.assertEqual(
+            [
+                group["status_in_payment"]
+                for group in self.env["account.move"].read_group(
+                    [("id", "=", invoice.id)], ["id"], ["status_in_payment"]
+                )
+            ],
+            ["cancel"],
+            "read_group on status_in_payment must flush too",
+        )
+
+    def test_move_sent_values_query_sees_unflushed_is_move_sent(self):
+        invoice = self.init_invoice(
+            "out_invoice", partner=self.partner_a, amounts=[100.0], post=True
+        )
+        self.env.flush_all()
+        invoice.is_move_sent = True  # dirty in cache, deliberately not flushed
+        self.assertEqual(invoice.move_sent_values, "sent")
+        self.assertEqual(
+            [
+                group["move_sent_values"]
+                for group in self.env["account.move"].read_group(
+                    [("id", "=", invoice.id)], ["id"], ["move_sent_values"]
+                )
+            ],
+            ["sent"],
+        )
+
+    def test_status_in_payment_compute_matches_sql_for_every_combination(self):
+        """The python compute and the SQL CASE must bucket identically."""
+        invoice = self.init_invoice(
+            "out_invoice", partner=self.partner_a, amounts=[100.0], post=False
+        )
+        self.env.flush_all()
+        payment_states = [
+            value for value, _label in self.env["account.move"]._fields[
+                "payment_state"
+            ].selection
+        ]
+        mismatches = []
+        for state in ("draft", "posted", "cancel"):
+            for payment_state in payment_states:
+                for is_sent in (True, False):
+                    self.env.cr.execute(
+                        "UPDATE account_move SET state = %s, payment_state = %s, "
+                        "is_move_sent = %s WHERE id = %s",
+                        (state, payment_state, is_sent, invoice.id),
+                    )
+                    invoice.invalidate_recordset()
+                    computed = invoice.status_in_payment
+                    if not self.env["account.move"].search(
+                        [
+                            ("id", "=", invoice.id),
+                            ("status_in_payment", "=", computed),
+                        ]
+                    ):
+                        mismatches.append(
+                            (state, payment_state, is_sent, computed)
+                        )
+        self.assertFalse(mismatches, "compute and SQL disagree for: %s" % mismatches)
+
+    # ----- constraint trigger completeness ------------------------------
+    # A rule checked in the body but absent from @api.constrains holds on
+    # create and silently lapses on write.
+
+    def test_payment_term_early_discount_rules_hold_on_write(self):
+        term = self.env["account.payment.term"].create(
+            {
+                "name": "early",
+                "early_discount": True,
+                "discount_percentage": 2.0,
+                "discount_days": 7,
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "value_amount": 100.0, "nb_days": 30}
+                    )
+                ],
+            }
+        )
+        with self.assertRaises(ValidationError, msg="a negative discount must be refused"):
+            term.discount_percentage = -50.0
+            self.env.flush_all()
+        term.invalidate_recordset()
+        with self.assertRaises(ValidationError, msg="a zero-day discount must be refused"):
+            term.discount_days = 0
+            self.env.flush_all()
+
+    def test_reconcile_model_amount_rules_hold_on_write(self):
+        model = self.env["account.reconcile.model"].create(
+            {"name": "rm", "company_id": self.env.company.id}
+        )
+        line = self.env["account.reconcile.model.line"].create(
+            {
+                "model_id": model.id,
+                "account_id": self.company_data["default_account_expense"].id,
+                "amount_type": "regex",
+                "amount_string": r"([\d,]+)",
+            }
+        )
+        self.env.flush_all()
+        # The very same end state is refused by create(); write must agree.
+        with self.assertRaises(UserError):
+            line.amount_type = "percentage"
+            self.env.flush_all()
+
+    # ----- error surface -------------------------------------------------
+    def test_conflicting_line_commands_raise_a_handled_error(self):
+        """A client-reachable payload must not surface as a raw ValueError."""
+        invoice = self.init_invoice(
+            "out_invoice", partner=self.partner_a, amounts=[100.0], post=False
+        )
+        with self.assertRaises(UserError):
+            invoice.write(
+                {
+                    "invoice_line_ids": [Command.set([])],
+                    "line_ids": [Command.create({})],
+                }
+            )
+
+    # ----- the "remove empty lines" suggestion ---------------------------
+    def test_remove_empty_lines_spares_free_of_charge_lines(self):
+        """The alert unlinks what it matches, so it must match only blank lines."""
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-03-03",
+                "invoice_line_ids": [
+                    Command.create(
+                        {"name": "free sample A", "quantity": 3, "price_unit": 0.0}
+                    ),
+                    Command.create(
+                        {"name": "free sample B", "quantity": 2, "price_unit": 0.0}
+                    ),
+                    Command.create(
+                        {"name": "paid item", "quantity": 1, "price_unit": 10.0}
+                    ),
+                ],
+            }
+        )
+        self.assertNotIn(
+            "account_remove_empty_lines",
+            bill._get_alerts(),
+            "described, quantified, free-of-charge lines are content, not emptiness",
+        )
+
+    def test_remove_empty_lines_still_offers_to_drop_blank_lines(self):
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-03-03",
+                "invoice_line_ids": [
+                    # exactly what "Add a line" leaves behind when untouched
+                    Command.create({}),
+                    Command.create({}),
+                    Command.create(
+                        {"name": "paid item", "quantity": 1, "price_unit": 10.0}
+                    ),
+                ],
+            }
+        )
+        alerts = bill._get_alerts()
+        self.assertIn("account_remove_empty_lines", alerts)
+        self.assertEqual(
+            self.env["account.move.line"]
+            .browse(alerts["account_remove_empty_lines"]["action_call"][2])
+            .mapped("name"),
+            [False, False],
+            "only the untouched rows are proposed for removal",
         )

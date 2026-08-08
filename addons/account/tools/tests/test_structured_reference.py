@@ -1,7 +1,18 @@
-from odoo.tests import tagged
-from odoo.tests.common import TransactionCase
+"""Tier-1 (DB-free) tests for the structured-reference validators.
 
-from odoo.addons.account.tools import (
+These eight validators are pure functions over strings -- no ORM, no registry,
+no database. They lived under `tests/` as a `TransactionCase`, which meant a
+full `account` install and a database just to check a checksum. Imported the
+same way as `tools/tests/test_dynamic_lines.py` so they run in the repo-root
+pytest invocation (`addons/account/tools/tests` is in `pytest.ini`'s testpaths).
+
+Kept as a `unittest.TestCase` rather than rewritten to bare asserts: the
+assertions move across verbatim, so this is a relocation and not a rewrite.
+"""
+
+import unittest
+
+from addons.account.tools.structured_reference import (
     is_valid_structured_reference,
     is_valid_structured_reference_be,
     is_valid_structured_reference_dk,
@@ -13,8 +24,8 @@ from odoo.addons.account.tools import (
 )
 
 
-@tagged("standard", "at_install")
-class StructuredReferenceTest(TransactionCase):
+class StructuredReferenceTest(unittest.TestCase):
+
     def test_structured_reference_iso(self):
         # Accepts references in structured format
         self.assertTrue(is_valid_structured_reference_iso(" RF18 5390 0754 7034 "))

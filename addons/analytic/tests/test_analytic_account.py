@@ -548,3 +548,51 @@ class TestAnalyticAccount(AnalyticCommon):
             "analytic.project_plan", self.analytic_plan_2.id
         )
         self.analytic_account_1._check_company_consistency()
+
+    def test_get_distribution_does_not_mutate_caller_vals(self):
+        """`_get_distribution` must treat the vals it is given as read-only.
+
+        Callers memoize on that dict --
+        `account.move.line._compute_analytic_distribution` keys a frozendict on
+        it -- so an in-place `partner_category_id += [False]` changed a key that
+        was already inserted in the cache: every later lookup compared unequal,
+        the cache missed once per line and re-ran this search per invoice line.
+        The append was also cumulative across calls.
+        """
+        Model = self.env["account.analytic.distribution.model"]
+        categories = []
+        vals = {"partner_id": self.partner_a.id, "partner_category_id": categories}
+        for _ in range(3):
+            Model._get_distribution(dict(vals))
+        self.assertEqual(
+            categories, [], "the caller's list must come back untouched"
+        )
+
+    def test_get_distribution_is_memoizable_on_a_frozendict_key(self):
+        """The vals dict must stay usable as a cache key across calls.
+
+        Assert on the number of *misses*, not on ``len(cache)``: the mutation
+        happened while evaluating the right-hand side of ``cache[key] = ...``,
+        so the key being inserted was already mutated and simply overwrote the
+        previous, equal one. The cache therefore stayed at a single entry while
+        missing every single time -- which is exactly the shape that made this
+        look memoized while re-querying once per invoice line.
+        """
+        from odoo.tools import frozendict
+
+        Model = self.env["account.analytic.distribution.model"]
+        cache = {}
+        misses = 0
+        for _ in range(5):
+            key = frozendict(
+                {
+                    "partner_id": self.partner_a.id,
+                    "partner_category_id": self.partner_a.category_id.ids,
+                }
+            )
+            if key not in cache:
+                misses += 1
+                cache[key] = Model._get_distribution(dict(key))
+        self.assertEqual(
+            misses, 1, "identical argument sets must hit the cache after the first"
+        )

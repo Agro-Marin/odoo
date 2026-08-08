@@ -244,7 +244,13 @@ class AccountPaymentTerm(models.Model):
             results["amount"] += term["foreign_amount"]
         return amount_by_date
 
-    @api.constrains("line_ids", "early_discount")
+    # `discount_percentage` and `discount_days` are checked in the body, so they
+    # have to trigger it: without them the rules held on create and not on write,
+    # and a negative or zero-day early discount saved silently and then flowed
+    # into `_compute_terms` and onto invoices.
+    @api.constrains(
+        "line_ids", "early_discount", "discount_percentage", "discount_days"
+    )
     def _check_lines(self):
         round_precision = self.env["decimal.precision"].precision_get("Payment Terms")
         for terms in self:

@@ -66,10 +66,13 @@ class AttachmentController(ThreadController):
         # Linkage fields only. ``_from_request_file`` owns ``name``, ``mimetype``
         # and the bytes -- that is the whole point of handing it the request file
         # -- and every other caller (web/binary, documents, voip) passes exactly
-        # this much. Passing ``name`` collided with the one it derives, and
-        # ``raw`` was worse than redundant: reading the upload here defeated the
-        # streaming this call exists for AND left the file at EOF, so the
-        # mimetype sniff saw no bytes and the stream stored none.
+        # this much. ``_from_request_file`` derives the filename and forwards it
+        # as ``name=`` to ``_create_from_stream``, so a ``name`` left in these
+        # vals arrived there twice (TypeError -> 500 on every upload that
+        # streams, i.e. everything but a resized image). ``raw`` was worse than
+        # redundant: reading the upload here defeated the streaming this call
+        # exists for AND left the file at EOF, so the mimetype sniff saw no
+        # bytes and the stream stored none.
         vals = {
             # reuse the id already coerced and access-checked by
             # _get_thread_with_access_for_post, not the raw client input

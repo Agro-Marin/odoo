@@ -84,7 +84,11 @@ class AccountReconcileModelLine(models.Model):
             except ValueError:
                 record.amount = 0
 
-    @api.constrains("amount_string")
+    # `amount_type` selects which rule applies, so it has to trigger the check
+    # too: switching type without touching `amount_string` left the value
+    # unvalidated (and `amount` unrecomputed), so a write could reach a state
+    # `create` rejects -- e.g. `percentage` keeping a regex string, i.e. 0.
+    @api.constrains("amount_string", "amount_type")
     def _validate_amount(self):
         for record in self:
             if record.amount_type == "fixed" and record.amount == 0:

@@ -986,8 +986,8 @@ class TestReferencedArtifacts(unittest.TestCase):
     def test_ratchet_baselines_match_documented_gates(self) -> None:
         match = re.search(
             r"turns (\w+) tool\s+counts into one-way contracts: "
-            r"\*\*mypy, ruff, c901, eslint, tsc, jsfunclen, jsprivate, "
-            r"jsserviceshape and naming\*\*",
+            r"\*\*mypy, ruff, c901, c901_addons, eslint, tsc, jsfunclen, "
+            r"jsprivate, jsserviceshape and naming\*\*",
             DOC,
         )
         self.assertIsNotNone(match, "the ratchet gate list is no longer stated")
@@ -995,7 +995,7 @@ class TestReferencedArtifacts(unittest.TestCase):
             p.stem for p in (ROOT / "tooling" / "ratchet" / "baselines").glob("*.json")
         }
         self.assertEqual(
-            {"mypy", "ruff", "c901", "eslint", "tsc",
+            {"mypy", "ruff", "c901", "c901_addons", "eslint", "tsc",
              "jsfunclen", "jsprivate", "jsserviceshape", "naming"},
             on_disk,
         )

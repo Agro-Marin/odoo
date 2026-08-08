@@ -175,19 +175,27 @@ It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
 Two further mechanisms keep the *non-structural* quality signals from
 regressing:
 
-- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns nine tool
-  counts into one-way contracts: **mypy, ruff, c901, eslint, tsc, jsfunclen, jsprivate, jsserviceshape and naming** (floors in
+- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns ten tool
+  counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, jsfunclen, jsprivate, jsserviceshape and naming** (floors in
   `tooling/ratchet/baselines/`). CI fails on any increase, and — in the default
   `exact` mode — on an *un-committed* decrease too, so every cleanup is locked
   in.
 
   The count said "four" while the list named eight, which is the drift this page
   warns about one section up; the gate below reads the *names* and never read
-  the number. `c901` is the ninth and the newest: cyclomatic complexity in
-  `odoo/`, threshold `[lint.mccabe] max-complexity = 20`. It is kept out of the
-  `ruff` aggregate deliberately — in one bucket a complexity fix can be masked
-  by an unrelated new finding — and it gated nothing before, because `ruff.toml`
-  selected the `C90` family while ignoring `C901`, its only rule.
+  the number. `c901` was the ninth: cyclomatic complexity in `odoo/`, threshold
+  `[lint.mccabe] max-complexity = 20`. It is kept out of the `ruff` aggregate
+  deliberately — in one bucket a complexity fix can be masked by an unrelated
+  new finding — and it gated nothing before, because `ruff.toml` selected the
+  `C90` family while ignoring `C901`, its only rule.
+
+  `c901_addons` is the tenth and the newest. Every floor above it measures
+  `odoo/`, the core *package*; none measured `addons/`, where the 615 bundled
+  modules and most of the business logic live, so complexity there was
+  unbounded. It is a separate floor rather than a widened scope on `c901` for
+  the same reason `c901` is separate from `ruff`: the two trees move for
+  different reasons and by different hands, and one bucket would let an addons
+  cleanup mask a core regression.
 
   ```bash
   python tooling/ratchet/test_ratchet.py     # self-test the tool
