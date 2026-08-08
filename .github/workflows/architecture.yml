@@ -141,7 +141,8 @@ jobs:
 
       - name: Run subsystem-map check
         id: subsystem_map
-        # Gates the DESCRIPTIVE half of odoo/ARCHITECTURE.md, which every other
+        # Gates the DESCRIPTIVE half of the architecture docs -- the subsystem
+        # map, which lives in doc/architecture/views/module.md -- which every other
         # gate here ignores: layer_check enforces who may import whom, and
         # doc_link_gate proves a referenced .md exists, but nothing proved the
         # subsystem map still matches the tree. It had drifted into depicting
