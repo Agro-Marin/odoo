@@ -1,4 +1,4 @@
 {
-  "count": 757,
-  "note": "758 -> 757. One docstring added, in odoo/libs/image/utils.py::image_process, while de-duplicating it against odoo/tools/image.py (the tools copy was byte-identical and its annotations had drifted to describe a call that raises TypeError). D and ANN are enforced in odoo/libs/, so documenting the new 'processor' seam parameter retires one D103. Command: ruff check odoo/ --no-cache --select D --statistics | awk '{s+=$1} END {print s+0}'"
+  "count": 755,
+  "note": "757 -> 755, both in odoo/orm/components/storage.py where D and ANN are enforced: a module docstring added (-1 D100) and the undocumented search_rows removed (-1 D102). search_rows was a second, ad-hoc implementation of selection with its own operator table, called by nothing outside its own unit tests, and its NULL semantics diverged from both PostgreSQL and the domain layer ('n < 5' raised TypeError on an unset column instead of excluding the row). InMemoryBackend.search already selects through Domain._as_predicate, the parity-tested path. Command: ruff check odoo/ --no-cache --select D --statistics | awk '{s+=$1} END {print s+0}'"
 }

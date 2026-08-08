@@ -1,21 +1,23 @@
-import typing
+"""The in-memory row store beneath ``InMemoryBackend`` (ADR-0011).
+
+Deliberately a *store*, not a query engine: it holds rows and hands them back.
+Selection is `InMemoryBackend.search`'s job, and it does it by materialising the
+table and applying ``Domain._as_predicate`` — the same normalised domain the SQL
+path evaluates, which is what makes the two backends differentially comparable
+at all.
+
+This module carried a ``search_rows(table, column, value, operator)`` with its
+own ``_OPERATORS`` table until 2026-08-08. Nothing outside its own unit tests
+ever called it, and its semantics had already drifted from both of the things it
+could have agreed with: ``n < 5`` raised ``TypeError`` on a row where ``n`` is
+unset, where PostgreSQL excludes the row and Odoo's domain layer excludes it too.
+A second, ad-hoc implementation of the ORM's most semantically delicate
+operation, kept looking alive by the tests that were its only consumer. Removed
+rather than fixed — the parity-tested path already exists one layer up.
+"""
+
 from collections import defaultdict
-from operator import eq, ge, gt, le, lt, ne
 from typing import Any
-
-if typing.TYPE_CHECKING:
-    from collections.abc import Callable
-
-_OPERATORS: dict[str, Callable] = {
-    "=": eq,
-    "!=": ne,
-    "<": lt,
-    "<=": le,
-    ">": gt,
-    ">=": ge,
-    "in": lambda v, vals: v in vals,
-    "not in": lambda v, vals: v not in vals,
-}
 
 
 class DictBackend:
@@ -105,19 +107,6 @@ class DictBackend:
 
     def row_count(self, table: str) -> int:
         return len(self._tables.get(table, {}))
-
-    def search_rows(
-        self,
-        table: str,
-        column: str,
-        value: Any,
-        operator: str = "=",
-    ) -> list[int]:
-        op_fn = _OPERATORS.get(operator)
-        if op_fn is None:
-            raise ValueError(f"Unsupported operator: {operator!r}")
-        tbl = self._tables.get(table, {})
-        return [id_ for id_, row in tbl.items() if op_fn(row.get(column), value)]
 
     def next_id(self, table: str) -> int:
         self._sequences[table] += 1

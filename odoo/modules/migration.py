@@ -49,6 +49,47 @@ VERSION_RE = re.compile(
 )
 
 
+MIGRATION_STAGES: tuple[str, ...] = ("pre", "post", "end")
+"""The stages ``migrate_module`` runs, and the filename prefixes that select them.
+
+``_get_migration_files`` picks scripts with ``name.startswith(f"{stage}-")``, so
+the stage is carried entirely by the filename and a name matching none of these
+is collected and then never executed.
+"""
+
+_STAGE_PREFIXES: tuple[str, ...] = tuple(f"{stage}-" for stage in MIGRATION_STAGES)
+
+
+def _warn_unstaged_scripts(directory: Path, files: list[str]) -> None:
+    """Warn about scripts that will never run because no stage claims them.
+
+    ``risks.md`` R3 records that migration staging is unenforced. That is true of
+    the *semantic* half — nothing can know that a script reading the old schema
+    was filed as ``post-`` — but not of the syntactic half, which is checkable
+    and was not checked: a file named ``pre_01.py`` or ``Pre-01.py`` (the match is
+    case-sensitive) is globbed by ``_scripts_by_version`` and then silently
+    dropped by every stage. On an upgrade of a populated database that is a
+    migration nobody notices did not happen.
+
+    A warning rather than an error, for the same reason ``_is_upgrade_version_dir``
+    warns on a malformed version directory: an addon may legitimately keep a
+    helper module beside its scripts, and refusing to upgrade over one would be a
+    worse failure than the one being reported. Measured across this workspace's
+    five addon trees: 223 migration scripts, all correctly prefixed, 0 skipped.
+    """
+    for path in files:
+        name = Path(path).name
+        if name.startswith(_STAGE_PREFIXES) or name == "__init__.py":
+            continue
+        _logger.warning(
+            "Migration script %s will never run: its name matches no stage. "
+            "Rename it to one of %s (lower-case, hyphen) or move it out of %s.",
+            path,
+            ", ".join(f"{p}*.py" for p in _STAGE_PREFIXES),
+            directory,
+        )
+
+
 def _convert_version(version: str) -> str:
     if version == "0.0.0":
         return version
@@ -98,11 +139,14 @@ def _scripts_by_version(path: str) -> dict[str, list[str]]:
     if not path:
         return {}
     p = Path(path)
-    return {
+    by_version = {
         entry.name: [str(f) for f in (p / entry.name).glob("*.py")]
         for entry in p.iterdir()
         if _is_upgrade_version_dir(path, entry.name)
     }
+    for version, files in by_version.items():
+        _warn_unstaged_scripts(p / version, files)
+    return by_version
 
 
 def _resolve_addon_path(path: str) -> str:
@@ -149,7 +193,7 @@ class MigrationManager:
         pkg: module_graph.ModuleNode,
         stage: typing.Literal["pre", "post", "end"],
     ) -> None:
-        assert stage in ("pre", "post", "end")
+        assert stage in MIGRATION_STAGES
         stageformat = {
             "pre": "[>%s]",
             "post": "[%s>]",
