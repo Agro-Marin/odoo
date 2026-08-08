@@ -1,5 +1,5 @@
 from odoo import models
-from odoo.http import SessionExpiredException, request
+from odoo.http import SessionExpiredException
 from odoo.service import security
 from odoo.tools.misc import OrderedSet
 
@@ -19,9 +19,17 @@ class IrWebsocket(models.AbstractModel):
 
         :param channels: The channel list sent by the client.
         """
-        req = request or wsrequest
         channels = [*channels, "broadcast", *self.env.user.all_group_ids]
-        if req.session.uid:
+        # Add the personal channel only for a genuinely logged-in user. This
+        # used to read ``(request or wsrequest).session.uid``, which made a
+        # plain model method depend on whichever of two ambient request
+        # globals happened to be bound -- so it could not be called from a
+        # test, a cron or a shell without faking a request. ``env.user`` is
+        # already the authoritative answer here: ``ir.websocket._authenticate``
+        # binds the public user precisely when ``session.uid`` is None, so the
+        # two predicates agree on every reachable path (verified over the
+        # authenticated/anonymous × websocket/HTTP matrix).
+        if not self.env.user._is_public():
             channels = [*channels, self.env.user.partner_id]
         return channels
 
@@ -89,12 +97,19 @@ class IrWebsocket(models.AbstractModel):
         """Function invoked upon WebSocket termination.
         Modules can override this method to add custom behavior."""
 
-    @classmethod
-    def _authenticate(cls):
+    def _authenticate(self):
+        """Bind the websocket request's environment to its authenticated user.
+
+        An ordinary method, not a classmethod: it is reached as
+        ``self.env["ir.websocket"]._authenticate()`` and overrides are entitled
+        to ``self.env`` like anywhere else in the ORM. ``wsrequest`` is still
+        used for what genuinely belongs to the request (the session, and
+        rebinding its env), but never as a substitute for ``self.env``.
+        """
         if wsrequest.session.uid is not None:
-            if not security.check_session(wsrequest.session, wsrequest.env, wsrequest):
+            if not security.check_session(wsrequest.session, self.env, wsrequest):
                 wsrequest.session.logout(keep_db=True)
                 raise SessionExpiredException
         else:
-            public_user = wsrequest.env.ref("base.public_user")
+            public_user = self.env.ref("base.public_user")
             wsrequest.update_env(user=public_user.id)
