@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
@@ -386,3 +387,35 @@ class TestSchedulingMixin(TransactionCase):
         record.resource_id = half_resource
         self.assertEqual(record.resource_calendar_id, half_calendar)
         self.assertEqual(record.allocated_hours, 4.0)
+
+
+@tagged("post_install", "-at_install")
+class TestSchedulingMixinAllocationBounds(TransactionCase):
+    """The mixin rejects an out-of-range allocation share on the consumer.
+
+    ``resource.reservation`` carries the same rule, but the value originates on
+    the consumer: without a check here the user got a constraint violation on a
+    mirror row they never see, instead of an error on the field they edited.
+    A negative share is the dangerous one — the cumulative overlap sweep sums
+    these numbers, so it cancels real bookings out of conflict detection.
+    """
+
+    def _record(self, **vals):
+        return self.env["resource.scheduling.test"].create({"name": "bounds", **vals})
+
+    def test_negative_allocation_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._record(allocated_percentage=-50.0)
+
+    def test_allocation_above_100_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._record(allocated_percentage=150.0)
+
+    def test_write_is_guarded_too(self):
+        record = self._record(allocated_percentage=100.0)
+        with self.assertRaises(ValidationError):
+            record.allocated_percentage = -1.0
+
+    def test_boundaries_accepted(self):
+        self.assertTrue(self._record(allocated_percentage=0.0))
+        self.assertTrue(self._record(allocated_percentage=100.0))

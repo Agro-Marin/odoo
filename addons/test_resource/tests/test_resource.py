@@ -108,6 +108,10 @@ class TestResource(TestResourceCommon):
             'calendar_id': resource.id,
             'hour_from': 0,
             'hour_to': 0,
+            # A line on a 2-weeks calendar must name its week; the test is
+            # about the zero-duration guard in _get_hours_per_day, not about
+            # week attribution.
+            'week_type': '0',
         })
         resource_hour = resource._get_hours_per_day()
         self.assertEqual(resource_hour, 0.0)

@@ -308,6 +308,11 @@ class ResourceMixin(models.AbstractModel):
         Returns a list of tuples (day, hours, resource.calendar.leaves)
         for each leave in the calendar.
         """
+        # Single-record only: the body indexes the per-resource interval dicts
+        # with ``resource.id``.  Without this the failure surfaced deep in the
+        # calendar layer as a bare ``Expected singleton``, naming
+        # ``resource.resource`` rather than the model actually called.
+        self.ensure_one()
         resource = self.resource_id
         calendar = calendar or self.resource_calendar_id
 

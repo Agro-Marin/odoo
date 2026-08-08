@@ -102,6 +102,38 @@ class ResourceCalendarAttendance(models.Model):
                     )
                 )
 
+    @api.constrains("week_type", "display_type", "calendar_id")
+    def _check_week_type(self):
+        """A line on a two-weeks calendar must say which week it belongs to.
+
+        Nothing used to require it, and an unset ``week_type`` is not inert —
+        it makes the calendar contradict itself.  ``_attendance_intervals_batch``
+        buckets by ``int(attendance.week_type)``, and ``int(False)`` is ``0``,
+        so the line silently becomes a first-week line and *does* produce work
+        intervals; ``_get_working_hours`` meanwhile files it under the ``False``
+        key, which ``_works_on_date`` never reads for a two-weeks calendar, so
+        that same day reads as **not** worked.  ``_check_overlap`` also runs
+        once per week type, so the line's overlaps are validated by neither
+        pass.
+
+        The form view assigns ``week_type`` from the section order
+        (``_onchange_attendance_ids``); this covers the paths that do not go
+        through it — ``load``, XML data, the ORM and external API.
+        """
+        for attendance in self:
+            if (
+                attendance.calendar_id.two_weeks_calendar
+                and not attendance.display_type
+                and not attendance.week_type
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "%(name)s: a working time on a 2 weeks calendar must belong"
+                        " to the first or the second week.",
+                        name=attendance.name,
+                    )
+                )
+
     @api.constrains("hour_from", "hour_to")
     def _check_hours(self):
         """Enforce hour bounds and ordering for API/import creates."""

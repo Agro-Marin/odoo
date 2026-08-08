@@ -87,6 +87,23 @@ class ResourceReservation(models.Model):
         default=100.0,
         help="Percentage of the resource's work capacity allocated to this schedule.",
     )
+    # A share of capacity outside 0..100 is not a booking, it is a data error —
+    # and a *negative* one is an integrity hole: the cumulative sweep below adds
+    # these values up, so a -100% row cancels a real 100% booking, drops
+    # ``schedule_overlap_count`` to zero and lets a reservation slip past
+    # ``enforcement_mode = 'hard'`` entirely.  The sweep query in
+    # ``_compute_schedule_overlap_count`` clamps the column as well, so rows
+    # predating this constraint cannot disarm the check either.
+    #
+    # A table constraint rather than ``@api.constrains``: it fires before any
+    # Python constraint would (making one here dead code), its message is what
+    # the web client shows, and it is the only form that also covers rows
+    # written by raw SQL.  Consumers get the friendlier field-level error from
+    # ``resource.scheduling.mixin``, which has no table of its own.
+    _check_allocated_percentage = models.Constraint(
+        "CHECK(allocated_percentage >= 0 AND allocated_percentage <= 100)",
+        "Allocation % must be between 0 and 100.",
+    )
 
     # ---- Conflict detection ----
     schedule_overlap_count = fields.Integer(
@@ -264,6 +281,16 @@ class ResourceReservation(models.Model):
         Flexible resources keep the per-record path: their synthesized
         intervals depend on the queried window, so a group-wide window would
         not give the same answer as the individual ones.
+
+        ``resource_calendar_id`` is authoritative whenever it was set to
+        something other than what the resource itself resolves to.  It used to
+        be honoured only for reservations *without* a resource: with one,
+        ``_get_valid_work_intervals`` re-derived the calendar from
+        ``resource.calendar_id`` and the stored override was silently dropped,
+        so one stored, user-writable, ``@api.depends``-declared field had two
+        different meanings depending on a neighbouring field.  Records that did
+        not override it still go through ``_get_valid_work_intervals``, which is
+        the hook ``hr`` overrides to switch calendars mid-window by contract.
         """
         undated = self.filtered(lambda r: not r.date_start or not r.date_end)
         undated.allocated_hours = 0.0
@@ -298,14 +325,27 @@ class ResourceReservation(models.Model):
             window_start = localized(min(records.mapped("date_start")))
             window_end = localized(max(records.mapped("date_end")))
 
-            resources = records.resource_id
+            # Resources whose own calendar already *is* this group's calendar
+            # go through the contract-aware resolver; the rest asked explicitly
+            # for this calendar, so it is applied directly to them.  An unset
+            # ``resource_calendar_id`` is not an override — it states nothing,
+            # so those resources keep resolving their own calendar as before.
+            if calendar:
+                native = records.resource_id.filtered(
+                    lambda resource: resource.calendar_id == calendar
+                )
+            else:
+                native = records.resource_id
+            overridden = records.resource_id - native
             intervals_per_resource = {}
-            if resources:
+            if native:
                 intervals_per_resource, _calendar_intervals = (
-                    resources._get_valid_work_intervals(
-                        window_start,
-                        window_end,
-                        calendars=(calendar,) if calendar else None,
+                    native._get_valid_work_intervals(window_start, window_end)
+                )
+            if overridden and calendar:
+                intervals_per_resource.update(
+                    calendar._work_intervals_batch(
+                        window_start, window_end, resources=overridden
                     )
                 )
             calendar_intervals = None
@@ -410,7 +450,7 @@ class ResourceReservation(models.Model):
             SQL(
                 """
                 SELECT id, resource_id, date_start, date_end,
-                       COALESCE(allocated_percentage, 100)
+                       LEAST(100, GREATEST(0, COALESCE(allocated_percentage, 100)))
                   FROM %s
                  WHERE resource_id = ANY(%s)
                    AND active
@@ -631,9 +671,14 @@ class ResourceReservation(models.Model):
             )
         )
 
-        created = self.sudo().create(to_create) if to_create else self.browse()
+        # Release the surplus *before* creating replacements: a surplus row is
+        # still an active claim on its resource until it is gone, so creating
+        # first lets it collide with its own replacement under
+        # ``enforcement_mode = 'hard'`` and abort a sync that is only shuffling
+        # rows around.
         if to_delete:
             to_delete.unlink()
+        created = self.sudo().create(to_create) if to_create else self.browse()
 
         return (existing - to_delete) | created
 

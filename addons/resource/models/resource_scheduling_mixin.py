@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ResourceSchedulingMixin(models.AbstractModel):
@@ -55,6 +56,31 @@ class ResourceSchedulingMixin(models.AbstractModel):
         "Scheduling Conflicts",
         compute="_compute_schedule_overlap_count",
     )
+
+    # ------------------------------------------------------------------
+    # Constraints
+    # ------------------------------------------------------------------
+
+    @api.constrains("allocated_percentage")
+    def _check_allocated_percentage(self):
+        """Keep the allocation share inside 0..100 on every consumer.
+
+        ``resource.reservation`` carries the equivalent SQL ``CHECK``, but the
+        value originates here: consumers pass it straight through
+        ``_get_reservation_vals_list``, so rejecting it at the source gives the
+        user an error on the field they actually edited instead of a constraint
+        violation on a mirror row they never see.  A Python constraint (rather
+        than a table one) is what propagates to the concrete models inheriting
+        this abstract mixin.
+        """
+        for record in self:
+            if not 0.0 <= record.allocated_percentage <= 100.0:
+                raise ValidationError(
+                    self.env._(
+                        "%(name)s: allocation %% must be between 0 and 100.",
+                        name=record.display_name,
+                    )
+                )
 
     # ------------------------------------------------------------------
     # Contracts (consumers override)
