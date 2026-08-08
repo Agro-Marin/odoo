@@ -1,7 +1,7 @@
 # Measurements — how the architecture rules were arrived at
 
-> The evidence base behind [`odoo/ARCHITECTURE.md`](../../odoo/ARCHITECTURE.md),
-> [`views/module.md`](views/module.md) and [`gates.md`](gates.md).
+> The evidence base behind [`ARCHITECTURE.md`](ARCHITECTURE.md),
+> [`module.md`](module.md) and [`gates.md`](gates.md).
 
 Several rules in those documents look arbitrary without the finding that
 motivated them, and every entry below is a worked example of one failure mode:

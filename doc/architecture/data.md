@@ -1,6 +1,6 @@
 # Data view — what state exists, who owns it, and how it survives
 
-> One of the views indexed by [`odoo/ARCHITECTURE.md`](../../../odoo/ARCHITECTURE.md).
+> One of the views indexed by [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > The module view says what code exists; the runtime view says what runs. This
 > one says **what persists** — because the framework's hardest constraints come
 > from state it does not hold in memory.
@@ -58,7 +58,7 @@ and no migration file that is the source of truth: the Python field declarations
 are *inputs*, `ir_model_fields` is the record, and the DDL is derived by
 comparing them. This is why `Registry.new()` has phases, and why a cold registry
 build costs ~50× a warm load
-([qualities.md](../qualities.md#scenario-2--registry-build-and-boot)).
+([qualities.md](qualities.md#scenario-2--registry-build-and-boot)).
 
 **`ir_module_module` is per database, so "installed" is not a property of the
 deployment.** Two databases served by one process have different model sets,

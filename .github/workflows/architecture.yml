@@ -1,7 +1,7 @@
 name: Architecture Boundaries
 
 # Enforces the framework-core layering contracts (documented in
-# odoo/ARCHITECTURE.md) via the dependency-free checker
+# doc/architecture/module.md) via the dependency-free checker
 # tooling/architecture/layer_check.py. The facade-boundary contract
 # governs BOTH addon trees (odoo/addons/ and the sibling addons/).
 #
@@ -142,7 +142,7 @@ jobs:
       - name: Run subsystem-map check
         id: subsystem_map
         # Gates the DESCRIPTIVE half of the architecture docs -- the subsystem
-        # map, which lives in doc/architecture/views/module.md -- which every other
+        # map, which lives in doc/architecture/module.md -- which every other
         # gate here ignores: layer_check enforces who may import whom, and
         # doc_link_gate proves a referenced .md exists, but nothing proved the
         # subsystem map still matches the tree. It had drifted into depicting
@@ -709,7 +709,7 @@ jobs:
             cat /tmp/xml_refs.log
             echo '```'
             echo ""
-            echo "Contracts: \`odoo/ARCHITECTURE.md\`"
+            echo "Contracts: \`doc/architecture/module.md\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Annotate PR on failure
@@ -721,5 +721,5 @@ jobs:
               'New architecture-layering violation(s) introduced. ' +
               'A lower layer now imports a higher one at runtime, or a ' +
               'dependency-free module now imports the framework. ' +
-              'See the workflow Summary and odoo/ARCHITECTURE.md.'
+              'See the workflow Summary and doc/architecture/ARCHITECTURE.md.'
             );

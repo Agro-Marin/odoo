@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate ``test_architecture_doc.py`` against the failure it exists to prevent.
 
-That suite pins ``odoo/ARCHITECTURE.md`` against the code. But a doc test of the
+That suite pins ``doc/architecture/ARCHITECTURE.md`` against the code. But a doc test of the
 shape::
 
     for ref in re.findall(PATTERN, DOC):

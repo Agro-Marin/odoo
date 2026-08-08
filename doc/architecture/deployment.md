@@ -1,6 +1,6 @@
 # Deployment view — what runs where, and how it degrades
 
-> One of the views indexed by [`odoo/ARCHITECTURE.md`](../../../odoo/ARCHITECTURE.md).
+> One of the views indexed by [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > The runtime view describes what happens *inside* one process. This one
 > describes **how many processes there are, what each is allowed to do, and what
 > happens when one of them stops being healthy.**
@@ -21,7 +21,7 @@ shared.
 | otherwise (default) | `ThreadedServer` | Python threads | one process |
 
 The default is `workers = 0` — threaded, one process, debugger-friendly, and
-the shape every measurement in [`qualities.md`](../qualities.md) was taken
+the shape every measurement in [`qualities.md`](qualities.md) was taken
 under. The threaded path additionally calls `_limit_malloc_arenas()`, which the
 forked path does not need.
 
@@ -50,7 +50,7 @@ runtime (`self.population += 1`).
 Cron workers matter to capacity planning in a way that is easy to miss: they
 hold registries and database connections exactly like an HTTP worker, so they
 count against `db_maxconn` and against the per-registry memory measured in
-[`qualities.md`](../qualities.md#scenario-3--multi-tenancy-cost).
+[`qualities.md`](qualities.md#scenario-3--multi-tenancy-cost).
 
 ## The limits that end a request or a worker
 
@@ -119,7 +119,7 @@ the worst case is unchanged.
 - **The reverse proxy.** `proxy_mode`, TLS termination, and what the deployment
   in front of Odoo must set are not described here.
 - **Measured behaviour under `workers > 0`.** Every figure in
-  [`qualities.md`](../qualities.md) is single-process; the prefork path's
+  [`qualities.md`](qualities.md) is single-process; the prefork path's
   latency, memory and signalling cost are unmeasured.
 - **Cron contention across workers.** How `max_cron_threads` workers avoid
   running the same job is a runtime concern, not described in this view.

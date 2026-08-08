@@ -1,4 +1,5 @@
-"""Runtime proof of the request-lifecycle ordering `odoo/ARCHITECTURE.md` states.
+"""Runtime proof of the request-lifecycle ordering the architecture front door
+states (`doc/architecture/ARCHITECTURE.md`).
 
 That page's "Request lifecycle (HTTP)" section makes three claims a source scan
 cannot settle, because each is about *when* something happens rather than about

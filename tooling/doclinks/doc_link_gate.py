@@ -114,6 +114,11 @@ DEFAULT_BASELINE_PATH = (
 # filename that resolves from the directory the citing page used to live in.
 # The core package READMEs are in scope for the same reason — the architecture
 # pages cite `odoo/db/README.md` and `odoo/http/README.md`, and both cite back.
+#
+# There is deliberately no `odoo/*.md` entry: it existed only for the front
+# door, and once that moved to `doc/architecture/` the glob matched nothing.
+# A glob kept past the file it was written for is how `doc/*.md` became a
+# no-op that read like coverage.
 DEFAULT_SCAN_GLOBS = [
     "addons/*/machine_doc_v1/*.md",
     "odoo/**/machine_doc_v1/*.md",
@@ -123,7 +128,6 @@ DEFAULT_SCAN_GLOBS = [
     "doc/*.md",
     "doc/adr/*.md",
     "doc/architecture/**/*.md",
-    "odoo/*.md",
     "odoo/**/README.md",
     "tooling/**/*.md",
 ]
@@ -153,7 +157,7 @@ REF_PATTERNS = [
 # grammar, and when ``doc/adr/`` was deleted it reported clean while 39
 # citations dangled. (One test,
 # ``test_architecture_doc.py::test_adrs_exist``, did catch it — but only for
-# ``odoo/ARCHITECTURE.md``; the other 25 citations, including the 12 in
+# the front door; the other 25 citations, including the 12 in
 # ``layer_check.py`` that justify each enforced contract, were checked by
 # nothing.)
 #
@@ -169,7 +173,6 @@ RE_ADR = re.compile(r"\bADR[-‑](\d{4})\b")
 ADR_SCAN_GLOBS = [
     "doc/**/*.md",
     "doc/*.rst",
-    "odoo/*.md",
     "odoo/**/*.py",
     "tooling/**/*.py",
     "tooling/**/*.md",

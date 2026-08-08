@@ -7,7 +7,7 @@ controller with a fully set-up ORM.
 Application developers meet this package through `Controller` and the `@route`
 decorator, which register the methods that deliver web content to matching URLs.
 
-`doc/architecture/views/runtime.md` sketches this flow in three lines and
+`doc/architecture/runtime.md` sketches this flow in three lines and
 flattens it deliberately; **this file is the canonical, unflattened version.**
 It lived in
 `odoo/http/__init__.py`'s module docstring until `4ffeacacd8c` stripped
@@ -124,7 +124,7 @@ post_dispatch out of band.
 
 ## Module map
 
-`doc/architecture/views/module.md` groups these modules into `[serving]` and
+`doc/architecture/module.md` groups these modules into `[serving]` and
 `[features]` tiers; the direction between them is enforced by the
 `http-features-below-serving` contract.
 
@@ -153,9 +153,9 @@ post_dispatch out of band.
 
 ## Related
 
-- `doc/architecture/views/module.md` — the framework-wide subsystem map and the
+- `doc/architecture/module.md` — the framework-wide subsystem map and the
   enforced dependency contracts, including `http-features-below-serving`.
-- `odoo/ARCHITECTURE.md` — the front door: context, forces, mechanisms, and the
-  index of the views.
+- `doc/architecture/ARCHITECTURE.md` — the front door: context, forces,
+  mechanisms, and the index of the views.
 - `odoo/service/transaction.py` — `retrying()`, which owns the commit and the
   read-only → read/write promotion.

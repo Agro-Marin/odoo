@@ -1,10 +1,10 @@
 # Module view — what exists, and who may depend on whom
 
-> One of the views indexed by [`odoo/ARCHITECTURE.md`](../../../odoo/ARCHITECTURE.md).
+> One of the views indexed by [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > This view answers *where does code live and what may it import*. For *what runs
 > when*, see [`runtime.md`](runtime.md); for the checkers that hold these rules
-> shut, [`../gates.md`](../gates.md); for how they were arrived at,
-> [`../MEASUREMENTS.md`](../MEASUREMENTS.md).
+> shut, [`gates.md`](gates.md); for how they were arrived at,
+> [`MEASUREMENTS.md`](MEASUREMENTS.md).
 
 This is the view the CI gates are built around, and the most mechanically
 verified thing in the repository: the map below is checked against the tree, and
@@ -339,7 +339,7 @@ the one least visible to every structural gate in this document.
 framework's largest real coupling to its consumer produces no import edge
 either, because it is spelled as a string (`env["res.users"]`, see *Models are
 assembled per database* in
-[`odoo/ARCHITECTURE.md`](../../../odoo/ARCHITECTURE.md)).
+[`ARCHITECTURE.md`](ARCHITECTURE.md)).
 `env_model_surface_check.py` ratchets *which* models are reached, as an exact
 set, and pins seven subtrees at zero reaches — `orm/components`, `libs`, `db`,
 the `api`/`fields`/`models` shims, `_monkeypatches` — each of which already

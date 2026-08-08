@@ -1,8 +1,8 @@
 # The gates — what is mechanically enforced, and what that is worth
 
-> Referenced by [`odoo/ARCHITECTURE.md`](../../odoo/ARCHITECTURE.md). The
-> architecture itself is in [`views/module.md`](views/module.md) and
-> [`views/runtime.md`](views/runtime.md); this file is the operator's manual for
+> Referenced by [`ARCHITECTURE.md`](ARCHITECTURE.md). The
+> architecture itself is in [`module.md`](module.md) and
+> [`runtime.md`](runtime.md); this file is the operator's manual for
 > the machinery that keeps them true.
 
 This is deliberately *not* on the architecture page. A gate catalog is a tool
@@ -79,7 +79,7 @@ runs `pytest tooling/architecture/` to self-test them, then:
 
 | Gate | What it locks |
 |------|---------------|
-| `layer_check.py` | the Python layering contracts in [`views/module.md`](views/module.md#enforced-dependency-rules) |
+| `layer_check.py` | the Python layering contracts in [`module.md`](module.md#enforced-dependency-rules) |
 | `mixin_coupling_check.py` | the `self`-call graph the import graph cannot see |
 | `env_surface_check.py` | the Layer→runtime `env` seam, and that every reached `Environment` member exists |
 | `pool_surface_check.py` | the Layer→runtime `pool` seam: private reach, member validity, and `components/` at zero |
@@ -108,7 +108,7 @@ Four of those — `env_surface_check.py`, `pool_surface_check.py`,
 `env_model_surface_check.py`, `py_cycle_check.py` — are the same argument as
 `mixin_coupling_check.py`, applied to surfaces the import graph cannot see.
 **What they found is architecture and lives in
-[*Coupling the import graph cannot see*](views/module.md#coupling-the-import-graph-cannot-see):**
+[*Coupling the import graph cannot see*](module.md#coupling-the-import-graph-cannot-see):**
 the runtime-channel inversion that makes the layering true of imports and false
 of the runtime graph, the `Registry._relation_reflections` ordering hazard, the
 closed set of addon-owned model names, and the ORM's freedom from cycles. What

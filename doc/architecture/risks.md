@@ -1,6 +1,6 @@
 # Risks — where the implementation and the design disagree
 
-> Referenced by [`odoo/ARCHITECTURE.md`](../../odoo/ARCHITECTURE.md). The views
+> Referenced by [`ARCHITECTURE.md`](ARCHITECTURE.md). The views
 > describe the architecture as it is meant to work. This page records the places
 > where it **demonstrably does not**, or where the guarantee is thinner than the
 > word suggests.
@@ -33,7 +33,7 @@ its `finally:`, so it exists *only* for the duration of that call. Layer 1
 `update_db` runs inside that window.
 
 **Evidence.** `pool_surface_check.py`; written up in
-[`views/module.md`](views/module.md#coupling-the-import-graph-cannot-see).
+[`module.md`](module.md#coupling-the-import-graph-cannot-see).
 
 **Cost if it breaks.** Nothing declares the ordering, and nothing but an
 `AttributeError` during module installation would catch a violation — i.e. it
@@ -53,7 +53,7 @@ unsanctioned `Environment` privates against Layer 2's 2, and 30 Registry sites
 against 28.
 
 **Evidence.** `env_surface_check.py`, `pool_surface_check.py`; see
-[`views/module.md`](views/module.md#coupling-the-import-graph-cannot-see).
+[`module.md`](module.md#coupling-the-import-graph-cannot-see).
 
 **Cost.** A reader who takes the layer diagram as the whole picture predicts the
 wrong blast radius for a change to `Environment` or `Registry`. This is a
@@ -70,7 +70,7 @@ once the module graph converges, the columns have changed. A migration that
 needs the previous representation and is filed as `post-` has nothing to read.
 
 **Evidence.** `modules/migration.py::migrate_module`; threaded in
-[`views/scenarios.md`](views/scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
+[`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
 gate — all 24 are structural and DB-free — and not caught by either DB-free test
@@ -108,7 +108,7 @@ exempts `Proposed`.
 
 **Cost.** Low now that the status is correct — but the two records still
 describe the intended shape of the `ir.attachment` dual-storage seam
-([`views/data.md`](views/data.md#the-dual-storage-seam)), so a reader may take
+([`data.md`](data.md#the-dual-storage-seam)), so a reader may take
 them as current design.
 
 **What would close it.** Build it, or supersede them.

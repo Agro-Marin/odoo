@@ -1,6 +1,6 @@
 # Scenario view — end-to-end threads through the other views
 
-> One of the views indexed by [`odoo/ARCHITECTURE.md`](../../../odoo/ARCHITECTURE.md).
+> One of the views indexed by [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > Each other view is a projection: modules, runtime, data, deployment. A
 > scenario is a **thread that crosses all of them**, which is the only way to
 > see an interaction that no single view contains.
@@ -51,7 +51,7 @@ fixpoint, applied to DDL.
 `Registry.new(…)` — logged as *"Reloading registry once more after uninstalling
 modules."* Uninstall is therefore the one operation that can pay the cold
 registry cost **twice** in a single command; at the 35.85 s measured in
-[`qualities.md`](../qualities.md#scenario-2--registry-build-and-boot), that is
+[`qualities.md`](qualities.md#scenario-2--registry-build-and-boot), that is
 the difference between a minute and two.
 
 Under `workers > 0` the whole thread runs in one worker, and every other worker
@@ -78,14 +78,14 @@ The architectural consequence: **`pre` is the only stage that can see the old
 shape.** Once the graph converges the columns have already changed, so a
 migration that needs the previous representation and is written as `post` has
 nothing to read. That is not recoverable at run time and not caught by any gate
-in [`gates.md`](../gates.md) — every one of them is structural and DB-free.
+in [`gates.md`](gates.md) — every one of them is structural and DB-free.
 
 Two further asymmetries against Scenario A:
 
 - **Cost is not comparable.** Scenario A's measured 35.85 s installs 105 modules
   into an *empty* database. An upgrade additionally rewrites existing rows, and
   nothing in this document set measures that — it is listed as a gap in
-  [`qualities.md`](../qualities.md#what-this-page-does-not-measure).
+  [`qualities.md`](qualities.md#what-this-page-does-not-measure).
 - **Failure is not symmetric.** A failed install leaves a database nobody was
   using; a failed upgrade leaves one somebody was. The filestore is not
   transactional with PostgreSQL either
