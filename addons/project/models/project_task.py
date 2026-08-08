@@ -3299,7 +3299,6 @@ class ProjectTask(models.Model):
 
         defaults = {
             "name": msg_dict.get("subject") or _("No Subject"),
-            "allocated_hours": 0.0,
             "partner_id": msg_dict.get("author_id"),
             "email_cc": (
                 ", ".join(self._mail_cc_sanitized_raw_dict(msg_dict.get("cc")).values())
