@@ -170,7 +170,9 @@ lifecycle*](../doc/architecture/views/runtime.md#request-lifecycle-http).
 | **Data** | what persists, who owns it, what is authoritative when stores disagree | [`doc/architecture/views/data.md`](../doc/architecture/views/data.md) |
 | **Deployment** | how many processes, what each may do, and how it degrades | [`doc/architecture/views/deployment.md`](../doc/architecture/views/deployment.md) |
 | **Gates** | what is mechanically enforced, and what "enforced" is worth | [`doc/architecture/gates.md`](../doc/architecture/gates.md) |
+| **Scenarios** | end-to-end threads — installing a module, upgrading a populated database | [`doc/architecture/views/scenarios.md`](../doc/architecture/views/scenarios.md) |
 | **Qualities** | how much the forces cost, measured — so a change can fail one | [`doc/architecture/qualities.md`](../doc/architecture/qualities.md) |
+| **Risks** | where the implementation and the design demonstrably disagree | [`doc/architecture/risks.md`](../doc/architecture/risks.md) |
 | **Measurements** | how these rules were arrived at, and what each cost to learn | [`doc/architecture/MEASUREMENTS.md`](../doc/architecture/MEASUREMENTS.md) |
 | **Decisions** | why the architecture is this way, dated and immutable | `doc/adr/` |
 
