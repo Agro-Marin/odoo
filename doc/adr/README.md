@@ -20,7 +20,18 @@ status. This rule exists because ADR-0012 and ADR-0013 sat at `Accepted` for a
 week describing a subsystem this repository has never contained — see their
 Amendments.
 
-## Two rules that keep a frozen record from rotting
+## Three rules that keep a frozen record from rotting
+
+**An ADR is past tense; `ARCHITECTURE.md` is present tense.** This is the rule
+the other two follow from. An ADR says *on this date, given these forces, we
+chose X over Y* — a claim about a moment, and therefore true forever.
+`odoo/ARCHITECTURE.md` says *this is how the system is today* — a claim about
+now, which is why it is gated and re-derived. **A sentence in an ADR written in
+the present tense about the tree is a bug**, because the record is immutable and
+the tree is not: it can only become false, and nothing will notice. Write "at
+this decision the count was N", not "the count is N"; write "run the checker",
+not "currently clean at zero". Gated by
+`test_adr_coherence.TestNoLiveStatusClaims`.
 
 **Never restate a number that lives somewhere else.** Ratchet floors, contract
 counts and file counts belong to `tooling/ratchet/baselines/*.json` and
@@ -28,7 +39,8 @@ counts and file counts belong to `tooling/ratchet/baselines/*.json` and
 written into an ADR body so far has since gone stale, and one — ADR-0006's mypy
 figure — never matched the baseline committed beside it. `typecheck.yml`'s
 header states the same rule for the same reason: "two copies drift, and they
-did."
+did." A *dated* measurement is not a restatement and is welcome: "measured 2074
+on 2026-06-25" stays true, "the count is 2074" does not.
 
 **Corrections go in an append-only `## Amendments` section.** Immutability
 protects the *decision*, not a path that has since moved. An amendment is dated,
@@ -74,6 +86,17 @@ What forces are at play — technical, organisational, historical.
 
 ## Decision
 The change we are making, stated in active voice.
+
+## Alternatives considered
+What else was on the table, and why each lost. **Required for every record from
+the fourteenth on** (`ALTERNATIVES_REQUIRED_FROM` in
+`tooling/architecture/test_adr_coherence.py`) — the earlier records predate the
+rule and are not back-filled, because inventing a rejected alternative months
+later is fiction. This is the section that makes a
+record worth reading once the decision is old news: the Decision says what we
+built, and anyone can read the tree for that; only this says what we already
+tried not to build, which is the part a future reader would otherwise have to
+re-derive by proposing it again. ADR-0010 is the worked example.
 
 ## Consequences
 What becomes easier, what becomes harder, and what we now must maintain.

@@ -42,5 +42,18 @@ importing the runtime.
 ## Enforcement
 
 `tooling/architecture/layer_check.py`, contract
-`orm-components-are-pure-python` (currently **clean at zero**). Test files under
-`components/tests/` are exempt — tests may import freely.
+`orm-components-are-pure-python`. Test files under `components/tests/` are
+exempt — tests may import freely. For the contract's live status, run the
+checker — this record does not restate it.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — the live contract status is no longer restated here
+
+The Enforcement section said the contract was "currently **clean at zero**". A
+status is a fact about the tree at a moment, and this record is immutable, so
+the sentence could only become false. Corrected in place: it is a citation, not
+the decision.

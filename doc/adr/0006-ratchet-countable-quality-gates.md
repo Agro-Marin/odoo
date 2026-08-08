@@ -49,10 +49,15 @@ generalisation of `layer_check.py`'s `KNOWN_VIOLATIONS` idea from "crossings" to
   so the number is reproducible regardless of cache state. CI starts cacheless
   anyway (both cache dirs are gitignored); the pins make local runs match.
 
-Wired gates (all now blocking; the warn-only placeholders are retired):
+Wired gates (all now blocking; the warn-only placeholders are retired). **The
+floors below are the ones this decision wired on 2026-06-25, recorded to show
+what the ratchet started from — they are not current and are not meant to be.**
+The live floors are `tooling/ratchet/baselines/<gate>.json`, and the whole point
+of the mechanism is that they move; `python tooling/ratchet/ratchet.py --list`
+prints them.
 
-| Gate | Floor | Workflow |
-|------|-------|----------|
+| Gate | Floor as first wired | Workflow |
+|------|----------------------|----------|
 | `mypy` | 1972 | `py_typecheck.yml` (stale 1973 baseline removed) |
 | `ruff` | 658  | `ruff.yml` (new — closes the missing Python-lint gate) |
 | `tsc` | 2002 | `typecheck.yml` (stale 6,575 baseline removed) |
@@ -92,3 +97,22 @@ python tooling/ratchet/test_ratchet.py          # self-test
 python tooling/ratchet/ratchet.py --list         # current floors
 python tooling/ratchet/ratchet.py mypy --count N  # verdict (exit 1 on drift)
 ```
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — the floor table now says which moment it describes
+
+The four floors were tabulated under a bare "Floor" heading, which reads as the
+current value. Every one of them has since moved — in both directions, which is
+the mechanism working — and the `eslint` row had drifted furthest by an order of
+magnitude. This is the exact failure the register's own rule ("never restate a
+number that lives somewhere else — cite the file, not the value") names, and
+this ADR is where that rule came from.
+
+The values are kept, because *what the ratchet started from* is part of the
+decision and is true forever. Corrected in place: the column is now "Floor as
+first wired", with the date and a pointer to `tooling/ratchet/baselines/` for the
+live numbers.

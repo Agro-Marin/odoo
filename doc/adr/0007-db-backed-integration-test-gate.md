@@ -62,3 +62,23 @@ otherwise yield non-deterministic ordering. Test failures fail the job directly:
 crate, and blocks on any test failure. Reproduce locally with a disposable
 `postgres:18` and the `odoo-bin` invocation in the workflow (note the
 `--db-template=template0` requirement for C collation).
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — the lane has broadened, using the knobs this decision added
+
+The Decision scopes the gate to the `base` suite and says the `INSTALL` /
+`TEST_TAGS` parameters exist so coverage can broaden "once timing is understood".
+It has: `integration_tests.yml` now runs two suites, `base` (less
+`TestReportsRendering` and `TestIrModelFieldsTranslation`) and `test_http`, each
+against **its own database** (`-d ci_smoke`, `-d ci_http`). Separate databases
+are not a detail — the suites interfere, and `odoo/ARCHITECTURE.md` records the
+`res_partner_views.xml` / `test_hard_reset_from_file_still_works` collision that
+proves it.
+
+Recorded rather than corrected in place: the decision text is right about what
+was decided, and the broadening is that decision working as intended, not a
+citation that aged out. `--db-template=template0` is still what both runs pass.

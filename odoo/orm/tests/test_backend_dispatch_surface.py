@@ -1,5 +1,6 @@
 import ast
 import pathlib
+import re
 
 import pytest
 
@@ -11,9 +12,11 @@ _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 #
 # ADR-0011 introduced the persistence-backend port to replace nine inline
 # ``transaction.storage`` sniffs across six CRUD mixins.  Nothing pinned the
-# resulting surface, and it has since grown to fifteen sites across eight files
+# resulting surface, and it has since grown to fifteen sites across nine files
 # -- including four in Layer 1, which ADR-0011 does not mention (it scopes the
-# port to "the model mixins (create/write/read/search/unlink)").
+# port to "the model mixins (create/write/read/search/unlink)").  Do not restate
+# those figures anywhere else: this dict is the count, and
+# test_the_header_count_matches_the_dict re-derives them from it.
 #
 # Each entry records whether the two branches are known to be BEHAVIOURALLY
 # EQUIVALENT.  They are not a formality: where a branch is marked lossy, a
@@ -66,6 +69,14 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
     ),
     ("fields/relational/many2many.py", "read"): "equivalent",
     ("fields/relational/many2many.py", "_apply_relation_delta"): "equivalent",
+    ("fields/textual.py", "_languages_in_sync_with"): (
+        "LOSSY: the SQL branch reads the stored jsonb translations and returns "
+        "every other language whose term is an *echo* of `lang`'s, so a write "
+        "in `lang` propagates to them.  The in-memory branch has no jsonb "
+        "column to compare against and returns {} unconditionally, so on that "
+        "backend no translation ever follows a write.  A DB-free test of "
+        "translation propagation therefore cannot fail for the right reason"
+    ),
 }
 
 LAYER1_PREFIXES = ("fields/",)
@@ -162,6 +173,41 @@ def test_lossy_sites_are_spelled_out():
     for site, note in DISPATCH_SITES.items():
         if note.startswith("LOSSY"):
             assert len(note) > 60, f"{site}: LOSSY note must say what is lost"
+
+
+#: Number words this module's header uses, so the counts can be re-derived.
+_NUMBER_WORDS = {
+    "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+    "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
+    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
+}
+
+
+def test_the_header_count_matches_the_dict():
+    """The header quantifies the surface; re-derive it rather than trust it.
+
+    The header said "fifteen sites across eight files -- including four in
+    Layer 1" while the dict held fourteen across eight with three in Layer 1:
+    the prose was written once and never re-derived, which is the same drift
+    this whole module exists to stop one level down. A count in a comment is a
+    second copy, so it gets an assertion or it goes.
+    """
+    header = pathlib.Path(__file__).read_text(encoding="utf-8").split(
+        "DISPATCH_SITES: dict", 1
+    )[0]
+    stated = re.search(
+        r"grown to (\w+) sites across (\w+) files\s*"
+        r"#\s*-- including (\w+) in Layer 1",
+        header,
+    )
+    assert stated, "the header no longer states the surface size in the pinned shape"
+    sites, files, layer1 = (_NUMBER_WORDS[w] for w in stated.groups())
+
+    assert sites == len(DISPATCH_SITES)
+    assert files == len({site[0] for site in DISPATCH_SITES})
+    assert layer1 == len(
+        [s for s in DISPATCH_SITES if s[0].startswith(LAYER1_PREFIXES)]
+    )
 
 
 if __name__ == "__main__":

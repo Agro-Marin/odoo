@@ -86,9 +86,9 @@ dependency-free** — the contract has no remaining known exceptions.
 
 ## Enforcement
 
-`tooling/architecture/layer_check.py`, contract `libs-is-dependency-free`
-(currently **clean at zero**). The gate is **drift-zero** — no `odoo.*` import
-may be added under `libs/`.
+`tooling/architecture/layer_check.py`, contract `libs-is-dependency-free`. The
+gate is **drift-zero** — no `odoo.*` import may be added under `libs/`. For the
+contract's live status, run the checker — this record does not restate it.
 
 ## Amendments
 
@@ -121,3 +121,10 @@ production consumer is `odoo/orm/models/mixins/traversal.py`. By the hybrid rule
 above — "framework-specific even without an `odoo` import → `odoo/tools/`" — it
 is on the wrong side of the line, and its leading underscore says so. Resolving
 that is a decision, not an amendment, and wants its own record.
+
+### 2026-08-07 — the live contract status is no longer restated here
+
+The Enforcement section said the contract was "currently **clean at zero**". A
+status is a fact about the tree at a moment, and this record is immutable, so
+the sentence could only become false. Corrected in place: it is a citation, not
+the decision.
