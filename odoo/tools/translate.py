@@ -516,15 +516,37 @@ def get_translated_module(
         return path_info[0] if path_info else "base"
 
 
+def _probe(obj: object, name: str) -> object:
+    """Read ``obj.name`` without ever running the object's ``__getattr__``.
+
+    Frames are introspected, not called into: the ``self`` of an arbitrary
+    frame is a stranger, and asking it for an attribute it does not have must
+    stay free of consequences. A type that traps the miss does not merely
+    raise -- ``odoo.tests.Form`` turns the name into a field lookup, and
+    ``ir_qweb``'s lazy value renders its whole template and exhausts the stack.
+
+    ``object.__getattribute__`` is the normal lookup minus that fallback: slots,
+    instance dict and descriptors all still answer, so a real recordset yields
+    its ``env`` and so does a class that happens to define ``__getattr__``
+    beside a genuine one. Only the trap is skipped.
+    """
+    if obj is None:
+        return None
+    try:
+        return object.__getattribute__(obj, name)
+    except AttributeError:
+        return None
+
+
 def _get_cr(frame: object) -> object:
     if "cr" in frame.f_locals:
         return frame.f_locals["cr"]
     if "cursor" in frame.f_locals:
         return frame.f_locals["cursor"]
     if (local_self := frame.f_locals.get("self")) is not None:
-        if (local_env := getattr(local_self, "env", None)) is not None:
-            return local_env.cr
-        if (cr := getattr(local_self, "cr", None)) is not None:
+        if (local_env := _probe(local_self, "env")) is not None:
+            return _probe(local_env, "cr")
+        if (cr := _probe(local_self, "cr")) is not None:
             return cr
     http = getattr(odoo, "http", None)
     if http and (req := http.request) and (env := req.env):
@@ -541,12 +563,26 @@ def _get_uid(frame: object) -> int | None:
         except TypeError, ValueError:
             pass
     if (local_self := frame.f_locals.get("self")) is not None:
-        if hasattr(local_self, "env") and (uid := local_self.env.uid):
-            return uid
+        if (local_env := _probe(local_self, "env")) is not None:
+            if uid := _probe(local_env, "uid"):
+                return uid
     return None
 
 
-def _get_lang(frame: object, default_lang: str = "") -> str:
+_LANG_FRAME_SEARCH_DEPTH = 10
+
+
+def _lang_search_frames(frame: object) -> list[object]:
+    frames = []
+    for _depth in range(_LANG_FRAME_SEARCH_DEPTH):
+        if frame is None:
+            break
+        frames.append(frame)
+        frame = frame.f_back
+    return frames
+
+
+def _get_frame_context_lang(frame: object) -> str:
     if local_context := frame.f_locals.get("context"):
         if lang := local_context.get("lang"):
             return lang
@@ -555,29 +591,54 @@ def _get_lang(frame: object, default_lang: str = "") -> str:
     ):
         if lang := local_context.get("lang"):
             return lang
-    log_level = logging.WARNING
-    local_self = frame.f_locals.get("self")
-    local_env = local_self is not None and getattr(local_self, "env", None)
-    if local_env:
-        if lang := local_env.lang:
-            return lang
-        log_level = logging.DEBUG
-    http = getattr(odoo, "http", None)
-    if http and (req := http.request) and (env := req.env) and (lang := env.lang):
-        return lang
-    cr = _get_cr(frame)
-    uid = _get_uid(frame)
-    if cr and uid:
-        from odoo import api
+    return ""
 
-        env = api.Environment(cr, uid, {})
-        if lang := env["res.users"].context_get().get("lang"):
+
+def _get_lang(frame: object, default_lang: str = "") -> str:
+    """Resolve the language a ``_()`` call should translate into.
+
+    Search the calling frame and then outwards along the stack: a helper that
+    holds no Odoo context of its own -- a ``lambda``, a ``staticmethod``, a
+    method of a plain non-recordset object -- still runs underneath a caller
+    that does, and its strings must translate like any other. The walk is
+    depth-bounded so that a genuinely untranslatable call stays cheap.
+
+    :param frame: frame of the ``_()`` caller, the innermost one searched
+    :param default_lang: language to fall back on instead of reporting failure
+    :return: a language code, or ``""`` when none is reachable
+    :rtype: str
+    """
+    frames = _lang_search_frames(frame)
+    found_env = False
+    for candidate in frames:
+        if lang := _get_frame_context_lang(candidate):
             return lang
+        local_env = _probe(candidate.f_locals.get("self"), "env")
+        if local_env:
+            found_env = True
+            if lang := local_env.lang:
+                return lang
+    http = getattr(odoo, "http", None)
+    if http and (req := http.request) and (env := req.env):
+        found_env = True
+        if lang := env.lang:
+            return lang
+    for candidate in frames:
+        cr = _get_cr(candidate)
+        uid = _get_uid(candidate)
+        if cr and uid:
+            from odoo import api
+
+            found_env = True
+            env = api.Environment(cr, uid, {})
+            if lang := env["res.users"].context_get().get("lang"):
+                return lang
+            break
     if default_lang:
         _logger.debug("no translation language detected, fallback to %s", default_lang)
         return default_lang
     _logger.log(
-        log_level,
+        logging.DEBUG if found_env else logging.WARNING,
         "no translation language detected, skipping translation %s",
         frame,
         stack_info=True,

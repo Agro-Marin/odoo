@@ -270,6 +270,18 @@ This module provides the core of the Odoo Web Client.
                 "include",
                 "web._assets_bootstrap_backend",
             ),
+            # Same slot it holds in `assets_backend`: after Bootstrap, whose
+            # `$color-contrast-light`/`$white`/`$black`/`$min-contrast-ratio`
+            # the schemes are built from. `bs_mixins_overrides.scss` arrives
+            # with `_assets_backend_helpers` above and `html_editor.common.scss`
+            # calls `o-cc-extras(..., o-light-scheme())` at the end of this
+            # bundle, so its functions are invoked here whether or not it is
+            # loaded -- and Sass emits an unknown function as literal CSS text
+            # rather than failing, so leaving it out did not raise "undefined
+            # function": it handed `button-variant()` the unevaluated call and
+            # broke every report with "is not a color". `scheme_rules.scss`
+            # deliberately stays out; its dark half is screen-only.
+            "web/static/src/scss/tokens.scss",
             (
                 "remove",
                 "web/static/src/scss/utilities_custom_backend.scss",

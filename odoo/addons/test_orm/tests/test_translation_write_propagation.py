@@ -124,3 +124,32 @@ class TestTranslationWritePropagation(odoo.tests.TransactionCase):
         record.with_context(lang="en_US").name = "Steel Knife"
 
         self.assertEqual(self.stored(record), {"en_US": "Steel Knife"})
+
+    def test_uninstalled_source_language_is_not_an_echo_anchor(self):
+        """With English uninstalled, ``en_US`` mirrors whichever language was
+        written last, so its term matching another one is manufactured rather
+        than evidence that nobody translated that language away.  Reading it as
+        an echo would destroy the translation it coincides with.
+        """
+        self.env["res.lang"]._activate_lang("es_ES")
+        self.env["res.partner"].with_context(active_test=False).search([]).write(
+            {"lang": "fr_FR"}
+        )
+        self.env.ref("base.lang_en").active = False
+        record = self.Model.create({"name": "Knife"})
+
+        record.with_context(lang="fr_FR").name = "Couteau"
+        record.with_context(lang="es_ES").name = "Cuchillo"
+        self.assertEqual(
+            self.stored(record),
+            {"en_US": "Cuchillo", "es_ES": "Cuchillo", "fr_FR": "Couteau"},
+            "sanity: the es_ES write mirrored itself into the unused source key",
+        )
+
+        record.with_context(lang=None).name = "Sans Langue"
+
+        self.assertEqual(
+            self.stored(record),
+            {"en_US": "Sans Langue", "es_ES": "Cuchillo", "fr_FR": "Couteau"},
+            "the authored Spanish term must survive a write to the source key",
+        )
