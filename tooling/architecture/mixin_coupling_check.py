@@ -53,11 +53,24 @@ recorded history of this decomposition.
 * ``scc_without_base`` — the largest SCC once ``base.py`` is removed. It used to
   be the interesting number: ``base.py`` was the *articulation point* of a
   nine-unit cycle, holding model metadata that every mixin read, and this
-  metric reported the 2 that would remain if that were fixed. It has been:
-  ``base.py`` is now purely the composition root, the metadata lives on
-  ``_metadata`` / ``_properties`` / ``_magic_fields`` leaves, and ``max_scc``
-  and this metric have converged at 2. It is kept as the regression guard for
-  that split — if they diverge again, behaviour has moved back into the root.
+  metric reported the 2 that would remain if that were fixed. That split
+  happened — the metadata lives on ``_metadata`` / ``_properties`` /
+  ``_magic_fields`` leaves — and ``max_scc`` and this metric have converged, at
+  **1**. It is kept as the regression guard for that split: if they diverge
+  again, behaviour has moved back into the root.
+
+  Two claims here had drifted from the graph they describe, in the checker whose
+  job is to stop exactly that. They said the pair had converged at *2* (the
+  value before ``_query.py`` broke ``read`` ⇄ ``search``; see ``BASELINE``'s
+  2026-08b note) and that ``base.py`` was "now purely the composition root",
+  which it is not: measured through this module's own ``build_edges``, it has
+  out-edges to ``create`` (``name_create`` calls ``self.create``), ``_metadata``,
+  ``traversal`` and ``_magic_fields``, and in-edges from ``lifecycle`` and
+  ``unlink``, both reaching it only for the decorator-collected
+  ``_onchange_methods`` / ``_ondelete_methods`` registries. A composition root
+  with an in-degree is a participant. ``scc_without_base`` will stay equal to
+  ``max_scc`` either way; what it cannot yet report is a root that is genuinely
+  isolated.
 
 ``units`` and ``edges`` are **reported but deliberately not ratcheted**. An
 earlier version ratcheted the raw edge count as a god-object guard, and the very

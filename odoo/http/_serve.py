@@ -156,7 +156,7 @@ class _RequestServeMixin(RequestState):
 
                 db_absent = self.db not in list_dbs(force=True)
                 if db_absent:
-                    Registry.delete(self.db)
+                    Registry.forget(self.db)
                     close_db(self.db)
             except Exception:
                 _logger.debug(

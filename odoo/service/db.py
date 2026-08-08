@@ -634,7 +634,7 @@ def _drop_database(db_name: str) -> bool:
 
     if owner_row is None:
         return False
-    odoo.modules.registry.Registry.delete(db_name)
+    odoo.modules.registry.Registry.forget(db_name)
     odoo.db.close_db(db_name)
 
     db = odoo.db.db_connect("postgres")
@@ -1228,7 +1228,7 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
         new_fs, f"Cannot rename database {old_name!r} to {new_name!r}"
     )
 
-    odoo.modules.registry.Registry.delete(old_name)
+    odoo.modules.registry.Registry.forget(old_name)
     odoo.db.close_db(old_name)
 
     db = odoo.db.db_connect("postgres")

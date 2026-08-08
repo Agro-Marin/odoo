@@ -8,7 +8,6 @@ from .float_utils import (
     float_split,
     float_split_str,
     json_float_round,
-    round,
 )
 
 __all__ = [
@@ -22,11 +21,15 @@ __all__ = [
     "float_split_str",
     "json_float_round",
 ]
-"""``round`` is re-exported above but deliberately kept out of ``__all__``.
+"""``round`` is deliberately NOT re-exported here.
 
-It shadows the builtin, so ``from odoo.libs.numbers import *`` must not pull it
-in.  It is exported at all because the area is the public boundary
-(``libs_facade_check``): ``odoo.tools.float_utils`` keeps upstream's
-``float_utils.round`` reachable, and without this line it could only do so by
-reaching past the area into the leaf module, which the gate refuses.
+It shadows the builtin, so it was already kept out of ``__all__``; it was still
+imported into this namespace so that ``odoo.tools.float_utils`` could reach it
+through the area rather than past it into the leaf module, which
+``libs_facade_check`` refuses.  That module was a two-line re-export shim with
+no importer anywhere in ``odoo``, ``enterprise``, ``agromarin`` or
+``design-themes`` -- its only rationale was keeping upstream's
+``float_utils.round`` spelling reachable, and this fork carries no
+backward-compatibility obligation to upstream.  Deleting it removed the sole
+consumer, so the import went with it.  ``float_round`` is the fork's spelling.
 """

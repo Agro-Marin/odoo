@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from odoo.db import BaseCursor
 from odoo.libs.collections import Collector
+from odoo.modules.db import FunctionStatus
 from odoo.tools import OrderedSet
 
 from . import decorators as api
@@ -221,6 +222,12 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         self.degraded_fields: dict = {}
 
         self.has_trigram = False
+
+        # Only read inside check_indexes' trigram branch, which has_trigram
+        # already gates off here -- set anyway so the attribute exists with the
+        # right *type* (FunctionStatus, not bool) rather than only by luck of
+        # never being reached.
+        self.has_unaccent = FunctionStatus.MISSING
 
         self._build(list(model_defs))
 
