@@ -175,8 +175,8 @@ It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
 Two further mechanisms keep the *non-structural* quality signals from
 regressing:
 
-- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns ten tool
-  counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, jsfunclen, jsprivate, jsserviceshape and naming** (floors in
+- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns eleven tool
+  counts into one-way contracts: **mypy, ruff, ruff_docstring, c901, c901_addons, eslint, tsc, jsfunclen, jsprivate, jsserviceshape and naming** (floors in
   `tooling/ratchet/baselines/`). CI fails on any increase, and — in the default
   `exact` mode — on an *un-committed* decrease too, so every cleanup is locked
   in.
@@ -189,7 +189,7 @@ regressing:
   new finding — and it gated nothing before, because `ruff.toml` selected the
   `C90` family while ignoring `C901`, its only rule.
 
-  `c901_addons` is the tenth and the newest. Every floor above it measures
+  `c901_addons` is the tenth. Every floor above it measures
   `odoo/`, the core *package*; none measured `addons/`, where the 615 bundled
   modules and most of the business logic live, so complexity there was
   unbounded. It is a separate floor rather than a widened scope on `c901` for
@@ -197,16 +197,59 @@ regressing:
   different reasons and by different hands, and one bucket would let an addons
   cleanup mask a core regression.
 
+  `ruff_docstring` is the eleventh, split out of `ruff` on 2026-08-08 for the
+  third application of that same argument — and the starkest. The `ruff` floor
+  was 759, of which **758 were D1xx missing-docstring findings**: not debt
+  accrued by accident but the measured consequence of `eff67f80316`, which
+  stripped comments and docstrings from `odoo/` on purpose. An exact-match
+  ratchet over one integer cannot distinguish "someone added a docstring" from
+  "someone introduced a real lint defect", so those 758 units were fungible
+  slack — a commit adding *N* docstrings bought room for *N* unrelated new
+  findings and still totalled 759. The single genuine finding hiding in there
+  (an unused `threading` import in `odoo/service/model.py`) had been invisible
+  for exactly that reason; it is fixed, and **`ruff` now measures
+  `--ignore D` at a hard zero**, so a new lint defect fails CI on its own.
+
+  `ruff_docstring` is also the one floor whose direction is a real question
+  rather than a target. Driving it to zero means re-adding ~758 docstrings to
+  the files a deliberate commit just cleared. If docstring-free core is the
+  intent, the honest change is to ignore `D1` in `ruff.toml` rather than ratchet
+  it; until that is decided the floor pins the number so it cannot drift either
+  way unnoticed.
+
   ```bash
   python tooling/ratchet/test_ratchet.py     # self-test the tool
   python tooling/ratchet/ratchet.py --list    # current floors
   ```
 
 - **DB-backed integration gate** (`.github/workflows/integration_tests.yml`,
-  ADR-0007) — boots PostgreSQL 18 and runs two suites, **each against its own
+  ADR-0007) — boots PostgreSQL 18 and runs three suites, **each against its own
   database**: `base` (less the excluded `TestReportsRendering` and
-  `TestIrModelFieldsTranslation`) and `test_http`. So the decomposed pieces are
-  verified to *behave*, not just to import cleanly.
+  `TestIrModelFieldsTranslation`), `test_http`, and `test_orm`. So the decomposed
+  pieces are verified to *behave*, not just to import cleanly.
+
+  `test_orm` was added on 2026-08-08, the broadening this workflow's own header
+  had asked for since it landed. It was by far the largest thing outside the
+  lane — **1,104 test methods over 26,467 lines**, and the addon written to test
+  the ORM. Most of what it covers no other lane can reach, above all
+  `test_domain_evaluator_parity.py`: the only check that a `Domain` means the
+  same to both of its consumers, `search()` (SQL) and `filtered_domain()` (the
+  in-memory predicate), including a generative suite that builds random domains
+  and asserts the two evaluators agree *or both refuse*. No DB-free tier can see
+  a SQL/predicate divergence.
+
+  Adding it paid for itself on the first run, in the way this section predicts:
+  `TestBackendDifferential.test_divergence_ilike_unaccent` asserted PostgreSQL's
+  `ilike` folds `Café` onto `cafe` without checking that the `unaccent`
+  extension is installed. Every developer database inherits it from
+  `db_template`; CI's `template0` does not. The one environment that would fail
+  it was the one that never ran it. It now skips on
+  `registry.has_unaccent`, matching `base`'s existing idiom.
+
+  What remains outside the lane is still most of the bundled test surface —
+  `test_read_group` (9,203 lines, the only coverage of the five `read_group/`
+  units) and `test_access_rights` (record rules and ACLs) are the next two worth
+  taking, in that order.
 
 ### The limits of "enforced"
 

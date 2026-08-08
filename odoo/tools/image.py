@@ -60,7 +60,7 @@ class ImageProcess(_ImageProcessBase):
 
 
 def image_process(
-    source: bytes | None,
+    source: bytes | bool | None,
     size: tuple[int, int] = (0, 0),
     verify_resolution: bool = False,
     quality: int = 0,
@@ -68,41 +68,30 @@ def image_process(
     crop: str | None = None,
     colorize: bool | tuple[int, int, int] = False,
     output_format: str = "",
-    padding: bool | tuple[int, int, int, int] = False,
-) -> bytes | None:
-    if not source or (
-        (not size or (not size[0] and not size[1]))
-        and not verify_resolution
-        and not quality
-        and not crop
-        and not colorize
-        and not output_format
-        and not padding
-    ):
-        return source
-
-    image = ImageProcess(source, verify_resolution)
-    if size:
-        if crop:
-            center_x = 0.5
-            center_y = 0.5
-            if crop == "top":
-                center_y = 0
-            elif crop == "bottom":
-                center_y = 1
-            image.crop_resize(
-                max_width=size[0],
-                max_height=size[1],
-                center_x=center_x,
-                center_y=center_y,
-            )
-        else:
-            image.resize(max_width=size[0], max_height=size[1], expand=expand)
-    if padding:
-        image.add_padding(padding)
-    if colorize:
-        image.colorize(colorize if isinstance(colorize, tuple) else None)
-    return image.image_quality(quality=quality, output_format=output_format)
+    padding: int | bool = False,
+) -> bytes | bool | None:
+    # Delegates, passing this module's UserError-raising ImageProcess subclass.
+    # It used to be a byte-identical COPY of the libs body, because the shared
+    # body binds `ImageProcess` at its definition site and the Odoo-coupled layer
+    # needs its own. The copy then drifted, in both directions that mattered:
+    # `padding` was declared `bool | tuple[int, int, int, int]` (add_padding does
+    # `2 * padding` and compares it to the image size, so a tuple raises
+    # TypeError) and `source` was declared `bytes | None` while
+    # addons/base/tests/test_image.py:115 asserts image_process(False) is False.
+    # `processor=` is the seam that removes the copy; the other members of this
+    # module (binary_to_image, base64_to_image) already delegated this way.
+    return _image_process_base(
+        source,
+        size=size,
+        verify_resolution=verify_resolution,
+        quality=quality,
+        expand=expand,
+        crop=crop,
+        colorize=colorize,
+        output_format=output_format,
+        padding=padding,
+        processor=ImageProcess,
+    )
 
 
 def binary_to_image(source: bytes) -> Image.Image:

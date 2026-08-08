@@ -180,8 +180,14 @@ class Field[T](
     inherited_field: Field | None = None
 
     comodel_name: str | None = None
-    context: ContextType = {}
+    context: ContextType = ReadonlyDict({})
     """Extra context a relational field applies to its comodel.
+
+    ``ReadonlyDict`` rather than ``{}``: this default is shared by every ``Field``
+    instance in the process, so one in-place mutation would rewrite the context
+    of every field at once. ``ContextType`` is a ``Mapping``, which promises
+    exactly that and cannot enforce it; the same file already wraps ``_args__``
+    for this reason.
 
     Declared on the base class, with an inert default, for the same reason as
     ``comodel_name``: consumers key on it without first proving the field is

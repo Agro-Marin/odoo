@@ -29,7 +29,19 @@ from .ir_model_common import (
 
 _logger = logging.getLogger(__name__)
 
-FIELD_TYPES = [(key, key) for key in sorted(fields.Field._by_type__)]
+
+def _field_types(_model) -> list[tuple[str, str]]:
+    """Resolve the field-type vocabulary at call time, not at import time.
+
+    ``Field._by_type__`` is populated by ``Field.__init_subclass__`` as field
+    classes are imported, so a module-level snapshot captures only whatever had
+    been imported when *this* module was. Every addon-defined field type is
+    registered later than that -- ``base_sparse_field``'s ``serialized`` and
+    ``ai``'s ``vector`` both load after ``base`` -- so a snapshot silently
+    omitted them while ``registration.py`` resolved the same registry live.
+    One registry with a live reader and a frozen reader is a bug generator.
+    """
+    return [(key, key) for key in sorted(fields.Field._by_type__)]
 
 
 def _check_translate_value(vals: dict[str, Any]) -> None:
@@ -81,7 +93,7 @@ class IrModelFields(models.Model):
         string="Field Label", default="", required=True, translate=True
     )
     help = fields.Text(string="Field Help", translate=True)
-    ttype = fields.Selection(selection=FIELD_TYPES, string="Field Type", required=True)
+    ttype = fields.Selection(selection=_field_types, string="Field Type", required=True)
     selection = fields.Char(
         string="Selection Options (Deprecated)",
         compute="_compute_selection",

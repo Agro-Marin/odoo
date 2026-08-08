@@ -1,0 +1,4 @@
+{
+  "count": 757,
+  "note": "758 -> 757. One docstring added, in odoo/libs/image/utils.py::image_process, while de-duplicating it against odoo/tools/image.py (the tools copy was byte-identical and its annotations had drifted to describe a call that raises TypeError). D and ANN are enforced in odoo/libs/, so documenting the new 'processor' seam parameter retires one D103. Command: ruff check odoo/ --no-cache --select D --statistics | awk '{s+=$1} END {print s+0}'"
+}

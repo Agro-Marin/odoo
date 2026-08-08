@@ -36,14 +36,22 @@ class AccessDenied(UserError):
 
     def __init__(self, message: str = "Access Denied") -> None:
         super().__init__(message)
-        self.suppress_traceback()
 
     def suppress_traceback(self) -> None:
+        """Drop the traceback and exception chain before the error is served.
+
+        Called by the HTTP layer (``http/application.py``, ``http/_serve.py``)
+        *after* the raise, which is the only time it can do anything: at
+        ``__init__`` the interpreter has not yet set ``__traceback__``,
+        ``__context__`` or ``__cause__``, so calling it there — as this class did
+        until 2026-08-08 — cleared three attributes that were already ``None``.
+
+        Do not "simplify" the two HTTP call sites away on the assumption that the
+        constructor handles it. It does not, and the result would be a full
+        traceback and chained cause serialised into an authentication failure.
+        """
         self.with_traceback(None)
-        self.traceback = ("", "", "")
-
         self.__context__ = None
-
         self.__cause__ = None
 
 

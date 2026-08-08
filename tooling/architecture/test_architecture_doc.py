@@ -986,8 +986,8 @@ class TestReferencedArtifacts(unittest.TestCase):
     def test_ratchet_baselines_match_documented_gates(self) -> None:
         match = re.search(
             r"turns (\w+) tool\s+counts into one-way contracts: "
-            r"\*\*mypy, ruff, c901, c901_addons, eslint, tsc, jsfunclen, "
-            r"jsprivate, jsserviceshape and naming\*\*",
+            r"\*\*mypy, ruff, ruff_docstring, c901, c901_addons, eslint, tsc, "
+            r"jsfunclen, jsprivate, jsserviceshape and naming\*\*",
             DOC,
         )
         self.assertIsNotNone(match, "the ratchet gate list is no longer stated")
@@ -995,8 +995,8 @@ class TestReferencedArtifacts(unittest.TestCase):
             p.stem for p in (ROOT / "tooling" / "ratchet" / "baselines").glob("*.json")
         }
         self.assertEqual(
-            {"mypy", "ruff", "c901", "c901_addons", "eslint", "tsc",
-             "jsfunclen", "jsprivate", "jsserviceshape", "naming"},
+            {"mypy", "ruff", "ruff_docstring", "c901", "c901_addons", "eslint",
+             "tsc", "jsfunclen", "jsprivate", "jsserviceshape", "naming"},
             on_disk,
         )
         # The prose count is now captured too. It read "four" against a list of

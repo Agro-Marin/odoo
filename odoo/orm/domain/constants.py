@@ -55,7 +55,29 @@ STANDARD_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
     the rewritten form
 """
 
-CONDITION_OPERATORS: set[str] = set(STANDARD_CONDITION_OPERATORS)
+EXTENDED_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
+    ("=?", "<>", "==", "=", "!=", "parent_of", "child_of")
+)
+"""Operators accepted on input and reduced to standard ones by the optimizer.
+
+Declared here rather than accumulated by ``@operator_optimization``'s side
+effect. Until 2026-08-08 :data:`CONDITION_OPERATORS` was a **mutable set** that
+each decorator ``update()``d at import time, and ``DomainCondition.checked()``
+used it as the validation oracle -- so the set of operators the framework
+accepted was whatever had been imported, and a typo in a decorator argument
+silently widened the domain language instead of failing.
+
+That had already caused one bug, recorded on
+:data:`LIKE_CONDITION_OPERATORS` below: a comprehension over the mutable set,
+evaluated at import time, whose result depended on how many decorators had run
+above it. The fix then was to derive that one name from the frozen standard set;
+this is the same fix applied to the cause. ``operator_optimization`` now asserts
+membership instead of mutating.
+"""
+
+CONDITION_OPERATORS: Final[frozenset[str]] = (
+    STANDARD_CONDITION_OPERATORS | EXTENDED_CONDITION_OPERATORS
+)
 """All available condition operators.
 
 Non-standard operators are reduced to standard ones by the optimization
@@ -84,6 +106,17 @@ SUBDOMAIN_OPERATORS: Final[frozenset[str]] = frozenset(
 """Operators whose value must be parsed as a Domain when ``internal=True``.
 
 Named so ``Domain.__new__``'s fast path and stack parser cannot diverge.
+"""
+
+SUBDOMAIN_OR_IN_OPERATORS: Final[frozenset[str]] = SUBDOMAIN_OPERATORS | frozenset(
+    ("in", "not in")
+)
+"""Operators whose value may legitimately be a ``Domain``, ``Query`` or ``SQL``.
+
+Named for the same reason as :data:`SUBDOMAIN_OPERATORS` -- so the set has one
+spelling. ``DomainCondition.checked()`` wrote this union out as an inline tuple
+literal thirty lines below a correct use of ``SUBDOMAIN_OPERATORS``, which is a
+third copy of the set the constant exists to keep single.
 """
 
 NEGATIVE_CONDITION_OPERATORS: Final[dict[str, str]] = {
@@ -121,6 +154,7 @@ FALSE_LEAF: Final[tuple[int, str, int]] = (0, "=", 1)
 
 __all__ = [
     "CONDITION_OPERATORS",
+    "EXTENDED_CONDITION_OPERATORS",
     "FALSE_LEAF",
     "INTERNAL_CONDITION_OPERATORS",
     "INVERSE_INEQUALITY",
@@ -129,5 +163,6 @@ __all__ = [
     "NEGATIVE_CONDITION_OPERATORS",
     "STANDARD_CONDITION_OPERATORS",
     "SUBDOMAIN_OPERATORS",
+    "SUBDOMAIN_OR_IN_OPERATORS",
     "TRUE_LEAF",
 ]

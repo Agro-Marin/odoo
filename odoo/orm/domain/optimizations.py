@@ -47,7 +47,14 @@ def operator_optimization(
     level: OptimizationLevel = OptimizationLevel.BASIC,
 ) -> typing.Callable[[typing.Any], typing.Any]:
     assert operators, "Missing operator to register"
-    CONDITION_OPERATORS.update(operators)
+    if unknown := set(operators) - CONDITION_OPERATORS:
+        raise ValueError(
+            f"unknown domain operator(s) {sorted(unknown)!r}. Operators are "
+            f"declared in domain/constants.py (STANDARD_CONDITION_OPERATORS or "
+            f"EXTENDED_CONDITION_OPERATORS); registering an optimization no "
+            f"longer creates one, so this is either a typo or a missing "
+            f"declaration."
+        )
 
     def register(optimization: typing.Any) -> typing.Any:
         mapping = _OPTIMIZATIONS_FOR[level]

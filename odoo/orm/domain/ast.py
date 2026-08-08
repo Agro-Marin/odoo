@@ -26,6 +26,7 @@ from .constants import (
     NEGATIVE_CONDITION_OPERATORS,
     STANDARD_CONDITION_OPERATORS,
     SUBDOMAIN_OPERATORS,
+    SUBDOMAIN_OR_IN_OPERATORS,
     TRUE_LEAF,
 )
 
@@ -54,6 +55,16 @@ class OptimizationLevel(enum.IntEnum):
 
 
 MAX_OPTIMIZE_ITERATIONS = 1000
+"""Fixpoint-loop budget before :class:`DomainOptimizationError` is raised.
+
+Each iteration raises the optimization level or leaves the domain unchanged, so a
+well-formed optimizer converges in as many steps as there are levels — single
+digits. The budget is this far above that because the loop also re-runs when an
+optimization rewrites a domain into an equal-but-not-identical form, which is
+legitimate and can repeat a few times per level. Anything approaching 1000 is two
+optimizations undoing each other, which is why exceeding it is an error rather
+than a stop.
+"""
 
 MAX_DOMAIN_NESTING = 100
 """Maximum AST operator-nesting depth accepted when parsing a domain list.
@@ -82,6 +93,23 @@ def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
         yield from node.children
     elif isinstance(node, DomainNot):
         yield node.child
+
+
+class DomainOptimizationError(ValueError):
+    """The optimizer did not reach a fixpoint within ``MAX_OPTIMIZE_ITERATIONS``.
+
+    Distinct from the stack-exhaustion path below because the two have opposite
+    remedies: exhausting the stack means "this domain is too deeply nested",
+    while failing to converge means "two registered optimizations are rewriting
+    each other in a loop" — a defect in the optimizer, not in the caller's
+    domain.
+
+    Until 2026-08-08 non-convergence raised ``RecursionError``, which
+    :func:`_recursion_error_as_value_error` then caught and reported as nesting
+    depth, discarding the real message via ``from None``.  A developer hitting
+    the optimizer bug was told to simplify their domain.  A ``ValueError``
+    subclass so existing ``except ValueError`` callers are unaffected.
+    """
 
 
 @contextlib.contextmanager
@@ -429,8 +457,13 @@ class Domain:
         count = 0
         while domain._opt[0] < level:
             if (count := count + 1) > MAX_OPTIMIZE_ITERATIONS:
-                msg = "Domain.optimize: too many loops"
-                raise RecursionError(msg)
+                raise DomainOptimizationError(
+                    f"Domain.optimize did not converge for model "
+                    f"{model_name!r} after {MAX_OPTIMIZE_ITERATIONS} iterations. "
+                    f"This is an optimizer defect, not a malformed domain: two "
+                    f"registered optimizations are most likely rewriting each "
+                    f"other. Domain: {self!r}"
+                )
             next_level = domain._opt[0].next_level
             previous, domain = domain, domain._optimize_step(model, next_level)
             if domain == previous and domain._opt[0] < next_level:
@@ -805,12 +838,7 @@ class DomainCondition(Domain):
             )
             value = value.ids
         elif isinstance(value, (Domain, Query, SQL)) and op not in (
-            "any",
-            "not any",
-            "any!",
-            "not any!",
-            "in",
-            "not in",
+            SUBDOMAIN_OR_IN_OPERATORS
         ):
             _logger.warning(
                 "The domain condition %r should use the 'any' or 'not any' operator.",
@@ -1135,6 +1163,7 @@ __all__ = [
     "DomainCustom",
     "DomainNary",
     "DomainNot",
+    "DomainOptimizationError",
     "DomainOr",
     "OptimizationLevel",
 ]

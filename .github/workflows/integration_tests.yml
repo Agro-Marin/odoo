@@ -35,7 +35,14 @@ on:
       - 'odoo/fields/**'
       - 'odoo/models/**'
       - 'odoo/api/**'
+      # tools/ (18k lines) and libs/ (14k) were omitted until 2026-08-08, so a
+      # third of the core could change without any DB-backed test running. The
+      # duplicated `image_process` whose annotations had silently drifted to
+      # describe a call that raises TypeError lived in exactly that blind spot.
+      - 'odoo/tools/**'
+      - 'odoo/libs/**'
       - 'odoo/addons/base/**'
+      - 'odoo/addons/test_orm/**'
       - 'crates/odoo_rust/**'
       - 'requirements*.txt'
       - '.github/workflows/integration_tests.yml'
@@ -87,6 +94,25 @@ env:
   # a suite nothing ran. When you add a test addon, give it a lane here.
   HTTP_INSTALL: test_http
   HTTP_TEST_TAGS: /test_http
+
+  # test_orm, added 2026-08-08 — the broadening this workflow's header has asked
+  # for since it landed ("Broaden via the TEST_TAGS / INSTALL env below (e.g. add
+  # test_orm, test_http) once this is stable and timing is known").
+  #
+  # It is the largest thing that was dark: 1,104 test methods over 26,467 lines,
+  # and it is the addon written to test the ORM. Most of what it covers is
+  # reachable by no other lane -- above all
+  # test_domain_evaluator_parity.py, the ONLY check that a Domain means the same
+  # to both of its consumers, `search()` (SQL) and `filtered_domain()` (the
+  # in-memory predicate). That file carries a generative suite which builds
+  # random domains and asserts the two evaluators agree or both refuse, plus a
+  # partition check on D vs ~D. No DB-free tier can see a SQL/predicate
+  # divergence; only this can, and until now nothing ran it.
+  #
+  # Its own database and its own suite, for the reason spelled out above for
+  # test_http: these suites interfere when installed together.
+  ORM_INSTALL: test_orm
+  ORM_TEST_TAGS: /test_orm
 
 jobs:
   base-smoke:
@@ -200,3 +226,40 @@ jobs:
             --stop-after-init \
             --max-cron-threads=0 --no-http \
             --log-level=test --logfile=/dev/stdout
+
+      - name: Run test_orm suite
+        # Its own database (ci_orm), same reasoning as test_http above.
+        # Tee'd to a log because the count assertion below needs it: `set -o
+        # pipefail` so a suite failure is not swallowed by the pipe.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_orm \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${ORM_INSTALL}" \
+            --test-enable --test-tags "${ORM_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/orm-suite.log
+
+      - name: Assert the test_orm suite actually ran
+        # Same guard as the base suite: an exit code alone cannot distinguish a
+        # clean run from one that executed nothing, and this suite exists
+        # precisely because "a suite nothing ran" has cost this fork before.
+        # Floor deliberately well under the 1,104 methods collected, since a
+        # tag/collection change should fail loudly rather than by one test.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/orm-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — test_orm did not report a count"
+            exit 1
+          fi
+          echo "test_orm tests run: $RAN (floor: 900)"
+          if [ "$RAN" -lt 900 ]; then
+            echo "::error::only $RAN test_orm tests ran, below the floor of 900 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi

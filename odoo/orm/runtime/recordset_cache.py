@@ -22,33 +22,30 @@ class CacheInvalidError(AssertionError):
 
 
 class Cache:
-    """``env.cache`` — the **recordset-level** cache API, and a supported one.
+    """``env.cache`` — the **recordset-level** cache API.
 
-    Not a legacy wrapper over ``env._core``, and not deprecated. ADR-0010 set
-    out to retire it (step 4) and **dropped that step on reassessment**: the two
-    are different abstraction levels, and the migration target was wrong.
+    The ORM has two cache surfaces at different levels, and both are supported:
 
-    ``OrmCore.get_value(field, record_id)`` is *id*-level and takes a raw id.
-    Everything here takes a **recordset** and resolves the field cache through
-    its ``env`` (``field._get_cache(model.env)``), so a caller never has to know
-    that a context-dependent field is stored ``{cache_key: {id: value}}`` rather
-    than ``{id: value}``, or that a term-translated one is reached through a
-    ``LangProxyDict``. A mechanical rewrite of the call sites onto ``_core``
-    would have got both layouts wrong and coupled addon code to private field
-    helpers -- and some of those call sites live in ``enterprise`` /
-    ``agromarin``, outside this repo.
+    * ``env._core`` (``OrmCore``) is **id-level**: ``get_value(field, record_id)``
+      takes a raw id and the caller must know the storage layout.
+    * ``env.cache`` — this class — is **recordset-level**: every method takes a
+      recordset and resolves the field cache through its ``env``
+      (``field._get_cache(model.env)``), so a caller never has to know that a
+      context-dependent field is stored ``{cache_key: {id: value}}`` rather than
+      ``{id: value}``, or that a term-translated one is reached through a
+      ``LangProxyDict``.
 
-    Shrinking it is a business-logic effort (eliminating addon cache-poking as
-    an anti-pattern), not a handle swap. Until that happens this is the API
-    addons are meant to use.
+    That difference is why ADR-0010 dropped its own step 4 (retire this class) on
+    reassessment: a mechanical rewrite of the call sites onto ``_core`` would
+    have got both layouts wrong. Shrinking this surface is a business-logic
+    effort — eliminating addon cache-poking as an anti-pattern — not a handle
+    swap.
 
-    This class carried that statement in a docstring already: ADR-0010's
-    reassessment records correcting it "to stop pointing callers at
-    ``env._core``". The correction was deleted by ``eff67f80316``, the
-    comment/docstring strip of ``odoo/`` -- the same commit that took step 1's
-    deliverable off ``components/core.py``, and for the same reason: nothing
-    read either one. ``orm/tests/test_cache_compat_is_not_legacy.py`` now does,
-    so the third copy of this cannot quietly become the second.
+    Until 2026-08-08 this module was named ``cache_compat.py``, and that name
+    cost three separate corrections: this docstring, a dedicated test asserting
+    the class "is not legacy", and a paragraph in ``doc/architecture/module.md``
+    — each written because a reader had taken "compat" at face value. The name
+    is now what the class is, so none of them has to say what it is not.
     """
 
     __slots__ = ("transaction",)
@@ -133,6 +130,33 @@ class Cache:
         values: Iterable,
         dirty: bool = False,
     ) -> None:
+        """Write values straight into the field cache.
+
+        ``remove()`` and ``invalidate()`` below *raise* when the target holds a
+        pending write, on the grounds that dropping it loses data silently. This
+        method did neither until 2026-08-08 — it is the mutator addons actually
+        call, so the class enforced its invariant on the two paths addons rarely
+        take and skipped the one they do.
+
+        It **warns** rather than raising because the promotion needs evidence
+        this repository cannot currently produce: of the three addon call sites,
+        two pass ``dirty=True`` (and are unaffected), but
+        ``hr.employee._copy_cache_from`` does not, and no DB-backed suite that
+        would exercise it runs in CI. Promote to ``ValueError`` once the
+        integration lane covers those addons.
+        """
+        if not dirty and (
+            found := self.transaction.core.find_pending_write((field,), records._ids)
+        ):
+            _field, overlap = found
+            _logger.warning(
+                "Cache.update_raw overwrote %s on records %s, which held a "
+                "pending write that is now lost. Flush those records first, or "
+                "pass dirty=True to declare that this value supersedes the "
+                "pending one.",
+                field,
+                overlap[:10],
+            )
         field_cache = self._set_field_cache(records, field)
         field_cache.update(zip(records._ids, values, strict=False))
         if field.is_column and dirty:

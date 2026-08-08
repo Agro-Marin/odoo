@@ -1,72 +1,56 @@
-"""``env.cache`` is the recordset-level cache API, and nothing may call it legacy.
+"""The ORM's two cache surfaces sit at different abstraction levels.
 
-ADR-0010 proposed retiring ``cache_compat.Cache`` (step 4) and **dropped that
-step on reassessment**: it is not redundant with the id-level ``env._core`` but
-a different abstraction level, and the proposed migration would have mishandled
-context-dependent and term-translated cache layouts.
+``env._core`` (``OrmCore``) is id-level; ``env.cache`` (``Cache``) is
+recordset-level and resolves the storage layout — context-dependent buckets,
+term-translated ``LangProxyDict`` — on the caller's behalf. ADR-0010 proposed
+retiring the second (step 4) and **dropped that step on reassessment**, because
+a mechanical rewrite onto ``_core`` would have mishandled both layouts.
 
-That conclusion has been lost twice already. The ADR's own *Context* and
-*Consequences* sections still call ``env.cache`` legacy, because they were
-written before the reassessment and an ADR is append-only;
-``doc/architecture/module.md`` inherited the word from them and repeated it
-until 2026-08-08; and the class docstring the ADR credits for the correction was
-deleted by ``eff67f80316``'s docstring strip, so the code said nothing either
-way. Three statements, and the only surviving correct one was buried in an
-Implementation-status paragraph.
+That conclusion was lost twice, and this file used to exist to re-assert it: the
+module was named ``cache_compat.py``, so every reader who met the name concluded
+"compatibility shim" and had to be corrected — in the class docstring, in
+``doc/architecture/module.md``, and here. On 2026-08-08 the module was renamed to
+``recordset_cache.py``, which is what it is, and the apologetics went with it.
 
-So this pins the conclusion where a reader will meet it, and pins the property
-the conclusion rests on: the two surfaces really do sit at different levels.
+What remains is the part that was always worth checking: not the *conclusion*,
+but the **property the conclusion rests on** — that the two surfaces really do
+take arguments at different levels. If they ever converge, the retire-vs-keep
+question genuinely reopens and this test should be the thing that says so.
 """
 
 import ast
 import inspect
 import pathlib
-import re
 
 import pytest
 
 from odoo.orm.components.core import OrmCore
-from odoo.orm.runtime.cache_compat import Cache
-
-#: Counted parents rather than found by the ``odoo-bin`` marker, unlike
-#: ``test_registry_cache_buckets``: a wrong path here makes ``read_text`` raise
-#: FileNotFoundError, which is a loud failure. There, a wrong root silently
-#: widened a scan and the test still passed, which is the case that needs the
-#: marker.
-_MODULE_VIEW = (
-    pathlib.Path(__file__).resolve().parents[3] / "doc" / "architecture" / "module.md"
-)
+from odoo.orm.runtime.recordset_cache import Cache
 
 
-def test_the_class_states_what_it_is():
+def test_the_class_states_which_level_it_is():
     doc = inspect.getdoc(Cache)
     assert doc, (
-        "cache_compat.Cache lost its docstring again. It is the third copy of "
-        "ADR-0010's reassessment and the only one in the code; without it the "
-        "class reads as an unexplained wrapper over env._core."
+        "Cache lost its docstring. Without it the class reads as an unexplained "
+        "second cache surface beside env._core."
     )
     assert "recordset" in doc.lower(), "the docstring must say which level it is"
-    assert re.search(r"not\b.{0,40}\blegacy|dropped that step", doc, re.IGNORECASE), (
-        "the docstring must say it is NOT legacy -- that is the whole point"
-    )
 
 
-def test_the_module_view_does_not_call_it_legacy():
-    text = _MODULE_VIEW.read_text(encoding="utf-8")
-    flat = " ".join(text.split())
-    assert "env.cache" in flat, "module.md no longer mentions env.cache"
-    # The page may (and does) explain that it *used* to carry the label.
-    assert "is the legacy recordset-level wrapper" not in flat, (
-        "doc/architecture/module.md calls env.cache legacy again. ADR-0010's "
-        "Implementation status dropped step 4 on reassessment; the word came "
-        "from its pre-reassessment Context section."
+def test_the_module_is_not_named_for_what_it_is_not():
+    """The rename is the fix; a revert would bring the three corrections back."""
+    path = pathlib.Path(inspect.getfile(Cache))
+    assert path.name == "recordset_cache.py", (
+        f"the module is named {path.name!r}. A name describing what the class is "
+        f"NOT (compat / legacy / shim) is what made three separate documents "
+        f"restate the same correction, twice each."
     )
 
 
 def test_nothing_marks_it_deprecated():
     source = pathlib.Path(inspect.getfile(Cache)).read_text(encoding="utf-8")
     assert "@api.deprecated" not in source and "DeprecationWarning" not in source, (
-        "cache_compat is marked deprecated. If that is now the intent it needs "
+        "env.cache is marked deprecated. If that is now the intent it needs "
         "a superseding ADR and a migration for the addon call sites, not a "
         "decorator -- ADR-0010 costed that migration and dropped it."
     )

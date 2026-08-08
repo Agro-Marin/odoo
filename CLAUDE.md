@@ -185,7 +185,7 @@ Related:
   every suppression. Note `ruff check` is **not** expected to be clean: CI runs it
   as a ratchet against a committed floor (`tooling/ratchet/baselines/`), and **a
   ratchet fails in both directions** — lowering a count without committing the new
-  floor fails the build too. Ruff is one of nine ratcheted gates; the baselines
+  floor fails the build too. Ruff is one of eleven ratcheted gates; the baselines
   directory is the list. Per-gate scope, commands and the `--update` recipe are
   *The ratchets* in the guide, the canonical account; it also covers the trap that
   the ruff floor measures `odoo/` and not `addons/`. Two things the guide does not:

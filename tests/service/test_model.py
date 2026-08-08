@@ -30,6 +30,7 @@ import psycopg.errors
 import pytest
 
 import odoo.http  # noqa: F401 - see below; imported for its side effect
+from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_RETRY_SQLSTATES
 from odoo.service.model import Params
 
 # ``odoo.http`` is imported for a SIDE EFFECT, not for use: several tests below
@@ -558,10 +559,10 @@ class TestRetrying:
         with (
             patch("odoo.http") as mock_http,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             result = mod.retrying(func, mock_env)
 
         assert result == "ok"
@@ -583,10 +584,10 @@ class TestRetrying:
         with (
             patch("odoo.http") as mock_http,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             result = mod.retrying(func, mock_env)
 
         assert result == "ok"
@@ -608,10 +609,10 @@ class TestRetrying:
         with (
             patch("odoo.http") as mock_http,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             result = mod.retrying(func, mock_env)
 
         assert result == "ok"
@@ -628,10 +629,10 @@ class TestRetrying:
         with (
             patch("odoo.http") as mock_http,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             with pytest.raises(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env)
 
@@ -647,10 +648,10 @@ class TestRetrying:
         with (
             patch("odoo.http") as mock_http,
             patch("odoo.service.transaction.time") as mock_time,
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             with suppress(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env)
 
@@ -754,10 +755,10 @@ class TestRetrying:
         with (
             patch("odoo.http") as mock_http,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             result = mod.retrying(func, mock_env)
 
         assert result == "ok"
@@ -820,10 +821,10 @@ class TestRetrying:
         with (
             patch("odoo.http") as mock_http,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = mock_request
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             result = mod.retrying(func, mock_env)
 
         assert result == "ok"
@@ -850,10 +851,10 @@ class TestRetrying:
         with (
             patch("odoo.http") as mock_http,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = mock_request
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             with pytest.raises(
                 RuntimeError, match="Cannot retry request on input file 'upload'"
             ):
@@ -963,10 +964,10 @@ class TestRequestIsResetForReplay:
             patch("odoo.http") as mock_http,
             patch("odoo.http.helpers.rewind_uploaded_files"),
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = request
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             assert mod.retrying(func, mock_env) == "ok"
 
     def test_the_replay_hook_is_invoked_on_retry(self, mod, mock_env):
@@ -1044,22 +1045,25 @@ class TestIntegrityErrorPicksTheRightModel:
 
 
 class TestConcurrencyBackoffSchedule:
-    """The retry wait is ``uniform(0, min(2**tryno, MAX_CONCURRENCY_BACKOFF_SECONDS))``.
+    """The retry wait is ``backoff.delay(tryno, base=BASE, cap=MAX)``.
 
     The cron worker's equivalent schedule IS pinned exactly
-    (``[2, 4, 8, 16, 32, 60, 60]`` in ``test_server``), but this one was not:
-    every other test here stubs ``random.uniform`` and asserts only its CALL
-    COUNT, so the bound it is handed was never looked at.
+    (``[2, 4, 8, 16, 32, 60, 60]`` in ``test_server``), and until 2026-08-08 this
+    one deliberately was not.  The previous revision of this class computed its
+    own expectation with the same expression the code used
+    (``min(2**n, cap)``), which is tautological, and its docstring recorded WHY:
+    at ``cap = 2.0`` the growth term is inert, because ``2**tryno`` is already 2
+    on the first retry, so every attempt clamped to the cap and the schedule was
+    flat-with-jitter.  It concluded that there was "nothing here to catch" and
+    pinned the flat behaviour, deferring a real curve to "if the cap is ever
+    raised".
 
-    Worth stating plainly, because it is not what the expression looks like:
-    at the shipped cap of 2.0 s the exponential is INERT.  ``2**tryno`` is 2 on
-    the very first retry, so ``min(...)`` clamps every attempt to 2.0 and the
-    schedule is flat-with-jitter, not exponential-with-ceiling.  That also makes
-    ``2**tryno`` -> ``3**tryno`` an equivalent mutation — it survives a mutation
-    sweep, and correctly so; there is nothing here to catch.  These tests
-    therefore pin the behaviour that EXISTS (a bounded, jittered wait) rather
-    than a growth curve the cap forbids.  If the cap is ever raised, the first
-    test starts asserting a real curve without being touched.
+    That took the cap as given and the curve as negotiable.  It was the wrong way
+    round: what was missing is a *base*, so that the cap binds late instead of
+    from attempt 1.  ``BASE_CONCURRENCY_BACKOFF_SECONDS`` supplies it and
+    :mod:`odoo.libs.backoff` owns the schedule, so these tests now assert the
+    growth curve itself — independently derived, not recomputed from the
+    implementation's own expression.
     """
 
     def _bounds(self, mod, tx, mock_env):
@@ -1073,11 +1077,11 @@ class TestConcurrencyBackoffSchedule:
         with (
             patch("odoo.http") as mock_http,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_random.uniform.side_effect = lambda lo, hi: (
-                bounds.append((lo, hi)) or 0.0
+            mock_backoff.delay.side_effect = lambda attempt, *, base, cap: (
+                bounds.append((0.0, min(base * 2.0 ** (attempt - 1), cap))) or 0.0
             )
             with suppress(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env)
@@ -1086,11 +1090,20 @@ class TestConcurrencyBackoffSchedule:
     def test_the_bound_doubles_each_attempt_up_to_the_cap(self, mod, tx, mock_env):
         bounds = self._bounds(mod, tx, mock_env)
         assert bounds, "no backoff was computed at all"
-        cap = tx.MAX_CONCURRENCY_BACKOFF_SECONDS
-        expected = [
-            (0.0, min(2**n, cap)) for n in range(1, tx.MAX_TRIES_ON_CONCURRENCY_FAILURE)
-        ]
-        assert bounds == expected
+        # Written out rather than derived, so a change to the constants has to be
+        # acknowledged here.  This is the assertion the old tautological form
+        # could not make.
+        assert bounds == [(0.0, 0.2), (0.0, 0.4), (0.0, 0.8), (0.0, 1.6)]
+
+    def test_the_schedule_is_not_flat(self, mod, tx, mock_env):
+        """The regression this class exists for.
+
+        A cap at or below the first bound collapses the curve to a constant, and
+        every previous test here would still pass.
+        """
+        highs = [hi for _lo, hi in self._bounds(mod, tx, mock_env)]
+        assert len(set(highs)) > 1, f"backoff is flat: every retry bounded by {highs}"
+        assert highs == sorted(highs) and highs[0] < highs[-1]
 
     def test_the_backoff_is_jittered_from_zero(self, mod, tx, mock_env):
         """``uniform(0, bound)`` rather than ``sleep(bound)``: without the
@@ -1120,25 +1133,30 @@ class TestRetryVocabularyMatchesPostgres:
     each other AND with psycopg's own SQLSTATE→class mapping.
 
     ``retrying()`` recognises a retryable failure via
-    ``isinstance(exc, PG_CONCURRENCY_EXCEPTIONS_TO_RETRY)`` and then logs it with
+    ``isinstance(exc, PG_RETRY_EXCEPTIONS)`` and then logs it with
     ``errors.lookup(exc.sqlstate).__name__``.  If the two lists drift — or drift
     from psycopg — a real serialization failure would either silently not retry
     or crash the logging path.  The rest of ``TestRetrying`` uses hand-built mock
     exceptions; these tests pin the vocabulary to psycopg's real mapping so a
     genuine cluster error (verified live: 40001/40P01/55P03) is always handled,
     without needing a database.
+
+    Pinned against ``odoo.db.errors``, which is where the vocabulary is defined.
+    Until 2026-08-08 these read it through ``PG_CONCURRENCY_{ERRORS,EXCEPTIONS}_TO_RETRY``,
+    two aliases re-exported from ``service.transaction`` — one of which had no
+    functional reader at all.  Testing an alias tests the alias.
     """
 
-    def test_every_retry_sqlstate_maps_to_an_exception_in_the_tuple(self, tx) -> None:
-        for sqlstate in tx.PG_CONCURRENCY_ERRORS_TO_RETRY:
+    def test_every_retry_sqlstate_maps_to_an_exception_in_the_tuple(self) -> None:
+        for sqlstate in PG_RETRY_SQLSTATES:
             cls = psycopg.errors.lookup(sqlstate)
-            assert issubclass(cls, tx.PG_CONCURRENCY_EXCEPTIONS_TO_RETRY), (
+            assert issubclass(cls, PG_RETRY_EXCEPTIONS), (
                 f"sqlstate {sqlstate!r} maps to {cls.__name__}, which is absent "
-                f"from PG_CONCURRENCY_EXCEPTIONS_TO_RETRY — retrying() would not "
+                f"from PG_RETRY_EXCEPTIONS — retrying() would not "
                 f"retry a real error carrying this sqlstate"
             )
 
-    def test_canonical_concurrency_errors_are_recognised(self, tx) -> None:
+    def test_canonical_concurrency_errors_are_recognised(self) -> None:
         """The three errors a real cluster raises under contention must each be
         an instance of the retry tuple and carry a retryable sqlstate."""
         for name, sqlstate in [
@@ -1147,8 +1165,22 @@ class TestRetryVocabularyMatchesPostgres:
             ("LockNotAvailable", "55P03"),
         ]:
             cls = getattr(psycopg.errors, name)
-            assert issubclass(cls, tx.PG_CONCURRENCY_EXCEPTIONS_TO_RETRY), name
-            assert sqlstate in tx.PG_CONCURRENCY_ERRORS_TO_RETRY, name
+            assert issubclass(cls, PG_RETRY_EXCEPTIONS), name
+            assert sqlstate in PG_RETRY_SQLSTATES, name
+
+    def test_the_addon_facing_aliases_stay_identical_to_the_canonical_names(
+        self, tx
+    ) -> None:
+        """``PG_CONCURRENCY_*_TO_RETRY`` is a supported re-export, not dead weight.
+
+        ``addons/mail`` reads both (``mail_message_schedule``, ``mail_presence``)
+        and three ``enterprise`` modules import the exception tuple through
+        ``odoo.service.model``, which re-exports it in turn. They must stay the
+        *same objects* as ``odoo.db.errors``' names — an alias that drifts into a
+        copy would silently stop matching real errors.
+        """
+        assert tx.PG_CONCURRENCY_EXCEPTIONS_TO_RETRY is PG_RETRY_EXCEPTIONS
+        assert tx.PG_CONCURRENCY_ERRORS_TO_RETRY is PG_RETRY_SQLSTATES
 
 
 class TestRetryingRequestSideEffects:
@@ -1181,10 +1213,10 @@ class TestRetryingRequestSideEffects:
             patch("odoo.http") as mock_http,
             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = request
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             assert mod.retrying(func, mock_env) == "ok"
 
         assert request.session == "fresh-session"
@@ -1253,10 +1285,10 @@ class TestRetryingRequestSideEffects:
             patch("odoo.http") as mock_http,
             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind,
             patch("odoo.service.transaction.time"),
-            patch("odoo.service.transaction.random") as mock_random,
+            patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = request
-            mock_random.uniform.return_value = 0.0
+            mock_backoff.delay.return_value = 0.0
             with pytest.raises(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env)
 

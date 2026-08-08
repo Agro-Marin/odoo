@@ -601,7 +601,15 @@ class TestNoLiveStatusClaims(unittest.TestCase):
         """
         floors = {}
         for path in sorted(_RATCHET_BASELINES.glob("*.json")):
-            floors[path.stem] = json.loads(path.read_text(encoding="utf-8"))["count"]
+            count = json.loads(path.read_text(encoding="utf-8"))["count"]
+            # A floor of 0 is skipped, for both halves of this gate's rationale.
+            # It is not a number the ratchet will "move out from under": a gate
+            # at hard zero can only be broken, and breaking it fails CI. And
+            # `\b0\b` matches inside any version string, path or list index --
+            # `ruff` reached 0 on 2026-08-08 and immediately collided with
+            # ADR-0009's "the pinned tools (mypy 1.19.1, ruff 0.15.2)".
+            if count:
+                floors[path.stem] = count
         self.assertTrue(floors, "no ratchet baselines found — gate would be vacuous")
 
         for p in ADR_FILES:
@@ -616,6 +624,14 @@ class TestNoLiveStatusClaims(unittest.TestCase):
                             f"— a floor written into an immutable record is one "
                             f"the ratchet will move out from under."
                         )
+
+    def test_probe_a_zero_floor_would_false_positive_on_a_version_string(self):
+        """Pins the reason zero floors are skipped, so it is not "simplified" back.
+
+        ``\\b0\\b`` treats ``.`` as a word boundary, so a floor of 0 matches the
+        major version of any pinned tool.
+        """
+        self.assertRegex("the pinned tools (mypy 1.19.1, ruff 0.15.2)", r"\b0\b")
 
 
 class TestLiveStatusProbes(unittest.TestCase):

@@ -1,5 +1,4 @@
 import logging
-import threading
 import typing
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from collections.abc import Set as AbstractSet

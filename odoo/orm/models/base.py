@@ -64,6 +64,18 @@ class BaseModel(
     _DisplayNameMixin,
     _FieldComputeMixin,
     _HooksMixin,
+    # ORDER IS LOAD-BEARING for these last two, and for no other pair in this
+    # list. `_MagicFieldsMixin` SUBCLASSES `_ModelMetadataMixin` -- it declares
+    # `id` and `display_name` as Field instances, and `Field.__set_name__` reads
+    # `owner._name`, which is a metadata attribute -- so a subclass appears here
+    # beside its own base. Python requires the subclass first; swapping just
+    # these two entries fails at import with "Cannot create a consistent method
+    # resolution order (MRO)".
+    #
+    # Listing the base explicitly is deliberate, not redundancy to tidy away:
+    # dropping it leaves the MRO byte-identical *today*, purely because
+    # `_MagicFieldsMixin` happens to inherit it. This line is what says BaseModel
+    # wants the metadata regardless of that.
     _MagicFieldsMixin,
     _ModelMetadataMixin,
     metaclass=MetaModel,

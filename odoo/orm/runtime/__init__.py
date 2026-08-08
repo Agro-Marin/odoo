@@ -1,5 +1,5 @@
 from ..components.model_graph import TriggerTree
-from .cache_compat import Cache
+from .recordset_cache import Cache
 from .environment import Environment
 from .registry import (
     CACHES_BY_KEY,

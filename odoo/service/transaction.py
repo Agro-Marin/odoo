@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import random
 import time
 import typing
 from contextlib import suppress
@@ -10,6 +9,7 @@ from psycopg import IntegrityError, OperationalError, errors
 
 from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_RETRY_SQLSTATES
 from odoo.exceptions import ConcurrencyError, ValidationError
+from odoo.libs import backoff
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -18,9 +18,21 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.service.model")
 
+#: Addon-facing aliases for the canonical vocabulary in ``odoo.db.errors``.
+#: Not dead re-exports: ``addons/mail`` reads both, and three ``enterprise``
+#: modules import the exception tuple through ``odoo.service.model``, which
+#: re-exports them in turn. ``test_db_cursor`` pins them as the same objects.
 PG_CONCURRENCY_ERRORS_TO_RETRY = PG_RETRY_SQLSTATES
 PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = PG_RETRY_EXCEPTIONS
 MAX_TRIES_ON_CONCURRENCY_FAILURE = 5
+
+BASE_CONCURRENCY_BACKOFF_SECONDS = 0.2
+"""Ceiling for the first retry's wait; doubled per attempt up to the cap below.
+
+Without a base term the cap wins from attempt 1 (``2 ** 1 >= 2.0``) and every
+retry draws from the same interval, which is what this loop did until 2026-08-08.
+See :mod:`odoo.libs.backoff`.
+"""
 
 MAX_CONCURRENCY_BACKOFF_SECONDS = 2.0
 
@@ -91,7 +103,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                         raise
                     raise _integrity_error_to_validation(env, exc) from exc
 
-                if isinstance(exc, PG_CONCURRENCY_EXCEPTIONS_TO_RETRY):
+                if isinstance(exc, PG_RETRY_EXCEPTIONS):
                     error = errors.lookup(exc.sqlstate).__name__
                 elif isinstance(exc, ConcurrencyError):
                     error = repr(exc)
@@ -109,8 +121,10 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                 if request:
                     _rewind_request_files_for_retry(request, exc)
                     _reset_request_for_retry(request)
-                wait_time = random.uniform(
-                    0.0, min(2**tryno, MAX_CONCURRENCY_BACKOFF_SECONDS)
+                wait_time = backoff.delay(
+                    tryno,
+                    base=BASE_CONCURRENCY_BACKOFF_SECONDS,
+                    cap=MAX_CONCURRENCY_BACKOFF_SECONDS,
                 )
                 _logger.info(
                     "%s, %s tries left, try again in %.04f sec...",
@@ -166,6 +180,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
 
 
 __all__ = (
+    "BASE_CONCURRENCY_BACKOFF_SECONDS",
     "MAX_CONCURRENCY_BACKOFF_SECONDS",
     "MAX_TRIES_ON_CONCURRENCY_FAILURE",
     "PG_CONCURRENCY_ERRORS_TO_RETRY",

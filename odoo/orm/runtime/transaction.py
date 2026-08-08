@@ -17,7 +17,7 @@ from ..components.compute import ComputeEngine
 from ..components.core import OrmCore
 from ..components.unit_of_work import UnitOfWork
 from .backend import POSTGRES_BACKEND, InMemoryBackend
-from .cache_compat import Cache
+from .recordset_cache import Cache
 from .registry import Registry
 
 if typing.TYPE_CHECKING:

@@ -209,5 +209,67 @@ class TestLiveTree(unittest.TestCase):
         self.assertEqual(overlap, set(), f"both scanned and exempt: {sorted(overlap)}")
 
 
+class TestTheAccessorChannel(unittest.TestCase):
+    """``env.<accessor>`` reaches a model without naming it.
+
+    The subscript collector cannot see those, so a model reached only through an
+    ``Environment`` cached property was invisible to this gate — and the count
+    was reducible by *adding* an accessor, which is the wrong direction for a
+    metric meant to bound coupling.
+    """
+
+    def test_an_accessor_reach_is_collected(self):
+        hits = _collect("x = self.env.user.name")
+        self.assertEqual([m for m, _ in hits], ["res.users"])
+
+    def test_a_bare_env_accessor_reach_is_collected(self):
+        self.assertEqual([m for m, _ in _collect("y = env.company")], ["res.company"])
+
+    def test_the_same_attribute_on_a_non_env_object_is_ignored(self):
+        """``record.user`` / ``config.lang`` must not be counted."""
+        for src in ("a = record.user", "b = config.lang", "c = self.company"):
+            with self.subTest(src=src):
+                self.assertEqual(_collect(src), [])
+
+    def test_the_accessor_map_covers_environment(self):
+        """Every model ``environment.py`` looks up must be declared, one way or other.
+
+        Keeps the map honest: a new cached property wrapping ``self["some.model"]``
+        re-opens the hole unless it is declared — either in
+        ``ENV_MODEL_ACCESSORS`` (the member hands callers that model) or in
+        ``ENV_INTERNAL_MODEL_LOOKUPS`` (it consults the model and returns
+        something else, as ``env.ref`` does).
+        """
+        source = (emsc.CORE / "orm" / "runtime" / "environment.py").read_text(
+            encoding="utf-8"
+        )
+        tree = ast.parse(source)
+        looked_up = {
+            node.slice.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "self"
+            and isinstance(node.slice, ast.Constant)
+            and isinstance(node.slice.value, str)
+            and emsc._MODEL_RE.match(node.slice.value)
+        }
+        declared = set(emsc.ENV_MODEL_ACCESSORS.values()) | emsc.ENV_INTERNAL_MODEL_LOOKUPS
+        uncovered = looked_up - declared
+        self.assertEqual(
+            uncovered,
+            set(),
+            f"environment.py reaches {sorted(uncovered)} through an undeclared "
+            f"member — consumers of it would be invisible to this gate. Add it to "
+            f"ENV_MODEL_ACCESSORS if the member returns that model to its caller, "
+            f"or to ENV_INTERNAL_MODEL_LOOKUPS if it only consults it.",
+        )
+
+    def test_the_two_declarations_do_not_overlap(self):
+        """A model is either exposed or merely consulted, not both."""
+        overlap = set(emsc.ENV_MODEL_ACCESSORS.values()) & emsc.ENV_INTERNAL_MODEL_LOOKUPS
+        self.assertEqual(overlap, set(), f"declared both ways: {sorted(overlap)}")
+
+
 if __name__ == "__main__":
     unittest.main()

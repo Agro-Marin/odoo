@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import random
 import socket
 import threading
 import time
@@ -24,6 +23,7 @@ from odoo.exceptions import (
     UserError,
     ValidationError,
 )
+from odoo.libs import backoff
 from odoo.libs.constants import GC_UNLINK_LIMIT, JOB_QUEUE_CHANNEL
 from odoo.modules.registry import Registry
 from odoo.tools import SQL
@@ -51,6 +51,7 @@ RETRY_BACKOFF_MAX_S = 3600
 CLAIM_MAX_ATTEMPTS = 10
 
 CONCURRENCY_MAX_ATTEMPTS = 5
+CONCURRENCY_BACKOFF_BASE_S = 0.2
 CONCURRENCY_BACKOFF_MAX_S = 2.0
 JOB_CONCURRENCY_EXCEPTIONS = (*PG_RETRY_EXCEPTIONS, ConcurrencyError)
 """Failures that mean "somebody else committed first", not "this job is broken".
@@ -701,7 +702,11 @@ class IrJob(models.Model):
                         CONCURRENCY_MAX_ATTEMPTS,
                     )
                     return exc
-                wait = random.uniform(0.0, min(2**attempt, CONCURRENCY_BACKOFF_MAX_S))
+                wait = backoff.delay(
+                    attempt,
+                    base=CONCURRENCY_BACKOFF_BASE_S,
+                    cap=CONCURRENCY_BACKOFF_MAX_S,
+                )
                 _logger.info(
                     "Job %s: %s, replaying in %.2fs (attempt %s/%s)",
                     job["id"],

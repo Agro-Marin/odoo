@@ -98,6 +98,45 @@ SCOPE_EXEMPT_PACKAGES: frozenset[str] = frozenset(
 #: (``res.users``, ``ir.model.data``) or the special root model ``base``.
 _MODEL_RE = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$|^base$")
 
+#: ``Environment`` members that resolve to an addon-owned model, and to which.
+#:
+#: Without these this gate counts *namings*, not *reaches*, and the two come
+#: apart. ``Environment`` wraps several model lookups in cached properties --
+#: ``env.user`` is ``self["res.users"]``, ``env.company`` is
+#: ``self["res.company"]``, and so on -- so every consumer of one reaches an
+#: addon-owned model while producing no subscript for the collector to see.
+#: Measured on 2026-08-08, that hid **35 core reaches** behind six names, and
+#: made the metric reducible without reducing anything: moving an
+#: ``env["res.users"]`` behind ``env.user`` lowered the count and left the
+#: coupling identical.
+#:
+#: The seven ``SUBTREES_WITH_NO_MODEL_REACH`` were all clean of this channel when
+#: it was closed, so this is a hole being shut before it is used rather than a
+#: violation being recorded. ``test_the_accessor_map_covers_environment`` keeps
+#: the map honest: every ``self["literal"]`` inside ``environment.py`` must be
+#: reachable from some entry here, so a new accessor cannot be added without
+#: extending this.
+ENV_MODEL_ACCESSORS: dict[str, str] = {
+    "user": "res.users",
+    "company": "res.company",
+    "companies": "res.company",
+    "lang": "res.lang",
+    "_lang": "res.lang",
+    "_ir_defaults": "ir.default",
+}
+
+#: Models ``environment.py`` consults internally without handing one to a caller.
+#:
+#: The distinction that decides whether a member belongs here or in
+#: :data:`ENV_MODEL_ACCESSORS` is whether it *returns a recordset of that model*.
+#: ``env.user`` does, so its consumers reach ``res.users`` and are counted.
+#: ``env.ref("module.xmlid")`` does not: it asks ``ir.model.data`` to resolve the
+#: xmlid and then returns ``self[res_model].browse(res_id)`` -- a record of some
+#: *other* model, chosen at run time. Counting every ``env.ref`` call site as an
+#: ``ir.model.data`` reach would say the framework is coupled to that model in
+#: ~100 places when it is coupled in one, here.
+ENV_INTERNAL_MODEL_LOOKUPS: frozenset[str] = frozenset({"ir.model.data"})
+
 #: Subtrees that must reach **no** addon-owned model at all.
 #:
 #: ``KNOWN_MODEL_SURFACE`` below ratchets *which* models the framework reaches;
@@ -203,24 +242,40 @@ class Report:
         return not self.added and not self.removed and not self.forbidden
 
 
+def _is_env_expression(node: ast.expr) -> bool:
+    """Whether ``node`` evaluates to an ``Environment`` -- ``env`` or ``x.env``."""
+    return (isinstance(node, ast.Attribute) and node.attr == "env") or (
+        isinstance(node, ast.Name) and node.id == "env"
+    )
+
+
 class _EnvModelCollector(ast.NodeVisitor):
-    """Collect ``env["literal"]`` / ``<x>.env["literal"]`` subscripts."""
+    """Collect model reaches through ``env``.
+
+    Two channels, because the framework uses two:
+
+    * ``env["literal"]`` / ``<x>.env["literal"]`` -- naming a model outright;
+    * ``env.<accessor>`` for the members in :data:`ENV_MODEL_ACCESSORS` --
+      reaching one without naming it.
+    """
 
     def __init__(self) -> None:
         self.hits: list[tuple[str, int]] = []
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
         self.generic_visit(node)
-        value = node.value
-        is_env = (isinstance(value, ast.Attribute) and value.attr == "env") or (
-            isinstance(value, ast.Name) and value.id == "env"
-        )
-        if not is_env:
+        if not _is_env_expression(node.value):
             return
         key = node.slice
         if isinstance(key, ast.Constant) and isinstance(key.value, str):
             if _MODEL_RE.match(key.value):
                 self.hits.append((key.value, node.lineno))
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        self.generic_visit(node)
+        model = ENV_MODEL_ACCESSORS.get(node.attr)
+        if model is not None and _is_env_expression(node.value):
+            self.hits.append((model, node.lineno))
 
 
 def iter_scope_files() -> list[Path]:
