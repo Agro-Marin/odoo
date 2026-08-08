@@ -560,8 +560,18 @@ class EsbuildCompiler:
         right. Each shim is written at ``<stub_root>/<spec>.js`` and aliased
         without the extension -- resolution prefers the file over the sibling
         directory -- and that sibling directory is filled in from the real one:
-        a symlink normally, or a directory of per-entry symlinks where a nested
-        stub has to shadow one of those entries.
+        a symlink where nothing below it is stubbed, or a directory of
+        per-entry links rebuilt **recursively**, for as deep as the stubs go.
+
+        The recursion is the point. Shadowing a single level down protects a
+        stub's immediate children and nothing else, so a stub two or more
+        levels below another one -- ``@spreadsheet/chart/plugins/...`` beneath
+        ``@spreadsheet/chart`` -- had its shim written straight through the
+        directory symlink and **replaced the real module in the source tree**.
+        81 files across ``odoo`` and ``enterprise`` were overwritten that way,
+        by an ordinary secondary-bundle compile rather than anything test-only.
+        `_ensure_inside_mirror` is the backstop: it turns a future escape into
+        a failed build instead of a silently rewritten checkout.
         """
         addon_roots = {}
         for flag in alias_flags:
@@ -569,13 +579,19 @@ class EsbuildCompiler:
             if spec.startswith("@") and "/" not in spec:
                 addon_roots[spec] = odoo_root / target.removeprefix("./")
 
-        # ``<dir>: {<file names the stubs occupy>}``, so a directory rebuilt
-        # entry by entry never symlinks over a nested shim -- writing the shim
-        # afterwards would follow that symlink into the source tree.
-        shadowed: dict[str, set[str]] = {}
+        # ``<dir>: {<file names the shims will take>}``, so a rebuilt directory
+        # never links over a name a shim is about to occupy -- writing the shim
+        # afterwards would follow that link into the source tree.
+        occupied: dict[str, set[str]] = {}
+        # Every directory with a stub somewhere beneath it, at any depth. These
+        # have to be real directories in the mirror; a symlink is the escape.
+        must_be_real: set[str] = set()
         for spec in exact_stubs:
             parent_rel, _, name = spec.lstrip("@").rpartition("/")
-            shadowed.setdefault(parent_rel, set()).add(f"{name}.js")
+            occupied.setdefault(parent_rel, set()).add(f"{name}.js")
+            while parent_rel:
+                must_be_real.add(parent_rel)
+                parent_rel = parent_rel.rpartition("/")[0]
 
         flags = []
         # Shortest first: a spec's directory must exist as a real one before any
@@ -586,17 +602,59 @@ class EsbuildCompiler:
             stub_path.parent.mkdir(parents=True, exist_ok=True)
             real_dir = cls._stub_sibling_dir(spec, addon_roots)
             if real_dir is not None and not stub_path.exists():
-                nested = shadowed.get(rel)
-                if nested:
-                    stub_path.mkdir(parents=True)
-                    for entry in real_dir.iterdir():
-                        if entry.name not in nested:
-                            (stub_path / entry.name).symlink_to(entry)
+                if rel in must_be_real:
+                    cls._mirror_dir(stub_path, real_dir, rel, occupied, must_be_real)
                 else:
                     stub_path.symlink_to(real_dir, target_is_directory=True)
-            (stub_root / f"{rel}.js").write_text(exact_stubs[spec], encoding="utf-8")
+            shim_path = stub_root / f"{rel}.js"
+            cls._ensure_inside_mirror(shim_path, stub_root)
+            shim_path.write_text(exact_stubs[spec], encoding="utf-8")
             flags.append(f"--alias:{spec}={stub_path}")
         return flags
+
+    @classmethod
+    def _mirror_dir(
+        cls,
+        mirror: Path,
+        real_dir: Path,
+        rel: str,
+        occupied: dict[str, set[str]],
+        must_be_real: set[str],
+    ) -> None:
+        """Rebuild *real_dir* at *mirror* entry by entry, one level at a time.
+
+        An entry is skipped when a shim is going to claim its name, rebuilt the
+        same way when a stub lives somewhere below it, and symlinked otherwise
+        -- a symlink is only safe once nothing under it will ever be written.
+        """
+        mirror.mkdir(parents=True, exist_ok=True)
+        taken = occupied.get(rel, frozenset())
+        for entry in real_dir.iterdir():
+            if entry.name in taken:
+                continue
+            entry_rel = f"{rel}/{entry.name}"
+            if entry_rel in must_be_real and entry.is_dir():
+                cls._mirror_dir(
+                    mirror / entry.name, entry, entry_rel, occupied, must_be_real
+                )
+            else:
+                (mirror / entry.name).symlink_to(entry)
+
+    @staticmethod
+    def _ensure_inside_mirror(path: Path, stub_root: Path) -> None:
+        """Refuse to write a shim anywhere but inside the mirror.
+
+        The mirror is stitched together from symlinks into the source tree, so
+        a single unprotected level turns a shim write into an edit of a real
+        module -- which is precisely what happened. Resolving the parent
+        catches that whatever the reason the link was there.
+        """
+        resolved = path.parent.resolve()
+        if not resolved.is_relative_to(stub_root.resolve()):
+            raise RuntimeError(
+                f"refusing to write the ESM shim {path.name!r} outside the stub "
+                f"mirror: {resolved} is not under {stub_root}"
+            )
 
     @staticmethod
     def _stub_sibling_dir(spec: str, addon_roots: dict[str, Path]) -> Path | None:
