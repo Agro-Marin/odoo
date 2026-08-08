@@ -1,6 +1,6 @@
 {
     "name": "Automation Rules",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Sales/Sales",
     "description": """
 This module allows to implement automation rules for any object.
@@ -20,6 +20,7 @@ trigger an automatic reminder email.
     ],
     "data": [
         "security/ir.model.access.csv",
+        "security/automation_runtime_rules.xml",
         "data/ir_cron_data.xml",
         "data/digest_data.xml",
         "data/ir_sequence_data.xml",

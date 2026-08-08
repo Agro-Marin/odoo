@@ -84,12 +84,6 @@ class AutomationRuntimeLine(models.Model):
         help="Completing this action enables these successors",
     )
 
-    is_ready = fields.Boolean(
-        string="Is Ready",
-        compute="_compute_is_ready",
-        store=True,
-        help="True when all predecessors are done",
-    )
 
     # =========================================================================
     # Results Tracking
@@ -115,27 +109,18 @@ class AutomationRuntimeLine(models.Model):
         ]
 
     # =========================================================================
-    # Compute Methods
+    # DAG Resolution
     # =========================================================================
 
-    @api.depends("predecessor_ids.state", "state")
-    def _compute_is_ready(self):
-        """Compute if this action is ready to execute."""
-        for line in self:
-            if line.state != "waiting":
-                line.is_ready = False
-                continue
+    def _predecessors_satisfied(self):
+        """Return whether every predecessor of this line has completed.
 
-            # No predecessors = ready immediately
-            if not line.predecessor_ids:
-                line.is_ready = True
-                continue
-
-            # All predecessors must be done
-            done_predecessors = line.predecessor_ids.filtered(
-                lambda p: p.state == "done",
-            )
-            line.is_ready = len(done_predecessors) == len(line.predecessor_ids)
+        A line with no predecessors is satisfied by definition — which is what
+        makes a root node runnable, and what makes a node whose edges could not
+        be resolved runnable rather than stuck.
+        """
+        self.ensure_one()
+        return all(pred.state == "done" for pred in self.predecessor_ids)
 
     # =========================================================================
     # State Transitions
@@ -166,17 +151,13 @@ class AutomationRuntimeLine(models.Model):
 
         # Activate ready successors
         for successor in self.successor_ids:
-            if successor.state == "waiting":
-                # Recompute readiness
-                successor._compute_is_ready()
-
-                if successor.is_ready:
-                    successor.action_mark_ready()
-                    _logger.info(
-                        "Action '%s' (#%d) is now ready",
-                        successor.name,
-                        successor.id,
-                    )
+            if successor.state == "waiting" and successor._predecessors_satisfied():
+                successor.action_mark_ready()
+                _logger.info(
+                    "Action '%s' (#%d) is now ready",
+                    successor.name,
+                    successor.id,
+                )
 
         # Check if entire workflow is complete
         incomplete = self.runtime_id.line_ids.filtered(
@@ -196,7 +177,20 @@ class AutomationRuntimeLine(models.Model):
         Transitions the line from 'ready' (or 'in_progress') to 'done' on
         success, or to 'error' on failure.
 
-        :return: the server action's result, or ``True`` if it returned nothing
+        A failing step is a **recorded outcome, not an exception**. The action
+        runs inside its own savepoint, so a failure rolls back whatever partial
+        writes it made — leaving the target record untouched rather than
+        half-written — and the error is then written outside that savepoint and
+        survives. The exception is deliberately not re-raised: propagating it
+        unwound the whole transaction, taking the runtime, its lines and the
+        error message with it, so the execution history this model exists to
+        provide was destroyed by exactly the failures it is meant to record.
+
+        The failure is still visible: the line ends in ``error`` carrying the
+        message, the runtime ends in ``error``, and ``action_run_all`` stops.
+
+        :return: the server action's result, ``True`` if it returned nothing,
+            or ``False`` if the step failed.
         """
         self.ensure_one()
 
@@ -218,6 +212,7 @@ class AutomationRuntimeLine(models.Model):
                         "active_id": runtime.res_id,
                         "active_ids": [runtime.res_id],
                         "runtime_line_id": self.id,
+                        "runtime_id": runtime.id,
                     }
                 )
             else:
@@ -227,6 +222,7 @@ class AutomationRuntimeLine(models.Model):
                         "active_id": runtime.id,
                         "active_ids": [runtime.id],
                         "runtime_line_id": self.id,
+                        "runtime_id": runtime.id,
                     }
                 )
 
@@ -238,7 +234,11 @@ class AutomationRuntimeLine(models.Model):
                 self.runtime_id.name,
             )
 
-            result = self.action_id.with_context(**ctx).run()
+            # The savepoint scopes the action's own writes: if it raises, its
+            # partial work is discarded, but the error state written after the
+            # block is not.
+            with self.env.cr.savepoint():
+                result = self.action_id.with_context(**ctx).run()
 
             # Mark as done
             self.action_mark_done()
@@ -256,7 +256,8 @@ class AutomationRuntimeLine(models.Model):
             )
 
             self.action_mark_error(error_msg)
-            raise
+            self.runtime_id.action_error()
+            return False
 
     # =========================================================================
     # Document Viewing

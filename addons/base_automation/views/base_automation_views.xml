@@ -249,6 +249,16 @@
                                 class="oe_inline"
                                 options="{'no_open': True, 'no_create': True}"
                                 invisible="not trg_date_id or trg_date_range_type != 'day'" />
+                            <label for="last_run"
+                                invisible="trigger not in ['on_time', 'on_time_created', 'on_time_updated']" />
+                            <div invisible="trigger not in ['on_time', 'on_time_created', 'on_time_updated']">
+                                <field name="last_run" class="oe_inline" />
+                                <div class="text-muted small mt-1" invisible="last_run">
+                                    <i class="fa-solid fa-triangle-exclamation" title="Warning" />
+                                    Empty: the first run covers the entire history and processes
+                                    every record that already matches. Set a date to scope it.
+                                </div>
+                            </div>
                             <field name="filter_pre_domain" widget="domain"
                                 options="{'model': 'model_name', 'in_dialog': True, 'allow_expressions':True}"
                                 invisible="trigger in [
@@ -296,15 +306,21 @@
                             <div invisible="trigger != 'on_webhook'">
                                 <field name="record_getter" string="Target Record" />
                                 <div>
-                                    <div class="text-muted"><i class="fa-solid fa-info-circle" /> The
-                                        default target record getter will work out-of-the-box for
-                                        any webhook coming from another Odoo instance.</div>
+                                    <div class="text-muted"><i class="fa-solid fa-info-circle" />
+                                        Leave empty to run the rule <strong>without a record</strong>
+                                        (a create-from-payload receiver): the actions run once with
+                                        the parsed body available as <code>payload</code>.</div>
+                                    <div class="text-muted mt-1">For a webhook sent by another Odoo
+                                        instance, which posts <code>_model</code> and <code>_id</code>,
+                                        use:
+                                        <code>model.env[payload.get('_model')].browse(int(payload.get('_id')))</code>
+                                    </div>
                                     <span class="text-muted"> Available variables: </span>
                                     <ul class="text-muted">
-                                        <li><code>env</code>: environment on which the action is
-                                            triggered</li>
                                         <li><code>model</code>: model of the record on which the
-                                            action is triggered; is a void recordset</li>
+                                            action is triggered; is a void recordset. The environment
+                                            is reachable as <code>model.env</code> — there is no bare
+                                            <code>env</code> variable here.</li>
                                         <li><code>time</code>, <code>datetime</code>, <code>dateutil</code>
                                             , <code>timezone</code>: useful Python libraries</li>
                                         <li><code>payload</code>: the payload of the call (GET

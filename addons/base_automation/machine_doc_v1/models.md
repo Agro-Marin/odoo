@@ -126,7 +126,7 @@ from a single call in `action_manual_trigger()`.
 | `amount` | Monetary | Operation amount |
 | `reference` | Char | External reference |
 | `date` | Date | Reference date |
-| `state` | Selection | draft / in_progress / done / cancel |
+| `state` | Selection | draft / in_progress / done / error / cancel |
 | `line_ids` | One2many `automation.runtime.line` | Execution steps |
 | `progress` | Integer (computed) | 0–100% completion |
 | `progress_display` | Char (computed) | "3/5 steps" |
@@ -144,6 +144,13 @@ automation's `action_server_ids`, sets first-in-sequence to `ready`.
 
 `action_next_step()`: executes next `ready` line, auto-marks `done` if all
 lines complete.
+
+`action_run_all()`: runs ready lines until the run settles. If no line is ready
+while lines remain outstanding, it marks those lines and the run `error` rather
+than returning silently in `in_progress`.
+
+`action_error()`: terminal failure state, set when a step raises or when the run
+can no longer advance.
 
 ---
 
@@ -164,13 +171,13 @@ Fully isolated per-execution — no shared state with the definition.
 | `error_message` | Text | Error details |
 | `predecessor_ids` | Many2many self | DAG dependency at execution level |
 | `successor_ids` | Many2many self | Computed inverse |
-| `is_ready` | Boolean (computed, stored) | All predecessors done |
+
 | `created_record_ref` | Reference | Record created by this step |
 
 ### DAG Resolution
 
-`action_mark_done()`: marks self done, then for each successor checks if all
-its predecessors are done — if so, calls `successor.action_mark_ready()`.
+`action_mark_done()`: marks self done, then for each successor checks
+`_predecessors_satisfied()` — if so, calls `successor.action_mark_ready()`.
 This is the correct per-instance DAG propagation pattern. (An earlier
 `ir.actions.server.action_mark_done()` that mutated the global definition
 was removed in Phase 1 along with `action_state`/`is_ready`/`error_message` —

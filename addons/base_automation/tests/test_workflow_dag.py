@@ -161,16 +161,17 @@ class TestWorkflowDAG(TransactionCase):
 
         self.assertEqual(line_b.state, "ready")
         self.assertEqual(line_c.state, "ready")
-        self.assertFalse(line_d.is_ready, "D still needs C")
+        self.assertEqual(line_d.state, "waiting", "D still needs B and C")
+        self.assertFalse(line_d._predecessors_satisfied(), "D still needs B and C")
 
         line_b.action_mark_done()
         # D still waiting — C hasn't completed yet
         self.assertEqual(line_d.state, "waiting", "D still needs C")
-        self.assertFalse(line_d.is_ready, "is_ready only True when waiting+eligible")
+        self.assertFalse(line_d._predecessors_satisfied(), "D still needs C")
 
         line_c.action_mark_done()
-        # D unblocked — state transitions to ready; is_ready resets to False (by design)
         self.assertEqual(line_d.state, "ready", "D ready after both B and C")
+        self.assertTrue(line_d._predecessors_satisfied())
 
     def test_multiple_root_actions(self):
         """Automations with multiple root actions start both as ready."""
@@ -393,7 +394,13 @@ class TestWorkflowDAGExecution(TransactionCase):
         self.assertEqual(self.test_partner.phone, "999-888-7777")
 
     def test_error_in_action_marks_line_error(self):
-        """An exception in a server action marks the line as 'error' and propagates."""
+        """A failing server action is recorded on the line, not raised away.
+
+        The error state must survive, which is the whole point: re-raising
+        unwound the transaction and destroyed the runtime, its lines and the
+        message. assertRaises would not even be able to observe the old
+        behaviour, since its savepoint reverted the error write too.
+        """
         automation = self.Automation.create({
             "name": "Failing Workflow",
             "model_id": self.model_partner.id,
@@ -417,15 +424,8 @@ class TestWorkflowDAGExecution(TransactionCase):
 
         line = runtime.line_ids.filtered(lambda l: l.action_id == action)
 
-        # NOTE: do NOT use assertRaises here — Odoo's assertRaises wraps the block
-        # in a db savepoint that rolls back on catch, reverting deferred ORM writes
-        # (including action_mark_error's write to state='error').
-        exc_raised = False
-        try:
-            line.action_execute()
-        except Exception:
-            exc_raised = True
-        self.assertTrue(exc_raised, "Expected action_execute to raise on failing code")
+        self.assertFalse(line.action_execute(), "a failed step reports False")
 
         self.assertEqual(line.state, "error")
         self.assertIn("deliberate test error", line.error_message)
+        self.assertEqual(runtime.state, "error", "the run itself is marked failed")

@@ -46,7 +46,15 @@ function computeDerivedOptions(options, fields, currentSelection, { excludeGroup
     // filter options to display, derived from the current value and the model fields
     const derivedOptions = [];
     for (const [value, label] of options) {
-        const { group, triggers } = OPT_GROUPS.find((g) => g.triggers.includes(value));
+        const entry = OPT_GROUPS.find((g) => g.triggers.includes(value));
+        if (!entry) {
+            // A trigger added to the Python selection but not to OPT_GROUPS above.
+            // Skipping it loses one option; destructuring undefined here used to
+            // throw and take down the whole trigger field.
+            console.warn(`base_automation: trigger "${value}" is missing from OPT_GROUPS`);
+            continue;
+        }
+        const { group, triggers } = entry;
         if (
             (group.key === "deprecated" && !triggers.includes(currentSelection)) ||
             excludeGroups.includes(group.key)

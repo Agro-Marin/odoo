@@ -79,7 +79,6 @@
                             <field name="sequence" />
                         </group>
                         <group>
-                            <field name="is_ready" />
                             <field name="created_record_ref" />
                         </group>
                     </group>

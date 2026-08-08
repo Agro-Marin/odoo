@@ -17,6 +17,8 @@
                     domain="[('state', '=', 'in_progress')]" />
                 <filter string="Done" name="done"
                     domain="[('state', '=', 'done')]" />
+                <filter string="Failed" name="failed"
+                    domain="[('state', '=', 'error')]" />
                 <separator />
                 <filter string="My Company" name="my_company"
                     domain="[('company_id', '=', company_id)]" />
@@ -52,6 +54,7 @@
                     decoration-info="state == 'draft'"
                     decoration-warning="state == 'in_progress'"
                     decoration-success="state == 'done'"
+                    decoration-danger="state == 'error'"
                     decoration-muted="state == 'cancel'" />
                 <field name="company_id" groups="base.group_multi_company" />
             </list>
@@ -80,7 +83,7 @@
                         name="action_cancel"
                         string="Cancel"
                         type="object"
-                        invisible="state in ['done', 'cancel']" />
+                        invisible="state in ['done', 'cancel', 'error']" />
                     <field name="state" widget="statusbar"
                         statusbar_visible="draft,in_progress,done" />
                 </header>

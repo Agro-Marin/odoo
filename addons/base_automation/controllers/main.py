@@ -17,10 +17,21 @@ class BaseAutomationController(Controller):
     )
     def call_webhook_http(self, rule_uuid, **kwargs):
         """Execute an automation webhook"""
+        # Filter on the trigger, not the UUID alone: every base.automation gets a
+        # webhook_uuid whatever its trigger, so matching by UUID made rules the
+        # admin never published (blank, hidden `url`) executable over HTTP.
+        # limit=1 because two rules sharing a UUID would otherwise blow up on
+        # ensure_one() inside the verifier and surface as a 500.
         rule = (
             request.env["base.automation"]
             .sudo()
-            .search([("webhook_uuid", "=", rule_uuid)])
+            .search(
+                [
+                    ("webhook_uuid", "=", rule_uuid),
+                    ("trigger", "=", "on_webhook"),
+                ],
+                limit=1,
+            )
         )
         if not rule:
             return request.make_json_response({"status": "error"}, status=404)

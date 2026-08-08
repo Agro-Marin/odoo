@@ -31,6 +31,13 @@ registry_invalidated = True  ← signals other workers to reload
 | `message_post` | `on_message_received`, `on_message_sent` | `make_message_post()` |
 | `_onchange_methods[field]` | `on_change` | `make_onchange(rule_id)` |
 
+`_get_actions()` is backed by `@ormcache` (`_get_automation_ids`). It runs on
+every patched ORM call before we know whether a rule applies — measured at one
+SELECT per call — so the result is cached and invalidated by
+`base.automation.create/write/unlink`, which clear it **unconditionally**: the
+cache stores execution order as well as membership, so a bare `sequence` edit
+changes the answer just as much as a `CRITICAL_FIELDS` one.
+
 The factory-function pattern (closures) is **mandatory** — it prevents the
 classic loop-closure bug where all patched methods end up sharing the last
 iteration's `origin` variable.
@@ -50,7 +57,7 @@ many automation rules target it.
 ```
 record.create(vals_list)          ← patched
     │
-    ├─ _get_actions(records, CREATE_TRIGGERS)   → active automations for model
+    ├─ _get_actions(records, CREATE_TRIGGERS)   → active automations (ormcache)
     ├─ create.origin(...)                        → call original method
     └─ for automation in automations:
            automation._process(
@@ -150,8 +157,10 @@ def _process(self, records, domain_post=None):
     # 3. Field-level trigger filtering
     records = records.filtered(self._check_trigger_fields)
 
-    # 4. Execute each server action on each record
-    for action in self.sudo().action_server_ids:
+    # 4. Execute each server action on each record, in an order that
+    #    satisfies predecessor_ids (sequence breaks ties). Plain
+    #    sorted("sequence") ignored the declared graph entirely.
+    for action in self.sudo().action_server_ids._sorted_by_dependency():
         for record in records:
             action.with_context(active_model, active_id, active_ids).run()
 ```
@@ -188,7 +197,9 @@ removed — manual cron reset may be needed.
 POST /web/hook/<webhook_uuid>
 ```
 
-- Looks up `base.automation` by `webhook_uuid` (active automations only)
+- Looks up `base.automation` by `webhook_uuid` **and `trigger = on_webhook`**,
+  `limit=1` (active automations only). Every rule carries a `webhook_uuid`
+  whatever its trigger, so the UUID alone must never be sufficient.
 - Accepts JSON body or URL query params as payload
 - Calls `automation._execute_webhook(payload)`
 - Returns HTTP 200 with JSON result or raises on error

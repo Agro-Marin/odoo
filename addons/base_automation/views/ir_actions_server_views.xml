@@ -11,7 +11,10 @@
                 <field name="sequence" widget="handle" />
                 <field name="name" />
                 <field name="state" string="Type" optional="hide" />
-                <field name="predecessor_ids" widget="many2many_tags" optional="show" />
+                <field name="base_automation_id" column_invisible="1" />
+                <field name="predecessor_ids" widget="many2many_tags" optional="show"
+                    domain="[('base_automation_id', '=', base_automation_id), ('id', '!=', id)]"
+                    options="{'no_create': True}" />
                 <field name="successor_ids" widget="many2many_tags" optional="hide" />
             </list>
         </field>

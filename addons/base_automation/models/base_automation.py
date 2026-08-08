@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import _, api, exceptions, fields, models
+from odoo import _, api, exceptions, fields, models, tools
 from odoo.exceptions import LockError, MissingError
 from odoo.fields import Domain
 from odoo.http import request
@@ -185,6 +185,34 @@ def get_webhook_request_payload():
     return payload
 
 
+class CaseInsensitiveHeaders(dict):
+    """HTTP headers whose lookups ignore case, as RFC 9110 §5.1 requires.
+
+    Werkzeug's own ``Headers`` is already case-insensitive, but it is not a
+    ``dict`` and ``base_credential_manager``'s verifiers reject anything that
+    is not (``isinstance(headers, dict)``). Subclassing ``dict`` keeps those
+    verifiers working while making ``get()`` insensitive for every consumer,
+    so a rule configured with ``x-hub-signature-256`` matches a request
+    carrying ``X-Hub-Signature-256`` and vice versa.
+    """
+
+    def __init__(self, source=None):
+        super().__init__(source or {})
+        self._by_lower = {str(k).lower(): v for k, v in self.items()}
+
+    def get(self, key, default=None):
+        return self._by_lower.get(str(key).lower(), default)
+
+    def __getitem__(self, key):
+        try:
+            return self._by_lower[str(key).lower()]
+        except KeyError:
+            raise KeyError(key) from None
+
+    def __contains__(self, key):
+        return str(key).lower() in self._by_lower
+
+
 class BaseAutomation(models.Model):
     _name = "base.automation"
     _inherit = ["mail.thread", "mail.activity.mixin"]
@@ -231,7 +259,16 @@ class BaseAutomation(models.Model):
     model_is_mail_thread = fields.Boolean(
         related="model_id.is_mail_thread",
     )
-    last_run = fields.Datetime(readonly=True, copy=False)
+    last_run = fields.Datetime(
+        string="Process Records From",
+        copy=False,
+        help="Lower bound of the window the scheduler examines; it advances to "
+        "the current time after every run.\n\n"
+        "Leave empty and the first run reaches back over the entire history — "
+        "every record that already satisfies the condition is processed at "
+        "once, which on an existing database can mean thousands of records. "
+        "Set it to scope that first run.",
+    )
     filter_pre_domain = fields.Char(
         string="Before Update Domain",
         compute="_compute_filter_pre_domain",
@@ -474,9 +511,9 @@ class BaseAutomation(models.Model):
                         "Expected model: %(expected_model)s\n"
                         "Action models: %(action_models)s\n\n"
                         "All actions must target the same model as the automation rule.",
-                        automation=self.name,
+                        automation=automation.name,
                         action_names=", ".join(failing_actions.mapped("name")),
-                        expected_model=self.model_id.name,
+                        expected_model=automation.model_id.name,
                         action_models=", ".join(
                             set(failing_actions.mapped("model_id.name"))
                         ),
@@ -581,6 +618,7 @@ class BaseAutomation(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         base_automations = super().create(vals_list)
+        self.env.registry.clear_cache()  # _get_automation_ids
         self._update_cron()
         self._update_registry()
         if base_automations._has_trigger_onchange():
@@ -591,6 +629,10 @@ class BaseAutomation(models.Model):
     def write(self, vals: dict):
         clear_templates = self._has_trigger_onchange()
         res = super().write(vals)
+        # unconditional: _get_automation_ids caches membership *and* order, so a
+        # bare `sequence` or `active` edit changes its answer just as much as a
+        # CRITICAL_FIELDS one does
+        self.env.registry.clear_cache()
         if set(vals).intersection(self.CRITICAL_FIELDS):
             if "model_id" in vals:
                 self._clean_action_server_ids()
@@ -607,6 +649,7 @@ class BaseAutomation(models.Model):
     def unlink(self):
         clear_templates = self._has_trigger_onchange()
         res = super().unlink()
+        self.env.registry.clear_cache()  # _get_automation_ids
         self._update_cron()
         self._update_registry()
         if clear_templates:
@@ -615,12 +658,40 @@ class BaseAutomation(models.Model):
         return res
 
     def copy(self, default=None):
-        """Copy the actions of the automation while
-        copying the automation itself."""
-        actions = self.action_server_ids.copy()
-        record_copy = super().copy(default)
-        record_copy.action_server_ids = actions
-        return record_copy
+        """Copy each automation together with its own actions and DAG topology.
+
+        ``action_server_ids`` carries ``copy=False``, so the actions have to be
+        duplicated here. They are copied *per automation* and their
+        ``predecessor_ids`` are remapped onto the newly created actions:
+        copying them wholesale would leave the duplicate's graph pointing at
+        the source automation's nodes (and add the duplicate's nodes to the
+        source's ``successor_ids``, since it is the same many2many table).
+        """
+        new_automations = super().copy(default)
+        for old_automation, new_automation in zip(self, new_automations, strict=True):
+            old_automation._copy_actions_to(new_automation)
+        return new_automations
+
+    def _copy_actions_to(self, target):
+        """Duplicate ``self``'s actions onto ``target``, remapping the DAG edges."""
+        self.ensure_one()
+        target.ensure_one()
+        new_by_old = {}
+        for action in self.action_server_ids:
+            new_by_old[action.id] = action.copy({
+                "base_automation_id": target.id,
+                "predecessor_ids": [fields.Command.clear()],
+            })
+        for action in self.action_server_ids:
+            # keep only edges internal to the copied set; a predecessor from
+            # another automation cannot exist (see _check_predecessors_scope)
+            remapped = [
+                new_by_old[pred.id].id
+                for pred in action.predecessor_ids
+                if pred.id in new_by_old
+            ]
+            if remapped:
+                new_by_old[action.id].predecessor_ids = [fields.Command.set(remapped)]
 
     # ------------------------------------------------------------
     # COMPUTE METHODS
@@ -684,7 +755,10 @@ class BaseAutomation(models.Model):
                 continue
             if not record.trg_date_range_type:
                 record.trg_date_range_type = "hour"
-            if not record.trg_date_range_mode or record.trigger not in "on_time":
+            # note: `trigger != "on_time"`, not `not in "on_time"` — the latter is
+            # a substring test that happens to agree for today's three TIME_TRIGGERS
+            # and would silently flip for any future name contained in "on_time"
+            if not record.trg_date_range_mode or record.trigger != "on_time":
                 record.trg_date_range_mode = "after"
 
     @api.depends("trigger", "trg_date_id", "trg_date_range_type")
@@ -1060,7 +1134,21 @@ class BaseAutomation(models.Model):
                 continue
             _logger.info("Starting time-based automation rule `%s`.", automation.name)
             now = self.env.cr.now()
+            first_run = not automation.last_run
             records = automation._search_time_based_automation_records(until=now)
+            if first_run and records:
+                # With no last_run the window opens at the epoch, so this pass
+                # sweeps the whole history in one go. That is the documented
+                # behaviour (a new rule catches the existing backlog), but on a
+                # populated database it can mean thousands of records and any
+                # mail/activity actions that go with them — say so before doing it.
+                _logger.warning(
+                    "Automation rule `%s` has no 'Process Records From' date: its "
+                    "first run covers the entire history and will process %s "
+                    "record(s) now. Set that field to scope the first run.",
+                    automation.name,
+                    len(records),
+                )
             # run the automation on the records
             try:
                 for record in records:
@@ -1092,6 +1180,12 @@ class BaseAutomation(models.Model):
         """
         self.ensure_one()
 
+        # HTTP header names are case-insensitive; the configured header name is
+        # free text, so neither side's spelling can be trusted to match.
+        headers = CaseInsensitiveHeaders(headers)
+
+        # --- cheap, pre-authentication guards -------------------------------
+        # These cost nothing and can safely reject before we know who is calling.
         if self.webhook_ip_allowlist and not self._webhook_ip_allowed(remote_addr):
             return (False, 403, "IP address not allowed")
 
@@ -1101,9 +1195,10 @@ class BaseAutomation(models.Model):
         ):
             return (False, 413, "Payload too large")
 
-        if self.webhook_rate_limit and not self._webhook_rate_ok():
-            return (False, 429, "Rate limit exceeded")
-
+        # --- authentication -------------------------------------------------
+        # Deliberately ahead of the rate limit: the bucket is shared with the
+        # legitimate sender, so spending a token on an unauthenticated request
+        # would let anyone holding only the URL lock that sender out.
         if self.webhook_timestamp_check:
             ts = headers.get(self.webhook_timestamp_header)
             if not ts or not verify_timestamp(
@@ -1131,6 +1226,10 @@ class BaseAutomation(models.Model):
                 env=self.env,
             ):
                 return (False, 401, "Invalid signature")
+
+        # --- abuse control, on authenticated calls only ----------------------
+        if self.webhook_rate_limit and not self._webhook_rate_ok():
+            return (False, 429, "Rate limit exceeded")
 
         return (True, 200, "OK")
 
@@ -1176,6 +1275,22 @@ class BaseAutomation(models.Model):
         identify the record on which the automation should be run.
         """
         self.ensure_one()
+
+        # Every automation carries a webhook_uuid, whatever its trigger, so the
+        # UUID alone must not be enough to run one over HTTP: a rule the admin
+        # never published (its `url` is blank and hidden in the form) would
+        # otherwise be remotely executable. The controller filters on the
+        # trigger too; this is the belt to that pair of braces.
+        if self.trigger != "on_webhook":
+            _logger.warning(
+                "Webhook #%s refused: rule trigger is %r, not 'on_webhook'.",
+                self.id,
+                self.trigger,
+            )
+            raise exceptions.ValidationError(
+                _("This automation rule is not a webhook."),
+            )
+
         ir_logging_sudo = self.env["ir.logging"].sudo()
 
         # info logging is done by the ir.http logger
@@ -1221,8 +1336,12 @@ class BaseAutomation(models.Model):
             )
 
         try:
+            # Carry the payload on the context for BOTH paths, so a code action
+            # can read `payload` however the webhook was invoked — over HTTP or
+            # by a direct _execute_webhook() call. See
+            # ir.actions.server._get_eval_context.
             if record:
-                return self._process(record)
+                return self.with_context(webhook_payload=payload)._process(record)
             return self._run_webhook_recordless(payload)
         except Exception:
             msg = "Webhook #%s failed with error:\n%s"
@@ -1341,9 +1460,36 @@ class BaseAutomation(models.Model):
         # to avoid breaking existing code/downstream modules
         if "__action_done" not in self.env.context:
             self = self.with_context(__action_done={})
-        domain = [("model_name", "=", records._name), ("trigger", "in", triggers)]
-        automations = self.with_context(active_test=True).sudo().search(domain)
-        return automations.with_env(self.env)
+        ids = self._get_automation_ids(records._name, tuple(triggers))
+        return self.browse(ids).with_env(self.env)
+
+    @api.model
+    @tools.ormcache("model_name", "triggers")
+    def _get_automation_ids(self, model_name, triggers):
+        """Return the ids of active rules on ``model_name`` matching ``triggers``.
+
+        This runs on every patched ``create``/``write``/``unlink``/
+        ``message_post``/``_compute_field_value``, i.e. once per ORM call on any
+        model carrying a rule — before we know whether a rule even applies. It
+        was measured as exactly one extra SELECT per call (50 record-at-a-time
+        writes went from 1 query to 51), all returning the same rows, so it is
+        cached.
+
+        Correctness rests on every mutation of the answer going through this
+        model's ``create``/``write``/``unlink``, which clear the cache. The order
+        matters as much as the membership — ``_order`` is ``sequence, id`` and
+        rules execute in that order — so a plain ``sequence`` edit invalidates
+        too, which is why those three methods clear unconditionally rather than
+        only on :attr:`CRITICAL_FIELDS`.
+
+        :param model_name: ``_name`` of the model the event fired on.
+        :param triggers: tuple of trigger strings (tuple, not list: cache key).
+        :return: tuple of ``base.automation`` ids, in execution order.
+        """
+        domain = [("model_name", "=", model_name), ("trigger", "in", list(triggers))]
+        return tuple(
+            self.with_context(active_test=True).sudo().search(domain).ids,
+        )
 
     @api.model
     def _get_calendar(self, automation, record):
@@ -1496,7 +1642,13 @@ class BaseAutomation(models.Model):
         automation_done[self] = records_done + records
 
         if records and "date_automation_last" in records._fields:
-            records.date_automation_last = self.env.cr.now()
+            # Bookkeeping, not a business update: without the flag this write
+            # re-enters the patched write() and fires *other* rules on the same
+            # model (an on_write rule with no field filter has no reason to be
+            # excluded by __action_done, which only guards the rule running now).
+            records.with_context(
+                __automation_bookkeeping=True,
+            ).date_automation_last = self.env.cr.now()
 
         # prepare the contexts for server actions
         contexts = [
@@ -1509,8 +1661,11 @@ class BaseAutomation(models.Model):
             for record in records
         ]
 
-        # execute server actions in sequence order (ascending)
-        for action in self.sudo().action_server_ids.sorted("sequence"):
+        # Execute the actions in an order that satisfies the declared DAG, using
+        # `sequence` both as the tie-break and as the order within a level. Plain
+        # `sorted("sequence")` ignored predecessor_ids entirely, so an action
+        # could run before the action it declares it waits for.
+        for action in self.sudo().action_server_ids._sorted_by_dependency():
             for ctx in contexts:
                 try:
                     action.with_context(**ctx).run()
@@ -1574,6 +1729,10 @@ class BaseAutomation(models.Model):
             """Instanciate a write method that processes automation rules."""
 
             def write(self, vals, **kw):
+                # `_process` stamps date_automation_last as bookkeeping; that is
+                # not a business update and must not trigger anyone's rules
+                if self.env.context.get("__automation_bookkeeping"):
+                    return write.origin(self, vals, **kw)
                 # retrieve the automation rules to possibly execute
                 automations = self.env["base.automation"]._get_actions(
                     self,

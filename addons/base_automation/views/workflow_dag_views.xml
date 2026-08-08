@@ -11,20 +11,6 @@
         <field name="inherit_id" ref="base_automation.view_base_automation_form" />
         <field name="arch" type="xml">
 
-            <!-- Trigger Now button for on_hand automations -->
-            <xpath expr="//form/sheet" position="before">
-                <header>
-                    <button
-                        name="action_manual_trigger"
-                        string="⚡ Trigger Now"
-                        type="object"
-                        class="btn-primary"
-                        invisible="trigger != 'on_hand'"
-                        groups="base.group_user"
-                        help="Manually trigger this automation on selected records" />
-                </header>
-            </xpath>
-
             <!-- Helpful info panel for on_hand trigger -->
             <xpath expr="//div[hasclass('oe_title')]" position="after">
                 <group invisible="trigger != 'on_hand'">
@@ -32,24 +18,26 @@
                         <h5><i class="fa-regular fa-hand" /> Manual Trigger</h5>
                         <p class="mb-1">This automation runs only when manually triggered.</p>
                         <ul class="mb-0">
-                            <li>Click <strong>⚡ Trigger Now</strong> from the record you want to automate</li>
-                            <li>Or add an action menu to your model</li>
-                            <li>Or call <code>action_manual_trigger()</code> programmatically</li>
+                            <li>Select the records on the target model, then run this rule from the
+                                list view's <strong>Actions</strong> menu</li>
+                            <li>Or call <code>action_manual_trigger()</code> with
+                                <code>active_model</code> and <code>active_ids</code> in the context</li>
                         </ul>
                         <p class="mb-0 mt-2">
                             <em>Tip: Add <strong>predecessor dependencies</strong> between actions in the
-                                Actions tab for multi-step DAG execution.</em>
+                                Actions tab for multi-step DAG execution. A manual run records every
+                                step, with its outcome, under Automation Runtimes.</em>
                         </p>
                     </div>
                 </group>
             </xpath>
 
-            <!-- Force list view mode for actions tab to show DAG fields -->
-            <xpath expr="//page[@name='actions']/field[@name='action_server_ids']"
-                position="attributes">
-                <attribute name="mode">list,form</attribute>
-                <attribute name="context">{'list_view_ref': 'base_automation.view_ir_actions_server_tree_workflow'}</attribute>
-            </xpath>
+            <!-- The Actions tab deliberately keeps the base view's kanban mode.
+                 Forcing it to list,form here changed the tab for *every*
+                 automation, DAG or not, just to surface two columns — and it
+                 replaced the widget the rest of the product (and its tours)
+                 drives. Dependencies are edited on the action form itself,
+                 which the kanban opens: see view_ir_actions_server_form_workflow_dag. -->
 
         </field>
     </record>

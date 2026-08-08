@@ -1,5 +1,9 @@
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class AutomationRuntime(models.Model):
@@ -96,6 +100,7 @@ class AutomationRuntime(models.Model):
             ("draft", "Draft"),
             ("in_progress", "In Progress"),
             ("done", "Done"),
+            ("error", "Failed"),
             ("cancel", "Cancelled"),
         ],
         required=True,
@@ -141,19 +146,25 @@ class AutomationRuntime(models.Model):
     def create(self, vals_list):
         """Generate sequence name on creation."""
         for vals in vals_list:
+            # Resolve the sequence through a *local* elevated environment.
+            # Rebinding `self` here leaked the sudo() into every later entry and
+            # into super().create() itself, so one vals carrying company_id was
+            # enough to create the whole batch as superuser — an employee with
+            # read-only access could create records by adding company_id.
+            seq_env = self.sudo()
             if "company_id" in vals:
-                self = self.sudo().with_company(vals["company_id"])
+                seq_env = seq_env.with_company(vals["company_id"])
 
             if vals.get("name", _("New")) == _("New"):
                 seq_date = (
                     fields.Datetime.context_timestamp(
-                        self,
+                        seq_env,
                         fields.Datetime.to_datetime(vals["date"]),
                     )
                     if "date" in vals
                     else None
                 )
-                vals["name"] = self.env["ir.sequence"].next_by_code(
+                vals["name"] = seq_env.env["ir.sequence"].next_by_code(
                     "automation.runtime",
                     sequence_date=seq_date,
                 ) or _("New")
@@ -164,27 +175,40 @@ class AutomationRuntime(models.Model):
     # Computed Fields
     # =========================================================================
 
+    # A step is "settled" once it will not run again, whatever its outcome.
+    # Counting only 'done' left a fully cancelled run reporting 0% forever, and
+    # a failed run stalled at a figure indistinguishable from one still working.
+    SETTLED_LINE_STATES = ("done", "cancel", "error")
+
+    def _settled_line_counts(self):
+        """Return ``{runtime_id: (settled, total)}`` for ``self``."""
+        return {
+            runtime.id: (
+                len(
+                    runtime.line_ids.filtered(
+                        lambda l: l.state in self.SETTLED_LINE_STATES,
+                    ),
+                ),
+                len(runtime.line_ids),
+            )
+            for runtime in self
+        }
+
     @api.depends("line_ids.state")
     def _compute_progress(self):
         """Calculate workflow completion percentage."""
+        counts = self._settled_line_counts()
         for runtime in self:
-            total = len(runtime.line_ids)
-            if total == 0:
-                runtime.progress = 0
-                continue
-            done = len(runtime.line_ids.filtered(lambda l: l.state == "done"))
-            runtime.progress = round((done / total) * 100)
+            settled, total = counts[runtime.id]
+            runtime.progress = round((settled / total) * 100) if total else 0
 
     @api.depends("line_ids.state")
     def _compute_progress_display(self):
         """Calculate human-readable progress display."""
+        counts = self._settled_line_counts()
         for runtime in self:
-            total = len(runtime.line_ids)
-            if total == 0:
-                runtime.progress_display = "0/0 steps"
-                continue
-            done = len(runtime.line_ids.filtered(lambda l: l.state == "done"))
-            runtime.progress_display = f"{done}/{total} steps"
+            settled, total = counts[runtime.id]
+            runtime.progress_display = f"{settled}/{total} steps"
 
     # =========================================================================
     # Workflow Actions
@@ -206,7 +230,12 @@ class AutomationRuntime(models.Model):
         )
 
     def action_run_all(self):
-        """Execute ready workflow steps until the runtime completes or no step is ready.
+        """Execute ready workflow steps until the runtime settles.
+
+        Stops when the runtime leaves ``in_progress`` (completed, failed or
+        cancelled) or when no step is ready. The latter used to end silently in
+        ``in_progress`` — indistinguishable from success to every caller — so a
+        run that can no longer advance is now marked ``error`` explicitly.
 
         :return: the runtime ``state`` after execution stops
         """
@@ -215,6 +244,20 @@ class AutomationRuntime(models.Model):
         while self.state == "in_progress":
             ready_lines = self.line_ids.filtered(lambda l: l.state == "ready")
             if not ready_lines:
+                blocked = self.line_ids.filtered(
+                    lambda l: l.state not in ("done", "cancel", "error"),
+                )
+                if blocked:
+                    _logger.warning(
+                        "Runtime %s cannot advance: %s step(s) never became ready (%s).",
+                        self.name,
+                        len(blocked),
+                        ", ".join(blocked.mapped("name")),
+                    )
+                    blocked.action_mark_error(
+                        _("Step never became ready: its dependencies cannot complete."),
+                    )
+                    self.action_error()
                 break
             for line in ready_lines:
                 line.action_execute()
@@ -225,12 +268,12 @@ class AutomationRuntime(models.Model):
         """Cancel workflow and all pending steps."""
         self.ensure_one()
 
-        if self.state in ["done", "cancel"]:
+        if self.state in ["done", "cancel", "error"]:
             return
 
         self.state = "cancel"
         self.line_ids.filtered(
-            lambda l: l.state not in ["done", "cancel"],
+            lambda l: l.state not in ["done", "cancel", "error"],
         ).action_cancel()
         self.message_post(body=_("Workflow cancelled"), subject=_("Workflow Cancelled"))
 
@@ -245,6 +288,28 @@ class AutomationRuntime(models.Model):
         self.message_post(
             body=_("Workflow completed successfully"),
             subject=_("Workflow Completed"),
+        )
+
+    def action_error(self):
+        """Mark the workflow as failed.
+
+        Called when a step raises, or when no step can become ready. Failure is
+        a terminal outcome recorded on the run, not an exception that unwinds
+        it — see ``automation.runtime.line.action_execute``.
+        """
+        self.ensure_one()
+
+        if self.state != "in_progress":
+            return
+
+        self.state = "error"
+        failed = self.line_ids.filtered(lambda l: l.state == "error")
+        self.message_post(
+            body=_(
+                "Workflow failed at: %(steps)s",
+                steps=", ".join(failed.mapped("name")) or _("unknown step"),
+            ),
+            subject=_("Workflow Failed"),
         )
 
     def action_next_step(self):
@@ -308,17 +373,19 @@ class AutomationRuntime(models.Model):
                 ),
             )
 
-        # Pass 1: create all lines in 'waiting' state
-        line_by_action: dict[int, models.Model] = {}
-        for action in actions:
-            line = self.env["automation.runtime.line"].create({
+        # Pass 1: create all lines in 'waiting' state (one batched create, not
+        # one INSERT per node)
+        lines = self.env["automation.runtime.line"].create([
+            {
                 "runtime_id": self.id,
                 "action_id": action.id,
                 "name": action.name,
                 "sequence": action.sequence,
                 "state": "waiting",
-            })
-            line_by_action[action.id] = line
+            }
+            for action in actions
+        ])
+        line_by_action: dict[int, models.Model] = dict(zip(actions.ids, lines, strict=True))
 
         # Pass 2: wire predecessor relationships using the definition topology
         for action in actions:
@@ -331,10 +398,15 @@ class AutomationRuntime(models.Model):
             if predecessor_line_ids:
                 line.predecessor_ids = [(6, 0, predecessor_line_ids)]
 
-        # Pass 3: mark root actions (no predecessors in this execution) as ready
-        for action in actions:
-            if not action.predecessor_ids:
-                line_by_action[action.id].state = "ready"
+        # Pass 3: mark as ready every line whose *resolved* predecessors are
+        # satisfied — i.e. the lines actually created for this run, not the
+        # definition's edges. Keying off the definition meant an edge dropped by
+        # pass 2 left the node 'waiting' with no predecessor to ever complete it,
+        # wedging the whole run. `_check_predecessors_scope` now prevents the
+        # edge that caused it; this makes the state unreachable either way.
+        for line in line_by_action.values():
+            if line._predecessors_satisfied():
+                line.state = "ready"
 
         return self.env["automation.runtime.line"].browse(
             [line.id for line in line_by_action.values()]

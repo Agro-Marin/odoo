@@ -11,6 +11,41 @@
 | Execution step | `automation.runtime.line` | Correct pattern — isolated per execution |
 | Visual diagram | `flow.diagram` | In `web_flow`, BPMN XML + element_mappings |
 
+## Readiness Is `state`, and Only `state`
+
+`automation.runtime.line` deliberately has **no `is_ready` field**. It existed
+as a stored computed boolean that read `False` for a line already in state
+`ready`, nothing gated on it, and a line could sit `waiting` with `is_ready`
+True forever with nothing reconciling the two — which is exactly how a run with
+an unresolvable dependency wedged silently. Use
+`line._predecessors_satisfied()` when you need to ask whether a step may start.
+
+## A Failed Step Is an Outcome, Not an Exception
+
+`automation.runtime.line.action_execute()` runs the server action inside its own
+savepoint and, on failure, rolls that savepoint back, records `error` plus the
+message on the line, marks the run `error`, and **returns `False` without
+re-raising**. Re-raising unwound the whole transaction and destroyed the
+runtime, its lines and the error message — the execution history was erased by
+precisely the failures it exists to record. Do not "fix" this back into a raise.
+
+## Predecessors Are Scoped to One Automation
+
+`_check_predecessors_scope` rejects a `predecessor_ids` entry belonging to a
+different `base_automation_id`. Such an edge used to be accepted and then
+dropped at runtime, leaving the node `waiting` with nothing that could ever
+complete it. Correspondingly, `_create_action_lines` decides readiness from the
+*resolved* lines, never from the definition's edges.
+
+## Webhook Checks Are Ordered: Authenticate, Then Rate-Limit
+
+`_verify_webhook_request` runs the cheap guards (IP allowlist, payload size),
+then authentication (timestamp, signature), and only then the rate limit. The
+bucket is shared with the legitimate sender, so spending a token on an
+unauthenticated request let anyone holding just the URL lock that sender out.
+Header lookups go through `CaseInsensitiveHeaders` because HTTP header names are
+case-insensitive and the configured name is free text.
+
 ## What NOT to Add to `ir.actions.server`
 
 Do not add fields to `ir.actions.server` that track execution state.
@@ -73,17 +108,17 @@ execution is harmless (just slightly wasteful).
 webhook URLs for that automation. There is no grace period. Use with caution in
 production — notify all external systems before rotating.
 
-## `automation.runtime` Domain Restriction
+## `automation.runtime` Domain Restriction — REMOVED
 
-`automation_id` domain is `[("model_name", "=", "base.automation")]`.
-This is **intentional** — `automation.runtime` currently serves meta-workflows
-only. The domain will be removed in Phase 1. Do not work around it by changing
-the domain until Phase 1 is ready.
+The `automation_id` domain was removed in Phase 1; any automation can have
+runtime instances. This section previously said the restriction was
+"intentional … do not work around it", contradicting `models.md` and the code.
+Nothing to preserve here — do not reintroduce a domain.
 
 ## `_prepare_logging_values` (not `_prepare_loggin_values`)
 
-The correct spelling is `_prepare_logging_values` (fixed in PR #63). If you
-see `_prepare_loggin_values` anywhere, it is a leftover that needs updating.
+The correct spelling is `_prepare_logging_values`. Upstream's misspelling
+(`_prepare_loggin_values`) is not present in this fork.
 
 ## web_flow Integration — Current State
 
@@ -103,6 +138,13 @@ code — it is architectural intent. When building the integration:
 - `test_automation.py`: `@tagged("post_install", "-at_install")` — correct
 - `test_triggers.py`: no `@tagged` — runs at-install, correct for basic model tests
 - `test_workflow_dag.py`: no `@tagged` — runs at-install, correct
+- `test_webhook_security.py`: `@tagged("post_install", "-at_install")` — calls
+  `_verify_webhook_request` directly with plain dicts
+- `test_audit_regressions.py`: `@tagged("post_install", "-at_install")`; its
+  webhook cases are `HttpCase` **on purpose**. The dict-based tests above cannot
+  see a case-sensitive header lookup or a rate limiter placed before
+  authentication — both shipped and both were invisible to them. Any change to
+  the webhook path needs a real request in its test.
 
 Do not add `@tagged("post_install")` to `test_triggers.py` or
 `test_workflow_dag.py` — these tests do not require post-install state.
