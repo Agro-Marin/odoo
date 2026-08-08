@@ -7,17 +7,6 @@ import {
 } from "./websocket_worker_constants.js";
 
 /**
- * @deprecated Import from `./websocket_worker_constants.js` instead: that
- * module exists precisely so page code never has to import this (worker-
- * oriented, side-effectful) module for a constant. Kept only for legacy
- * importers that cannot be edited from the bus module (`web` user-switch tour,
- * `auth_totp` tour, `mail` bus_connection_alert test) and for bus test files
- * (to be migrated). `WORKER_STATE` is itself a deprecated alias of
- * `CONNECTION_STATE`.
- */
-export { WEBSOCKET_CLOSE_CODES, WORKER_STATE } from "./websocket_worker_constants.js";
-
-/**
  * Type of events that can be sent from the worker to its clients.
  *
  * @typedef { 'BUS:CONNECT' | 'BUS:RECONNECT' | 'BUS:DISCONNECT' | 'BUS:RECONNECTING' | 'BUS:NOTIFICATION' | 'BUS:INITIALIZED' | 'BUS:OUTDATED'| 'BUS:WORKER_STATE_UPDATED' | 'BUS:PROVIDE_LOGS' | 'BUS:PING' } WorkerEvent
